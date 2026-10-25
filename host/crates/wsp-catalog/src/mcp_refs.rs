@@ -2,31 +2,58 @@
 //! A config's server values written by name for a copy on another machine, and the guards that refuse a copy still
 //! holding one: the helpers both reference writers (mcp_json_refer, mcp_toml_refer) share, and `servers_by_name`.
 //! Port of packages/catalog/src/mcp.ts:159-456 at a3b870a6e; the spec is spec/mcp_refs.md.
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine as _;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 
+use crate::js_regex::compiled;
+use crate::jsonc_tree::{JsonPath, PathSeg};
 use crate::mcp::{KnownValue, McpFormat, McpReferred, ReferredServer, WholeRef};
-use crate::pending::HostError;
+use crate::mcp_bearer::{bearer_of, mcp_bearer_variable};
+use wsp_words::exit::HostError;
+
+const FLAG_ARG: &str = r"^(-{1,2}[A-Za-z0-9][\w.-]*)=([^]+)$";
+const HEADER_LINE: &str = r"^([A-Za-z0-9-]+):[ \t]*([^/][^]*)$";
+const VALUE_FORM: &str = r"^(?:bearer|basic|token)\s+(.+)$";
+const ADDRESS: &str = r"^[a-z][a-z0-9+.-]*:\/\/[^?#]*\?([^#]*)";
+const BEARER_HEADER: &str = r"^Bearer\s+(\S.*)$";
+const OAUTH_SECRETS: [&str; 4] = ["clientsecret", "refreshtoken", "accesstoken", "idtoken"];
 
 /// `WSP_MCP_<server>_<header>` upper-cased, every character outside A-Z 0-9 _ an underscore (mcp.ts:181).
 pub fn mcp_header_variable(server: &str, header: &str) -> String {
-    todo!()
+    let name = format!("WSP_MCP_{server}_{header}").to_uppercase();
+    let mut out = String::with_capacity(name.len());
+    for c in name.chars() {
+        if c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_' {
+            out.push(c);
+        } else {
+            for _ in 0..c.len_utf16() {
+                out.push('_');
+            }
+        }
+    }
+    out
 }
 
 /// Whether the value holds a `\n` or a `\r` (mcp.ts:184).
 pub fn crosses_lines(value: &str) -> bool {
-    todo!()
+    value.contains(['\n', '\r'])
 }
 
 /// The value whole, then without a leading `bearer`, `basic` or `token` word and its whitespace, any case
 /// (mcp.ts:190).
 pub fn value_forms(value: &str) -> Vec<String> {
-    todo!()
+    let mut out = vec![value.to_string()];
+    if let Some(g) = groups(VALUE_FORM, "i", value) {
+        out.push(group(&g, 1).to_string());
+    }
+    out
 }
 
 /// Why a value typed for a catalog row's own variable does not travel as a server's (mcp.ts:374).
 pub fn row_variable_line(name: &str, row: &str) -> String {
-    todo!()
+    format!("{name} belongs to the {row} key, so set it there or give the variable another name")
 }
 
 /// Names every machine's environment defines (mcp.ts:203).
@@ -46,25 +73,106 @@ pub struct Place {
 /// value; a header line's value; what follows a scheme word; each query value raw, then decoded where decoding changes
 /// it. The empty string has none.
 pub fn places(s: &str, at: &str, start: Option<usize>) -> Vec<Place> {
-    todo!()
+    let mut out = Vec::new();
+    push_places(s, at, start, &mut out);
+    out
+}
+
+fn push_places(s: &str, at: &str, start: Option<usize>, out: &mut Vec<Place>) {
+    if s.is_empty() {
+        return;
+    }
+    out.push(Place { text: s.to_string(), at: at.to_string(), start });
+    let tail = |part: &str| start.map(|st| st + s.len() - part.len());
+    if let Some(g) = groups(FLAG_ARG, "", s) {
+        let part = group(&g, 2);
+        push_places(part, &format!("the {} argument", group(&g, 1)), tail(part), out);
+    }
+    if let Some(g) = groups(HEADER_LINE, "", s) {
+        let part = group(&g, 2);
+        push_places(part, &format!("the {} header", group(&g, 1)), tail(part), out);
+    }
+    for rest in value_forms(s).iter().skip(1) {
+        push_places(rest, at, tail(rest), out);
+    }
+    if let Some(g) = groups(ADDRESS, "i", s) {
+        let query = group(&g, 1);
+        let mut offset = group(&g, 0).len() - query.len();
+        for pair in query.split('&') {
+            let (key, raw) = match pair.find('=') {
+                Some(i) => (&pair[..i], &pair[i + 1..]),
+                None => (pair, ""),
+            };
+            let whose = format!("the {key} parameter of an address");
+            push_places(raw, &whose, start.map(|st| st + offset + key.len() + 1), out);
+            let decoded = query_value(raw);
+            if decoded != raw {
+                push_places(&decoded, &whose, None, out);
+            }
+            offset += pair.len() + 1;
+        }
+    }
 }
 
 /// `decodeURIComponent` of a query value with `+` as a space; the raw text where it is not valid percent-encoding
 /// (mcp.ts:243).
 pub fn query_value(raw: &str) -> String {
-    todo!()
+    decode_uri_component(&raw.replace('+', " ")).unwrap_or_else(|| raw.to_string())
 }
 
 /// Refuses a copy whose definitions still hold a value taken out of them, whole in any place, or as its base64 with
 /// padding, without, or url-safe (mcp.ts:288). The message names the server and where.
 pub fn still_stands(entries: &[Value], servers: &[ReferredServer]) -> Result<(), HostError> {
-    todo!()
+    let mut strings = Vec::new();
+    for entry in entries {
+        strings_in(entry, &mut strings);
+    }
+    let mut held: IndexMap<String, String> = IndexMap::new();
+    for s in &strings {
+        for p in places(s, "the file", None) {
+            held.entry(p.text).or_insert(p.at);
+        }
+    }
+    let where_ = |form: &str| -> Option<String> {
+        let encoded = STANDARD.encode(form.as_bytes());
+        let b = encoded.trim_end_matches('=');
+        let padded = format!("{b}{}", "=".repeat((4 - b.len() % 4) % 4));
+        let url = b.replace('+', "-").replace('/', "_");
+        let found = [padded, b.to_string(), url].iter().find_map(|e| held.get(e).cloned());
+        held.get(form).cloned().or_else(|| found.map(|at| format!("{at}, as base64")))
+    };
+    for s in servers {
+        for v in s.values.values() {
+            if let Some(found) = value_forms(v).iter().find_map(|f| where_(f.as_str())) {
+                return Err(HostError::new(format!(
+                    "{}'s value still stands in {found} after it was written by name, so the file stays on this computer",
+                    s.name
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
-/// Where a known value stands whole as the string's own characters, the outer place winning where two overlap
-/// (mcp.ts:317); `(name, value, at, start, end)`.
+/// Where a known value stands whole in one of the string's places as its own characters, the outer place winning
+/// where two overlap (mcp.ts:317); `(name, value, at, start, end)`.
 pub fn known_in(s: &str, at: &str, known: &[KnownValue]) -> Vec<KnownHit> {
-    todo!()
+    let mut hits: Vec<KnownHit> = places(s, at, Some(0))
+        .into_iter()
+        .filter_map(|p| {
+            let (name, value) = known.iter().find(|(_, v)| v.as_str() == p.text.as_str())?;
+            let start = p.start?;
+            Some(KnownHit { name: name.clone(), value: value.clone(), at: p.at, start, end: start + p.text.len() })
+        })
+        .collect();
+    hits.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
+    let mut apart: Vec<KnownHit> = Vec::new();
+    for h in hits {
+        if h.start >= apart.last().map_or(0, |x| x.end) {
+            apart.push(h);
+        }
+    }
+    apart
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,34 +186,104 @@ pub struct KnownHit {
 
 /// The string with each hit replaced by `reference(name)` (mcp.ts:329).
 pub fn spliced(s: &str, hits: &[KnownHit], reference: &dyn Fn(&str) -> String) -> String {
-    todo!()
+    let mut out = String::new();
+    let mut last = 0;
+    for h in hits {
+        out.push_str(&s[last..h.start]);
+        out.push_str(&reference(&h.name));
+        last = h.end;
+    }
+    out.push_str(&s[last..]);
+    out
 }
 
 /// Known values in one of `server`'s strings, its own names taken first, refused where another server of the file
 /// sets that name to another value (mcp.ts:341).
-pub fn known_hits(s: &str, at: &str, known: &[KnownValue], servers: &[ReferredServer], server: &str, own: &IndexMap<String, String>) -> Result<Vec<KnownHit>, HostError> {
-    todo!()
+pub fn known_hits(
+    s: &str,
+    at: &str,
+    known: &[KnownValue],
+    servers: &[ReferredServer],
+    server: &str,
+    own: &IndexMap<String, String>,
+) -> Result<Vec<KnownHit>, HostError> {
+    let given: Vec<KnownValue> = known.iter().filter(|(_, v)| !v.is_empty()).cloned().collect();
+    let ordered: Vec<KnownValue> =
+        given.iter().filter(|(n, _)| own.contains_key(n)).chain(given.iter().filter(|(n, _)| !own.contains_key(n))).cloned().collect();
+    let hits = known_in(s, at, &ordered);
+    for h in &hits {
+        let other = servers.iter().find(|x| x.values.get(&h.name).is_some_and(|v| *v != h.value));
+        if let Some(other) = other {
+            return Err(HostError::new(format!(
+                "{server} passes the value servers.env holds as {} in {}, which {} sets to another value, so the file stays on this computer",
+                h.name, h.at, other.name
+            )));
+        }
+    }
+    Ok(hits)
 }
 
 /// Refuses a server whose written strings still hold a known non-empty value (mcp.ts:353).
 pub fn known_stands(strings: &[String], known: &[KnownValue], server: &str) -> Result<(), HostError> {
-    todo!()
+    let entries: Vec<Value> = strings.iter().map(|s| Value::String(s.clone())).collect();
+    let values: IndexMap<String, String> = known.iter().filter(|(_, v)| !v.is_empty()).cloned().collect();
+    still_stands(&entries, &[ReferredServer { name: server.to_string(), values, ..Default::default() }])
 }
 
 /// Each argument, command and address of a definition: `args[i]` and `command[i]` of a list, `command` as a string,
 /// `url`, `httpUrl`; with where each stands ("an argument", "the command", "the address"), mcp.ts:359.
-pub fn arg_strings(def: &serde_json::Map<String, Value>) -> Vec<(crate::jsonc_tree::JsonPath, String, String)> {
-    todo!()
+pub fn arg_strings(def: &serde_json::Map<String, Value>) -> Vec<(JsonPath, String, String)> {
+    let mut out = Vec::new();
+    for key in ["args", "command"] {
+        match def.get(key) {
+            Some(Value::Array(list)) => {
+                for (i, v) in list.iter().enumerate() {
+                    if let Value::String(s) = v {
+                        let at = if key == "command" && i == 0 { "the command" } else { "an argument" };
+                        out.push((vec![PathSeg::Key(key.to_string()), PathSeg::Index(i as i64)], s.clone(), at.to_string()));
+                    }
+                }
+            }
+            Some(Value::String(s)) if key == "command" => {
+                out.push((vec![PathSeg::Key(key.to_string())], s.clone(), "the command".to_string()))
+            }
+            _ => {}
+        }
+    }
+    for key in ["url", "httpUrl"] {
+        if let Some(Value::String(s)) = def.get(key) {
+            out.push((vec![PathSeg::Key(key.to_string())], s.clone(), "the address".to_string()));
+        }
+    }
+    out
 }
 
 /// The minted variable of each header, refused where two would travel under one (mcp.ts:377).
-pub fn header_variables(server: &str, headers: &[String], variable: &dyn Fn(&str) -> String) -> Result<IndexMap<String, String>, HostError> {
-    todo!()
+pub fn header_variables(
+    server: &str,
+    headers: &[String],
+    variable: &dyn Fn(&str) -> String,
+) -> Result<IndexMap<String, String>, HostError> {
+    let mut out = IndexMap::new();
+    let mut seen: IndexMap<String, String> = IndexMap::new();
+    for h in headers {
+        let n = variable(h);
+        if let Some(other) = seen.get(&n) {
+            return Err(HostError::new(format!("{server} sends {other} and {h}, which would both travel as {n}; rename one")));
+        }
+        seen.insert(n.clone(), h.clone());
+        out.insert(h.clone(), n);
+    }
+    Ok(out)
 }
 
 /// `Authorization: Bearer <token>` gives the token alone; nothing for any other header (mcp.ts:391).
 pub fn bearer_token(header: &str, value: &str) -> Option<String> {
-    todo!()
+    if !header.eq_ignore_ascii_case("authorization") {
+        return None;
+    }
+    let g = groups(BEARER_HEADER, "i", value)?;
+    g.get(1).copied().flatten().map(str::to_string)
 }
 
 /// Each Codex header: the variable env_http_headers reads it by, the one the vault keeps it under, and that value
@@ -119,38 +297,53 @@ pub struct CodexHeader {
 }
 
 pub fn codex_headers(server: &str, headers: &IndexMap<String, String>) -> Result<Vec<CodexHeader>, HostError> {
-    todo!()
+    let names: Vec<String> = headers.keys().cloned().collect();
+    let reads = header_variables(server, &names, &|h: &str| match headers.get(h).and_then(|v| bearer_token(h, v)) {
+        None => mcp_header_variable(server, h),
+        Some(_) => mcp_bearer_variable(&mcp_header_variable(server, h)),
+    })?;
+    Ok(headers
+        .iter()
+        .zip(reads.values())
+        .map(|((header, value), reads)| CodexHeader {
+            header: header.clone(),
+            reads: reads.clone(),
+            keeps: mcp_header_variable(server, header),
+            value: bearer_token(header, value).unwrap_or_else(|| value.clone()),
+        })
+        .collect())
 }
 
 /// The keys of an `oauth` table that hold a secret, spelled any way (mcp.ts:222).
 pub fn oauth_secret_keys(oauth: &serde_json::Map<String, Value>) -> Vec<String> {
-    todo!()
+    oauth.keys().filter(|k| OAUTH_SECRETS.contains(&squashed(k).as_str())).cloned().collect()
 }
 
 /// Where a definition still holds an OAuth secret, as dotted paths (mcp.ts:226).
 pub fn oauth_secrets_in(v: &Value, reference: &dyn Fn(&str) -> bool) -> Vec<String> {
-    todo!()
+    oauth_secrets_at(v, reference, &[])
 }
 
 /// Whether a reference may read `name`: held outside, written by this file, its bearer's token held either way, or
 /// every machine defines it outside an address (mcp.ts:207).
 pub fn readable(outside: &IndexSet<String>, writes: &IndexSet<String>, name: &str, in_address: bool) -> bool {
-    todo!()
+    let held = |n: &str| outside.contains(n) || writes.contains(n);
+    held(name) || bearer_of(name).is_some_and(|token| held(&token)) || (!in_address && EVERY_MACHINE.contains(&name))
 }
 
 /// One whole reference with no default to a readable name (mcp.ts:197).
 pub fn refers(v: &str, named: &dyn Fn(&str) -> Option<WholeRef>, held: &dyn Fn(&str) -> bool) -> bool {
-    todo!()
+    named(v).is_some_and(|r| r.fallback.is_none() && held(&r.name))
 }
 
 /// Why a server reading a variable nobody holds travels nowhere (mcp.ts:214).
-pub fn unread_line(path: &crate::jsonc_tree::JsonPath) -> String {
-    todo!()
+pub fn unread_line(path: &JsonPath) -> String {
+    format!("reads a variable servers.env does not hold in {}, so it could not start there", path_text(path))
 }
 
 /// The refusal for a definition no reader maps (mcp.ts:217).
-pub fn shape_refusal(path: &crate::jsonc_tree::JsonPath) -> HostError {
-    todo!()
+pub fn shape_refusal(path: &JsonPath) -> HostError {
+    HostError::new(format!("{} is written in a shape wsp does not read, so its values cannot be written by name", path_text(path)))
 }
 
 /// A value servers.env holds and the server it was recorded for.
@@ -181,8 +374,15 @@ pub struct ByName {
 
 /// A file's servers written by name for a copy (mcp.ts:414). `held` takes every value this file kept, on success
 /// only; a server that clashes, crosses lines, sets a row's variable or reads what nobody holds is dropped with why.
-pub fn servers_by_name(format: McpFormat, text: &str, held: &mut IndexMap<String, HeldValue>, row_of: &dyn Fn(&str) -> Option<String>, known: &IndexMap<String, KnownEntry>) -> Result<ByName, HostError> {
-    todo!()
+pub fn servers_by_name(
+    format: McpFormat,
+    text: &str,
+    held: &mut IndexMap<String, HeldValue>,
+    row_of: &dyn Fn(&str) -> Option<String>,
+    known: &IndexMap<String, KnownEntry>,
+) -> Result<ByName, HostError> {
+    let refer = |t: &str, only: Option<&str>, k: &[KnownValue], h: &IndexSet<String>| format.refer(t, only, k, h);
+    servers_by_name_with(format, &refer, text, held, row_of, known)
 }
 
 /// A reference writer as `servers_by_name` calls it: `(text, only, known, held)`.
@@ -191,6 +391,202 @@ pub type Refer<'a> = &'a dyn Fn(&str, Option<&str>, &[KnownValue], &IndexSet<Str
 /// `servers_by_name` with the format's `refer` replaced, every other method the format's own: the TS tests' stand-in
 /// format `{ ...FORMAT, refer }` (mcp-refer.test.ts:277, 405, 647, 688). `servers_by_name` is this with
 /// `format.refer`.
-pub fn servers_by_name_with(format: McpFormat, refer: Refer<'_>, text: &str, held: &mut IndexMap<String, HeldValue>, row_of: &dyn Fn(&str) -> Option<String>, known: &IndexMap<String, KnownEntry>) -> Result<ByName, HostError> {
-    todo!()
+pub fn servers_by_name_with(
+    format: McpFormat,
+    refer: Refer<'_>,
+    text: &str,
+    held: &mut IndexMap<String, HeldValue>,
+    row_of: &dyn Fn(&str) -> Option<String>,
+    known: &IndexMap<String, KnownEntry>,
+) -> Result<ByName, HostError> {
+    let known_values: Vec<KnownValue> = known.iter().map(|(name, entry)| (name.clone(), entry.value.clone())).collect();
+    let outside: IndexSet<String> = known.keys().chain(held.keys()).cloned().collect();
+    let found = refer(text, None, &known_values, &outside)?.servers;
+    let mut dropped: Vec<(Dropped, Option<String>)> = Vec::new();
+    let mut kept: IndexMap<String, (String, String)> = IndexMap::new();
+    for s in &found {
+        let owned = s.values.keys().find_map(|name| row_of(name).map(|row| (name.clone(), row)));
+        let clash = s.values.iter().find(|(name, value)| match recorded(held, &kept, name) {
+            Some((at_value, _)) => at_value != value.as_str(),
+            None => known
+                .get(name.as_str())
+                .is_some_and(|vault| vault.value != value.as_str() && !(vault.by.len() == 1 && vault.by[0] == s.name)),
+        });
+        let tall = s.values.iter().find(|(_, value)| crosses_lines(value));
+        let project = s.project.clone();
+        if let Some(reason) = &s.unread {
+            dropped.push((Dropped { name: s.name.clone(), reason: reason.clone() }, project));
+        } else if let Some((name, row)) = owned {
+            dropped.push((Dropped { name: s.name.clone(), reason: row_variable_line(&name, &row) }, project));
+        } else if let Some((name, _)) = clash {
+            let by: Vec<String> = match recorded(held, &kept, name) {
+                Some((_, by)) => vec![by.to_string()],
+                None => {
+                    known.get(name.as_str()).map(|vault| vault.by.iter().filter(|b| **b != s.name).cloned().collect()).unwrap_or_default()
+                }
+            };
+            dropped.push((Dropped { name: s.name.clone(), reason: clash_line(name, &by) }, project));
+        } else if let Some((name, _)) = tall {
+            let reason = format!("sets {name} to a value on more than one line, which cannot travel by name");
+            dropped.push((Dropped { name: s.name.clone(), reason }, project));
+        } else {
+            for (name, value) in &s.values {
+                if !held.contains_key(name) && !kept.contains_key(name) {
+                    kept.insert(name.clone(), (value.clone(), s.name.clone()));
+                }
+            }
+        }
+    }
+    let mut out = text.to_string();
+    for (d, project) in &dropped {
+        out = format.remove(&out, std::slice::from_ref(&d.name), project.as_deref())?;
+    }
+    if found.is_empty() {
+        return Ok(ByName { text: text.to_string(), dropped: Vec::new() });
+    }
+    let mut current = refer(&out, None, &known_values, &outside)?;
+    loop {
+        let lost: Vec<(String, String, Option<String>)> =
+            current.servers.iter().filter_map(|s| s.unread.clone().map(|reason| (s.name.clone(), reason, s.project.clone()))).collect();
+        if lost.is_empty() {
+            break;
+        }
+        for (name, reason, project) in lost {
+            dropped.push((Dropped { name: name.clone(), reason }, project.clone()));
+            out = format.remove(&out, std::slice::from_ref(&name), project.as_deref())?;
+            kept.retain(|_, (_, by)| by.as_str() != name.as_str());
+        }
+        current = refer(&out, None, &known_values, &outside)?;
+    }
+    still_stands(&current.entries, &found)?;
+    let written = |n: &str| outside.contains(n) || current.servers.iter().any(|s| s.values.contains_key(n));
+    let secret = oauth_secrets_in(&Value::Array(current.entries.clone()), &|v: &str| refers(v, &|x: &str| format.named(x), &written))
+        .into_iter()
+        .next()
+        .map(|path| path.split_once('.').map_or_else(|| path.clone(), |(_, rest)| rest.to_string()));
+    if let Some(secret) = secret {
+        return Err(HostError::new(format!(
+            "a server still carries an OAuth secret in {secret} after it was written by name, so the file stays on this computer"
+        )));
+    }
+    for (name, (value, by)) in kept {
+        held.insert(name, HeldValue { value, by });
+    }
+    Ok(ByName { text: current.text, dropped: dropped.into_iter().map(|(d, _)| d).collect() })
+}
+
+/// Why a server is left out of a copy for setting a name `by` already set to another value; servers.env's own where
+/// it recorded no server for the name.
+fn clash_line(name: &str, by: &[String]) -> String {
+    if by.is_empty() {
+        return format!("sets {name}, which servers.env already holds with another value and no server recorded for it");
+    }
+    let verb = if by.len() > 1 { "set" } else { "sets" };
+    format!("sets {name}, which {} already {verb} to another value", by.join(" and "))
+}
+
+/// The value and the server a name was recorded for, in the file's holdings first and the copy's kept ones after.
+fn recorded<'a>(
+    held: &'a IndexMap<String, HeldValue>,
+    kept: &'a IndexMap<String, (String, String)>,
+    name: &str,
+) -> Option<(&'a str, &'a str)> {
+    match held.get(name) {
+        Some(h) => Some((h.value.as_str(), h.by.as_str())),
+        None => kept.get(name).map(|(value, by)| (value.as_str(), by.as_str())),
+    }
+}
+
+/// The capture groups of a JavaScript pattern against `s`, group 0 first; nothing where it does not match.
+fn groups<'a>(source: &'static str, flags: &'static str, s: &'a str) -> Option<Vec<Option<&'a str>>> {
+    let re = compiled(source, flags)?;
+    let caps = re.captures(s).ok()??;
+    Some((0..caps.len()).map(|i| caps.get(i).map(|m| m.as_str())).collect())
+}
+
+/// A capture group's text, nothing for a group that did not take part.
+fn group<'a>(groups: &[Option<&'a str>], i: usize) -> &'a str {
+    groups.get(i).copied().flatten().unwrap_or("")
+}
+
+/// `decodeURIComponent`: each `%XX` a byte, the bytes read as UTF-8; nothing where a percent sign is not followed by
+/// two hex digits or the bytes are not UTF-8.
+fn decode_uri_component(s: &str) -> Option<String> {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            let digits = bytes.get(i + 1..i + 3)?;
+            if !digits.iter().all(u8::is_ascii_hexdigit) {
+                return None;
+            }
+            out.push(u8::from_str_radix(std::str::from_utf8(digits).ok()?, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+fn strings_in(v: &Value, out: &mut Vec<String>) {
+    match v {
+        Value::String(s) => out.push(s.clone()),
+        Value::Array(items) => items.iter().for_each(|x| strings_in(x, out)),
+        Value::Object(map) => map.values().for_each(|x| strings_in(x, out)),
+        _ => {}
+    }
+}
+
+fn squashed(key: &str) -> String {
+    key.to_lowercase().chars().filter(|c| *c != '-' && *c != '_').collect()
+}
+
+fn path_text(path: &JsonPath) -> String {
+    path.iter()
+        .map(|seg| match seg {
+            PathSeg::Key(key) => key.clone(),
+            PathSeg::Index(i) => i.to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
+fn oauth_secrets_at(v: &Value, reference: &dyn Fn(&str) -> bool, at: &[String]) -> Vec<String> {
+    match v {
+        Value::Array(items) => {
+            items.iter().enumerate().flat_map(|(i, x)| oauth_secrets_at(x, reference, &extended(at, &i.to_string()))).collect()
+        }
+        Value::Object(map) => map
+            .iter()
+            .flat_map(|(k, x)| {
+                let here = extended(at, k);
+                let mut found = if squashed(k) == "oauth" { held_in(x, reference, &here) } else { Vec::new() };
+                found.extend(oauth_secrets_at(x, reference, &here));
+                found
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The secrets an `oauth` value holds, written as a table or as a list of tables.
+fn held_in(x: &Value, reference: &dyn Fn(&str) -> bool, at: &[String]) -> Vec<String> {
+    match x {
+        Value::Array(items) => items.iter().enumerate().flat_map(|(i, y)| held_in(y, reference, &extended(at, &i.to_string()))).collect(),
+        Value::Object(map) => oauth_secret_keys(map)
+            .into_iter()
+            .filter(|s| !matches!(map.get(s), Some(Value::String(v)) if v.is_empty() || reference(v)))
+            .map(|s| extended(at, &s).join("."))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn extended(at: &[String], key: &str) -> Vec<String> {
+    let mut out = at.to_vec();
+    out.push(key.to_string());
+    out
 }

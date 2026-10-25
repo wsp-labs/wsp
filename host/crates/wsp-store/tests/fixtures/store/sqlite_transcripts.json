@@ -1,0 +1,464 @@
+{
+ "raw": [
+  {
+   "workspace": "w",
+   "pos": 1,
+   "thread": "a",
+   "type": "session.delta",
+   "size": 111,
+   "json": "{\"type\":\"session.delta\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"threadId\":\"a\",\"pos\":1,\"kind\":\"text\",\"text\":\"line 1\"}"
+  },
+  {
+   "workspace": "w",
+   "pos": 2,
+   "thread": "b",
+   "type": "session.delta",
+   "size": 109,
+   "json": "{\"type\":\"session.delta\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"threadId\":\"b\",\"pos\":2,\"kind\":\"text\",\"text\":\"😀 é\"}"
+  },
+  {
+   "workspace": "w",
+   "pos": 3,
+   "thread": "",
+   "type": "session.delta",
+   "size": 99,
+   "json": "{\"type\":\"session.delta\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"pos\":3,\"kind\":\"text\",\"text\":\"no thread\"}"
+  },
+  {
+   "workspace": "w",
+   "pos": 4,
+   "thread": "",
+   "type": "session.delta",
+   "size": 116,
+   "json": "{\"type\":\"session.delta\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"threadId\":\"\",\"pos\":4,\"kind\":\"text\",\"text\":\"empty thread\"}"
+  },
+  {
+   "workspace": "w",
+   "pos": 5,
+   "thread": "a",
+   "type": "session.start",
+   "size": 95,
+   "json": "{\"type\":\"session.start\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"threadId\":\"a\",\"pos\":5,\"prompt\":\"go\"}"
+  },
+  {
+   "workspace": "w",
+   "pos": 6,
+   "thread": "a",
+   "type": "session.steer",
+   "size": 97,
+   "json": "{\"type\":\"session.steer\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"threadId\":\"a\",\"pos\":6,\"prompt\":\"more\"}"
+  },
+  {
+   "workspace": "w",
+   "pos": 7,
+   "thread": "a",
+   "type": "session.delta",
+   "size": 117,
+   "json": "{\"type\":\"session.delta\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"threadId\":\"a\",\"pos\":7,\"kind\":\"thinking\",\"text\":\"thinking\"}"
+  },
+  {
+   "workspace": "w",
+   "pos": 8,
+   "thread": "a",
+   "type": "session.earlier",
+   "size": 114,
+   "json": "{\"type\":\"session.earlier\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"threadId\":\"a\",\"pos\":8,\"who\":\"person\",\"text\":\"before\"}"
+  },
+  {
+   "workspace": "w",
+   "pos": 9,
+   "thread": "a",
+   "type": "session.delta",
+   "size": 118,
+   "json": "{\"type\":\"session.delta\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"threadId\":\"a\",\"pos\":9,\"kind\":\"tool_result\",\"text\":\"result\"}"
+  },
+  {
+   "workspace": "w",
+   "pos": 10,
+   "thread": "a",
+   "type": "session.end",
+   "size": 110,
+   "json": "{\"type\":\"session.end\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"threadId\":\"a\",\"pos\":10,\"exitCode\":0,\"sawResult\":true}"
+  }
+ ],
+ "all": {
+  "events": [
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 1,
+    "kind": "text",
+    "text": "line 1"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "b",
+    "pos": 2,
+    "kind": "text",
+    "text": "😀 é"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "pos": 3,
+    "kind": "text",
+    "text": "no thread"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "",
+    "pos": 4,
+    "kind": "text",
+    "text": "empty thread"
+   },
+   {
+    "type": "session.start",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 5,
+    "prompt": "go"
+   },
+   {
+    "type": "session.steer",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 6,
+    "prompt": "more"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 7,
+    "kind": "thinking",
+    "text": "thinking"
+   },
+   {
+    "type": "session.earlier",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 8,
+    "who": "person",
+    "text": "before"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 9,
+    "kind": "tool_result",
+    "text": "result"
+   },
+   {
+    "type": "session.end",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 10,
+    "exitCode": 0,
+    "sawResult": true
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 20,
+    "kind": "text",
+    "text": "inner"
+   }
+  ],
+  "size": 1197
+ },
+ "thread": {
+  "events": [
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 1,
+    "kind": "text",
+    "text": "line 1"
+   },
+   {
+    "type": "session.start",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 5,
+    "prompt": "go"
+   },
+   {
+    "type": "session.steer",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 6,
+    "prompt": "more"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 7,
+    "kind": "thinking",
+    "text": "thinking"
+   },
+   {
+    "type": "session.earlier",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 8,
+    "who": "person",
+    "text": "before"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 9,
+    "kind": "tool_result",
+    "text": "result"
+   },
+   {
+    "type": "session.end",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 10,
+    "exitCode": 0,
+    "sawResult": true
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "a",
+    "pos": 20,
+    "kind": "text",
+    "text": "inner"
+   }
+  ],
+  "size": 873
+ },
+ "threadEmpty": {
+  "events": [
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "pos": 3,
+    "kind": "text",
+    "text": "no thread"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w",
+    "sessionId": "s",
+    "threadId": "",
+    "pos": 4,
+    "kind": "text",
+    "text": "empty thread"
+   }
+  ],
+  "size": 215
+ },
+ "wordEvents": [
+  1,
+  5,
+  6,
+  8,
+  20
+ ],
+ "newest": [
+  20,
+  10,
+  9,
+  8,
+  7,
+  6,
+  5,
+  1
+ ],
+ "newestBelow7": [
+  6,
+  5,
+  1
+ ],
+ "newestBelow0": [],
+ "count": {
+  "a": 8,
+  "empty": 2,
+  "none": 0
+ },
+ "total": {
+  "all": {
+   "count": 11,
+   "size": 1197
+  },
+  "a": {
+   "count": 8,
+   "size": 873
+  },
+  "empty": {
+   "count": 2,
+   "size": 215
+  },
+  "unknownWs": {
+   "count": 0,
+   "size": 0
+  }
+ },
+ "newestPos": {
+  "w": 20,
+  "unknownWs": 0
+ },
+ "sizes": [
+  {
+   "pos": 1,
+   "threadId": "a",
+   "type": "session.delta",
+   "size": 111
+  },
+  {
+   "pos": 2,
+   "threadId": "b",
+   "type": "session.delta",
+   "size": 109
+  },
+  {
+   "pos": 3,
+   "type": "session.delta",
+   "size": 99
+  },
+  {
+   "pos": 4,
+   "type": "session.delta",
+   "size": 116
+  },
+  {
+   "pos": 5,
+   "threadId": "a",
+   "type": "session.start",
+   "size": 95
+  },
+  {
+   "pos": 6,
+   "threadId": "a",
+   "type": "session.steer",
+   "size": 97
+  },
+  {
+   "pos": 7,
+   "threadId": "a",
+   "type": "session.delta",
+   "size": 117
+  },
+  {
+   "pos": 8,
+   "threadId": "a",
+   "type": "session.earlier",
+   "size": 114
+  },
+  {
+   "pos": 9,
+   "threadId": "a",
+   "type": "session.delta",
+   "size": 118
+  },
+  {
+   "pos": 10,
+   "threadId": "a",
+   "type": "session.end",
+   "size": 110
+  },
+  {
+   "pos": 20,
+   "threadId": "a",
+   "type": "session.delta",
+   "size": 111
+  }
+ ],
+ "sizesEmpty": [
+  {
+   "pos": 3,
+   "type": "session.delta",
+   "size": 99
+  },
+  {
+   "pos": 4,
+   "type": "session.delta",
+   "size": 116
+  }
+ ],
+ "at": [
+  4,
+  4,
+  1
+ ],
+ "noPos": {
+  "err": "Provided value cannot be bound to SQLite parameter 2."
+ },
+ "afterNoPos": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  20
+ ],
+ "twice": {
+  "err": "UNIQUE constraint failed: events.workspace, events.pos"
+ },
+ "afterTwice": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  20
+ ],
+ "nested": {
+  "caught": "inner stop",
+  "index": "outer",
+  "pos": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   20
+  ]
+ }
+}

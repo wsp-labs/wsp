@@ -9,7 +9,7 @@ use wsp_catalog::mcp::{
     MergeOutcome, CODEX_TOML, GEMINI_SETTINGS_JSON, MCP_SERVERS_JSON, OPENCODE_JSON,
 };
 use wsp_catalog::mcp_travelled::FromTo;
-use wsp_catalog::pending::HostError;
+use wsp_words::exit::HostError;
 
 const HOME: &str = "/Users/dev";
 
@@ -114,7 +114,11 @@ fn merge_scope(keep: &[&str], drop: &[&str], replace: &[&str], project: Option<(
 }
 
 fn edit_scope(keep: &[&str], drop: &[&str], project: Option<(&str, &str)>) -> McpEditScope {
-    McpEditScope { keep: strs(keep), drop: strs(drop), project: project.map(|(from, to)| FromTo { from: from.to_string(), to: to.to_string() }) }
+    McpEditScope {
+        keep: strs(keep),
+        drop: strs(drop),
+        project: project.map(|(from, to)| FromTo { from: from.to_string(), to: to.to_string() }),
+    }
 }
 
 fn with_env() -> McpTransport {
@@ -368,10 +372,8 @@ mod read {
         assert_eq!(refs(&claude), vec![("u".to_string(), strs(&["MCP_HOST"])), ("h".to_string(), strs(&["ORG"]))]);
         let gemini = GEMINI_SETTINGS_JSON.read(&json!({ "mcpServers": servers }).to_string(), HOME);
         assert_eq!(refs(&gemini), vec![("u".to_string(), strs(&["MCP_HOST"])), ("h".to_string(), strs(&["TOK", "ORG"]))]);
-        let plain = GEMINI_SETTINGS_JSON.read(
-            &json!({ "mcpServers": { "p": { "url": "https://p.example/mcp", "headers": { "X": "costs $5" } } } }).to_string(),
-            HOME,
-        );
+        let plain = GEMINI_SETTINGS_JSON
+            .read(&json!({ "mcpServers": { "p": { "url": "https://p.example/mcp", "headers": { "X": "costs $5" } } } }).to_string(), HOME);
         assert_eq!(plain[0].env_refs, Vec::<String>::new());
     }
 
@@ -423,7 +425,11 @@ mod read {
                     scope: McpServerScope::User,
                     transport: http("https://mcp.sentry.dev/mcp?x=1", &[]),
                     env_refs: strs(&["SENTRY_TOKEN", "SENTRY_ORG"]),
-                    reads: Some(McpReads { env: vec![], headers: map(&[("X-Org", "SENTRY_ORG")]), bearer: Some("SENTRY_TOKEN".to_string()) }),
+                    reads: Some(McpReads {
+                        env: vec![],
+                        headers: map(&[("X-Org", "SENTRY_ORG")]),
+                        bearer: Some("SENTRY_TOKEN".to_string())
+                    }),
                     disabled: None,
                 },
                 user("my server", stdio_env("node", &["/Applications/Tool.app/Contents/mcp.js"], &[("A_KEY", "1234")]), &[]),
@@ -469,12 +475,8 @@ mod place_group {
 
     #[test]
     fn opencodes_json_the_server_is_a_local_mcp_entry_whose_command_is_one_array_enable() {
-        let placed = json(&place(
-            OPENCODE_JSON,
-            Some(r#"{ "$schema": "https://opencode.ai/config.json", "theme": "x" }"#),
-            "wsp",
-            &server(),
-        ));
+        let placed =
+            json(&place(OPENCODE_JSON, Some(r#"{ "$schema": "https://opencode.ai/config.json", "theme": "x" }"#), "wsp", &server()));
         assert_eq!(
             placed,
             json!({
@@ -529,25 +531,14 @@ mod place_group {
                 },
             })
         );
-        let url = place(
-            OPENCODE_JSON,
-            Some(r#"{ "mcp": { "ctx": { "type": "remote", "url": "https://ctx.example/*/mcp" } }, }"#),
-            "wsp",
-            &s,
-        );
+        let url =
+            place(OPENCODE_JSON, Some(r#"{ "mcp": { "ctx": { "type": "remote", "url": "https://ctx.example/*/mcp" } }, }"#), "wsp", &s);
         assert_eq!(parse_jsonc(&url).unwrap()["mcp"]["ctx"]["url"], "https://ctx.example/*/mcp");
     }
 
     #[test]
     fn an_add_goes_on_a_line_of_its_own_after_the_last_server_so_the_comment_at_the_end() {
-        let text = lines(&[
-            "{",
-            r#"  "mcpServers": { // header"#,
-            r#"    "a": { "command": "x" } // note on a"#,
-            "  }",
-            "}",
-            "",
-        ]);
+        let text = lines(&["{", r#"  "mcpServers": { // header"#, r#"    "a": { "command": "x" } // note on a"#, "  }", "}", ""]);
         let placed = place(MCP_SERVERS_JSON, Some(&text), "w", &stdio("n", &[]));
         assert_eq!(
             placed,
@@ -597,7 +588,8 @@ mod place_group {
         let existing = "model = \"gpt-5\"\n\n[projects.\"/Users/me/proj\"]\ntrust_level = \"trusted\"\n";
         let appended = place(CODEX_TOML, Some(existing), "wsp", &server());
         assert_eq!(appended, format!("{existing}\n{table}"));
-        let rerun = place(CODEX_TOML, Some(&format!("{appended}\n[mcp_servers.other]\ncommand = \"x\"\n")), "wsp", &stdio("/new/node", &["a"]));
+        let rerun =
+            place(CODEX_TOML, Some(&format!("{appended}\n[mcp_servers.other]\ncommand = \"x\"\n")), "wsp", &stdio("/new/node", &["a"]));
         assert_eq!(
             rerun,
             format!("{existing}\n[mcp_servers.wsp]\ncommand = \"/new/node\"\nargs = [\"a\"]\n\n[mcp_servers.other]\ncommand = \"x\"\n")
@@ -650,7 +642,8 @@ mod place_every_transport_a_person_adds {
 
     #[test]
     fn each_format_reads_back_what_it_placed_a_command_with_its_arguments_and_variables() {
-        let formats = [("Claude Code", MCP_SERVERS_JSON), ("Gemini CLI", GEMINI_SETTINGS_JSON), ("OpenCode", OPENCODE_JSON), ("Codex", CODEX_TOML)];
+        let formats =
+            [("Claude Code", MCP_SERVERS_JSON), ("Gemini CLI", GEMINI_SETTINGS_JSON), ("OpenCode", OPENCODE_JSON), ("Codex", CODEX_TOML)];
         for (agent, format) in formats {
             for t in [with_env(), remote(), bare_remote(), server()] {
                 let placed = place(format, None, "acme", &t);
@@ -740,16 +733,14 @@ mod enable_group {
     #[test]
     fn codex_turns_a_server_off_with_an_enabled_line_in_its_own_table_and_on_by_taking() {
         let own = codex_own();
-        let text = format!("{own}\n[mcp_servers.a]\ncommand = \"x\"\n\n[mcp_servers.a.env]\nK = \"v\"\n\n[mcp_servers.b]\ncommand = \"y\"\n");
+        let text =
+            format!("{own}\n[mcp_servers.a]\ncommand = \"x\"\n\n[mcp_servers.a.env]\nK = \"v\"\n\n[mcp_servers.b]\ncommand = \"y\"\n");
         let off = enable(CODEX_TOML, &text, "a", false);
         assert_eq!(
             off,
             format!("{own}\n[mcp_servers.a]\nenabled = false\ncommand = \"x\"\n\n[mcp_servers.a.env]\nK = \"v\"\n\n[mcp_servers.b]\ncommand = \"y\"\n")
         );
-        assert_eq!(
-            flags(&CODEX_TOML.read(&off, HOME)),
-            [("mine".to_string(), false), ("a".to_string(), true), ("b".to_string(), false)]
-        );
+        assert_eq!(flags(&CODEX_TOML.read(&off, HOME)), [("mine".to_string(), false), ("a".to_string(), true), ("b".to_string(), false)]);
         assert_eq!(enable(CODEX_TOML, &off, "a", true), text);
         let written = text.replacen("[mcp_servers.a]\ncommand = \"x\"", "[mcp_servers.a]\ncommand = \"x\"\nenabled = true # mine", 1);
         assert_eq!(enable(CODEX_TOML, &written, "a", false), written.replacen("enabled = true # mine", "enabled = false", 1));
@@ -785,22 +776,13 @@ mod enable_group {
 
     #[test]
     fn opencode_and_gemini_cli_flip_a_switch_in_place_so_a_jsonc_file_keeps_its_comment() {
-        let opencode = lines(&[
-            "{",
-            "  // mine",
-            r#"  "mcp": { "a": { "type": "local", "command": ["x"], "enabled": true } }"#,
-            "}",
-            "",
-        ]);
+        let opencode = lines(&["{", "  // mine", r#"  "mcp": { "a": { "type": "local", "command": ["x"], "enabled": true } }"#, "}", ""]);
         let off = enable(OPENCODE_JSON, &opencode, "a", false);
         assert_eq!(off, opencode.replacen(r#""enabled": true"#, r#""enabled": false"#, 1));
         let gemini = lines(&["{", "  // mine", r#"  "mcpServers": { "a": { "command": "x" } }"#, "}", ""]);
         let excluded = enable(GEMINI_SETTINGS_JSON, &gemini, "a", false);
         assert!(excluded.contains("// mine\n"));
-        assert_eq!(
-            parse_jsonc(&excluded).unwrap(),
-            json!({ "mcpServers": { "a": { "command": "x" } }, "mcp": { "excluded": ["a"] } })
-        );
+        assert_eq!(parse_jsonc(&excluded).unwrap(), json!({ "mcpServers": { "a": { "command": "x" } }, "mcp": { "excluded": ["a"] } }));
         assert_eq!(
             parse_jsonc(&enable(GEMINI_SETTINGS_JSON, &excluded, "a", true)).unwrap(),
             json!({ "mcpServers": { "a": { "command": "x" } }, "mcp": { "excluded": [] } })
@@ -896,7 +878,10 @@ mod merge {
 
     #[test]
     fn mcpservers_json_wsps_own_entry_is_written_over_when_this_computers_copy_changed() {
-        let landed = MCP_SERVERS_JSON.merge(&lib, &merge_scope(&["gsc"], &[], &[], None), Some(&claude_own()), &claude_travelled(&["--stdio"])).unwrap().text;
+        let landed = MCP_SERVERS_JSON
+            .merge(&lib, &merge_scope(&["gsc"], &[], &[], None), Some(&claude_own()), &claude_travelled(&["--stdio"]))
+            .unwrap()
+            .text;
         let changed = MCP_SERVERS_JSON
             .merge(&lib, &merge_scope(&["gsc"], &[], &["gsc"], None), Some(&landed), &claude_travelled(&["--stdio", "--verbose"]))
             .unwrap();
@@ -916,7 +901,10 @@ mod merge {
 
     #[test]
     fn mcpservers_json_a_keys_shape_is_read_whatever_order_the_agent_wrote_it_back_in_a() {
-        let landed = MCP_SERVERS_JSON.merge(&lib, &merge_scope(&["gsc"], &[], &[], None), Some(&claude_own()), &claude_travelled(&["--stdio"])).unwrap().text;
+        let landed = MCP_SERVERS_JSON
+            .merge(&lib, &merge_scope(&["gsc"], &[], &[], None), Some(&claude_own()), &claude_travelled(&["--stdio"]))
+            .unwrap()
+            .text;
         let rewritten = pretty(&json!({ "mcpServers": { "gsc": { "args": ["--stdio"], "command": "bare" } } }));
         let entry = MCP_SERVERS_JSON.entry_of(&landed, "gsc", None);
         assert!(entry.is_some());
@@ -988,7 +976,9 @@ mod merge {
     #[test]
     fn mcpservers_json_many_servers_merged_at_once_land_in_order_after_the_persons_own() {
         let names: Vec<String> = (0..20).map(|i| format!("s{i}")).collect();
-        let all = |names: &[String]| -> Value { Value::Object(names.iter().map(|n| (n.clone(), json!({ "command": "npx", "args": [n] }))).collect()) };
+        let all = |names: &[String]| -> Value {
+            Value::Object(names.iter().map(|n| (n.clone(), json!({ "command": "npx", "args": [n] }))).collect())
+        };
         let travelled = json!({ "mcpServers": all(&names), "projects": kv(HOME, json!({ "mcpServers": all(&names) })) }).to_string();
         let mut want: Vec<(String, Value)> = vec![("mine".to_string(), json!({ "command": "mine", "args": [] }))];
         for n in &names {
@@ -1002,14 +992,16 @@ mod merge {
         for own in owns {
             let m = MCP_SERVERS_JSON.merge(&lib, &merge_scope(&keep, &[], &[], None), Some(own), &travelled).unwrap();
             assert!(m.results.iter().all(|r| r.outcome == MergeOutcome::Added));
-            let got: Vec<(String, Value)> = parse_jsonc(&m.text).unwrap()["mcpServers"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+            let got: Vec<(String, Value)> =
+                parse_jsonc(&m.text).unwrap()["mcpServers"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
             assert_eq!(got, want);
             for c in ["// mine", "// his", "/* mine */"] {
                 if own.contains(c) {
                     assert!(m.text.contains(c));
                 }
             }
-            let home = MCP_SERVERS_JSON.merge(&lib, &merge_scope(&keep, &[], &[], Some((HOME, "/root"))), Some(&m.text), &travelled).unwrap();
+            let home =
+                MCP_SERVERS_JSON.merge(&lib, &merge_scope(&keep, &[], &[], Some((HOME, "/root"))), Some(&m.text), &travelled).unwrap();
             assert_eq!(keys(&parse_jsonc(&home.text).unwrap()["projects"]["/root"]["mcpServers"]), names);
         }
     }
@@ -1017,7 +1009,9 @@ mod merge {
     #[test]
     fn codexs_toml_its_trust_tables_its_hooks_state_and_the_persons_own_server_stand_li() {
         let own = codex_own();
-        let m = CODEX_TOML.merge(&lib, &merge_scope(&["context7", "mine"], &["gone"], &[], None), Some(&own), &codex_travelled(&["--stdio"])).unwrap();
+        let m = CODEX_TOML
+            .merge(&lib, &merge_scope(&["context7", "mine"], &["gone"], &[], None), Some(&own), &codex_travelled(&["--stdio"]))
+            .unwrap();
         assert_eq!(
             m.results,
             vec![
@@ -1030,11 +1024,22 @@ mod merge {
         assert!(m.text.starts_with(&own));
         assert_eq!(
             &m.text[own.len()..],
-            lines(&["", "[mcp_servers.context7]", r#"command = "/root/.local/bin/context7""#, r#"args = ["--stdio"]"#, "", "[mcp_servers.context7.env]", r#"KEY = "k""#, ""])
+            lines(&[
+                "",
+                "[mcp_servers.context7]",
+                r#"command = "/root/.local/bin/context7""#,
+                r#"args = ["--stdio"]"#,
+                "",
+                "[mcp_servers.context7.env]",
+                r#"KEY = "k""#,
+                ""
+            ])
         );
         assert_eq!(names(&CODEX_TOML.read(&m.text, "/root")), ["mine", "context7"]);
 
-        let again = CODEX_TOML.merge(&lib, &merge_scope(&["context7", "mine"], &[], &["context7"], None), Some(&m.text), &codex_travelled(&["--stdio"])).unwrap();
+        let again = CODEX_TOML
+            .merge(&lib, &merge_scope(&["context7", "mine"], &[], &["context7"], None), Some(&m.text), &codex_travelled(&["--stdio"]))
+            .unwrap();
         assert_eq!(outcomes(&again.results), [MergeOutcome::Same, MergeOutcome::Theirs]);
         assert_eq!(again.text, m.text);
     }
@@ -1042,7 +1047,8 @@ mod merge {
     #[test]
     fn codexs_toml_wsps_own_table_is_written_over_where_it_stands_and_taken_out_with_it() {
         let own = codex_own();
-        let landed = CODEX_TOML.merge(&lib, &merge_scope(&["context7"], &[], &[], None), Some(&own), &codex_travelled(&["--stdio"])).unwrap().text;
+        let landed =
+            CODEX_TOML.merge(&lib, &merge_scope(&["context7"], &[], &[], None), Some(&own), &codex_travelled(&["--stdio"])).unwrap().text;
         let changed = CODEX_TOML
             .merge(&lib, &merge_scope(&["context7"], &[], &["context7"], None), Some(&landed), &codex_travelled(&["--stdio", "--verbose"]))
             .unwrap();
@@ -1058,7 +1064,10 @@ mod merge {
 
     #[test]
     fn codexs_toml_a_table_reads_the_same_however_codex_spaced_and_commented_it_and_a_f() {
-        let landed = CODEX_TOML.merge(&lib, &merge_scope(&["context7"], &[], &[], None), Some(&codex_own()), &codex_travelled(&["--stdio"])).unwrap().text;
+        let landed = CODEX_TOML
+            .merge(&lib, &merge_scope(&["context7"], &[], &[], None), Some(&codex_own()), &codex_travelled(&["--stdio"]))
+            .unwrap()
+            .text;
         let rewritten = landed.replacen(
             "command = \"/root/.local/bin/context7\"",
             "  command = \"/root/.local/bin/context7\"   # codex wrote this back",
@@ -1086,8 +1095,10 @@ mod remove_group {
     #[test]
     fn mcpservers_json_the_named_keys_go_under_the_user_scope_and_the_home_folder_alike() {
         let travelled = claude_travelled(&["--stdio"]);
-        let m = MCP_SERVERS_JSON.merge(&lib, &merge_scope(&["gsc", "notion"], &[], &[], None), Some(&claude_own()), &travelled).unwrap().text;
-        let with_home = MCP_SERVERS_JSON.merge(&lib, &merge_scope(&["zed"], &[], &[], Some((HOME, "/root"))), Some(&m), &travelled).unwrap().text;
+        let m =
+            MCP_SERVERS_JSON.merge(&lib, &merge_scope(&["gsc", "notion"], &[], &[], None), Some(&claude_own()), &travelled).unwrap().text;
+        let with_home =
+            MCP_SERVERS_JSON.merge(&lib, &merge_scope(&["zed"], &[], &[], Some((HOME, "/root"))), Some(&m), &travelled).unwrap().text;
 
         let gone = remove(MCP_SERVERS_JSON, &with_home, &["gsc", "notion"]);
         let root = json(&gone);
@@ -1119,10 +1130,7 @@ mod remove_group {
         ]);
         let gone = remove(OPENCODE_JSON, &own, &["wsp"]);
         assert_eq!(json(&gone), json!({ "theme": "x", "mcp": { "mine": { "type": "local", "command": ["mine"] } } }));
-        assert_eq!(
-            gone,
-            lines(&["{", r#"  "theme": "x","#, r#"  "mcp": { "mine": { "type": "local", "command": ["mine"] } }"#, "}", ""])
-        );
+        assert_eq!(gone, lines(&["{", r#"  "theme": "x","#, r#"  "mcp": { "mine": { "type": "local", "command": ["mine"] } }"#, "}", ""]));
         assert_eq!(remove(OPENCODE_JSON, &own, &["nobody"]), own);
     }
 
@@ -1239,7 +1247,8 @@ mod remove_group {
     #[test]
     fn codexs_toml_the_named_tables_go_with_their_sub_tables_and_the_persons_trust_tabl() {
         let own = codex_own();
-        let landed = CODEX_TOML.merge(&lib, &merge_scope(&["context7"], &[], &[], None), Some(&own), &codex_travelled(&["--stdio"])).unwrap().text;
+        let landed =
+            CODEX_TOML.merge(&lib, &merge_scope(&["context7"], &[], &[], None), Some(&own), &codex_travelled(&["--stdio"])).unwrap().text;
         assert!(landed.contains("[mcp_servers.context7.env]"));
         assert_eq!(remove(CODEX_TOML, &landed, &["context7"]), own);
         // A name no table stands for leaves the file exactly as it was, comments and spacing with it.

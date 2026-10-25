@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 use std::process::{ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-use futures::future::{BoxFuture, FutureExt, Shared};
-use futures::stream::{self, BoxStream, StreamExt};
+use futures::future::{LocalBoxFuture, FutureExt, Shared};
+use futures::stream::{self, LocalBoxStream, StreamExt};
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use wsp_adapters::claude::adapter::{create_claude_adapter, AdapterDeps, ClaudeAdapter};
@@ -166,7 +166,7 @@ fn set_up(root: &Root, project_name: &str, file: &[String]) -> (String, PathBuf,
     (config.to_str().unwrap().to_string(), project, source)
 }
 
-type Done = Shared<BoxFuture<'static, (Vec<String>, Option<i32>)>>;
+type Done = Shared<LocalBoxFuture<'static, (Vec<String>, Option<i32>)>>;
 
 /// Runs each command in /bin/sh with its input lines on stdin, stdout and stderr read as lines, as a computer's exec
 /// road hands them. The launches are noted in `commands` and `inputs`.
@@ -229,15 +229,15 @@ impl ExecStreamFactory for ShellExec {
             let lines = text.split('\n').filter(|l| !l.is_empty()).map(String::from).collect();
             let _ = tx.send((lines, out.status.code()));
         });
-        let done: Done = rx.map(|r| r.unwrap_or_default()).boxed().shared();
+        let done: Done = rx.map(|r| r.unwrap_or_default()).boxed_local().shared();
         Arc::new(ShellStream { stdin: Mutex::new(stdin), done, pid })
     }
 }
 
 impl ExecStream for ShellStream {
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
         let done = self.done.clone();
-        stream::once(async move { done.await.0 }).flat_map(|lines| stream::iter(lines.into_iter().map(Ok))).boxed()
+        stream::once(async move { done.await.0 }).flat_map(|lines| stream::iter(lines.into_iter().map(Ok))).boxed_local()
     }
     fn teardown(&self) {
         let _ = Command::new("kill").arg("-TERM").arg(self.pid.to_string()).status();
@@ -245,15 +245,15 @@ impl ExecStream for ShellStream {
     fn kill(&self) {
         let _ = Command::new("kill").arg("-KILL").arg(self.pid.to_string()).status();
     }
-    fn write(&self, _line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
-        async { Ok(WriteOutcome::Gone) }.boxed()
+    fn write(&self, _line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+        async { Ok(WriteOutcome::Gone) }.boxed_local()
     }
     fn close_input(&self) {
         self.stdin.lock().unwrap().take();
     }
     fn exited(&self) -> wsp_adapters::port::SharedFuture<Option<i32>> {
         let done = self.done.clone();
-        async move { done.await.1 }.boxed().shared()
+        async move { done.await.1 }.boxed_local().shared()
     }
 }
 
@@ -349,6 +349,10 @@ fn walk_writes_line_numbers_as_ranges() {
 // TS: chain.test.ts:161
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_writes_exactly_the_anchors_chain_beside_the_source() {
+    tokio::task::LocalSet::new().run_until(shell_writes_exactly_the_anchors_chain_beside_the_source_body()).await
+}
+
+async fn shell_writes_exactly_the_anchors_chain_beside_the_source_body() {
     let root = Root::new("chain-write");
     let file = compacted();
     let (config, project, source) = set_up(&root, "-root-acme", &file);
@@ -371,6 +375,10 @@ async fn shell_writes_exactly_the_anchors_chain_beside_the_source() {
 // TS: chain.test.ts:175
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_reads_a_long_session_as_kilobytes_and_walks_it_as_the_whole_file_would() {
+    tokio::task::LocalSet::new().run_until(shell_reads_a_long_session_as_kilobytes_and_walks_it_as_the_whole_file_would_body()).await
+}
+
+async fn shell_reads_a_long_session_as_kilobytes_and_walks_it_as_the_whole_file_would_body() {
     let root = Root::new("chain-long");
     let content = format!("say \\\"hi\\\" {}", "x".repeat(1 << 20));
     let big = json!({"parentUuid": id(2), "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": content}]}, "uuid": id(50), "sessionId": SESSION}).to_string();
@@ -389,6 +397,10 @@ async fn shell_reads_a_long_session_as_kilobytes_and_walks_it_as_the_whole_file_
 // TS: chain.test.ts:187
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_refuses_an_anchor_the_file_does_not_hold_before_anything_is_written() {
+    tokio::task::LocalSet::new().run_until(shell_refuses_an_anchor_the_file_does_not_hold_before_anything_is_written_body()).await
+}
+
+async fn shell_refuses_an_anchor_the_file_does_not_hold_before_anything_is_written_body() {
     let root = Root::new("chain-refuse");
     let (config, project, _source) = set_up(&root, "-root-acme", &rewound());
     let exec = ShellExec::new(&[("PATH", "/usr/bin:/bin")]);
@@ -401,6 +413,10 @@ async fn shell_refuses_an_anchor_the_file_does_not_hold_before_anything_is_writt
 // TS: chain.test.ts:195
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_says_the_clis_own_words_for_a_session_its_store_does_not_hold() {
+    tokio::task::LocalSet::new().run_until(shell_says_the_clis_own_words_for_a_session_its_store_does_not_hold_body()).await
+}
+
+async fn shell_says_the_clis_own_words_for_a_session_its_store_does_not_hold_body() {
     let root = Root::new("chain-nostore");
     let exec = ShellExec::new(&[("PATH", "/usr/bin:/bin")]);
     let config = root.0.to_str().unwrap().to_string();
@@ -411,6 +427,10 @@ async fn shell_says_the_clis_own_words_for_a_session_its_store_does_not_hold() {
 // TS: chain.test.ts:201
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_leaves_no_copy_and_no_part_file_where_the_write_comes_out_short() {
+    tokio::task::LocalSet::new().run_until(shell_leaves_no_copy_and_no_part_file_where_the_write_comes_out_short_body()).await
+}
+
+async fn shell_leaves_no_copy_and_no_part_file_where_the_write_comes_out_short_body() {
     let root = Root::new("chain-short");
     let (config, project, _source) = set_up(&root, "-root-acme", &rewound());
     let exec = ShellExec::new(&[("PATH", "/usr/bin:/bin")]);
@@ -426,6 +446,10 @@ async fn shell_leaves_no_copy_and_no_part_file_where_the_write_comes_out_short()
 // TS: chain.test.ts:214
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_removes_only_the_copy() {
+    tokio::task::LocalSet::new().run_until(shell_removes_only_the_copy_body()).await
+}
+
+async fn shell_removes_only_the_copy_body() {
     let root = Root::new("chain-remove");
     let (config, project, _source) = set_up(&root, "-root-acme", &rewound());
     let exec = ShellExec::new(&[("PATH", "/usr/bin:/bin")]);
@@ -565,7 +589,7 @@ impl Ender {
 }
 
 struct ScriptStream {
-    lines: Mutex<Option<BoxStream<'static, Result<String, ExecFailure>>>>,
+    lines: Mutex<Option<LocalBoxStream<'static, Result<String, ExecFailure>>>>,
     ender: Ender,
     writes: Arc<Mutex<Vec<String>>>,
 }
@@ -594,14 +618,14 @@ impl ExecStreamFactory for Scripted {
             None::<Result<String, ExecFailure>>
         })
         .filter_map(|x| async move { x });
-        let lines = stream::iter(body.into_iter().map(Ok)).chain(tail).boxed();
+        let lines = stream::iter(body.into_iter().map(Ok)).chain(tail).boxed_local();
         Arc::new(ScriptStream { lines: Mutex::new(Some(lines)), ender, writes: self.writes.clone() })
     }
 }
 
 impl ExecStream for ScriptStream {
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
-        self.lines.lock().unwrap().take().unwrap_or_else(|| stream::empty().boxed())
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
+        self.lines.lock().unwrap().take().unwrap_or_else(|| stream::empty().boxed_local())
     }
     fn teardown(&self) {
         self.ender.order.lock().unwrap().push("teardown".to_string());
@@ -611,9 +635,9 @@ impl ExecStream for ScriptStream {
         self.ender.order.lock().unwrap().push("kill".to_string());
         self.ender.end(None);
     }
-    fn write(&self, line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+    fn write(&self, line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
         self.writes.lock().unwrap().push(line);
-        async { Ok(WriteOutcome::Written) }.boxed()
+        async { Ok(WriteOutcome::Written) }.boxed_local()
     }
     fn close_input(&self) {
         self.ender.order.lock().unwrap().push("closeInput".to_string());
@@ -754,6 +778,10 @@ fn stand_in(root: &Root, file: &[String]) -> (PathBuf, String, ClaudeAdapter) {
 // TS: aside.test.ts:208
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_asks_the_mid_turn_thread_on_a_copy_cut_before_its_running_call_and_removes_only_the_copy() {
+    tokio::task::LocalSet::new().run_until(shell_asks_the_mid_turn_thread_on_a_copy_cut_before_its_running_call_and_removes_only_the_copy_body()).await
+}
+
+async fn shell_asks_the_mid_turn_thread_on_a_copy_cut_before_its_running_call_and_removes_only_the_copy_body() {
     let root = Root::new("aside-mid-turn");
     let mid_turn = fixture_lines("aside-mid-turn.jsonl");
     let (project, thread, adapter) = stand_in(&root, &mid_turn);
@@ -767,6 +795,10 @@ async fn shell_asks_the_mid_turn_thread_on_a_copy_cut_before_its_running_call_an
 // TS: aside.test.ts:217
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_answers_from_the_live_conversation_of_a_rewound_thread() {
+    tokio::task::LocalSet::new().run_until(shell_answers_from_the_live_conversation_of_a_rewound_thread_body()).await
+}
+
+async fn shell_answers_from_the_live_conversation_of_a_rewound_thread_body() {
     let root = Root::new("aside-rewound");
     let line = |n: u32, parent: Option<u32>, kind: &str, text: &str| {
         let mut message = Map::new();
@@ -798,6 +830,10 @@ async fn shell_answers_from_the_live_conversation_of_a_rewound_thread() {
 // TS: aside.test.ts:233
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_copies_through_the_live_end_and_runs_the_copy_on_the_turns_road() {
+    tokio::task::LocalSet::new().run_until(aside_copies_through_the_live_end_and_runs_the_copy_on_the_turns_road_body()).await
+}
+
+async fn aside_copies_through_the_live_end_and_runs_the_copy_on_the_turns_road_body() {
     let exec = scripted(
         vec![
             json!({"type": "system", "subtype": "init", "session_id": FORK, "cwd": "/root/spoo", "tools": []}).to_string(),
@@ -857,6 +893,10 @@ async fn aside_copies_through_the_live_end_and_runs_the_copy_on_the_turns_road()
 // TS: aside.test.ts:269
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_hands_the_copy_each_servers_value_in_a_file_of_the_runs() {
+    tokio::task::LocalSet::new().run_until(aside_hands_the_copy_each_servers_value_in_a_file_of_the_runs_body()).await
+}
+
+async fn aside_hands_the_copy_each_servers_value_in_a_file_of_the_runs_body() {
     let exec = scripted(vec![result_line()], ScriptOpts::default());
     let entry: IndexMap<String, Value> = IndexMap::from([
         ("type".to_string(), json!("http")),
@@ -880,6 +920,10 @@ async fn aside_hands_the_copy_each_servers_value_in_a_file_of_the_runs() {
 // TS: aside.test.ts:282
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_hands_each_piece_of_the_answer_on_and_still_answers_the_whole_result() {
+    tokio::task::LocalSet::new().run_until(aside_hands_each_piece_of_the_answer_on_and_still_answers_the_whole_result_body()).await
+}
+
+async fn aside_hands_each_piece_of_the_answer_on_and_still_answers_the_whole_result_body() {
     // The partial message lines 2.1.289 prints under --include-partial-messages, a thinking piece among them.
     let delta = |index: u32, delta: Value| json!({"type": "stream_event", "event": {"type": "content_block_delta", "index": index, "delta": delta}, "session_id": FORK, "parent_tool_use_id": null}).to_string();
     let exec = scripted(
@@ -895,7 +939,7 @@ async fn aside_hands_each_piece_of_the_answer_on_and_still_answers_the_whole_res
     );
     let pieces: Arc<Mutex<Vec<String>>> = Default::default();
     let sink = pieces.clone();
-    let on_text: Arc<dyn Fn(String) + Send + Sync> = Arc::new(move |t| sink.lock().unwrap().push(t));
+    let on_text: Arc<dyn Fn(String)> = Arc::new(move |t| sink.lock().unwrap().push(t));
     let answer = adapter(&exec, None).aside(AsideQuestion { on_text: Some(on_text), ..ask("which folder?") }).await.unwrap();
     assert_eq!(*pieces.lock().unwrap(), strs(&["You are in ", "/root/spoo"]));
     assert_eq!(answer.text, RESULT_TEXT);
@@ -904,6 +948,10 @@ async fn aside_hands_each_piece_of_the_answer_on_and_still_answers_the_whole_res
 // TS: aside.test.ts:299
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_answers_past_the_empty_result_a_resume_gives_a_background_command() {
+    tokio::task::LocalSet::new().run_until(aside_answers_past_the_empty_result_a_resume_gives_a_background_command_body()).await
+}
+
+async fn aside_answers_past_the_empty_result_a_resume_gives_a_background_command_body() {
     // As 2.1.289 printed it, forking a thread whose last turn ended with a command still running in the background.
     let exec = scripted(
         vec![
@@ -923,6 +971,10 @@ async fn aside_answers_past_the_empty_result_a_resume_gives_a_background_command
 // TS: aside.test.ts:313
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_rejects_with_the_clis_own_words_when_its_result_is_an_error() {
+    tokio::task::LocalSet::new().run_until(aside_rejects_with_the_clis_own_words_when_its_result_is_an_error_body()).await
+}
+
+async fn aside_rejects_with_the_clis_own_words_when_its_result_is_an_error_body() {
     let exec = scripted(vec![result_with(&[("subtype", json!("success")), ("is_error", json!(true)), ("result", json!("Not logged in · Please run /login"))], &[])], ScriptOpts::default());
     let err = adapter(&exec, None).aside(ask("hi")).await.unwrap_err();
     assert_eq!(err, "Not logged in · Please run /login");
@@ -931,6 +983,10 @@ async fn aside_rejects_with_the_clis_own_words_when_its_result_is_an_error() {
 // TS: aside.test.ts:318
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_rejects_with_what_the_cli_printed_on_an_exit_with_no_result_and_removes_the_copy() {
+    tokio::task::LocalSet::new().run_until(aside_rejects_with_what_the_cli_printed_on_an_exit_with_no_result_and_removes_the_copy_body()).await
+}
+
+async fn aside_rejects_with_what_the_cli_printed_on_an_exit_with_no_result_and_removes_the_copy_body() {
     let exec = scripted(vec![no_conversation_line(SESSION)], ScriptOpts { exit_code: Some(1), ..Default::default() });
     let err = adapter(&exec, None).aside(ask("hi")).await.unwrap_err();
     assert_eq!(err, no_conversation_line(SESSION));
@@ -941,6 +997,10 @@ async fn aside_rejects_with_what_the_cli_printed_on_an_exit_with_no_result_and_r
 // TS: aside.test.ts:324
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_rejects_with_the_reads_own_line_where_the_session_file_is_not_there() {
+    tokio::task::LocalSet::new().run_until(aside_rejects_with_the_reads_own_line_where_the_session_file_is_not_there_body()).await
+}
+
+async fn aside_rejects_with_the_reads_own_line_where_the_session_file_is_not_there_body() {
     let exec = scripted(vec![result_line()], ScriptOpts { tail: Some(vec![no_conversation_line(SESSION)]), tail_code: Some(1), ..Default::default() });
     let err = adapter(&exec, None).aside(ask("hi")).await.unwrap_err();
     assert_eq!(err, no_conversation_line(SESSION));
@@ -950,6 +1010,10 @@ async fn aside_rejects_with_the_reads_own_line_where_the_session_file_is_not_the
 // TS: aside.test.ts:330
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_ends_a_cli_that_says_nothing_for_the_whole_wall_and_says_so() {
+    tokio::task::LocalSet::new().run_until(aside_ends_a_cli_that_says_nothing_for_the_whole_wall_and_says_so_body()).await
+}
+
+async fn aside_ends_a_cli_that_says_nothing_for_the_whole_wall_and_says_so_body() {
     let exec = scripted(vec![], ScriptOpts { hang: true, ..Default::default() });
     let err = adapter(&exec, Some(20)).aside(ask("hi")).await.unwrap_err();
     assert_eq!(err, aside_wall_line(20));
@@ -964,6 +1028,10 @@ async fn aside_ends_a_cli_that_says_nothing_for_the_whole_wall_and_says_so() {
 // TS: aside.test.ts:340
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_registers_a_pre_tool_use_hook_and_refuses_every_call_through_it() {
+    tokio::task::LocalSet::new().run_until(aside_registers_a_pre_tool_use_hook_and_refuses_every_call_through_it_body()).await
+}
+
+async fn aside_registers_a_pre_tool_use_hook_and_refuses_every_call_through_it_body() {
     let init = json(&aside_hooks_line());
     assert_eq!(init["type"], json!("control_request"));
     assert_eq!(init["request_id"], json!(ASIDE_HOOKS_ID));
@@ -1000,6 +1068,10 @@ async fn aside_registers_a_pre_tool_use_hook_and_refuses_every_call_through_it()
 // TS: aside.test.ts:360
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_asks_the_mid_turn_thread_on_a_copy_cut_before_its_running_call_and_says_it_is_running() {
+    tokio::task::LocalSet::new().run_until(aside_asks_the_mid_turn_thread_on_a_copy_cut_before_its_running_call_and_says_it_is_running_body()).await
+}
+
+async fn aside_asks_the_mid_turn_thread_on_a_copy_cut_before_its_running_call_and_says_it_is_running_body() {
     let mid_turn = fixture_lines("aside-mid-turn.jsonl");
     let exec = scripted(vec![result_line()], ScriptOpts { tail: Some(read_all_of(&mid_turn)), ..Default::default() });
     adapter(&exec, None).aside(ask("btw what's the status?")).await.unwrap();
@@ -1034,6 +1106,10 @@ async fn aside_asks_the_mid_turn_thread_on_a_copy_cut_before_its_running_call_an
 // TS: aside.test.ts:386
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_says_in_one_line_that_the_answer_reached_for_a_tool_at_the_turn_cap() {
+    tokio::task::LocalSet::new().run_until(aside_says_in_one_line_that_the_answer_reached_for_a_tool_at_the_turn_cap_body()).await
+}
+
+async fn aside_says_in_one_line_that_the_answer_reached_for_a_tool_at_the_turn_cap_body() {
     let exec = scripted(vec![result_with(&[("subtype", json!("error_max_turns")), ("is_error", json!(true)), ("num_turns", json!(3))], &["result"])], ScriptOpts::default());
     let err = adapter(&exec, None).aside(ask("run the tests?")).await.unwrap_err();
     assert_eq!(err, ASIDE_TOOL_LINE);
@@ -1042,6 +1118,10 @@ async fn aside_says_in_one_line_that_the_answer_reached_for_a_tool_at_the_turn_c
 // TS: aside.test.ts:391
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_rejects_with_the_last_line_the_cli_printed_when_it_exits_with_no_result() {
+    tokio::task::LocalSet::new().run_until(aside_rejects_with_the_last_line_the_cli_printed_when_it_exits_with_no_result_body()).await
+}
+
+async fn aside_rejects_with_the_last_line_the_cli_printed_when_it_exits_with_no_result_body() {
     let exec = scripted(strs(&["Warning: something about the shell", "Error: Invalid API key · Please run /login"]), ScriptOpts { exit_code: Some(1), ..Default::default() });
     let err = adapter(&exec, None).aside(ask("hi")).await.unwrap_err();
     assert_eq!(err, "Error: Invalid API key · Please run /login");
@@ -1050,6 +1130,10 @@ async fn aside_rejects_with_the_last_line_the_cli_printed_when_it_exits_with_no_
 // TS: aside.test.ts:397
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_ends_the_run_and_says_why_where_the_cli_refuses_the_hook() {
+    tokio::task::LocalSet::new().run_until(aside_ends_the_run_and_says_why_where_the_cli_refuses_the_hook_body()).await
+}
+
+async fn aside_ends_the_run_and_says_why_where_the_cli_refuses_the_hook_body() {
     let exec = scripted(
         vec![json!({"type": "control_response", "response": {"subtype": "error", "request_id": ASIDE_HOOKS_ID, "error": "Unsupported control request subtype: initialize"}}).to_string()],
         ScriptOpts { hang: true, ..Default::default() },

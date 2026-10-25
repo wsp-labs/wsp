@@ -8,7 +8,7 @@ mod claude_exec;
 
 use std::sync::{Arc, Mutex};
 
-use futures::future::{BoxFuture, FutureExt};
+use futures::future::{LocalBoxFuture, FutureExt};
 use regex::Regex;
 use serde_json::{json, Map, Value};
 use wsp_adapters::claude::adapter::{create_claude_adapter, AdapterDeps, ClaudeAdapter};
@@ -143,6 +143,10 @@ fn sign_in_cloud() -> String {
 // TS: adapter.test.ts:1209
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn maps_aborted_streaming_to_interrupted() {
+    tokio::task::LocalSet::new().run_until(maps_aborted_streaming_to_interrupted_body()).await
+}
+
+async fn maps_aborted_streaming_to_interrupted_body() {
     let line = json!({"type": "result", "subtype": "error_during_execution", "is_error": true, "terminal_reason": "aborted_streaming", "errors": ["[ede_diagnostic] stream abort trace"], "duration_ms": 812, "session_id": FIXTURE_SESSION_ID}).to_string();
     let (_, result) = result_run(&line).await;
     assert_eq!(result.status, TurnStatus::Interrupted);
@@ -152,6 +156,10 @@ async fn maps_aborted_streaming_to_interrupted() {
 // TS: adapter.test.ts:1217
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn maps_other_execution_errors_to_failed_and_hides_ede_diagnostic_noise() {
+    tokio::task::LocalSet::new().run_until(maps_other_execution_errors_to_failed_and_hides_ede_diagnostic_noise_body()).await
+}
+
+async fn maps_other_execution_errors_to_failed_and_hides_ede_diagnostic_noise_body() {
     let line = json!({"type": "result", "subtype": "error_during_execution", "is_error": true, "errors": ["[ede_diagnostic] internal", "MCP server exploded"], "duration_ms": 900, "session_id": FIXTURE_SESSION_ID}).to_string();
     let (_, result) = result_run(&line).await;
     assert_eq!(result.status, TurnStatus::Failed);
@@ -161,6 +169,10 @@ async fn maps_other_execution_errors_to_failed_and_hides_ede_diagnostic_noise() 
 // TS: adapter.test.ts:1225
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn fails_the_turn_when_the_process_dies_without_a_result_event() {
+    tokio::task::LocalSet::new().run_until(fails_the_turn_when_the_process_dies_without_a_result_event_body()).await
+}
+
+async fn fails_the_turn_when_the_process_dies_without_a_result_event_body() {
     let exec = script_exit(vec![init_fixture()], Some(1));
     let (events, result) = run_x(&exec).await;
     assert_eq!(result.status, TurnStatus::Failed);
@@ -171,6 +183,10 @@ async fn fails_the_turn_when_the_process_dies_without_a_result_event() {
 // TS: adapter.test.ts:1241
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_run_killed_by_a_signal_names_the_signal_never_a_bare_code() {
+    tokio::task::LocalSet::new().run_until(a_run_killed_by_a_signal_names_the_signal_never_a_bare_code_body()).await
+}
+
+async fn a_run_killed_by_a_signal_names_the_signal_never_a_bare_code_body() {
     let exec = FakeExec::scripted(vec![init_fixture()], StreamOpts { exit_code: Some(None), signalled: Some("SIGKILL".to_string()), ..Default::default() });
     let (_, result) = run_x(&exec).await;
     assert_eq!(result, failed("claude was killed (SIGKILL) before it answered"));
@@ -179,6 +195,10 @@ async fn a_run_killed_by_a_signal_names_the_signal_never_a_bare_code() {
 // TS: adapter.test.ts:1252
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_launch_nothing_of_the_agent_came_back_from_says_so() {
+    tokio::task::LocalSet::new().run_until(a_launch_nothing_of_the_agent_came_back_from_says_so_body()).await
+}
+
+async fn a_launch_nothing_of_the_agent_came_back_from_says_so_body() {
     let exec = script_exit(vec![], None);
     let (_, result) = run_x(&exec).await;
     assert_eq!(result, failed("the launch never reached claude: its run ended before the agent said a word"));
@@ -187,6 +207,10 @@ async fn a_launch_nothing_of_the_agent_came_back_from_says_so() {
 // TS: adapter.test.ts:1262
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn exit_127_before_any_event_names_the_binary_and_the_path_searched() {
+    tokio::task::LocalSet::new().run_until(exit_127_before_any_event_names_the_binary_and_the_path_searched_body()).await
+}
+
+async fn exit_127_before_any_event_names_the_binary_and_the_path_searched_body() {
     let exec = script_exit(strs(&["bash: line 2: claude: command not found"]), Some(127));
     let adapter = adapter_with(exec.clone(), |d| {
         let base: BaseEnv = [("PATH".to_string(), Some("/root/.local/bin:/usr/bin:/bin".to_string()))].into_iter().collect();
@@ -203,6 +227,10 @@ async fn exit_127_before_any_event_names_the_binary_and_the_path_searched() {
 // TS: adapter.test.ts:1275
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn exit_127_from_a_launch_that_exported_no_path_says_so() {
+    tokio::task::LocalSet::new().run_until(exit_127_from_a_launch_that_exported_no_path_says_so_body()).await
+}
+
+async fn exit_127_from_a_launch_that_exported_no_path_says_so_body() {
     let exec = script_exit(vec![], Some(127));
     let (_, result) = run_x(&exec).await;
     assert_eq!(result.error.as_deref(), Some("claude was not found on PATH (exit 127); the launch exported no PATH, the machine's own was searched"));
@@ -211,6 +239,10 @@ async fn exit_127_from_a_launch_that_exported_no_path_says_so() {
 // TS: adapter.test.ts:1285
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn when_the_transport_ends_the_turn_itself_its_line_is_the_turns_error() {
+    tokio::task::LocalSet::new().run_until(when_the_transport_ends_the_turn_itself_its_line_is_the_turns_error_body()).await
+}
+
+async fn when_the_transport_ends_the_turn_itself_its_line_is_the_turns_error_body() {
     let cut = "stopped after 15m 00s with no output for 10m";
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = adapter_over(&exec);
@@ -227,6 +259,10 @@ async fn when_the_transport_ends_the_turn_itself_its_line_is_the_turns_error() {
 // TS: adapter.test.ts:1316
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_result_with_no_text_and_no_usage_fails_with_the_stderr_tail_after_the_result_included() {
+    tokio::task::LocalSet::new().run_until(a_result_with_no_text_and_no_usage_fails_with_the_stderr_tail_after_the_result_included_body()).await
+}
+
+async fn a_result_with_no_text_and_no_usage_fails_with_the_stderr_tail_after_the_result_included_body() {
     let usage = json!({"input_tokens": 0, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "output_tokens": 0, "service_tier": "standard"});
     let empty = json!({"type": "result", "subtype": "success", "is_error": false, "duration_ms": 26, "result": "", "session_id": FIXTURE_SESSION_ID, "total_cost_usd": 0, "usage": usage}).to_string();
     let exec = script_exit(vec![init_fixture(), "No conversation found with session ID: e16ed170".to_string(), empty, "".to_string(), "Error: transcript ended mid-turn".to_string()], Some(1));
@@ -257,6 +293,10 @@ async fn a_result_with_no_text_and_no_usage_fails_with_the_stderr_tail_after_the
 // TS: adapter.test.ts:1339
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_result_with_no_text_and_a_quiet_stderr_fails_with_the_duration_alone_and_the_tail_keeps_five_lines() {
+    tokio::task::LocalSet::new().run_until(a_result_with_no_text_and_a_quiet_stderr_fails_with_the_duration_alone_and_the_tail_keeps_five_lines_body()).await
+}
+
+async fn a_result_with_no_text_and_a_quiet_stderr_fails_with_the_duration_alone_and_the_tail_keeps_five_lines_body() {
     let empty = json!({"type": "result", "subtype": "success", "is_error": false, "duration_ms": 1500, "result": "", "session_id": FIXTURE_SESSION_ID, "total_cost_usd": 0, "usage": {"input_tokens": 0, "output_tokens": 0}}).to_string();
     let (_, quiet_run) = result_run(&empty).await;
     assert_eq!(quiet_run.status, TurnStatus::Failed);
@@ -272,6 +312,10 @@ async fn a_result_with_no_text_and_a_quiet_stderr_fails_with_the_duration_alone_
 // TS: adapter.test.ts:1353
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_resume_after_a_run_that_died_with_background_work_answers_the_persons_message() {
+    tokio::task::LocalSet::new().run_until(a_resume_after_a_run_that_died_with_background_work_answers_the_persons_message_body()).await
+}
+
+async fn a_resume_after_a_run_that_died_with_background_work_answers_the_persons_message_body() {
     let init = json!({"type": "system", "subtype": "init", "cwd": "/w", "session_id": FIXTURE_SESSION_ID, "model": "claude-haiku-4-5"}).to_string();
     let lines = vec![
         json!({"type": "system", "subtype": "task_notification", "task_id": "b7oi2218c", "tool_use_id": "toolu_1", "status": "stopped", "output_file": "", "summary": "Background shell command didn't finish before the previous session ended", "session_id": FIXTURE_SESSION_ID}).to_string(),
@@ -327,12 +371,16 @@ fn two_runs() -> Arc<TwoRuns> {
 // TS: adapter.test.ts:1399
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_lost_session_resume_starts_a_new_session_seeded_with_the_thread_so_far() {
+    tokio::task::LocalSet::new().run_until(a_lost_session_resume_starts_a_new_session_seeded_with_the_thread_so_far_body()).await
+}
+
+async fn a_lost_session_resume_starts_a_new_session_seeded_with_the_thread_so_far_body() {
     let exec = two_runs();
     let adapter = adapter_with(exec.clone(), |_| {});
     let (events, on_event) = collect();
     let seed = "person: fix the login page\nagent: done, pushed to fix/login";
     let session = adapter
-        .start(HarnessStartOptions { seed: Some(Arc::new(move || async move { Ok(seed.to_string()) }.boxed())), ..opts_resume("now add a test", FIXTURE_SESSION_ID, on_event) })
+        .start(HarnessStartOptions { seed: Some(Arc::new(move || async move { Ok(seed.to_string()) }.boxed_local())), ..opts_resume("now add a test", FIXTURE_SESSION_ID, on_event) })
         .unwrap();
     let result = session.finished().await;
     assert_eq!(result.status, TurnStatus::Completed);
@@ -359,6 +407,10 @@ async fn a_lost_session_resume_starts_a_new_session_seeded_with_the_thread_so_fa
 // TS: adapter.test.ts:1423
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_lost_session_resume_fails_with_the_clis_own_sentence_where_nothing_seeds_a_new_one() {
+    tokio::task::LocalSet::new().run_until(a_lost_session_resume_fails_with_the_clis_own_sentence_where_nothing_seeds_a_new_one_body()).await
+}
+
+async fn a_lost_session_resume_fails_with_the_clis_own_sentence_where_nothing_seeds_a_new_one_body() {
     let exec = two_runs();
     let adapter = adapter_with(exec.clone(), |_| {});
     let result = adapter.start(opts_resume("x", FIXTURE_SESSION_ID, quiet())).unwrap().finished().await;
@@ -370,6 +422,10 @@ async fn a_lost_session_resume_fails_with_the_clis_own_sentence_where_nothing_se
 // TS: adapter.test.ts:1433
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_reports_answer_that_carries_words_is_the_turns_reply() {
+    tokio::task::LocalSet::new().run_until(a_reports_answer_that_carries_words_is_the_turns_reply_body()).await
+}
+
+async fn a_reports_answer_that_carries_words_is_the_turns_reply_body() {
     let init = json!({"type": "system", "subtype": "init", "cwd": "/w", "session_id": FIXTURE_SESSION_ID, "model": "claude-haiku-4-5"}).to_string();
     let exec = script(vec![
         init,
@@ -386,6 +442,10 @@ async fn a_reports_answer_that_carries_words_is_the_turns_reply() {
 // TS: adapter.test.ts:1449
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_clis_refusal_for_want_of_a_sign_in_is_a_failed_turn_carrying_its_sentence_once() {
+    tokio::task::LocalSet::new().run_until(the_clis_refusal_for_want_of_a_sign_in_is_a_failed_turn_carrying_its_sentence_once_body()).await
+}
+
+async fn the_clis_refusal_for_want_of_a_sign_in_is_a_failed_turn_carrying_its_sentence_once_body() {
     let init = json!({"type": "system", "subtype": "init", "session_id": FIXTURE_SESSION_ID, "model": "claude-opus-5[1m]"}).to_string();
     let refusal = json!({"type": "assistant", "message": {"id": "m1", "model": "<synthetic>", "role": "assistant", "type": "message", "content": [{"type": "text", "text": "Not logged in \u{b7} Please run /login"}]}, "session_id": FIXTURE_SESSION_ID, "error": "authentication_failed", "is_api_error_message": true}).to_string();
     let result_line = json!({"type": "result", "subtype": "success", "is_error": true, "terminal_reason": "api_error", "num_turns": 1, "result": "Not logged in \u{b7} Please run /login", "duration_ms": 88, "total_cost_usd": 0, "usage": {"input_tokens": 0, "output_tokens": 0}, "session_id": FIXTURE_SESSION_ID}).to_string();
@@ -432,6 +492,10 @@ async fn the_clis_refusal_for_want_of_a_sign_in_is_a_failed_turn_carrying_its_se
 // TS: adapter.test.ts:1486
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_user_abort_is_read_before_the_error_flag() {
+    tokio::task::LocalSet::new().run_until(a_user_abort_is_read_before_the_error_flag_body()).await
+}
+
+async fn a_user_abort_is_read_before_the_error_flag_body() {
     let aborted_success = json!({"type": "result", "subtype": "success", "is_error": true, "terminal_reason": "aborted_streaming", "duration_ms": 812, "result": "stopped", "session_id": FIXTURE_SESSION_ID}).to_string();
     let exec = script(vec![init_fixture(), aborted_success]);
     let adapter = adapter_with(exec.clone(), |d| d.sign_in_refusal = Some(sign_in_local()));
@@ -445,6 +509,10 @@ async fn a_user_abort_is_read_before_the_error_flag() {
 // TS: adapter.test.ts:1499
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_refusal_with_no_known_cause_keeps_its_own_sentence_and_a_turn_that_did_work_reads_completed() {
+    tokio::task::LocalSet::new().run_until(a_refusal_with_no_known_cause_keeps_its_own_sentence_and_a_turn_that_did_work_reads_completed_body()).await
+}
+
+async fn a_refusal_with_no_known_cause_keeps_its_own_sentence_and_a_turn_that_did_work_reads_completed_body() {
     let overloaded = json!({"type": "assistant", "message": {"id": "m1", "model": "<synthetic>", "role": "assistant", "type": "message", "content": [{"type": "text", "text": "API Error: 529 overloaded"}]}, "session_id": FIXTURE_SESSION_ID, "error": "overloaded", "is_api_error_message": true}).to_string();
     let errored = json!({"type": "result", "subtype": "success", "is_error": true, "result": "API Error: 529 overloaded", "duration_ms": 40, "session_id": FIXTURE_SESSION_ID}).to_string();
     let exec = script_exit(vec![init_fixture(), overloaded, errored], Some(1));
@@ -472,6 +540,10 @@ fn delta_events(events: &[AdapterEvent]) -> Vec<&AdapterEvent> {
 // TS: adapter.test.ts:1518
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_completed_result_with_text_or_with_usage_keeps_its_status() {
+    tokio::task::LocalSet::new().run_until(a_completed_result_with_text_or_with_usage_keeps_its_status_body()).await
+}
+
+async fn a_completed_result_with_text_or_with_usage_keeps_its_status_body() {
     let with_text = result_run(&json!({"type": "result", "subtype": "success", "is_error": false, "duration_ms": 30, "result": "ok", "session_id": FIXTURE_SESSION_ID, "usage": {"input_tokens": 0, "output_tokens": 0}}).to_string()).await;
     assert_eq!(with_text.1.status, TurnStatus::Completed);
     assert_eq!(with_text.1.text.as_deref(), Some("ok"));
@@ -484,6 +556,10 @@ async fn a_completed_result_with_text_or_with_usage_keeps_its_status() {
 // TS: adapter.test.ts:1526
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_background_task_that_ended_before_the_result_leaves_the_turn_completed() {
+    tokio::task::LocalSet::new().run_until(a_background_task_that_ended_before_the_result_leaves_the_turn_completed_body()).await
+}
+
+async fn a_background_task_that_ended_before_the_result_leaves_the_turn_completed_body() {
     let init = init_fixture();
     let one = json!({"type": "system", "subtype": "background_tasks_changed", "tasks": [{"task_id": "a", "task_type": "local_bash", "description": "sleep 5"}], "session_id": FIXTURE_SESSION_ID}).to_string();
     let none = json!({"type": "system", "subtype": "background_tasks_changed", "tasks": [], "session_id": FIXTURE_SESSION_ID}).to_string();
@@ -503,6 +579,10 @@ async fn a_background_task_that_ended_before_the_result_leaves_the_turn_complete
 // TS: adapter.test.ts:1546
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn skips_lines_that_are_not_stream_json_events() {
+    tokio::task::LocalSet::new().run_until(skips_lines_that_are_not_stream_json_events_body()).await
+}
+
+async fn skips_lines_that_are_not_stream_json_events_body() {
     let lines = vec![
         "not json at all".to_string(),
         "42".to_string(),
@@ -605,6 +685,10 @@ fn task_counts(events: &Events) -> Vec<(u32, Option<String>)> {
 // TS: adapter.test.ts:1603
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn held_reply_closes_ends_and_delivers_nothing_until_the_task_is_done() {
+    tokio::task::LocalSet::new().run_until(held_reply_closes_ends_and_delivers_nothing_until_the_task_is_done_body()).await
+}
+
+async fn held_reply_closes_ends_and_delivers_nothing_until_the_task_is_done_body() {
     let b = bg();
     let (m, events, session) = held(true, None);
     push_all(&m, &[&b.init, &b.running, &b.started_task, &b.handed_back, &b.reply]);
@@ -632,6 +716,10 @@ async fn held_reply_closes_ends_and_delivers_nothing_until_the_task_is_done() {
 // TS: adapter.test.ts:1626
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ends_when_the_task_wakes_the_agent_and_the_agents_next_reply_is_the_turns() {
+    tokio::task::LocalSet::new().run_until(ends_when_the_task_wakes_the_agent_and_the_agents_next_reply_is_the_turns_body()).await
+}
+
+async fn ends_when_the_task_wakes_the_agent_and_the_agents_next_reply_is_the_turns_body() {
     let b = bg();
     let (m, events, session) = held(false, None);
     push_all(&m, &[&b.init, &b.running, &b.started_task, &b.reply, &b.none, &b.updated, &b.notified, &b.woke, &b.second]);
@@ -652,6 +740,10 @@ async fn ends_when_the_task_wakes_the_agent_and_the_agents_next_reply_is_the_tur
 // TS: adapter.test.ts:1641
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn delivered_once_a_late_wake_is_not_a_second_reply() {
+    tokio::task::LocalSet::new().run_until(delivered_once_a_late_wake_is_not_a_second_reply_body()).await
+}
+
+async fn delivered_once_a_late_wake_is_not_a_second_reply_body() {
     let b = bg();
     let (m, events, session) = held(true, Some(5_000));
     push_all(&m, &[&b.init, &b.running, &b.started_task, &b.reply, &b.none, &b.updated, &b.notified]);
@@ -676,6 +768,10 @@ async fn delivered_once_a_late_wake_is_not_a_second_reply() {
 // TS: adapter.test.ts:1662
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_send_during_the_hold_steers_the_agent_and_its_next_reply_ends_the_hold() {
+    tokio::task::LocalSet::new().run_until(a_send_during_the_hold_steers_the_agent_and_its_next_reply_ends_the_hold_body()).await
+}
+
+async fn a_send_during_the_hold_steers_the_agent_and_its_next_reply_ends_the_hold_body() {
     let b = bg();
     let (m, events, session) = held(false, None);
     push_all(&m, &[&b.init, &b.running, &b.started_task, &b.reply]);
@@ -698,6 +794,10 @@ async fn a_send_during_the_hold_steers_the_agent_and_its_next_reply_ends_the_hol
 // TS: adapter.test.ts:1678
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn hands_the_runtime_the_reply_once_over_its_tasks_and_marks_the_turns_end_as_that_reply() {
+    tokio::task::LocalSet::new().run_until(hands_the_runtime_the_reply_once_over_its_tasks_and_marks_the_turns_end_as_that_reply_body()).await
+}
+
+async fn hands_the_runtime_the_reply_once_over_its_tasks_and_marks_the_turns_end_as_that_reply_body() {
     let b = bg();
     let (m, events, session) = held(false, None);
     push_all(&m, &[&b.init, &b.running, &b.started_task, &b.reply, &b.two, &b.only_b]);
@@ -714,6 +814,10 @@ async fn hands_the_runtime_the_reply_once_over_its_tasks_and_marks_the_turns_end
 // TS: adapter.test.ts:1695
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_woken_agents_own_reply_is_a_new_one_not_marked_held() {
+    tokio::task::LocalSet::new().run_until(a_woken_agents_own_reply_is_a_new_one_not_marked_held_body()).await
+}
+
+async fn a_woken_agents_own_reply_is_a_new_one_not_marked_held_body() {
     let b = bg();
     let (m, events, session) = held(false, None);
     push_all(&m, &[&b.init, &b.running, &b.started_task, &b.reply, &b.none, &b.updated, &b.notified, &b.init, &b.woke, &b.second]);
@@ -727,6 +831,10 @@ async fn a_woken_agents_own_reply_is_a_new_one_not_marked_held() {
 // TS: adapter.test.ts:1705
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_woken_agent_cut_before_its_own_reply_ends_a_turn_not_marked_held_failed_with_the_exit() {
+    tokio::task::LocalSet::new().run_until(a_woken_agent_cut_before_its_own_reply_ends_a_turn_not_marked_held_failed_with_the_exit_body()).await
+}
+
+async fn a_woken_agent_cut_before_its_own_reply_ends_a_turn_not_marked_held_failed_with_the_exit_body() {
     let b = bg();
     let (m, events, session) = held(false, None);
     push_all(&m, &[&b.init, &b.running, &b.started_task, &b.reply, &b.init]);
@@ -741,6 +849,10 @@ async fn a_woken_agent_cut_before_its_own_reply_ends_a_turn_not_marked_held_fail
 // TS: adapter.test.ts:1716
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn reports_the_clis_own_count_to_the_runtime_on_every_change() {
+    tokio::task::LocalSet::new().run_until(reports_the_clis_own_count_to_the_runtime_on_every_change_body()).await
+}
+
+async fn reports_the_clis_own_count_to_the_runtime_on_every_change_body() {
     let b = bg();
     let (m, events, session) = held(false, None);
     push_all(&m, &[&b.init, &b.running, &b.two, &b.none]);
@@ -758,6 +870,10 @@ async fn reports_the_clis_own_count_to_the_runtime_on_every_change() {
 // TS: adapter.test.ts:1728
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn is_held_until_the_last_task_is_gone_and_every_finished_task_is_under_the_reply() {
+    tokio::task::LocalSet::new().run_until(is_held_until_the_last_task_is_gone_and_every_finished_task_is_under_the_reply_body()).await
+}
+
+async fn is_held_until_the_last_task_is_gone_and_every_finished_task_is_under_the_reply_body() {
     let b = bg();
     let (m, events, session) = held(false, None);
     push_all(&m, &[&b.init, &b.two, &b.reply, &b.notified, &b.only_b]);
@@ -778,6 +894,10 @@ async fn is_held_until_the_last_task_is_gone_and_every_finished_task_is_under_th
 // TS: adapter.test.ts:1745
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ended_with_a_server_still_running_reads_done_and_names_the_running_work_as_its_last_line() {
+    tokio::task::LocalSet::new().run_until(ended_with_a_server_still_running_reads_done_and_names_the_running_work_as_its_last_line_body()).await
+}
+
+async fn ended_with_a_server_still_running_reads_done_and_names_the_running_work_as_its_last_line_body() {
     let b = bg();
     // A server the agent started for its screenshots never exits, so no wake ever comes: the turn itself went fine.
     let serving = json!({"type": "system", "subtype": "background_tasks_changed", "tasks": [{"task_id": TASK, "task_type": "local_bash", "description": "nohup node server.js"}], "session_id": SID}).to_string();
@@ -800,6 +920,10 @@ async fn ended_with_a_server_still_running_reads_done_and_names_the_running_work
 // TS: adapter.test.ts:1763
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_held_reply_that_failed_stays_failed_with_its_own_error_and_names_no_running_work() {
+    tokio::task::LocalSet::new().run_until(a_held_reply_that_failed_stays_failed_with_its_own_error_and_names_no_running_work_body()).await
+}
+
+async fn a_held_reply_that_failed_stays_failed_with_its_own_error_and_names_no_running_work_body() {
     let b = bg();
     let errored = json!({"type": "result", "subtype": "success", "is_error": true, "result": "API Error: 529 overloaded", "duration_ms": 40, "session_id": SID}).to_string();
     let (m, events, session) = held(false, None);
@@ -816,6 +940,10 @@ async fn a_held_reply_that_failed_stays_failed_with_its_own_error_and_names_no_r
 // TS: adapter.test.ts:1775
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ended_with_one_task_running_after_another_finished_names_both_the_running_work_last() {
+    tokio::task::LocalSet::new().run_until(ended_with_one_task_running_after_another_finished_names_both_the_running_work_last_body()).await
+}
+
+async fn ended_with_one_task_running_after_another_finished_names_both_the_running_work_last_body() {
     let b = bg();
     let (m, events, session) = held(false, None);
     push_all(&m, &[&b.init, &b.two, &b.reply, &b.notified, &b.only_b]);
@@ -833,6 +961,10 @@ async fn ended_with_one_task_running_after_another_finished_names_both_the_runni
 // TS: adapter.test.ts:1786
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn stopped_by_the_person_reads_interrupted_and_keeps_the_reply() {
+    tokio::task::LocalSet::new().run_until(stopped_by_the_person_reads_interrupted_and_keeps_the_reply_body()).await
+}
+
+async fn stopped_by_the_person_reads_interrupted_and_keeps_the_reply_body() {
     let b = bg();
     let (m, events, session) = held(true, None);
     push_all(&m, &[&b.init, &b.running, &b.started_task, &b.reply]);
@@ -889,6 +1021,10 @@ mod shell {
 // TS: adapter.test.ts:1816
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn stamps_the_shells_folder_on_the_tool_use_that_moves_it_and_nothing_else() {
+    tokio::task::LocalSet::new().run_until(stamps_the_shells_folder_on_the_tool_use_that_moves_it_and_nothing_else_body()).await
+}
+
+async fn stamps_the_shells_folder_on_the_tool_use_that_moves_it_and_nothing_else_body() {
     use shell::*;
     let deltas = run(vec![
         init(),
@@ -921,6 +1057,10 @@ async fn stamps_the_shells_folder_on_the_tool_use_that_moves_it_and_nothing_else
 // TS: adapter.test.ts:1841
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn takes_a_write_under_the_harness_folder_as_the_shells_folder_when_no_cd_came_first() {
+    tokio::task::LocalSet::new().run_until(takes_a_write_under_the_harness_folder_as_the_shells_folder_when_no_cd_came_first_body()).await
+}
+
+async fn takes_a_write_under_the_harness_folder_as_the_shells_folder_when_no_cd_came_first_body() {
     use shell::*;
     let deltas = run(vec![
         init(),
@@ -948,6 +1088,10 @@ fn rewind_adapter(exec: &Arc<FakeExec>) -> ClaudeAdapter {
 // TS: adapter.test.ts:1863
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn names_the_turns_last_message_once_before_the_reply_as_the_point_a_cut_keeps() {
+    tokio::task::LocalSet::new().run_until(names_the_turns_last_message_once_before_the_reply_as_the_point_a_cut_keeps_body()).await
+}
+
+async fn names_the_turns_last_message_once_before_the_reply_as_the_point_a_cut_keeps_body() {
     let exec = script(fixture_lines("stream-session.jsonl"));
     let (events, on_event) = collect();
     rewind_adapter(&exec).start(opts("go", on_event)).unwrap().finished().await;
@@ -962,6 +1106,10 @@ async fn names_the_turns_last_message_once_before_the_reply_as_the_point_a_cut_k
 // TS: adapter.test.ts:1872
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn leaves_a_subagents_messages_out_of_the_anchor() {
+    tokio::task::LocalSet::new().run_until(leaves_a_subagents_messages_out_of_the_anchor_body()).await
+}
+
+async fn leaves_a_subagents_messages_out_of_the_anchor_body() {
     let lines = fixture_lines("stream-session.jsonl");
     let at = lines.iter().position(|l| l.contains("\"subtype\":\"success\"")).expect("the success line");
     let sub = json!({"type": "assistant", "uuid": "9f9f9f9f-0000-4000-8000-000000000099", "parent_tool_use_id": "toolu_sub", "session_id": FIXTURE_SESSION_ID, "message": {"id": "m_sub", "role": "assistant", "content": [{"type": "text", "text": "sub"}]}}).to_string();
@@ -978,6 +1126,10 @@ async fn leaves_a_subagents_messages_out_of_the_anchor() {
 // TS: adapter.test.ts:1882
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn forks_a_session_through_a_turns_anchor_on_a_copy_and_never_resumes_at_a_message() {
+    tokio::task::LocalSet::new().run_until(forks_a_session_through_a_turns_anchor_on_a_copy_and_never_resumes_at_a_message_body()).await
+}
+
+async fn forks_a_session_through_a_turns_anchor_on_a_copy_and_never_resumes_at_a_message_body() {
     // The copy's read answers the fixture's two message lines; the write and the removal print nothing.
     let first = json!({"parentUuid": null, "type": "user", "message": {"role": "user", "content": "hi"}, "uuid": "1a2b3c4d-0001-4aaa-8bbb-000000000001"}).to_string();
     let reply = json!({"parentUuid": "1a2b3c4d-0001-4aaa-8bbb-000000000001", "type": "assistant", "message": {"id": "m1", "content": [{"type": "text", "text": "hello"}]}, "uuid": "1a2b3c4d-0002-4aaa-8bbb-000000000002"}).to_string();
@@ -1041,6 +1193,10 @@ fn retries(events: &[AdapterEvent]) -> Vec<AdapterEvent> {
 // TS: adapter.test.ts:1922
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn says_each_retry_which_one_of_how_many_and_why_before_the_reply() {
+    tokio::task::LocalSet::new().run_until(says_each_retry_which_one_of_how_many_and_why_before_the_reply_body()).await
+}
+
+async fn says_each_retry_which_one_of_how_many_and_why_before_the_reply_body() {
     let (done, events) = run_lines(recorded("api-retry-turn")).await;
     assert_eq!(done.status, TurnStatus::Completed);
     assert_eq!(done.text.as_deref(), Some("hello"));
@@ -1053,6 +1209,10 @@ async fn says_each_retry_which_one_of_how_many_and_why_before_the_reply() {
 // TS: adapter.test.ts:1933
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn names_why_off_the_clis_own_error() {
+    tokio::task::LocalSet::new().run_until(names_why_off_the_clis_own_error_body()).await
+}
+
+async fn names_why_off_the_clis_own_error_body() {
     let rows: [(Option<u32>, &str, &str); 4] = [
         (None, "unknown", "Anthropic did not answer"),
         (Some(500), "server_error", "Anthropic answered with a server error (500)"),
@@ -1068,6 +1228,10 @@ async fn names_why_off_the_clis_own_error() {
 // TS: adapter.test.ts:1941
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn says_a_subagents_retry_off_the_progress_line_its_call_carries() {
+    tokio::task::LocalSet::new().run_until(says_a_subagents_retry_off_the_progress_line_its_call_carries_body()).await
+}
+
+async fn says_a_subagents_retry_off_the_progress_line_its_call_carries_body() {
     // A subagent the agent waits on, its call held past the CLI's wait: a heartbeat, the retry, then the call through.
     let progress = |more: Value| {
         let mut line = json!({"type": "tool_progress", "tool_use_id": "agent_msg_12", "tool_name": "Agent", "parent_tool_use_id": "toolu_one", "elapsed_time_seconds": 0, "session_id": FIXTURE_SESSION_ID, "uuid": "66f6638f-09b9-4699-bc14-552076ae3cec", "subagent_type": "general-purpose"});
@@ -1097,6 +1261,10 @@ fn compacted_event(before: f64, after: f64) -> AdapterEvent {
 // TS: adapter.test.ts:1958
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn says_the_compaction_with_both_figures_and_the_reply_after_it_is_what_the_model_then_held() {
+    tokio::task::LocalSet::new().run_until(says_the_compaction_with_both_figures_and_the_reply_after_it_is_what_the_model_then_held_body()).await
+}
+
+async fn says_the_compaction_with_both_figures_and_the_reply_after_it_is_what_the_model_then_held_body() {
     let exec = script(recorded("compact-turn"));
     let adapter = adapter_over(&exec);
     let (events, on_event) = collect();
@@ -1152,6 +1320,10 @@ mod limits {
 // TS: adapter.test.ts:1984
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn reads_every_window_the_event_tracks_as_a_percent_and_ms_and_names_no_account() {
+    tokio::task::LocalSet::new().run_until(reads_every_window_the_event_tracks_as_a_percent_and_ms_and_names_no_account_body()).await
+}
+
+async fn reads_every_window_the_event_tracks_as_a_percent_and_ms_and_names_no_account_body() {
     use limits::*;
     let seen = limits(vec![limit_line(json!({
         "status": "allowed",
@@ -1167,6 +1339,10 @@ async fn reads_every_window_the_event_tracks_as_a_percent_and_ms_and_names_no_ac
 // TS: adapter.test.ts:2009
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn maps_each_of_the_six_limit_types_to_its_kind_and_the_status_words() {
+    tokio::task::LocalSet::new().run_until(maps_each_of_the_six_limit_types_to_its_kind_and_the_status_words_body()).await
+}
+
+async fn maps_each_of_the_six_limit_types_to_its_kind_and_the_status_words_body() {
     use limits::*;
     let one = |rate_limit_type: &str, status: &str| limit_line(json!({"status": status, "rateLimitType": rate_limit_type, "utilization": 0.5, "resetsAt": 1_790_700_000u64}));
     let seen = limits(vec![
@@ -1195,6 +1371,10 @@ async fn maps_each_of_the_six_limit_types_to_its_kind_and_the_status_words() {
 // TS: adapter.test.ts:2029
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn says_a_turn_signed_in_with_a_key_has_no_plan_window_off_the_key_source_the_init_line_names() {
+    tokio::task::LocalSet::new().run_until(says_a_turn_signed_in_with_a_key_has_no_plan_window_off_the_key_source_the_init_line_names_body()).await
+}
+
+async fn says_a_turn_signed_in_with_a_key_has_no_plan_window_off_the_key_source_the_init_line_names_body() {
     use limits::*;
     let run = |api_key_source: Option<&'static str>| async move {
         let mut init = json!({"type": "system", "subtype": "init", "cwd": "/root", "session_id": SID, "tools": [], "model": "claude-opus-5"});
@@ -1216,6 +1396,10 @@ async fn says_a_turn_signed_in_with_a_key_has_no_plan_window_off_the_key_source_
 // TS: adapter.test.ts:2042
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn drops_an_event_that_reads_no_utilization_for_any_window() {
+    tokio::task::LocalSet::new().run_until(drops_an_event_that_reads_no_utilization_for_any_window_body()).await
+}
+
+async fn drops_an_event_that_reads_no_utilization_for_any_window_body() {
     use limits::*;
     let seen = limits(vec![limit_line(json!({"status": "allowed", "rateLimitType": "five_hour", "resetsAt": 1_790_700_000u64})), limit_line(json!({"status": "allowed"}))]).await;
     assert_eq!(seen, vec![]);
@@ -1235,6 +1419,10 @@ async fn stopped_turn(lines: Vec<String>) -> TurnResult {
 // TS: adapter.test.ts:2054
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_usage_limit_stop_carries_the_limit_with_the_last_reset_of_the_rejected_windows() {
+    tokio::task::LocalSet::new().run_until(a_usage_limit_stop_carries_the_limit_with_the_last_reset_of_the_rejected_windows_body()).await
+}
+
+async fn a_usage_limit_stop_carries_the_limit_with_the_last_reset_of_the_rejected_windows_body() {
     use limits::*;
     let done = stopped_turn(vec![
         limit_line(json!({"status": "rejected", "rateLimitType": "five_hour", "utilization": 1, "resetsAt": 1_790_700_000u64, "overageStatus": "rejected", "isUsingOverage": false})),
@@ -1248,6 +1436,10 @@ async fn a_usage_limit_stop_carries_the_limit_with_the_last_reset_of_the_rejecte
 // TS: adapter.test.ts:2062
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_usage_limit_stop_carries_the_limit_with_no_reset_where_a_rejected_window_named_none() {
+    tokio::task::LocalSet::new().run_until(a_usage_limit_stop_carries_the_limit_with_no_reset_where_a_rejected_window_named_none_body()).await
+}
+
+async fn a_usage_limit_stop_carries_the_limit_with_no_reset_where_a_rejected_window_named_none_body() {
     use limits::*;
     let done = stopped_turn(vec![limit_line(json!({"status": "rejected", "rateLimitType": "five_hour", "resetsAt": 1_790_700_000u64})), limit_line(json!({"status": "rejected", "rateLimitType": "seven_day"}))]).await;
     assert_eq!(done.limit, Some(TurnLimit { resets_at: None }));
@@ -1256,6 +1448,10 @@ async fn a_usage_limit_stop_carries_the_limit_with_no_reset_where_a_rejected_win
 // TS: adapter.test.ts:2067
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_usage_limit_stop_carries_none_where_overage_runs_on_or_a_later_reading_allowed_it_again() {
+    tokio::task::LocalSet::new().run_until(a_usage_limit_stop_carries_none_where_overage_runs_on_or_a_later_reading_allowed_it_again_body()).await
+}
+
+async fn a_usage_limit_stop_carries_none_where_overage_runs_on_or_a_later_reading_allowed_it_again_body() {
     use limits::*;
     let overage = stopped_turn(vec![limit_line(json!({"status": "rejected", "rateLimitType": "five_hour", "resetsAt": 1_790_700_000u64, "overageStatus": "allowed"}))]).await;
     assert_eq!(overage.status, TurnStatus::Failed);
@@ -1276,9 +1472,9 @@ async fn a_usage_limit_stop_carries_none_where_overage_runs_on_or_a_later_readin
 struct Asked(Arc<Mutex<Vec<String>>>);
 
 impl HarnessExec for Asked {
-    fn exec(&self, command: &str, _env: Option<&Env>) -> BoxFuture<'static, Result<String, ExecFailure>> {
+    fn exec(&self, command: &str, _env: Option<&Env>) -> LocalBoxFuture<'static, Result<String, ExecFailure>> {
         self.0.lock().unwrap().push(command.to_string());
-        async { Ok(String::new()) }.boxed()
+        async { Ok(String::new()) }.boxed_local()
     }
 }
 
@@ -1289,6 +1485,10 @@ fn setup() -> AgentLaunch {
 // TS: adapter.test.ts:2078
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn runs_the_program_everywhere_and_adds_the_launch_words_to_a_turn_and_its_side_question_alone() {
+    tokio::task::LocalSet::new().run_until(runs_the_program_everywhere_and_adds_the_launch_words_to_a_turn_and_its_side_question_alone_body()).await
+}
+
+async fn runs_the_program_everywhere_and_adds_the_launch_words_to_a_turn_and_its_side_question_alone_body() {
     let exec = script(fixture_lines("stream-session.jsonl"));
     let launch = setup();
     let adapter = adapter_with(exec.clone(), |d| d.launch = Some(launch.clone()));
@@ -1315,6 +1515,10 @@ async fn runs_the_program_everywhere_and_adds_the_launch_words_to_a_turn_and_its
 // TS: adapter.test.ts:2100
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn with_no_setup_the_line_is_the_clis_own() {
+    tokio::task::LocalSet::new().run_until(with_no_setup_the_line_is_the_clis_own_body()).await
+}
+
+async fn with_no_setup_the_line_is_the_clis_own_body() {
     let exec = script(fixture_lines("stream-session.jsonl"));
     adapter_over(&exec).start(opts("go", quiet())).unwrap().finished().await;
     let command = exec.calls()[0].command.clone();
@@ -1420,6 +1624,10 @@ mod cost {
 // TS: adapter.test.ts:2123
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_resumed_turn_costs_its_results_total_less_the_total_the_transcript_saved() {
+    tokio::task::LocalSet::new().run_until(a_resumed_turn_costs_its_results_total_less_the_total_the_transcript_saved_body()).await
+}
+
+async fn a_resumed_turn_costs_its_results_total_less_the_total_the_transcript_saved_body() {
     use cost::*;
     let ran = run(vec![saved(352.3259844), init(), result(370.679875)], Some(FIXTURE_SESSION_ID)).await;
     close(ran.done.cost_usd, 18.3538906, 6);
@@ -1432,6 +1640,10 @@ async fn a_resumed_turn_costs_its_results_total_less_the_total_the_transcript_sa
 // TS: adapter.test.ts:2131
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_saved_line_of_another_session_is_not_this_sessions_total() {
+    tokio::task::LocalSet::new().run_until(a_saved_line_of_another_session_is_not_this_sessions_total_body()).await
+}
+
+async fn a_saved_line_of_another_session_is_not_this_sessions_total_body() {
     use cost::*;
     let ran = run(vec![saved_of(352.3259844, "11111111-2222-4333-8444-555555555555"), init(), result(370.679875)], Some(FIXTURE_SESSION_ID)).await;
     assert_eq!(ran.done.cost_usd, None);
@@ -1442,6 +1654,10 @@ async fn a_saved_line_of_another_session_is_not_this_sessions_total() {
 // TS: adapter.test.ts:2137
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_resume_with_nothing_saved_leaves_the_turns_cost_out() {
+    tokio::task::LocalSet::new().run_until(a_resume_with_nothing_saved_leaves_the_turns_cost_out_body()).await
+}
+
+async fn a_resume_with_nothing_saved_leaves_the_turns_cost_out_body() {
     use cost::*;
     let ran = run(vec![init(), result(370.679875)], Some(FIXTURE_SESSION_ID)).await;
     assert_eq!(ran.done.cost_usd, None);
@@ -1451,6 +1667,10 @@ async fn a_resume_with_nothing_saved_leaves_the_turns_cost_out() {
 // TS: adapter.test.ts:2143
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_saved_line_that_does_not_read_leaves_the_turns_cost_out() {
+    tokio::task::LocalSet::new().run_until(a_saved_line_that_does_not_read_leaves_the_turns_cost_out_body()).await
+}
+
+async fn a_saved_line_that_does_not_read_leaves_the_turns_cost_out_body() {
     use cost::*;
     let broken = json!({"type": "cost-state", "sessionId": FIXTURE_SESSION_ID, "totalCostUSD": "352.33", "modelUsage": {}}).to_string();
     assert_eq!(run(vec![broken, init(), result(370.679875)], Some(FIXTURE_SESSION_ID)).await.done.cost_usd, None);
@@ -1460,6 +1680,10 @@ async fn a_saved_line_that_does_not_read_leaves_the_turns_cost_out() {
 // TS: adapter.test.ts:2149
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_compaction_inside_the_turn_leaves_the_running_total_running() {
+    tokio::task::LocalSet::new().run_until(a_compaction_inside_the_turn_leaves_the_running_total_running_body()).await
+}
+
+async fn a_compaction_inside_the_turn_leaves_the_running_total_running_body() {
     use cost::*;
     let compacted = recorded("compact-turn").into_iter().find(|l| l.contains("\"compact_boundary\"")).expect("a compact_boundary line");
     let ran = run(vec![saved(352.3259844), init(), compacted, result(370.679875)], Some(FIXTURE_SESSION_ID)).await;
@@ -1469,6 +1693,10 @@ async fn a_compaction_inside_the_turn_leaves_the_running_total_running() {
 // TS: adapter.test.ts:2155
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_compact_turn_says_what_the_model_holds_after_the_compaction_though_its_result_reports_no_call() {
+    tokio::task::LocalSet::new().run_until(a_compact_turn_says_what_the_model_holds_after_the_compaction_though_its_result_reports_no_call_body()).await
+}
+
+async fn a_compact_turn_says_what_the_model_holds_after_the_compaction_though_its_result_reports_no_call_body() {
     use cost::*;
     // 2.1.291's answer to a headless /compact on a resumed session: the status lines, init, the boundary with what
     // the model held before and after it, the CLI's own line, and a result whose usage is all zeros.
@@ -1482,6 +1710,10 @@ async fn a_compact_turn_says_what_the_model_holds_after_the_compaction_though_it
 // TS: adapter.test.ts:2164
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_total_under_the_saved_one_started_again_from_nothing_so_the_turn_cost_the_whole_of_it() {
+    tokio::task::LocalSet::new().run_until(a_total_under_the_saved_one_started_again_from_nothing_so_the_turn_cost_the_whole_of_it_body()).await
+}
+
+async fn a_total_under_the_saved_one_started_again_from_nothing_so_the_turn_cost_the_whole_of_it_body() {
     use cost::*;
     let ran = run(vec![saved(352.3259844), init(), result(2.5)], Some(FIXTURE_SESSION_ID)).await;
     assert_eq!(ran.done.cost_usd, Some(n(2.5)));
@@ -1490,6 +1722,10 @@ async fn a_total_under_the_saved_one_started_again_from_nothing_so_the_turn_cost
 // TS: adapter.test.ts:2169
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn files_each_model_a_turn_used_with_its_own_tokens_and_cost() {
+    tokio::task::LocalSet::new().run_until(files_each_model_a_turn_used_with_its_own_tokens_and_cost_body()).await
+}
+
+async fn files_each_model_a_turn_used_with_its_own_tokens_and_cost_body() {
     use cost::*;
     let before = json!({"type": "cost-state", "sessionId": FIXTURE_SESSION_ID, "totalCostUSD": 10.5, "modelUsage": {
         "claude-opus-5-5[1m]": use_full(100, 1_000, None, 50_000, 5_000, 10.0, true),
@@ -1514,6 +1750,10 @@ async fn files_each_model_a_turn_used_with_its_own_tokens_and_cost() {
 // TS: adapter.test.ts:2190
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn says_what_each_model_call_drew_once_per_message_and_what_the_agents_own_call_left_it_holding() {
+    tokio::task::LocalSet::new().run_until(says_what_each_model_call_drew_once_per_message_and_what_the_agents_own_call_left_it_holding_body()).await
+}
+
+async fn says_what_each_model_call_drew_once_per_message_and_what_the_agents_own_call_left_it_holding_body() {
     use cost::*;
     let said = |id: &str, usage: Value, parent: Option<&str>| {
         let last = &id[id.len() - 1..];
@@ -1542,6 +1782,10 @@ async fn says_what_each_model_call_drew_once_per_message_and_what_the_agents_own
 // TS: adapter.test.ts:2209
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn one_models_totals_under_their_saved_ones_leaves_the_split_by_model_unknown() {
+    tokio::task::LocalSet::new().run_until(one_models_totals_under_their_saved_ones_leaves_the_split_by_model_unknown_body()).await
+}
+
+async fn one_models_totals_under_their_saved_ones_leaves_the_split_by_model_unknown_body() {
     use cost::*;
     let use_ = |input: u64, cost: f64| json!({"inputTokens": input, "outputTokens": 10, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0, "webSearchRequests": 0, "costUSD": cost});
     let before = json!({"type": "cost-state", "sessionId": FIXTURE_SESSION_ID, "totalCostUSD": 10, "modelUsage": {"claude-opus-5-5": use_(1_000, 9.0), "claude-haiku-4-5-20251001": use_(500, 1.0)}}).to_string();
@@ -1554,6 +1798,10 @@ async fn one_models_totals_under_their_saved_ones_leaves_the_split_by_model_unkn
 // TS: adapter.test.ts:2218
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_new_session_has_nothing_saved_so_the_launch_reads_no_file_and_the_turn_cost_its_whole_total() {
+    tokio::task::LocalSet::new().run_until(a_new_session_has_nothing_saved_so_the_launch_reads_no_file_and_the_turn_cost_its_whole_total_body()).await
+}
+
+async fn a_new_session_has_nothing_saved_so_the_launch_reads_no_file_and_the_turn_cost_its_whole_total_body() {
     use cost::*;
     let ran = run(vec![init(), result(4.25)], None).await;
     assert_eq!(ran.done.cost_usd, Some(n(4.25)));
@@ -1563,6 +1811,10 @@ async fn a_new_session_has_nothing_saved_so_the_launch_reads_no_file_and_the_tur
 // TS: adapter.test.ts:2230
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn files_the_split_by_model_whatever_the_stream_printed() {
+    tokio::task::LocalSet::new().run_until(files_the_split_by_model_whatever_the_stream_printed_body()).await
+}
+
+async fn files_the_split_by_model_whatever_the_stream_printed_body() {
     use cost::*;
     let lines = vec![
         init(),
@@ -1583,6 +1835,10 @@ async fn files_the_split_by_model_whatever_the_stream_printed() {
 // TS: adapter.test.ts:2246
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_turn_whose_cli_made_a_call_it_never_printed_keeps_its_cost_and_split() {
+    tokio::task::LocalSet::new().run_until(a_turn_whose_cli_made_a_call_it_never_printed_keeps_its_cost_and_split_body()).await
+}
+
+async fn a_turn_whose_cli_made_a_call_it_never_printed_keeps_its_cost_and_split_body() {
     use cost::*;
     // Recorded on 2.1.280: three printed haiku calls read 81,881 tokens, modelUsage 82,084.
     let ran = run(fixture_lines("webfetch-turn.jsonl"), None).await;
@@ -1599,6 +1855,10 @@ async fn a_turn_whose_cli_made_a_call_it_never_printed_keeps_its_cost_and_split(
 // TS: adapter.test.ts:2272
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_turn_the_cli_woke_for_its_background_work_counts_every_token_since_its_start() {
+    tokio::task::LocalSet::new().run_until(a_turn_the_cli_woke_for_its_background_work_counts_every_token_since_its_start_body()).await
+}
+
+async fn a_turn_the_cli_woke_for_its_background_work_counts_every_token_since_its_start_body() {
     use cost::*;
     let lines = woke_lines(
         Some(json!({"claude-haiku-4-5-20251001": use_(18, 70_000, 17_218, 1_681, 0.08)})),
@@ -1617,6 +1877,10 @@ async fn a_turn_the_cli_woke_for_its_background_work_counts_every_token_since_it
 // TS: adapter.test.ts:2281
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_woken_agent_cut_before_its_reply_adds_the_calls_printed_after_the_held_reply_as_an_entry_with_no_cost() {
+    tokio::task::LocalSet::new().run_until(a_woken_agent_cut_before_its_reply_adds_the_calls_printed_after_the_held_reply_as_an_entry_with_no_cost_body()).await
+}
+
+async fn a_woken_agent_cut_before_its_reply_adds_the_calls_printed_after_the_held_reply_as_an_entry_with_no_cost_body() {
     use cost::*;
     let mut lines = woke_lines(Some(json!({"claude-haiku-4-5-20251001": use_(18, 70_000, 17_218, 1_681, 0.08)})), None);
     lines.pop();
@@ -1646,6 +1910,10 @@ async fn a_woken_agent_cut_before_its_reply_adds_the_calls_printed_after_the_hel
 // TS: adapter.test.ts:2312
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_woken_turn_with_no_split_by_model_still_counts_both_of_its_results_tokens() {
+    tokio::task::LocalSet::new().run_until(a_woken_turn_with_no_split_by_model_still_counts_both_of_its_results_tokens_body()).await
+}
+
+async fn a_woken_turn_with_no_split_by_model_still_counts_both_of_its_results_tokens_body() {
     use cost::*;
     let ran = run(woke_lines(None, None), Some(FIXTURE_SESSION_ID)).await;
     assert_eq!(ran.done.models, None);

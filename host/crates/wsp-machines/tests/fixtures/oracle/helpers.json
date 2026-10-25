@@ -1,0 +1,2171 @@
+{
+  "facts": {
+    "agents": [
+      {
+        "id": "claude",
+        "signIn": "token",
+        "stateHomeEnv": "CLAUDE_CONFIG_DIR"
+      },
+      {
+        "id": "codex",
+        "signIn": "oauth",
+        "stateHomeEnv": "CODEX_HOME"
+      },
+      {
+        "id": "gemini",
+        "signIn": "oauth",
+        "stateHomeEnv": null
+      },
+      {
+        "id": "opencode",
+        "signIn": "key",
+        "stateHomeEnv": null
+      },
+      {
+        "id": "pi",
+        "signIn": "oauth",
+        "stateHomeEnv": null
+      },
+      {
+        "id": "hermes",
+        "signIn": "device",
+        "stateHomeEnv": null
+      },
+      {
+        "id": "crush",
+        "signIn": "none",
+        "stateHomeEnv": null
+      },
+      {
+        "id": "qwen",
+        "signIn": "none",
+        "stateHomeEnv": null
+      },
+      {
+        "id": "goose",
+        "signIn": "none",
+        "stateHomeEnv": null
+      },
+      {
+        "id": "amp",
+        "signIn": "none",
+        "stateHomeEnv": null
+      },
+      {
+        "id": "cursor",
+        "signIn": "key",
+        "stateHomeEnv": null
+      }
+    ],
+    "sharedLogins": [
+      "codex/auth.json"
+    ],
+    "sshStoreVars": [
+      "CLAUDE_CONFIG_DIR",
+      "CODEX_HOME"
+    ],
+    "sharedLoginFile": {
+      "claude": null,
+      "codex": "codex/auth.json",
+      "gemini": null,
+      "opencode": null,
+      "cursor": null,
+      "gh": null,
+      "nobody": null
+    }
+  },
+  "taken": [
+    {
+      "login": {
+        "HOME": "/root",
+        "PATH": "/usr/bin:/bin"
+      },
+      "out": {
+        "ok": {
+          "agents": [],
+          "login": {
+            "HOME": "/root",
+            "PATH": "/usr/bin:/bin"
+          },
+          "shape": {
+            "cpus": 2,
+            "memMb": 4096,
+            "diskGb": 40
+          },
+          "daemonVersion": 10
+        }
+      }
+    },
+    {
+      "login": {
+        "HOME": "/home/a b",
+        "PATH": "/usr/bin:relative:/x;rm:/opt/bin"
+      },
+      "out": {
+        "ok": {
+          "agents": [],
+          "login": {
+            "HOME": "/home/a b",
+            "PATH": "/usr/bin:/opt/bin"
+          },
+          "shape": {
+            "cpus": 2,
+            "memMb": 4096,
+            "diskGb": 40
+          },
+          "daemonVersion": 10
+        }
+      }
+    },
+    {
+      "login": {
+        "PATH": "/usr/bin"
+      },
+      "out": {
+        "err": "that computer reported no home folder for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path"
+      }
+    },
+    {
+      "login": {
+        "HOME": ""
+      },
+      "out": {
+        "err": "that computer reported no home folder for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path"
+      }
+    },
+    {
+      "login": {
+        "HOME": "relative"
+      },
+      "out": {
+        "err": "that computer reported \"relative\", which is not a plain path for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path"
+      }
+    },
+    {
+      "login": {
+        "HOME": "/root/../etc"
+      },
+      "out": {
+        "err": "that computer reported \"/root/../etc\", which is not a plain path for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path"
+      }
+    },
+    {
+      "login": {
+        "HOME": "/root;rm"
+      },
+      "out": {
+        "err": "that computer reported \"/root;rm\", which is not a plain path for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path"
+      }
+    },
+    {
+      "login": {
+        "HOME": "/root",
+        "CODEX_HOME": "/root/.codex",
+        "CLAUDE_CONFIG_DIR": "bad;dir",
+        "OTHER": "kept;x"
+      },
+      "out": {
+        "ok": {
+          "agents": [],
+          "login": {
+            "HOME": "/root",
+            "CODEX_HOME": "/root/.codex",
+            "OTHER": "kept;x",
+            "PATH": "/usr/local/bin:/usr/bin:/bin"
+          },
+          "shape": {
+            "cpus": 2,
+            "memMb": 4096,
+            "diskGb": 40
+          },
+          "daemonVersion": 10
+        }
+      }
+    },
+    {
+      "login": {
+        "HOME": "/root",
+        "PATH": ""
+      },
+      "out": {
+        "ok": {
+          "agents": [],
+          "login": {
+            "HOME": "/root",
+            "PATH": "/usr/local/bin:/usr/bin:/bin"
+          },
+          "shape": {
+            "cpus": 2,
+            "memMb": 4096,
+            "diskGb": 40
+          },
+          "daemonVersion": 10
+        }
+      }
+    }
+  ],
+  "homeRefusal": [
+    {
+      "said": null,
+      "out": "that computer reported no home folder for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path"
+    },
+    {
+      "said": "",
+      "out": "that computer reported no home folder for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path"
+    },
+    {
+      "said": "rel",
+      "out": "that computer reported \"rel\", which is not a plain path for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path"
+    },
+    {
+      "said": "/a;b",
+      "out": "that computer reported \"/a;b\", which is not a plain path for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path"
+    }
+  ],
+  "agentsOn": [
+    {
+      "report": {
+        "agents": []
+      },
+      "rows": [],
+      "out": []
+    },
+    {
+      "report": {
+        "agents": [
+          "codex",
+          "claude"
+        ]
+      },
+      "rows": [],
+      "out": [
+        "codex",
+        "claude"
+      ]
+    },
+    {
+      "report": {
+        "agents": [
+          "claude"
+        ]
+      },
+      "rows": [
+        {
+          "id": "agents/codex",
+          "label": "AGENTS/CODEX",
+          "outcome": "installed"
+        },
+        {
+          "id": "agents/gemini",
+          "label": "AGENTS/GEMINI",
+          "outcome": "present"
+        },
+        {
+          "id": "agents/opencode",
+          "label": "AGENTS/OPENCODE",
+          "outcome": "failed"
+        },
+        {
+          "id": "agents/claude",
+          "label": "AGENTS/CLAUDE",
+          "outcome": "installed"
+        }
+      ],
+      "out": [
+        "claude",
+        "codex",
+        "gemini"
+      ]
+    },
+    {
+      "report": {
+        "agents": [
+          "zzz"
+        ]
+      },
+      "rows": [
+        {
+          "id": "agents/unknownagent",
+          "label": "AGENTS/UNKNOWNAGENT",
+          "outcome": "installed"
+        },
+        {
+          "id": "clis/gh",
+          "label": "CLIS/GH",
+          "outcome": "installed"
+        }
+      ],
+      "out": [
+        "zzz"
+      ]
+    }
+  ],
+  "signInsCases": [
+    {
+      "report": {
+        "agents": [
+          "claude",
+          "codex"
+        ]
+      },
+      "vault": {},
+      "rows": [],
+      "out": null
+    },
+    {
+      "report": {
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "logins": []
+      },
+      "vault": {},
+      "rows": [],
+      "out": {
+        "claude": "none",
+        "codex": "none"
+      }
+    },
+    {
+      "report": {
+        "agents": [
+          "claude",
+          "codex",
+          "gemini",
+          "opencode"
+        ],
+        "logins": [
+          "codex/auth.json"
+        ]
+      },
+      "vault": {},
+      "rows": [],
+      "out": {
+        "claude": "none",
+        "codex": "signed-in",
+        "gemini": "none",
+        "opencode": "none"
+      }
+    },
+    {
+      "report": {
+        "agents": [
+          "claude",
+          "codex",
+          "gemini"
+        ],
+        "logins": []
+      },
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k",
+        "OPENAI_API_KEY": "o",
+        "GEMINI_API_KEY": "g"
+      },
+      "rows": [],
+      "out": {
+        "claude": "vault-key",
+        "codex": "vault-key",
+        "gemini": "vault-key"
+      }
+    },
+    {
+      "report": {
+        "agents": [
+          "claude"
+        ],
+        "logins": []
+      },
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "rows": [],
+      "out": {
+        "claude": "vault-key"
+      }
+    },
+    {
+      "report": {
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "logins": []
+      },
+      "vault": {},
+      "rows": [
+        {
+          "id": "signins/claude",
+          "label": "SIGNINS/CLAUDE",
+          "outcome": "installed",
+          "note": "signed in on that computer"
+        },
+        {
+          "id": "signins/codex",
+          "label": "SIGNINS/CODEX",
+          "outcome": "present",
+          "note": "signed in on that computer"
+        }
+      ],
+      "out": {
+        "claude": "signed-in",
+        "codex": "none"
+      }
+    },
+    {
+      "report": {
+        "agents": [
+          "claude"
+        ],
+        "logins": []
+      },
+      "vault": {},
+      "rows": [
+        {
+          "id": "signins/claude",
+          "label": "SIGNINS/CLAUDE",
+          "outcome": "failed",
+          "note": "signed in on that computer"
+        }
+      ],
+      "out": {
+        "claude": "none"
+      }
+    },
+    {
+      "report": {
+        "agents": [],
+        "logins": []
+      },
+      "vault": {},
+      "rows": [
+        {
+          "id": "agents/codex",
+          "label": "AGENTS/CODEX",
+          "outcome": "installed"
+        }
+      ],
+      "out": {
+        "codex": "none"
+      }
+    },
+    {
+      "report": {
+        "agents": [
+          "claude"
+        ],
+        "logins": []
+      },
+      "vault": {},
+      "rows": [],
+      "agents": [
+        "gemini",
+        "nobody"
+      ],
+      "out": {
+        "gemini": "none",
+        "nobody": "none"
+      }
+    }
+  ],
+  "vaultSignIn": [
+    {
+      "agent": "claude",
+      "vault": {},
+      "out": "none"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "out": "vault-key"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "out": "vault-key"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "OPENAI_API_KEY": "o"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "GEMINI_API_KEY": "g"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CURSOR_API_KEY": "c"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "codex",
+      "vault": {},
+      "out": "none"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "OPENAI_API_KEY": "o"
+      },
+      "out": "vault-key"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "GEMINI_API_KEY": "g"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CURSOR_API_KEY": "c"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "gemini",
+      "vault": {},
+      "out": "none"
+    },
+    {
+      "agent": "gemini",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "gemini",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "gemini",
+      "vault": {
+        "OPENAI_API_KEY": "o"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "gemini",
+      "vault": {
+        "GEMINI_API_KEY": "g"
+      },
+      "out": "vault-key"
+    },
+    {
+      "agent": "gemini",
+      "vault": {
+        "CURSOR_API_KEY": "c"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "opencode",
+      "vault": {},
+      "out": "none"
+    },
+    {
+      "agent": "opencode",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "opencode",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "opencode",
+      "vault": {
+        "OPENAI_API_KEY": "o"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "opencode",
+      "vault": {
+        "GEMINI_API_KEY": "g"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "opencode",
+      "vault": {
+        "CURSOR_API_KEY": "c"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "cursor",
+      "vault": {},
+      "out": "none"
+    },
+    {
+      "agent": "cursor",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "cursor",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "cursor",
+      "vault": {
+        "OPENAI_API_KEY": "o"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "cursor",
+      "vault": {
+        "GEMINI_API_KEY": "g"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "cursor",
+      "vault": {
+        "CURSOR_API_KEY": "c"
+      },
+      "out": "vault-key"
+    },
+    {
+      "agent": "nobody",
+      "vault": {},
+      "out": "none"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "OPENAI_API_KEY": "o"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "GEMINI_API_KEY": "g"
+      },
+      "out": "none"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CURSOR_API_KEY": "c"
+      },
+      "out": "none"
+    }
+  ],
+  "vaultHeld": [
+    {
+      "agent": "claude",
+      "vault": {},
+      "way": null,
+      "out": "the key in ~/.wsp/.env on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {},
+      "way": "key",
+      "out": "the key in ~/.wsp/.env on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {},
+      "way": "token",
+      "out": "the key in ~/.wsp/.env on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {},
+      "way": "vault",
+      "out": "the key in ~/.wsp/.env on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {},
+      "way": "machine",
+      "out": "the key in ~/.wsp/.env on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": null,
+      "out": "the token made on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "key",
+      "out": "the token made on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "token",
+      "out": "the token made on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "vault",
+      "out": "the token made on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "machine",
+      "out": "the token made on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": null,
+      "out": "the key in ~/.wsp/.env on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "key",
+      "out": "the key in ~/.wsp/.env on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "token",
+      "out": "the key in ~/.wsp/.env on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "vault",
+      "out": "the key in ~/.wsp/.env on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "machine",
+      "out": "the key in ~/.wsp/.env on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": null,
+      "out": "the token made on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "key",
+      "out": "the key in ~/.wsp/.env on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "token",
+      "out": "the token made on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "vault",
+      "out": "the token made on mac"
+    },
+    {
+      "agent": "claude",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "machine",
+      "out": "the token made on mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {},
+      "way": null,
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {},
+      "way": "key",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {},
+      "way": "token",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {},
+      "way": "vault",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {},
+      "way": "machine",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": null,
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "key",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "token",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "vault",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "machine",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": null,
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "key",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "token",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "vault",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "machine",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": null,
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "key",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "token",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "vault",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "codex",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "machine",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {},
+      "way": null,
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {},
+      "way": "key",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {},
+      "way": "token",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {},
+      "way": "vault",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {},
+      "way": "machine",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": null,
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "key",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "token",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "vault",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "way": "machine",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": null,
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "key",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "token",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "vault",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "machine",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": null,
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "key",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "token",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "vault",
+      "out": "copied from mac"
+    },
+    {
+      "agent": "nobody",
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "way": "machine",
+      "out": "copied from mac"
+    }
+  ],
+  "picked": [
+    {
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k",
+        "X": "1"
+      },
+      "picks": null,
+      "out": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k",
+        "X": "1"
+      }
+    },
+    {
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k",
+        "X": "1"
+      },
+      "picks": {
+        "agents": {
+          "claude": {
+            "signin": "key"
+          }
+        }
+      },
+      "out": {
+        "ANTHROPIC_API_KEY": "k",
+        "X": "1"
+      }
+    },
+    {
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "X": "1"
+      },
+      "picks": {
+        "agents": {
+          "claude": {
+            "signin": "key"
+          }
+        }
+      },
+      "out": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "X": "1"
+      }
+    },
+    {
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      },
+      "picks": {
+        "agents": {
+          "claude": {
+            "signin": "token"
+          }
+        }
+      },
+      "out": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t",
+        "ANTHROPIC_API_KEY": "k"
+      }
+    },
+    {
+      "vault": {
+        "OPENAI_API_KEY": "o"
+      },
+      "picks": {
+        "agents": {
+          "codex": {
+            "signin": "key"
+          }
+        }
+      },
+      "out": {
+        "OPENAI_API_KEY": "o"
+      }
+    }
+  ],
+  "servable": [
+    {
+      "vault": {},
+      "held": [],
+      "options": {
+        "agents": [
+          {
+            "id": "claude",
+            "signins": [
+              "vault",
+              "machine",
+              "token"
+            ]
+          },
+          {
+            "id": "codex",
+            "signins": [
+              "vault",
+              "machine"
+            ]
+          },
+          {
+            "id": "gemini",
+            "signins": [
+              "machine"
+            ]
+          }
+        ],
+        "clis": [],
+        "configs": []
+      },
+      "out": {
+        "agents": [
+          {
+            "id": "claude",
+            "signins": [
+              "machine",
+              "token"
+            ]
+          },
+          {
+            "id": "codex",
+            "signins": [
+              "machine"
+            ]
+          },
+          {
+            "id": "gemini",
+            "signins": [
+              "machine"
+            ]
+          }
+        ],
+        "clis": [],
+        "configs": []
+      }
+    },
+    {
+      "vault": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "t"
+      },
+      "held": [],
+      "options": {
+        "agents": [
+          {
+            "id": "claude",
+            "signins": [
+              "vault",
+              "machine",
+              "token"
+            ]
+          },
+          {
+            "id": "codex",
+            "signins": [
+              "vault",
+              "machine"
+            ]
+          },
+          {
+            "id": "gemini",
+            "signins": [
+              "machine"
+            ]
+          }
+        ],
+        "clis": [],
+        "configs": []
+      },
+      "out": {
+        "agents": [
+          {
+            "id": "claude",
+            "signins": [
+              "vault",
+              "machine",
+              "token"
+            ]
+          },
+          {
+            "id": "codex",
+            "signins": [
+              "machine"
+            ]
+          },
+          {
+            "id": "gemini",
+            "signins": [
+              "machine"
+            ]
+          }
+        ],
+        "clis": [],
+        "configs": []
+      }
+    },
+    {
+      "vault": {},
+      "held": [
+        "codex"
+      ],
+      "options": {
+        "agents": [
+          {
+            "id": "claude",
+            "signins": [
+              "vault",
+              "machine",
+              "token"
+            ]
+          },
+          {
+            "id": "codex",
+            "signins": [
+              "vault",
+              "machine"
+            ]
+          },
+          {
+            "id": "gemini",
+            "signins": [
+              "machine"
+            ]
+          }
+        ],
+        "clis": [],
+        "configs": []
+      },
+      "out": {
+        "agents": [
+          {
+            "id": "claude",
+            "signins": [
+              "machine",
+              "token"
+            ]
+          },
+          {
+            "id": "codex",
+            "signins": [
+              "vault",
+              "machine"
+            ]
+          },
+          {
+            "id": "gemini",
+            "signins": [
+              "machine"
+            ]
+          }
+        ],
+        "clis": [],
+        "configs": []
+      }
+    },
+    {
+      "vault": {
+        "OPENAI_API_KEY": "o"
+      },
+      "held": [],
+      "options": {
+        "agents": [
+          {
+            "id": "claude",
+            "signins": [
+              "vault",
+              "machine",
+              "token"
+            ]
+          },
+          {
+            "id": "codex",
+            "signins": [
+              "vault",
+              "machine"
+            ]
+          },
+          {
+            "id": "gemini",
+            "signins": [
+              "machine"
+            ]
+          }
+        ],
+        "clis": [],
+        "configs": []
+      },
+      "out": {
+        "agents": [
+          {
+            "id": "claude",
+            "signins": [
+              "machine",
+              "token"
+            ]
+          },
+          {
+            "id": "codex",
+            "signins": [
+              "vault",
+              "machine"
+            ]
+          },
+          {
+            "id": "gemini",
+            "signins": [
+              "machine"
+            ]
+          }
+        ],
+        "clis": [],
+        "configs": []
+      }
+    }
+  ],
+  "relisted": [
+    {
+      "listed": [],
+      "found": [],
+      "out": null
+    },
+    {
+      "listed": [
+        "codex/auth.json"
+      ],
+      "found": [
+        "codex/auth.json"
+      ],
+      "out": null
+    },
+    {
+      "listed": [
+        "zz/other",
+        "codex/auth.json"
+      ],
+      "found": [],
+      "out": [
+        "zz/other"
+      ]
+    },
+    {
+      "listed": [
+        "zz/other"
+      ],
+      "found": [
+        "codex/auth.json"
+      ],
+      "out": [
+        "codex/auth.json",
+        "zz/other"
+      ]
+    },
+    {
+      "listed": [
+        "b",
+        "a"
+      ],
+      "found": [],
+      "out": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "listed": [
+        "a",
+        "b"
+      ],
+      "found": [
+        "not-shared"
+      ],
+      "out": null
+    }
+  ],
+  "scripts": [
+    {
+      "logins": "/root/.wsp/logins",
+      "out": "cd '/root/.wsp/logins' 2>/dev/null || exit 0\nfor f in 'codex/auth.json'; do if [ -e \"$f\" ] || [ -L \"$f\" ]; then [ -d \"$f\" ] || printf '%s\\n' \"$f\"; fi; done"
+    },
+    {
+      "logins": "/home/a b/it's",
+      "out": "cd '/home/a b/it'\\''s' 2>/dev/null || exit 0\nfor f in 'codex/auth.json'; do if [ -e \"$f\" ] || [ -L \"$f\" ]; then [ -d \"$f\" ] || printf '%s\\n' \"$f\"; fi; done"
+    }
+  ],
+  "landed": [
+    {
+      "rows": [
+        {
+          "id": "a",
+          "label": "A",
+          "outcome": "skipped",
+          "step": "signins"
+        }
+      ],
+      "row": {
+        "id": "a",
+        "outcome": "installed",
+        "note": "n"
+      },
+      "out": [
+        {
+          "id": "a",
+          "outcome": "installed",
+          "note": "n",
+          "label": "A",
+          "step": "signins"
+        }
+      ]
+    },
+    {
+      "rows": [
+        {
+          "id": "a",
+          "label": "A",
+          "outcome": "failed"
+        }
+      ],
+      "row": {
+        "id": "a",
+        "outcome": "present",
+        "label": "ignored"
+      },
+      "out": [
+        {
+          "id": "a",
+          "outcome": "present",
+          "label": "A"
+        }
+      ]
+    },
+    {
+      "rows": [
+        {
+          "id": "a",
+          "label": "A",
+          "outcome": "installed"
+        }
+      ],
+      "row": {
+        "id": "a",
+        "outcome": "installed"
+      },
+      "out": null
+    },
+    {
+      "rows": [
+        {
+          "id": "a",
+          "label": "A",
+          "outcome": "present"
+        }
+      ],
+      "row": {
+        "id": "a",
+        "outcome": "installed"
+      },
+      "out": null
+    },
+    {
+      "rows": [
+        {
+          "id": "a",
+          "label": "A",
+          "outcome": "installed"
+        }
+      ],
+      "row": {
+        "id": "b",
+        "outcome": "installed"
+      },
+      "out": null
+    },
+    {
+      "rows": [
+        {
+          "id": "a",
+          "label": "A",
+          "outcome": "installed"
+        }
+      ],
+      "row": {
+        "id": "b",
+        "outcome": "installed",
+        "label": "B!",
+        "step": "github"
+      },
+      "out": [
+        {
+          "id": "a",
+          "label": "A",
+          "outcome": "installed"
+        },
+        {
+          "id": "b",
+          "outcome": "installed",
+          "label": "B!",
+          "step": "github"
+        }
+      ]
+    },
+    {
+      "rows": [
+        {
+          "id": "a",
+          "label": "A",
+          "outcome": "skipped",
+          "step": "github",
+          "fix": "f",
+          "ms": 3
+        },
+        {
+          "id": "c",
+          "label": "C",
+          "outcome": "failed"
+        }
+      ],
+      "row": {
+        "id": "a",
+        "outcome": "installed"
+      },
+      "out": [
+        {
+          "id": "a",
+          "outcome": "installed",
+          "label": "A",
+          "step": "github"
+        },
+        {
+          "id": "c",
+          "label": "C",
+          "outcome": "failed"
+        }
+      ]
+    }
+  ],
+  "outcome": [
+    {
+      "setup": {
+        "waiting": []
+      },
+      "applied": null,
+      "out": {
+        "end": "ready"
+      }
+    },
+    {
+      "setup": {
+        "waiting": []
+      },
+      "applied": {
+        "hash": "h",
+        "at": "t",
+        "rows": [
+          {
+            "id": "x",
+            "label": "X",
+            "outcome": "failed",
+            "step": "clis"
+          }
+        ]
+      },
+      "out": {
+        "end": "ready",
+        "said": "1 row did not install"
+      }
+    },
+    {
+      "setup": {
+        "waiting": []
+      },
+      "applied": {
+        "hash": "h",
+        "at": "t",
+        "rows": [
+          {
+            "id": "x",
+            "label": "X",
+            "outcome": "failed",
+            "step": "clis"
+          },
+          {
+            "id": "y",
+            "label": "Y",
+            "outcome": "failed",
+            "step": "agents"
+          }
+        ]
+      },
+      "out": {
+        "end": "ready",
+        "said": "2 rows did not install"
+      }
+    },
+    {
+      "setup": {
+        "waiting": []
+      },
+      "applied": {
+        "hash": "h",
+        "at": "t",
+        "rows": [
+          {
+            "id": "folders/a",
+            "label": "FOLDERS/A",
+            "outcome": "failed",
+            "step": "folders",
+            "note": "no clone"
+          }
+        ]
+      },
+      "out": {
+        "end": "needs-you",
+        "said": "FOLDERS/A: no clone"
+      }
+    },
+    {
+      "setup": {
+        "waiting": []
+      },
+      "applied": {
+        "hash": "h",
+        "at": "t",
+        "rows": [
+          {
+            "id": "github",
+            "label": "GITHUB",
+            "outcome": "failed",
+            "step": "github"
+          }
+        ]
+      },
+      "out": {
+        "end": "needs-you",
+        "said": "GITHUB: failed"
+      }
+    },
+    {
+      "setup": {
+        "waiting": [
+          {
+            "row": "signins/claude",
+            "label": "Claude Code",
+            "expiresAt": "t",
+            "state": "waiting",
+            "url": "https://u",
+            "code": "AB-CD"
+          }
+        ]
+      },
+      "applied": {
+        "hash": "h",
+        "at": "t",
+        "rows": [
+          {
+            "id": "folders/a",
+            "label": "FOLDERS/A",
+            "outcome": "failed",
+            "step": "folders"
+          }
+        ]
+      },
+      "out": {
+        "end": "needs-you",
+        "said": "Claude Code waits on you to sign in at https://u with code AB-CD; FOLDERS/A: failed"
+      }
+    },
+    {
+      "setup": {
+        "waiting": [
+          {
+            "row": "signins/claude",
+            "label": "Claude Code",
+            "expiresAt": "t",
+            "state": "expired"
+          },
+          {
+            "row": "github",
+            "label": "GitHub",
+            "expiresAt": "t",
+            "state": "waiting"
+          }
+        ]
+      },
+      "applied": null,
+      "out": {
+        "end": "needs-you",
+        "said": "Claude Code's sign-in ran out; a retry asks for a fresh code; GitHub waits on you to sign in"
+      }
+    }
+  ],
+  "cli": [
+    {
+      "ids": [],
+      "out": [
+        "a1",
+        "a2",
+        "c1",
+        "c2",
+        "gh",
+        "lfs",
+        "c5"
+      ],
+      "same": true
+    },
+    {
+      "ids": [
+        "gh"
+      ],
+      "out": [
+        "a1",
+        "a2",
+        "gh",
+        "c1",
+        "c2",
+        "lfs",
+        "c5"
+      ],
+      "same": false
+    },
+    {
+      "ids": [
+        "lfs"
+      ],
+      "out": [
+        "a1",
+        "a2",
+        "c1",
+        "c2",
+        "lfs",
+        "gh",
+        "c5"
+      ],
+      "same": false
+    },
+    {
+      "ids": [
+        "lfs",
+        "c2"
+      ],
+      "out": [
+        "a1",
+        "a2",
+        "c1",
+        "c2",
+        "lfs",
+        "gh",
+        "c5"
+      ],
+      "same": false
+    },
+    {
+      "ids": [
+        "c5",
+        "gh"
+      ],
+      "out": [
+        "a1",
+        "a2",
+        "c5",
+        "gh",
+        "c1",
+        "c2",
+        "lfs"
+      ],
+      "same": false
+    },
+    {
+      "ids": [
+        "nothere"
+      ],
+      "out": [
+        "a1",
+        "a2",
+        "c1",
+        "c2",
+        "gh",
+        "lfs",
+        "c5"
+      ],
+      "same": true
+    },
+    {
+      "ids": [
+        "a1"
+      ],
+      "out": [
+        "a1",
+        "a2",
+        "c1",
+        "c2",
+        "gh",
+        "lfs",
+        "c5"
+      ],
+      "same": true
+    },
+    {
+      "ids": [
+        "gh",
+        "gh"
+      ],
+      "out": [
+        "a1",
+        "a2",
+        "gh",
+        "c1",
+        "c2",
+        "lfs",
+        "c5"
+      ],
+      "same": false
+    }
+  ],
+  "cliCycle": [
+    "y",
+    "x"
+  ],
+  "engineRow": [
+    {
+      "row": {
+        "id": "a",
+        "label": "A",
+        "outcome": "installed"
+      },
+      "out": false
+    },
+    {
+      "row": {
+        "id": "a",
+        "label": "A",
+        "outcome": "installed",
+        "step": "clis"
+      },
+      "out": true
+    },
+    {
+      "row": {
+        "id": "a",
+        "label": "A",
+        "outcome": "installed",
+        "step": "signins"
+      },
+      "out": false
+    },
+    {
+      "row": {
+        "id": "a",
+        "label": "A",
+        "outcome": "installed",
+        "step": "folders"
+      },
+      "out": false
+    },
+    {
+      "row": {
+        "id": "github",
+        "label": "GITHUB",
+        "outcome": "installed",
+        "step": "github"
+      },
+      "out": false
+    },
+    {
+      "row": {
+        "id": "gh",
+        "label": "GH",
+        "outcome": "installed",
+        "step": "github"
+      },
+      "out": true
+    }
+  ],
+  "firstLine": [
+    {
+      "out": "one"
+    },
+    {
+      "out": "plain"
+    },
+    {
+      "out": ""
+    },
+    {
+      "out": "42"
+    },
+    {
+      "out": "null"
+    }
+  ],
+  "hashes": [
+    {
+      "file": {
+        "name": "x",
+        "agents": {},
+        "mcp": {},
+        "clis": {},
+        "skills": {},
+        "plugins": {},
+        "folders": {},
+        "configs": {}
+      },
+      "out": "77b6f6851dbf331e5384c9a520af21408fc44977240bb0cf86951fb831ec2b85"
+    },
+    {
+      "file": {
+        "name": "acme",
+        "agents": {
+          "claude": {
+            "signin": "vault"
+          }
+        },
+        "mcp": {},
+        "clis": {
+          "gh": {
+            "via": "brew"
+          }
+        },
+        "skills": {},
+        "plugins": {},
+        "folders": {},
+        "configs": {}
+      },
+      "out": "308662c1239e5b02a321652d592c27638058c99734ec0c2118200fac96e519dd"
+    }
+  ],
+  "pending": {
+    "id": "a1",
+    "address": "root@h",
+    "step": "wsp",
+    "startedAt": "t"
+  },
+  "consts": {
+    "JOIN_PROVE_MS": 120000,
+    "LOGINS_READ_MS": 10000,
+    "SEEN_EVERY_MS": 60000,
+    "REPLACED": "replaced by a newer link",
+    "LINK_FRAME_MS": 300000,
+    "RELINK_WAIT_MS": 120000,
+    "BACKEND_FACTS_MS": 10000,
+    "ADD_FACTS_MS": 2000,
+    "CAPACITY_MS": 5000,
+    "DIAL_MS": 20000,
+    "JOIN_WAIT_MS": 90000,
+    "ADDS_KEPT": 20,
+    "ADD_RUNNING_LINE": "an add under that id is still running",
+    "ADD_RUNNING_FIX": "Leave the id out, or name the add afresh.",
+    "PENDING": "pending-computers",
+    "ADD_STOPPED_LINE": "the host stopped while wsp was being installed there; what the install put there was taken back",
+    "ADD_STOPPED_FIX": "Add it again.",
+    "ADD_NOT_TAKEN_BACK_LINE": "the host stopped while wsp was being installed there, and what the install put there could not be taken back",
+    "NO_ESTIMATE_LINE": "this runtime weighs no picks; the host that serves the app wires the reader",
+    "LOG_READ_MS": 10000,
+    "UNDO_MS": 300000,
+    "SIGN_IN_SLACK_MS": 5000,
+    "GITHUB_MS": 30000,
+    "INSTALLS": "installs",
+    "FILES": "files",
+    "PROBE_MS": 30000,
+    "SIGNIN_STATUS_MS": 30000,
+    "PROVISION_LOG_EVERY_MS": 2000,
+    "PROVISION_LOG_LINES": 50,
+    "UPDATE_WAIT_MS": 60000,
+    "UPDATE_POLL_MS": 500,
+    "UNMERGE_MS": 60000,
+    "PLACE_BAD_KEY_REFUSAL": "that join sent a key this host cannot verify a signature against; a place's key is ed25519, as SPKI DER in base64"
+  },
+  "ed": [
+    {
+      "key": "MCowBQYDK2VwAyEAGb9ECWmEzf6FQbrBZ9w7lshQhqowtrbLDFw4rXAxZuE=",
+      "note": "ed25519 spki",
+      "out": true
+    },
+    {
+      "key": "",
+      "note": "empty",
+      "out": false
+    },
+    {
+      "key": "not base64 !!",
+      "note": "junk",
+      "out": false
+    },
+    {
+      "key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEQ8Kg+Tq4QwYJkaSZbIP2Z4LgN3l9b0fBJmZ6P6lV+1t2wZfZ5Zf2x5Xn8LwYJbHc9n9JfQe2qPpYbBv6vQzv1A==",
+      "note": "p256 spki",
+      "out": false
+    }
+  ]
+}
