@@ -3,7 +3,10 @@
 
 use std::rc::Rc;
 
-use gpui_kit::component::{h_flex, v_flex, Icon, Sizable as _};
+use gpui_kit::component::text::{
+    markdown_ast::Node, MarkdownExtensions, MarkdownNode, MarkdownParseContext, MarkdownPlugin, TextView, TextViewState,
+};
+use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Icon, Sizable as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{div, px, AnyElement, App, Div, Entity, ScrollHandle, SharedString, Window};
 
@@ -600,6 +603,95 @@ pub(super) fn opens(url: &str) -> bool {
     url.starts_with("https:") || url.starts_with("http:") || url.starts_with("mailto:")
 }
 
+/// `rehypeRestrict` with `noImages`: a SKILL.md nobody here wrote fetches no image and draws no raw HTML. The state is
+/// made with these too, so the view does not parse the file a second time.
+pub(super) fn restricted() -> MarkdownExtensions {
+    MarkdownExtensions::default().plugin(SkillImage).plugin(RawHtml { block: false }).plugin(RawHtml { block: true })
+}
+
+/// An image's address, kept for the press on the link it becomes.
+struct ImageAddress(SharedString);
+
+/// An image as a link to its address with its alt as the words, or, off the web, its alt and address as a fact.
+struct SkillImage;
+
+impl MarkdownPlugin for SkillImage {
+    fn name(&self) -> &str {
+        "skill-image"
+    }
+
+    fn parse(&self, node: &Node, _: &MarkdownParseContext<'_>) -> Option<MarkdownNode> {
+        let Node::Image(image) = node else { return None };
+        let lower = image.url.to_ascii_lowercase();
+        let web = lower.starts_with("http://") || lower.starts_with("https://");
+        let words = match (web, image.alt.is_empty()) {
+            (true, true) => image.url.clone(),
+            (true, false) => image.alt.clone(),
+            (false, _) => [&image.alt, &image.url].into_iter().filter(|w| !w.is_empty()).cloned().collect::<Vec<_>>().join(" "),
+        };
+        let address = web.then(|| ImageAddress(image.url.clone().into()));
+        Some(MarkdownNode::new("skill-image", address).text(words))
+    }
+
+    fn render(&self, node: &MarkdownNode, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = cx.palette();
+        let words = SharedString::from(node.as_text().to_owned());
+        match node.data::<Option<ImageAddress>>().and_then(Option::as_ref) {
+            Some(ImageAddress(url)) => {
+                let url = url.clone();
+                div()
+                    .id(SharedString::from(format!("skill-image-{url}")))
+                    .debug_selector(|| "skill-image-link".into())
+                    .text_color(p.primary)
+                    .underline()
+                    .cursor_pointer()
+                    .on_click(move |_, _, cx| {
+                        if opens(&url) {
+                            cx.open_url(&url);
+                        }
+                    })
+                    .child(words)
+                    .into_any_element()
+            }
+            None => div()
+                .debug_selector(|| "skill-image-fact".into())
+                .font_family(cx.theme().mono_font_family.clone())
+                .text_size(px(11.))
+                .text_color(p.muted_foreground)
+                .child(words)
+                .into_any_element(),
+        }
+    }
+}
+
+/// Raw HTML as its own source text, inside a paragraph and standing as a block.
+struct RawHtml {
+    block: bool,
+}
+
+impl MarkdownPlugin for RawHtml {
+    fn is_block(&self) -> bool {
+        self.block
+    }
+
+    fn name(&self) -> &str {
+        if self.block {
+            "skill-raw-html-block"
+        } else {
+            "skill-raw-html"
+        }
+    }
+
+    fn parse(&self, node: &Node, _: &MarkdownParseContext<'_>) -> Option<MarkdownNode> {
+        let Node::Html(html) = node else { return None };
+        Some(MarkdownNode::new(self.name().to_owned(), ()).text(html.value.clone()))
+    }
+
+    fn render(&self, node: &MarkdownNode, _: &mut Window, _: &mut App) -> impl IntoElement {
+        div().debug_selector(|| "skill-raw-html".into()).child(SharedString::from(node.as_text().to_owned()))
+    }
+}
+
 /// A skill's SKILL.md drawn whole under its facts, its frontmatter off; its bars while it is read.
 pub(super) fn skill_preview(key: &str, doc: &Doc, window: &mut Window, cx: &mut App) -> AnyElement {
     let p = cx.palette().clone();
@@ -622,9 +714,9 @@ pub(super) fn skill_preview(key: &str, doc: &Doc, window: &mut Window, cx: &mut 
         (Some(text), _) => {
             let body = skill_body(text).to_owned();
             let state = window.use_keyed_state(SharedString::from(format!("skill-md-{key}-{}", doc.size)), cx, move |_, cx| {
-                gpui_kit::component::text::TextViewState::markdown(&body, cx)
+                TextViewState::markdown_with_extensions(&body, restricted(), cx)
             });
-            let view = gpui_kit::component::text::TextView::new(&state).on_link_click(|url, _, _, cx| {
+            let view = TextView::new(&state).markdown_extensions(restricted()).on_link_click(|url, _, _, cx| {
                 if opens(url) {
                     cx.open_url(url);
                 }

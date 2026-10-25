@@ -276,6 +276,7 @@ pub struct Composer {
     stopping: bool,
     hold: Option<Hold>,
     steer_preferred: bool,
+    send_with_mod: bool,
     files: Vec<File>,
     /// Each image file's 56 px tile, cut off the window's thread, none while it is cut: GPUI keeps a whole decode of an
     /// image it draws, and its atlas page, until it is let go of.
@@ -457,7 +458,7 @@ impl Composer {
         let open = cx.default_global::<Open>();
         open.0.retain(|c| c.upgrade().is_some());
         open.0.push(me);
-        let editor = cx.new(|cx| TextareaState::new(window, cx).auto_grow(1, 8).submit_on_enter(true).placeholder("Ask anything"));
+        let editor = cx.new(|cx| TextareaState::new(window, cx).auto_grow(1, 8).placeholder("Ask anything"));
         let line_width = Rc::new(Cell::new(px(0.)));
         let this = cx.entity().downgrade();
         let field = cx.new(|cx| field::Field::new(editor.clone(), this, line_width.clone(), cx));
@@ -518,6 +519,7 @@ impl Composer {
             stopping: false,
             hold: None,
             steer_preferred: false,
+            send_with_mod: false,
             files: Vec::new(),
             previews: Vec::new(),
             refused: Vec::new(),

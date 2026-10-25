@@ -3,7 +3,7 @@
 
 use gpui_kit::component::input::{Enter, Escape, IndentInline, InlineToken, InputEvent, MoveDown, MoveUp, TextareaState};
 use gpui_kit::component::ActiveTheme as _;
-use gpui_kit::{px, Context, Entity, Focusable as _, SharedString, Window};
+use gpui_kit::{px, Context, Entity, EntityInputHandler as _, Focusable as _, SharedString, Window};
 
 use super::model::{self, Hold, ItemKind, Sources, Trigger};
 use super::{menus, Composer, ComposerEvent, Menu, PickRow, Popup, StashDraft, MENU_CAP, TEXT};
@@ -18,7 +18,6 @@ impl Composer {
                 }
                 self.edited_in(window, cx)
             }
-            InputEvent::PressEnter { shift: false, secondary: false } => self.submit(window, cx),
             // A click back into the text puts away the model picker, whose search had the keys.
             InputEvent::Focus if self.popup == Some(Popup::Model) => {
                 self.popup = None;
@@ -197,21 +196,28 @@ impl Composer {
         }
     }
 
-    /// Enter sends, or picks the menu's row; taken here before the text field's own Enter, which would otherwise let
-    /// the key through to the platform and leave a newline in the emptied box. While an IME composes, the platform
-    /// routes Enter to the input method before any binding, so nothing here sees that Enter.
+    /// Enter picks the menu's row, else sends on the chord `sendWith` names, Enter or Cmd or Ctrl and Enter
+    /// (`enterSends`); taken here before the text field's own Enter, which breaks the line on Shift and on the chord
+    /// that does not send. An Enter while the field holds marked text is the input method's, as `isComposing` is
+    /// today's: GPUI matches bindings before the input method sees the key.
     pub(super) fn on_enter(&mut self, action: &Enter, window: &mut Window, cx: &mut Context<Self>) {
-        if action.shift || action.secondary {
+        if self.editor.update(cx, |e, cx| e.marked_text_range(window, cx).is_some()) {
+            cx.stop_propagation();
             return;
         }
-        cx.stop_propagation();
+        if action.shift {
+            return;
+        }
         if self.menu.as_ref().is_some_and(|m| !m.items.is_empty()) {
+            cx.stop_propagation();
             self.take_menu(None, window, cx);
         } else if let Some(popup) = self.popup.filter(|_| self.popup_active.is_some()) {
+            cx.stop_propagation();
             if let Some(value) = self.popup_active.and_then(|ix| menus::popup_rows(self, popup, cx).get(ix).cloned()) {
                 self.pick(popup, value, window, cx);
             }
-        } else {
+        } else if action.secondary == self.send_with_mod {
+            cx.stop_propagation();
             self.submit(window, cx);
         }
     }
