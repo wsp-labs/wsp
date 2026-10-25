@@ -8,18 +8,23 @@ publish = false
 description = "What a computer holds, read for a recipe: tools, shells, agents, MCP servers, skills, plugins, sign-ins and history"
 
 [dependencies]
-futures = { version = "0.3", default-features = false, features = ["std", "executor"] }
-libc = "0.2"
-tokio = { version = "1", features = ["process", "time", "io-util", "fs", "rt", "macros", "sync"] }
-tokio-util = "0.7"
+fancy-regex = "0.14"
+futures = "0.3"
 indexmap = { version = "2", features = ["serde"] }
+libc = "0.2"
+md-5 = "0.10"
+regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
 thiserror = "2"
+tokio = { version = "1", features = ["process", "time", "io-util", "fs", "rt", "macros", "sync"] }
+tokio-util = "0.7"
+unicode-normalization = "0.1"
+url = "2"
 wsp-catalog = { path = "../wsp-catalog" }
 wsp-wire = { path = "../wsp-wire" }
 wsp-words = { path = "../wsp-words" }
 
 [dev-dependencies]
-sha2 = "0.10"
 tempfile = "3"
