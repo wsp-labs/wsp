@@ -1,6 +1,6 @@
 {
   "name": "@wsp-labs/wsp",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "Your setup, on your computers, for coding agents. Installs the wsp command.",
   "type": "module",
   "bin": {
