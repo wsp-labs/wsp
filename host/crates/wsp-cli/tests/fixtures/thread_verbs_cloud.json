@@ -1,0 +1,1737 @@
+[
+ {
+  "name": "run",
+  "shape": "cli",
+  "usage": "wsp run [<project>] [--on boat [--size <cpu>x<memGb>] [--from <ref>]] [--beside <thread>] [--fork <thread> [--at <n>]] [--branch <branch>] [--cwd <path>] [--agent <id>] [--model, --effort, --access <word>] [--fast] [--notify <thread|me>] [--title <title>] [--replaces <thread>] [--file <path>] [--resume <id> [--copy]] [--detach] \"<message>\"",
+  "about": "an agent works in the project's folder and you read its reply: a thread with the agent, model, effort and access the app offers; a project on a box runs in its folder there as the login the box was added with<!-- cloud -->, and a project on a cloud gets a new machine forked from the image, named off the message as the app's New thread names one<!-- /cloud -->; --on boat starts it as a sub-thread of the thread asking, on a machine of its own on Boat forked from your image at --size or Boat's own size, which fetches your pushed branch, or with --from a branch, tag or commit the remote holds, and pushes --branch or wsp/<slug>; --beside runs it in the folder another thread works in, on that thread's computer; --branch runs it in a worktree of the project's repo on that branch, made under wsp's folder unless one already holds it, and --cwd in a folder inside the project or one of its worktrees; --fork starts it from another thread's conversation through its latest finished turn, or the one --at counts from 1, on that thread's agent in its folder, or with --branch in a new worktree whose files are that turn's; with no project, run from inside one of your project folders, or from a thread, beside it; follows its first turn, or with --detach prints the id and returns",
+  "page": "front",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "size",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "from",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "beside",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "fork",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "at",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "branch",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "cwd",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "model",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "effort",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "access",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "fast",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "notify",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "title",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "replaces",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "file",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "resume",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "copy",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "detach",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Opens a thread under the named agent, on the model, effort and access mode named or the catalog's defaults (a cheaper model for a review, say), and follows its first turn; returns the reply text as soon as it is complete, with the thread id for send. It runs in the project's folder, on a box in its folder there as the login the box was added with<!-- cloud -->, and on a project on a cloud in a new machine forked from the image, named off the message as the app's New thread names one<!-- /cloud -->; with beside, in the folder that thread works in, on its computer, which is how a fresh thread picks up where a long one stands; with branch, in a worktree of the project's repo on that branch (one that already holds the branch, wherever it is, else one wsp makes under its own folder with the dependencies carried in); with cwd, in that folder, which must be inside the project or one of its worktrees. With no project, from a thread, it runs beside that thread in its folder. With detach true it returns the thread id the moment the turn is started, without the reply: the road for a turn that runs for minutes or an hour. A turn ends when the agent process exits, not at its reply, and the thread reads running until then. With notify, each turn of the thread sends one line (outcome, duration, cost, and the reply whole into a thread or its last line to the person) to every target named, so a caller need not wait here or poll. The notify line goes once, at the reply; a reply given with background tasks still running says so, and a second line goes at the turn's end. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report. With replaces, the thread restarts a stopped or failed one, which settles once it starts, so the person sees one row. With fork, the thread starts from another thread's conversation through one of its finished turns, the latest or the one at counts, and nothing after, on that thread's agent and in its folder, or with branch in a new worktree whose files are that turn's checkpoint, leaving that thread as it was. A start on a computer already running as many threads as its threads at once waits for a slot and starts on its own when one frees (outcome `held`), with capped beside it, the computer and what runs there against its number, which the thread's row in threads carries while it waits; a thread that follows a run or a send to its end, not detached, lends that thread's next turn its own slot, one turn at a time, a turn already held ahead of the message included, and every other start, a child started detached included, waits for a slot of its own. When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.",
+   "input": [
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the project the thread works on, by the name or the id projects lists; one on a cloud gets a new machine forked from the image for the thread, and a machine named in its place runs it there as before. Absent from a thread, the thread runs beside the one asking, in its folder"
+    },
+    {
+     "name": "beside",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, beside which the new thread runs: in the folder that thread works in, on the computer it runs on; never with project or branch"
+    },
+    {
+     "name": "fork",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread to fork, by id or a prefix of it, as threads lists them: the new thread runs on that thread's agent, at its model and effort unless named, with its conversation through one finished turn and nothing after, in that thread's folder, or with branch in a new worktree on that branch whose files are that turn's checkpoint; never with project, beside, cwd or replaces, and an agent other than the thread's is refused"
+    },
+    {
+     "name": "at",
+     "kind": {
+      "type": "integer",
+      "min": 1
+     },
+     "optional": true,
+     "describe": "with fork, the finished turn the fork carries the conversation through, counted from 1 in the order thread_read lists them; absent, the thread's latest finished turn"
+    },
+    {
+     "name": "branch",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a branch other than the one the project's folder has checked out: the thread runs in the worktree holding it, made under wsp's folder from the project folder's current commit for a new branch"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch, or the ref from names, and pushes a branch of its own; without from your branch must be pushed first. It carries the thread's own project, which project may name or leave out; another project is refused. Never with beside, fork, at, cwd, resume, copy or replaces"
+    },
+    {
+     "name": "size",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8"
+    },
+    {
+     "name": "from",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "with on, a branch, tag or commit the remote already holds (origin/main, main, v1.2, a commit id) that the sub-thread starts from instead of your branch, which then need not be pushed; a ref the remote does not hold is refused naming it"
+    },
+    {
+     "name": "cwd",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a folder inside the project or one of its worktrees, absolute, which the thread starts in"
+    },
+    {
+     "name": "message",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the agent to run in the thread, one of claude, codex, opencode, cursor; absent means the host's default"
+    },
+    {
+     "name": "model",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the model the turn runs on, by the agent's own slug (claude-sonnet-5); absent on a new thread means the project's, else the one set for that agent, else the catalog's default, on send the thread's own"
+    },
+    {
+     "name": "effort",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the reasoning effort, by the agent's own word (low, medium, high, xhigh, max); absent on a new thread means the agent's default, high for claude; on send, the thread's own"
+    },
+    {
+     "name": "access",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "how far the agent may go without asking, in wsp's words: ask (asks about each action that needs permission), auto-edit (edits files without asking), full (every action without asking) or plan (reads and proposes, changes nothing); each is mapped to the agent's own mode and refused where the agent has none, and a harness's own spelling is refused. Absent means the project's access, else the one set for that agent, else full"
+    },
+    {
+     "name": "fast",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true runs the turn in the agent's fast mode, on a model that offers one, and is refused naming the model otherwise; absent runs at the agent's usual speed"
+    },
+    {
+     "name": "notify",
+     "kind": {
+      "type": "stringList",
+      "min": 1
+     },
+     "optional": true,
+     "describe": "who is told each time a turn of the new thread ends, each one a thread (by id, or a prefix of it) the line goes into as a message carrying that turn's whole reply, or me, which is the thread this call came out of when it came out of one and otherwise the person's app, where the line is its last reply line alone. Several targets each get the line once, which is how a builder's end reaches its orchestrator and a reviewer together; a target whose thread is gone by then falls back to the person, and the new thread's own id is refused. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report."
+    },
+    {
+     "name": "title",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the thread's name, as a person's: it shows in the sidebar and in the agent's own list from the first second, and the title the host asks the agent for as the turn starts never replaces it; absent lets the thread be titled by its opening words until, seconds in, the agent names it"
+    },
+    {
+     "name": "replaces",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a stopped or failed thread this new thread restarts, by id or a prefix of it, as threads lists them: the new thread's row names it, and once the new one starts the host settles it, so the person sees one row for the job; a restart the person starts of a child stands under that child's lead. Refused while that thread or one under it is working, for a thread that already has a restart (name that restart instead), and from a thread for one that is not under it, each before a machine is forked or woken"
+    },
+    {
+     "name": "files",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "paths on this computer, absolute or relative to the folder wsp runs in, of files to send with the message, at most 5. An image (PNG, JPEG, GIF or WebP, up to 10 MB) goes to the agent as an image; any other file, up to 10 MB, lands in the folder the thread works in, under .wsp-files where git lists none of it, and the message names its path. The host reads each file and sends its bytes, so the machine never reaches back for this computer’s files; an image to an agent that reads none is refused naming that agent."
+    },
+    {
+     "name": "resume",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a conversation the agent kept in the project's folder outside wsp, by the id conversations lists: the new thread opens on it, in the folder it ran in, under its own name, with its newest messages written above the message, and nothing of wsp's is written into the agent's own store until the thread is renamed here. Refused with beside, branch or cwd, since the conversation names its folder, where the agent holds no such conversation, where it is a wsp thread already, and where another app holds it open, unless copy"
+    },
+    {
+     "name": "copy",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "with resume, true runs the thread on a copy of the conversation the agent makes (Claude Code's --fork-session, Codex's thread/fork), the original left byte for byte as it was: the answer to one open in another app"
+    },
+    {
+     "name": "detach",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true answers with the thread id the moment the turn is started, without the reply, and the turn's end reaches whoever notify named; for a turn that runs for minutes or an hour, so this call does not block for it. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report."
+    }
+   ],
+   "output": [
+    "threadId",
+    "workspaceId",
+    "harness",
+    "text",
+    "outcome",
+    "capped",
+    "afterCut",
+    "notice",
+    "sub"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "worktree",
+  "shape": "cli",
+  "usage": "wsp worktree <project> <branch>",
+  "about": "a worktree of the project's repo on the branch, for an agent to work in by path or to start a thread in: the one git already has the branch checked out in, wherever it is, else one wsp makes under its own folder, from the project folder's current commit for a new branch, with the folder's .env files and installed dependencies carried in; prints its path",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "A worktree of the project's repo on the branch, answered with its path: the one git already has the branch checked out in, the project folder or a worktree the person or an agent made included, else one wsp makes under its own folder, a new branch starting from the project folder's current commit, with .env files carried in from the project folder and, for each folder of the branch holding an ecosystem's lockfile where the project folder holds that ecosystem's folder there, or at the top for one that carries nothing (uv, Poetry, Cargo, Go), its relocatable dependency folders under it carried in, the folders tied to their path (a virtualenv, target) never copied, and its install run once in that folder, without writing a tracked file, unless what was carried records that it was installed from that very lockfile, then the project's after-worktree command (projects_set). On a Linux disk that shares no blocks a carried folder is a mount, so git clean -fdx there says Device or resource busy once for each and leaves it as it was. made says whether wsp made it, which is the only kind it ever removes. A running session cannot move into it: work there by path, or start a thread in it with run and cwd. git worktree add works too, without the carried files and the cleanup.",
+   "input": [
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the project, by the name or the id projects lists"
+    },
+    {
+     "name": "branch",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the branch, existing or new"
+    }
+   ],
+   "output": [
+    "path",
+    "branch",
+    "made"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "worktree remove",
+  "shape": "cli",
+  "usage": "wsp worktree remove <project> <branch> [--force] [--yes]",
+  "about": "takes away a worktree wsp made for the branch, with git: refused while a thread is working in it, and over files no commit holds unless --force; the branch stays, and a worktree wsp did not make is never removed",
+  "page": "agent",
+  "options": [
+   {
+    "name": "force",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Takes away the worktree wsp made for the branch, with git: refused while a thread is working in it, and over files no commit holds unless force, which loses them. The branch itself stays, and a detached worktree's commit is kept under refs/rescue. A worktree the person or an agent made is never removed; threads that ran in a removed worktree go on in the project folder.",
+   "input": [
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the project, by the name or the id projects lists"
+    },
+    {
+     "name": "branch",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the branch the worktree holds"
+    },
+    {
+     "name": "force",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "remove it over files no commit holds, which go with it"
+    }
+   ],
+   "output": [
+    "project",
+    "branch",
+    "removed"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread read",
+  "shape": "cli",
+  "usage": "wsp thread read <thread> [--last]",
+  "about": "the thread's messages as the app lists them, oldest first: who each one is, when the runtime recorded it and the text, with every tool call folded to the one line the app's row reads; --last prints the final reply alone, the whole message its finished line carries. A tool's output and the agent's reasoning are no rows of it. Reading marks the thread read, so it stops reading Done here and in the app",
+  "page": "agent",
+  "options": [
+   {
+    "name": "last",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The thread's messages as the app lists them, oldest first: each one's who (person for the message that opened or steered a turn, agent for the agent's own words, tool for one call of its folded to a line, turn for the outcome, duration and cost the turn ended with), at, the ms epoch the runtime recorded it, and its text. With last true, the final reply alone, the whole message the thread's finished line carries, and a row under it saying so when the thread has started another turn since, so a report is never read as the one being written. This is how you read a thread you did not open, and how you read the report behind a line that reached you; the transcript is the host's, so nothing on a machine is touched and a paused machine's thread reads the same as a running one's. A thread of many turns answers with all of them, so read one with last true when the report is what you are after. A call's output and the agent's reasoning are no rows of it. A thread whose rows the transcript's cap has dropped answers with none, which is an answer and not an error. Reading marks the thread read, as the app showing it does, so a finished thread stops reading Done in threads and in the app.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread's id, or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "last",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true answers with the final reply alone, the whole message the thread's finished line carries, with a row under it where the thread has started another turn since; absent answers with every message"
+    }
+   ],
+   "output": [
+    "threadId",
+    "messages"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread head",
+  "shape": "cli",
+  "usage": "wsp thread head <thread>",
+  "about": "the thread's facts and its newest events, what the app draws first on opening it: the title, the agent, model and access it runs on, where it stands and its folder, then as many of its newest events as fit in 64 KB, each tool result past 2 KB cut and marked with its whole length. Reading a head marks nothing",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The thread's head (by id, or a prefix of it): facts, the thread as threads lists it with the model, effort and context window its latest turn runs on and turnId while a turn runs; events, as many of the thread's newest transcript events as fit in 64 KB, oldest first, each tool result past 2 KB cut with cut set to its whole length; pos, the newest position the transcript has issued, which every event carries as its own pos; and total, how many events of the thread the transcript holds. It is the cheap look at a thread: read the whole conversation with thread_read. Nothing on a machine is touched and the thread is not marked read.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread's id, or a prefix of it that names one, as threads lists them"
+    }
+   ],
+   "output": [
+    "facts",
+    "events",
+    "pos",
+    "total",
+    "trimmed"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread rename",
+  "shape": "cli",
+  "usage": "wsp thread rename <thread> \"<title>\"",
+  "about": "names the thread inside the agent's own store, so the agent shows the same name",
+  "page": "app",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Names the thread (by id, or a prefix of it) in the agent's own store on the machine, the field the agent writes when a person renames the session inside it, so the thread reads by that name in wsp and in the agent. outcome renamed means the store took it; unsupported means the thread's agent keeps no name of a person's, which is an answer, not an error; no-session means the agent's store on the machine has no such session; failed means the store refused the write and error carries the machine's own line for it. Whether an agent keeps a name is on its row in harnesses.list, from the adapter on the machine.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "title",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    }
+   ],
+   "output": [
+    "threadId",
+    "title",
+    "harness",
+    "outcome",
+    "error"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread forget",
+  "shape": "cli",
+  "usage": "wsp thread forget <thread> [--yes]",
+  "about": "drops a thread no turn ever ran on, the row a launch that never got going leaves behind; refused once a turn of it did work",
+  "page": "agent",
+  "options": [
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Drops a thread (by id, or a prefix of it) no turn ever ran on: the row a launch that never got going leaves in threads and in the person's sidebar goes, and nothing is asked of the machine. A launch the agent refused outright, for want of a sign-in, counts as one that ran nothing and goes the same way. Refused in one line once a turn of the thread did work, since that work is written down on it and nowhere else; delete takes a thread that ran, with its turns.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread's id, or a prefix of it that names one, as threads lists them"
+    }
+   ],
+   "output": [
+    "threadId",
+    "workspaceId"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread settle",
+  "shape": "cli",
+  "usage": "wsp thread settle <thread>... [--finished] [--processes stop|keep]",
+  "about": "folds each thread and every thread under it into the sidebar's Settled, leaving a tree with a thread still working or asking in it; a thread settles itself and the threads it started, never its lead; refused while one still runs processes, on this computer or a box, unless --processes says to stop or keep them",
+  "page": "agent",
+  "options": [
+   {
+    "name": "finished",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "processes",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Settles each thread (by id, or a prefix of it) and every thread under it: they fold into the person's Settled in the sidebar, as the app's Settle does, and come back by themselves on their next turn. A thread with a thread working or asking anywhere in its tree is left whole, with why, as is one already settled; with finished, each thread named stays and every finished thread under it settles, a failed one staying for the person to read and one with work under it left with why. A thread settles itself and the threads under it, never its lead or a thread beside it. Settle each child once its report is acted on. The answer lists what settled and what was left, with why.",
+   "input": [
+    {
+     "name": "threads",
+     "kind": {
+      "type": "stringList",
+      "min": 1
+     },
+     "optional": false,
+     "describe": "the threads' ids, or prefixes that each name one, as threads lists them"
+    },
+    {
+     "name": "finished",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "settle the finished threads under each thread named, and not the thread itself"
+    },
+    {
+     "name": "processes",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "stop",
+       "keep"
+      ]
+     },
+     "optional": true,
+     "describe": "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run. A thread on a cloud machine is not read and goes as before"
+    }
+   ],
+   "output": [
+    "settled",
+    "left",
+    "ended"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread restore",
+  "shape": "cli",
+  "usage": "wsp thread restore <thread>...",
+  "about": "brings each thread back out of the sidebar's Settled with what the latest settle naming it moved",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Brings each thread (by id, or a prefix of it) back out of the person's Settled in the sidebar, with the threads under it that the latest settle naming it moved: after a settle with finished, the finished threads that settle moved. A thread folded by the quiet time or settled before stays. A thread restores itself and the threads under it, never its lead or a thread beside it. The answer lists what came back.",
+   "input": [
+    {
+     "name": "threads",
+     "kind": {
+      "type": "stringList",
+      "min": 1
+     },
+     "optional": false,
+     "describe": "the threads' ids, or prefixes that each name one, as threads lists them"
+    }
+   ],
+   "output": [
+    "restored"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread allow",
+  "shape": "cli",
+  "usage": "wsp thread allow <thread>",
+  "about": "answers the prompt the thread is stopped on and lets the call run",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Answers the prompt the thread is stopped on and lets the call run, by thread id or a prefix of it. A thread stopped on a prompt reads Needs you in threads and runs nothing until somebody picks, so this is how a thread you did not open is unstuck; the prompt itself is on the thread's own rows, which thread_read prints. Refused in one line when the thread is waiting on no prompt and when the prompt it is stopped on carries no such answer, which is what a call that asks the person something rather than for consent does.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread's id, or a prefix of it that names one, as threads lists them"
+    }
+   ],
+   "output": [
+    "threadId",
+    "askId",
+    "optionId"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread deny",
+  "shape": "cli",
+  "usage": "wsp thread deny <thread> [--reason \"<words>\"]",
+  "about": "answers the prompt the thread is stopped on and refuses the call",
+  "page": "agent",
+  "options": [
+   {
+    "name": "reason",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Answers the prompt the thread is stopped on and refuses the call, by thread id or a prefix of it. A thread stopped on a prompt reads Needs you in threads and runs nothing until somebody picks, so this is how a thread you did not open is unstuck; the prompt itself is on the thread's own rows, which thread_read prints. Refused in one line when the thread is waiting on no prompt and when the prompt it is stopped on carries no such answer, which is what a call that asks the person something rather than for consent does.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread's id, or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "reason",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "what the agent should do instead, in your words; the agent reads it with the refusal, as it reads the reason a person types in the app"
+    }
+   ],
+   "output": [
+    "threadId",
+    "askId",
+    "optionId"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "slate catalog",
+  "shape": "cli",
+  "usage": "wsp slate catalog [<name>]",
+  "about": "what a slate can hold: the index of pieces, sources, steps, functions and rules, or one entry in full",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "What a slate, the live panel beside the chat, can hold: every piece, and the runs that keep it fresh. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "leave out first: the index of every piece; then an entry, like runs"
+    }
+   ],
+   "output": [
+    "text"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "slate write",
+  "shape": "cli",
+  "usage": "wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]",
+  "about": "writes the thread's slate from a .slate file (a whole <slate> or a patch) or a .json document and prints its sketch; --check stores nothing, and with --set or --press rehearses values and a press on a copy, the file optional",
+  "page": "agent",
+  "options": [
+   {
+    "name": "check",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "set",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "press",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "row",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "action",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "if-version",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Writes this thread's slate, the live panel here beside the chat. Use it to show the person what they want to see, watch, monitor or keep an eye on while you work (live data, traffic, metrics, a price, logs, a PR, progress, status), a dashboard, a form to fill in or a checklist. A run with every= refreshes on a timer with no turns, so nothing polls. A run's script goes in a <file name=\"x.py\">, run as python3 \"$SLATE_DIR/x.py\", never in the project.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "another thread's id"
+    },
+    {
+     "name": "text",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "JSX-like text: a <slate>, or a patch"
+    },
+    {
+     "name": "document",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "JSON form from slate_read; not for writing"
+    },
+    {
+     "name": "check",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "validate, write nothing"
+    },
+    {
+     "name": "values",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "with check: $path: value"
+    },
+    {
+     "name": "press",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "with check: piece id to press"
+    },
+    {
+     "name": "row",
+     "kind": {
+      "type": "integer",
+      "min": null
+     },
+     "optional": true,
+     "describe": "pressed row, from 0"
+    },
+    {
+     "name": "action",
+     "kind": {
+      "type": "integer",
+      "min": null
+     },
+     "optional": true,
+     "describe": "row action, from 0"
+    },
+    {
+     "name": "if_version",
+     "kind": {
+      "type": "integer",
+      "min": null
+     },
+     "optional": true,
+     "describe": "only at this version"
+    }
+   ],
+   "output": [
+    "version",
+    "text",
+    "warnings",
+    "problems",
+    "waiting"
+   ],
+   "stream": [
+    "text"
+   ]
+  }
+ },
+ {
+  "name": "slate state",
+  "shape": "cli",
+  "usage": "wsp slate state [<thread>] [<path>=<json>...] [--start <run>]... [--if-version <n>]",
+  "about": "sets the slate's $values by path, like '$steps[2].done=true' or 'i=2', starts runs the person let run every time, and prints its sketch",
+  "page": "agent",
+  "options": [
+   {
+    "name": "if-version",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "start",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move as you work; reactions fire. start starts a run the person allowed to run always.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "another thread's id"
+    },
+    {
+     "name": "values",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "$path: new value"
+    },
+    {
+     "name": "start",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "runs allowed always"
+    },
+    {
+     "name": "if_version",
+     "kind": {
+      "type": "integer",
+      "min": null
+     },
+     "optional": true,
+     "describe": "only at this version"
+    }
+   ],
+   "output": [
+    "version",
+    "text",
+    "problems",
+    "waiting",
+    "notStarted"
+   ],
+   "stream": [
+    "text"
+   ]
+  }
+ },
+ {
+  "name": "slate read",
+  "shape": "cli",
+  "usage": "wsp slate read [<thread>] [--values <path>]... [--no-text] [--no-sketch] [--document]",
+  "about": "the slate as it stands: the sketch, then the JSX-like form, the values, derived values, runs, problems and the paths named; --no-text leaves out the JSX-like form, --document adds the stored JSON",
+  "page": "agent",
+  "options": [
+   {
+    "name": "values",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "no-text",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "no-sketch",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "document",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Reads this thread's slate: what the person filled in or pressed, live values, run output and logs, and the sketch: the panel's words as the person sees them.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "another thread's id"
+    },
+    {
+     "name": "values",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "$run.json, $value, source path, or *"
+    },
+    {
+     "name": "text",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "false: no JSX-like form"
+    },
+    {
+     "name": "sketch",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "false: no sketch"
+    },
+    {
+     "name": "document",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true: add stored JSON"
+    }
+   ],
+   "output": [
+    "version",
+    "text",
+    "document",
+    "values",
+    "derived",
+    "runs",
+    "state",
+    "problems",
+    "waiting",
+    "comments",
+    "approvals"
+   ],
+   "stream": [
+    "text"
+   ]
+  }
+ },
+ {
+  "name": "send",
+  "shape": "cli",
+  "usage": "wsp send <thread> [--model, --effort <value>] [--fast] [--file <path>] [--detach] \"<message>\"",
+  "about": "a message to the thread, on a named model or effort, fast or not, with files; the thread keeps its own access and a running turn its own picks; --detach prints the id and returns",
+  "page": "front",
+  "options": [
+   {
+    "name": "model",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "effort",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "fast",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "file",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "detach",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Sends a message to an existing thread (by id, or a prefix of it) and returns the reply when it is complete; a person's message on the same thread lands in order with yours. With detach true it returns the thread id the moment the turn is started, without the reply, and the turn's end reaches whoever the thread's start named. A model or effort named here is the turn's; the thread runs on the agent and at the access its own turns ran at, which a message does not change; a turn that joins a running one keeps that one's. On a thread whose turn is not running the message starts a new turn (outcome `started`); when the turn is still running the message joins it (outcome `steered`) or waits for it and then runs (outcome `queued`), and the reply is that turn's. When the thread's turn has replied but its agent process is still running, the message waits for that process and runs as the thread's next turn (outcome `queued`), which the runtime says as `This thread replied, still working; the message runs as its next turn once that process exits`. A send is never refused for meeting a turn, and two sends keep the order they arrived in. A start on a computer already running as many threads as its threads at once waits for a slot and starts on its own when one frees (outcome `held`), with capped beside it, the computer and what runs there against its number, which the thread's row in threads carries while it waits; a thread that follows a run or a send to its end, not detached, lends that thread's next turn its own slot, one turn at a time, a turn already held ahead of the message included, and every other start, a child started detached included, waits for a slot of its own.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "message",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "model",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the model the turn runs on, by the agent's own slug (claude-sonnet-5); absent on a new thread means the project's, else the one set for that agent, else the catalog's default, on send the thread's own"
+    },
+    {
+     "name": "effort",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the reasoning effort, by the agent's own word (low, medium, high, xhigh, max); absent on a new thread means the agent's default, high for claude; on send, the thread's own"
+    },
+    {
+     "name": "fast",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true runs the turn in the agent's fast mode, on a model that offers one, and is refused naming the model otherwise; absent runs at the agent's usual speed"
+    },
+    {
+     "name": "files",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "paths on this computer, absolute or relative to the folder wsp runs in, of files to send with the message, at most 5. An image (PNG, JPEG, GIF or WebP, up to 10 MB) goes to the agent as an image; any other file, up to 10 MB, lands in the folder the thread works in, under .wsp-files where git lists none of it, and the message names its path. The host reads each file and sends its bytes, so the machine never reaches back for this computer’s files; an image to an agent that reads none is refused naming that agent."
+    },
+    {
+     "name": "detach",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true answers with the thread id the moment the turn is started, without the reply, and the turn's end reaches whoever notify named; for a turn that runs for minutes or an hour, so this call does not block for it. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report."
+    }
+   ],
+   "output": [
+    "threadId",
+    "workspaceId",
+    "harness",
+    "text",
+    "outcome",
+    "capped",
+    "afterCut",
+    "notice"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "restart",
+  "shape": "cli",
+  "usage": "wsp restart",
+  "about": "stops the host and brings it back on the road it came up on, its service, the verb that started it or the app; running turns go on and the host that comes back re-opens them. A host wsp up holds in a terminal refuses",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": "the restart is the fix the release refusal names for an older host here, which comes back on the release installed",
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Stops the host and brings it back on the road it came up on: its service's manager, the verb that started it, or the app. Running turns go on across it and the host that comes back re-opens them, your own turn included, so a coordinator thread lands a host change with this and keeps working. Answers once that host serves, with running the ids of the threads running on it then. A run, send or wait this cut dials the host again and carries on. Refused for a host wsp up holds in a terminal, which only that terminal brings back.",
+   "input": [],
+   "output": [
+    "running"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "stop",
+  "shape": "cli",
+  "usage": "wsp stop <thread> [--subagent <id>]",
+  "about": "stops the thread's running turn, as the app's stop does, or with --subagent one of its agent's own subagents alone; the computer stays up",
+  "page": "front",
+  "options": [
+   {
+    "name": "subagent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Stops the thread's running turn (by id, or a prefix of it), as the app's stop button does; the computer stays up and the thread takes the next send. outcome accepted means the turn ended interrupted; not-running means it had already ended, which is an answer, not an error. A thread whose agents spawned threads of their own stops as one: under names each of those that was running and was stopped with it. Given the id of one of the agent's own subagents (off threads' subagents), that one is stopped alone and the turn runs on: accepted means the agent took the stop, refused and unsupported carry the reason in error. On a computer the person added, left says what the thread started there that the stop could not end, or that the computer is not answering, in which case the turn reads stopped now and ends there once that computer connects again; a stop on a message waiting for that end gives the message up and says so in left.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "subagent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "one of the agent's own subagents, by the id threads lists it under, to stop alone"
+    }
+   ],
+   "output": [
+    "threadId",
+    "task",
+    "outcome",
+    "under",
+    "error",
+    "left"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "ssh",
+  "shape": "cliOnly",
+  "usage": "wsp ssh <workspace>",
+  "about": "carries one ssh connection to the workspace's own ssh server, starting it there, over this computer's stdin and stdout: the ProxyCommand wsp's ssh config gives every wsp- alias, so `ssh wsp-<name>` and an editor's remote window land inside the workspace",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": "a proxy for one connection to a host already up: a host it started would serve a state no config named, find no such workspace and stay up after ssh gave up",
+  "anyRelease": null,
+  "cloud": true,
+  "cloudFlags": [],
+  "cliOnly": "a proxy for an ssh client on the computer the host runs on, piping raw bytes; an agent has no ssh client there to hand it to",
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": null
+ },
+ {
+  "name": "exec",
+  "shape": "cli",
+  "usage": "wsp exec <thread> [--cwd <dir>] -- <command...>",
+  "about": "runs the command where the thread works, each word as given, in --cwd or the thread's own folder",
+  "page": "agent",
+  "options": [
+   {
+    "name": "cwd",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Runs a command on the computer the thread runs on as argv (each word as given; use sh -c for a shell line), in the folder cwd names or the folder the thread works in, and returns its output lines, exit code and the folder it ran in. A non-zero exit is a result; the computer going away is an error.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread, by its id or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "argv",
+     "kind": {
+      "type": "stringList",
+      "min": 1
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "cwd",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the folder the command runs in, absolute; absent means the folder the thread works in"
+    }
+   ],
+   "output": [
+    "exitCode",
+    "output",
+    "cwd"
+   ],
+   "stream": [
+    "output"
+   ]
+  }
+ },
+ {
+  "name": "folders",
+  "shape": "cli",
+  "usage": "wsp folders [<folder>] [--hidden] [--repos] [--on <computer>]",
+  "about": "the folders inside one folder on this computer or on a box you added with --on, or with --repos every git repo under the home folder, most recently used first, for naming one to record",
+  "page": "app",
+  "options": [
+   {
+    "name": "hidden",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "repos",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The folders directly inside one folder on the person's own computer, or on a box they added, one level at a time, as the app's import dialog browses them: each folder's absolute path, whether git tracks it, and how many hidden ones the level holds. Browse this to name a folder for import instead of guessing a path. The roots are that computer's home folder and the folder of every project on it; a path outside those is refused, and folder absent lists the home folder.<!-- cloud --> A cloud account keeps no computer to browse and is refused.<!-- /cloud --> Folders only: no file is named and nothing is read.",
+   "input": [
+    {
+     "name": "folder",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the folder to list, absolute and inside the roots; absent lists the home folder"
+    },
+    {
+     "name": "hidden",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true lists the hidden folders too, which are otherwise only counted"
+    },
+    {
+     "name": "repos",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true answers every git repo under the home folder and the recorded projects instead of one level, each with its branch and when git last wrote to it, most recent first; folder is ignored"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer whose folders to list, by the name computers lists; absent is the computer the app runs on"
+    }
+   ],
+   "output": [
+    "dir",
+    "roots",
+    "folders",
+    "hidden"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "setup",
+  "shape": "cli",
+  "usage": "wsp setup",
+  "about": "the setup on this host as the app's Settings reads it: which keys are held (never their values)<!-- cloud --> and what a machine costs<!-- /cloud -->",
+  "page": "app",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The setup on this host, as the app's Settings reads it: which keys the host holds (their presence, never a value), this computer's home folder<!-- cloud -->, what a machine costs and the place a build would boot on, or why no build can start here<!-- /cloud -->. Read it to tell the person which provider key is missing.",
+   "input": [],
+   "output": [
+    "setup"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "terminal config",
+  "shape": "cli",
+  "usage": "wsp terminal config [--scheme light|dark]",
+  "about": "the Ghostty config on this computer as the app's terminal pane applies it, read from ~/.config/ghostty and Application Support with its includes and theme resolved: the font and its fallbacks, the size, the colors, the cursor, the padding, the background opacity, and the blur, which is read but not applied; --scheme picks the side of a light:...,dark:... theme",
+  "page": "app",
+  "options": [
+   {
+    "name": "scheme",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": "the Ghostty config it reads is the person's own, in their home on this computer",
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The person's Ghostty config on this computer as the app's terminal pane applies it: every config file Ghostty would load and the theme it names, read now, with only the keys the pane honours. files is empty when they have no Ghostty config, and each other key is absent when no file sets it, so the pane keeps its default there. backgroundBlur is read and not applied: the desktop window's own material is the blur, and a browser tab has none. Read this to say how their terminal looks or to check what a config change did; nothing is written.",
+   "input": [
+    {
+     "name": "scheme",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "light",
+       "dark"
+      ]
+     },
+     "optional": true,
+     "describe": "which side of a light:...,dark:... theme to resolve; dark when absent"
+    }
+   ],
+   "output": [
+    "files",
+    "fontFamily",
+    "fontSize",
+    "theme",
+    "background",
+    "foreground",
+    "palette",
+    "selectionBackground",
+    "cursorColor",
+    "cursorStyle",
+    "cursorStyleBlink",
+    "windowPaddingX",
+    "windowPaddingY",
+    "backgroundOpacity",
+    "backgroundBlur"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "export",
+  "shape": "cli",
+  "usage": "wsp export <workspace> <folder> [--from <path on the machine>] [--replace] [--agents <ids>]",
+  "about": "brings a project folder and the agent sessions keyed to it home from the machine",
+  "page": "agent",
+  "options": [
+   {
+    "name": "from",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "replace",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "agents",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": true,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Brings a project folder and the agent sessions keyed to it home from the workspace's machine to this computer: the folder lands at `folder` (absolute, must not exist unless replace), the sessions in the agents' homes here keyed to it. `from` is the folder's path on the machine, the same path as `folder` when absent. The result says per agent what moved, what landed as transcripts only, and how many indexed rollouts were skipped.",
+   "input": [
+    {
+     "name": "workspace",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the workspace's name, or its id when two share a name"
+    },
+    {
+     "name": "folder",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "where the folder lands on this computer, absolute"
+    },
+    {
+     "name": "from",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the folder's path on the machine; defaults to folder"
+    },
+    {
+     "name": "replace",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "remove what is at folder first; without it an existing folder is refused"
+    },
+    {
+     "name": "agents",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "catalog ids of the agents whose sessions come home; absent means every agent with sessions for the folder"
+    }
+   ],
+   "output": [
+    "dest",
+    "files",
+    "bytes",
+    "excluded",
+    "agents"
+   ],
+   "stream": []
+  }
+ }
+]

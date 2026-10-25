@@ -1,0 +1,408 @@
+{
+ "options": [
+  [
+   "host",
+   {
+    "type": "string"
+   }
+  ],
+  [
+   "state",
+   {
+    "type": "string"
+   }
+  ],
+  [
+   "json",
+   {
+    "type": "boolean"
+   }
+  ],
+  [
+   "help",
+   {
+    "type": "boolean",
+    "short": "h"
+   }
+  ],
+  [
+   "file",
+   {
+    "type": "string",
+    "multiple": true
+   }
+  ],
+  [
+   "n",
+   {
+    "type": "string",
+    "short": "m"
+   }
+  ],
+  [
+   "yes",
+   {
+    "type": "boolean"
+   }
+  ]
+ ],
+ "parsed": [
+  {
+   "args": [],
+   "values": [],
+   "positionals": []
+  },
+  {
+   "args": [
+    "a",
+    "b"
+   ],
+   "values": [],
+   "positionals": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "args": [
+    "--host",
+    "x"
+   ],
+   "values": [
+    [
+     "host",
+     "x"
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "--host=x"
+   ],
+   "values": [
+    [
+     "host",
+     "x"
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "--host="
+   ],
+   "values": [
+    [
+     "host",
+     ""
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "--host"
+   ],
+   "code": "ERR_PARSE_ARGS_INVALID_OPTION_VALUE",
+   "message": "Option '--host <value>' argument missing"
+  },
+  {
+   "args": [
+    "--host",
+    "-x"
+   ],
+   "code": "ERR_PARSE_ARGS_INVALID_OPTION_VALUE",
+   "message": "Option '--host' argument is ambiguous.\nDid you forget to specify the option argument for '--host'?\nTo specify an option argument starting with a dash use '--host=-XYZ'."
+  },
+  {
+   "args": [
+    "--host",
+    "--json"
+   ],
+   "code": "ERR_PARSE_ARGS_INVALID_OPTION_VALUE",
+   "message": "Option '--host' argument is ambiguous.\nDid you forget to specify the option argument for '--host'?\nTo specify an option argument starting with a dash use '--host=-XYZ'."
+  },
+  {
+   "args": [
+    "--json=1"
+   ],
+   "code": "ERR_PARSE_ARGS_INVALID_OPTION_VALUE",
+   "message": "Option '--json' does not take an argument"
+  },
+  {
+   "args": [
+    "--help=1"
+   ],
+   "code": "ERR_PARSE_ARGS_INVALID_OPTION_VALUE",
+   "message": "Option '-h, --help' does not take an argument"
+  },
+  {
+   "args": [
+    "-h"
+   ],
+   "values": [
+    [
+     "help",
+     true
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "-hh"
+   ],
+   "values": [
+    [
+     "help",
+     true
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "-hx"
+   ],
+   "code": "ERR_PARSE_ARGS_UNKNOWN_OPTION",
+   "message": "Unknown option '-x'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"-x\""
+  },
+  {
+   "args": [
+    "-mfoo"
+   ],
+   "values": [
+    [
+     "n",
+     "foo"
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "-m"
+   ],
+   "code": "ERR_PARSE_ARGS_INVALID_OPTION_VALUE",
+   "message": "Option '-m, --n <value>' argument missing"
+  },
+  {
+   "args": [
+    "-m",
+    "-x"
+   ],
+   "code": "ERR_PARSE_ARGS_INVALID_OPTION_VALUE",
+   "message": "Option '-m' argument is ambiguous.\nDid you forget to specify the option argument for '-m'?\nTo specify an option argument starting with a dash use '--n=-XYZ' or '-m-XYZ'."
+  },
+  {
+   "args": [
+    "-hm",
+    "v"
+   ],
+   "values": [
+    [
+     "help",
+     true
+    ],
+    [
+     "n",
+     "v"
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "--file",
+    "a",
+    "--file",
+    "b"
+   ],
+   "values": [
+    [
+     "file",
+     [
+      "a",
+      "b"
+     ]
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "--file=a=b"
+   ],
+   "values": [
+    [
+     "file",
+     [
+      "a=b"
+     ]
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "--",
+    "--json",
+    "x"
+   ],
+   "values": [],
+   "positionals": [
+    "--json",
+    "x"
+   ]
+  },
+  {
+   "args": [
+    "a",
+    "--",
+    "--"
+   ],
+   "values": [],
+   "positionals": [
+    "a",
+    "--"
+   ]
+  },
+  {
+   "args": [
+    "-"
+   ],
+   "values": [],
+   "positionals": [
+    "-"
+   ]
+  },
+  {
+   "args": [
+    "a",
+    "--json",
+    "b"
+   ],
+   "values": [
+    [
+     "json",
+     true
+    ]
+   ],
+   "positionals": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "args": [
+    "--json",
+    "--json"
+   ],
+   "values": [
+    [
+     "json",
+     true
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "--Host",
+    "x"
+   ],
+   "code": "ERR_PARSE_ARGS_UNKNOWN_OPTION",
+   "message": "Unknown option '--Host'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--Host\""
+  },
+  {
+   "args": [
+    "---x"
+   ],
+   "code": "ERR_PARSE_ARGS_UNKNOWN_OPTION",
+   "message": "Unknown option '---x'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"---x\""
+  },
+  {
+   "args": [
+    "--nope=1"
+   ],
+   "code": "ERR_PARSE_ARGS_UNKNOWN_OPTION",
+   "message": "Unknown option '--nope'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--nope\""
+  },
+  {
+   "args": [
+    "--host",
+    "a",
+    "--host",
+    "b"
+   ],
+   "values": [
+    [
+     "host",
+     "b"
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "--yes",
+    "--host",
+    "a",
+    "--json"
+   ],
+   "values": [
+    [
+     "yes",
+     true
+    ],
+    [
+     "host",
+     "a"
+    ],
+    [
+     "json",
+     true
+    ]
+   ],
+   "positionals": []
+  },
+  {
+   "args": [
+    "--=x"
+   ],
+   "code": "ERR_PARSE_ARGS_UNKNOWN_OPTION",
+   "message": "Unknown option '--=x'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--=x\""
+  },
+  {
+   "args": [
+    "--",
+    "-h"
+   ],
+   "values": [],
+   "positionals": [
+    "-h"
+   ]
+  },
+  {
+   "args": [
+    "-"
+   ],
+   "values": [],
+   "positionals": [
+    "-"
+   ]
+  },
+  {
+   "args": [
+    "x",
+    "-"
+   ],
+   "values": [],
+   "positionals": [
+    "x",
+    "-"
+   ]
+  }
+ ]
+}
