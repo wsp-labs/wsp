@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// A command's output read summary first, off what vitest 2.1.9 and cargo 1.97.1 printed on aws-mumbai.
+// A command's output read summary first, off what vitest 2.1.9, cargo 1.97.1 and tsc 7.0.2 printed on aws-mumbai.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseSlate, sketchSlate, slateRunSummary, slateStartValues, slateSummaryCounts } from "../../src/slate/index.js";
@@ -42,6 +42,47 @@ describe("a run's summary", () => {
     const out = lines("vitest.txt").join("\n");
     const sketch = sketchSlate(doc, { ...slateStartValues(doc), tests: { state: "failed", exit: 1, out, runs: 1 } }, { now: 0 });
     expect(sketch).toContain(`output $tests: failed, 1 failed, 1 passed, 1 skipped; ${out.split("\n").filter(l => l !== "").length} raw lines folded  [output-1 output]\n  FAIL |node|  src/checkout.test.ts > checkout > rounds a refund\n`);
+  });
+});
+
+describe("a run's summary of tsc", () => {
+  it("piped, as a slate's run reads it, leads with the error lines and counts none", () => {
+    // tsc 7.0.2 and 6.0.3 with stdout not a terminal print the diagnostics alone, with no Found line.
+    const piped = lines("tsc.txt");
+    const s = slateRunSummary(piped);
+    expect(s.matters).toEqual(piped.filter(l => l !== ""));
+    expect(slateSummaryCounts(s)).toEqual([]);
+  });
+
+  it("with --pretty says how many failed and names each error line under it", () => {
+    const s = slateRunSummary(lines("tsc-pretty.txt"));
+    expect(slateSummaryCounts(s).map(c => c.words)).toEqual(["2 failed"]);
+    expect(s.matters).toEqual([
+      "src/cart.ts:2:14 - error TS2322: Type 'string' is not assignable to type 'number'.",
+      "src/cart.ts:3:14 - error TS2322: Type 'string' is not assignable to type 'number'.",
+    ]);
+  });
+
+  it("names one error line when one is all there is", () => {
+    const pretty = ["src/cart.ts:2:14 - error TS2322: Type 'string' is not assignable to type 'number'.", "", "2 export const total: number = label;", "               ~~~~~", "", "", "Found 1 error in src/cart.ts:2", "", ""];
+    const s = slateRunSummary(pretty);
+    expect(slateSummaryCounts(s).map(c => c.words)).toEqual(["1 failed"]);
+    expect(s.matters).toEqual([pretty[0]]);
+  });
+});
+
+describe("a run's lines are cut on a whole character", () => {
+  it("never splits an emoji at the cut", () => {
+    const line = `Error: ${"a".repeat(151)}📦 and the rest of the line past the cut`;
+    const said = slateRunSummary([line]).matters[0]!;
+    expect(Array.from(said)).toHaveLength(160);
+    expect(said.endsWith("📦…")).toBe(true);
+    expect(said).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/);
+  });
+
+  it("counts characters, not UTF-16 units, so 117 emoji are under the cut and kept", () => {
+    const line = `Error: ${"📦".repeat(110)}`;
+    expect(slateRunSummary([line]).matters).toEqual([line]);
   });
 });
 

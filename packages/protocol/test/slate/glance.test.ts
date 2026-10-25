@@ -189,3 +189,53 @@ describe("the glance checks over a long table", () => {
     expect(sketch(steps.map(s => ({ ...s, d: true })))).toContain("every row of todo is done, all 300");
   });
 });
+
+describe("W034 on a status a person writes", () => {
+  const table = `<slate><value name="r" start={[]} /><column><table items={$r}><col title="Service" value={item.n} /><col title="Last check" value={item.v} /></table></column></slate>`;
+  const codes = (v: string): string[] => {
+    const doc = parseSlate(table).document!;
+    const rows = [{ n: "api", v: "up" }, { n: "web", v: "up, slow" }, { n: "cli", v }];
+    return [...sketchSlate(doc, { ...slateStartValues(doc), r: rows }, { version: 1, now: 0 }).matchAll(/^ {2}(W03\d) /gm)].map(m => m[1]!);
+  };
+
+  it.each(["Warning: disk 91% full", "✓ deployed in 300 ms", "✔ api healthy 12 ms"])("is silent on %s", status => {
+    expect(codes(status)).not.toContain("W034");
+  });
+
+  it.each(["warning: unused variable: `x`", "   × checkout > rounds a refund 7ms", "src/cart.ts(2,14): error TS2322: Type 'string' is not assignable to type 'number'."])("still fires on %s", line => {
+    expect(codes(line)).toContain("W034");
+  });
+});
+
+describe("the glance checks over a long checklist", () => {
+  /** A row that counts how often its title and its tick are read. */
+  const counting = (done: (i: number) => boolean): { rows: SlateJson[]; titles: Set<number>; ticks: Set<number> } => {
+    const titles = new Set<number>();
+    const ticks = new Set<number>();
+    const rows = Array.from({ length: SLATE_LIMITS.listItems }, (_, i) => ({ get t() { titles.add(i); return `Step ${i}`; }, get d() { ticks.add(i); return done(i); } }));
+    return { rows: rows as unknown as SlateJson[], titles, ticks };
+  };
+  const glance = (type: "checklist" | "progress", rows: SlateJson[]): string[] => {
+    const parsed = parseSlate(`<slate><value name="s" start={[]} /><column><${type} id="p" items={$s} key={item.t} ${type === "checklist" ? "title" : `label="steps" name`}={item.t} done={item.d} /></column></slate>`);
+    expect(parsed.errors ?? []).toEqual([]);
+    return slateGlanceProblems(parsed.document!, { resolve: path => (path === "$s" ? rows : undefined), now: 0 }, 0).map(p => p.code);
+  };
+
+  it.each(["checklist", "progress"] as const)("read at most SLATE_GLANCE.rowsRead rows of a %s's words", type => {
+    const { rows, titles } = counting(i => i !== 3);
+    glance(type, rows);
+    expect(titles.size).toBeLessThanOrEqual(SLATE_GLANCE.rowsRead);
+  });
+
+  it("stop the done check at the first row not done: it reads rows 0 to 3 and no more", () => {
+    const { rows, ticks } = counting(i => i !== 3);
+    glance("checklist", rows);
+    expect([...ticks].sort((a, b) => a - b)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("still say every row is done when all 5000 are", () => {
+    const { rows, ticks } = counting(() => true);
+    expect(glance("checklist", rows)).toContain("W036");
+    expect(ticks.size).toBe(SLATE_LIMITS.listItems);
+  });
+});

@@ -57,9 +57,10 @@ function asciiColumns(text: string): number | undefined {
 
 interface Said { piece: string; prop: string; value: string; row?: number }
 
-/** The rows of a list the person can see: a table stops drawing at SLATE_LIMITS.rowsDrawn, so no check reads past
- * them; a checklist and a progress draw every row, so theirs are read whole. */
-const seenRows = (type: string, items: SlateJson | undefined): SlateJson[] => (!Array.isArray(items) ? [] : columned(type) ? items.slice(0, SLATE_LIMITS.rowsDrawn) : items);
+/** The rows a check reads of a list: a table stops drawing at SLATE_LIMITS.rowsDrawn, so none reads past them; any
+ * other list is read to SLATE_GLANCE.rowsRead, which keeps a 5,000-row checklist's sketch quick. */
+const seenRows = (type: string, items: SlateJson | undefined): SlateJson[] =>
+  !Array.isArray(items) ? [] : items.slice(0, columned(type) ? SLATE_LIMITS.rowsDrawn : SLATE_GLANCE.rowsRead);
 
 /** Warnings for a slate the person cannot take in at a glance; `sketchWords` counts the words of its sketch's lines. */
 export function slateGlanceProblems(doc: SlateDoc, read: SlateEvalContext, sketchWords: number): SlateProblem[] {
@@ -239,7 +240,9 @@ export function slateGlanceProblems(doc: SlateDoc, read: SlateEvalContext, sketc
       if (pairs.length >= SLATE_GLANCE.sameRows && states[0] !== undefined && states.every(s => s === states[0])) out.push(slateProblem("W036", `all ${pairs.length} lines of ${id} say ${states[0]}: a state the same on every line says nothing; say it once as a count, <progress> or <stats>, and list only what differs`, { piece: id, prop: item.prop, fix: "<progress>" }));
     }
     if (module?.ticks === true && prop(piece, "editable") !== true) {
-      const rows = seenRows(piece.type, prop(piece, "items"));
+      const given = prop(piece, "items");
+      // Every row, since the claim is that all are done, but `every` stops at the first row that is not.
+      const rows = Array.isArray(given) ? given : [];
       const done = rows.length >= SLATE_GLANCE.sameRows && rows.every((item, index) => prop(piece, "done", { ...read, item, index }) === true) ? rows : [];
       if (done.length > 0) out.push(slateProblem("W036", `every row of ${id} is done, all ${done.length}; a tick on every row says nothing: say it once, "All ${done.length} done", or a <progress> that lists only the rows not done`, { piece: id, fix: "<progress>" }));
     }

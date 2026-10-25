@@ -278,18 +278,30 @@
     "counts": []
   },
   {
-    "name": "tsc",
-    "lines": [
-      "src/cart.ts(4,7): error TS2322: Type 'string' is not assignable to type 'number'.",
-      "Found 1 error in src/cart.ts:4"
-    ],
+    "name": "tsc 7.0.2 piped: the diagnostics alone, no Found line",
+    "file": "tsc.txt",
     "summary": {
-      "failed": 1,
-      "matters": [],
-      "last": "Found 1 error in src/cart.ts:4"
+      "matters": [
+        "src/cart.ts(2,14): error TS2322: Type 'string' is not assignable to type 'number'.",
+        "src/cart.ts(3,14): error TS2322: Type 'string' is not assignable to type 'number'."
+      ],
+      "last": "src/cart.ts(3,14): error TS2322: Type 'string' is not assignable to type 'number'."
+    },
+    "counts": []
+  },
+  {
+    "name": "tsc 7.0.2 --pretty: code frames and a Found line, in the terminal's colours",
+    "file": "tsc-pretty.txt",
+    "summary": {
+      "failed": 2,
+      "matters": [
+        "src/cart.ts:2:14 - error TS2322: Type 'string' is not assignable to type 'number'.",
+        "src/cart.ts:3:14 - error TS2322: Type 'string' is not assignable to type 'number'."
+      ],
+      "last": "Found 2 errors in the same file, starting at: src/cart.ts:2"
     },
     "counts": [
-      "1 failed"
+      "2 failed"
     ]
   },
   {
@@ -442,5 +454,44 @@
     "counts": [
       "1 failed"
     ]
+  },
+  {
+    "name": "a failure line whose emoji is the last character kept, cut whole",
+    "lines": [
+      "Error: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa📦 and the rest of the line past the cut"
+    ],
+    "summary": {
+      "matters": [
+        "Error: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa📦…"
+      ],
+      "last": "Error: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa📦…"
+    },
+    "counts": []
+  },
+  {
+    "name": "a failure line whose emoji falls past the cut, dropped whole",
+    "lines": [
+      "Error: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa📦 and the rest"
+    ],
+    "summary": {
+      "matters": [
+        "Error: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…"
+      ],
+      "last": "Error: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…"
+    },
+    "counts": []
+  },
+  {
+    "name": "a failure line of 117 emoji is under the cut and kept whole",
+    "lines": [
+      "Error: 📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦"
+    ],
+    "summary": {
+      "matters": [
+        "Error: 📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦"
+      ],
+      "last": "Error: 📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦📦"
+    },
+    "counts": []
   }
 ]
