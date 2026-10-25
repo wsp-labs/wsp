@@ -129,7 +129,7 @@ impl Check for SubOutSent {
 }
 impl SubOutSent {
     fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -172,7 +172,7 @@ impl Check for SubOutNotSent {
 }
 impl SubOutNotSent {
     fn rule_uncommitted(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -244,7 +244,7 @@ impl Check for SubOut {
 }
 impl SubOut {
     fn rule_delete_after_minutes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }

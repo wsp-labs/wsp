@@ -787,18 +787,18 @@ impl Check for TerminalRgb {
 }
 impl TerminalRgb {
     fn rule_r(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
-        crate::types::check::num_at_most((*x).0 .0, 255.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
+        crate::types::check::num_at_most(x.0 .0, 255.0)?;
         Ok(())
     }
     fn rule_g(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
-        crate::types::check::num_at_most((*x).0 .0, 255.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
+        crate::types::check::num_at_most(x.0 .0, 255.0)?;
         Ok(())
     }
     fn rule_b(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
-        crate::types::check::num_at_most((*x).0 .0, 255.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
+        crate::types::check::num_at_most(x.0 .0, 255.0)?;
         Ok(())
     }
 }
@@ -860,11 +860,11 @@ impl Check for TerminalConfigWindowPaddingX {
 }
 impl TerminalConfigWindowPaddingX {
     fn rule_left(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0, 0.0)?;
+        crate::types::check::num_at_least(x.0, 0.0)?;
         Ok(())
     }
     fn rule_right(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0, 0.0)?;
+        crate::types::check::num_at_least(x.0, 0.0)?;
         Ok(())
     }
 }
@@ -907,11 +907,11 @@ impl Check for TerminalConfigWindowPaddingY {
 }
 impl TerminalConfigWindowPaddingY {
     fn rule_top(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0, 0.0)?;
+        crate::types::check::num_at_least(x.0, 0.0)?;
         Ok(())
     }
     fn rule_bottom(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0, 0.0)?;
+        crate::types::check::num_at_least(x.0, 0.0)?;
         Ok(())
     }
 }
@@ -1026,7 +1026,7 @@ impl Check for TerminalConfig {
 }
 impl TerminalConfig {
     fn rule_font_size(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0, 0.0)?;
         }
         Ok(())
@@ -1036,16 +1036,16 @@ impl TerminalConfig {
         Ok(())
     }
     fn rule_background_opacity(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0, 0.0)?;
         }
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_most(v.0, 1.0)?;
         }
         Ok(())
     }
     fn rule_background_blur(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())

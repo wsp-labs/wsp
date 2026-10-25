@@ -119,7 +119,7 @@ impl Check for AppProc {
 }
 impl AppProc {
     fn rule_pid(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0 .0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_origins(x: &Option<Vec<String>>) -> Result<(), crate::types::check::SchemaError> {

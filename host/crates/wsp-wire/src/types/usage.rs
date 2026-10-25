@@ -244,7 +244,7 @@ impl Check for BankedResets {
 }
 impl BankedResets {
     fn rule_count(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -405,7 +405,7 @@ impl Check for AccountLimitCredits {
 }
 impl AccountLimitCredits {
     fn rule_count(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -591,7 +591,7 @@ impl Check for AccountRowCredits {
 }
 impl AccountRowCredits {
     fn rule_count(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }

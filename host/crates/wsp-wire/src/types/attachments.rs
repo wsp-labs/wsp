@@ -111,7 +111,7 @@ impl Check for AttachmentRecord {
 }
 impl AttachmentRecord {
     fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }

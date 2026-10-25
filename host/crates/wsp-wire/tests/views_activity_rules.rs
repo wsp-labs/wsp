@@ -107,6 +107,7 @@ mod the_stretch_to_the_agent {
 mod a_placement {
     use super::*;
 
+    #[allow(clippy::type_complexity)]
     fn input_of(v: &Value) -> (Vec<ProcEntry>, u32, Option<u32>, Vec<PlaceThread>, Vec<String>, Vec<u32>, HashMap<u32, AppPart>) {
         let procs: Vec<ProcEntry> = of(&v["procs"]);
         let threads = v["threads"]
@@ -313,6 +314,7 @@ mod the_lines {
     use super::*;
 
     #[test]
+    #[allow(clippy::type_complexity)]
     fn each_line_reads_word_for_word_as_the_ts_writes_it() {
         let named: [(&str, fn(&str) -> String); 4] = [
             ("boxEndLine", box_end_line),

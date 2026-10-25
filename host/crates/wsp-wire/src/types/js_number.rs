@@ -55,7 +55,7 @@ fn even_on_a_tie(n: f64, shortest: String, exp: &str) -> String {
     let exact = format!("{:.*e}", k + 40, n);
     let exact_digits: String = exact.split_once('e').map_or("", |(m, _)| m).chars().filter(|c| *c != '.').collect();
     let is_tie = exact_digits.as_bytes().get(k) == Some(&b'5') && exact_digits[k + 1..].bytes().all(|b| b == b'0');
-    let last_even = |d: &str| d.bytes().last().is_some_and(|b| (b - b'0') % 2 == 0);
+    let last_even = |d: &str| d.bytes().last().is_some_and(|b| (b - b'0').is_multiple_of(2));
     if !is_tie {
         return shortest;
     }

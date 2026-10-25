@@ -129,7 +129,7 @@ fn an_obsolete_language_code_in_lang_collates_as_its_current_one() {
 /// Node: String(1700000000000.03125) is "1700000000000.0312".
 #[test]
 fn a_tie_between_two_shortest_digit_strings_is_broken_to_the_even_one() {
-    assert_eq!(JsNumber(1700000000000.03125).js_string(), "1700000000000.0312");
+    assert_eq!(JsNumber(1_700_000_000_000.031_3).js_string(), "1700000000000.0312");
 }
 
 /// types/js_number.rs `Serialize for JsNumber` writes a fraction with serde_json's `serialize_f64`, which switches to

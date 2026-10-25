@@ -807,7 +807,7 @@ impl Check for MachineShape {
 }
 impl MachineShape {
     fn rule_used_bytes(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
@@ -990,7 +990,7 @@ impl LifecycleBudgets {
         Ok(())
     }
     fn rule_daemon_answers_ms(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        num_above((*x).0, 0.0)?;
+        num_above(x.0, 0.0)?;
         Ok(())
     }
 }
@@ -1741,31 +1741,31 @@ impl Check for MachineReading {
 }
 impl MachineReading {
     fn rule_mem_bytes(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
     }
     fn rule_cpu_usage_usec(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
     }
     fn rule_uptime_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
     }
     fn rule_procs(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
     }
     fn rule_quiet_for_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
@@ -2621,7 +2621,7 @@ pub fn apply_proc_changes(snapshot: &ProcSnapshot, changes: &ProcChanges) -> Opt
         rows.insert(p.pid.get(), p.clone());
     }
     Some(ProcSnapshot {
-        at: changes.at.clone(),
+        at: changes.at,
         daemon: changes.daemon,
         total: changes.total,
         procs: rows.into_values().collect(),

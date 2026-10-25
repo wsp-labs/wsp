@@ -33,7 +33,6 @@ pub const ACTIVITY_GROUP_WORDS: &[(&str, &str)] = &[
 
 // ---- Hand-written below: the functions of the unit.
 
-use crate::types::js_number::JsInt;
 use crate::views::activity::{proc_bins, SCRIPT_RUNTIMES};
 use wsp_frames::ProcEntry;
 

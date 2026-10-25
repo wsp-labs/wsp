@@ -73,7 +73,7 @@ mod a_workspaces_look {
         let mixed = read(json!({ "id": 3, "op": "workspaces.look", "workspaceId": "ws_1", "theme": null, "glyph": "rocket" }));
         op!(mixed, RuntimeOp::WorkspacesLook { theme: t, glyph, .. } => {
             assert_eq!(t, Some(None));
-            assert_eq!(glyph.clone().flatten().map(|v| serde_json::to_value(v).unwrap()), Some(json!("rocket")));
+            assert_eq!(glyph.flatten().map(|v| serde_json::to_value(v).unwrap()), Some(json!("rocket")));
         });
         let bare = read(json!({ "id": 4, "op": "workspaces.look", "workspaceId": "ws_1" }));
         op!(bare, RuntimeOp::WorkspacesLook { theme: t, glyph, .. } => {
@@ -335,7 +335,7 @@ mod thread_provenance {
     #[test]
     fn sessions_start_takes_startedby_and_nothing_else_new() {
         let r = read(json!({ "id": 1, "op": "sessions.start", "workspaceId": "ws_1", "prompt": "go", "startedBy": "cli" }));
-        op!(r, RuntimeOp::SessionsStart { started_by, .. } => assert_eq!(serde_json::to_value(&started_by).unwrap(), serde_json::to_value(&Some(json!("cli"))).unwrap()));
+        op!(r, RuntimeOp::SessionsStart { started_by, .. } => assert_eq!(serde_json::to_value(started_by).unwrap(), serde_json::to_value(Some(json!("cli"))).unwrap()));
         let e = refuse(json!({ "id": 1, "op": "sessions.start", "workspaceId": "ws_1", "prompt": "go", "startedBy": "app" }));
         assert_eq!(e.path, path!["startedBy"]);
     }
@@ -388,7 +388,7 @@ mod thread_provenance {
         let r = read(json!({ "id": 1, "op": "sessions.mark", "threadIds": ["thr_a"], "marks": { "folded": true } }));
         op!(r, RuntimeOp::SessionsMark { thread_ids, marks, .. } => {
             assert_eq!(thread_ids, vec!["thr_a".to_string()]);
-            assert_eq!(serde_json::to_value(&marks).unwrap(), serde_json::to_value(&json!({ "folded": true })).unwrap());
+            assert_eq!(serde_json::to_value(&marks).unwrap(), serde_json::to_value(json!({ "folded": true })).unwrap());
         });
         let e = refuse(json!({ "id": 1, "op": "sessions.mark", "threadIds": ["thr_a"], "marks": { "folded": "yes" } }));
         assert_eq!(e.path, path!["marks", "folded"]);
@@ -565,7 +565,7 @@ mod the_persons_terminal_config {
         let r = read(json!({ "id": "r1", "op": "host.terminalConfig" }));
         op!(r, RuntimeOp::HostTerminalConfig { scheme, .. } => assert_eq!(scheme, None));
         let r = read(json!({ "id": "r1", "op": "host.terminalConfig", "scheme": "light" }));
-        op!(r, RuntimeOp::HostTerminalConfig { scheme, .. } => assert_eq!(serde_json::to_value(&scheme).unwrap(), serde_json::to_value(&Some(json!("light"))).unwrap()));
+        op!(r, RuntimeOp::HostTerminalConfig { scheme, .. } => assert_eq!(serde_json::to_value(scheme).unwrap(), serde_json::to_value(Some(json!("light"))).unwrap()));
         let e = refuse(json!({ "id": "r1", "op": "host.terminalConfig", "scheme": "sepia" }));
         assert_eq!(e.path, path!["scheme"]);
     }
@@ -634,9 +634,9 @@ mod the_agents_report_on_the_wire {
     #[test]
     fn agents_read_names_a_computer_or_a_workspace_never_both_and_is_shut_to_threads_an() {
         let r = read(json!({ "id": "1", "op": "agents.read", "target": { "placeId": "here" } }));
-        op!(r, RuntimeOp::AgentsRead { target, .. } => assert_eq!(serde_json::to_value(&target).unwrap(), serde_json::to_value(&json!({ "placeId": "here" })).unwrap()));
+        op!(r, RuntimeOp::AgentsRead { target, .. } => assert_eq!(serde_json::to_value(&target).unwrap(), serde_json::to_value(json!({ "placeId": "here" })).unwrap()));
         let r = read(json!({ "id": "1", "op": "agents.read", "target": { "workspaceId": "ws_1" } }));
-        op!(r, RuntimeOp::AgentsRead { target, .. } => assert_eq!(serde_json::to_value(&target).unwrap(), serde_json::to_value(&json!({ "workspaceId": "ws_1" })).unwrap()));
+        op!(r, RuntimeOp::AgentsRead { target, .. } => assert_eq!(serde_json::to_value(&target).unwrap(), serde_json::to_value(json!({ "workspaceId": "ws_1" })).unwrap()));
         let e = refuse(json!({ "id": "1", "op": "agents.read", "target": { "placeId": "here", "workspaceId": "ws_1" } }));
         assert_eq!(e.path.first(), Some(&json!("target")));
         let e = refuse(json!({ "id": "1", "op": "agents.read", "target": {} }));
@@ -738,7 +738,7 @@ mod the_agents_report_on_the_wire {
         let r = read(
             json!({ "id": "1", "op": "servers.tools", "target": { "placeId": "p_spoo", "project": "pr_1" }, "agent": "claude", "name": "db" }),
         );
-        op!(r, RuntimeOp::ServersTools { target, .. } => assert_eq!(serde_json::to_value(&target).unwrap(), serde_json::to_value(&json!({ "placeId": "p_spoo", "project": "pr_1" })).unwrap()));
+        op!(r, RuntimeOp::ServersTools { target, .. } => assert_eq!(serde_json::to_value(&target).unwrap(), serde_json::to_value(json!({ "placeId": "p_spoo", "project": "pr_1" })).unwrap()));
         let e = refuse(json!({ "id": "1", "op": "agents.read", "target": { "workspaceId": "ws_1", "project": "pr_1" } }));
         assert_eq!(e.path.first(), Some(&json!("target")));
     }
@@ -769,7 +769,7 @@ mod the_preferences_record {
         let r = read(json!({ "id": 1, "op": "preferences.get" }));
         op!(r, RuntimeOp::PreferencesGet { .. } => ());
         let r = read(json!({ "id": 1, "op": "preferences.set", "patch": { "sidebarMode": "spaces" } }));
-        op!(r, RuntimeOp::PreferencesSet { patch, .. } => assert_eq!(serde_json::to_value(&patch).unwrap(), serde_json::to_value(&json!({ "sidebarMode": "spaces" })).unwrap()));
+        op!(r, RuntimeOp::PreferencesSet { patch, .. } => assert_eq!(serde_json::to_value(&patch).unwrap(), serde_json::to_value(json!({ "sidebarMode": "spaces" })).unwrap()));
         let e = refuse(json!({ "id": 1, "op": "preferences.set", "patch": { "sidebarMode": "grid" } }));
         assert_eq!(e.path, path!["patch", "sidebarMode"]);
         lacks(json!({ "id": 1, "op": "preferences.set" }), "patch");
@@ -784,7 +784,7 @@ mod access_words {
     fn a_start_carries_the_word_on_the_wire_and_a_harnesss_own_spelling_is_not_one() {
         let start = json!({ "id": "1", "op": "sessions.start", "workspaceId": "w", "prompt": "hi" });
         let r = read(with(start.clone(), "access", json!("full")));
-        op!(r, RuntimeOp::SessionsStart { access, .. } => assert_eq!(serde_json::to_value(&access).unwrap(), serde_json::to_value(&Some(json!("full"))).unwrap()));
+        op!(r, RuntimeOp::SessionsStart { access, .. } => assert_eq!(serde_json::to_value(access).unwrap(), serde_json::to_value(Some(json!("full"))).unwrap()));
         let e = refuse(with(start, "access", json!("bypassPermissions")));
         assert_eq!(e.path, path!["access"]);
         let e = refuse(json!({ "id": "1", "op": "workspaces.start", "url": "u", "access": "acceptEdits" }));
@@ -830,12 +830,12 @@ mod the_init_job_view {
         });
         let r = read(json!({ "id": 3, "op": "init.start", "road": "agent", "harness": "claude" }));
         op!(r, RuntimeOp::InitStart { road, harness, .. } => {
-            assert_eq!(serde_json::to_value(&road).unwrap(), serde_json::to_value(&json!("agent")).unwrap());
+            assert_eq!(serde_json::to_value(road).unwrap(), serde_json::to_value(json!("agent")).unwrap());
             assert_eq!(harness.as_deref(), Some("claude"));
         });
         let r = read(json!({ "id": 4, "op": "init.answer", "screen": "tools", "ticks": ["gh"], "answers": {} }));
         op!(r, RuntimeOp::InitAnswer { screen, ticks, answers, .. } => {
-            assert_eq!(serde_json::to_value(&screen).unwrap(), serde_json::to_value(&json!("tools")).unwrap());
+            assert_eq!(serde_json::to_value(screen).unwrap(), serde_json::to_value(json!("tools")).unwrap());
             assert_eq!(ticks, Some(vec!["gh".to_string()]));
             assert!(answers.unwrap().is_empty());
         });

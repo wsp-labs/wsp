@@ -184,7 +184,12 @@ impl Check for DeviceVia {
             detail.insert("received".to_string(), serde_json::Value::from(self.kind.as_str()));
             detail.insert("expected".to_string(), serde_json::Value::from("account"));
             let message = "Invalid literal value, expected \"account\"".to_string();
-            return Err(SchemaError { code: "invalid_literal".into(), path: vec![serde_json::Value::from("kind")], message, detail });
+            return Err(SchemaError {
+                code: "invalid_literal".into(),
+                path: vec![serde_json::Value::from("kind")],
+                message,
+                detail: Box::new(detail),
+            });
         }
         Ok(())
     }
@@ -216,18 +221,7 @@ impl Check for DeviceVia {
         }
     }
 }
-impl DeviceVia {
-    fn rule_kind(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        if (*x) != "account" {
-            let mut detail = indexmap::IndexMap::new();
-            detail.insert("received".to_string(), serde_json::Value::from((*x).as_str()));
-            detail.insert("expected".to_string(), serde_json::Value::from("account"));
-            let message = "Invalid literal value, expected \"account\"".to_string();
-            return Err(SchemaError { code: "invalid_literal".into(), path: Vec::new(), message, detail });
-        }
-        Ok(())
-    }
-}
+impl DeviceVia {}
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for DeviceView {

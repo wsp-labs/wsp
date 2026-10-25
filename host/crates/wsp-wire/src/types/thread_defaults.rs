@@ -758,7 +758,7 @@ impl<T: Serialize> Fields<T> {
 impl<T: Serialize + serde::de::DeserializeOwned> Fields<T> {
     /// `patchedFields` on a record: None when no key is left.
     pub fn patched<P: Serialize>(kept: Option<&Self>, patch: &P) -> Option<Self> {
-        let start = kept.map(|kept| object_of(kept)).unwrap_or_default();
+        let start = kept.map(object_of).unwrap_or_default();
         let next = merged(start, patch)?;
         let keys = next.keys().cloned().collect();
         Some(Fields { value: serde_json::from_value(serde_json::Value::Object(next)).ok()?, keys })

@@ -97,7 +97,7 @@ impl Check for SessionSlateEvent {
 }
 impl SessionSlateEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())

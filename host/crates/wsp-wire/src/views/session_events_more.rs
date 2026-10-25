@@ -136,19 +136,19 @@ impl Check for SessionSubagentEvent {
 }
 impl SessionSubagentEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_depth(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_line(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -230,7 +230,7 @@ impl Check for SessionPlanEvent {
 }
 impl SessionPlanEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -317,13 +317,13 @@ impl Check for SessionCompactedEvent {
 }
 impl SessionCompactedEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_line(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -417,23 +417,23 @@ impl Check for SessionRetryEvent {
 }
 impl SessionRetryEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_attempt(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0 .0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_of(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_line(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -512,7 +512,7 @@ impl Check for SessionContextEvent {
 }
 impl SessionContextEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -610,7 +610,7 @@ impl Check for SessionPermissionEvent {
 }
 impl SessionPermissionEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -694,7 +694,7 @@ impl Check for SessionPermissionClosedEvent {
 }
 impl SessionPermissionClosedEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -782,7 +782,7 @@ impl Check for SessionCheckpointEvent {
 }
 impl SessionCheckpointEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -868,7 +868,7 @@ impl Check for SessionMovedEvent {
 }
 impl SessionMovedEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -943,7 +943,7 @@ impl Check for SessionBehindEvent {
 }
 impl SessionBehindEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1018,7 +1018,7 @@ impl Check for SessionNoticeEvent {
 }
 impl SessionNoticeEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1097,13 +1097,13 @@ impl Check for ThreadWaitedEvent {
 }
 impl ThreadWaitedEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_ms(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1198,7 +1198,7 @@ impl Check for SessionEarlierEvent {
 }
 impl SessionEarlierEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1309,7 +1309,7 @@ impl Check for SessionCappedEvent {
 }
 impl SessionCappedEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1404,7 +1404,7 @@ impl Check for SessionUncappedEvent {
 }
 impl SessionUncappedEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1525,7 +1525,7 @@ impl Check for SessionRunEvent {
 }
 impl SessionRunEvent {
     fn rule_pos(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())

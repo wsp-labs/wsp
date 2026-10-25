@@ -479,13 +479,13 @@ impl Check for SubagentUsage {
 }
 impl SubagentUsage {
     fn rule_tool_uses(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_duration_ms(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0, 0.0)?;
         }
         Ok(())
@@ -573,7 +573,7 @@ impl Check for SubagentView {
 }
 impl SubagentView {
     fn rule_depth(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -625,7 +625,7 @@ impl Check for ForkSource {
 }
 impl ForkSource {
     fn rule_at(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1168,7 +1168,7 @@ impl Check for ThreadView {
 }
 impl ThreadView {
     fn rule_turns(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0 .0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
 }

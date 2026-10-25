@@ -362,7 +362,7 @@ impl Check for PreferencesStored {
 }
 impl PreferencesStored {
     fn rule_sidebar_width(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -393,13 +393,13 @@ impl PreferencesStored {
         Ok(())
     }
     fn rule_text_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17")?;
         }
         Ok(())
     }
     fn rule_code_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15")?;
         }
         Ok(())
@@ -1063,19 +1063,19 @@ impl Preferences {
         Ok(())
     }
     fn rule_sidebar_width(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_text_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17")?;
         }
         Ok(())
     }
     fn rule_code_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15")?;
         }
         Ok(())
@@ -1512,7 +1512,7 @@ impl Check for PreferencesPatch {
 }
 impl PreferencesPatch {
     fn rule_sidebar_width(x: &Option<Option<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::num_above(v.as_f64(), 0.0)?;
         }
         Ok(())
@@ -1547,13 +1547,13 @@ impl PreferencesPatch {
         Ok(())
     }
     fn rule_text_size(x: &Option<Option<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17")?;
         }
         Ok(())
     }
     fn rule_code_size(x: &Option<Option<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15")?;
         }
         Ok(())
@@ -1828,7 +1828,7 @@ impl Check for ThreadFacts {
 }
 impl ThreadFacts {
     fn rule_turns(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0 .0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1885,11 +1885,11 @@ impl Check for ThreadHead {
 }
 impl ThreadHead {
     fn rule_pos(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_total(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1942,11 +1942,11 @@ impl Check for HistoryPage {
 }
 impl HistoryPage {
     fn rule_pos(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_total(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -2002,7 +2002,7 @@ impl Check for ThreadHeadEvent {
 }
 impl ThreadHeadEvent {
     fn rule_pos(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -2321,26 +2321,26 @@ where
 pub fn apply_preferences_patch(current: &Preferences, patch: &PreferencesPatch) -> Preferences {
     let general = patched_general(
         &GeneralPreferences {
-            send_with: current.send_with.clone(),
-            mid_turn: current.mid_turn.clone(),
-            notify_needs: current.notify_needs.clone(),
-            notify_done: current.notify_done.clone(),
+            send_with: current.send_with,
+            mid_turn: current.mid_turn,
+            notify_needs: current.notify_needs,
+            notify_done: current.notify_done,
             plan_alerts: current.plan_alerts,
-            settle_after: current.settle_after.clone(),
+            settle_after: current.settle_after,
             ask_delete: current.ask_delete,
-            on_quit: current.on_quit.clone(),
-            new_thread_in: current.new_thread_in.clone(),
+            on_quit: current.on_quit,
+            new_thread_in: current.new_thread_in,
         },
         &GeneralPatch {
-            send_with: patch.send_with.clone(),
-            mid_turn: patch.mid_turn.clone(),
-            notify_needs: patch.notify_needs.clone(),
-            notify_done: patch.notify_done.clone(),
+            send_with: patch.send_with,
+            mid_turn: patch.mid_turn,
+            notify_needs: patch.notify_needs,
+            notify_done: patch.notify_done,
             plan_alerts: patch.plan_alerts,
-            settle_after: patch.settle_after.clone(),
+            settle_after: patch.settle_after,
             ask_delete: patch.ask_delete,
-            on_quit: patch.on_quit.clone(),
-            new_thread_in: patch.new_thread_in.clone(),
+            on_quit: patch.on_quit,
+            new_thread_in: patch.new_thread_in,
         },
     );
     let recipe_look = match &patch.recipe_look {
@@ -2352,11 +2352,11 @@ pub fn apply_preferences_patch(current: &Preferences, patch: &PreferencesPatch) 
         Some(moved) => Some(per_key(&current.threads_shut.clone().unwrap_or_default(), Some(moved))),
     };
     Preferences {
-        theme: patch.theme.clone().unwrap_or_else(|| current.theme.clone()),
+        theme: patch.theme.unwrap_or(current.theme),
         light_theme: patch.light_theme.clone().unwrap_or_else(|| current.light_theme.clone()),
         dark_theme: patch.dark_theme.clone().unwrap_or_else(|| current.dark_theme.clone()),
-        sidebar_mode: patch.sidebar_mode.clone().unwrap_or_else(|| current.sidebar_mode.clone()),
-        terminal_size: patch.terminal_size.clone().unwrap_or_else(|| current.terminal_size.clone()),
+        sidebar_mode: patch.sidebar_mode.unwrap_or(current.sidebar_mode),
+        terminal_size: patch.terminal_size.unwrap_or(current.terminal_size),
         terminal_zoom: per_key(&current.terminal_zoom, patch.terminal_zoom.as_ref()),
         access: per_key(&current.access, patch.access.as_ref()),
         project_look: per_key(&current.project_look, patch.project_look.as_ref()),
@@ -2386,7 +2386,7 @@ pub fn apply_preferences_patch(current: &Preferences, patch: &PreferencesPatch) 
         labs: current.labs,
         sidebar_width: patch.sidebar_width.unwrap_or(current.sidebar_width),
         target: patch.target.clone().unwrap_or_else(|| current.target.clone()),
-        editor: patch.editor.clone().or_else(|| current.editor.clone()),
+        editor: patch.editor.or(current.editor),
         update_dismissed: patch.update_dismissed.clone().or_else(|| current.update_dismissed.clone()),
         cloud_card_dismissed: patch.cloud_card_dismissed.or(current.cloud_card_dismissed),
         text_size: patch.text_size.unwrap_or(current.text_size),

@@ -22,7 +22,7 @@ pub struct SchemaError {
     pub message: String,
     /// zod's other keys in zod's order: expected, received, options, keys, minimum, maximum, inclusive, exact, type,
     /// validation.
-    pub detail: IndexMap<String, Value>,
+    pub detail: Box<IndexMap<String, Value>>,
 }
 
 impl SchemaError {
@@ -102,7 +102,7 @@ impl SchemaError {
 /// What zod calls the value a path reaches, for the issue a refused value answers with. `Word` is a plain type word,
 /// `Int` an `.int()` number, `Options` a `z.enum`'s words, `Tags` a tagged union's tag key and its tags, `Union` an
 /// untagged union, which answers `invalid_union` where it is missing or of no variant, and `Literal` a literal's one value.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub enum Zod {
     Word(&'static str),
     Int,
@@ -110,6 +110,19 @@ pub enum Zod {
     Tags(&'static str, &'static [&'static str]),
     Union,
     Literal(fn() -> Value),
+}
+
+impl PartialEq for Zod {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Zod::Word(a), Zod::Word(b)) => a == b,
+            (Zod::Int, Zod::Int) | (Zod::Union, Zod::Union) => true,
+            (Zod::Options(a), Zod::Options(b)) => a == b,
+            (Zod::Tags(ka, a), Zod::Tags(kb, b)) => ka == kb && a == b,
+            (Zod::Literal(a), Zod::Literal(b)) => a() == b(),
+            _ => false,
+        }
+    }
 }
 
 /// The refinements of one type. A type with none keeps the default, which checks nothing; a struct's check runs the
@@ -321,7 +334,7 @@ fn bound(
     detail.insert("type".to_string(), Value::from(ty));
     detail.insert("inclusive".to_string(), Value::from(inclusive));
     detail.insert("exact".to_string(), Value::from(exact));
-    SchemaError { code: code.into(), path: Vec::new(), message, detail }
+    SchemaError { code: code.into(), path: Vec::new(), message, detail: Box::new(detail) }
 }
 
 fn num_json(n: f64) -> Value {
@@ -477,7 +490,7 @@ pub fn refine(ok: bool, message: &str) -> Result<(), SchemaError> {
     if ok {
         return Ok(());
     }
-    Err(SchemaError { code: "custom".into(), path: Vec::new(), message: message.into(), detail: IndexMap::new() })
+    Err(SchemaError { code: "custom".into(), path: Vec::new(), message: message.into(), detail: Box::default() })
 }
 
 /// A zod `.regex(r)` that failed: zod's `invalid_string` with validation `regex`, and the message the rule gave.
@@ -491,7 +504,7 @@ pub fn regex_check_with(ok: bool, message: &str) -> Result<(), SchemaError> {
     }
     let mut detail = IndexMap::new();
     detail.insert("validation".to_string(), Value::from("regex"));
-    Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: message.into(), detail })
+    Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: message.into(), detail: Box::new(detail) })
 }
 
 /// zod's `.min(n, message)` on a string, which answers the rule's own words.
@@ -648,7 +661,12 @@ fn wrong_type(path: Vec<Value>, expected: String, value: &Value) -> SchemaError 
     let mut detail = IndexMap::new();
     detail.insert("expected".to_string(), Value::from(expected.as_str()));
     detail.insert("received".to_string(), Value::from(received));
-    SchemaError { code: "invalid_type".into(), path, message: format!("Expected {expected}, received {received}"), detail }
+    SchemaError {
+        code: "invalid_type".into(),
+        path,
+        message: format!("Expected {expected}, received {received}"),
+        detail: Box::new(detail),
+    }
 }
 
 /// A JSON value where zod reads an object: invalid_type, "Expected object, received <its word>".
@@ -657,7 +675,12 @@ pub fn not_object(value: &Value) -> SchemaError {
     let mut detail = IndexMap::new();
     detail.insert("expected".to_string(), Value::from("object"));
     detail.insert("received".to_string(), Value::from(received));
-    SchemaError { code: "invalid_type".into(), path: Vec::new(), message: format!("Expected object, received {received}"), detail }
+    SchemaError {
+        code: "invalid_type".into(),
+        path: Vec::new(),
+        message: format!("Expected object, received {received}"),
+        detail: Box::new(detail),
+    }
 }
 
 /// A discriminator zod cannot match: invalid_union_discriminator at `key`, with the tags of `T`.
@@ -689,14 +712,14 @@ pub fn union_answer(members: Vec<Vec<SchemaError>>) -> Vec<SchemaError> {
             return issues.clone();
         }
     }
-    vec![SchemaError { code: "invalid_union".into(), path: Vec::new(), message: "Invalid input".into(), detail: IndexMap::new() }]
+    vec![SchemaError { code: "invalid_union".into(), path: Vec::new(), message: "Invalid input".into(), detail: Box::default() }]
 }
 
 pub fn unrecognized(path: Vec<Value>, keys: Vec<String>) -> SchemaError {
     let message = format!("Unrecognized key(s) in object: {}", keys.iter().map(|k| format!("'{k}'")).collect::<Vec<_>>().join(", "));
     let mut detail = IndexMap::new();
     detail.insert("keys".to_string(), Value::Array(keys.into_iter().map(Value::from).collect()));
-    SchemaError { code: "unrecognized_keys".into(), path, message, detail }
+    SchemaError { code: "unrecognized_keys".into(), path, message, detail: Box::new(detail) }
 }
 
 fn segments(path: &serde_path_to_error::Path) -> Vec<Value> {
@@ -708,25 +731,6 @@ fn segments(path: &serde_path_to_error::Path) -> Vec<Value> {
             serde_path_to_error::Segment::Unknown => None,
         })
         .collect()
-}
-
-fn remove(work: &mut Value, path: &[Value], key: &str) -> bool {
-    let mut at = work;
-    for seg in path {
-        let next = match seg {
-            Value::String(k) => at.get_mut(k.as_str()),
-            Value::Number(i) => at.get_mut(i.as_u64().unwrap_or(0) as usize),
-            _ => None,
-        };
-        match next {
-            Some(v) => at = v,
-            None => return false,
-        }
-    }
-    match at {
-        Value::Object(map) => map.shift_remove(key).is_some(),
-        _ => false,
-    }
 }
 
 fn value_at<'a>(value: &'a Value, path: &[Value]) -> Option<&'a Value> {
@@ -779,7 +783,7 @@ fn missing_issue(at: Vec<Value>, zod: Option<Zod>) -> SchemaError {
             let mut detail = IndexMap::new();
             detail.insert("expected".to_string(), Value::from(expected));
             detail.insert("received".to_string(), Value::from("undefined"));
-            SchemaError { code: "invalid_type".into(), path: at, message: "Required".into(), detail }
+            SchemaError { code: "invalid_type".into(), path: at, message: "Required".into(), detail: Box::new(detail) }
         }
     }
 }
@@ -828,7 +832,7 @@ fn serde_issue<T: Check>(msg: &str, path: Vec<Value>, work: &Value) -> SchemaErr
             code: "invalid_enum_value".into(),
             path,
             message: format!("Invalid enum value. Expected {}, received '{got}'", options_text(&words)),
-            detail,
+            detail: Box::new(detail),
         };
     }
     if msg.starts_with("invalid type: ") || msg.starts_with("invalid value: ") {
@@ -848,7 +852,12 @@ fn serde_issue<T: Check>(msg: &str, path: Vec<Value>, work: &Value) -> SchemaErr
                 let mut detail = IndexMap::new();
                 detail.insert("expected".to_string(), Value::from(expected.as_str()));
                 detail.insert("received".to_string(), Value::from(received));
-                SchemaError { code: "invalid_type".into(), path, message: format!("Expected {expected}, received {received}"), detail }
+                SchemaError {
+                    code: "invalid_type".into(),
+                    path,
+                    message: format!("Expected {expected}, received {received}"),
+                    detail: Box::new(detail),
+                }
             }
         };
     }
@@ -882,7 +891,12 @@ pub(crate) fn invalid_literal(path: Vec<Value>, received: Option<Value>, expecte
         detail.insert("received".to_string(), received);
     }
     detail.insert("expected".to_string(), expected.clone());
-    SchemaError { code: "invalid_literal".into(), path, message: format!("Invalid literal value, expected {expected}"), detail }
+    SchemaError {
+        code: "invalid_literal".into(),
+        path,
+        message: format!("Invalid literal value, expected {expected}"),
+        detail: Box::new(detail),
+    }
 }
 
 fn discriminator(path: Vec<Value>, _key: &str, tags: &[&str]) -> SchemaError {
@@ -892,16 +906,16 @@ fn discriminator(path: Vec<Value>, _key: &str, tags: &[&str]) -> SchemaError {
         code: "invalid_union_discriminator".into(),
         path,
         message: format!("Invalid discriminator value. Expected {}", options_text(tags)),
-        detail,
+        detail: Box::new(detail),
     }
 }
 
 fn invalid_union(path: Vec<Value>) -> SchemaError {
-    SchemaError { code: "invalid_union".into(), path, message: "Invalid input".into(), detail: IndexMap::new() }
+    SchemaError { code: "invalid_union".into(), path, message: "Invalid input".into(), detail: Box::default() }
 }
 
 fn custom(path: Vec<Value>, msg: &str) -> SchemaError {
-    SchemaError { code: "custom".into(), path, message: msg.to_string(), detail: IndexMap::new() }
+    SchemaError { code: "custom".into(), path, message: msg.to_string(), detail: Box::default() }
 }
 
 /// A zod `.default(v)` value, written in the generated code as the JSON the TS default holds.
