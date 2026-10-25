@@ -115,7 +115,16 @@ fn every_verb_that_takes_something_away_reads_yes_the_same_way_the_flag_its_usag
         let lines: Vec<LineVerb<'_>> = cli_verbs(&table).into_iter().filter(|v| takes_away.is_match(v.name())).collect();
         let mut names: Vec<&str> = lines.iter().map(|v| v.name()).collect();
         names.sort();
-        let mut expected = vec!["delete", "discard", "projects remove", "recipes remove", "servers remove", "skills remove", "thread forget", "worktree remove"];
+        let mut expected = vec![
+            "delete",
+            "discard",
+            "projects remove",
+            "recipes remove",
+            "servers remove",
+            "skills remove",
+            "thread forget",
+            "worktree remove",
+        ];
         if cloud {
             expected.push("forget");
         }
@@ -158,7 +167,9 @@ fn every_list_a_tool_takes_is_a_flag_the_line_reads_again_or_a_line_that_reads_i
             for input in tool.input.iter().filter(|i| matches!(i.kind, InputKind::StringList { .. })) {
                 let key = format!("{} {}", v.name(), input.name);
                 let how = LISTS_ON_THE_COMMAND_LINE.iter().find(|(k, _)| *k == key).map(|(_, h)| *h);
-                let how = how.unwrap_or_else(|| panic!("{} takes {} as a list and nothing says how wsp {} carries it", tool_name(v.name()), input.name, v.name()));
+                let how = how.unwrap_or_else(|| {
+                    panic!("{} takes {} as a list and nothing says how wsp {} carries it", tool_name(v.name()), input.name, v.name())
+                });
                 carried.insert(key);
                 if let Some(flag) = how.strip_prefix("--") {
                     let row = line.options().get(flag).unwrap_or_else(|| panic!("wsp {} does not read {how}", v.name()));
@@ -170,7 +181,11 @@ fn every_list_a_tool_takes_is_a_flag_the_line_reads_again_or_a_line_that_reads_i
         let answered: BTreeSet<String> = LISTS_ON_THE_COMMAND_LINE
             .iter()
             .map(|(k, _)| (*k).to_owned())
-            .filter(|k| names.iter().any(|n| k.starts_with(&format!("{n} ")) && table.iter().any(|v| v.name() == *n && v.line().is_some() && has_tool(v).is_some())))
+            .filter(|k| {
+                names.iter().any(|n| {
+                    k.starts_with(&format!("{n} ")) && table.iter().any(|v| v.name() == *n && v.line().is_some() && has_tool(v).is_some())
+                })
+            })
             .collect();
         assert_eq!(carried, answered, "cloud {cloud}");
     }
@@ -182,7 +197,10 @@ fn a_notify_typed_once_and_typed_again_both_reach_the_line_as_a_list_of_targets(
     let run = cli_verbs(&table).into_iter().find(|v| v.name() == "run").unwrap();
     let mut options = common_flags();
     options.0.extend(run.options().0.iter().cloned());
-    for (argv, targets) in [(vec!["--notify", "me", "build it"], vec!["me"]), (vec!["--notify", "me", "--notify", "1a2b3c4d", "build it"], vec!["me", "1a2b3c4d"])] {
+    for (argv, targets) in [
+        (vec!["--notify", "me", "build it"], vec!["me"]),
+        (vec!["--notify", "me", "--notify", "1a2b3c4d", "build it"], vec!["me", "1a2b3c4d"]),
+    ] {
         let argv: Vec<String> = argv.into_iter().map(str::to_owned).collect();
         let parsed = parse_args(&argv, &options).unwrap();
         assert_eq!(flag_list(&parsed.values, "notify"), targets, "{argv:?}");
@@ -193,7 +211,15 @@ fn a_notify_typed_once_and_typed_again_both_reach_the_line_as_a_list_of_targets(
 #[test]
 fn with_the_cloud_off_no_verb_tool_or_page_names_the_provider_or_keeps_a_cloud_mark() {
     // packages/host/AGENTS.md invariant 7: with the cloud off no page, tool or skill line names a cloud.
-    let allowed = [r#""cloud","globe""#, r#""server","cloud","cpu""#, r#""enum":["cloud","local","place"]"#, "and on a cloud how many", "may run on that cloud at once", "that cloud may spend", "sub-thread's machine"];
+    let allowed = [
+        r#""cloud","globe""#,
+        r#""server","cloud","cpu""#,
+        r#""enum":["cloud","local","place"]"#,
+        "and on a cloud how many",
+        "may run on that cloud at once",
+        "that cloud may spend",
+        "sub-thread's machine",
+    ];
     let cloud_words = Regex::new(r"(?i)[^.\n]*\bclouds?\b[^.\n]*").unwrap();
     let table = verbs_for(false);
     let mut texts: Vec<(String, String)> = Vec::new();

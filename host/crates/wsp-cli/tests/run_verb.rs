@@ -15,7 +15,8 @@ use serde_json::json;
 use common::{RecordingIo, Script, ScriptedClient, ScriptedHost};
 use wsp_cli::hosts::HostAim;
 use wsp_cli::verbs::client::{
-    Again, BoxFuture, CliOnlyVerb, CliVerb, DialFn, DialOpts, FlagKind, FlagRow, FlagTable, Frame, HostClient, LineVerb, Page, Tool, Verb, VerbContext,
+    Again, BoxFuture, CliOnlyVerb, CliVerb, DialFn, DialOpts, FlagKind, FlagRow, FlagTable, Frame, HostClient, LineVerb, Page, Tool, Verb,
+    VerbContext,
 };
 use wsp_cli::verbs::{run_verb, RunDeps};
 use wsp_words::exit::{HostError, Kind};
@@ -72,7 +73,11 @@ struct NoStart;
 
 #[async_trait]
 impl wsp_cli::host_lock::HostStarter for NoStart {
-    async fn start(&self, _state_path: &str, _say: &(dyn Fn(&str) + Send + Sync)) -> Result<Option<wsp_cli::host_lock::HostLock>, HostError> {
+    async fn start(
+        &self,
+        _state_path: &str,
+        _say: &(dyn Fn(&str) + Send + Sync),
+    ) -> Result<Option<wsp_cli::host_lock::HostLock>, HostError> {
         Ok(None)
     }
 }
@@ -282,7 +287,11 @@ async fn help_on_a_line_that_runs_at_its_own_host_says_what_host_means_there() {
         host_side: Some("Keys stay at their host."),
     };
     let r = run(LineVerb::CliOnly(&v), &["mine", "-h"], Recording::new(), &[], true).await;
-    assert!(r.io.lines().join("\n").contains("--host     read to say this line runs at its own host's terminal; it dials no other"), "{:?}", r.io.lines());
+    assert!(
+        r.io.lines().join("\n").contains("--host     read to say this line runs at its own host's terminal; it dials no other"),
+        "{:?}",
+        r.io.lines()
+    );
 }
 
 #[tokio::test]
@@ -303,7 +312,9 @@ async fn a_line_that_runs_at_its_own_host_refuses_any_other_aim_naming_it_and_di
         host_side: Some("Keys stay at their host."),
     };
     let dial = Recording::new();
-    let r = run(LineVerb::CliOnly(&v), &["mine"], dial.clone(), &[("WSP_HOST_URL", "http://127.0.0.1:7777"), ("WSP_HOST_TOKEN", "t")], true).await;
+    let r =
+        run(LineVerb::CliOnly(&v), &["mine"], dial.clone(), &[("WSP_HOST_URL", "http://127.0.0.1:7777"), ("WSP_HOST_TOKEN", "t")], true)
+            .await;
     assert_eq!(r.code, 3);
     assert_eq!(r.io.errors(), vec!["wsp mine runs on the computer the host runs on, and this line is aimed at http://127.0.0.1:7777. Run it in a terminal over there. Keys stay at their host.".to_owned()]);
     assert!(dial.dials().is_empty());
@@ -315,7 +326,11 @@ async fn an_empty_host_is_refused_behind_the_verb_s_name_before_anything_is_dial
     let dial = Recording::new();
     let r = run(LineVerb::Cli(&v), &["mine", "--host", ""], dial.clone(), &[], true).await;
     assert_eq!(r.code, 3);
-    assert_eq!(r.io.errors(), vec!["wsp mine: --host was given an empty word, which names no host. Name one as wsp hosts lists it, or leave the flag off.".to_owned()]);
+    assert_eq!(
+        r.io.errors(),
+        vec!["wsp mine: --host was given an empty word, which names no host. Name one as wsp hosts lists it, or leave the flag off."
+            .to_owned()]
+    );
     assert!(dial.dials().is_empty());
 }
 
@@ -363,7 +378,9 @@ async fn a_line_that_starts_no_host_dials_without_the_starter_and_any_release_di
 #[tokio::test]
 async fn the_shared_flags_bind_wherever_they_sit_and_the_verb_reads_its_positionals_in_order() {
     let v = verb("mine", dials_three_ways);
-    let r = run(LineVerb::Cli(&v), &["mine", "a", "--json", "b", "--flag", "x", "--state", "/s/state.json", "c"], Recording::new(), &[], false).await;
+    let r =
+        run(LineVerb::Cli(&v), &["mine", "a", "--json", "b", "--flag", "x", "--state", "/s/state.json", "c"], Recording::new(), &[], false)
+            .await;
     assert_eq!(r.io.lines(), vec![r#"{"args":["a","b","c"],"state":"/s/state.json"}"#.to_owned()]);
     assert_eq!(r.picked, vec![Some("/s/state.json".to_owned())]);
 }

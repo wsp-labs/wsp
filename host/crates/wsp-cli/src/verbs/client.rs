@@ -607,9 +607,13 @@ pub enum InputKind {
     Boolean,
     Number,
     /// `z.number().int()`, with its `.min()` where it has one (`.positive()` is min 1).
-    Integer { min: Option<i64> },
+    Integer {
+        min: Option<i64>,
+    },
     /// `z.array(z.string())`, with its `.min()` where it has one.
-    StringList { min: Option<usize> },
+    StringList {
+        min: Option<usize>,
+    },
     /// `z.enum([...])` or a zod enum schema's options, in order.
     Enum(Vec<&'static str>),
     /// `z.literal(v)`.

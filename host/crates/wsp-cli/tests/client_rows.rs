@@ -15,9 +15,9 @@ use serde_json::{json, Value};
 
 use common::{fixture, RecordingIo, ScriptedHost};
 use wsp_cli::verbs::client::{
-    computer_lines, delete_after_asked, dollars_asked, flag_for, host_platform, nap_asked, one_of, place_lines, read_usage,
-    recipe_lines, recipe_removed_line, recipe_saved_line, recipe_shown_lines, setting_resets, table, turn_limit_asked,
-    usage_table_lines, Dialer, Out, UsageRead,
+    computer_lines, delete_after_asked, dollars_asked, flag_for, host_platform, nap_asked, one_of, place_lines, read_usage, recipe_lines,
+    recipe_removed_line, recipe_saved_line, recipe_shown_lines, setting_resets, table, turn_limit_asked, usage_table_lines, Dialer, Out,
+    UsageRead,
 };
 use wsp_wire::types::recipe_file::RecipeView;
 use wsp_wire::types::usage::{AccountRow, UsageRange, UsageSplit, UsedAnswer};
@@ -195,7 +195,12 @@ fn table_matches_the_lines_the_ts_printed_for_every_set_of_rows() {
     let tables = fixture["tables"].as_array().unwrap();
     assert_eq!(tables.len(), 7, "the fixture lost its tables");
     for (n, case) in tables.iter().enumerate() {
-        let rows: Vec<Vec<String>> = case["rows"].as_array().unwrap().iter().map(|r| r.as_array().unwrap().iter().map(|c| c.as_str().unwrap().to_owned()).collect()).collect();
+        let rows: Vec<Vec<String>> = case["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r.as_array().unwrap().iter().map(|c| c.as_str().unwrap().to_owned()).collect())
+            .collect();
         let want: Vec<String> = case["lines"].as_array().unwrap().iter().map(|l| l.as_str().unwrap().to_owned()).collect();
         assert_eq!(table(&rows), want, "table {n}: {:?}", case["rows"]);
     }
@@ -229,7 +234,10 @@ fn formatter_without_json_prints_the_line_and_streams_the_text() {
 #[test]
 fn formatter_with_json_prints_each_value_as_one_escaped_line_and_streams_nothing() {
     let fixture = client_fixture();
-    let want: Vec<String> = fixture["formatter"].as_array().unwrap()[2..].iter().map(|l| l.as_str().unwrap().strip_prefix("log:").unwrap().to_owned()).collect();
+    let want: Vec<String> = fixture["formatter"].as_array().unwrap()[2..]
+        .iter()
+        .map(|l| l.as_str().unwrap().strip_prefix("log:").unwrap().to_owned())
+        .collect();
     assert_eq!(want, vec![r#"{"a":1,"\u0085":"\u009f"}"#.to_owned(), r#"{"b":2}"#.to_owned()], "the fixture changed");
     let io = RecordingIo::new();
     let out = Out::formatter(io.clone(), true);
@@ -289,10 +297,10 @@ fn host_platform_is_the_word_the_ts_gave_on_this_kind_of_computer() {
 
 mod the_table_wsp_places_prints {
     use super::*;
+    use wsp_wire::wire::daemon_version::place_daemon_behind;
     use wsp_words::place_word::{names_place, PlaceRef};
     use wsp_words::views::place_setup_words::setup_word;
     use wsp_words::words::places::agents_cell;
-    use wsp_wire::wire::daemon_version::place_daemon_behind;
 
     fn rows() -> Vec<Value> {
         vec![here(), box_row(), solari()]
@@ -358,7 +366,10 @@ mod the_table_wsp_places_prints {
 
     #[test]
     fn says_on_the_row_what_a_copy_of_the_image_there_is_doing_and_nothing_where_the_co() {
-        let printed = place_lines(&views(&[with(rows()[1].clone(), json!({ "build": "building your image · creating the machine" })), rows()[2].clone()]));
+        let printed = place_lines(&views(&[
+            with(rows()[1].clone(), json!({ "build": "building your image · creating the machine" })),
+            rows()[2].clone(),
+        ]));
         assert!(printed[0].contains("IMAGE"), "{printed:?}");
         assert!(printed[1].contains("building your image · creating the machine"), "{printed:?}");
         assert!(!printed[2].contains("building"), "{printed:?}");
@@ -424,7 +435,8 @@ mod the_table_wsp_places_prints {
         let printed = computer_lines(&views(&[here()]), "darwin", &[], &pending);
         let header = &printed[0];
         let state = |line: &str| slice(line, header.find("STATE").unwrap(), Some(header.find("LAST SEEN").unwrap())).trim().to_owned();
-        let seen: Vec<(String, String)> = printed[2..].iter().map(|l| (l.split_whitespace().next().unwrap().to_owned(), state(l))).collect();
+        let seen: Vec<(String, String)> =
+            printed[2..].iter().map(|l| (l.split_whitespace().next().unwrap().to_owned(), state(l))).collect();
         assert_eq!(
             seen,
             vec![("spoo".to_owned(), "Pending".to_owned()), ("root@10.0.0.7".to_owned(), "Setup failed".to_owned())],
@@ -436,8 +448,9 @@ mod the_table_wsp_places_prints {
     #[test]
     fn reads_a_computer_that_joined_and_is_still_choosing_as_pending_on_its_own_row_its() {
         let joined = box_row();
-        let pending: PendingComputer =
-            from_json(&json!({ "id": "a_1", "address": "root@10.0.0.9", "step": "floor", "choices": { "name": "spoo" }, "startedAt": "x", "placeId": joined["id"] }));
+        let pending: PendingComputer = from_json(
+            &json!({ "id": "a_1", "address": "root@10.0.0.9", "step": "floor", "choices": { "name": "spoo" }, "startedAt": "x", "placeId": joined["id"] }),
+        );
         let printed = computer_lines(&views(&[joined]), "darwin", &[], &[pending]);
         let header = &printed[0];
         assert_eq!(printed.len(), 2, "{printed:?}");
@@ -519,8 +532,12 @@ mod the_table_wsp_places_prints {
             with(rows[1].clone(), json!({ "cap": { "threads": 2 }, "running": 0 })),
             with(rows[2].clone(), json!({ "cap": { "machines": 3, "spendPerDayUsd": 10 }, "running": 1 })),
         ]);
-        let spend = |today_usd: f64| -> Vec<PlaceSpend> { vec![from_json(&json!({ "place": "solari", "todayUsd": today_usd, "monthUsd": 40, "rateUsdPerHour": 0.11 }))] };
-        let col = |printed: &[String], name: &str, next: &str| -> Vec<String> { printed[1..].iter().map(|line| column(&printed[0], line, name, next)).collect() };
+        let spend = |today_usd: f64| -> Vec<PlaceSpend> {
+            vec![from_json(&json!({ "place": "solari", "todayUsd": today_usd, "monthUsd": 40, "rateUsdPerHour": 0.11 }))]
+        };
+        let col = |printed: &[String], name: &str, next: &str| -> Vec<String> {
+            printed[1..].iter().map(|line| column(&printed[0], line, name, next)).collect()
+        };
         let under = computer_lines(&places, "darwin", &spend(2.314), &[]);
         assert_eq!(col(&under, "SPEND", "STATE"), strs(&["", "", "$2.31/$10"]));
         assert_eq!(col(&under, "STATE", "LAST SEEN"), strs(&["Ready", "Ready", "Ready"]));
@@ -580,7 +597,11 @@ mod a_recipe_as_the_host_hands_it_out {
 
     #[test]
     fn holds_neither_wsp_s_own_server_nor_the_package_that_installs_the_wsp_command_cou() {
-        let listed = recipe(json!({ "name": "default", "mcp": { "linear": { "agents": ["claude"] } }, "clis": { "turbo": { "via": "npm" } } }), &[], Some("2026-10-05T12:00:00.000Z"));
+        let listed = recipe(
+            json!({ "name": "default", "mcp": { "linear": { "agents": ["claude"] } }, "clis": { "turbo": { "via": "npm" } } }),
+            &[],
+            Some("2026-10-05T12:00:00.000Z"),
+        );
         // The list on the command line says the day each was saved.
         let lines = recipe_lines(&[listed]);
         assert!(Regex::new(r"^RECIPE\s+HOLDS\s+SAVED\s+COMPUTERS$").unwrap().is_match(&lines[0]), "{lines:?}");
@@ -672,7 +693,8 @@ mod wsp_usage_s_accounts_table {
     #[test]
     fn says_each_account_s_banked_resets_and_when_the_first_lapses_and_nothing_for_an_a() {
         let codex = json!({ "key": "codex:acct_1", "agent": "codex", "label": "Codex with ChatGPT Plus", "computers": ["spoo"], "credits": { "count": 2, "nextExpiresAt": NOW + (21 * DAY) as f64, "readAt": NOW } });
-        let claude = json!({ "key": "claude:vault-token", "agent": "claude", "label": "Claude Code with your sign-in", "computers": ["spoo"] });
+        let claude =
+            json!({ "key": "claude:vault-token", "agent": "claude", "label": "Claude Code with your sign-in", "computers": ["spoo"] });
         let lines = usage_lines(&[claude, codex], &empty_used());
         let (head, rows) = lines.split_first().unwrap();
         assert!(Regex::new(r"\bRESETS\b").unwrap().is_match(head), "{head}");
@@ -712,7 +734,8 @@ mod wsp_usage_by_source {
     #[test]
     fn sets_wsp_s_threads_beside_the_use_outside_wsp_each_with_its_fresh_written_cached() {
         let lines = usage_lines(&[], &used_by_source());
-        let rows: Vec<Vec<String>> = after_blank(&lines).iter().map(|l| Regex::new(r" {2,}").unwrap().split(l).map(str::to_owned).collect()).collect();
+        let rows: Vec<Vec<String>> =
+            after_blank(&lines).iter().map(|l| Regex::new(r" {2,}").unwrap().split(l).map(str::to_owned).collect()).collect();
         assert_eq!(
             rows,
             vec![
@@ -729,7 +752,10 @@ mod wsp_usage_by_any_other_split {
 
     #[tokio::test]
     async fn asks_for_what_was_used_as_the_usage_page_does_the_work_logged_outside_wsp_counte() {
-        let host = ScriptedHost::replying(&[("usage.accounts", json!({ "ok": true, "accounts": [] })), ("usage.used", json!({ "ok": true, "used": used_by_account() }))]);
+        let host = ScriptedHost::replying(&[
+            ("usage.accounts", json!({ "ok": true, "accounts": [] })),
+            ("usage.used", json!({ "ok": true, "used": used_by_account() })),
+        ]);
         let client = host.client(None).await.unwrap();
         let read = read_usage(client.as_ref(), UsageRange::Month, UsageSplit::Account).await.unwrap();
         // Both reads go out, the accounts asking for their limits now, then what was used, outside wsp counted.
@@ -742,13 +768,17 @@ mod wsp_usage_by_any_other_split {
         );
         // Each answer as the host wrote it.
         assert_eq!(read, UsageRead { accounts: json!([]), used: used_by_account() });
-        assert_eq!(serde_json::to_value(wsp_words::usage::used_ask(&UsageRange::Month, &UsageSplit::Account)).unwrap(), json!({ "range": "month", "split": "account", "outside": true }));
+        assert_eq!(
+            serde_json::to_value(wsp_words::usage::used_ask(&UsageRange::Month, &UsageSplit::Account)).unwrap(),
+            json!({ "range": "month", "split": "account", "outside": true })
+        );
     }
 
     #[test]
     fn prints_each_account_with_the_use_outside_wsp_counted_in_as_the_page_draws_it() {
         let lines = usage_lines(&[], &used_by_account());
-        let rows: Vec<Vec<String>> = after_blank(&lines).iter().map(|l| Regex::new(r" {2,}").unwrap().split(l).map(str::to_owned).collect()).collect();
+        let rows: Vec<Vec<String>> =
+            after_blank(&lines).iter().map(|l| Regex::new(r" {2,}").unwrap().split(l).map(str::to_owned).collect()).collect();
         assert_eq!(
             rows,
             vec![
@@ -786,7 +816,10 @@ mod whole_lines_as_the_ts_printed_them {
     #[test]
     fn place_lines_and_computer_lines_say_how_to_get_a_row_when_there_is_none() {
         assert_eq!(place_lines(&[]), strs(&["This host holds no place. wsp add prints the join line for a computer you are sitting at."]));
-        assert_eq!(computer_lines(&[], "darwin", &[], &[]), strs(&["This host holds no computer. wsp add prints the join line for a computer you are sitting at."]));
+        assert_eq!(
+            computer_lines(&[], "darwin", &[], &[]),
+            strs(&["This host holds no computer. wsp add prints the join line for a computer you are sitting at."])
+        );
     }
 
     #[test]
@@ -826,7 +859,9 @@ mod whole_lines_as_the_ts_printed_them {
     #[test]
     fn recipe_lines_prints_the_day_saved_and_the_computers_that_follow_each_recipe() {
         let saved = recipe(builders_file(), &["spoo", "vps"], Some("2026-10-05T12:00:00.000Z"));
-        let unsaved = from_json::<RecipeView>(&json!({ "name": "laptop", "slug": "laptop", "summary": "2 CLIs", "machines": [], "file": { "name": "laptop" } }));
+        let unsaved = from_json::<RecipeView>(
+            &json!({ "name": "laptop", "slug": "laptop", "summary": "2 CLIs", "machines": [], "file": { "name": "laptop" } }),
+        );
         assert_eq!(
             recipe_lines(&[saved, unsaved]),
             strs(&["RECIPE    HOLDS         SAVED       COMPUTERS", "Builders  1 MCP server  2026-10-05  spoo, vps", "laptop    2 CLIs"])
@@ -841,14 +876,23 @@ mod whole_lines_as_the_ts_printed_them {
         );
         assert_eq!(
             recipe_shown_lines(&recipe(with(builders_file(), json!({ "copyKeys": true })), &["spoo"], None), "h"),
-            strs(&["Builders: 1 MCP server", "  mcp      sentry (agents codex)", "  keys     copied with the servers that carry them", "  followed by spoo", "  hash     h"])
+            strs(&[
+                "Builders: 1 MCP server",
+                "  mcp      sentry (agents codex)",
+                "  keys     copied with the servers that carry them",
+                "  followed by spoo",
+                "  hash     h"
+            ])
         );
     }
 
     #[test]
     fn recipe_saved_line_names_the_computers_that_follow_it_now() {
         assert_eq!(recipe_saved_line(&recipe(builders_file(), &[], None)), "saved Builders (1 MCP server)");
-        assert_eq!(recipe_saved_line(&recipe(builders_file(), &["spoo", "vps"], None)), "saved Builders (1 MCP server), followed by spoo, vps");
+        assert_eq!(
+            recipe_saved_line(&recipe(builders_file(), &["spoo", "vps"], None)),
+            "saved Builders (1 MCP server), followed by spoo, vps"
+        );
     }
 
     #[test]
@@ -863,7 +907,8 @@ mod whole_lines_as_the_ts_printed_them {
     #[test]
     fn usage_table_lines_prints_the_accounts_a_blank_line_and_what_was_used() {
         let codex = json!({ "key": "codex:acct_1", "agent": "codex", "label": "Codex with ChatGPT Plus", "computers": ["spoo"], "credits": { "count": 2, "nextExpiresAt": NOW + (21 * DAY) as f64, "readAt": NOW } });
-        let claude = json!({ "key": "claude:vault-token", "agent": "claude", "label": "Claude Code with your sign-in", "computers": ["spoo"] });
+        let claude =
+            json!({ "key": "claude:vault-token", "agent": "claude", "label": "Claude Code with your sign-in", "computers": ["spoo"] });
         assert_eq!(
             usage_lines(&[claude, codex], &empty_used()),
             strs(&[

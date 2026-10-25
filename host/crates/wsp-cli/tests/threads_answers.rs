@@ -58,7 +58,11 @@ impl Misses {
 }
 
 fn panic_text(panic: &(dyn std::any::Any + Send)) -> String {
-    panic.downcast_ref::<String>().cloned().or_else(|| panic.downcast_ref::<&str>().map(|s| (*s).to_owned())).unwrap_or_else(|| "?".to_owned())
+    panic
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| panic.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+        .unwrap_or_else(|| "?".to_owned())
 }
 
 fn same(got: &Value, want: &Value) -> Result<(), String> {
@@ -73,7 +77,13 @@ fn same(got: &Value, want: &Value) -> Result<(), String> {
 fn parted(got: &str, want: &str) -> String {
     let at = got.chars().zip(want.chars()).position(|(a, b)| a != b).unwrap_or_else(|| got.chars().count().min(want.chars().count()));
     let around = |s: &str| -> String { s.chars().skip(at.saturating_sub(60)).take(180).collect() };
-    format!("first differ at character {at} (got {} characters, want {})\n    got  ...{}\n    want ...{}", got.chars().count(), want.chars().count(), around(got), around(want))
+    format!(
+        "first differ at character {at} (got {} characters, want {})\n    got  ...{}\n    want ...{}",
+        got.chars().count(),
+        want.chars().count(),
+        around(got),
+        around(want)
+    )
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -112,7 +122,8 @@ async fn one(m: &mut Misses, tool: &str, verb: &Verb, t: &Tool, usage: &Option<S
         _ => (case.line.clone(), case.asked.clone()),
     };
     let host = ScriptedHost::new(Script { replies: case.replies.clone(), pushed: case.pushed.clone(), closes: case.closes.clone() });
-    let env: Vec<(&str, &str)> = case.env.iter().filter(|(k, _)| !guest || GUEST_ENV.contains(&k.as_str())).map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    let env: Vec<(&str, &str)> =
+        case.env.iter().filter(|(k, _)| !guest || GUEST_ENV.contains(&k.as_str())).map(|(k, v)| (k.as_str(), v.as_str())).collect();
     let mut deps = deps_on(host.clone(), &env);
     deps.elsewhere = guest;
 
@@ -122,7 +133,10 @@ async fn one(m: &mut Misses, tool: &str, verb: &Verb, t: &Tool, usage: &Option<S
             Ok(true) => {
                 // The server skips a tool that reads this computer's own files, so the call is never made.
                 if not_served(tool) != line {
-                    m.miss(&name, format!("a tool that reads here is not served to a guest, and the record's line is not that answer:\n    {line}"));
+                    m.miss(
+                        &name,
+                        format!("a tool that reads here is not served to a guest, and the record's line is not that answer:\n    {line}"),
+                    );
                 }
                 if !asked.is_empty() {
                     m.miss(&name, "the record asks the host something of a tool that is not served");
@@ -191,7 +205,26 @@ macro_rules! tools {
     };
 }
 
-tools!(run, send, exec, worktree, worktree_remove, thread_read, thread_head, thread_rename, thread_forget, thread_settle, thread_restore, thread_allow, thread_deny, restart, stop, folders, setup, terminal_config);
+tools!(
+    run,
+    send,
+    exec,
+    worktree,
+    worktree_remove,
+    thread_read,
+    thread_head,
+    thread_rename,
+    thread_forget,
+    thread_settle,
+    thread_restore,
+    thread_allow,
+    thread_deny,
+    restart,
+    stop,
+    folders,
+    setup,
+    terminal_config
+);
 
 // ---------------------------------------------------------------------------------------------------------------
 // The table, raw, against the oracle's.
@@ -246,8 +279,26 @@ fn page_word(p: Page) -> &'static str {
 /// An entry in the oracle's shape, its describes cut for the cloud given and every other string as written.
 fn entry_json(v: &Verb, cloud: bool) -> Value {
     let (shape, name, line, tool, reads, cli_only, host_side, tool_only) = match v {
-        Verb::Cli(c) => ("cli", c.name, Some((c.usage.as_str(), c.about.as_str(), c.page, &c.options, c.starts_no_host, c.any_release, c.cloud, &c.cloud_flags)), Some(&c.tool), c.reads_here, None, None, None),
-        Verb::CliOnly(c) => ("cliOnly", c.name, Some((c.usage.as_str(), c.about.as_str(), c.page, &c.options, c.starts_no_host, c.any_release, c.cloud, &c.cloud_flags)), None, c.reads_here, Some(c.cli_only), c.host_side, None),
+        Verb::Cli(c) => (
+            "cli",
+            c.name,
+            Some((c.usage.as_str(), c.about.as_str(), c.page, &c.options, c.starts_no_host, c.any_release, c.cloud, &c.cloud_flags)),
+            Some(&c.tool),
+            c.reads_here,
+            None,
+            None,
+            None,
+        ),
+        Verb::CliOnly(c) => (
+            "cliOnly",
+            c.name,
+            Some((c.usage.as_str(), c.about.as_str(), c.page, &c.options, c.starts_no_host, c.any_release, c.cloud, &c.cloud_flags)),
+            None,
+            c.reads_here,
+            Some(c.cli_only),
+            c.host_side,
+            None,
+        ),
         Verb::ToolOnly(t) => ("toolOnly", t.name, None, Some(&t.tool), t.reads_here, None, None, Some(t.tool_only)),
         Verb::CommandTool(t) => ("commandTool", t.name, None, Some(&t.tool), None, None, None, None),
     };
@@ -280,7 +331,13 @@ fn entry_misses(mine: &Value, want: &Value) -> Result<(), String> {
                 if k == "input" {
                     let (gi, wi) = (gt.as_array().unwrap(), wt.as_array().unwrap());
                     if gi.len() != wi.len() {
-                        wrong.push(format!("tool.input has {} fields, want {}: {:?} against {:?}", gi.len(), wi.len(), gi.iter().map(|i| i["name"].clone()).collect::<Vec<_>>(), wi.iter().map(|i| i["name"].clone()).collect::<Vec<_>>()));
+                        wrong.push(format!(
+                            "tool.input has {} fields, want {}: {:?} against {:?}",
+                            gi.len(),
+                            wi.len(),
+                            gi.iter().map(|i| i["name"].clone()).collect::<Vec<_>>(),
+                            wi.iter().map(|i| i["name"].clone()).collect::<Vec<_>>()
+                        ));
                     }
                     for (a, b) in gi.iter().zip(wi) {
                         if a != b {

@@ -60,7 +60,11 @@ impl Misses {
 }
 
 fn panic_text(panic: &(dyn std::any::Any + Send)) -> String {
-    panic.downcast_ref::<String>().cloned().or_else(|| panic.downcast_ref::<&str>().map(|s| (*s).to_owned())).unwrap_or_else(|| "?".to_owned())
+    panic
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| panic.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+        .unwrap_or_else(|| "?".to_owned())
 }
 
 fn same(got: &Value, want: &Value) -> Result<(), String> {
@@ -75,7 +79,13 @@ fn same(got: &Value, want: &Value) -> Result<(), String> {
 fn parted(got: &str, want: &str) -> String {
     let at = got.chars().zip(want.chars()).position(|(a, b)| a != b).unwrap_or_else(|| got.chars().count().min(want.chars().count()));
     let around = |s: &str| -> String { s.chars().skip(at.saturating_sub(60)).take(180).collect() };
-    format!("first differ at character {at} (got {} characters, want {})\n    got  ...{}\n    want ...{}", got.chars().count(), want.chars().count(), around(got), around(want))
+    format!(
+        "first differ at character {at} (got {} characters, want {})\n    got  ...{}\n    want ...{}",
+        got.chars().count(),
+        want.chars().count(),
+        around(got),
+        around(want)
+    )
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -114,7 +124,8 @@ async fn one(m: &mut Misses, tool: &str, verb: &Verb, t: &Tool, usage: &Option<S
         _ => (case.line.clone(), case.asked.clone()),
     };
     let host = ScriptedHost::new(Script { replies: case.replies.clone(), pushed: case.pushed.clone(), closes: case.closes.clone() });
-    let env: Vec<(&str, &str)> = case.env.iter().filter(|(k, _)| !guest || GUEST_ENV.contains(&k.as_str())).map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    let env: Vec<(&str, &str)> =
+        case.env.iter().filter(|(k, _)| !guest || GUEST_ENV.contains(&k.as_str())).map(|(k, v)| (k.as_str(), v.as_str())).collect();
     let mut deps = deps_on(host.clone(), &env);
     deps.elsewhere = guest;
 
@@ -124,7 +135,10 @@ async fn one(m: &mut Misses, tool: &str, verb: &Verb, t: &Tool, usage: &Option<S
             Ok(true) => {
                 // The server skips a tool that reads this computer's own files, so the call is never made.
                 if not_served(tool) != line {
-                    m.miss(&name, format!("a tool that reads here is not served to a guest, and the record's line is not that answer:\n    {line}"));
+                    m.miss(
+                        &name,
+                        format!("a tool that reads here is not served to a guest, and the record's line is not that answer:\n    {line}"),
+                    );
                 }
                 if !asked.is_empty() {
                     m.miss(&name, "the record asks the host something of a tool that is not served");

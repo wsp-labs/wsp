@@ -58,7 +58,12 @@ mod exec {
 
     #[tokio::test]
     async fn exec_json_prints_each_output_frame_as_the_host_pushed_it_then_the_result_and_exits_with_the_command_s_code() {
-        let host = exec_host(&[r#"{"type":"exec.output","execId":"exec-0","text":"someone else's"}"#, OUT_A, OUT_B, r#"{"type":"exec.exit","execId":"exec-1","exitCode":3}"#]);
+        let host = exec_host(&[
+            r#"{"type":"exec.output","execId":"exec-0","text":"someone else's"}"#,
+            OUT_A,
+            OUT_B,
+            r#"{"type":"exec.exit","execId":"exec-1","exitCode":3}"#,
+        ]);
         let io = RecordingIo::new();
         let code = line(host.clone(), io.clone(), &["exec", "thread-7f3a9c21e4b5", "--json", "--", "sh", "-c", "echo hi"]).await;
         assert_eq!(code, 3, "exec alone exits with the command's own code");
@@ -132,8 +137,16 @@ mod taking_away {
         let io = RecordingIo::new();
         let code = line(host.clone(), io.clone(), &["worktree", "remove", "wsp", "feat"]).await;
         assert_eq!(code, 3);
-        assert_eq!(asked(&host), vec![r#"{"project":"wsp","branch":"feat","check":true,"op":"worktree.remove"}"#.to_owned()], "only the check went");
-        assert_eq!(io.errors(), vec!["wsp worktree remove: Remove the worktree for feat in wsp? There is no terminal to answer on. Pass --yes to say yes.".to_owned()]);
+        assert_eq!(
+            asked(&host),
+            vec![r#"{"project":"wsp","branch":"feat","check":true,"op":"worktree.remove"}"#.to_owned()],
+            "only the check went"
+        );
+        assert_eq!(
+            io.errors(),
+            vec!["wsp worktree remove: Remove the worktree for feat in wsp? There is no terminal to answer on. Pass --yes to say yes."
+                .to_owned()]
+        );
         assert!(io.lines().is_empty());
     }
 
@@ -159,7 +172,10 @@ mod taking_away {
         let io = RecordingIo::at_terminal("no");
         let code = line(host.clone(), io.clone(), &["worktree", "remove", "wsp", "feat", "--force"]).await;
         assert_eq!(code, 1);
-        assert_eq!(io.asked(), vec!["Remove the worktree for feat in wsp?\nThe branch stays, and the files no commit holds there go.".to_owned()]);
+        assert_eq!(
+            io.asked(),
+            vec!["Remove the worktree for feat in wsp?\nThe branch stays, and the files no commit holds there go.".to_owned()]
+        );
         assert_eq!(io.errors(), vec!["feat kept".to_owned()]);
         assert_eq!(host.ops(), vec!["worktree.remove"], "the check alone");
         assert!(io.lines().is_empty(), "no JSON and no line on stdout");
@@ -167,7 +183,8 @@ mod taking_away {
 
     #[tokio::test]
     async fn a_refusal_from_the_host_s_check_comes_back_before_anything_is_asked() {
-        let host = ScriptedHost::replying(&[("worktree.remove", json!({ "ok": false, "error": "a thread is working in it", "kind": "usage" }))]);
+        let host =
+            ScriptedHost::replying(&[("worktree.remove", json!({ "ok": false, "error": "a thread is working in it", "kind": "usage" }))]);
         let io = RecordingIo::at_terminal("yes");
         let code = line(host.clone(), io.clone(), &["worktree", "remove", "wsp", "feat"]).await;
         assert_eq!(code, 3);
@@ -201,7 +218,11 @@ mod the_run_line {
         let host = ScriptedHost::new(Script::default());
         let io = RecordingIo::new();
         assert_eq!(line(host.clone(), io.clone(), &["run"]).await, 3);
-        assert_eq!(io.errors(), vec!["wsp run: the message is empty; say what the thread is to do. Put the message in quotes: wsp run <project> \"say hi\".".to_owned()]);
+        assert_eq!(
+            io.errors(),
+            vec!["wsp run: the message is empty; say what the thread is to do. Put the message in quotes: wsp run <project> \"say hi\"."
+                .to_owned()]
+        );
         assert!(host.sockets.lock().unwrap().is_empty());
     }
 }

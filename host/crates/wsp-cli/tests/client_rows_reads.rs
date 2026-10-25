@@ -65,7 +65,10 @@ async fn one_settings_write_names_the_computer_by_its_id_then_the_settings_then_
     let (row, was) = set_computer(client.as_ref(), ComputerRef::Word("attic"), &set, &[], &also).await.unwrap();
     assert_eq!((row.name.as_str(), was.as_str()), ("loft", "attic"), "the row it reads now and the name it was asked by");
     let asked: Vec<String> = host.asked().iter().map(|f| serde_json::to_string(f).unwrap()).collect();
-    assert_eq!(asked, vec![r#"{"op":"places.list"}"#.to_owned(), r#"{"placeId":"place-9","threads":3,"name":"loft","op":"places.set"}"#.to_owned()]);
+    assert_eq!(
+        asked,
+        vec![r#"{"op":"places.list"}"#.to_owned(), r#"{"placeId":"place-9","threads":3,"name":"loft","op":"places.set"}"#.to_owned()]
+    );
 }
 
 #[tokio::test]

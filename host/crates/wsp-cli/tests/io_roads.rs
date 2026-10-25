@@ -9,9 +9,11 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
-use common::{ScriptedHost, Script};
+use common::{Script, ScriptedHost};
 use wsp_cli::verbs::client::{Dialer, HostClient};
-use wsp_cli::verbs::io::{exec_on, export_project, host_folders, import_project, init_setup, plan_project, ExecExit, ExportRequest, FoldersAsked};
+use wsp_cli::verbs::io::{
+    exec_on, export_project, host_folders, import_project, init_setup, plan_project, ExecExit, ExportRequest, FoldersAsked,
+};
 use wsp_wire::wire::runtime::ExecEvent;
 use wsp_words::exit::{HostError, Kind};
 
@@ -74,7 +76,10 @@ mod exec {
         assert_eq!(run.exit, ExecExit { exec_id: "exec-1".into(), exit_code: Some(3), error: None });
         assert_eq!(run.ran_in.as_deref(), Some("/root/wsp"), "the folder the host answered, not the one asked");
         assert_eq!(texts(&seen), vec!["out one", "out two", "exit Some(3)"], "the first exit ends it; nothing after it is read");
-        assert_eq!(host.asked(), vec![json!({ "workspaceId": "ws-1", "argv": ["sh", "-c", "echo hi"], "cwd": "/root/wsp", "op": "workspaces.exec" })]);
+        assert_eq!(
+            host.asked(),
+            vec![json!({ "workspaceId": "ws-1", "argv": ["sh", "-c", "echo hi"], "cwd": "/root/wsp", "op": "workspaces.exec" })]
+        );
     }
 
     #[tokio::test]
@@ -119,7 +124,11 @@ mod exec {
 
     #[tokio::test]
     async fn a_refused_exec_is_the_host_s_refusal_and_nothing_is_followed() {
-        let host = ScriptedHost::new(script(&[("workspaces.exec", r#"{"id":1,"ok":false,"error":"no such workspace","kind":"not-found"}"#)], &[], None));
+        let host = ScriptedHost::new(script(
+            &[("workspaces.exec", r#"{"id":1,"ok":false,"error":"no such workspace","kind":"not-found"}"#)],
+            &[],
+            None,
+        ));
         let client = socket(&host).await;
         let (_seen, on) = recorder();
         let e = exec_on(client.as_ref(), "ws-9", &["ls".to_owned()], None, on).await.err().expect("refused");
@@ -136,7 +145,8 @@ mod export_and_import {
         (seen, Arc::new(move |f: &Value| noted.lock().unwrap().push(f["message"].as_str().unwrap_or("").to_owned())))
     }
 
-    const EXPORTED: &str = r#"{"id":1,"ok":true,"exported":{"dest":"/home/me/app","files":12,"bytes":3.5,"excluded":["node_modules"],"agents":[]}}"#;
+    const EXPORTED: &str =
+        r#"{"id":1,"ok":true,"exported":{"dest":"/home/me/app","files":12,"bytes":3.5,"excluded":["node_modules"],"agents":[]}}"#;
 
     #[tokio::test]
     async fn an_export_subscribes_before_it_asks_and_follows_only_its_own_workspace_and_destination() {
@@ -161,7 +171,10 @@ mod export_and_import {
         assert_eq!(serde_json::to_value(&out).unwrap()["dest"], "/home/me/app");
         assert_eq!(texts(&seen), vec!["packing", "done"]);
         assert_eq!(host.state.subscribes.load(std::sync::atomic::Ordering::SeqCst), 1, "events are asked for before the export");
-        assert_eq!(host.asked(), vec![json!({ "workspaceId": "ws-1", "source": "/root/app", "dest": "/home/me/app", "op": "project.export" })]);
+        assert_eq!(
+            host.asked(),
+            vec![json!({ "workspaceId": "ws-1", "source": "/root/app", "dest": "/home/me/app", "op": "project.export" })]
+        );
     }
 
     #[tokio::test]
@@ -172,13 +185,19 @@ mod export_and_import {
         let req = ExportRequest { source: "/a".into(), dest: "/b".into(), replace: Some(false), agents: Some(vec!["claude".into()]) };
         export_project(client.as_ref(), "ws-1", &req, on).await.unwrap();
         let asked = host.asked();
-        assert_eq!(serde_json::to_string(&asked[0]).unwrap(), r#"{"workspaceId":"ws-1","source":"/a","dest":"/b","replace":false,"agents":["claude"],"op":"project.export"}"#);
+        assert_eq!(
+            serde_json::to_string(&asked[0]).unwrap(),
+            r#"{"workspaceId":"ws-1","source":"/a","dest":"/b","replace":false,"agents":["claude"],"op":"project.export"}"#
+        );
     }
 
     #[tokio::test]
     async fn an_import_follows_frames_matching_its_workspace_source_and_destination() {
         let host = ScriptedHost::new(script(
-            &[("project.import", r#"{"id":1,"ok":true,"imported":{"dest":"/root/app","files":2,"bytes":10,"parts":1,"cut":[],"rewritten":[],"agents":[],"project":{"name":"app","dest":"/root/app","importedAt":"2026-10-25T00:00:00.000Z"}}}"#)],
+            &[(
+                "project.import",
+                r#"{"id":1,"ok":true,"imported":{"dest":"/root/app","files":2,"bytes":10,"parts":1,"cut":[],"rewritten":[],"agents":[],"project":{"name":"app","dest":"/root/app","importedAt":"2026-10-25T00:00:00.000Z"}}}"#,
+            )],
             &[(
                 "project.import",
                 &[
@@ -213,7 +232,10 @@ mod export_and_import {
     #[tokio::test]
     async fn a_plan_is_the_host_s_plan_as_it_answered() {
         let host = ScriptedHost::new(script(
-            &[("project.plan", r#"{"id":1,"ok":true,"plan":{"source":"/me/app","repo":false,"files":2,"bytes":10,"secrets":[],"excluded":[],"skipped":[],"agents":[]}}"#)],
+            &[(
+                "project.plan",
+                r#"{"id":1,"ok":true,"plan":{"source":"/me/app","repo":false,"files":2,"bytes":10,"secrets":[],"excluded":[],"skipped":[],"agents":[]}}"#,
+            )],
             &[],
             None,
         ));
@@ -246,7 +268,10 @@ mod folders {
         let host = ScriptedHost::new(script(&[("host.folders", LISTING), ("places.list", PLACES)], &[], None));
         let asked = FoldersAsked { folder: Some("/srv".into()), on: Some("mini".into()), ..FoldersAsked::default() };
         host_folders(socket(&host).await.as_ref(), &asked, &here).await.unwrap();
-        assert_eq!(serde_json::to_string(&host.asked()).unwrap(), r#"[{"op":"places.list"},{"dir":"/srv","on":"p-box","op":"host.folders"}]"#);
+        assert_eq!(
+            serde_json::to_string(&host.asked()).unwrap(),
+            r#"[{"op":"places.list"},{"dir":"/srv","on":"p-box","op":"host.folders"}]"#
+        );
         let host = ScriptedHost::new(script(&[("host.folders", LISTING), ("places.list", PLACES)], &[], None));
         let asked = FoldersAsked { folder: Some("srv".into()), on: Some("mini".into()), ..FoldersAsked::default() };
         let e = host_folders(socket(&host).await.as_ref(), &asked, &here).await.err().expect("refused");

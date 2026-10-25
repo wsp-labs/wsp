@@ -8,7 +8,8 @@ use wsp_words::exit::HostError;
 
 use super::activity;
 use super::client::{
-    BoxFuture, CallToolResult, CliOnlyVerb, CliVerb, FlagKind, FlagRow, FlagTable, Frame, InputKind, Page, Tool, ToolInput, Verb, VerbContext, VerbDeps,
+    BoxFuture, CallToolResult, CliOnlyVerb, CliVerb, FlagKind, FlagRow, FlagTable, Frame, InputKind, Page, Tool, ToolInput, Verb,
+    VerbContext, VerbDeps,
 };
 use super::io;
 

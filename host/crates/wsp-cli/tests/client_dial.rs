@@ -15,7 +15,7 @@ use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::Message;
 
-use common::{boxed, RecordingIo, ScriptedClient, ScriptedHost, Script, STOPPING_CLOSE};
+use common::{boxed, RecordingIo, Script, ScriptedClient, ScriptedHost, STOPPING_CLOSE};
 use wsp_cli::hosts::{HostAim, HostPick};
 use wsp_cli::verbs::client::{
     dial_host, host_address, host_again, stopped_under, until_settled, DialOpts, Frame, HostAddress, HostClient, PushedFrames,
@@ -157,7 +157,8 @@ mod the_first_frame {
         // sentence, and the token never crosses.
         let refuse: Answer = Arc::new(|frame| vec![Act::Send(format!(r#"{{"id":{},"ok":true,"hostPublicKey":"x"}}"#, frame["id"]))]);
         let (port, seen) = host(refuse).await;
-        let aim = HostAim::Url { url: format!("http://127.0.0.1:{port}"), token: Some("tok".into()), host_key: Some("SHA256:pinned".into()) };
+        let aim =
+            HostAim::Url { url: format!("http://127.0.0.1:{port}"), token: Some("tok".into()), host_key: Some("SHA256:pinned".into()) };
         let e = dial_host("/nowhere/state.json", opts(aim)).await.err().expect("refused");
         assert_eq!(e.message, format!("the host at http://127.0.0.1:{port} did not prove the key this computer holds for it, so it is not that host; nothing was sent to it"));
         assert_eq!(e.kind, Some(Kind::Auth));
@@ -184,7 +185,10 @@ mod requests {
         client.close();
         settle().await;
         let seen = seen.lock().unwrap();
-        assert_eq!(seen.frames[1..], [r#"{"id":2,"op":"workspaces.list"}"#.to_owned(), r#"{"range":"day","by":"agent","id":3,"op":"usage.used"}"#.to_owned()]);
+        assert_eq!(
+            seen.frames[1..],
+            [r#"{"id":2,"op":"workspaces.list"}"#.to_owned(), r#"{"range":"day","by":"agent","id":3,"op":"usage.used"}"#.to_owned()]
+        );
     }
 
     #[tokio::test]
@@ -205,7 +209,10 @@ mod requests {
             "auth" => vec![Act::Send(format!(r#"{{"id":{},"ok":true}}"#, frame["id"]))],
             // The first request's answer waits until the second's has gone.
             "first" => vec![],
-            _ => vec![Act::Send(format!(r#"{{"id":{},"ok":true,"which":"second"}}"#, frame["id"])), Act::Send(r#"{"id":2,"ok":true,"which":"first"}"#.to_owned())],
+            _ => vec![
+                Act::Send(format!(r#"{{"id":{},"ok":true,"which":"second"}}"#, frame["id"])),
+                Act::Send(r#"{"id":2,"ok":true,"which":"first"}"#.to_owned()),
+            ],
         });
         let (port, _seen) = host(answer).await;
         let client = dial(port).await;
@@ -224,7 +231,9 @@ mod requests {
             if frame["op"] == "auth" {
                 return vec![Act::Send(format!(r#"{{"id":{id},"ok":true}}"#))];
             }
-            vec![Act::Send(format!(r#"{{"id":{id},"ok":false,"error":"V750 the document moved","kind":"usage","errors":[{{"code":"V750"}}],"warnings":[],"left":[{{"id":"t"}}]}}"#))]
+            vec![Act::Send(format!(
+                r#"{{"id":{id},"ok":false,"error":"V750 the document moved","kind":"usage","errors":[{{"code":"V750"}}],"warnings":[],"left":[{{"id":"t"}}]}}"#
+            ))]
         });
         let (port, _seen) = host(answer).await;
         let e = dial(port).await.request("slate.write", Frame::new()).await.err().expect("refused");
@@ -435,7 +444,10 @@ mod the_release {
         let (port, _seen) = host(answering(&[])).await;
         assert!(dial_host("/nowhere/state.json", opts(url_aim(port, Some("tok")))).await.is_ok());
         let (port, _seen) = host(Arc::new(|f| vec![Act::Send(format!(r#"{{"id":{},"ok":true,"version":7}}"#, f["id"]))])).await;
-        assert!(dial_host("/nowhere/state.json", opts(url_aim(port, Some("tok")))).await.is_ok(), "a version that is no string is not judged");
+        assert!(
+            dial_host("/nowhere/state.json", opts(url_aim(port, Some("tok")))).await.is_ok(),
+            "a version that is no string is not judged"
+        );
     }
 
     #[tokio::test]
@@ -460,7 +472,10 @@ mod the_deadline {
             }
         });
         let started = std::time::Instant::now();
-        let e = dial_host("/nowhere/state.json", DialOpts { deadline_ms: Some(300), ..opts(url_aim(port, Some("tok"))) }).await.err().expect("refused");
+        let e = dial_host("/nowhere/state.json", DialOpts { deadline_ms: Some(300), ..opts(url_aim(port, Some("tok"))) })
+            .await
+            .err()
+            .expect("refused");
         assert_eq!(e.message, format!("the host at http://127.0.0.1:{port} did not answer: nothing came back within 300 ms"));
         assert_eq!(e.kind, Some(Kind::Unreachable));
         assert!(started.elapsed() < Duration::from_millis(1_500), "{:?}", started.elapsed());
@@ -469,7 +484,10 @@ mod the_deadline {
     #[tokio::test]
     async fn a_host_that_upgrades_and_never_answers_the_token_fails_within_the_same_deadline() {
         let (port, _seen) = host(Arc::new(|_| vec![])).await;
-        let e = dial_host("/nowhere/state.json", DialOpts { deadline_ms: Some(300), ..opts(url_aim(port, Some("tok"))) }).await.err().expect("refused");
+        let e = dial_host("/nowhere/state.json", DialOpts { deadline_ms: Some(300), ..opts(url_aim(port, Some("tok"))) })
+            .await
+            .err()
+            .expect("refused");
         assert_eq!(e.message, format!("the host at http://127.0.0.1:{port} did not answer: nothing came back within 300 ms"));
     }
 
@@ -499,7 +517,8 @@ mod the_address {
     #[test]
     fn a_host_here_is_its_lock_s_address_on_loopback_and_the_trimmed_token_beside_the_state() {
         let dir = tempfile::tempdir().unwrap();
-        let state = served(dir.path(), json!({ "pid": std::process::id(), "port": 7777, "startedAt": "2026-10-25T00:00:00.000Z" }), Some("tok\n"));
+        let state =
+            served(dir.path(), json!({ "pid": std::process::id(), "port": 7777, "startedAt": "2026-10-25T00:00:00.000Z" }), Some("tok\n"));
         let at = host_address(&state, &HostPick::default(), Some(&HostAim::Here)).unwrap();
         assert_eq!(at, HostAddress { url: "ws://127.0.0.1:7777/ws".to_owned(), token: "tok".to_owned() });
     }
@@ -507,9 +526,17 @@ mod the_address {
     #[test]
     fn a_wildcard_bind_is_dialled_on_loopback_and_a_named_address_as_it_is() {
         let dir = tempfile::tempdir().unwrap();
-        let state = served(dir.path(), json!({ "pid": std::process::id(), "port": 7777, "address": "0.0.0.0", "startedAt": "2026-10-25T00:00:00.000Z" }), Some("t"));
+        let state = served(
+            dir.path(),
+            json!({ "pid": std::process::id(), "port": 7777, "address": "0.0.0.0", "startedAt": "2026-10-25T00:00:00.000Z" }),
+            Some("t"),
+        );
         assert_eq!(host_address(&state, &HostPick::default(), Some(&HostAim::Here)).unwrap().url, "ws://127.0.0.1:7777/ws");
-        let state = served(dir.path(), json!({ "pid": std::process::id(), "port": 7777, "address": "10.0.0.5", "startedAt": "2026-10-25T00:00:00.000Z" }), Some("t"));
+        let state = served(
+            dir.path(),
+            json!({ "pid": std::process::id(), "port": 7777, "address": "10.0.0.5", "startedAt": "2026-10-25T00:00:00.000Z" }),
+            Some("t"),
+        );
         assert_eq!(host_address(&state, &HostPick::default(), Some(&HostAim::Here)).unwrap().url, "ws://10.0.0.5:7777/ws");
     }
 
@@ -534,9 +561,15 @@ mod the_address {
     #[test]
     fn a_url_aim_is_its_ws_url_with_its_token_or_none_and_an_https_one_is_wss() {
         let pick = HostPick::default();
-        let at = host_address("/s.json", &pick, Some(&HostAim::Url { url: "http://127.0.0.1:7777/".into(), token: Some("t".into()), host_key: None })).unwrap();
+        let at = host_address(
+            "/s.json",
+            &pick,
+            Some(&HostAim::Url { url: "http://127.0.0.1:7777/".into(), token: Some("t".into()), host_key: None }),
+        )
+        .unwrap();
         assert_eq!(at, HostAddress { url: "ws://127.0.0.1:7777/ws".into(), token: "t".into() });
-        let at = host_address("/s.json", &pick, Some(&HostAim::Url { url: "https://h.example/base".into(), token: None, host_key: None })).unwrap();
+        let at = host_address("/s.json", &pick, Some(&HostAim::Url { url: "https://h.example/base".into(), token: None, host_key: None }))
+            .unwrap();
         assert_eq!(at, HostAddress { url: "wss://h.example/base/ws".into(), token: String::new() });
     }
 }
@@ -591,7 +624,11 @@ mod waiting {
         let e = host_again(&dial, 1_000).await.err().expect("gave up");
         let k = *n.lock().unwrap();
         assert_eq!(e.message, format!("refusal {k}"), "the last dial's own refusal stands");
-        assert!(started.elapsed() >= Duration::from_millis(1_000) && started.elapsed() < Duration::from_millis(1_400), "{:?}", started.elapsed());
+        assert!(
+            started.elapsed() >= Duration::from_millis(1_000) && started.elapsed() < Duration::from_millis(1_400),
+            "{:?}",
+            started.elapsed()
+        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -626,13 +663,10 @@ mod waiting {
         let e = until_settled(socket.as_ref(), boxed(std::future::pending::<Result<u8, HostError>>())).await.err().expect("failed");
         assert_eq!(e.message, HOST_STOPPING_LINE);
         assert_eq!(e.kind, None);
-    }
-
-    #[test]
-    fn the_restarting_line_is_the_one_a_wait_says_while_it_dials() {
-        assert_eq!(HOST_RESTARTING_LINE, "the host is restarting; waiting for it to come back");
-        let io = RecordingIo::new();
-        assert!(io.errors().is_empty());
+        assert_eq!(
+            HOST_RESTARTING_LINE, "the host is restarting; waiting for it to come back",
+            "what a wait says on stderr while it dials"
+        );
     }
 }
 
@@ -653,7 +687,10 @@ mod pushed_frames {
         socket.push(r#"{"type":"exec.output","execId":"e-1","text":"two"}"#);
         let seen = Arc::new(Mutex::new(Vec::new()));
         let noted = seen.clone();
-        pushed.follow(Arc::new(|f| f["execId"] == "e-1"), Arc::new(move |f| noted.lock().unwrap().push(f["text"].as_str().unwrap().to_owned())));
+        pushed.follow(
+            Arc::new(|f| f["execId"] == "e-1"),
+            Arc::new(move |f| noted.lock().unwrap().push(f["text"].as_str().unwrap().to_owned())),
+        );
         assert_eq!(types(&seen), vec!["one", "two"]);
         socket.push(r#"{"type":"exec.output","execId":"e-1","text":"three"}"#);
         socket.push(r#"{"type":"exec.output","execId":"e-2","text":"not mine"}"#);

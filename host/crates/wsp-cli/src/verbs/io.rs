@@ -53,7 +53,13 @@ pub type ExecSink = Arc<dyn Fn(&ExecEvent) + Send + Sync>;
 /// (`{workspaceId, argv, cwd?}`), then every `exec.output` and `exec.exit` whose `execId` is the reply's, in arrival
 /// order, to `on`; the first exit ends it. A socket gone first fails it with `close_words()`. The held frames stop
 /// on every road out.
-pub async fn exec_on(client: &dyn HostClient, workspace_id: &str, argv: &[String], cwd: Option<&str>, on: ExecSink) -> Result<ExecRun, HostError> {
+pub async fn exec_on(
+    client: &dyn HostClient,
+    workspace_id: &str,
+    argv: &[String],
+    cwd: Option<&str>,
+    on: ExecSink,
+) -> Result<ExecRun, HostError> {
     let _ = (client, workspace_id, argv, cwd, on);
     todo!("io.ts:68-86")
 }
@@ -73,7 +79,12 @@ pub type StageSink = Arc<dyn Fn(&Value) + Send + Sync>;
 /// `exportProject(client, workspaceId, req, on)` (io.ts:99-121): frames held, `events.subscribe`, then every
 /// `project.export` frame whose `workspaceId` and `dest` are this export's to `on`; the request
 /// `{workspaceId, source, dest, replace?, agents?}` raced against the socket; answers `exported`.
-pub async fn export_project(client: &dyn HostClient, workspace_id: &str, req: &ExportRequest, on: StageSink) -> Result<ProjectExportResult, HostError> {
+pub async fn export_project(
+    client: &dyn HostClient,
+    workspace_id: &str,
+    req: &ExportRequest,
+    on: StageSink,
+) -> Result<ProjectExportResult, HostError> {
     let _ = (client, workspace_id, req, on);
     todo!("io.ts:99-121")
 }
@@ -86,7 +97,12 @@ pub async fn plan_project(client: &dyn HostClient, source: &str) -> Result<Proje
 
 /// `importProject(client, workspaceId, req, on)` (io.ts:130-143): as export, matched on `workspaceId`, `source` and
 /// `dest`; the request is `{workspaceId, ...req}`.
-pub async fn import_project(client: &dyn HostClient, workspace_id: &str, req: &ProjectImportRequest, on: StageSink) -> Result<ProjectImportResult, HostError> {
+pub async fn import_project(
+    client: &dyn HostClient,
+    workspace_id: &str,
+    req: &ProjectImportRequest,
+    on: StageSink,
+) -> Result<ProjectImportResult, HostError> {
     let _ = (client, workspace_id, req, on);
     todo!("io.ts:130-143")
 }
@@ -109,13 +125,19 @@ pub fn agents_chosen(plan: &ProjectPlan, named: Option<&[String]>) -> Result<BTr
 }
 
 /// `planLines(plan, ticked, agents, workspace)` (io.ts:171-185).
-pub fn plan_lines(plan: &ProjectPlan, ticked: &BTreeSet<String>, agents: &BTreeSet<String>, workspace: Option<&WorkspaceView>) -> Vec<String> {
+pub fn plan_lines(
+    plan: &ProjectPlan,
+    ticked: &BTreeSet<String>,
+    agents: &BTreeSet<String>,
+    workspace: Option<&WorkspaceView>,
+) -> Vec<String> {
     let _ = (plan, ticked, agents, workspace);
     todo!("io.ts:171-185")
 }
 
 /// `PLAN_ONLY` (io.ts:188).
-pub const PLAN_ONLY: &str = "nothing imported; run again with --yes to take these defaults, or --keep <path> and --cut <path> per secret-shaped row";
+pub const PLAN_ONLY: &str =
+    "nothing imported; run again with --yes to take these defaults, or --keep <path> and --cut <path> per secret-shaped row";
 
 /// `IMPORT_NOW` (io.ts:191).
 pub const IMPORT_NOW: &str = "Import now? y/N";
@@ -309,7 +331,8 @@ pub fn turn_out(turn: &Turn) -> Result<TurnOut, HostError> {
 }
 
 /// `PLAN_ONLY_TOOL` (io.ts:326).
-pub const PLAN_ONLY_TOOL: &str = "nothing imported; call import again with yes true to take these defaults, or keep and cut per secret-shaped row";
+pub const PLAN_ONLY_TOOL: &str =
+    "nothing imported; call import again with yes true to take these defaults, or keep and cut per secret-shaped row";
 
 // ---------------------------------------------------------------------------------------------------------------
 // The tool inputs several verbs share (io.ts:328-405), each as the field it is, under its tool's name for it.

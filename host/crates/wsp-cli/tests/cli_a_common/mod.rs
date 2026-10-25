@@ -14,10 +14,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::sync::watch;
 
-use wsp_cli::verbs::client::{
-    Again, BoxFuture, CliIo, Dialer, Frame, FrameOff, FrameSink, HostClient, Out, Paired, VerbContext, VerbDeps,
-};
 use wsp_cli::hosts::HostAim;
+use wsp_cli::verbs::client::{Again, BoxFuture, CliIo, Dialer, Frame, FrameOff, FrameSink, HostClient, Out, Paired, VerbContext, VerbDeps};
 use wsp_words::exit::HostError;
 
 /// The close code a host stopping sends (`HOST_STOPPING_CLOSE`).
@@ -388,7 +386,13 @@ impl CliIo for RecordingIo {
 }
 
 /// A verb's context over the scripted host: the parsed line, the terminal, `--json` where the flags say.
-pub fn context(host: Arc<ScriptedHost>, io: Arc<RecordingIo>, args: &[&str], flags: wsp_cli::verbs::client::Flags, usage: &str) -> VerbContext {
+pub fn context(
+    host: Arc<ScriptedHost>,
+    io: Arc<RecordingIo>,
+    args: &[&str],
+    flags: wsp_cli::verbs::client::Flags,
+    usage: &str,
+) -> VerbContext {
     let json = matches!(flags.get("json"), Some(wsp_cli::verbs::client::FlagValue::Bool(true)));
     VerbContext {
         deps: deps_on(host, &[]),
