@@ -4,6 +4,8 @@
 //! the spec is spec/keys.md. The daemon's twin is daemon/crates/wsp-seal, held to the same bytes by
 //! daemon/fixtures/place-link-seal.json and place-link-signing.json.
 
+use std::fmt;
+
 use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD};
 use base64::Engine;
 use ed25519_dalek::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePublicKey};
@@ -14,11 +16,11 @@ use ring::digest::{digest, SHA256};
 use ring::hkdf::{self, Salt, HKDF_SHA256};
 use x25519_dalek::{PublicKey, StaticSecret};
 
-/// One info word per direction, so the two keys of a link can never be swapped (index.ts:108).
+/// One info word per direction, so the two keys of a link can never be swapped (index.ts:67).
 pub const HOST_TO_PLACE_INFO: &str = "wsp place link host to place";
 pub const PLACE_TO_HOST_INFO: &str = "wsp place link place to host";
 
-/// The one sentence every frame that will not open is refused with (index.ts:116).
+/// The one sentence every frame that will not open is refused with (index.ts:75).
 pub const SEAL_REFUSAL: &str = "a frame on this link did not open under the key both ends agreed";
 
 const KEY_BYTES: usize = 32;
@@ -28,7 +30,7 @@ const KEY_BYTES: usize = 32;
 #[error("{0}")]
 pub struct KeyError(pub String);
 
-/// A frame refused on a sealed link: always `SEAL_REFUSAL`, whichever check caught it (index.ts:114).
+/// A frame refused on a sealed link: always `SEAL_REFUSAL`, whichever check caught it (index.ts:75).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("a frame on this link did not open under the key both ends agreed")]
 pub struct SealRefusal;
@@ -39,7 +41,7 @@ pub fn node_base64(text: &str) -> Vec<u8> {
     let mut out = Vec::with_capacity(text.len() * 3 / 4);
     let mut bits: u32 = 0;
     let mut width = 0;
-    for c in text.bytes() {
+    for c in text.encode_utf16().map(|unit| unit as u8) {
         if c == b'=' {
             break;
         }
@@ -61,19 +63,25 @@ pub fn node_base64(text: &str) -> Vec<u8> {
     out
 }
 
-/// `SHA256:` and the unpadded base64 sha256 of the key's bytes, as ssh-keygen prints it (index.ts:64).
+/// `SHA256:` and the unpadded base64 sha256 of the key's bytes, as ssh-keygen prints it (index.ts:23).
 pub fn key_fingerprint(key_base64: &str) -> String {
     format!("SHA256:{}", STANDARD_NO_PAD.encode(digest(&SHA256, &node_base64(key_base64))))
 }
 
-/// An ed25519 pair: the public key as SPKI DER base64, the private key as PKCS#8 PEM, node's spellings (index.ts:70).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// An ed25519 pair: the public key as SPKI DER base64, the private key as PKCS#8 PEM, node's spellings (index.ts:29).
+#[derive(Clone, PartialEq, Eq)]
 pub struct PlaceKeyPair {
     pub public_key: String,
     pub private_key_pem: String,
 }
 
-/// A fresh ed25519 pair in those two spellings (index.ts:77).
+impl fmt::Debug for PlaceKeyPair {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PlaceKeyPair").field("public_key", &self.public_key).finish_non_exhaustive()
+    }
+}
+
+/// A fresh ed25519 pair in those two spellings (index.ts:36).
 pub fn new_place_key_pair() -> PlaceKeyPair {
     let seed = random_32();
     let signing = SigningKey::from_bytes(&seed);
@@ -91,14 +99,26 @@ pub fn new_place_key_pair() -> PlaceKeyPair {
 const PKCS8_V1_ED25519_PREFIX: [u8; 16] = [0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20];
 
 /// The base64 ed25519 signature over `bytes` by the PKCS#8 PEM key; a PEM that does not parse is an error
-/// (index.ts:92).
+/// (index.ts:51).
 pub fn sign_place_bytes(private_key_pem: &str, bytes: &[u8]) -> Result<String, KeyError> {
-    let key = SigningKey::from_pkcs8_pem(private_key_pem).map_err(|e| KeyError(e.to_string()))?;
+    let key = SigningKey::from_pkcs8_der(&pkcs8_der_of(private_key_pem)?).map_err(|e| KeyError(e.to_string()))?;
     Ok(STANDARD.encode(key.sign(bytes).to_bytes()))
 }
 
+/// The DER between a PKCS#8 PEM's BEGIN and END lines, read as node reads it: text outside those lines is ignored,
+/// and the base64 inside may be wrapped at any width or carry CRLF and indentation.
+fn pkcs8_der_of(pem: &str) -> Result<Vec<u8>, KeyError> {
+    const BEGIN: &str = "-----BEGIN PRIVATE KEY-----";
+    const END: &str = "-----END PRIVATE KEY-----";
+    let no_begin = || KeyError("no PKCS#8 PEM begins in this text".to_string());
+    let start = pem.find(BEGIN).ok_or_else(no_begin)? + BEGIN.len();
+    let end = start + pem[start..].find(END).ok_or_else(|| KeyError("a PKCS#8 PEM has no END line".to_string()))?;
+    let body: String = pem[start..end].chars().filter(|c| !c.is_whitespace()).collect();
+    STANDARD.decode(body).map_err(|e| KeyError(e.to_string()))
+}
+
 /// Whether the SPKI DER key made the signature; a key or a signature that does not parse is false, never an error
-/// (index.ts:98).
+/// (index.ts:57).
 pub fn verify_place_bytes(public_key_base64: &str, bytes: &[u8], signature_base64: &str) -> bool {
     let Ok(key) = VerifyingKey::from_public_key_der(&node_base64(public_key_base64)) else {
         return false;
@@ -109,14 +129,20 @@ pub fn verify_place_bytes(public_key_base64: &str, bytes: &[u8], signature_base6
     key.verify(bytes, &signature).is_ok()
 }
 
-/// The two keys of one link, one per direction (index.ts:119).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// The two keys of one link, one per direction (index.ts:78).
+#[derive(Clone, PartialEq, Eq)]
 pub struct SealKeys {
     pub host_to_place: [u8; 32],
     pub place_to_host: [u8; 32],
 }
 
-/// HKDF-SHA256 of the agreed secret, the place id's UTF-8 as the salt, one info word per direction (index.ts:126).
+impl fmt::Debug for SealKeys {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SealKeys").finish_non_exhaustive()
+    }
+}
+
+/// HKDF-SHA256 of the agreed secret, the place id's UTF-8 as the salt, one info word per direction (index.ts:85).
 pub fn seal_keys(secret: &[u8], place_id: &str) -> SealKeys {
     SealKeys {
         host_to_place: derive(secret, place_id, HOST_TO_PLACE_INFO),
@@ -143,7 +169,7 @@ fn derive(secret: &[u8], place_id: &str, info: &str) -> [u8; KEY_BYTES] {
     key
 }
 
-/// One end's X25519 private key for one attempt, never held past its socket (index.ts:140).
+/// One end's X25519 private key for one attempt, never held past its socket (index.ts:99).
 pub struct EphemeralKey {
     secret: StaticSecret,
 }
@@ -157,17 +183,17 @@ impl EphemeralKey {
     }
 }
 
-/// The key's X25519 public value as the raw 32 bytes the wire carries, base64 with padding (index.ts:132).
+/// The key's X25519 public value as the raw 32 bytes the wire carries, base64 with padding (index.ts:91).
 pub fn raw_public_key(key: &EphemeralKey) -> String {
     STANDARD.encode(PublicKey::from(&key.secret).as_bytes())
 }
 
-/// A peer's X25519 public value read off the wire; anything that is not 32 bytes is an error (index.ts:135).
+/// A peer's X25519 public value read off the wire; anything that is not 32 bytes is an error (index.ts:94).
 pub fn public_key_of(raw: &str) -> Result<[u8; 32], KeyError> {
     node_base64(raw).try_into().map_err(|_| not_32_bytes())
 }
 
-/// A fresh pair for one attempt: the private key and its raw public value, base64 (index.ts:140).
+/// A fresh pair for one attempt: the private key and its raw public value, base64 (index.ts:99).
 pub fn fresh_ephemeral() -> (EphemeralKey, String) {
     let key = EphemeralKey { secret: StaticSecret::from(random_32()) };
     let public = raw_public_key(&key);
@@ -175,7 +201,7 @@ pub fn fresh_ephemeral() -> (EphemeralKey, String) {
 }
 
 /// The 32 bytes the two ephemerals agree on; a peer value that is not 32 bytes, or a low-order point whose agreement
-/// is all zero, is an error as node's derivation is (index.ts:146).
+/// is all zero, is an error as node's derivation is (index.ts:105).
 pub fn shared_secret(private_key: &EphemeralKey, peer: &str) -> Result<[u8; 32], KeyError> {
     let peer_key = PublicKey::from(public_key_of(peer)?);
     let shared = private_key.secret.diffie_hellman(&peer_key);
@@ -193,7 +219,7 @@ pub fn seal_nonce(counter: u64) -> [u8; 12] {
     nonce
 }
 
-/// The text's UTF-8 sealed at the counter: ciphertext, then the 16-byte tag (index.ts:157).
+/// The text's UTF-8 sealed at the counter: ciphertext, then the 16-byte tag (index.ts:116).
 pub fn seal_with(key: &[u8; 32], counter: u64, text: &str) -> Vec<u8> {
     let mut in_out = text.as_bytes().to_vec();
     aead_key(key)
@@ -203,7 +229,7 @@ pub fn seal_with(key: &[u8; 32], counter: u64, text: &str) -> Vec<u8> {
 }
 
 /// The text back, decoded as UTF-8 with a replacement character for a bad sequence as node's toString does; a frame
-/// under 16 bytes, a bad tag and a wrong counter all refuse alike (index.ts:164).
+/// under 16 bytes, a bad tag and a wrong counter all refuse alike (index.ts:123).
 pub fn unseal_with(key: &[u8; 32], counter: u64, bytes: &[u8]) -> Result<String, SealRefusal> {
     let mut in_out = bytes.to_vec();
     let plain = aead_key(key)
@@ -219,7 +245,7 @@ pub enum Side {
     Place,
 }
 
-/// One end's view of a sealed link, each direction counting on its own from 0 (index.ts:178).
+/// One end's view of a sealed link, each direction counting on its own from 0 (index.ts:137).
 pub struct Seal {
     outward: [u8; 32],
     inward: [u8; 32],
@@ -243,7 +269,7 @@ impl Seal {
     }
 }
 
-/// The seal for one side of a link (index.ts:193).
+/// The seal for one side of a link (index.ts:152).
 pub fn make_seal(keys: &SealKeys, side: Side) -> Seal {
     let (outward, inward) = match side {
         Side::Host => (keys.host_to_place, keys.place_to_host),
@@ -260,7 +286,7 @@ pub enum Frame<'a> {
 }
 
 /// The text of one frame: as it came before a seal (a binary frame decoded as UTF-8, lossily); after it, a text frame
-/// is refused and a binary one is opened (index.ts:187).
+/// is refused and a binary one is opened (index.ts:146).
 pub fn open_frame(seal: Option<&mut Seal>, raw: Frame<'_>) -> Result<String, SealRefusal> {
     match (seal, raw) {
         (None, Frame::Text(text)) => Ok(text.to_string()),

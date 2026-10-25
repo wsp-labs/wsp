@@ -156,3 +156,21 @@ fn an_empty_rel_names_root_itself_and_fails() {
     assert!(write_own(&root, "", "3").is_err());
     assert!(root.is_dir());
 }
+
+#[test]
+fn a_rel_with_a_trailing_slash_names_a_folder_and_writes_no_file() {
+    let t = tempfile::tempdir().unwrap();
+    let root = t.path().join("state");
+    assert!(write_own(&root, "x/", "1").is_err());
+    assert!(!root.join("x").exists());
+}
+
+#[test]
+fn a_dangling_link_on_the_way_fails_as_not_found_and_writes_nothing() {
+    let t = tempfile::tempdir().unwrap();
+    let root = t.path().join("state");
+    fs::create_dir(&root).unwrap();
+    symlink(t.path().join("nowhere"), root.join("sub")).unwrap();
+    assert_eq!(write_own(&root, "sub/f", "1").unwrap_err().kind(), std::io::ErrorKind::NotFound);
+    assert!(!t.path().join("nowhere").exists());
+}
