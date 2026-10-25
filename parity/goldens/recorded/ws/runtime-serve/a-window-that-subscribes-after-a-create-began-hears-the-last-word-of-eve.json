@@ -14,7 +14,7 @@
     {
       "id": 3,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     },
     {
@@ -25,7 +25,7 @@
     {
       "id": 5,
       "ok": false,
-      "error": "no project \"<pr-2>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000002\"; wsp add <folder> records one",
       "kind": "not-found"
     }
   ],

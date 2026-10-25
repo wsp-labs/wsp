@@ -14,19 +14,19 @@
     {
       "id": 3,
       "ok": false,
-      "error": "no such workspace: <ws-1>",
+      "error": "no such workspace: ws_00000001",
       "kind": "not-found"
     },
     {
       "id": 4,
       "ok": false,
-      "error": "no workspace <ws-1>",
+      "error": "no workspace ws_00000001",
       "kind": "not-found"
     },
     {
       "id": 5,
       "ok": false,
-      "error": "no such workspace: <ws-1>",
+      "error": "no such workspace: ws_00000001",
       "kind": "not-found"
     },
     {
@@ -38,7 +38,7 @@
     {
       "id": 7,
       "ok": false,
-      "error": "no thread <uuid-2> in this folder"
+      "error": "no thread 00000000-0000-4000-8000-000000000010 in this folder"
     }
   ],
   "events": []

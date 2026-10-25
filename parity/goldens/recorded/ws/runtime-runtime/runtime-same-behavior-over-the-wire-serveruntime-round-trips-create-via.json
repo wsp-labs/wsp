@@ -9,7 +9,7 @@
     {
       "id": 2,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     }
   ],

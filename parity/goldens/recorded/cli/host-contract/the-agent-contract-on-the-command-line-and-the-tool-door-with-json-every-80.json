@@ -30,7 +30,8 @@
               "job": null
             }
           }
-        ]
+        ],
+        "layout": "<json>\n"
       },
       "stderr": "starting the host for <tmp>/scratch/wsp-contract-<temp>/state/state.json; its log is <tmp>/scratch/wsp-contract-<temp>/state/host.log, and wsp down stops it\n"
     }

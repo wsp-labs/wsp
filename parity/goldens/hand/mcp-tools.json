@@ -90,7 +90,9 @@
                         ],
                         "additionalProperties": false
                       },
-                      "diskFreeBytes": "<moving>",
+                      "diskFreeBytes": {
+                        "type": "integer"
+                      },
                       "engine": {
                         "type": "string",
                         "enum": [
@@ -1317,7 +1319,9 @@
                       ],
                       "additionalProperties": false
                     },
-                    "diskFreeBytes": "<moving>",
+                    "diskFreeBytes": {
+                      "type": "integer"
+                    },
                     "engine": {
                       "type": "string",
                       "enum": [
@@ -2393,7 +2397,9 @@
                       ],
                       "additionalProperties": false
                     },
-                    "diskFreeBytes": "<moving>",
+                    "diskFreeBytes": {
+                      "type": "integer"
+                    },
                     "engine": {
                       "type": "string",
                       "enum": [
@@ -9339,8 +9345,12 @@
                       "failure": {
                         "type": "string"
                       },
-                      "pid": "<moving>",
-                      "agentPid": "<moving>",
+                      "pid": {
+                        "type": "integer"
+                      },
+                      "agentPid": {
+                        "type": "integer"
+                      },
                       "readAt": {
                         "type": "number"
                       },
@@ -13108,13 +13118,17 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "pid": "<moving>",
+                      "pid": {
+                        "type": "integer"
+                      },
                       "ended": {
                         "type": "array",
                         "items": {
                           "type": "object",
                           "properties": {
-                            "pid": "<moving>",
+                            "pid": {
+                              "type": "integer"
+                            },
                             "ppid": {
                               "type": "integer"
                             },
@@ -14196,8 +14210,12 @@
                     "failure": {
                       "type": "string"
                     },
-                    "pid": "<moving>",
-                    "agentPid": "<moving>",
+                    "pid": {
+                      "type": "integer"
+                    },
+                    "agentPid": {
+                      "type": "integer"
+                    },
                     "readAt": {
                       "type": "number"
                     },
@@ -16140,13 +16158,17 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "pid": "<moving>",
+                      "pid": {
+                        "type": "integer"
+                      },
                       "ended": {
                         "type": "array",
                         "items": {
                           "type": "object",
                           "properties": {
-                            "pid": "<moving>",
+                            "pid": {
+                              "type": "integer"
+                            },
                             "ppid": {
                               "type": "integer"
                             },
@@ -17973,7 +17995,9 @@
                         "items": {
                           "type": "object",
                           "properties": {
-                            "pid": "<moving>",
+                            "pid": {
+                              "type": "integer"
+                            },
                             "ppid": {
                               "type": "integer"
                             },
@@ -18076,7 +18100,11 @@
             "inputSchema": {
               "type": "object",
               "properties": {
-                "pid": "<moving>",
+                "pid": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "description": "the process's pid, as activity lists it"
+                },
                 "started": {
                   "type": "number",
                   "description": "the start activity listed it with, its startedAt in epoch milliseconds"
@@ -18102,13 +18130,17 @@
             "outputSchema": {
               "type": "object",
               "properties": {
-                "pid": "<moving>",
+                "pid": {
+                  "type": "integer"
+                },
                 "ended": {
                   "type": "array",
                   "items": {
                     "type": "object",
                     "properties": {
-                      "pid": "<moving>",
+                      "pid": {
+                        "type": "integer"
+                      },
                       "ppid": {
                         "type": "integer"
                       },

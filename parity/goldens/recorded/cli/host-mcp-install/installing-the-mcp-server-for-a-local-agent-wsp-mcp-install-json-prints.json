@@ -30,7 +30,8 @@
             ],
             "failures": []
           }
-        ]
+        ],
+        "layout": "<json>\n"
       },
       "stderr": ""
     }

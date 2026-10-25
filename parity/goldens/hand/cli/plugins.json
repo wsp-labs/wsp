@@ -15,7 +15,8 @@
             "projects": [],
             "plugins": []
           }
-        ]
+        ],
+        "layout": "<json>\n"
       },
       "stderr": ""
     }

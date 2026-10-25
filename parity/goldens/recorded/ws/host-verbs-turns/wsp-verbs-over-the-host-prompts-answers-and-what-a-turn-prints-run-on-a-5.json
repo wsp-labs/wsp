@@ -15,7 +15,7 @@
     {
       "id": 3,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     },
     {
@@ -529,7 +529,7 @@
     {
       "id": 7,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     },
     {
@@ -541,19 +541,19 @@
     {
       "id": 9,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     },
     {
       "id": 10,
       "ok": false,
-      "error": "no such workspace: <ws-1>",
+      "error": "no such workspace: ws_00000003",
       "kind": "not-found"
     },
     {
       "id": 11,
       "ok": false,
-      "error": "no such workspace: <ws-1>",
+      "error": "no such workspace: ws_00000003",
       "kind": "not-found"
     }
   ],

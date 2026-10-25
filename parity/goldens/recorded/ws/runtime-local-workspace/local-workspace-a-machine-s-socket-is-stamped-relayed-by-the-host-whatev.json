@@ -10,13 +10,13 @@
       "id": 2,
       "ok": true,
       "ticket": "<id-1>",
-      "expiresAt": "<time+5m>"
+      "expiresAt": "<time+5m in ms>"
     },
     {
       "id": 3,
       "ok": true,
       "ticket": "<id-2>",
-      "expiresAt": "<time+5m>"
+      "expiresAt": "<time+5m in ms>"
     }
   ],
   "events": []

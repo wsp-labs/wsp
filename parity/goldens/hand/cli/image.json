@@ -9,7 +9,8 @@
             "copies": [],
             "projects": []
           }
-        ]
+        ],
+        "layout": "<json>\n"
       },
       "stderr": ""
     }

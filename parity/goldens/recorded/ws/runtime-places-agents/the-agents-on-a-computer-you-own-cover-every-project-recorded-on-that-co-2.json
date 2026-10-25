@@ -9,13 +9,13 @@
     {
       "id": 2,
       "ok": false,
-      "error": "no place named <p-1>; you have <computer>",
+      "error": "no place named p_00000001; you have <computer>",
       "kind": "usage"
     },
     {
       "id": 3,
       "ok": false,
-      "error": "no place named <p-1>; you have <computer>",
+      "error": "no place named p_00000001; you have <computer>",
       "kind": "usage"
     }
   ],

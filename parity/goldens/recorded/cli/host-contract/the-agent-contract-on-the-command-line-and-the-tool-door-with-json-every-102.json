@@ -11,12 +11,13 @@
               "access": "ask",
               "models": {
                 "hide": [
-                  "claude-haiku-4-5-<id-1>"
+                  "claude-haiku-4-5-20251001"
                 ]
               }
             }
           }
-        ]
+        ],
+        "layout": "<json>\n"
       },
       "stderr": "starting the host for <tmp>/scratch/wsp-contract-<temp>/state/state.json; its log is <tmp>/scratch/wsp-contract-<temp>/state/host.log, and wsp down stops it\n"
     }
