@@ -31,7 +31,7 @@ fn done() -> TurnResult {
 }
 
 fn mu(model: &str, input: u64, output: u64, cost: Option<f64>) -> ModelUse {
-    ModelUse { model: model.into(), tokens: UsageTokens { input, output, cached: 0, cache_write: 0, reasoning: 0 }, cost_usd: cost.map(JsNumber) }
+    ModelUse { model: model.into(), tokens: UsageTokens { input: JsNumber(input as f64), output: JsNumber(output as f64), cached: 0.into(), cache_write: 0.into(), reasoning: 0.into() }, cost_usd: cost.map(JsNumber) }
 }
 
 fn tok(input: f64, output: f64) -> TurnTokens {
@@ -140,7 +140,7 @@ fn a_failed_result_reads_its_models_and_largest_window() {
         normalize_result(&line, None),
         TurnResult {
             tokens: Some(TurnTokens { window: Some(n(1000000.0)), ..tok(9.0, 1.0) }),
-            models: Some(vec![ModelUse { model: "m[1m]".into(), tokens: UsageTokens { input: 8, output: 2, cached: 3, cache_write: 4, reasoning: 0 }, cost_usd: Some(n(0.5)) }, mu("n", 0, 0, None)]),
+            models: Some(vec![ModelUse { model: "m[1m]".into(), tokens: UsageTokens { input: 8.into(), output: 2.into(), cached: 3.into(), cache_write: 4.into(), reasoning: 0.into() }, cost_usd: Some(n(0.5)) }, mu("n", 0, 0, None)]),
             error: Some("Real error".into()),
             ..result(TurnStatus::Failed)
         }

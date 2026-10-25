@@ -98,7 +98,7 @@ fn undoes_the_whole_of_a_transaction_that_fails() {
     let failed = r.atomically(&mut || {
         r.append("w", &[text(Some("a"), 2, "two")])?;
         r.put_index("w", "{}")?;
-        Err(HostError { message: "stop".into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] })
+        Err(HostError { message: "stop".into(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, code: None, status: None, marks: vec![] })
     });
     assert_eq!(failed.unwrap_err().message, "stop");
     assert_eq!(poses(&r.all("w").unwrap().events), vec![1]);
@@ -258,7 +258,7 @@ fn an_inner_transaction_joins_the_outer_so_a_caught_inner_failure_keeps_its_writ
         r.put_index("w", "outer")?;
         let inner = r.atomically(&mut || {
             r.append("w", &[text(Some("a"), 20, "inner")])?;
-            Err(HostError { message: "inner stop".into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] })
+            Err(HostError { message: "inner stop".into(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, code: None, status: None, marks: vec![] })
         });
         caught = inner.unwrap_err().message;
         Ok(())

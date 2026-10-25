@@ -482,6 +482,7 @@ pub fn init_setup_lines(setup: &InitSetup) -> Vec<String> {
     let held = |yes: bool| if yes { cloud_setup_words::keys::SAVED } else { cloud_setup_words::keys::UNSET };
     let mut lines: Vec<String> = setup
         .keys
+        .0
         .iter()
         .map(|(provider, yes)| {
             let name =

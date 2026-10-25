@@ -188,6 +188,7 @@ impl MachineBackend for FakeBackend {
             kept: false,
             copies: false,
             own_network: false,
+            sizes_last: false,
             sizes: Vec::<MachineSizeOffer>::new(),
         }
     }

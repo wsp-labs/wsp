@@ -17,7 +17,7 @@ use wsp_adapters::claude::landmines::{user_message_line, BaseEnv};
 use wsp_adapters::claude::turn::ClaudeSession;
 use wsp_adapters::pending::{internal_tool_result, subagent_asked, NO_REPORT_LINE, SUBAGENT_ASKED_CHARS};
 use wsp_adapters::port::{agent_word, AdapterAttachOptions, AdapterEvent, AgentLaunch, DeltaKind, Env, ExecFailure, HarnessExec, HarnessStartOptions, OnEvent, PlanStep, SessionHarness, SteerOutcome, SubagentState, SubagentUsage, TurnDelta, TurnImage, TurnStatus, TurnTokens};
-use wsp_frames::UsageTokens;
+use wsp_wire::types::usage::UsageTokens;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::harness::ScreenControl;
 use wsp_wire::views::session_events::PlanStepState;
@@ -114,11 +114,11 @@ fn text_deltas_of(events: &[AdapterEvent]) -> Vec<TurnDelta> {
 }
 
 fn tokens(input: u64, output: u64, cached: u64, cache_write: u64) -> UsageTokens {
-    UsageTokens { input, output, cached, cache_write, reasoning: 0 }
+    UsageTokens { input: JsNumber(input as f64), output: JsNumber(output as f64), cached: JsNumber(cached as f64), cache_write: JsNumber(cache_write as f64), reasoning: JsNumber(0.0) }
 }
 
 fn spent(tool_uses: i64, duration_ms: Option<f64>) -> SubagentUsage {
-    SubagentUsage { tokens: None, tool_uses: Some(tool_uses), duration_ms: duration_ms.map(JsNumber) }
+    SubagentUsage { tokens: None, tool_uses: Some(tool_uses.into()), duration_ms: duration_ms.map(JsNumber) }
 }
 
 /// A subagent event, every optional field unset until a builder call sets it.
@@ -655,7 +655,7 @@ fn spend_expected() -> Vec<(String, SubagentState, SubagentUsage)> {
     let one_all = tokens(2 + 10_308 + 2 + 654 + 10_308, 19, 10_308, 10_308 + 654);
     let two_first = tokens(2 + 3_913 + 6_395, 16, 6_395, 3_913);
     let two_all = tokens(2 + 3_913 + 6_395 + 2 + 654 + 10_308, 19, 6_395 + 10_308, 3_913 + 654);
-    let row = |task: &str, state, tokens, ms| (task.to_string(), state, SubagentUsage { tokens: Some(tokens), tool_uses: Some(1), duration_ms: Some(JsNumber(ms)) });
+    let row = |task: &str, state, tokens, ms| (task.to_string(), state, SubagentUsage { tokens: Some(tokens), tool_uses: Some(1.into()), duration_ms: Some(JsNumber(ms)) });
     vec![
         row(SPEND_ONE, SubagentState::Running, one_first, 1_085.0),
         row(SPEND_TWO, SubagentState::Running, two_first, 1_129.0),
@@ -852,7 +852,7 @@ async fn answers_a_backgrounded_launch_with_the_report_and_draws_no_hand_back_bo
     let own: Vec<TurnDelta> = fold.iter().filter(|d| d.parent_tool_use_id.as_deref() == Some(BG)).cloned().collect();
     assert_eq!(kind_text(own), vec![(DeltaKind::Thinking, String::new()), (DeltaKind::Text, report.to_string())]);
     assert_eq!(handed_back(&events, "toolu_01WspFixHandBgCall"), vec![]);
-    let usage = SubagentUsage { tokens: Some(tokens(2 + 21_895, 5, 0, 21_895)), tool_uses: Some(1), duration_ms: Some(JsNumber(2_000.0)) };
+    let usage = SubagentUsage { tokens: Some(tokens(2 + 21_895, 5, 0, 21_895)), tool_uses: Some(1.into()), duration_ms: Some(JsNumber(2_000.0)) };
     let ended: Vec<AdapterEvent> = events.iter().filter(|e| matches!(e, AdapterEvent::Subagent { state: SubagentState::Done, .. })).cloned().collect();
     assert_eq!(ended, vec![sub("aafea93324a2f8ca1", BG, SubagentState::Done).session(BG_SID).summary(report).usage(usage).ev()]);
 }

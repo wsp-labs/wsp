@@ -69,7 +69,7 @@ fn usage_tokens_names_only_the_counts_the_usage_names() {
     let cached = usage_tokens(&obj(json!({"input_tokens": 10, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 7, "output_tokens": 5})));
     assert_eq!(cached, TurnTokens { cached: Some(JsNumber(0.0)), cache_write: Some(JsNumber(7.0)), ..tokens(17.0, 5.0) });
     assert_eq!(usage_tokens(&obj(json!({}))), tokens(0.0, 0.0));
-    assert_eq!(usage_of(&tokens(3.0, 4.0)), UsageTokens { input: 3, output: 4, cached: 0, cache_write: 0, reasoning: 0 });
+    assert_eq!(usage_of(&tokens(3.0, 4.0)), UsageTokens { input: 3.into(), output: 4.into(), cached: 0.into(), cache_write: 0.into(), reasoning: 0.into() });
 }
 
 #[test]
@@ -204,9 +204,9 @@ fn child_calls_count_once_at_the_largest_output() {
     note_child_call(&mut book, "t1", &line("m1", 12));
     note_child_call(&mut book, "t1", &line("m2", 1));
     note_child_call(&mut book, "t1", &obj(json!({"type": "assistant", "message": {"id": "m3"}})));
-    assert_eq!(book.totals.get("t1"), Some(&UsageTokens { input: 210, output: 41, cached: 200, cache_write: 0, reasoning: 0 }));
+    assert_eq!(book.totals.get("t1"), Some(&UsageTokens { input: 210.into(), output: 41.into(), cached: 200.into(), cache_write: 0.into(), reasoning: 0.into() }));
     assert_eq!(book.calls["t1"].keys().cloned().collect::<Vec<_>>(), vec!["m1", "m2"]);
-    assert_eq!(subagent_spent(&book, "t1"), Some(SubagentUsage { tokens: Some(UsageTokens { input: 210, output: 41, cached: 200, cache_write: 0, reasoning: 0 }), tool_uses: None, duration_ms: None }));
+    assert_eq!(subagent_spent(&book, "t1"), Some(SubagentUsage { tokens: Some(UsageTokens { input: 210.into(), output: 41.into(), cached: 200.into(), cache_write: 0.into(), reasoning: 0.into() }), tool_uses: None, duration_ms: None }));
     assert_eq!(subagent_spent(&book, "t2"), None);
 }
 
@@ -219,11 +219,11 @@ fn spend_at_end_takes_the_run_time_from_the_end_line_alone() {
     let other = obj(json!({"type": "system", "subtype": "task_progress", "task_id": "bash-1", "usage": {"tool_uses": 1}}));
     assert_eq!(note_progress(&mut book, &other, &subagents), None, "a background command is no subagent");
     assert_eq!(note_progress(&mut book, &obj(json!({"type": "system", "subtype": "task_progress", "task_id": "t1"})), &subagents), None, "no usage, nothing noted");
-    assert_eq!(subagent_spent(&book, "t1"), Some(SubagentUsage { tokens: None, tool_uses: Some(4), duration_ms: Some(JsNumber(900.0)) }));
+    assert_eq!(subagent_spent(&book, "t1"), Some(SubagentUsage { tokens: None, tool_uses: Some(4.into()), duration_ms: Some(JsNumber(900.0)) }));
     let killed = obj(json!({"type": "system", "subtype": "task_updated", "task_id": "t1", "patch": {"status": "killed"}}));
-    assert_eq!(subagent_spent_at_end(&book, "t1", &killed), Some(SubagentUsage { tokens: None, tool_uses: Some(4), duration_ms: None }));
+    assert_eq!(subagent_spent_at_end(&book, "t1", &killed), Some(SubagentUsage { tokens: None, tool_uses: Some(4.into()), duration_ms: None }));
     let ended = obj(json!({"type": "system", "subtype": "task_notification", "task_id": "t1", "usage": {"duration_ms": 1500}}));
-    assert_eq!(subagent_spent_at_end(&book, "t1", &ended), Some(SubagentUsage { tokens: None, tool_uses: Some(4), duration_ms: Some(JsNumber(1500.0)) }));
+    assert_eq!(subagent_spent_at_end(&book, "t1", &ended), Some(SubagentUsage { tokens: None, tool_uses: Some(4.into()), duration_ms: Some(JsNumber(1500.0)) }));
     assert_eq!(subagent_spent_at_end(&book, "nobody", &ended), None);
 }
 
@@ -282,7 +282,7 @@ fn a_child_call_seen_again_keeps_the_newest_counts_but_the_largest_output() {
     let mut book = SpendBook::default();
     note_child_call(&mut book, "t1", &obj(json!({"type": "assistant", "message": {"id": "m1", "usage": {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 100}}})));
     note_child_call(&mut book, "t1", &obj(json!({"type": "assistant", "message": {"id": "m1", "usage": {"input_tokens": 3, "output_tokens": 2, "cache_creation_input_tokens": 7}}})));
-    assert_eq!(subagent_spent(&book, "t1").and_then(|u| u.tokens), Some(UsageTokens { input: 10, output: 5, cached: 0, cache_write: 7, reasoning: 0 }));
+    assert_eq!(subagent_spent(&book, "t1").and_then(|u| u.tokens), Some(UsageTokens { input: 10.into(), output: 5.into(), cached: 0.into(), cache_write: 7.into(), reasoning: 0.into() }));
 }
 
 // Rule R7: the cd rule, read against the TS regex; `current` is compared as given, never normalized.

@@ -287,7 +287,7 @@ mod restart {
             let s2 = again.slates();
             s2.ready().await.unwrap();
             let v = wait_for(&s2, 10_000, |v| state_of(v, "where") == "done" && value(v, "where")["runs"] == json!(2)).await;
-            assert!(again.pushes().iter().any(|p| p.values.get("$where").is_some_and(|w| w["state"] == json!("done") && w["runs"] == json!(2))));
+            assert!(again.pushes().iter().any(|p| p.values.0.get("$where").map(|k| &k.0).is_some_and(|w| w["state"] == json!("done") && w["runs"] == json!(2))));
             let out = value(&v, "where")["out"].as_str().unwrap().trim().to_string();
             assert_eq!(std::fs::canonicalize(out).unwrap(), std::fs::canonicalize(&inner).unwrap());
         });

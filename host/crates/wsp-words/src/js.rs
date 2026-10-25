@@ -5,9 +5,6 @@
 //! spec/js.md. Every other unit of this crate calls these and never `str::len`, `str::trim` or `{:.n}`.
 
 use std::cmp::Ordering;
-use std::sync::OnceLock;
-
-use icu_collator::CollatorBorrowed;
 
 /// Text counted, cut and ordered in UTF-16 code units, as a JavaScript string is (rules 8.1 to 8.5, 8.8).
 pub mod utf16 {
@@ -500,8 +497,8 @@ fn is_decimal_literal(t: &str) -> bool {
 /// tie-breakers below the letters, punctuation and spaces sort before digits, digits before letters, and "ß" after
 /// "ss" (rule 8.8). Only the sign of the TS result is read, so this answers an Ordering.
 pub fn collate(a: &str, b: &str) -> Ordering {
-    static ROOT: OnceLock<CollatorBorrowed<'static>> = OnceLock::new();
-    ROOT.get_or_init(|| wsp_wire::text::collator("und")).compare(a, b)
+    thread_local!(static ROOT: wsp_wire::text::TextCollator = wsp_wire::text::collator("und"));
+    ROOT.with(|root| root.compare(a, b))
 }
 
 /// The digit grouping a fixed `toLocaleString` form uses.

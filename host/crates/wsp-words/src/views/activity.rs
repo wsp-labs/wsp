@@ -10,7 +10,7 @@ use wsp_wire::views::activity::{
     ActivityProc, ActivityRead, ActivityScope, EndPlan, LeftThread, LeftVerb as WireLeftVerb, Placement, Whose, END_AGAIN_FIX,
     NOT_STARTED_FIX, NOT_THREADS_FIX, SAME_START_MS, WSP_OWN_FIX,
 };
-use wsp_wire::wire::daemon::{ProcKind, ProcOwnedBy};
+use wsp_frames::{ProcKind, ProcOwnedBy};
 
 use crate::exit::{refusal, HostError, Kind};
 use crate::js::number_string;

@@ -322,7 +322,7 @@ pub fn factory(adapter: Arc<FakeAdapter>) -> (HarnessAdapterFactory, Rc<RefCell<
     let f: HarnessAdapterFactory = Arc::new(move |ctx: HarnessAdapterContext| {
         keep.borrow_mut().push(ctx);
         let adapter: Arc<dyn HarnessAdapter> = adapter.clone();
-        adapter
+        Ok(adapter)
     });
     (f, seen)
 }
