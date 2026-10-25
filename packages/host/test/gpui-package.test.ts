@@ -155,8 +155,10 @@ describe("package.sh --dry-run", () => {
     const dmg = at(out, /^\+ xcrun stapler staple dist\/wsp-[\d.]+-mac\.dmg$/m);
     // Without --norsrc --noextattr, a file with an xattr adds a __MACOSX/ top, and both updaters refuse a zip of two.
     const zip = at(out, /^\+ ditto -c -k --norsrc --noextattr --keepParent dist\/wsp\.app dist\/wsp-[\d.]+-mac\.zip$/m);
-    const live = readFileSync(fileURLToPath(new URL("../../../apps/desktop-gpui/scripts/update-live.sh", import.meta.url)), "utf8");
-    expect(live.match(/ditto -c .*/g), "the live update check zips as the release does").toEqual([expect.stringMatching(/^ditto -c -k --norsrc --noextattr --keepParent /)]);
+    for (const script of ["update-live.sh", "move-live.sh"]) {
+      const live = readFileSync(fileURLToPath(new URL(`../../../apps/desktop-gpui/scripts/${script}`, import.meta.url)), "utf8");
+      expect(live.match(/ditto -c .*/g), `${script} zips as the release does`).toEqual([expect.stringMatching(/^ditto -c -k --norsrc --noextattr --keepParent /)]);
+    }
     expect(submit).toBeLessThan(app);
     expect(app).toBeLessThan(zip);
     expect(dmg).toBeLessThan(zip);

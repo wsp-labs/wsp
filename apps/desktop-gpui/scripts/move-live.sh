@@ -196,7 +196,7 @@ if [ "$os" = Linux ]; then
 else
   ditto "$today_app" "$installed"
   asset=$(asset_of macZip "$new_v")
-  (cd "$(dirname "$gpui_app")" && ditto -c -k --sequesterRsrc --keepParent "$(basename "$gpui_app")" "$work/feed/$asset")
+  (cd "$(dirname "$gpui_app")" && ditto -c -k --norsrc --noextattr --keepParent "$(basename "$gpui_app")" "$work/feed/$asset")
 fi
 echo "$new_v" >"$work/feed/VERSION"
 say "today's app $old_v at $installed; the feed offers the GPUI app $new_v as $asset"
