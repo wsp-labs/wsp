@@ -1,0 +1,810 @@
+{
+ "forwards": [
+  {
+   "name": "the_cut_keeps_a_lines_head",
+   "steps": [
+    {
+     "err": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+   "ended": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+  },
+  {
+   "name": "only_the_last_50_stderr_lines_are_kept",
+   "steps": [
+    {
+     "err": "early 0\n"
+    },
+    {
+     "err": "early 1\n"
+    },
+    {
+     "err": "early 2\n"
+    },
+    {
+     "err": "early 3\n"
+    },
+    {
+     "err": "early 4\n"
+    },
+    {
+     "err": "early 5\n"
+    },
+    {
+     "err": "early 6\n"
+    },
+    {
+     "err": "early 7\n"
+    },
+    {
+     "err": "early 8\n"
+    },
+    {
+     "err": "early 9\n"
+    },
+    {
+     "err": "Warning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\n"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: ssh exited with 255",
+   "ended": "ssh exited with 255"
+  },
+  {
+   "name": "the_last_line_client_words_keeps_is_the_words",
+   "steps": [
+    {
+     "err": "Permission denied (publickey).\n"
+    },
+    {
+     "err": "Warning: Permanently added 'box' (ED25519) to the list of known hosts.\n"
+    },
+    {
+     "err": "debug1: Exit status 255\n"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: Permission denied (publickey).",
+   "ended": "Permission denied (publickey)."
+  },
+  {
+   "name": "up_on_a_line_written_in_two_pieces_and_padded",
+   "steps": [
+    {
+     "out": "  WSP_BA"
+    },
+    {
+     "out": "CK_UP \r\n"
+    },
+    {
+     "exit": {
+      "code": 0,
+      "signal": null
+     }
+    }
+   ],
+   "up": "up",
+   "ended": "ssh exited with 0"
+  },
+  {
+   "name": "the_up_word_with_more_on_its_line_is_not_up",
+   "steps": [
+    {
+     "out": "WSP_BACK_UP now\n"
+    },
+    {
+     "out": "WSP_BACK_UP"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: ssh exited with 255",
+   "ended": "ssh exited with 255"
+  },
+  {
+   "name": "an_exit_with_code_zero_says_so",
+   "steps": [
+    {
+     "exit": {
+      "code": 0,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: ssh exited with 0",
+   "ended": "ssh exited with 0"
+  },
+  {
+   "name": "a_child_that_fails_to_start_says_the_error",
+   "steps": [
+    {
+     "fail": "spawn ssh ENOENT"
+    }
+   ],
+   "up": "rejected: spawn ssh ENOENT",
+   "ended": "spawn ssh ENOENT"
+  },
+  {
+   "name": "one_trailing_cr_goes_with_the_line_and_box_word_strips_the_rest",
+   "steps": [
+    {
+     "err": "bad\tword\r\r\n"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: badword",
+   "ended": "badword"
+  },
+  {
+   "name": "a_stderr_tail_with_no_newline_is_never_read",
+   "steps": [
+    {
+     "err": "said first\n"
+    },
+    {
+     "err": "never ended"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: said first",
+   "ended": "said first"
+  },
+  {
+   "name": "a_flood_without_a_newline_keeps_only_its_last_4096_units",
+   "steps": [
+    {
+     "err": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+     "err": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+   "ended": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  }
+ ],
+ "runs": [
+  {
+   "name": "an_exit_in_hex_is_a_number",
+   "polls": [
+    "WSP_POLL\n0x10\n\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [],
+   "result": {
+    "exitCode": 16,
+    "stdout": "",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "an_exit_with_a_fraction_is_minus_one_with_the_note",
+   "polls": [
+    "WSP_POLL\n1.5\n\nYm9vbQ==\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "boom"
+   ],
+   "result": {
+    "exitCode": -1,
+    "stdout": "",
+    "stderr": "boom\nwsp: the command ended without reporting an exit code\n"
+   },
+   "err": null
+  },
+  {
+   "name": "lines_go_stdout_then_stderr_per_poll_and_the_tails_at_the_end",
+   "polls": [
+    "WSP_POLL\n\nYQpi\nYwo=\nup\nWSP_POLL_END\n",
+    "WSP_POLL\n0\n\nZA==\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +4 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +3 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "a",
+    "c",
+    "b",
+    "d"
+   ],
+   "result": {
+    "exitCode": 0,
+    "stdout": "a\nb",
+    "stderr": "c\nd"
+   },
+   "err": null
+  },
+  {
+   "name": "a_blank_line_is_not_handed_over_and_a_cr_is_kept",
+   "polls": [
+    "WSP_POLL\n0\neA0KCgp5Cg==\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "x\r",
+    "y"
+   ],
+   "result": {
+    "exitCode": 0,
+    "stdout": "x\r\n\n\ny\n",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "a_full_chunk_with_an_exit_reads_again_before_the_exit",
+   "polls": [
+    {
+     "len": 349559,
+     "head": "WSP_POLL\n0\nYWFhYWFhY",
+     "tail": "\n\ndown\nWSP_POLL_END\n"
+    },
+    "WSP_POLL\n0\ndGFpbA==\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +262145 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    {
+     "len": 262148,
+     "head": "aaaaaaaaaaaaaaaaaaaa",
+     "tail": "aaaaaaaaaaaaaaaatail"
+    }
+   ],
+   "result": {
+    "exitCode": 0,
+    "stdout": {
+     "len": 262148,
+     "head": "aaaaaaaaaaaaaaaaaaaa",
+     "tail": "aaaaaaaaaaaaaaaatail"
+    },
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "past_the_deadline_the_last_polls_exit_is_ignored",
+   "polls": [
+    "WSP_POLL\n0\nbGF0ZQo=\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {
+    "deadlineMs": 0,
+    "launchDelayMs": 5
+   },
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab; p=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ]; then kill -TERM -- \"-$p\" \"$p\" 2>/dev/null; sleep 2; kill -KILL -- \"-$p\" \"$p\" 2>/dev/null; fi; true",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "late"
+   ],
+   "result": {
+    "exitCode": 124,
+    "stdout": "late\n",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "a_block_closed_late_is_no_answer",
+   "polls": [
+    "WSP_POLL\n0\n\n\nup\nnoise\nWSP_POLL_END\n",
+    "WSP_POLL\n7\n\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [],
+   "result": {
+    "exitCode": 7,
+    "stdout": "",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "the_streams_decode_as_node_decodes_base64",
+   "polls": [
+    "WSP_POLL\n0\nYQ\nYg==Yw==\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "a",
+    "b"
+   ],
+   "result": {
+    "exitCode": 0,
+    "stdout": "a",
+    "stderr": "b"
+   },
+   "err": null
+  },
+  {
+   "name": "a_poll_that_rejects_is_no_answer_and_is_asked_again",
+   "polls": [
+    {
+     "reject": "502 bad gateway"
+    },
+    "WSP_POLL\n3\neA==\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "x"
+   ],
+   "result": {
+    "exitCode": 3,
+    "stdout": "x",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "a_utf8_char_split_across_polls_reaches_the_listener_whole",
+   "polls": [
+    "WSP_POLL\n\nww==\n\nup\nWSP_POLL_END\n",
+    "WSP_POLL\n0\nqQo=\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +2 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "é"
+   ],
+   "result": {
+    "exitCode": 0,
+    "stdout": "é\n",
+    "stderr": ""
+   },
+   "err": null
+  }
+ ],
+ "links": [
+  {
+   "name": "frames_of_the_roads_no_other_test_sends",
+   "previewUrl": "",
+   "sent": [
+    {
+     "op": "machine.pause",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.kill",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.state",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.downloadUrl",
+     "params": {
+      "path": "/a b",
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.uploadUrl",
+     "params": {
+      "path": "/x",
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.describe",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.metrics",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.get",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.list",
+     "params": {},
+     "opts": {}
+    },
+    {
+     "op": "machine.list",
+     "params": {
+      "labels": {}
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [],
+   "answer": {
+    "state": "running",
+    "down": "https://u",
+    "up": "https://u",
+    "shape": {
+     "cpu": 2
+    }
+   },
+   "err": null
+  },
+  {
+   "name": "an_empty_stdin_is_sent_empty",
+   "previewUrl": "",
+   "sent": [
+    {
+     "op": "machine.exec",
+     "params": {
+      "cmd": "cat",
+      "timeoutMs": 20000,
+      "stdin": "",
+      "machineId": "c1"
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    }
+   ],
+   "forwarded": [],
+   "answer": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "a_daemon_frame_keeps_its_own_machine_id_place_and_its_replys_ok",
+   "previewUrl": "",
+   "sent": [
+    {
+     "op": "git.ok",
+     "params": {
+      "machineId": "c1",
+      "a": 1
+     },
+     "opts": {}
+    },
+    {
+     "op": "git.refused",
+     "params": {
+      "a": 2,
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "git.coded",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [],
+   "answer": [
+    {
+     "ok": false,
+     "x": 1
+    },
+    {
+     "ok": false,
+     "error": ""
+    },
+    {
+     "ok": false,
+     "error": "no remote",
+     "code": "no-remote"
+    }
+   ],
+   "err": null
+  },
+  {
+   "name": "a_route_on_the_schemes_own_port_names_no_port",
+   "previewUrl": "http://127.0.0.1:80/",
+   "sent": [
+    {
+     "op": "machine.previewUrl",
+     "params": {
+      "port": 3000,
+      "machineId": "c1"
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [],
+   "answer": null,
+   "err": "c1 answered http://127.0.0.1:80/, which names no port this host can be carried to"
+  },
+  {
+   "name": "a_route_on_a_scheme_with_no_default_keeps_its_port",
+   "previewUrl": "foo://h:80",
+   "sent": [
+    {
+     "op": "machine.previewUrl",
+     "params": {
+      "port": 3000,
+      "machineId": "c1"
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [
+    80
+   ],
+   "answer": {
+    "url": "http://127.0.0.1:51001",
+    "token": "",
+    "expiresAt": 9007199254740991
+   },
+   "err": null
+  },
+  {
+   "name": "a_route_on_an_ipv6_loopback_reads_its_port",
+   "previewUrl": "http://[::1]:8080/x",
+   "sent": [
+    {
+     "op": "machine.previewUrl",
+     "params": {
+      "port": 3000,
+      "machineId": "c1"
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [
+    8080
+   ],
+   "answer": {
+    "url": "http://127.0.0.1:51001",
+    "token": "",
+    "expiresAt": 9007199254740991
+   },
+   "err": null
+  },
+  {
+   "name": "a_route_the_url_reader_refuses_is_invalid_url",
+   "previewUrl": "http://h:99999",
+   "sent": [
+    {
+     "op": "machine.previewUrl",
+     "params": {
+      "port": 3000,
+      "machineId": "c1"
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [],
+   "answer": null,
+   "err": "Invalid URL"
+  }
+ ],
+ "places": [
+  {
+   "name": "no_bytes_are_one_part_with_an_empty_stdin",
+   "partFails": false,
+   "frames": [
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "umask 077\nmkdir -p '/root'\ncat > '/root/empty'.part0",
+      "timeoutMs": 20000,
+      "stdin": ""
+     },
+     "opts": {
+      "timeoutMs": 25000,
+      "idempotencyKey": "abababababab/0"
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "umask 077; if [ -e '/root/empty'.part0 ]; then cat '/root/empty'.part{0..0} > '/root/empty' && rm -f '/root/empty'.part{0..0}; fi",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000,
+      "idempotencyKey": "abababababab/join"
+     }
+    }
+   ],
+   "answer": {
+    "pieces": 1
+   },
+   "err": null
+  },
+  {
+   "name": "a_folder_machines_parts_join_and_cleanup_ride_as_the_login",
+   "partFails": true,
+   "frames": [
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "uname -s; id -u; id -un; stat -L -c %U '/home/maya' 2>/dev/null || stat -L -f %Su '/home/maya' 2>/dev/null || echo; command -v runuser >/dev/null 2>&1 && echo 1 || echo 0; printf '%s\\n' \"$HOME\" \"$PATH\"",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "export HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; s=$(getent passwd 'maya' | cut -d: -f7); timeout 15 \"${s:-/bin/sh}\" -ilc 'printf %s \"$PATH\"' < /dev/null 2> /dev/null",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "export HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; umask 077\nmkdir -p '/home/maya'\ncat > '/home/maya/f'.part0",
+      "timeoutMs": 20000,
+      "stdin": "AQI="
+     },
+     "opts": {
+      "timeoutMs": 25000,
+      "idempotencyKey": "abababababab/0"
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "export HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; rm -f '/home/maya/f'.part{0..0}",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    }
+   ],
+   "answer": null,
+   "err": "part 1 of 1 did not land at /home/maya/f on spoo: it exited 1 and said: disk full"
+  },
+  {
+   "name": "an_empty_path_first_is_a_path_first",
+   "partFails": false,
+   "frames": [
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "uname -s; id -u; id -un; stat -L -c %U '/home/maya' 2>/dev/null || stat -L -f %Su '/home/maya' 2>/dev/null || echo; command -v runuser >/dev/null 2>&1 && echo 1 || echo 0; printf '%s\\n' \"$HOME\" \"$PATH\"",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "export HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; s=$(getent passwd 'maya' | cut -d: -f7); timeout 15 \"${s:-/bin/sh}\" -ilc 'printf %s \"$PATH\"' < /dev/null 2> /dev/null",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "[ -f /sys/fs/cgroup/cgroup.controllers ] && mkdir -p '/sys/fs/cgroup/wsp-threads/thread-1' 2>/dev/null && { echo '+memory +pids' > '/sys/fs/cgroup/wsp-threads'/cgroup.subtree_control; echo $$ > '/sys/fs/cgroup/wsp-threads/thread-1'/cgroup.procs; } 2>/dev/null; true\nexport HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; { mkdir -p '' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\'''\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zshenv\" ]] && source \"$ZDOTDIR/.zshenv\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\'''\\''\n[[ :$PATH: == '\\''::'\\''* ]] || PATH='\\'''\\'':$PATH\n' > '/.zshenv'.$$ && mv -f '/.zshenv'.$$ '/.zshenv' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\'''\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zprofile\" ]] && source \"$ZDOTDIR/.zprofile\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\'''\\''\n[[ :$PATH: == '\\''::'\\''* ]] || PATH='\\'''\\'':$PATH\n' > '/.zprofile'.$$ && mv -f '/.zprofile'.$$ '/.zprofile' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\'''\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zshrc\" ]] && source \"$ZDOTDIR/.zshrc\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\'''\\''\n[[ :$PATH: == '\\''::'\\''* ]] || PATH='\\'''\\'':$PATH\n' > '/.zshrc'.$$ && mv -f '/.zshrc'.$$ '/.zshrc' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\'''\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zlogin\" ]] && source \"$ZDOTDIR/.zlogin\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\'''\\''\n[[ :$PATH: == '\\''::'\\''* ]] || PATH='\\'''\\'':$PATH\n' > '/.zlogin'.$$ && mv -f '/.zlogin'.$$ '/.zlogin' && printf %s 'case :$PATH: in '\\''::'\\''*) ;; *) PATH='\\'''\\'':$PATH ;; esac\n' > '/.bash_env'.$$ && mv -f '/.bash_env'.$$ '/.bash_env'; } 2>/dev/null && export ZDOTDIR='' BASH_ENV='/.bash_env'; export PATH='':\"$PATH\"; echo hi",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    }
+   ],
+   "answer": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+   },
+   "err": null
+  }
+ ]
+}

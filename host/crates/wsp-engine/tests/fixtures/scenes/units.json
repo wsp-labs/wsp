@@ -1,0 +1,1269 @@
+{
+ "errors": {
+  "backoff": [
+   {
+    "attempt": 0,
+    "ms": 500
+   },
+   {
+    "attempt": 1,
+    "ms": 1000
+   },
+   {
+    "attempt": 4,
+    "ms": 8000
+   },
+   {
+    "attempt": 5,
+    "ms": 8000
+   },
+   {
+    "attempt": 9,
+    "ms": 8000
+   },
+   {
+    "attempt": 31,
+    "ms": 8000
+   },
+   {
+    "attempt": 63,
+    "ms": 8000
+   },
+   {
+    "attempt": 64,
+    "ms": 8000
+   },
+   {
+    "attempt": 70,
+    "ms": 8000
+   },
+   {
+    "attempt": 2000,
+    "ms": 8000
+   }
+  ],
+  "network": [
+   {
+    "in": {
+     "status": 503,
+     "error": "fetch failed"
+    },
+    "thrown": true,
+    "network": false,
+    "neverSent": false
+   },
+   {
+    "in": {
+     "status": 502,
+     "code": "ECONNRESET"
+    },
+    "thrown": true,
+    "network": false,
+    "neverSent": false
+   },
+   {
+    "in": {
+     "status": 500,
+     "code": "ECONNREFUSED"
+    },
+    "thrown": true,
+    "network": false,
+    "neverSent": false
+   },
+   {
+    "in": {
+     "status": 502,
+     "error": "bad gateway"
+    },
+    "thrown": false,
+    "network": false,
+    "neverSent": false
+   }
+  ],
+  "names": {
+   "MoveUnanswered": "Error",
+   "ResumeUnanswered": "Error",
+   "NotFirstLife": "NotFirstLifeError",
+   "EnvNotLanded": "EnvNotLandedError",
+   "DiskGone": "DiskGoneError",
+   "CreateCancelled": "CreateCancelledError",
+   "StopRefused": "StopRefusedError",
+   "NapRefused": "NapRefusedError",
+   "Unreached": "Error",
+   "NoProvider": "NoProviderError",
+   "Provider": "Error"
+  }
+ },
+ "machine_facts": {
+  "uptime": [
+   {
+    "in": {
+     "uptime": "-0.0025"
+    },
+    "ms": -2
+   },
+   {
+    "in": {
+     "uptime": "-0.0005"
+    },
+    "ms": 0
+   },
+   {
+    "in": {
+     "uptime": "0.0005"
+    },
+    "ms": 1
+   },
+   {
+    "in": {
+     "uptime": "1e3"
+    },
+    "ms": 1000000
+   },
+   {
+    "in": {
+     "uptime": "0x10"
+    },
+    "ms": 16000
+   },
+   {
+    "in": {
+     "uptime": "Infinity"
+    },
+    "ms": null
+   },
+   {
+    "in": {
+     "uptime": " 12.3456 "
+    },
+    "ms": 12346
+   },
+   {
+    "in": {
+     "boot": "{ usec = 5, sec = 7 }"
+    },
+    "ms": 4995000
+   },
+   {
+    "in": {
+     "boot": "{ sec = 1, usec = 2 }"
+    },
+    "ms": 4999000
+   },
+   {
+    "in": {
+     "boot": "sec = 007"
+    },
+    "ms": 4993000
+   },
+   {
+    "in": {
+     "boot": "sec = 99999999999999999999"
+    },
+    "ms": 0
+   },
+   {
+    "in": {
+     "boot": "sec = ٣"
+    },
+    "ms": null
+   },
+   {
+    "in": {
+     "uptime": "",
+     "boot": "sec = 1"
+    },
+    "ms": 4999000
+   },
+   {
+    "in": {
+     "uptime": "abc",
+     "boot": "sec = 1"
+    },
+    "ms": 4999000
+   }
+  ],
+  "mem": [
+   {
+    "in": "0b11",
+    "mb": 0
+   },
+   {
+    "in": "0o17",
+    "mb": 0
+   },
+   {
+    "in": ".5",
+    "mb": 0
+   },
+   {
+    "in": "+2048",
+    "mb": 2
+   },
+   {
+    "in": "1_0",
+    "mb": null
+   },
+   {
+    "in": "1,000",
+    "mb": null
+   },
+   {
+    "in": "5kB",
+    "mb": null
+   },
+   {
+    "in": "1e400",
+    "mb": null
+   },
+   {
+    "in": "100",
+    "mb": 0
+   },
+   {
+    "in": "511",
+    "mb": 0
+   },
+   {
+    "in": "512",
+    "mb": 1
+   },
+   {
+    "in": "1e30",
+    "mb": 9.765625e+26
+   }
+  ],
+  "lastValueWins": {
+   "a": "",
+   "b": "2",
+   "﻿arch": "x"
+  }
+ },
+ "context_probe": {
+  "disk": [
+   {
+    "in": "DISK 0x10 0x8",
+    "out": {
+     "kernel": null,
+     "disk": {
+      "sizeBytes": 16384,
+      "freeBytes": 8192
+     },
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "DISK 1e3 5",
+    "out": {
+     "kernel": null,
+     "disk": {
+      "sizeBytes": 1024000,
+      "freeBytes": 5120
+     },
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "DISK 100 50 7",
+    "out": {
+     "kernel": null,
+     "disk": {
+      "sizeBytes": 102400,
+      "freeBytes": 51200
+     },
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "DISK 100 -5",
+    "out": {
+     "kernel": null,
+     "disk": {
+      "sizeBytes": 102400,
+      "freeBytes": -5120
+     },
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "DISK -0 5",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "DISK 100 1e400",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "DISK  100   50",
+    "out": {
+     "kernel": null,
+     "disk": {
+      "sizeBytes": 102400,
+      "freeBytes": 51200
+     },
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "DISK 100",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   }
+  ],
+  "facts": [
+   {
+    "in": "eyJ0b29scyI6W10sImFnZW50cyI6W10sImZpbGVzIjpbXX0",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": {
+      "tools": [],
+      "agents": [],
+      "files": []
+     },
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "e3 0=",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": {
+      "tools": [],
+      "agents": [],
+      "files": []
+     },
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "e30=junk",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": {
+      "tools": [],
+      "agents": [],
+      "files": []
+     },
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "bnVsbA==",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "NQ==",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": {
+      "tools": [],
+      "agents": [],
+      "files": []
+     },
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "W10=",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": {
+      "tools": [],
+      "agents": [],
+      "files": []
+     },
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "ImFiYyI=",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": {
+      "tools": [],
+      "agents": [],
+      "files": []
+     },
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "!!!",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": "",
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   }
+  ],
+  "keys": [
+   {
+    "in": [
+     "KERNEL\t6.6"
+    ],
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": [
+     " KERNEL 6.6"
+    ],
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": [
+     "KERNEL   6.6  "
+    ],
+    "out": {
+     "kernel": "6.6",
+     "disk": null,
+     "facts": null,
+     "aliases": [],
+     "has": []
+    }
+   },
+   {
+    "in": [
+     "ALIAS ll\tls -l"
+    ],
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": null,
+     "aliases": [
+      {
+       "name": "ll\tls",
+       "word": "-l"
+      }
+     ],
+     "has": []
+    }
+   },
+   {
+    "in": [
+     "ALIAS  ll ls"
+    ],
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": null,
+     "aliases": [
+      {
+       "name": "ll",
+       "word": "ls"
+      }
+     ],
+     "has": []
+    }
+   },
+   {
+    "in": [
+     "HAS  docker "
+    ],
+    "out": {
+     "kernel": null,
+     "disk": null,
+     "facts": null,
+     "aliases": [],
+     "has": [
+      "docker"
+     ]
+    }
+   }
+  ],
+  "trimEnd": [
+   {
+    "in": [
+     "WSP_CTX",
+     "KERNEL a",
+     "WSP_CTX_END"
+    ],
+    "kernel": null
+   },
+   {
+    "in": [
+     "WSP_CTX﻿",
+     "KERNEL b",
+     "WSP_CTX_END"
+    ],
+    "kernel": "b"
+   },
+   {
+    "in": [
+     "WSP_CTX ",
+     "KERNEL c",
+     "WSP_CTX_END"
+    ],
+    "kernel": "c"
+   }
+  ]
+ },
+ "box_plan": {
+  "labels": [
+   {
+    "in": "wsp;o=%c3%a9",
+    "out": {
+     "wsp": "1",
+     "wsp-owner": "Ã©"
+    }
+   },
+   {
+    "in": "wsp;o=%E2%82%AC;w=%41",
+    "out": {
+     "wsp": "1",
+     "wsp-owner": "â¬",
+     "wsp-workspace": "A"
+    }
+   },
+   {
+    "in": "wsp;o=%",
+    "out": {
+     "wsp": "1",
+     "wsp-owner": "%"
+    }
+   },
+   {
+    "in": "wsp;o=%4",
+    "out": {
+     "wsp": "1",
+     "wsp-owner": "%4"
+    }
+   }
+  ],
+  "keylessTier": {
+   "trial": false,
+   "planUsd": 100,
+   "sizes": [
+    "small",
+    "default",
+    "large",
+    "xlarge"
+   ],
+   "canStart": true
+  },
+  "classForNaN": "xlarge"
+ },
+ "box_request": {
+  "stopRefusal": [
+   {
+    "in": {
+     "lastSnapshotStatus": "",
+     "lastSnapshotAttemptAt": ""
+    },
+    "out": "its latest snapshot  at , and the last that completed was none"
+   },
+   {
+    "in": {
+     "lastSnapshotStatus": "failed",
+     "lastSnapshotAttemptAt": ""
+    },
+    "out": "its latest snapshot failed at , and the last that completed was none"
+   },
+   {
+    "in": {
+     "error": "   "
+    },
+    "out": "   "
+   },
+   {
+    "in": {
+     "lastSnapshotStatus": "failed",
+     "snapshotCompletedAt": ""
+    },
+    "out": "its latest snapshot failed, and the last that completed was at "
+   }
+  ]
+ },
+ "exec_put": {
+  "markers": [
+   {
+    "in": "M  x y\nM k a  b\nM\tk v\nM k2",
+    "out": [
+     [
+      "",
+      "x y"
+     ],
+     [
+      "k",
+      "a  b"
+     ],
+     [
+      "k2",
+      ""
+     ]
+    ]
+   },
+   {
+    "in": "M a 1\nM a 2",
+    "out": [
+     [
+      "a",
+      "2"
+     ]
+    ]
+   },
+   {
+    "in": " M b  2 ",
+    "out": [
+     [
+      "b",
+      " 2"
+     ]
+    ]
+   }
+  ],
+  "dirnames": [
+   {
+    "path": "a.txt",
+    "sent": [
+     "mkdir -p '.'\nset -o pipefail\nprintf %s 'eA==' | base64 -d > 'a.txt' || exit 1"
+    ]
+   },
+   {
+    "path": "a//b/c",
+    "sent": [
+     "mkdir -p 'a//b'\nset -o pipefail\nprintf %s 'eA==' | base64 -d > 'a//b/c' || exit 1"
+    ]
+   },
+   {
+    "path": "/f",
+    "sent": [
+     "mkdir -p '/'\nset -o pipefail\nprintf %s 'eA==' | base64 -d > '/f' || exit 1"
+    ]
+   },
+   {
+    "path": "///a",
+    "sent": [
+     "mkdir -p '//'\nset -o pipefail\nprintf %s 'eA==' | base64 -d > '///a' || exit 1"
+    ]
+   },
+   {
+    "path": "a/./b",
+    "sent": [
+     "mkdir -p 'a/.'\nset -o pipefail\nprintf %s 'eA==' | base64 -d > 'a/./b' || exit 1"
+    ]
+   },
+   {
+    "path": "a/b/",
+    "sent": [
+     "mkdir -p 'a'\nset -o pipefail\nprintf %s 'eA==' | base64 -d > 'a/b/' || exit 1"
+    ]
+   }
+  ]
+ },
+ "ssh_keys": {
+  "target": [
+   {
+    "port": "",
+    "out": "[h]:0"
+   },
+   {
+    "port": "0",
+    "out": "[h]:0"
+   },
+   {
+    "port": "-1",
+    "out": "[h]:-1"
+   },
+   {
+    "port": "99999",
+    "out": "[h]:99999"
+   },
+   {
+    "port": "1e3",
+    "out": "[h]:1000"
+   },
+   {
+    "port": "0x16",
+    "out": "h"
+   },
+   {
+    "port": "0x8ae",
+    "out": "[h]:2222"
+   },
+   {
+    "port": "22.0",
+    "out": "h"
+   },
+   {
+    "port": "Infinity",
+    "out": "h"
+   },
+   {
+    "port": " 2222 ",
+    "out": "[h]:2222"
+   }
+  ],
+  "files": [
+   {
+    "home": "/home/x/",
+    "file": "~/.ssh/k",
+    "out": [
+     "/home/x/.ssh/k"
+    ]
+   },
+   {
+    "home": "/home/x",
+    "file": "~/a//b",
+    "out": [
+     "/home/x/a/b"
+    ]
+   },
+   {
+    "home": "/home/x",
+    "file": "~/../etc/k",
+    "out": [
+     "/home/etc/k"
+    ]
+   },
+   {
+    "home": "/home/x",
+    "file": "~/./k",
+    "out": [
+     "/home/x/k"
+    ]
+   },
+   {
+    "home": "/home/x",
+    "file": "~/",
+    "out": [
+     "/home/x"
+    ]
+   },
+   {
+    "home": "/home/x",
+    "file": "~/a ~/b",
+    "out": [
+     "/home/x/a",
+     "/home/x/b"
+    ]
+   }
+  ],
+  "refusal": [
+   {
+    "in": {
+     "stderr": "a\nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "exitCode": 255
+    },
+    "out": "\nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   {
+    "in": {
+     "stderr": "",
+     "exitCode": 124
+    },
+    "out": "u@h refused the login over ssh (exit 124)"
+   },
+   {
+    "in": {
+     "stderr": "debug1: x\n  \n",
+     "exitCode": -1
+    },
+    "out": "u@h refused the login over ssh (exit -1)"
+   }
+  ],
+  "clientWords": [
+   {
+    "in": "bind [::1]:80: Address already in use\r\nreal",
+    "out": "bind [::1]:80: Address already in use\r\nreal"
+   },
+   {
+    "in": "Warning: Permanently added 'a\rb' (ED25519) to the list of known hosts.",
+    "out": "Warning: Permanently added 'a\rb' (ED25519) to the list of known hosts."
+   },
+   {
+    "in": "debug١: x",
+    "out": "debug١: x"
+   },
+   {
+    "in": "debug1: y\nkept",
+    "out": "kept"
+   }
+  ],
+  "keyscan": [
+   {
+    "port": "2222.5",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "2222.5",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "-5",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "-5",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "99999",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "99999",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "1e3",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "1000",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "0x50",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "80",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "0",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "22",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "22",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "abc",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "22",
+     "h"
+    ],
+    "got": {}
+   }
+  ],
+  "wordReach": [
+   {
+    "typed": 0,
+    "configPort": "2222",
+    "out": {
+     "err": "dev@alias names no port ssh can dial"
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "70000",
+    "out": {
+     "err": "dev@alias names no port ssh can dial"
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "2222.5",
+    "out": {
+     "err": "dev@alias names no port ssh can dial"
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "-1",
+    "out": {
+     "err": "dev@alias names no port ssh can dial"
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "0",
+    "out": {
+     "ok": {
+      "user": "dev",
+      "host": "alias",
+      "port": 22
+     }
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "abc",
+    "out": {
+     "ok": {
+      "user": "dev",
+      "host": "alias",
+      "port": 22
+     }
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "1e3",
+    "out": {
+     "ok": {
+      "user": "dev",
+      "host": "alias",
+      "port": 1000
+     }
+    }
+   },
+   {
+    "typed": 2200,
+    "configPort": "abc",
+    "out": {
+     "ok": {
+      "user": "dev",
+      "host": "alias",
+      "port": 2200
+     }
+    }
+   }
+  ]
+ },
+ "ssh_machine": {
+  "putScript": [
+   {
+    "path": "a//b",
+    "out": "set -e\numask 077\nmkdir -p 'a/'\ncat > '/tmp/wsp-put-x'\n[ \"$(wc -c < '/tmp/wsp-put-x' | tr -d ' ')\" = 3 ] || { rm -f '/tmp/wsp-put-x'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f '/tmp/wsp-put-x' 'a//b'\necho WSP_BYTES_OK"
+   },
+   {
+    "path": "a/b//c",
+    "out": "set -e\numask 077\nmkdir -p 'a/b/'\ncat > '/tmp/wsp-put-x'\n[ \"$(wc -c < '/tmp/wsp-put-x' | tr -d ' ')\" = 3 ] || { rm -f '/tmp/wsp-put-x'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f '/tmp/wsp-put-x' 'a/b//c'\necho WSP_BYTES_OK"
+   },
+   {
+    "path": "//a",
+    "out": "set -e\numask 077\nmkdir -p '//'\ncat > '/tmp/wsp-put-x'\n[ \"$(wc -c < '/tmp/wsp-put-x' | tr -d ' ')\" = 3 ] || { rm -f '/tmp/wsp-put-x'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f '/tmp/wsp-put-x' '//a'\necho WSP_BYTES_OK"
+   },
+   {
+    "path": "///a/b",
+    "out": "set -e\numask 077\nmkdir -p '///a'\ncat > '/tmp/wsp-put-x'\n[ \"$(wc -c < '/tmp/wsp-put-x' | tr -d ' ')\" = 3 ] || { rm -f '/tmp/wsp-put-x'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f '/tmp/wsp-put-x' '///a/b'\necho WSP_BYTES_OK"
+   },
+   {
+    "path": "/a//",
+    "out": "set -e\numask 077\nmkdir -p '/'\ncat > '/tmp/wsp-put-x'\n[ \"$(wc -c < '/tmp/wsp-put-x' | tr -d ' ')\" = 3 ] || { rm -f '/tmp/wsp-put-x'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f '/tmp/wsp-put-x' '/a//'\necho WSP_BYTES_OK"
+   },
+   {
+    "path": "a/",
+    "out": "set -e\numask 077\nmkdir -p '.'\ncat > '/tmp/wsp-put-x'\n[ \"$(wc -c < '/tmp/wsp-put-x' | tr -d ' ')\" = 3 ] || { rm -f '/tmp/wsp-put-x'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f '/tmp/wsp-put-x' 'a/'\necho WSP_BYTES_OK"
+   },
+   {
+    "path": "./a",
+    "out": "set -e\numask 077\nmkdir -p '.'\ncat > '/tmp/wsp-put-x'\n[ \"$(wc -c < '/tmp/wsp-put-x' | tr -d ' ')\" = 3 ] || { rm -f '/tmp/wsp-put-x'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f '/tmp/wsp-put-x' './a'\necho WSP_BYTES_OK"
+   },
+   {
+    "path": "..",
+    "out": "set -e\numask 077\nmkdir -p '.'\ncat > '/tmp/wsp-put-x'\n[ \"$(wc -c < '/tmp/wsp-put-x' | tr -d ' ')\" = 3 ] || { rm -f '/tmp/wsp-put-x'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f '/tmp/wsp-put-x' '..'\necho WSP_BYTES_OK"
+   },
+   {
+    "path": "a/b/",
+    "out": "set -e\numask 077\nmkdir -p 'a'\ncat > '/tmp/wsp-put-x'\n[ \"$(wc -c < '/tmp/wsp-put-x' | tr -d ' ')\" = 3 ] || { rm -f '/tmp/wsp-put-x'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f '/tmp/wsp-put-x' 'a/b/'\necho WSP_BYTES_OK"
+   }
+  ],
+  "dials": [
+   {
+    "host": "localhost..",
+    "out": false
+   },
+   {
+    "host": "[::1].",
+    "out": true
+   },
+   {
+    "host": "127.foo.example",
+    "out": true
+   },
+   {
+    "host": "LOCALHOST.",
+    "out": true
+   },
+   {
+    "host": "::1",
+    "out": true
+   },
+   {
+    "host": "0.0.0.0",
+    "out": true
+   }
+  ],
+  "sudo": [
+   {
+    "stdout": "a\r\nWSP_SUDO root\r\nWSP_SUDO none\n",
+    "out": {
+     "ok": "root"
+    }
+   },
+   {
+    "stdout": "x WSP_SUDO free",
+    "out": {
+     "ok": "free"
+    }
+   },
+   {
+    "stdout": "foo WSP_SUDO root\n",
+    "out": {
+     "err": "u@h did not answer over ssh: foo WSP_SUDO root"
+    }
+   },
+   {
+    "stdout": "WSP_SUDO tty \n",
+    "out": {
+     "err": "u@h did not answer over ssh: WSP_SUDO tty"
+    }
+   },
+   {
+    "stdout": "WSP_SUDO asks",
+    "out": {
+     "ok": "asks"
+    }
+   }
+  ]
+ },
+ "local_backend": {
+  "pressure": [
+   {
+    "in": "0b11",
+    "out": {
+     "freeMb": 491,
+     "totalMb": 16384
+    }
+   },
+   {
+    "in": "0o7",
+    "out": {
+     "freeMb": 1146,
+     "totalMb": 16384
+    }
+   },
+   {
+    "in": "+5",
+    "out": {
+     "freeMb": 819,
+     "totalMb": 16384
+    }
+   },
+   {
+    "in": "5.",
+    "out": {
+     "freeMb": 819,
+     "totalMb": 16384
+    }
+   },
+   {
+    "in": ".5e1",
+    "out": {
+     "freeMb": 819,
+     "totalMb": 16384
+    }
+   },
+   {
+    "in": "Infinity",
+    "out": null
+   },
+   {
+    "in": "1_0",
+    "out": null
+   },
+   {
+    "in": "-0",
+    "out": {
+     "freeMb": 0,
+     "totalMb": 16384
+    }
+   },
+   {
+    "in": "0x1f",
+    "out": {
+     "freeMb": 5079,
+     "totalMb": 16384
+    }
+   },
+   {
+    "in": " 7 ",
+    "out": {
+     "freeMb": 1146,
+     "totalMb": 16384
+    }
+   }
+  ],
+  "meminfo": [
+   {
+    "in": "MemTotal:\n2048 kB\nMemAvailable: 1024 kB",
+    "out": {
+     "freeMb": 1,
+     "totalMb": 2
+    }
+   },
+   {
+    "in": "MemAvailable: 1 kB\rMemTotal: 4096 kB",
+    "out": {
+     "freeMb": 0,
+     "totalMb": 4
+    }
+   },
+   {
+    "in": "MemTotal: 2048 KB\nMemAvailable: 10 kB",
+    "out": null
+   },
+   {
+    "in": "MemTotal: 4096 kB\nMemAvailable: 1024 kB\nMemTotal: 8192 kB",
+    "out": {
+     "freeMb": 1,
+     "totalMb": 4
+    }
+   }
+  ]
+ },
+ "machine": {
+  "emptyLine": {
+   "err": ""
+  }
+ },
+ "fake_backend": {
+  "zeros": {
+   "shape": {
+    "cpu": 0,
+    "memMb": 0,
+    "diskGb": 0,
+    "createdAt": "2026-10-25T15:36:24.721Z"
+   },
+   "listed": [
+    {
+     "id": "fk_abababababab",
+     "state": "running",
+     "labels": {}
+    }
+   ]
+  },
+  "rates": [
+   {
+    "in": {
+     "cpu": 0,
+     "memMb": 3200
+    },
+    "out": 0.0313
+   },
+   {
+    "in": {
+     "cpu": 0,
+     "memMb": 9600
+    },
+    "out": 0.0938
+   },
+   {
+    "in": {
+     "cpu": 1,
+     "memMb": 512
+    },
+    "out": 0.025
+   },
+   {
+    "in": {
+     "cpu": 0.5,
+     "memMb": 0
+    },
+    "out": 0.01
+   }
+  ]
+ }
+}

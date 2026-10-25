@@ -1,0 +1,24 @@
+{
+ "res": {
+  "exitCode": 0,
+  "stdout": "a\n",
+  "stderr": "e"
+ },
+ "calls": [
+  "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBpdCdz' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+  "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+  "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +3 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+  "rm -rf /tmp/wsp-run/abababababab.*"
+ ],
+ "killed": {
+  "exitCode": 124,
+  "stdout": "",
+  "stderr": ""
+ },
+ "killCalls": [
+  "mkdir -p '/r'\nu=$(umask)\numask 077\nb=/r/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'c2xlZXAgOQ==' | base64 -d > '/r/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+  "b=/r/abababababab; p=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ]; then kill -TERM -- \"-$p\" \"$p\" 2>/dev/null; sleep 2; kill -KILL -- \"-$p\" \"$p\" 2>/dev/null; fi; true",
+  "b=/r/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+  "rm -rf /r/abababababab.*"
+ ]
+}

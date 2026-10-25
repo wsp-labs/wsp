@@ -1,0 +1,332 @@
+[
+ {
+  "name": "defaults",
+  "config": [
+   "user root",
+   "hostname 203.0.113.9",
+   "port 22",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "identityfile ~/.ssh/id_rsa",
+   "identityfile ~/.ssh/id_ed25519",
+   "globalknownhostsfile /etc/ssh/ssh_known_hosts",
+   "userknownhostsfile /Users/dev/.ssh/known_hosts",
+   "addkeystoagent false"
+  ],
+  "answer": {
+   "ok": {
+    "reach": {
+     "user": "root",
+     "host": "203.0.113.9",
+     "port": 22,
+     "keyPath": "/k"
+    },
+    "options": []
+   }
+  }
+ },
+ {
+  "name": "jump",
+  "config": [
+   "user root",
+   "hostname 10.0.0.7",
+   "port 22",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "identityfile ~/.ssh/id_rsa",
+   "identityfile ~/.ssh/id_ed25519",
+   "globalknownhostsfile /etc/ssh/ssh_known_hosts",
+   "userknownhostsfile /Users/dev/.ssh/known_hosts",
+   "addkeystoagent false",
+   "proxyjump bastion,ops@edge:2222"
+  ],
+  "answer": {
+   "ok": {
+    "reach": {
+     "user": "root",
+     "host": "10.0.0.7",
+     "port": 22,
+     "keyPath": "/k"
+    },
+    "options": [
+     "ProxyCommand=ssh -o BatchMode=yes -J 'bastion' -W '[%h]:%p' 'ssh://ops@edge:2222'"
+    ]
+   }
+  }
+ },
+ {
+  "name": "one jump",
+  "config": [
+   "user root",
+   "hostname 203.0.113.9",
+   "port 22",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "identityfile ~/.ssh/id_rsa",
+   "identityfile ~/.ssh/id_ed25519",
+   "globalknownhostsfile /etc/ssh/ssh_known_hosts",
+   "userknownhostsfile /Users/dev/.ssh/known_hosts",
+   "addkeystoagent false",
+   "proxyjump bastion"
+  ],
+  "answer": {
+   "ok": {
+    "reach": {
+     "user": "root",
+     "host": "203.0.113.9",
+     "port": 22,
+     "keyPath": "/k"
+    },
+    "options": [
+     "ProxyCommand=ssh -o BatchMode=yes -W '[%h]:%p' 'ssh://bastion'"
+    ]
+   }
+  }
+ },
+ {
+  "name": "jump none",
+  "config": [
+   "user root",
+   "hostname 203.0.113.9",
+   "port 22",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "identityfile ~/.ssh/id_rsa",
+   "identityfile ~/.ssh/id_ed25519",
+   "globalknownhostsfile /etc/ssh/ssh_known_hosts",
+   "userknownhostsfile /Users/dev/.ssh/known_hosts",
+   "addkeystoagent false",
+   "proxyjump none"
+  ],
+  "answer": {
+   "ok": {
+    "reach": {
+     "user": "root",
+     "host": "203.0.113.9",
+     "port": 22,
+     "keyPath": "/k"
+    },
+    "options": []
+   }
+  }
+ },
+ {
+  "name": "jump and command",
+  "config": [
+   "user root",
+   "hostname 203.0.113.9",
+   "port 22",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "identityfile ~/.ssh/id_rsa",
+   "identityfile ~/.ssh/id_ed25519",
+   "globalknownhostsfile /etc/ssh/ssh_known_hosts",
+   "userknownhostsfile /Users/dev/.ssh/known_hosts",
+   "addkeystoagent false",
+   "proxyjump bastion",
+   "proxycommand nc %h %p"
+  ],
+  "answer": {
+   "ok": {
+    "reach": {
+     "user": "root",
+     "host": "203.0.113.9",
+     "port": 22,
+     "keyPath": "/k"
+    },
+    "options": [
+     "ProxyCommand=nc %h %p"
+    ]
+   }
+  }
+ },
+ {
+  "name": "quoted",
+  "config": [
+   "user root",
+   "hostname 203.0.113.9",
+   "port 22",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "globalknownhostsfile /etc/ssh/ssh_known_hosts",
+   "userknownhostsfile /Users/dev/.ssh/known_hosts",
+   "addkeystoagent false",
+   "identityfile ~/keys/my key",
+   "identityfile ~/odd/a\"b\\c",
+   "identityfile it's",
+   "identityagent /Users/dev/%h dir"
+  ],
+  "answer": {
+   "ok": {
+    "reach": {
+     "user": "root",
+     "host": "203.0.113.9",
+     "port": 22,
+     "keyPath": "/k"
+    },
+    "options": [
+     "IdentityFile=\"~/keys/my key\"",
+     "IdentityFile=\"~/odd/a\\\"b\\\\c\"",
+     "IdentityFile=\"it's\"",
+     "IdentityAgent=\"/Users/dev/%%h dir\""
+    ]
+   }
+  }
+ },
+ {
+  "name": "known kept",
+  "config": [
+   "user root",
+   "hostname 203.0.113.9",
+   "port 22",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "identityfile ~/.ssh/id_rsa",
+   "identityfile ~/.ssh/id_ed25519",
+   "globalknownhostsfile /etc/ssh/ssh_known_hosts",
+   "addkeystoagent false",
+   "userknownhostsfile /tmp/wsp-oracle-known-74L0OM/kept none"
+  ],
+  "answer": {
+   "ok": {
+    "reach": {
+     "user": "root",
+     "host": "203.0.113.9",
+     "port": 22,
+     "keyPath": "/k"
+    },
+    "options": [
+     "UserKnownHostsFile=/tmp/wsp-oracle-known-74L0OM/kept none"
+    ]
+   }
+  }
+ },
+ {
+  "name": "known missing",
+  "config": [
+   "user root",
+   "hostname 203.0.113.9",
+   "port 22",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "identityfile ~/.ssh/id_rsa",
+   "identityfile ~/.ssh/id_ed25519",
+   "globalknownhostsfile /etc/ssh/ssh_known_hosts",
+   "addkeystoagent false",
+   "userknownhostsfile /tmp/wsp-oracle-known-74L0OM/kept relative/hosts"
+  ],
+  "answer": {
+   "err": "root@box: your ssh config names relative/hosts as a known hosts file and this computer has no file there, so wsp will not dial back over ssh with it; create it, or rename a path that has a space in it",
+   "missingKnownHosts": true
+  }
+ },
+ {
+  "name": "global none",
+  "config": [
+   "user root",
+   "hostname 203.0.113.9",
+   "port 22",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "identityfile ~/.ssh/id_rsa",
+   "identityfile ~/.ssh/id_ed25519",
+   "userknownhostsfile /Users/dev/.ssh/known_hosts",
+   "addkeystoagent false",
+   "globalknownhostsfile none"
+  ],
+  "answer": {
+   "ok": {
+    "reach": {
+     "user": "root",
+     "host": "203.0.113.9",
+     "port": 22,
+     "keyPath": "/k"
+    },
+    "options": [
+     "GlobalKnownHostsFile=none"
+    ]
+   }
+  }
+ },
+ {
+  "name": "port junk",
+  "config": [
+   "user root",
+   "hostname 203.0.113.9",
+   "port abc",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "identityfile ~/.ssh/id_rsa",
+   "identityfile ~/.ssh/id_ed25519",
+   "globalknownhostsfile /etc/ssh/ssh_known_hosts",
+   "userknownhostsfile /Users/dev/.ssh/known_hosts",
+   "addkeystoagent false"
+  ],
+  "answer": {
+   "ok": {
+    "reach": {
+     "user": "root",
+     "host": "203.0.113.9",
+     "port": 2222,
+     "keyPath": "/k"
+    },
+    "options": []
+   }
+  }
+ },
+ {
+  "name": "no user or host",
+  "config": [
+   "port 22",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "identityfile ~/.ssh/id_rsa",
+   "identityfile ~/.ssh/id_ed25519",
+   "globalknownhostsfile /etc/ssh/ssh_known_hosts",
+   "userknownhostsfile /Users/dev/.ssh/known_hosts",
+   "addkeystoagent false"
+  ],
+  "answer": {
+   "ok": {
+    "reach": {
+     "user": "root",
+     "host": "box",
+     "port": 22,
+     "keyPath": "/k"
+    },
+    "options": []
+   }
+  }
+ },
+ {
+  "name": "unreadable",
+  "config": [
+   "user root",
+   "hostname 203.0.113.9",
+   "port 22",
+   "checkhostip no",
+   "identitiesonly no",
+   "hostkeyalgorithms ssh-ed25519",
+   "identityfile ~/.ssh/id_rsa",
+   "identityfile ~/.ssh/id_ed25519",
+   "globalknownhostsfile /etc/ssh/ssh_known_hosts",
+   "userknownhostsfile /Users/dev/.ssh/known_hosts",
+   "addkeystoagent false"
+  ],
+  "answer": {
+   "err": "line 3: Bad configuration option: frob",
+   "missingKnownHosts": false
+  }
+ }
+]
