@@ -480,3 +480,25 @@ fn facts_at_400_stand_one_a_line(cx: &mut TestAppContext) {
     let lines = at(narrow, "slate-facts").size.height;
     assert!(lines >= px(3. * 16. + 2. * 6.), "three facts, one a line: {lines:?}");
 }
+
+const FACTS_IN_ROW: &str = r#"<slate title="Checkout incident">
+  <column>
+    <row id="r" wrap>
+      <status tone="warning">Investigating</status>
+      <facts id="f" layout="line">
+        <fact label="Started" value="14:10" emphasis="strong" />
+        <fact label="Scope" value="Checkout API" />
+        <fact label="Impact" value="Customers receive 502 during checkout" tone="bad" />
+      </facts>
+    </row>
+  </column>
+</slate>
+"#;
+
+#[gpui_kit::test]
+fn facts_in_a_row_at_760_share_one_line(cx: &mut TestAppContext) {
+    // Their own width in a row is their content's, under 480 px, which must not turn them one a line.
+    let wide = open(cx, FACTS_IN_ROW, 760.);
+    let one_line = at(wide, "slate-facts").size.height;
+    assert!(one_line <= px(24.), "in a row the facts share a line: {one_line:?}");
+}

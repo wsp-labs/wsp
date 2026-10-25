@@ -220,7 +220,8 @@ export function slateGlanceProblems(doc: SlateDoc, read: SlateEvalContext, sketc
       const title = typeof c["title"] === "string" ? c["title"] : "a column";
       const value = every("value", v => v);
       const state = value === undefined ? every("value", stateWord) : undefined;
-      const tone = value === undefined && state === undefined ? every("tone", v => (v === null || v === "default" ? undefined : v)) : undefined;
+      // Muted ink names no state, so a column muted on every row is only a quieter one.
+      const tone = value === undefined && state === undefined ? every("tone", v => (v === null || v === "default" || v === "muted" ? undefined : v)) : undefined;
       if (value !== undefined) out.push(slateProblem("W036", `${title} reads ${JSON.stringify(value.v)} on all ${rows.length} rows of ${id}${of}, which says nothing row by row; say it once above the table, or show only the rows that differ`, { piece: id, prop: "columns" }));
       else if (state !== undefined) out.push(slateProblem("W036", `${title} says ${state.v} on all ${rows.length} rows of ${id}${of}: a state the same on every row says nothing; say it once as a count, <progress> or <stats>, and list only the rows that differ`, { piece: id, prop: "columns", fix: "<progress>" }));
       // A tone on every row is most often a list of one state's rows already (the failures alone): the rows stay, the tone goes.

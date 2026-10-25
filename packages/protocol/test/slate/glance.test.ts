@@ -112,6 +112,14 @@ describe("raw output and a same-status column", () => {
     expect(codes(list(""))).toContain("W036");
     expect(codes(list(" editable"))).not.toContain("W036");
   });
+
+  it("W036 leaves a column muted on every row, which names no state, and still fires on one bad on every row", () => {
+    const projects = [{ n: "wsp-agents", p: "Anthropic", w: 182.33 }, { n: "spoo-api", p: "OpenAI", w: 111.78 }, { n: "evals", p: "Anthropic", w: 82.6 }];
+    const table = (tone: string) => `<slate><value name="r" start={[]} /><column><table items={$r}><col title="Project" value={item.n} /><col title="Provider" value={item.p} tone=${tone} /><col title="Last 7 days" value={usd(item.w)} tone=${tone} /></table></column></slate>`;
+    expect(codes(table(`"muted"`), { r: projects })).not.toContain("W036");
+    expect(codes(table(`{item.w > 500 ? 'bad' : 'muted'}`), { r: projects })).not.toContain("W036");
+    expect(codes(table(`"bad"`), { r: projects })).toContain("W036");
+  });
 });
 
 // The slate a fresh thread wrote with the new catalog for the cold test's task 3 (a monorepo's test run), and the runs

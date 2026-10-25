@@ -630,7 +630,7 @@ const PIECES: Record<string, SlatePieceModule> = {
   },
   progress: {
     type: "progress", level: "core", reads: "eye", purpose: "A count of rows done, then only the rows not done, each with its note; items holds every row, done ones too.", holdsChildren: false, repeating: true,
-    props: { label: str({ ...req, about: "what the count counts, after \"12 of 14\": screens in the app" }), items: { type: "list", binds: "yes", required: true }, key: rowKey(), name: { type: "string", binds: "item", required: true }, done: { type: "boolean", binds: "item", required: true }, note: { type: "string", binds: "item", about: "a few words on a row not done" } },
+    props: { label: str({ ...req, about: "what the count counts, after \"12 of 14\": screens in the app" }), items: { type: "list", binds: "yes", required: true }, key: rowKey(), name: { type: "string", binds: "item", required: true }, done: { type: "boolean", binds: "item", required: true }, note: { type: "string", binds: "item", about: "what holds a row not done, in a few words, never its state" } },
     items: {}, events: [],
     sketch: v => {
       const items = v.prop("items");
@@ -643,7 +643,7 @@ const PIECES: Record<string, SlatePieceModule> = {
       const cut = Math.min(open.length, SLATE_LIMITS.sketchRows);
       return [head, ...open.slice(0, cut).map(r => `  ${join2(shown(r.name), shown(r.note))}`), ...(open.length > cut ? [`  and ${open.length - cut} more not done`] : [])];
     },
-    fallback: "checklist", example: `<progress label="screens in the app" items={$p.json.screens} name={item.name} done={item.state == "in"} note={item.state} />`,
+    fallback: "checklist", example: `<progress label="screens in the app" items={$p.json.screens} name={item.name} done={item.state == "in"} note={item.blocker} />`,
   },
   toggle: {
     type: "toggle", level: "core", purpose: "An on/off switch written to its boolean $value.", holdsChildren: false, interactive: true,

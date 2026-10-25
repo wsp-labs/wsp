@@ -138,6 +138,21 @@ describe.skipIf(renderSkipped !== undefined)("the glance pieces in Chromium", ()
     await page.close();
   });
 
+  it.each(MATRIX)("a facts line in a row beside a status keeps each pair on one line, at $w px in $theme", async ({ w, theme }) => {
+    const page = await open("glance-facts-row", w, theme);
+    const read = await page.evaluate(() => {
+      const facts = document.querySelector<HTMLElement>("[data-slate-piece=facts]")!;
+      const lines = [...facts.querySelectorAll<HTMLElement>("[data-settings-label], [data-settings-word]")].map(el => new Set([...el.getClientRects()].map(r => Math.round(r.top))).size);
+      return { lines, height: facts.getBoundingClientRect().height, width: facts.getBoundingClientRect().width };
+    });
+    await shoot(page, "glance-facts-row", w, theme);
+    expect(read.lines).toEqual([1, 1, 1, 1, 1, 1]);
+    // Three pairs at most a line each, never a word a line.
+    expect(read.height).toBeLessThanOrEqual(3 * 24);
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    await page.close();
+  });
+
   it.each(MATRIX)("a decision, a progress, an output, choices and a table draw inside the panel at $w px in $theme", async ({ w, theme }) => {
     for (const doc of ["glance-decision", "glance-progress", "glance-output", "glance-choices", "glance-table"]) {
       const page = await open(doc, w, theme);
