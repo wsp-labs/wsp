@@ -159,13 +159,18 @@ fn answered<T>(cx: &mut TestAppContext, what: &str, sent: impl Future<Output = T
 }
 
 /// Moves the test clock past the heartbeats one at a time, letting each ping come back before the next beat.
-fn pass_time(cx: &mut TestAppContext, seconds: u64) {
+fn pass_time(host: &Host, cx: &mut TestAppContext, seconds: u64) {
     for _ in 0..seconds / 10 {
         cx.executor().advance_clock(Duration::from_secs(10));
-        let end = Instant::now() + Duration::from_secs(2);
-        while Instant::now() < end {
+        let until = Instant::now() + Duration::from_secs(30);
+        loop {
             cx.run_until_parked();
-            std::thread::sleep(Duration::from_millis(50));
+            let out = cx.update(|cx| Link::find(&host.target(), cx).is_some_and(|l| l.read(cx).awaiting_pong()));
+            if !out {
+                break;
+            }
+            assert!(Instant::now() < until, "a heartbeat's ping came back within 30 s");
+            std::thread::sleep(Duration::from_millis(20));
         }
     }
 }
@@ -199,9 +204,9 @@ fn one_channel_per_workspace_closed_with_its_last_holder(cx: &mut TestAppContext
     host.settles_at(port, before + 1, "the channel stays while one holder does");
     drop(b);
     cx.update(|_| {});
-    pass_time(cx, 20);
+    pass_time(&host, cx, 20);
     host.settles_at(port, before + 1, "the channel stays inside its release time, as a terminal's does");
-    pass_time(cx, 30);
+    pass_time(&host, cx, 30);
     host.settles_at(port, before, "the channel closes once its last holder's release time passed");
     println!("channels: {before} before, {} with two holders, {before} after", before + 1);
 }

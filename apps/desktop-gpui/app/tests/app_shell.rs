@@ -101,9 +101,15 @@ fn press_chord(cx: &mut VisualTestContext, chord: &str) {
     cx.run_until_parked();
 }
 
-/// Waits out the sidebar's 200 ms slide and draws the frame it ends on.
-fn slid(cx: &mut VisualTestContext) {
-    std::thread::sleep(Duration::from_millis(250));
+/// Draws frames until the sidebar's 200 ms slide has ended, then the frame it ends on.
+fn slid(shell: &Entity<Shell>, cx: &mut VisualTestContext) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while shell.read_with(cx, |s, _| s.sidebar_sliding()) {
+        assert!(Instant::now() < deadline, "the sidebar's slide never ended");
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        std::thread::sleep(Duration::from_millis(10));
+    }
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
 }
@@ -159,11 +165,11 @@ fn both_sidebar_chords_toggle_it(cx: &mut TestAppContext) {
         press_chord(cx, chord);
         assert!(!shell.read_with(cx, |s, _| s.sidebar_open()), "{chord} closes the sidebar");
         assert!(cx.debug_bounds("sidebar-column").is_some(), "it slides out rather than vanish");
-        slid(cx);
+        slid(&shell, cx);
         assert!(cx.debug_bounds("sidebar-column").is_none(), "nothing of the sidebar stays on screen");
         press_chord(cx, chord);
         assert!(shell.read_with(cx, |s, _| s.sidebar_open()), "{chord} opens it again");
-        slid(cx);
+        slid(&shell, cx);
         assert_eq!(cx.debug_bounds("sidebar-column").unwrap().origin.x, px(0.), "and slides back in whole");
     }
 }
@@ -784,6 +790,11 @@ fn a_drag_writes_the_sidebar_width_to_the_host(cx: &mut TestAppContext) {
     cx.simulate_mouse_down(point(px(256.), px(400.)), MouseButton::Left, Modifiers::none());
     cx.simulate_mouse_move(point(px(266.), px(400.)), MouseButton::Left, Modifiers::none());
     cx.simulate_mouse_move(point(px(300.), px(400.)), MouseButton::Left, Modifiers::none());
+    // A record that lands before the release and says nothing new of the width, as the sidebar's first read on a slow
+    // computer, leaves the width the release writes.
+    let sidebar = shell.read_with(cx, |s, _| s.sidebar().clone());
+    sidebar.update(cx, |s, cx| s.apply(desktop_gpui::sidebar::host::Change::Preferences(json!({ "theme": "system", "labs": true })), cx));
+    cx.run_until_parked();
     cx.simulate_mouse_up(point(px(300.), px(400.)), MouseButton::Left, Modifiers::none());
     let deadline = Instant::now() + Duration::from_secs(30);
     while get(&host).get("sidebarWidth").and_then(|w| w.as_i64()) != Some(300) {
@@ -1602,7 +1613,7 @@ fn the_sidebar_is_shut_from_767_px_and_comes_back_as_left_at_768(cx: &mut TestAp
     let at = |width: f32, cx: &mut VisualTestContext| {
         cx.simulate_resize(size(px(width), px(800.)));
         cx.run_until_parked();
-        slid(cx);
+        slid(&shell, cx);
         (cx.debug_bounds("sidebar-column").is_some(), shell.update_in(cx, |s, window, _| s.sidebar_visible(window)))
     };
     assert_eq!(at(768., cx), (true, true));
