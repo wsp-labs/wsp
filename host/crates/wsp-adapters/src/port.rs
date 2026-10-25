@@ -18,7 +18,7 @@ use serde_json::{Map, Value};
 
 pub use crate::pending::McpServerSpec;
 pub use wsp_wire::views::harness::ScreenCommand;
-pub use wsp_wire::types::pending_wire::PermissionOption;
+pub use wsp_wire::wire::helpers::PermissionOption;
 pub use wsp_wire::types::usage::HarnessLimit;
 pub use wsp_wire::views::session::{PermissionOutcome, SubagentState, SubagentUsage};
 pub use wsp_wire::views::session_events::{DeltaKind, FilePatch, PlanStep, SessionHarness, TurnResult, TurnStatus, TurnTokens};
