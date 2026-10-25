@@ -1,0 +1,186 @@
+{
+  "theirsTwoRounds": {
+    "first": {
+      "rows": [
+        [
+          "agents/mcp/claude/gsc",
+          "installed",
+          "npx fetches the package on first use"
+        ],
+        [
+          "agents/mcp/claude/notes",
+          "skipped",
+          "command is macOS-only, will not run"
+        ],
+        [
+          "agents/mcp/claude/mine",
+          "skipped",
+          "mine in {root}/.claude-cfg/.claude.json is Claude Code's own under that name; wsp does not write over it"
+        ],
+        [
+          "agents/mcp/codex/context7",
+          "installed",
+          "npx fetches the package on first use"
+        ],
+        [
+          "agents/mcp/codex/grafana",
+          "skipped",
+          "unticked"
+        ]
+      ],
+      "appended": [
+        "agents/mcp/claude/gsc\t136a3bdf076313d5f67aa86ad93735fe3aca552aa4f6c33f5f7dff96a7d029aa\t136a3bdf076313d5f67aa86ad93735fe3aca552aa4f6c33f5f7dff96a7d029aa",
+        "agents/mcp/codex/context7\t5b040d99300afc395ef3173b9cf7d0aecc1f150fba04e0e9364804b8bb6c22e0\t5b040d99300afc395ef3173b9cf7d0aecc1f150fba04e0e9364804b8bb6c22e0",
+        "agents/mcp/claude/notes\t-\t-",
+        "agents/mcp/claude/mine\t-\t-",
+        "agents/mcp/codex/grafana\t-\t-"
+      ],
+      "listed": [
+        "agents/mcp/claude/gsc\t136a3bdf076313d5f67aa86ad93735fe3aca552aa4f6c33f5f7dff96a7d029aa\t136a3bdf076313d5f67aa86ad93735fe3aca552aa4f6c33f5f7dff96a7d029aa",
+        "agents/mcp/codex/context7\t5b040d99300afc395ef3173b9cf7d0aecc1f150fba04e0e9364804b8bb6c22e0\t5b040d99300afc395ef3173b9cf7d0aecc1f150fba04e0e9364804b8bb6c22e0"
+      ]
+    },
+    "firstInto": [
+      [
+        "{root}/.claude-cfg/.claude.json",
+        [
+          "gsc"
+        ]
+      ],
+      [
+        "{root}/.codex/config.toml",
+        [
+          "context7"
+        ]
+      ]
+    ],
+    "second": {
+      "rows": [
+        [
+          "agents/mcp/claude/gsc",
+          "present",
+          null
+        ],
+        [
+          "agents/mcp/claude/notes",
+          "skipped",
+          "command is macOS-only, will not run"
+        ],
+        [
+          "agents/mcp/claude/mine",
+          "skipped",
+          "mine in {root}/.claude-cfg/.claude.json is Claude Code's own under that name; wsp does not write over it"
+        ],
+        [
+          "agents/mcp/codex/context7",
+          "present",
+          null
+        ],
+        [
+          "agents/mcp/codex/grafana",
+          "skipped",
+          "unticked"
+        ]
+      ],
+      "appended": [
+        "agents/mcp/claude/gsc\t136a3bdf076313d5f67aa86ad93735fe3aca552aa4f6c33f5f7dff96a7d029aa\t136a3bdf076313d5f67aa86ad93735fe3aca552aa4f6c33f5f7dff96a7d029aa",
+        "agents/mcp/codex/context7\t5b040d99300afc395ef3173b9cf7d0aecc1f150fba04e0e9364804b8bb6c22e0\t5b040d99300afc395ef3173b9cf7d0aecc1f150fba04e0e9364804b8bb6c22e0",
+        "agents/mcp/claude/notes\t-\t-",
+        "agents/mcp/claude/mine\t-\t-",
+        "agents/mcp/codex/grafana\t-\t-"
+      ],
+      "listed": [
+        "agents/mcp/claude/gsc\t136a3bdf076313d5f67aa86ad93735fe3aca552aa4f6c33f5f7dff96a7d029aa\t136a3bdf076313d5f67aa86ad93735fe3aca552aa4f6c33f5f7dff96a7d029aa",
+        "agents/mcp/codex/context7\t5b040d99300afc395ef3173b9cf7d0aecc1f150fba04e0e9364804b8bb6c22e0\t5b040d99300afc395ef3173b9cf7d0aecc1f150fba04e0e9364804b8bb6c22e0"
+      ]
+    },
+    "claude": "{\n  \"numStartups\": 41,\n  \"mcpServers\": {\n    \"mine\": {\n      \"command\": \"/usr/local/bin/mine\",\n      \"args\": []\n    },\n    \"gsc\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"gsc-mcp\",\n        \"--stdio\"\n      ]\n    }\n  }\n}\n",
+    "codex": "model = \"gpt-5\"\n\n[mcp_servers.context7]\ncommand = \"npx\"\nargs = [\"-y\", \"context7\"]\n"
+  },
+  "untrusted": {
+    "rows": [
+      [
+        "agents/mcp/codex/@%2Froot%2Frepo/grafana",
+        "skipped",
+        "unticked"
+      ],
+      [
+        "agents/mcp/codex/@%2Froot%2Frepo/context7",
+        "skipped",
+        "Codex reads them only in a folder it trusts, and /root/repo could not be marked trusted (the trust of /root/repo is written in a shape wsp does not edit)"
+      ]
+    ],
+    "appended": [],
+    "listed": [],
+    "into": [
+      [
+        "{root}/.codex/config.toml",
+        []
+      ]
+    ],
+    "codex": "model = \"o3\"\n\nprojects = { \"/root/repo\" = { trust_level = \"untrusted\" } }\n",
+    "codexOnBox": "model = \"o3\"\n\nprojects = { \"/root/repo\" = { trust_level = \"untrusted\" } }\n"
+  },
+  "noCopy": {
+    "rows": [
+      [
+        "agents/mcp/claude/gsc",
+        "present",
+        null
+      ],
+      [
+        "agents/mcp/claude/notes",
+        "skipped",
+        "command is macOS-only, will not run"
+      ],
+      [
+        "agents/mcp/claude/mine",
+        "skipped",
+        "nothing of this computer's copy of {root}/.claude-cfg/.claude.json arrived this run"
+      ]
+    ],
+    "appended": [],
+    "listed": [],
+    "into": [
+      [
+        "{root}/.claude-cfg/.claude.json",
+        []
+      ]
+    ],
+    "claude": "{\n  \"mcpServers\": {\n    \"gsc\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"gsc-mcp\",\n        \"--stdio\"\n      ]\n    }\n  }\n}\n",
+    "onBox": "{\n  \"mcpServers\": {\n    \"gsc\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"gsc-mcp\",\n        \"--stdio\"\n      ]\n    }\n  }\n}\n"
+  },
+  "readFailed": {
+    "rows": [
+      [
+        "agents/mcp/claude/gsc",
+        "skipped",
+        "the config edit did not run (read: permission denied)"
+      ],
+      [
+        "agents/mcp/claude/mine",
+        "skipped",
+        "the config edit did not run (read: permission denied)"
+      ],
+      [
+        "agents/mcp/claude/notes",
+        "skipped",
+        "command is macOS-only, will not run"
+      ],
+      [
+        "agents/mcp/codex/context7",
+        "skipped",
+        "the config edit did not run (read: permission denied)"
+      ],
+      [
+        "agents/mcp/codex/grafana",
+        "skipped",
+        "unticked"
+      ]
+    ],
+    "appended": [],
+    "listed": [],
+    "into": [],
+    "runs": 4
+  }
+}

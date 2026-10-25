@@ -1,0 +1,200 @@
+{
+  "toolsLoop": {
+    "staged": [
+      [
+        "bat (1/3)",
+        "1/3: bat",
+        null
+      ],
+      [
+        "bat: installed",
+        "2/3: Git LFS",
+        {
+          "id": "tools/brew/bat",
+          "label": "bat",
+          "outcome": "installed",
+          "note": null,
+          "step": "clis"
+        }
+      ],
+      [
+        "Git LFS (2/3)",
+        "2/3: Git LFS",
+        null
+      ],
+      [
+        "Git LFS: failed (git lfs install --system: git: 'lfs' is not a git command)",
+        "3/3: jq",
+        {
+          "id": "tools/brew/git-lfs",
+          "label": "Git LFS",
+          "outcome": "failed",
+          "note": "git lfs install --system: git: 'lfs' is not a git command",
+          "step": "clis"
+        }
+      ],
+      [
+        "jq (3/3)",
+        "3/3: jq",
+        null
+      ],
+      [
+        "jq: installed",
+        null,
+        {
+          "id": "tools/brew/jq",
+          "label": "jq",
+          "outcome": "installed",
+          "note": null,
+          "step": "clis"
+        }
+      ],
+      [
+        "bat: the check did not pass: brew list --versions bat",
+        null,
+        null
+      ],
+      [
+        "2 installed, 1 failed: bat (Error: brew cannot read the folder.); 8.6 GB free",
+        null,
+        null
+      ],
+      [
+        "bat: failed (Error: brew cannot read the folder.)",
+        null,
+        null
+      ]
+    ],
+    "rows": [
+      {
+        "id": "tools/brew/bat",
+        "label": "bat",
+        "outcome": "failed",
+        "note": "Error: brew cannot read the folder.",
+        "step": "clis"
+      },
+      {
+        "id": "tools/brew/git-lfs",
+        "label": "Git LFS",
+        "outcome": "failed",
+        "note": "git lfs install --system: git: 'lfs' is not a git command",
+        "step": "clis"
+      },
+      {
+        "id": "tools/brew/jq",
+        "label": "jq",
+        "outcome": "installed",
+        "note": null,
+        "step": "clis"
+      }
+    ],
+    "runTools": [
+      [
+        "tools/brew/bat",
+        "failed",
+        "Error: brew cannot read the folder."
+      ],
+      [
+        "tools/brew/git-lfs",
+        "installed",
+        null
+      ],
+      [
+        "tools/brew/jq",
+        "installed",
+        null
+      ]
+    ]
+  },
+  "plugins": {
+    "rows": [
+      {
+        "id": "plugins/blank",
+        "label": "blank",
+        "outcome": "failed",
+        "note": "exit 3",
+        "step": "plugins"
+      },
+      {
+        "id": "plugins/gone",
+        "label": "gone",
+        "outcome": "failed",
+        "note": "connection reset",
+        "step": "plugins"
+      },
+      {
+        "id": "plugins/quiet",
+        "label": "quiet",
+        "outcome": "failed",
+        "note": "last of stdout",
+        "step": "plugins"
+      },
+      {
+        "id": "plugins/long",
+        "label": "long",
+        "outcome": "failed",
+        "note": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+        "step": "plugins"
+      },
+      {
+        "id": "plugins/fine",
+        "label": "fine",
+        "outcome": "installed",
+        "note": null,
+        "step": "plugins"
+      }
+    ],
+    "staged": [
+      [
+        "blank: failed (exit 3)",
+        {
+          "id": "plugins/blank",
+          "label": "blank",
+          "outcome": "failed",
+          "note": "exit 3",
+          "step": "plugins"
+        }
+      ],
+      [
+        "gone: failed (connection reset)",
+        {
+          "id": "plugins/gone",
+          "label": "gone",
+          "outcome": "failed",
+          "note": "connection reset",
+          "step": "plugins"
+        }
+      ],
+      [
+        "quiet: failed (last of stdout)",
+        {
+          "id": "plugins/quiet",
+          "label": "quiet",
+          "outcome": "failed",
+          "note": "last of stdout",
+          "step": "plugins"
+        }
+      ],
+      [
+        "long: failed (yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy)",
+        {
+          "id": "plugins/long",
+          "label": "long",
+          "outcome": "failed",
+          "note": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+          "step": "plugins"
+        }
+      ],
+      [
+        "fine: installed",
+        {
+          "id": "plugins/fine",
+          "label": "fine",
+          "outcome": "installed",
+          "note": null,
+          "step": "plugins"
+        }
+      ]
+    ]
+  }
+}

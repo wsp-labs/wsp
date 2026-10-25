@@ -123,7 +123,7 @@ struct Guest {
     root: PathBuf,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl FakeGuest for Guest {
     fn folder(&self, machine_id: &str) -> PathBuf {
         self.root.join(machine_id)

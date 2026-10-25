@@ -137,10 +137,10 @@ async fn exec_runs_a_shell_command_on_this_computer_under_the_workspace_folder()
     let backend = backend_in(root.path());
     let machine = backend.get(LOCAL_MACHINE_ID).await.unwrap();
     let ok = machine.exec("printf hi; pwd", ExecOptions::default()).await.unwrap();
-    assert_eq!(ok.exit_code, 0);
+    assert_eq!(ok.exit_code, 0.into());
     assert_eq!(ok.stdout, format!("hi{}\n", std::fs::canonicalize(root.path()).unwrap().display()));
     let bad = machine.exec("exit 7", ExecOptions::default()).await.unwrap();
-    assert_eq!(bad.exit_code, 7);
+    assert_eq!(bad.exit_code, 7.into());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -158,7 +158,7 @@ async fn files_read_and_write_under_the_workspace_folder() {
     let backend = backend_in(root.path());
     let machine = backend.get(LOCAL_MACHINE_ID).await.unwrap();
     let wrote = machine.exec("printf pong > note.txt", ExecOptions::default()).await.unwrap();
-    assert_eq!(wrote.exit_code, 0);
+    assert_eq!(wrote.exit_code, 0.into());
     assert_eq!(std::fs::read_to_string(root.path().join("note.txt")).unwrap(), "pong");
     let read = machine.exec("cat note.txt", ExecOptions::default()).await.unwrap();
     assert_eq!(read.stdout, "pong");
@@ -175,7 +175,7 @@ async fn run_streams_each_line() {
     let opts = RunOptions { deadline_ms: 5000, on_line: Some(on_line), ..Default::default() };
     let res = machine.run("printf 'a\\nb\\n'; exit 3", opts).await.unwrap();
     assert_eq!(*lines.lock().unwrap(), ["a", "b"]);
-    assert_eq!(res.exit_code, 3);
+    assert_eq!(res.exit_code, 3.into());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -184,7 +184,7 @@ async fn a_command_past_its_deadline_is_killed_and_answers_124() {
     let backend = backend_in(root.path());
     let machine = backend.get(LOCAL_MACHINE_ID).await.unwrap();
     let res = machine.run("sleep 5", RunOptions { deadline_ms: 150, ..Default::default() }).await.unwrap();
-    assert_eq!(res.exit_code, 124);
+    assert_eq!(res.exit_code, 124.into());
 }
 
 #[tokio::test]

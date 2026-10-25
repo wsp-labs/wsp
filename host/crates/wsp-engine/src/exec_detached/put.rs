@@ -59,10 +59,10 @@ pub struct ReadPage<T> {
 }
 
 /// exec-detached.ts:82. Many short reads in as few execs as they fit in; `line` gets the row's place in its page.
-pub async fn paged_reads<T: Clone + Send + Sync>(
+pub async fn paged_reads<T: Clone>(
     machine: &dyn Machine,
     rows: &[T],
-    line: impl Fn(&T, usize) -> String + Send + Sync,
+    line: impl Fn(&T, usize) -> String,
     head: &str,
 ) -> Result<Vec<ReadPage<T>>> {
     todo!()

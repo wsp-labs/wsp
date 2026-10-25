@@ -12,6 +12,9 @@ at that commit. Rules every unit here shares:
   has the helpers.
 - **JSON key order** is the TS object literal's order, and serde_json here keeps insertion order. Where a Rust struct
   serializes a wire type in wsp-wire's schema order instead, the spec says so.
+- **One thread** (the coordinator's ruling on #2448, chapter 03). No engine trait has a `Send` or `Sync` bound and no
+  future is required to be `Send`: `#[async_trait(?Send)]`, `LocalBoxFuture` and `LocalBoxStream`, and a callback type is
+  a plain `Arc<dyn Fn(..)>`. A test that runs a machine's future in the background uses `LocalSet` and `spawn_local`.
 - **Numbers.** A TS `number` read off JSON is `f64` here unless the spec pins an integer. `Number(x)` on a string
   follows JavaScript: `""` and `"  "` are 0, `"1e3"` is 1000, `"0x10"` is 16, `"abc"` is NaN.
 - **Nothing survives a host restart** in this slice except what the provider keeps (boxes, named snapshots, a create
@@ -28,11 +31,11 @@ at that commit. Rules every unit here shares:
   With one, the TS's own rules hold: settle (box-backend.ts:760) throws the reason where it is an error, else
   `<what> of <id> was stopped by its caller`; `while_restoring` (:777) the reason, else `the call was stopped by its
   caller`; a link resume (link-backend.ts:190) the reason, else `Error(String(reason))`, the reason's words; a fetch
-  rejects with the reason itself. `tokio_util`'s `CancellationToken` holds no reason, so the type the signatures take
-  must change (a token plus an optional reason, set before the cancel fires). The trait methods that take one,
-  `Machine::resume` and `resume_at` among them, are shared with the rest and provision slices, so the type is left
-  for the coordinator to place once across the crate; until then the tests here pass no reason and assert
-  `aborted()`.
+  rejects with the reason itself. `src/cancel.rs`'s `Cancel` is the type every method takes (as `&Cancel`): a clonable
+  handle around a `CancellationToken` and the reason of the first cancel, set before the token fires. `cancel(None)` or
+  `cancel(Some(reason))` cancels; `reason()` answers the reason or `"This operation was aborted"`; `given_reason()`
+  answers `None` where none was passed, which is what the rules above test. `fetch::Abort` carries the caller's `Cancel`
+  so a fetch it ended rejects with the reason. The tests that pass no reason assert `aborted()`.
 
 | Unit | Rust | TS | Spec |
 |---|---|---|---|

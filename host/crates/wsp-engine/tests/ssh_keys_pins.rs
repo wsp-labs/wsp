@@ -45,7 +45,7 @@ fn the_refusal_line_keeps_its_last_300_units_untrimmed() {
     let reach = SshReach { user: "u".into(), host: "h".into(), port: 22, key_path: None };
     for case in pins()["refusal"].as_array().unwrap() {
         let said = ExecResult {
-            exit_code: case["in"]["exitCode"].as_i64().unwrap(),
+            exit_code: case["in"]["exitCode"].as_i64().unwrap().into(),
             stdout: String::new(),
             stderr: case["in"]["stderr"].as_str().unwrap().to_string(),
         };

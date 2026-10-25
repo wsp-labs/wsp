@@ -23,7 +23,7 @@ pub const SESSIONS: &str = "sessions";
 /// pi.ts:15. carry moves; states sessions; roots sessions; no key; listing one keyed step over <home>/sessions.
 pub struct PiResolver;
 
-#[async_trait]
+#[async_trait(?Send)]
 impl ProjectStateResolver for PiResolver {
     fn agent(&self) -> &'static str {
         todo!()

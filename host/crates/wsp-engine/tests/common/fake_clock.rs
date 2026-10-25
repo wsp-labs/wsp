@@ -35,7 +35,7 @@ impl FakeClock {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl RetryClock for FakeClock {
     fn now(&self) -> i64 {
         self.at.load(Ordering::SeqCst)

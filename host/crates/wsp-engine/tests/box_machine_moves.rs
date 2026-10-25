@@ -11,11 +11,11 @@ use std::sync::Arc;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine as _;
 use serde_json::{json, Value};
-use tokio_util::sync::CancellationToken;
 use wsp_engine::box_backend::{
     stop_refusal_of, BoxBudgetsAsk, BoxClassType, BoxMachine, BoxView, BOX_CLASSES, FILE_GET_MAX, FILE_PUT_MAX, FIREWALL_HOLD_MS,
     FIREWALL_WATCH_MS, TRIAL_TTL_S,
 };
+use wsp_engine::cancel::Cancel;
 use wsp_engine::errors::{aborted, is_missing, EngineError, ROAD_TRIES};
 use wsp_engine::machine::{
     Machine, MachineBackend, MachineKind, MachineLife, MachineShape, MachineState, PreviewReach, RootDisk, Size, SnapshotOptions,
@@ -373,20 +373,20 @@ async fn a_resume_of_a_box_the_provider_lost_is_missing_one_that_reads_error_nam
     assert!(e.to_string().contains("reads error during resume: restore failed"), "{e}");
 
     let slow = FakeBox::new().on("POST", &path("/resume"), vec![resuming()]).on("GET", &path(""), vec![idle("provisioned")]);
-    let stop = CancellationToken::new();
+    let stop = Cancel::new();
     let (_on, machine) = machine_on(&slow, ID);
-    let (waited, _) = tokio::join!(machine.resume(Some(stop.clone())), async {
+    let (waited, _) = tokio::join!(machine.resume(Some(&stop)), async {
         tokio::task::yield_now().await;
-        stop.cancel();
+        stop.cancel(None);
     });
-    // A token carries no reason: a cancel ends the resume as every road ends on one, with the abort.
+    // No reason was passed: the cancel ends the resume as every road ends on one, with the abort.
     assert_eq!(waited.unwrap_err(), aborted());
 }
 
 /// box-backend.test.ts:853
 #[tokio::test]
 async fn a_resume_the_caller_stopped_waiting_on_ends_where_the_stop_was_even_while_the_probe_is_refused() {
-    let stop = CancellationToken::new();
+    let stop = Cancel::new();
     let refusals = Arc::new(AtomicU32::new(0));
     let api = FakeBox::new().on("POST", &path("/resume"), vec![resuming()]).on("GET", &path(""), vec![idle("ready")]).on(
         "POST",
@@ -395,7 +395,7 @@ async fn a_resume_the_caller_stopped_waiting_on_ends_where_the_stop_was_even_whi
             let (stop, refusals) = (stop.clone(), refusals.clone());
             move |_| {
                 if refusals.fetch_add(1, Ordering::SeqCst) + 1 == 1 {
-                    stop.cancel();
+                    stop.cancel(None);
                 }
                 Answer::Reply(error(502, "bad_gateway", "Bad Gateway"))
             }
@@ -403,7 +403,7 @@ async fn a_resume_the_caller_stopped_waiting_on_ends_where_the_stop_was_even_whi
     );
     let on = backend_on(&api, "trial", BoxBudgetsAsk { restore_ms: Some(10_000), ..Default::default() });
     let machine = BoxMachine::new(on.backend.clone(), ID, MachineKind::Sandbox, None, None, false);
-    let e = machine.resume(Some(stop.clone())).await.unwrap_err();
+    let e = machine.resume(Some(&stop)).await.unwrap_err();
     assert_eq!(e, aborted());
     // The stop ends the probe's waiting too: no second round of commands goes to a box nobody is waiting for.
     assert!(refusals.load(Ordering::SeqCst) <= ROAD_TRIES);

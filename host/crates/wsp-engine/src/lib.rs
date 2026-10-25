@@ -3,6 +3,7 @@
 //! each module names its TS file and its spec under spec/. golden*.ts and image-*.ts wait on #2441's ruling.
 pub mod box_backend;
 pub mod brew_shared;
+pub mod cancel;
 pub mod child_exec;
 pub mod config_here;
 pub mod copier;
@@ -46,5 +47,6 @@ pub mod tool_sizes;
 pub mod vault;
 pub mod vault_cipher;
 
+pub use cancel::Cancel;
 pub use errors::EngineError;
 pub use machine::{Machine, MachineBackend};

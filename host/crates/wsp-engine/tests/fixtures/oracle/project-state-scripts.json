@@ -1,0 +1,845 @@
+{
+ "pyPreamble": "import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\"' + name.replace('\"', '\"\"') + '\"'",
+ "rootsStep": "for r in ROOTS:\n    say(r)",
+ "pyData": [
+  {
+   "text": "\"plain\"",
+   "py": "data(\"InBsYWluIg==\")"
+  },
+  {
+   "text": "\"/Users/ada/my project/é 日本 🎉\"",
+   "py": "data(\"Ii9Vc2Vycy9hZGEvbXkgcHJvamVjdC/DqSDml6XmnKwg8J+OiSI=\")"
+  },
+  {
+   "text": "\"tab\\tquote\\\"backslash\\\\nl\\ncr\\rnul\\u0000del\\u007fls\\u2028\"",
+   "py": "data(\"InRhYlx0cXVvdGVcImJhY2tzbGFzaFxcbmxcbmNyXHJudWxcdTAwMDBkZWx/bHPigKgi\")"
+  },
+  {
+   "text": "1",
+   "py": "data(\"MQ==\")"
+  },
+  {
+   "text": "1.5",
+   "py": "data(\"MS41\")"
+  },
+  {
+   "text": "-0",
+   "py": "data(\"MA==\")"
+  },
+  {
+   "text": "1e21",
+   "py": "data(\"MWUrMjE=\")"
+  },
+  {
+   "text": "0.30000000000000004",
+   "py": "data(\"MC4zMDAwMDAwMDAwMDAwMDAwNA==\")"
+  },
+  {
+   "text": "123456789012345680000",
+   "py": "data(\"MTIzNDU2Nzg5MDEyMzQ1NjgwMDAw\")"
+  },
+  {
+   "text": "null",
+   "py": "data(\"bnVsbA==\")"
+  },
+  {
+   "text": "true",
+   "py": "data(\"dHJ1ZQ==\")"
+  },
+  {
+   "text": "[]",
+   "py": "data(\"W10=\")"
+  },
+  {
+   "text": "{}",
+   "py": "data(\"e30=\")"
+  },
+  {
+   "text": "{\"b\":1,\"2\":2,\"1\":3,\"a\":{\"10\":1,\"9\":2}}",
+   "py": "data(\"eyIxIjozLCIyIjoyLCJiIjoxLCJhIjp7IjkiOjIsIjEwIjoxfX0=\")"
+  },
+  {
+   "text": "[[\"/a\",\"/b\",\"slug\"],{\"x\":null}]",
+   "py": "data(\"W1siL2EiLCIvYiIsInNsdWciXSx7IngiOm51bGx9XQ==\")"
+  }
+ ],
+ "listScript": "import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\"' + name.replace('\"', '\"\"') + '\"'\nAGENT = data(\"ImNsYXVkZSI=\")\nHOME = data(\"Ii9yb290Ly5jbGF1ZGUi\")\nPATH = os.path.normpath(data(\"Ii9Vc2Vycy9hZGEvYl8yLngvIg==\"))\nROOTS = [os.path.join(HOME, r) for r in data(\"WyJwcm9qZWN0cyIsImEvLi4vYiJd\")]\nOUT = []\nUNREAD = []\ndef say(p):\n    if os.path.exists(p) and p not in OUT:\n        OUT.append(p)\ndef unread(store, copy, why, said):\n    del OUT[said:]\n    if os.path.exists(copy):\n        os.remove(copy)\n    UNREAD.append({\"agent\": AGENT, \"store\": store, \"why\": str(why) or type(why).__name__})\ntry:\n    say(1)\n    for x in y:\n        say(x)\nexcept Exception:\n    OUT = []\n    for r in ROOTS:\n        say(r)\nfor p in OUT:\n    print(p)\nfor u in UNREAD:\n    print(data(\"IiF1bnJlYWQgIg==\") + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))",
+ "listScriptNoSteps": "import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\"' + name.replace('\"', '\"\"') + '\"'\nAGENT = data(\"InBpIg==\")\nHOME = data(\"Ii9oIg==\")\nPATH = os.path.normpath(data(\"Ii9wIg==\"))\nROOTS = [os.path.join(HOME, r) for r in data(\"W10=\")]\nOUT = []\nUNREAD = []\ndef say(p):\n    if os.path.exists(p) and p not in OUT:\n        OUT.append(p)\ndef unread(store, copy, why, said):\n    del OUT[said:]\n    if os.path.exists(copy):\n        os.remove(copy)\n    UNREAD.append({\"agent\": AGENT, \"store\": store, \"why\": str(why) or type(why).__name__})\ntry:\n    for r in ROOTS:\n        say(r)\nexcept Exception:\n    OUT = []\n    for r in ROOTS:\n        say(r)\nfor p in OUT:\n    print(p)\nfor u in UNREAD:\n    print(data(\"IiF1bnJlYWQgIg==\") + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))",
+ "keyedStep": "PARENT = data(\"Ii9yb290Ly5jbGF1ZGUvcHJvamVjdHMi\")\nkey = lambda p: p\ndef recorded(d):\n    found = []\n    for base, _dirs, names in os.walk(d):\n        found += [os.path.join(base, n) for n in names if n.endswith(\".jsonl\")]\n    for f in sorted(found):\n        with open(f, encoding=\"utf-8\", errors=\"surrogateescape\", newline=\"\") as h:\n            for line in h:\n                try:\n                    obj = json.loads(line)\n                except ValueError:\n                    continue\n                if isinstance(obj, dict) and isinstance(obj.get(\"cwd\"), str):\n                    return obj[\"cwd\"]\n    return None\nown = key(PATH)\nother = key(PATH + \"/x\")\nn = 0\nwhile n < len(own) and n < len(other) and own[n] == other[n]:\n    n += 1\nstem = own[:n]\nfor name in sorted(os.listdir(PARENT)) if os.path.isdir(PARENT) else []:\n    d = os.path.join(PARENT, name)\n    if not name.startswith(stem) or not os.path.isdir(d):\n        continue\n    cwd = recorded(d)\n    if cwd is None and name == own:\n        cwd = PATH\n    if cwd is not None and under(cwd, PATH):\n        say(d)",
+ "filterStep": "STORE = data(\"Ii9yb290Ly5jb2RleC9zdGF0ZV81LnNxbGl0ZSI=\")\nCOPY = data(\"Ii90bXAvd3NwLXNjcmF0Y2gvcm9vdC8uY29kZXgvc3RhdGVfNS5zcWxpdGUi\")\nos.makedirs(os.path.dirname(COPY), exist_ok=True)\nif os.path.exists(COPY):\n    os.remove(COPY)\nFILTERED = 0\nif os.path.exists(STORE):\n    SAID = len(OUT)\n    try:\n        FILTERED = 1\n        if x:\n            y\n        if FILTERED:\n            say(COPY)\n        say(COPY)\n    except Exception as e:\n        unread(STORE, COPY, e, SAID)",
+ "filterStepNoSteps": "STORE = data(\"Ii9oL3MuZGIi\")\nCOPY = data(\"Ii9zL2gvcy5kYiI=\")\nos.makedirs(os.path.dirname(COPY), exist_ok=True)\nif os.path.exists(COPY):\n    os.remove(COPY)\nFILTERED = 0\nif os.path.exists(STORE):\n    SAID = len(OUT)\n    try:\n        if FILTERED:\n            say(COPY)\n    except Exception as e:\n        unread(STORE, COPY, e, SAID)",
+ "storeCopy": [
+  {
+   "scratch": "/tmp/s",
+   "home": "/root/.codex",
+   "store": "state_5.sqlite",
+   "copy": "/tmp/s/root/.codex/state_5.sqlite"
+  },
+  {
+   "scratch": "/tmp/s/",
+   "home": "/root/.codex/",
+   "store": "x/",
+   "copy": "/tmp/s/root/.codex/x/"
+  },
+  {
+   "scratch": "/tmp/s",
+   "home": "/root/../a/./b",
+   "store": "c",
+   "copy": "/tmp/s/a/b/c"
+  },
+  {
+   "scratch": "",
+   "home": "",
+   "store": "",
+   "copy": "."
+  },
+  {
+   "scratch": "rel",
+   "home": "a//b",
+   "store": "../c",
+   "copy": "rel/a/c"
+  }
+ ],
+ "mergeScript": "import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\"' + name.replace('\"', '\"\"') + '\"'\ndef moved(p):\n    return TO + p[len(FROM):] if under(p, FROM) else None\ndef out(o):\n    print(json.dumps(o))\n    sys.exit(0)\ndef fail(why):\n    print(why, file=sys.stderr)\n    sys.exit(1)\ndef write(path, text):\n    tmp = path + \".wsp-merge\"\n    with open(tmp, \"w\", encoding=\"utf-8\", errors=\"surrogateescape\", newline=\"\") as f:\n        f.write(text)\n    if os.path.exists(path):\n        shutil.copymode(path, tmp)\n    os.replace(tmp, path)\nFROM = data(\"Ii9Vc2Vycy9hZGEvYl8yLngi\")\nTO = data(\"Ii9yb290L3dvcmsvYl8yLngi\")\nmerged = 0\nkept = 0\nnotes = []\nmerged += 1\nkept += 2\nout({\"merged\": merged, \"kept\": kept, **({\"note\": \"; \".join(notes)} if notes else {})})",
+ "mergeScriptNoSteps": "import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\"' + name.replace('\"', '\"\"') + '\"'\ndef moved(p):\n    return TO + p[len(FROM):] if under(p, FROM) else None\ndef out(o):\n    print(json.dumps(o))\n    sys.exit(0)\ndef fail(why):\n    print(why, file=sys.stderr)\n    sys.exit(1)\ndef write(path, text):\n    tmp = path + \".wsp-merge\"\n    with open(tmp, \"w\", encoding=\"utf-8\", errors=\"surrogateescape\", newline=\"\") as f:\n        f.write(text)\n    if os.path.exists(path):\n        shutil.copymode(path, tmp)\n    os.replace(tmp, path)\nFROM = data(\"Ii9hIg==\")\nTO = data(\"Ii9iIg==\")\nmerged = 0\nkept = 0\nnotes = []\nout({\"merged\": merged, \"kept\": kept, **({\"note\": \"; \".join(notes)} if notes else {})})",
+ "jsonlCwdStep": "for f in data(\"WyIvcm9vdC8uY29kZXgvc2Vzc2lvbnMvYS5qc29ubCIsIi9yb290L3ggeS5qc29ubCJd\"):\n    if not os.path.exists(f):\n        continue\n    with open(f, encoding=\"utf-8\", errors=\"surrogateescape\", newline=\"\") as h:\n        parts = h.read().split(\"\\n\")\n    changed = False\n    for i, line in enumerate(parts):\n        try:\n            obj = json.loads(line)\n        except ValueError:\n            continue\n        if not isinstance(obj, dict):\n            continue\n        holder = obj.get(data(\"InBheWxvYWQi\"))\n        if not isinstance(holder, dict):\n            continue\n        cwd = holder.get(\"cwd\")\n        target = moved(cwd) if isinstance(cwd, str) else None\n        if target is None:\n            continue\n        holder[\"cwd\"] = target\n        parts[i] = json.dumps(obj, ensure_ascii=False, separators=(\",\", \":\"))\n        changed = True\n    if changed:\n        write(f, \"\\n\".join(parts))",
+ "jsonlCwdStepNoHolder": "for f in data(\"W10=\"):\n    if not os.path.exists(f):\n        continue\n    with open(f, encoding=\"utf-8\", errors=\"surrogateescape\", newline=\"\") as h:\n        parts = h.read().split(\"\\n\")\n    changed = False\n    for i, line in enumerate(parts):\n        try:\n            obj = json.loads(line)\n        except ValueError:\n            continue\n        if not isinstance(obj, dict):\n            continue\n        holder = obj\n        if not isinstance(holder, dict):\n            continue\n        cwd = holder.get(\"cwd\")\n        target = moved(cwd) if isinstance(cwd, str) else None\n        if target is None:\n            continue\n        holder[\"cwd\"] = target\n        parts[i] = json.dumps(obj, ensure_ascii=False, separators=(\",\", \":\"))\n        changed = True\n    if changed:\n        write(f, \"\\n\".join(parts))",
+ "underPath": "(cwd = $from or substr(cwd, 1, length($from) + 1) = $from || '/')",
+ "movedColumn": "iif((git_repo_root = $from or substr(git_repo_root, 1, length($from) + 1) = $from || '/'), $to || substr(git_repo_root, length($from) + 1), git_repo_root)",
+ "sqliteFilter": [
+  "TABLES = data(\"W3sidGFibGUiOiJ0aHJlYWRzIiwid2hlcmUiOiIoY3dkID0gJGZyb20gb3Igc3Vic3RyKGN3ZCwgMSwgbGVuZ3RoKCRmcm9tKSArIDEpID0gJGZyb20gfHwgJy8nKSJ9LHsidGFibGUiOiJtIiwid2hlcmUiOiJzZXNzaW9uX2lkIGluIChzZWxlY3QgaWQgZnJvbSBzKSJ9XQ==\")",
+  "src = sqlite3.connect(\"file:\" + urllib.parse.quote(STORE) + \"?mode=ro\", uri=True)",
+  "try:",
+  "    dst = sqlite3.connect(COPY)",
+  "    try:",
+  "        with dst:",
+  "            for (sql,) in src.execute(data(\"InNlbGVjdCBzcWwgZnJvbSBzcWxpdGVfbWFzdGVyIHdoZXJlIHNxbCBpcyBub3QgbnVsbCBhbmQgbmFtZSBub3QgbGlrZSAnc3FsaXRlQF8lJyBlc2NhcGUgJ0AnIG9yZGVyIGJ5IHJvd2lkIg==\")).fetchall():",
+  "                try:",
+  "                    dst.execute(sql)",
+  "                except sqlite3.OperationalError:",
+  "                    pass",
+  "            held = {r[0] for r in src.execute(data(\"InNlbGVjdCBuYW1lIGZyb20gc3FsaXRlX21hc3RlciB3aGVyZSB0eXBlID0gJ3RhYmxlJyI=\"))}",
+  "            for t in TABLES:",
+  "                if t[\"table\"] not in held:",
+  "                    continue",
+  "                cur = src.execute(\"select * from \" + q(t[\"table\"]) + \" where \" + t[\"where\"], {\"from\": PATH})",
+  "                cols = [d[0] for d in cur.description]",
+  "                ins = \"insert into \" + q(t[\"table\"]) + \" (\" + \", \".join(q(c) for c in cols) + \") values (\" + \", \".join(\"?\" for c in cols) + \")\"",
+  "                while True:",
+  "                    got = cur.fetchmany(500)",
+  "                    if not got:",
+  "                        break",
+  "                    dst.executemany(ins, got)",
+  "                    FILTERED += len(got)",
+  "    finally:",
+  "        dst.close()",
+  "finally:",
+  "    src.close()"
+ ],
+ "sqliteFilterNone": [
+  "TABLES = data(\"W10=\")",
+  "src = sqlite3.connect(\"file:\" + urllib.parse.quote(STORE) + \"?mode=ro\", uri=True)",
+  "try:",
+  "    dst = sqlite3.connect(COPY)",
+  "    try:",
+  "        with dst:",
+  "            for (sql,) in src.execute(data(\"InNlbGVjdCBzcWwgZnJvbSBzcWxpdGVfbWFzdGVyIHdoZXJlIHNxbCBpcyBub3QgbnVsbCBhbmQgbmFtZSBub3QgbGlrZSAnc3FsaXRlQF8lJyBlc2NhcGUgJ0AnIG9yZGVyIGJ5IHJvd2lkIg==\")).fetchall():",
+  "                try:",
+  "                    dst.execute(sql)",
+  "                except sqlite3.OperationalError:",
+  "                    pass",
+  "            held = {r[0] for r in src.execute(data(\"InNlbGVjdCBuYW1lIGZyb20gc3FsaXRlX21hc3RlciB3aGVyZSB0eXBlID0gJ3RhYmxlJyI=\"))}",
+  "            for t in TABLES:",
+  "                if t[\"table\"] not in held:",
+  "                    continue",
+  "                cur = src.execute(\"select * from \" + q(t[\"table\"]) + \" where \" + t[\"where\"], {\"from\": PATH})",
+  "                cols = [d[0] for d in cur.description]",
+  "                ins = \"insert into \" + q(t[\"table\"]) + \" (\" + \", \".join(q(c) for c in cols) + \") values (\" + \", \".join(\"?\" for c in cols) + \")\"",
+  "                while True:",
+  "                    got = cur.fetchmany(500)",
+  "                    if not got:",
+  "                        break",
+  "                    dst.executemany(ins, got)",
+  "                    FILTERED += len(got)",
+  "    finally:",
+  "        dst.close()",
+  "finally:",
+  "    src.close()"
+ ],
+ "sqliteMergeStep": "DB = data(\"Ii9yb290Ly5jb2RleC9zdGF0ZV81LnNxbGl0ZSI=\")\nif not os.path.exists(DB):\n    out({\"waiting\": \"no \" + DB + \" on the machine\"})\nTABLES = data(\"W3sidGFibGUiOiJ0aHJlYWRzIiwia2V5IjpbImlkIl0sInNldCI6WyJjd2QiLCJyb2xsb3V0X3BhdGgiXSwicm93cyI6W3siaWQiOiJ0MSIsImN3ZCI6Ii9yb290L3dvcmsvYl8yLngiLCJuIjo3LCJyIjoxLjUsIndob2xlIjoxLCJub25lIjpudWxsLCJibG9iIjp7IiRibG9iIjoiQUFIKy93PT0ifX0seyJpZCI6InQyIiwiY3dkIjoiL3Jvb3Qvd29yay9iXzIueC9zdWIiLCJuIjotMywiciI6MC4xLCJ3aG9sZSI6Miwibm9uZSI6bnVsbCwiYmxvYiI6eyIkYmxvYiI6IiJ9fV19LHsidGFibGUiOiJtZXNzYWdlcyIsImJ5Ijoic2Vzc2lvbl9pZCIsImRyb3AiOlsiaWQiXSwicm93cyI6W3siaWQiOjksInNlc3Npb25faWQiOiJzMSIsImJvZHkiOiJow6lcbmxsbyJ9XX1d\")\ncon = sqlite3.connect(DB)\nnames = {r[0] for r in con.execute(\"select name from sqlite_master where type = 'table'\")}\nfor t in TABLES:\n    if t[\"table\"] not in names:\n        out({\"waiting\": \"no table \" + t[\"table\"] + \" in \" + DB})\ndef value(v):\n    return base64.b64decode(v[\"$blob\"]) if isinstance(v, dict) else v\ndef insert(t, row, cols, on_conflict):\n    sql = \"insert into \" + q(t[\"table\"]) + \" (\" + \", \".join(q(c) for c in cols) + \") values (\" + \", \".join(\"?\" for c in cols) + \")\" + on_conflict\n    return con.execute(sql, [value(row[c]) for c in cols]).rowcount\ndef merge_table(t):\n    global merged, kept\n    if \"by\" in t:\n        groups = {}\n        for row in t[\"rows\"]:\n            groups.setdefault(row[t[\"by\"]], []).append(row)\n        for owner, rows in groups.items():\n            held = con.execute(\"select count(*) from \" + q(t[\"table\"]) + \" where \" + q(t[\"by\"]) + \" = ?\", (owner,)).fetchone()[0]\n            if held:\n                kept += len(rows)\n                continue\n            for row in rows:\n                merged += insert(t, row, [c for c in row if c not in t[\"drop\"]], \"\")\n        return\n    if t[\"set\"]:\n        action = \"update set \" + \", \".join(q(c) + \" = excluded.\" + q(c) for c in t[\"set\"]) + \" where \" + \" or \".join(q(t[\"table\"]) + \".\" + q(c) + \" is not excluded.\" + q(c) for c in t[\"set\"])\n    else:\n        action = \"nothing\"\n    for row in t[\"rows\"]:\n        n = insert(t, row, list(row), \" on conflict (\" + \", \".join(q(c) for c in t[\"key\"]) + \") do \" + action)\n        merged += n\n        kept += 1 - n\ntry:\n    with con:\n        for t in TABLES:\n            merge_table(t)\nexcept sqlite3.Error as e:\n    fail(\"merge into \" + DB + \" failed: \" + str(e))\nfinally:\n    con.close()",
+ "sqliteMergeStepRows": [
+  {
+   "table": "threads",
+   "rows": [
+    [
+     [
+      "id",
+      "text",
+      "t1"
+     ],
+     [
+      "cwd",
+      "text",
+      "/root/work/b_2.x"
+     ],
+     [
+      "n",
+      "int",
+      7
+     ],
+     [
+      "r",
+      "real",
+      1.5
+     ],
+     [
+      "whole",
+      "int",
+      1
+     ],
+     [
+      "none",
+      "null",
+      null
+     ],
+     [
+      "blob",
+      "blob",
+      "AAH+/w=="
+     ]
+    ],
+    [
+     [
+      "id",
+      "text",
+      "t2"
+     ],
+     [
+      "cwd",
+      "text",
+      "/root/work/b_2.x/sub"
+     ],
+     [
+      "n",
+      "int",
+      -3
+     ],
+     [
+      "r",
+      "real",
+      0.1
+     ],
+     [
+      "whole",
+      "int",
+      2
+     ],
+     [
+      "none",
+      "null",
+      null
+     ],
+     [
+      "blob",
+      "blob",
+      ""
+     ]
+    ]
+   ]
+  },
+  {
+   "table": "messages",
+   "rows": [
+    [
+     [
+      "id",
+      "int",
+      9
+     ],
+     [
+      "session_id",
+      "text",
+      "s1"
+     ],
+     [
+      "body",
+      "text",
+      "hé\nllo"
+     ]
+    ]
+   ]
+  }
+ ],
+ "resolvers": [
+  {
+   "agent": "claude",
+   "states": [
+    "session transcripts",
+    "auto memory"
+   ],
+   "roots": [
+    "projects"
+   ],
+   "carry": "moves",
+   "key": "-Users-ada-b-2-x",
+   "listing": [
+    "PARENT = data(\"Ii9yb290Ly5hZ2VudCBob21lL3Byb2plY3RzIg==\")\nkey = lambda p: re.sub(data(\"IlteQS1aYS16MC05XSI=\"), \"-\", p)\ndef recorded(d):\n    found = []\n    for base, _dirs, names in os.walk(d):\n        found += [os.path.join(base, n) for n in names if n.endswith(\".jsonl\")]\n    for f in sorted(found):\n        with open(f, encoding=\"utf-8\", errors=\"surrogateescape\", newline=\"\") as h:\n            for line in h:\n                try:\n                    obj = json.loads(line)\n                except ValueError:\n                    continue\n                if isinstance(obj, dict) and isinstance(obj.get(\"cwd\"), str):\n                    return obj[\"cwd\"]\n    return None\nown = key(PATH)\nother = key(PATH + \"/x\")\nn = 0\nwhile n < len(own) and n < len(other) and own[n] == other[n]:\n    n += 1\nstem = own[:n]\nfor name in sorted(os.listdir(PARENT)) if os.path.isdir(PARENT) else []:\n    d = os.path.join(PARENT, name)\n    if not name.startswith(stem) or not os.path.isdir(d):\n        continue\n    cwd = recorded(d)\n    if cwd is None and name == own:\n        cwd = PATH\n    if cwd is not None and under(cwd, PATH):\n        say(d)"
+   ],
+   "shared": null,
+   "hasMerge": false
+  },
+  {
+   "agent": "codex",
+   "states": [
+    "thread index",
+    "rollout transcript"
+   ],
+   "roots": [
+    "state_5.sqlite",
+    "sessions"
+   ],
+   "carry": "transcript-only",
+   "key": null,
+   "listing": [
+    "con = sqlite3.connect(\"file:\" + urllib.parse.quote(COPY) + \"?mode=ro\", uri=True)",
+    "try:",
+    "    indexed = con.execute(data(\"InNlbGVjdCByb2xsb3V0X3BhdGggZnJvbSB0aHJlYWRzIG9yZGVyIGJ5IHJvbGxvdXRfcGF0aCI=\")).fetchall()",
+    "finally:",
+    "    con.close()",
+    "for (rollout,) in indexed:",
+    "    cut = rollout.rfind(data(\"Ii9zZXNzaW9ucy8i\")) if isinstance(rollout, str) else -1",
+    "    if cut >= 0:",
+    "        say(os.path.join(data(\"Ii9yb290Ly5hZ2VudCBob21lL3Nlc3Npb25zIg==\"), rollout[cut + 10:]))"
+   ],
+   "shared": {
+    "store": "state_5.sqlite",
+    "filter": [
+     "TABLES = data(\"W3sidGFibGUiOiJ0aHJlYWRzIiwid2hlcmUiOiIoY3dkID0gJGZyb20gb3Igc3Vic3RyKGN3ZCwgMSwgbGVuZ3RoKCRmcm9tKSArIDEpID0gJGZyb20gfHwgJy8nKSJ9XQ==\")",
+     "src = sqlite3.connect(\"file:\" + urllib.parse.quote(STORE) + \"?mode=ro\", uri=True)",
+     "try:",
+     "    dst = sqlite3.connect(COPY)",
+     "    try:",
+     "        with dst:",
+     "            for (sql,) in src.execute(data(\"InNlbGVjdCBzcWwgZnJvbSBzcWxpdGVfbWFzdGVyIHdoZXJlIHNxbCBpcyBub3QgbnVsbCBhbmQgbmFtZSBub3QgbGlrZSAnc3FsaXRlQF8lJyBlc2NhcGUgJ0AnIG9yZGVyIGJ5IHJvd2lkIg==\")).fetchall():",
+     "                try:",
+     "                    dst.execute(sql)",
+     "                except sqlite3.OperationalError:",
+     "                    pass",
+     "            held = {r[0] for r in src.execute(data(\"InNlbGVjdCBuYW1lIGZyb20gc3FsaXRlX21hc3RlciB3aGVyZSB0eXBlID0gJ3RhYmxlJyI=\"))}",
+     "            for t in TABLES:",
+     "                if t[\"table\"] not in held:",
+     "                    continue",
+     "                cur = src.execute(\"select * from \" + q(t[\"table\"]) + \" where \" + t[\"where\"], {\"from\": PATH})",
+     "                cols = [d[0] for d in cur.description]",
+     "                ins = \"insert into \" + q(t[\"table\"]) + \" (\" + \", \".join(q(c) for c in cols) + \") values (\" + \", \".join(\"?\" for c in cols) + \")\"",
+     "                while True:",
+     "                    got = cur.fetchmany(500)",
+     "                    if not got:",
+     "                        break",
+     "                    dst.executemany(ins, got)",
+     "                    FILTERED += len(got)",
+     "    finally:",
+     "        dst.close()",
+     "finally:",
+     "    src.close()"
+    ]
+   },
+   "hasMerge": true
+  },
+  {
+   "agent": "gemini",
+   "states": [
+    "project registry",
+    "project temp dir",
+    "shell history"
+   ],
+   "roots": [
+    "projects.json",
+    "tmp",
+    "history"
+   ],
+   "carry": "transcript-only",
+   "key": null,
+   "listing": [
+    "with open(COPY, encoding=\"utf-8\") as h:",
+    "    slugs = json.load(h)[\"projects\"].values()",
+    "for slug in slugs:",
+    "    if not isinstance(slug, str):",
+    "        continue",
+    "    for d in data(\"WyJ0bXAiLCJoaXN0b3J5Il0=\"):",
+    "        say(os.path.join(data(\"Ii9yb290Ly5hZ2VudCBob21lIg==\"), d, slug))"
+   ],
+   "shared": {
+    "store": "projects.json",
+    "filter": [
+     "with open(STORE, encoding=\"utf-8\") as h:",
+     "    reg = json.load(h)",
+     "kept = {k: v for k, v in (reg.get(\"projects\") or {}).items() if under(k, PATH)}",
+     "reg[\"projects\"] = kept",
+     "FILTERED = len(kept)",
+     "with open(COPY, \"w\", encoding=\"utf-8\") as h:",
+     "    h.write(json.dumps(reg, indent=2, ensure_ascii=False) + \"\\n\")"
+    ]
+   },
+   "hasMerge": true
+  },
+  {
+   "agent": "hermes",
+   "states": [
+    "sessions"
+   ],
+   "roots": [
+    "state.db"
+   ],
+   "carry": "transcript-only",
+   "key": null,
+   "listing": null,
+   "shared": {
+    "store": "state.db",
+    "filter": [
+     "TABLES = data(\"W3sidGFibGUiOiJzZXNzaW9ucyIsIndoZXJlIjoiKGN3ZCA9ICRmcm9tIG9yIHN1YnN0cihjd2QsIDEsIGxlbmd0aCgkZnJvbSkgKyAxKSA9ICRmcm9tIHx8ICcvJykgb3IgKGdpdF9yZXBvX3Jvb3QgPSAkZnJvbSBvciBzdWJzdHIoZ2l0X3JlcG9fcm9vdCwgMSwgbGVuZ3RoKCRmcm9tKSArIDEpID0gJGZyb20gfHwgJy8nKSJ9LHsidGFibGUiOiJtZXNzYWdlcyIsIndoZXJlIjoic2Vzc2lvbl9pZCBpbiAoc2VsZWN0IGlkIGZyb20gc2Vzc2lvbnMgd2hlcmUgKGN3ZCA9ICRmcm9tIG9yIHN1YnN0cihjd2QsIDEsIGxlbmd0aCgkZnJvbSkgKyAxKSA9ICRmcm9tIHx8ICcvJykgb3IgKGdpdF9yZXBvX3Jvb3QgPSAkZnJvbSBvciBzdWJzdHIoZ2l0X3JlcG9fcm9vdCwgMSwgbGVuZ3RoKCRmcm9tKSArIDEpID0gJGZyb20gfHwgJy8nKSkifV0=\")",
+     "src = sqlite3.connect(\"file:\" + urllib.parse.quote(STORE) + \"?mode=ro\", uri=True)",
+     "try:",
+     "    dst = sqlite3.connect(COPY)",
+     "    try:",
+     "        with dst:",
+     "            for (sql,) in src.execute(data(\"InNlbGVjdCBzcWwgZnJvbSBzcWxpdGVfbWFzdGVyIHdoZXJlIHNxbCBpcyBub3QgbnVsbCBhbmQgbmFtZSBub3QgbGlrZSAnc3FsaXRlQF8lJyBlc2NhcGUgJ0AnIG9yZGVyIGJ5IHJvd2lkIg==\")).fetchall():",
+     "                try:",
+     "                    dst.execute(sql)",
+     "                except sqlite3.OperationalError:",
+     "                    pass",
+     "            held = {r[0] for r in src.execute(data(\"InNlbGVjdCBuYW1lIGZyb20gc3FsaXRlX21hc3RlciB3aGVyZSB0eXBlID0gJ3RhYmxlJyI=\"))}",
+     "            for t in TABLES:",
+     "                if t[\"table\"] not in held:",
+     "                    continue",
+     "                cur = src.execute(\"select * from \" + q(t[\"table\"]) + \" where \" + t[\"where\"], {\"from\": PATH})",
+     "                cols = [d[0] for d in cur.description]",
+     "                ins = \"insert into \" + q(t[\"table\"]) + \" (\" + \", \".join(q(c) for c in cols) + \") values (\" + \", \".join(\"?\" for c in cols) + \")\"",
+     "                while True:",
+     "                    got = cur.fetchmany(500)",
+     "                    if not got:",
+     "                        break",
+     "                    dst.executemany(ins, got)",
+     "                    FILTERED += len(got)",
+     "    finally:",
+     "        dst.close()",
+     "finally:",
+     "    src.close()"
+    ]
+   },
+   "hasMerge": true
+  },
+  {
+   "agent": "opencode",
+   "states": [
+    "project",
+    "project directories",
+    "sessions"
+   ],
+   "roots": [
+    "opencode.db"
+   ],
+   "carry": "transcript-only",
+   "key": null,
+   "listing": null,
+   "shared": {
+    "store": "opencode.db",
+    "filter": [
+     "TABLES = data(\"W3sidGFibGUiOiJwcm9qZWN0Iiwid2hlcmUiOiIod29ya3RyZWUgPSAkZnJvbSBvciBzdWJzdHIod29ya3RyZWUsIDEsIGxlbmd0aCgkZnJvbSkgKyAxKSA9ICRmcm9tIHx8ICcvJykifSx7InRhYmxlIjoicHJvamVjdF9kaXJlY3RvcnkiLCJ3aGVyZSI6IihkaXJlY3RvcnkgPSAkZnJvbSBvciBzdWJzdHIoZGlyZWN0b3J5LCAxLCBsZW5ndGgoJGZyb20pICsgMSkgPSAkZnJvbSB8fCAnLycpIn0seyJ0YWJsZSI6InNlc3Npb24iLCJ3aGVyZSI6IihkaXJlY3RvcnkgPSAkZnJvbSBvciBzdWJzdHIoZGlyZWN0b3J5LCAxLCBsZW5ndGgoJGZyb20pICsgMSkgPSAkZnJvbSB8fCAnLycpIn0seyJ0YWJsZSI6Im1lc3NhZ2UiLCJ3aGVyZSI6InNlc3Npb25faWQgaW4gKHNlbGVjdCBpZCBmcm9tIHNlc3Npb24gd2hlcmUgKGRpcmVjdG9yeSA9ICRmcm9tIG9yIHN1YnN0cihkaXJlY3RvcnksIDEsIGxlbmd0aCgkZnJvbSkgKyAxKSA9ICRmcm9tIHx8ICcvJykpIn0seyJ0YWJsZSI6InBhcnQiLCJ3aGVyZSI6Im1lc3NhZ2VfaWQgaW4gKHNlbGVjdCBpZCBmcm9tIG1lc3NhZ2Ugd2hlcmUgc2Vzc2lvbl9pZCBpbiAoc2VsZWN0IGlkIGZyb20gc2Vzc2lvbiB3aGVyZSAoZGlyZWN0b3J5ID0gJGZyb20gb3Igc3Vic3RyKGRpcmVjdG9yeSwgMSwgbGVuZ3RoKCRmcm9tKSArIDEpID0gJGZyb20gfHwgJy8nKSkpIn1d\")",
+     "src = sqlite3.connect(\"file:\" + urllib.parse.quote(STORE) + \"?mode=ro\", uri=True)",
+     "try:",
+     "    dst = sqlite3.connect(COPY)",
+     "    try:",
+     "        with dst:",
+     "            for (sql,) in src.execute(data(\"InNlbGVjdCBzcWwgZnJvbSBzcWxpdGVfbWFzdGVyIHdoZXJlIHNxbCBpcyBub3QgbnVsbCBhbmQgbmFtZSBub3QgbGlrZSAnc3FsaXRlQF8lJyBlc2NhcGUgJ0AnIG9yZGVyIGJ5IHJvd2lkIg==\")).fetchall():",
+     "                try:",
+     "                    dst.execute(sql)",
+     "                except sqlite3.OperationalError:",
+     "                    pass",
+     "            held = {r[0] for r in src.execute(data(\"InNlbGVjdCBuYW1lIGZyb20gc3FsaXRlX21hc3RlciB3aGVyZSB0eXBlID0gJ3RhYmxlJyI=\"))}",
+     "            for t in TABLES:",
+     "                if t[\"table\"] not in held:",
+     "                    continue",
+     "                cur = src.execute(\"select * from \" + q(t[\"table\"]) + \" where \" + t[\"where\"], {\"from\": PATH})",
+     "                cols = [d[0] for d in cur.description]",
+     "                ins = \"insert into \" + q(t[\"table\"]) + \" (\" + \", \".join(q(c) for c in cols) + \") values (\" + \", \".join(\"?\" for c in cols) + \")\"",
+     "                while True:",
+     "                    got = cur.fetchmany(500)",
+     "                    if not got:",
+     "                        break",
+     "                    dst.executemany(ins, got)",
+     "                    FILTERED += len(got)",
+     "    finally:",
+     "        dst.close()",
+     "finally:",
+     "    src.close()"
+    ]
+   },
+   "hasMerge": true
+  },
+  {
+   "agent": "pi",
+   "states": [
+    "sessions"
+   ],
+   "roots": [
+    "sessions"
+   ],
+   "carry": "moves",
+   "key": null,
+   "listing": [
+    "PARENT = data(\"Ii9yb290Ly5hZ2VudCBob21lL3Nlc3Npb25zIg==\")\nkey = lambda p: \"--\" + re.sub(data(\"IlsvXFxcXDpdIg==\"), \"-\", re.sub(data(\"Il4vIg==\"), \"\", p)) + \"--\"\ndef recorded(d):\n    found = []\n    for base, _dirs, names in os.walk(d):\n        found += [os.path.join(base, n) for n in names if n.endswith(\".jsonl\")]\n    for f in sorted(found):\n        with open(f, encoding=\"utf-8\", errors=\"surrogateescape\", newline=\"\") as h:\n            for line in h:\n                try:\n                    obj = json.loads(line)\n                except ValueError:\n                    continue\n                if isinstance(obj, dict) and isinstance(obj.get(\"cwd\"), str):\n                    return obj[\"cwd\"]\n    return None\nown = key(PATH)\nother = key(PATH + \"/x\")\nn = 0\nwhile n < len(own) and n < len(other) and own[n] == other[n]:\n    n += 1\nstem = own[:n]\nfor name in sorted(os.listdir(PARENT)) if os.path.isdir(PARENT) else []:\n    d = os.path.join(PARENT, name)\n    if not name.startswith(stem) or not os.path.isdir(d):\n        continue\n    cwd = recorded(d)\n    if cwd is None and name == own:\n        cwd = PATH\n    if cwd is not None and under(cwd, PATH):\n        say(d)"
+   ],
+   "shared": null,
+   "hasMerge": false
+  }
+ ],
+ "stateListings": [
+  {
+   "ids": null,
+   "homes": {
+    "claude": "/root/.claude",
+    "codex": "/root/.codex",
+    "gemini": "/root/.gemini",
+    "hermes": "/root/.hermes",
+    "opencode": "/root/.local/share/opencode",
+    "pi": "/root/.pi/agent",
+    "cursor": "/root/.cursor"
+   },
+   "script": "set -e\npython3 -c 'import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\\''\"'\\'' + name.replace('\\''\"'\\'', '\\''\"\"'\\'') + '\\''\"'\\''\nAGENT = data(\"ImNsYXVkZSI=\")\nHOME = data(\"Ii9yb290Ly5jbGF1ZGUi\")\nPATH = os.path.normpath(data(\"Ii9Vc2Vycy9hZGEvYl8yLngi\"))\nROOTS = [os.path.join(HOME, r) for r in data(\"WyJwcm9qZWN0cyJd\")]\nOUT = []\nUNREAD = []\ndef say(p):\n    if os.path.exists(p) and p not in OUT:\n        OUT.append(p)\ndef unread(store, copy, why, said):\n    del OUT[said:]\n    if os.path.exists(copy):\n        os.remove(copy)\n    UNREAD.append({\"agent\": AGENT, \"store\": store, \"why\": str(why) or type(why).__name__})\ntry:\n    PARENT = data(\"Ii9yb290Ly5jbGF1ZGUvcHJvamVjdHMi\")\n    key = lambda p: re.sub(data(\"IlteQS1aYS16MC05XSI=\"), \"-\", p)\n    def recorded(d):\n        found = []\n        for base, _dirs, names in os.walk(d):\n            found += [os.path.join(base, n) for n in names if n.endswith(\".jsonl\")]\n        for f in sorted(found):\n            with open(f, encoding=\"utf-8\", errors=\"surrogateescape\", newline=\"\") as h:\n                for line in h:\n                    try:\n                        obj = json.loads(line)\n                    except ValueError:\n                        continue\n                    if isinstance(obj, dict) and isinstance(obj.get(\"cwd\"), str):\n                        return obj[\"cwd\"]\n        return None\n    own = key(PATH)\n    other = key(PATH + \"/x\")\n    n = 0\n    while n < len(own) and n < len(other) and own[n] == other[n]:\n        n += 1\n    stem = own[:n]\n    for name in sorted(os.listdir(PARENT)) if os.path.isdir(PARENT) else []:\n        d = os.path.join(PARENT, name)\n        if not name.startswith(stem) or not os.path.isdir(d):\n            continue\n        cwd = recorded(d)\n        if cwd is None and name == own:\n            cwd = PATH\n        if cwd is not None and under(cwd, PATH):\n            say(d)\nexcept Exception:\n    OUT = []\n    for r in ROOTS:\n        say(r)\nfor p in OUT:\n    print(p)\nfor u in UNREAD:\n    print(data(\"IiF1bnJlYWQgIg==\") + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))'\npython3 -c 'import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\\''\"'\\'' + name.replace('\\''\"'\\'', '\\''\"\"'\\'') + '\\''\"'\\''\nAGENT = data(\"ImNvZGV4Ig==\")\nHOME = data(\"Ii9yb290Ly5jb2RleCI=\")\nPATH = os.path.normpath(data(\"Ii9Vc2Vycy9hZGEvYl8yLngi\"))\nROOTS = [os.path.join(HOME, r) for r in data(\"WyJzdGF0ZV81LnNxbGl0ZSIsInNlc3Npb25zIl0=\")]\nOUT = []\nUNREAD = []\ndef say(p):\n    if os.path.exists(p) and p not in OUT:\n        OUT.append(p)\ndef unread(store, copy, why, said):\n    del OUT[said:]\n    if os.path.exists(copy):\n        os.remove(copy)\n    UNREAD.append({\"agent\": AGENT, \"store\": store, \"why\": str(why) or type(why).__name__})\ntry:\n    STORE = data(\"Ii9yb290Ly5jb2RleC9zdGF0ZV81LnNxbGl0ZSI=\")\n    COPY = data(\"Ii90bXAvd3NwLXNjcmF0Y2gvcm9vdC8uY29kZXgvc3RhdGVfNS5zcWxpdGUi\")\n    os.makedirs(os.path.dirname(COPY), exist_ok=True)\n    if os.path.exists(COPY):\n        os.remove(COPY)\n    FILTERED = 0\n    if os.path.exists(STORE):\n        SAID = len(OUT)\n        try:\n            TABLES = data(\"W3sidGFibGUiOiJ0aHJlYWRzIiwid2hlcmUiOiIoY3dkID0gJGZyb20gb3Igc3Vic3RyKGN3ZCwgMSwgbGVuZ3RoKCRmcm9tKSArIDEpID0gJGZyb20gfHwgJy8nKSJ9XQ==\")\n            src = sqlite3.connect(\"file:\" + urllib.parse.quote(STORE) + \"?mode=ro\", uri=True)\n            try:\n                dst = sqlite3.connect(COPY)\n                try:\n                    with dst:\n                        for (sql,) in src.execute(data(\"InNlbGVjdCBzcWwgZnJvbSBzcWxpdGVfbWFzdGVyIHdoZXJlIHNxbCBpcyBub3QgbnVsbCBhbmQgbmFtZSBub3QgbGlrZSAnc3FsaXRlQF8lJyBlc2NhcGUgJ0AnIG9yZGVyIGJ5IHJvd2lkIg==\")).fetchall():\n                            try:\n                                dst.execute(sql)\n                            except sqlite3.OperationalError:\n                                pass\n                        held = {r[0] for r in src.execute(data(\"InNlbGVjdCBuYW1lIGZyb20gc3FsaXRlX21hc3RlciB3aGVyZSB0eXBlID0gJ3RhYmxlJyI=\"))}\n                        for t in TABLES:\n                            if t[\"table\"] not in held:\n                                continue\n                            cur = src.execute(\"select * from \" + q(t[\"table\"]) + \" where \" + t[\"where\"], {\"from\": PATH})\n                            cols = [d[0] for d in cur.description]\n                            ins = \"insert into \" + q(t[\"table\"]) + \" (\" + \", \".join(q(c) for c in cols) + \") values (\" + \", \".join(\"?\" for c in cols) + \")\"\n                            while True:\n                                got = cur.fetchmany(500)\n                                if not got:\n                                    break\n                                dst.executemany(ins, got)\n                                FILTERED += len(got)\n                finally:\n                    dst.close()\n            finally:\n                src.close()\n            if FILTERED:\n                say(COPY)\n            con = sqlite3.connect(\"file:\" + urllib.parse.quote(COPY) + \"?mode=ro\", uri=True)\n            try:\n                indexed = con.execute(data(\"InNlbGVjdCByb2xsb3V0X3BhdGggZnJvbSB0aHJlYWRzIG9yZGVyIGJ5IHJvbGxvdXRfcGF0aCI=\")).fetchall()\n            finally:\n                con.close()\n            for (rollout,) in indexed:\n                cut = rollout.rfind(data(\"Ii9zZXNzaW9ucy8i\")) if isinstance(rollout, str) else -1\n                if cut >= 0:\n                    say(os.path.join(data(\"Ii9yb290Ly5jb2RleC9zZXNzaW9ucyI=\"), rollout[cut + 10:]))\n        except Exception as e:\n            unread(STORE, COPY, e, SAID)\nexcept Exception:\n    OUT = []\n    for r in ROOTS:\n        say(r)\nfor p in OUT:\n    print(p)\nfor u in UNREAD:\n    print(data(\"IiF1bnJlYWQgIg==\") + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))'\npython3 -c 'import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\\''\"'\\'' + name.replace('\\''\"'\\'', '\\''\"\"'\\'') + '\\''\"'\\''\nAGENT = data(\"ImdlbWluaSI=\")\nHOME = data(\"Ii9yb290Ly5nZW1pbmki\")\nPATH = os.path.normpath(data(\"Ii9Vc2Vycy9hZGEvYl8yLngi\"))\nROOTS = [os.path.join(HOME, r) for r in data(\"WyJwcm9qZWN0cy5qc29uIiwidG1wIiwiaGlzdG9yeSJd\")]\nOUT = []\nUNREAD = []\ndef say(p):\n    if os.path.exists(p) and p not in OUT:\n        OUT.append(p)\ndef unread(store, copy, why, said):\n    del OUT[said:]\n    if os.path.exists(copy):\n        os.remove(copy)\n    UNREAD.append({\"agent\": AGENT, \"store\": store, \"why\": str(why) or type(why).__name__})\ntry:\n    STORE = data(\"Ii9yb290Ly5nZW1pbmkvcHJvamVjdHMuanNvbiI=\")\n    COPY = data(\"Ii90bXAvd3NwLXNjcmF0Y2gvcm9vdC8uZ2VtaW5pL3Byb2plY3RzLmpzb24i\")\n    os.makedirs(os.path.dirname(COPY), exist_ok=True)\n    if os.path.exists(COPY):\n        os.remove(COPY)\n    FILTERED = 0\n    if os.path.exists(STORE):\n        SAID = len(OUT)\n        try:\n            with open(STORE, encoding=\"utf-8\") as h:\n                reg = json.load(h)\n            kept = {k: v for k, v in (reg.get(\"projects\") or {}).items() if under(k, PATH)}\n            reg[\"projects\"] = kept\n            FILTERED = len(kept)\n            with open(COPY, \"w\", encoding=\"utf-8\") as h:\n                h.write(json.dumps(reg, indent=2, ensure_ascii=False) + \"\\n\")\n            if FILTERED:\n                say(COPY)\n            with open(COPY, encoding=\"utf-8\") as h:\n                slugs = json.load(h)[\"projects\"].values()\n            for slug in slugs:\n                if not isinstance(slug, str):\n                    continue\n                for d in data(\"WyJ0bXAiLCJoaXN0b3J5Il0=\"):\n                    say(os.path.join(data(\"Ii9yb290Ly5nZW1pbmki\"), d, slug))\n        except Exception as e:\n            unread(STORE, COPY, e, SAID)\nexcept Exception:\n    OUT = []\n    for r in ROOTS:\n        say(r)\nfor p in OUT:\n    print(p)\nfor u in UNREAD:\n    print(data(\"IiF1bnJlYWQgIg==\") + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))'\npython3 -c 'import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\\''\"'\\'' + name.replace('\\''\"'\\'', '\\''\"\"'\\'') + '\\''\"'\\''\nAGENT = data(\"Im9wZW5jb2RlIg==\")\nHOME = data(\"Ii9yb290Ly5sb2NhbC9zaGFyZS9vcGVuY29kZSI=\")\nPATH = os.path.normpath(data(\"Ii9Vc2Vycy9hZGEvYl8yLngi\"))\nROOTS = [os.path.join(HOME, r) for r in data(\"WyJvcGVuY29kZS5kYiJd\")]\nOUT = []\nUNREAD = []\ndef say(p):\n    if os.path.exists(p) and p not in OUT:\n        OUT.append(p)\ndef unread(store, copy, why, said):\n    del OUT[said:]\n    if os.path.exists(copy):\n        os.remove(copy)\n    UNREAD.append({\"agent\": AGENT, \"store\": store, \"why\": str(why) or type(why).__name__})\ntry:\n    STORE = data(\"Ii9yb290Ly5sb2NhbC9zaGFyZS9vcGVuY29kZS9vcGVuY29kZS5kYiI=\")\n    COPY = data(\"Ii90bXAvd3NwLXNjcmF0Y2gvcm9vdC8ubG9jYWwvc2hhcmUvb3BlbmNvZGUvb3BlbmNvZGUuZGIi\")\n    os.makedirs(os.path.dirname(COPY), exist_ok=True)\n    if os.path.exists(COPY):\n        os.remove(COPY)\n    FILTERED = 0\n    if os.path.exists(STORE):\n        SAID = len(OUT)\n        try:\n            TABLES = data(\"W3sidGFibGUiOiJwcm9qZWN0Iiwid2hlcmUiOiIod29ya3RyZWUgPSAkZnJvbSBvciBzdWJzdHIod29ya3RyZWUsIDEsIGxlbmd0aCgkZnJvbSkgKyAxKSA9ICRmcm9tIHx8ICcvJykifSx7InRhYmxlIjoicHJvamVjdF9kaXJlY3RvcnkiLCJ3aGVyZSI6IihkaXJlY3RvcnkgPSAkZnJvbSBvciBzdWJzdHIoZGlyZWN0b3J5LCAxLCBsZW5ndGgoJGZyb20pICsgMSkgPSAkZnJvbSB8fCAnLycpIn0seyJ0YWJsZSI6InNlc3Npb24iLCJ3aGVyZSI6IihkaXJlY3RvcnkgPSAkZnJvbSBvciBzdWJzdHIoZGlyZWN0b3J5LCAxLCBsZW5ndGgoJGZyb20pICsgMSkgPSAkZnJvbSB8fCAnLycpIn0seyJ0YWJsZSI6Im1lc3NhZ2UiLCJ3aGVyZSI6InNlc3Npb25faWQgaW4gKHNlbGVjdCBpZCBmcm9tIHNlc3Npb24gd2hlcmUgKGRpcmVjdG9yeSA9ICRmcm9tIG9yIHN1YnN0cihkaXJlY3RvcnksIDEsIGxlbmd0aCgkZnJvbSkgKyAxKSA9ICRmcm9tIHx8ICcvJykpIn0seyJ0YWJsZSI6InBhcnQiLCJ3aGVyZSI6Im1lc3NhZ2VfaWQgaW4gKHNlbGVjdCBpZCBmcm9tIG1lc3NhZ2Ugd2hlcmUgc2Vzc2lvbl9pZCBpbiAoc2VsZWN0IGlkIGZyb20gc2Vzc2lvbiB3aGVyZSAoZGlyZWN0b3J5ID0gJGZyb20gb3Igc3Vic3RyKGRpcmVjdG9yeSwgMSwgbGVuZ3RoKCRmcm9tKSArIDEpID0gJGZyb20gfHwgJy8nKSkpIn1d\")\n            src = sqlite3.connect(\"file:\" + urllib.parse.quote(STORE) + \"?mode=ro\", uri=True)\n            try:\n                dst = sqlite3.connect(COPY)\n                try:\n                    with dst:\n                        for (sql,) in src.execute(data(\"InNlbGVjdCBzcWwgZnJvbSBzcWxpdGVfbWFzdGVyIHdoZXJlIHNxbCBpcyBub3QgbnVsbCBhbmQgbmFtZSBub3QgbGlrZSAnc3FsaXRlQF8lJyBlc2NhcGUgJ0AnIG9yZGVyIGJ5IHJvd2lkIg==\")).fetchall():\n                            try:\n                                dst.execute(sql)\n                            except sqlite3.OperationalError:\n                                pass\n                        held = {r[0] for r in src.execute(data(\"InNlbGVjdCBuYW1lIGZyb20gc3FsaXRlX21hc3RlciB3aGVyZSB0eXBlID0gJ3RhYmxlJyI=\"))}\n                        for t in TABLES:\n                            if t[\"table\"] not in held:\n                                continue\n                            cur = src.execute(\"select * from \" + q(t[\"table\"]) + \" where \" + t[\"where\"], {\"from\": PATH})\n                            cols = [d[0] for d in cur.description]\n                            ins = \"insert into \" + q(t[\"table\"]) + \" (\" + \", \".join(q(c) for c in cols) + \") values (\" + \", \".join(\"?\" for c in cols) + \")\"\n                            while True:\n                                got = cur.fetchmany(500)\n                                if not got:\n                                    break\n                                dst.executemany(ins, got)\n                                FILTERED += len(got)\n                finally:\n                    dst.close()\n            finally:\n                src.close()\n            if FILTERED:\n                say(COPY)\n        except Exception as e:\n            unread(STORE, COPY, e, SAID)\nexcept Exception:\n    OUT = []\n    for r in ROOTS:\n        say(r)\nfor p in OUT:\n    print(p)\nfor u in UNREAD:\n    print(data(\"IiF1bnJlYWQgIg==\") + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))'\npython3 -c 'import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\\''\"'\\'' + name.replace('\\''\"'\\'', '\\''\"\"'\\'') + '\\''\"'\\''\nAGENT = data(\"InBpIg==\")\nHOME = data(\"Ii9yb290Ly5waS9hZ2VudCI=\")\nPATH = os.path.normpath(data(\"Ii9Vc2Vycy9hZGEvYl8yLngi\"))\nROOTS = [os.path.join(HOME, r) for r in data(\"WyJzZXNzaW9ucyJd\")]\nOUT = []\nUNREAD = []\ndef say(p):\n    if os.path.exists(p) and p not in OUT:\n        OUT.append(p)\ndef unread(store, copy, why, said):\n    del OUT[said:]\n    if os.path.exists(copy):\n        os.remove(copy)\n    UNREAD.append({\"agent\": AGENT, \"store\": store, \"why\": str(why) or type(why).__name__})\ntry:\n    PARENT = data(\"Ii9yb290Ly5waS9hZ2VudC9zZXNzaW9ucyI=\")\n    key = lambda p: \"--\" + re.sub(data(\"IlsvXFxcXDpdIg==\"), \"-\", re.sub(data(\"Il4vIg==\"), \"\", p)) + \"--\"\n    def recorded(d):\n        found = []\n        for base, _dirs, names in os.walk(d):\n            found += [os.path.join(base, n) for n in names if n.endswith(\".jsonl\")]\n        for f in sorted(found):\n            with open(f, encoding=\"utf-8\", errors=\"surrogateescape\", newline=\"\") as h:\n                for line in h:\n                    try:\n                        obj = json.loads(line)\n                    except ValueError:\n                        continue\n                    if isinstance(obj, dict) and isinstance(obj.get(\"cwd\"), str):\n                        return obj[\"cwd\"]\n        return None\n    own = key(PATH)\n    other = key(PATH + \"/x\")\n    n = 0\n    while n < len(own) and n < len(other) and own[n] == other[n]:\n        n += 1\n    stem = own[:n]\n    for name in sorted(os.listdir(PARENT)) if os.path.isdir(PARENT) else []:\n        d = os.path.join(PARENT, name)\n        if not name.startswith(stem) or not os.path.isdir(d):\n            continue\n        cwd = recorded(d)\n        if cwd is None and name == own:\n            cwd = PATH\n        if cwd is not None and under(cwd, PATH):\n            say(d)\nexcept Exception:\n    OUT = []\n    for r in ROOTS:\n        say(r)\nfor p in OUT:\n    print(p)\nfor u in UNREAD:\n    print(data(\"IiF1bnJlYWQgIg==\") + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))'\npython3 -c 'import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\\''\"'\\'' + name.replace('\\''\"'\\'', '\\''\"\"'\\'') + '\\''\"'\\''\nAGENT = data(\"Imhlcm1lcyI=\")\nHOME = data(\"Ii9yb290Ly5oZXJtZXMi\")\nPATH = os.path.normpath(data(\"Ii9Vc2Vycy9hZGEvYl8yLngi\"))\nROOTS = [os.path.join(HOME, r) for r in data(\"WyJzdGF0ZS5kYiJd\")]\nOUT = []\nUNREAD = []\ndef say(p):\n    if os.path.exists(p) and p not in OUT:\n        OUT.append(p)\ndef unread(store, copy, why, said):\n    del OUT[said:]\n    if os.path.exists(copy):\n        os.remove(copy)\n    UNREAD.append({\"agent\": AGENT, \"store\": store, \"why\": str(why) or type(why).__name__})\ntry:\n    STORE = data(\"Ii9yb290Ly5oZXJtZXMvc3RhdGUuZGIi\")\n    COPY = data(\"Ii90bXAvd3NwLXNjcmF0Y2gvcm9vdC8uaGVybWVzL3N0YXRlLmRiIg==\")\n    os.makedirs(os.path.dirname(COPY), exist_ok=True)\n    if os.path.exists(COPY):\n        os.remove(COPY)\n    FILTERED = 0\n    if os.path.exists(STORE):\n        SAID = len(OUT)\n        try:\n            TABLES = data(\"W3sidGFibGUiOiJzZXNzaW9ucyIsIndoZXJlIjoiKGN3ZCA9ICRmcm9tIG9yIHN1YnN0cihjd2QsIDEsIGxlbmd0aCgkZnJvbSkgKyAxKSA9ICRmcm9tIHx8ICcvJykgb3IgKGdpdF9yZXBvX3Jvb3QgPSAkZnJvbSBvciBzdWJzdHIoZ2l0X3JlcG9fcm9vdCwgMSwgbGVuZ3RoKCRmcm9tKSArIDEpID0gJGZyb20gfHwgJy8nKSJ9LHsidGFibGUiOiJtZXNzYWdlcyIsIndoZXJlIjoic2Vzc2lvbl9pZCBpbiAoc2VsZWN0IGlkIGZyb20gc2Vzc2lvbnMgd2hlcmUgKGN3ZCA9ICRmcm9tIG9yIHN1YnN0cihjd2QsIDEsIGxlbmd0aCgkZnJvbSkgKyAxKSA9ICRmcm9tIHx8ICcvJykgb3IgKGdpdF9yZXBvX3Jvb3QgPSAkZnJvbSBvciBzdWJzdHIoZ2l0X3JlcG9fcm9vdCwgMSwgbGVuZ3RoKCRmcm9tKSArIDEpID0gJGZyb20gfHwgJy8nKSkifV0=\")\n            src = sqlite3.connect(\"file:\" + urllib.parse.quote(STORE) + \"?mode=ro\", uri=True)\n            try:\n                dst = sqlite3.connect(COPY)\n                try:\n                    with dst:\n                        for (sql,) in src.execute(data(\"InNlbGVjdCBzcWwgZnJvbSBzcWxpdGVfbWFzdGVyIHdoZXJlIHNxbCBpcyBub3QgbnVsbCBhbmQgbmFtZSBub3QgbGlrZSAnc3FsaXRlQF8lJyBlc2NhcGUgJ0AnIG9yZGVyIGJ5IHJvd2lkIg==\")).fetchall():\n                            try:\n                                dst.execute(sql)\n                            except sqlite3.OperationalError:\n                                pass\n                        held = {r[0] for r in src.execute(data(\"InNlbGVjdCBuYW1lIGZyb20gc3FsaXRlX21hc3RlciB3aGVyZSB0eXBlID0gJ3RhYmxlJyI=\"))}\n                        for t in TABLES:\n                            if t[\"table\"] not in held:\n                                continue\n                            cur = src.execute(\"select * from \" + q(t[\"table\"]) + \" where \" + t[\"where\"], {\"from\": PATH})\n                            cols = [d[0] for d in cur.description]\n                            ins = \"insert into \" + q(t[\"table\"]) + \" (\" + \", \".join(q(c) for c in cols) + \") values (\" + \", \".join(\"?\" for c in cols) + \")\"\n                            while True:\n                                got = cur.fetchmany(500)\n                                if not got:\n                                    break\n                                dst.executemany(ins, got)\n                                FILTERED += len(got)\n                finally:\n                    dst.close()\n            finally:\n                src.close()\n            if FILTERED:\n                say(COPY)\n        except Exception as e:\n            unread(STORE, COPY, e, SAID)\nexcept Exception:\n    OUT = []\n    for r in ROOTS:\n        say(r)\nfor p in OUT:\n    print(p)\nfor u in UNREAD:\n    print(data(\"IiF1bnJlYWQgIg==\") + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))'"
+  },
+  {
+   "ids": [
+    "codex",
+    "claude"
+   ],
+   "homes": {
+    "claude": "/root/.claude",
+    "codex": "/root/.codex",
+    "gemini": "/root/.gemini",
+    "hermes": "/root/.hermes",
+    "opencode": "/root/.local/share/opencode",
+    "pi": "/root/.pi/agent",
+    "cursor": "/root/.cursor"
+   },
+   "script": "set -e\npython3 -c 'import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\\''\"'\\'' + name.replace('\\''\"'\\'', '\\''\"\"'\\'') + '\\''\"'\\''\nAGENT = data(\"ImNsYXVkZSI=\")\nHOME = data(\"Ii9yb290Ly5jbGF1ZGUi\")\nPATH = os.path.normpath(data(\"Ii9Vc2Vycy9hZGEvYl8yLngi\"))\nROOTS = [os.path.join(HOME, r) for r in data(\"WyJwcm9qZWN0cyJd\")]\nOUT = []\nUNREAD = []\ndef say(p):\n    if os.path.exists(p) and p not in OUT:\n        OUT.append(p)\ndef unread(store, copy, why, said):\n    del OUT[said:]\n    if os.path.exists(copy):\n        os.remove(copy)\n    UNREAD.append({\"agent\": AGENT, \"store\": store, \"why\": str(why) or type(why).__name__})\ntry:\n    PARENT = data(\"Ii9yb290Ly5jbGF1ZGUvcHJvamVjdHMi\")\n    key = lambda p: re.sub(data(\"IlteQS1aYS16MC05XSI=\"), \"-\", p)\n    def recorded(d):\n        found = []\n        for base, _dirs, names in os.walk(d):\n            found += [os.path.join(base, n) for n in names if n.endswith(\".jsonl\")]\n        for f in sorted(found):\n            with open(f, encoding=\"utf-8\", errors=\"surrogateescape\", newline=\"\") as h:\n                for line in h:\n                    try:\n                        obj = json.loads(line)\n                    except ValueError:\n                        continue\n                    if isinstance(obj, dict) and isinstance(obj.get(\"cwd\"), str):\n                        return obj[\"cwd\"]\n        return None\n    own = key(PATH)\n    other = key(PATH + \"/x\")\n    n = 0\n    while n < len(own) and n < len(other) and own[n] == other[n]:\n        n += 1\n    stem = own[:n]\n    for name in sorted(os.listdir(PARENT)) if os.path.isdir(PARENT) else []:\n        d = os.path.join(PARENT, name)\n        if not name.startswith(stem) or not os.path.isdir(d):\n            continue\n        cwd = recorded(d)\n        if cwd is None and name == own:\n            cwd = PATH\n        if cwd is not None and under(cwd, PATH):\n            say(d)\nexcept Exception:\n    OUT = []\n    for r in ROOTS:\n        say(r)\nfor p in OUT:\n    print(p)\nfor u in UNREAD:\n    print(data(\"IiF1bnJlYWQgIg==\") + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))'\npython3 -c 'import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\\''\"'\\'' + name.replace('\\''\"'\\'', '\\''\"\"'\\'') + '\\''\"'\\''\nAGENT = data(\"ImNvZGV4Ig==\")\nHOME = data(\"Ii9yb290Ly5jb2RleCI=\")\nPATH = os.path.normpath(data(\"Ii9Vc2Vycy9hZGEvYl8yLngi\"))\nROOTS = [os.path.join(HOME, r) for r in data(\"WyJzdGF0ZV81LnNxbGl0ZSIsInNlc3Npb25zIl0=\")]\nOUT = []\nUNREAD = []\ndef say(p):\n    if os.path.exists(p) and p not in OUT:\n        OUT.append(p)\ndef unread(store, copy, why, said):\n    del OUT[said:]\n    if os.path.exists(copy):\n        os.remove(copy)\n    UNREAD.append({\"agent\": AGENT, \"store\": store, \"why\": str(why) or type(why).__name__})\ntry:\n    STORE = data(\"Ii9yb290Ly5jb2RleC9zdGF0ZV81LnNxbGl0ZSI=\")\n    COPY = data(\"Ii90bXAvd3NwLXNjcmF0Y2gvcm9vdC8uY29kZXgvc3RhdGVfNS5zcWxpdGUi\")\n    os.makedirs(os.path.dirname(COPY), exist_ok=True)\n    if os.path.exists(COPY):\n        os.remove(COPY)\n    FILTERED = 0\n    if os.path.exists(STORE):\n        SAID = len(OUT)\n        try:\n            TABLES = data(\"W3sidGFibGUiOiJ0aHJlYWRzIiwid2hlcmUiOiIoY3dkID0gJGZyb20gb3Igc3Vic3RyKGN3ZCwgMSwgbGVuZ3RoKCRmcm9tKSArIDEpID0gJGZyb20gfHwgJy8nKSJ9XQ==\")\n            src = sqlite3.connect(\"file:\" + urllib.parse.quote(STORE) + \"?mode=ro\", uri=True)\n            try:\n                dst = sqlite3.connect(COPY)\n                try:\n                    with dst:\n                        for (sql,) in src.execute(data(\"InNlbGVjdCBzcWwgZnJvbSBzcWxpdGVfbWFzdGVyIHdoZXJlIHNxbCBpcyBub3QgbnVsbCBhbmQgbmFtZSBub3QgbGlrZSAnc3FsaXRlQF8lJyBlc2NhcGUgJ0AnIG9yZGVyIGJ5IHJvd2lkIg==\")).fetchall():\n                            try:\n                                dst.execute(sql)\n                            except sqlite3.OperationalError:\n                                pass\n                        held = {r[0] for r in src.execute(data(\"InNlbGVjdCBuYW1lIGZyb20gc3FsaXRlX21hc3RlciB3aGVyZSB0eXBlID0gJ3RhYmxlJyI=\"))}\n                        for t in TABLES:\n                            if t[\"table\"] not in held:\n                                continue\n                            cur = src.execute(\"select * from \" + q(t[\"table\"]) + \" where \" + t[\"where\"], {\"from\": PATH})\n                            cols = [d[0] for d in cur.description]\n                            ins = \"insert into \" + q(t[\"table\"]) + \" (\" + \", \".join(q(c) for c in cols) + \") values (\" + \", \".join(\"?\" for c in cols) + \")\"\n                            while True:\n                                got = cur.fetchmany(500)\n                                if not got:\n                                    break\n                                dst.executemany(ins, got)\n                                FILTERED += len(got)\n                finally:\n                    dst.close()\n            finally:\n                src.close()\n            if FILTERED:\n                say(COPY)\n            con = sqlite3.connect(\"file:\" + urllib.parse.quote(COPY) + \"?mode=ro\", uri=True)\n            try:\n                indexed = con.execute(data(\"InNlbGVjdCByb2xsb3V0X3BhdGggZnJvbSB0aHJlYWRzIG9yZGVyIGJ5IHJvbGxvdXRfcGF0aCI=\")).fetchall()\n            finally:\n                con.close()\n            for (rollout,) in indexed:\n                cut = rollout.rfind(data(\"Ii9zZXNzaW9ucy8i\")) if isinstance(rollout, str) else -1\n                if cut >= 0:\n                    say(os.path.join(data(\"Ii9yb290Ly5jb2RleC9zZXNzaW9ucyI=\"), rollout[cut + 10:]))\n        except Exception as e:\n            unread(STORE, COPY, e, SAID)\nexcept Exception:\n    OUT = []\n    for r in ROOTS:\n        say(r)\nfor p in OUT:\n    print(p)\nfor u in UNREAD:\n    print(data(\"IiF1bnJlYWQgIg==\") + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))'"
+  },
+  {
+   "ids": [],
+   "homes": {
+    "claude": "/root/.claude",
+    "codex": "/root/.codex",
+    "gemini": "/root/.gemini",
+    "hermes": "/root/.hermes",
+    "opencode": "/root/.local/share/opencode",
+    "pi": "/root/.pi/agent",
+    "cursor": "/root/.cursor"
+   },
+   "script": ""
+  },
+  {
+   "ids": [
+    "cursor"
+   ],
+   "homes": {
+    "claude": "/root/.claude",
+    "codex": "/root/.codex",
+    "gemini": "/root/.gemini",
+    "hermes": "/root/.hermes",
+    "opencode": "/root/.local/share/opencode",
+    "pi": "/root/.pi/agent",
+    "cursor": "/root/.cursor"
+   },
+   "script": ""
+  },
+  {
+   "ids": null,
+   "homes": {
+    "cursor": "/root/.cursor"
+   },
+   "script": ""
+  }
+ ],
+ "unknownAgent": {
+  "error": "no agent called nope; the catalog knows claude, codex, gemini, opencode, pi, hermes, crush, qwen, goose, amp, cursor"
+ },
+ "piKeys": [
+  {
+   "path": "/Users/ada/b_2.x",
+   "key": "--Users-ada-b_2.x--"
+  },
+  {
+   "path": "/",
+   "key": "----"
+  },
+  {
+   "path": "",
+   "key": "----"
+  },
+  {
+   "path": "C:\\Users\\a:b",
+   "key": "--C--Users-a-b--"
+  },
+  {
+   "path": "/a/b/",
+   "key": "--a-b---"
+  },
+  {
+   "path": "//x",
+   "key": "---x--"
+  },
+  {
+   "path": "rel/path",
+   "key": "--rel-path--"
+  }
+ ],
+ "parseStateListing": {
+  "paths": [
+   "/a",
+   "/b c"
+  ],
+  "unread": [
+   {
+    "agent": "codex",
+    "store": "/root/.codex/state_5.sqlite",
+    "why": "database is locked"
+   }
+  ]
+ },
+ "parseMergeOutput": [
+  {
+   "stdout": "{\"merged\": 2, \"kept\": 1}",
+   "out": {
+    "ok": {
+     "merged": 2,
+     "kept": 1
+    }
+   }
+  },
+  {
+   "stdout": "noise\n{\"merged\": 0, \"kept\": 0, \"note\": \"n\"}\n\n",
+   "out": {
+    "ok": {
+     "merged": 0,
+     "kept": 0,
+     "note": "n"
+    }
+   }
+  },
+  {
+   "stdout": "{\"waiting\": \"no db\", \"merged\": 1, \"kept\": 1}",
+   "out": {
+    "ok": {
+     "waiting": "no db"
+    }
+   }
+  },
+  {
+   "stdout": "{\"merged\": 1, \"kept\": 1, \"note\": 5}",
+   "out": {
+    "ok": {
+     "merged": 1,
+     "kept": 1
+    }
+   }
+  },
+  {
+   "stdout": "",
+   "out": {
+    "error": "the merge script printed nothing"
+   }
+  },
+  {
+   "stdout": "  \n",
+   "out": {
+    "error": "the merge script printed nothing"
+   }
+  },
+  {
+   "stdout": "not json",
+   "out": {
+    "error": "the merge script ended with: not json"
+   }
+  },
+  {
+   "stdout": "{\"merged\": \"1\", \"kept\": 1}",
+   "out": {
+    "error": "the merge script ended with: {\"merged\": \"1\", \"kept\": 1}"
+   }
+  },
+  {
+   "stdout": "[1,2]",
+   "out": {
+    "error": "the merge script ended with: [1,2]"
+   }
+  },
+  {
+   "stdout": "null",
+   "out": {
+    "error": "the merge script ended with: null"
+   }
+  }
+ ],
+ "paths": {
+  "insideFolder": [
+   {
+    "rel": "",
+    "inside": false
+   },
+   {
+    "rel": "a",
+    "inside": true
+   },
+   {
+    "rel": "..",
+    "inside": false
+   },
+   {
+    "rel": "../a",
+    "inside": false
+   },
+   {
+    "rel": "..cache",
+    "inside": true
+   },
+   {
+    "rel": "a/../..",
+    "inside": true
+   },
+   {
+    "rel": "/abs",
+    "inside": false
+   },
+   {
+    "rel": "a/b",
+    "inside": true
+   }
+  ],
+  "underHome": [
+   {
+    "home": "/h",
+    "parts": [
+     "a"
+    ],
+    "at": "/h/a"
+   },
+   {
+    "home": "/h",
+    "parts": [
+     "../x"
+    ],
+    "at": null
+   },
+   {
+    "home": "/h",
+    "parts": [
+     "a/../../x"
+    ],
+    "at": null
+   },
+   {
+    "home": "/h",
+    "parts": [
+     ""
+    ],
+    "at": null
+   },
+   {
+    "home": "/h",
+    "parts": [
+     "..cache",
+     "y"
+    ],
+    "at": "/h/..cache/y"
+   },
+   {
+    "home": "/h/",
+    "parts": [
+     "/abs"
+    ],
+    "at": "/h/abs"
+   }
+  ],
+  "movedPath": [
+   {
+    "path": "/a/b",
+    "from": "/a/b",
+    "to": "/c",
+    "moved": "/c"
+   },
+   {
+    "path": "/a/b/x",
+    "from": "/a/b",
+    "to": "/c",
+    "moved": "/c/x"
+   },
+   {
+    "path": "/a/bx",
+    "from": "/a/b",
+    "to": "/c",
+    "moved": null
+   },
+   {
+    "path": "/a",
+    "from": "/a/b",
+    "to": "/c",
+    "moved": null
+   }
+  ]
+ },
+ "agentHomes": {
+  "plain": {
+   "claude": "/Users/ada/.claude",
+   "codex": "/Users/ada/.codex",
+   "gemini": "/Users/ada/.gemini",
+   "opencode": "/Users/ada/.local/share/opencode",
+   "pi": "/Users/ada/.pi/agent",
+   "hermes": "/Users/ada/.hermes",
+   "crush": "/Users/ada/.local/share/crush",
+   "qwen": "/Users/ada/.qwen",
+   "goose": "/Users/ada/.local/share/goose",
+   "amp": "/Users/ada/.config/amp",
+   "cursor": "/Users/ada/.cursor"
+  },
+  "env": {
+   "claude": "/opt/claude",
+   "codex": "/Users/ada/.codex",
+   "gemini": "/Users/ada/.gemini",
+   "opencode": "/Users/ada/.local/share/opencode",
+   "pi": "/Users/ada/.pi/agent",
+   "hermes": "/Users/ada/.hermes",
+   "crush": "/Users/ada/.local/share/crush",
+   "qwen": "/Users/ada/.qwen",
+   "goose": "/Users/ada/.local/share/goose",
+   "amp": "/Users/ada/.config/amp",
+   "cursor": "/Users/ada/.cursor"
+  },
+  "guest": {
+   "claude": "/root/.claude-cfg",
+   "codex": "/root/.codex",
+   "gemini": "/root/.gemini",
+   "opencode": "/root/.local/share/opencode",
+   "pi": "/root/.pi/agent",
+   "hermes": "/root/.hermes",
+   "crush": "/root/.local/share/crush",
+   "qwen": "/root/.qwen",
+   "goose": "/root/.local/share/goose",
+   "amp": "/root/.config/amp",
+   "cursor": "/root/.cursor"
+  },
+  "one": "/Users/ada/.nope",
+  "catalog": [
+   "claude",
+   "codex",
+   "gemini",
+   "opencode",
+   "pi",
+   "hermes",
+   "crush",
+   "qwen",
+   "goose",
+   "amp",
+   "cursor"
+  ]
+ }
+}

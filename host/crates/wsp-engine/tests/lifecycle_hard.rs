@@ -34,7 +34,7 @@ async fn a_reader_holding_the_phase_sees_waking_while_the_check_runs_and_running
     h.wake_check = Some(Arc::new(move |_m| {
         let phase = *cell2.lock().unwrap().as_ref().unwrap().lock().unwrap();
         seen2.lock().unwrap().push(phase);
-        async { Ok(None) }.boxed()
+        async { Ok(None) }.boxed_local()
     }));
     let mut ws = Workspace::new(machine.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
     *cell.lock().unwrap() = Some(ws.phase_cell());
@@ -68,7 +68,7 @@ async fn a_landed_wake_sends_no_resume_on_its_first_attempt_but_does_on_its_seco
         let mut n = c.lock().unwrap();
         *n += 1;
         let fault = (*n == 1).then(|| "daemon silent".to_string());
-        async move { Ok(fault) }.boxed()
+        async move { Ok(fault) }.boxed_local()
     }));
     let mut ws = Workspace::new(machine.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
     let got = ws.wake(true).await.unwrap();
@@ -85,7 +85,7 @@ async fn a_failed_re_pause_is_one_more_fault_and_the_wake_goes_on() {
     let n2 = n.clone();
     h.wake_check = Some(Arc::new(move |_m| {
         *n2.lock().unwrap() += 1;
-        async { Ok(Some("silent".to_string())) }.boxed()
+        async { Ok(Some("silent".to_string())) }.boxed_local()
     }));
     h.move_hook = Some(Arc::new(|m, mv| {
         async move {
@@ -94,7 +94,7 @@ async fn a_failed_re_pause_is_one_more_fault_and_the_wake_goes_on() {
                 ProviderMove::Resume => m.resume(None).await,
             }
         }
-        .boxed()
+        .boxed_local()
     }));
     let mut ws = Workspace::new(machine.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
     let e = ws.wake(false).await.unwrap_err();
@@ -125,17 +125,17 @@ async fn an_upgrade_exports_retires_resurrects_imports_in_that_order_and_lands_r
     let (l1, l2, l3) = (log.clone(), log.clone(), log.clone());
     h.vault_export = Some(Arc::new(move |m| {
         l1.lock().unwrap().push(format!("export {}", m.id()));
-        async { Ok(Some(b"vault".to_vec())) }.boxed()
+        async { Ok(Some(b"vault".to_vec())) }.boxed_local()
     }));
     let f = fresh.clone();
     h.resurrect = Some(Arc::new(move |spec| {
         l2.lock().unwrap().push(format!("resurrect {}", spec.is_some()));
         let m: MachineRef = f.clone();
-        async move { Ok(m) }.boxed()
+        async move { Ok(m) }.boxed_local()
     }));
     h.vault_import = Some(Arc::new(move |m, bytes| {
         l3.lock().unwrap().push(format!("import {} {}", m.id(), String::from_utf8(bytes).unwrap()));
-        async { Ok(()) }.boxed()
+        async { Ok(()) }.boxed_local()
     }));
     let mut ws = Workspace::new(old.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
     ws.upgrade(None).await.unwrap();
@@ -152,16 +152,16 @@ async fn an_upgrade_over_the_vault_cap_goes_on_with_no_import() {
     let fresh = common::fake_machine::FakeMachine::new("new");
     let imported = Arc::new(Mutex::new(false));
     let mut h = hooks(1);
-    h.vault_export = Some(Arc::new(|_m| async { Ok(None) }.boxed()));
+    h.vault_export = Some(Arc::new(|_m| async { Ok(None) }.boxed_local()));
     let f = fresh.clone();
     h.resurrect = Some(Arc::new(move |_s| {
         let m: MachineRef = f.clone();
-        async move { Ok(m) }.boxed()
+        async move { Ok(m) }.boxed_local()
     }));
     let i = imported.clone();
     h.vault_import = Some(Arc::new(move |_m, _b| {
         *i.lock().unwrap() = true;
-        async { Ok(()) }.boxed()
+        async { Ok(()) }.boxed_local()
     }));
     let mut ws = Workspace::new(old.clone(), h, WorkspaceInitial::default());
     ws.upgrade(None).await.unwrap();
@@ -177,16 +177,16 @@ async fn a_rebuild_whose_old_machine_is_already_gone_still_lands_and_any_other_r
     let f = fresh.clone();
     h.resurrect = Some(Arc::new(move |_s| {
         let m: MachineRef = f.clone();
-        async move { Ok(m) }.boxed()
+        async move { Ok(m) }.boxed_local()
     }));
     h.retire = Some(Arc::new(|_m| {
-        async { Err(EngineError::Provider(wsp_engine::errors::classify(404, Some("not_found"), Some("gone"), None))) }.boxed()
+        async { Err(EngineError::Provider(wsp_engine::errors::classify(404, Some("not_found"), Some("gone"), None))) }.boxed_local()
     }));
     let mut ws = Workspace::new(old.clone(), h.clone(), WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
     ws.rebuild().await.unwrap();
     assert_eq!((ws.machine_id(), ws.current_phase(), ws.is_first_life()), ("new".to_string(), WorkspacePhase::Running, true));
 
-    h.retire = Some(Arc::new(|_m| async { Err(EngineError::Other { message: "delete refused".into(), code: None }) }.boxed()));
+    h.retire = Some(Arc::new(|_m| async { Err(EngineError::Other { message: "delete refused".into(), code: None }) }.boxed_local()));
     let mut ws = Workspace::new(old.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
     let e = ws.rebuild().await.unwrap_err();
     assert_eq!(e.to_string(), "delete refused");

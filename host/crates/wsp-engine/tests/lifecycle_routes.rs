@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::FutureExt;
-use tokio_util::sync::CancellationToken;
+use wsp_engine::cancel::Cancel;
 use wsp_engine::errors::Result;
 use wsp_engine::lifecycle::*;
 use wsp_engine::machine::*;
@@ -31,7 +31,7 @@ impl PreviewMachine {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for PreviewMachine {
     fn id(&self) -> &str {
         &self.id
@@ -43,10 +43,10 @@ impl Machine for PreviewMachine {
         MachineOffers { preview_url: true, ..Default::default() }
     }
     async fn exec(&self, _: &str, _: ExecOptions) -> Result<ExecResult> {
-        Ok(ExecResult { exit_code: 0, stdout: String::new(), stderr: String::new() })
+        Ok(ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() })
     }
     async fn run(&self, _: &str, _: RunOptions) -> Result<ExecResult> {
-        Ok(ExecResult { exit_code: 0, stdout: String::new(), stderr: String::new() })
+        Ok(ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() })
     }
     async fn snapshot(&self, _: &str, _: MachineLife, _: SnapshotOptions) -> Result<String> {
         Ok("snap".into())
@@ -54,7 +54,7 @@ impl Machine for PreviewMachine {
     async fn pause(&self, _: Option<u64>) -> Result<()> {
         Ok(())
     }
-    async fn resume(&self, _: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, _: Option<&Cancel>) -> Result<()> {
         Ok(())
     }
     async fn kill(&self) -> Result<()> {
@@ -87,7 +87,7 @@ fn hooks(resurrect: Option<Arc<PreviewMachine>>) -> WorkspaceHooks {
         resurrect: resurrect.map(|b| -> ResurrectHook {
             Arc::new(move |_spec| {
                 let m: MachineRef = b.clone();
-                async move { Ok(m) }.boxed()
+                async move { Ok(m) }.boxed_local()
             })
         }),
         vault_export: None,

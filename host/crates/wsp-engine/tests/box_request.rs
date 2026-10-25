@@ -438,7 +438,7 @@ async fn an_address_past_boats_request_limit_waits_the_seconds_boat_names_and_as
     );
     let (exec_on, machine) = machine_on(&execd, "bx_tumrjngm");
     let out = machine.exec("echo hi", ExecOptions::default()).await.unwrap();
-    assert_eq!((out.exit_code, out.stdout.as_str()), (0, "hi\n"));
+    assert_eq!((out.exit_code, out.stdout.as_str()), (0.into(), "hi\n"));
     assert_eq!(execd.calls().iter().filter(|c| c.ends_with("/commands")).count(), 2);
     assert_eq!(exec_on.clock.sleeps(), vec![3_000]);
 
@@ -552,7 +552,7 @@ struct Toggled {
     asked: Mutex<Vec<String>>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Fetch for Toggled {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError> {
         self.asked.lock().unwrap().push(req.url.clone());
@@ -578,9 +578,9 @@ async fn reads_the_backends_own_kept_read_a_start_counted_on_it_and_nothing_once
         ..Default::default()
     });
     let day = |l: Option<wsp_engine::machine::CloudLimits>| l.and_then(|l| l.starts).map(|s| s.day);
-    assert_eq!(day(boat.place_limits().await), Some(StartsWindow { used: 187, limit: 200 }));
+    assert_eq!(day(boat.place_limits().await), Some(StartsWindow { used: 187.into(), limit: 200.into() }));
     boat.counted();
-    assert_eq!(day(boat.place_limits().await), Some(StartsWindow { used: 188, limit: 200 }));
+    assert_eq!(day(boat.place_limits().await), Some(StartsWindow { used: 188.into(), limit: 200.into() }));
     assert_eq!(fetch.asked.lock().unwrap().len(), 1);
     clock.set(60_000);
     *fetch.status.lock().unwrap() = 400;
@@ -609,7 +609,7 @@ impl NeverAnswers {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Fetch for NeverAnswers {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError> {
         let path = url::Url::parse(&req.url).unwrap().path().to_string();

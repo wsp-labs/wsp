@@ -33,8 +33,8 @@ pub type KeyOf = fn(&str) -> String;
 
 /// resolver.ts:32. Moves one agent's project state inside that agent's home. A TS optional member is a method with a
 /// default here: `key` `None`, `listing` `None`, `shared` `None`, and `merge` absent where `has_merge` is false.
-#[async_trait]
-pub trait ProjectStateResolver: Send + Sync {
+#[async_trait(?Send)]
+pub trait ProjectStateResolver {
     /// The catalog id of the agent whose state this moves.
     fn agent(&self) -> &'static str;
     /// The catalog projectState rows this module moves, in order.
@@ -141,9 +141,10 @@ pub fn files_under(dir: &str, ext: &str) -> Result<Vec<String>> {
     todo!()
 }
 
-/// resolver.ts:208. Rewrites the JSON lines `edit` returns true for, leaving every other byte alone; answers how many.
-/// Rules (temp file, mode, a file with none untouched, a failure leaving no temp file) in spec/project_state_files.md.
-pub async fn rewrite_jsonl(file: &str, edit: &mut (dyn FnMut(&mut Map<String, Value>) -> bool + Send)) -> Result<u64> {
+/// resolver.ts:208. Rewrites the JSON lines `edit` answers true for, leaving every other byte alone; answers how many.
+/// An edit that fails fails the rewrite with that failure, the file as it was. Rules (temp file, mode, a file with none
+/// untouched, a failure leaving no temp file, the missing-file words) in spec/project_state_files.md.
+pub async fn rewrite_jsonl(file: &str, edit: &mut (dyn FnMut(&mut Map<String, Value>) -> Result<bool>)) -> Result<u64> {
     todo!()
 }
 

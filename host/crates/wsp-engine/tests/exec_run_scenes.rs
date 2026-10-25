@@ -100,7 +100,7 @@ async fn run(name: &str) {
                 }
                 Ok(res(0, "", ""))
             }
-            .boxed()
+            .boxed_local()
         }),
     );
     let lines = Arc::new(Mutex::new(Vec::<String>::new()));

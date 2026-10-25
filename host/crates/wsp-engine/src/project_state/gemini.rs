@@ -15,7 +15,7 @@ pub const SLUG_DIRS: [(&str, &str); 2] = [("project temp dir", "tmp"), ("shell h
 /// gemini.ts:26. carry transcript-only; states project registry, project temp dir, shell history; roots projects.json, tmp, history; shared store the registry filtered to keys under PATH.
 pub struct GeminiResolver;
 
-#[async_trait]
+#[async_trait(?Send)]
 impl ProjectStateResolver for GeminiResolver {
     fn agent(&self) -> &'static str {
         todo!()

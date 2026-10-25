@@ -45,7 +45,7 @@ pub struct Reply {
 #[derive(Clone)]
 pub enum Answer {
     Reply(Reply),
-    With(Arc<dyn Fn(&Seen) -> Answer + Send + Sync>),
+    With(Arc<dyn Fn(&Seen) -> Answer>),
     Road(RoadError),
     Hang,
 }
@@ -56,7 +56,7 @@ impl From<Reply> for Answer {
     }
 }
 
-pub fn with(f: impl Fn(&Seen) -> Answer + Send + Sync + 'static) -> Answer {
+pub fn with(f: impl Fn(&Seen) -> Answer + 'static) -> Answer {
     Answer::With(Arc::new(f))
 }
 
@@ -123,7 +123,7 @@ impl FakeBox {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Fetch for FakeBox {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError> {
         let seen = Self::seen_of(&req);

@@ -5,10 +5,10 @@
 //! frame its daemon already serves, and every call that belongs to a workspace refused in one sentence.
 use std::sync::Arc;
 
+use crate::cancel::Cancel;
 use async_trait::async_trait;
 use serde_json::{Map, Value};
 use tokio::sync::OnceCell;
-use tokio_util::sync::CancellationToken;
 
 use crate::errors::Result;
 use crate::link_backend::MachineLink;
@@ -66,7 +66,7 @@ impl PlaceMachine {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for PlaceMachine {
     fn id(&self) -> &str {
         todo!()
@@ -92,7 +92,7 @@ impl Machine for PlaceMachine {
     async fn pause(&self, wait_ms: Option<u64>) -> Result<()> {
         todo!()
     }
-    async fn resume(&self, signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, signal: Option<&Cancel>) -> Result<()> {
         todo!()
     }
     async fn kill(&self) -> Result<()> {
@@ -138,7 +138,7 @@ impl PlaceFolderMachine {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for PlaceFolderMachine {
     fn id(&self) -> &str {
         todo!()
@@ -164,7 +164,7 @@ impl Machine for PlaceFolderMachine {
     async fn pause(&self, wait_ms: Option<u64>) -> Result<()> {
         todo!()
     }
-    async fn resume(&self, signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, signal: Option<&Cancel>) -> Result<()> {
         todo!()
     }
     async fn kill(&self) -> Result<()> {
@@ -191,6 +191,6 @@ impl Machine for PlaceFolderMachine {
 }
 
 /// place-machine.ts:236. The backend a folder on a joined computer stands on: that computer as one machine.
-pub fn place_folder_backend(machine: Arc<dyn Fn() -> Arc<dyn Machine> + Send + Sync>, shape: Size) -> Arc<dyn MachineBackend> {
+pub fn place_folder_backend(machine: Arc<dyn Fn() -> Arc<dyn Machine>>, shape: Size) -> Arc<dyn MachineBackend> {
     todo!()
 }

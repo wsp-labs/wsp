@@ -51,7 +51,7 @@ async fn the_launch_is_put_files_of_the_script_behind_its_claim() {
     let want = d["calls"][0].as_str().unwrap();
     let machine = ScriptedMachine::new("m1", |_c, _o| Ok(res(0, "WSP_LAUNCHED\n", "")));
     let launched = launch(machine.as_ref(), BASE, "echo it's").await.unwrap();
-    assert_eq!((launched.exit_code, launched.pieces), (0, 0));
+    assert_eq!((launched.exit_code, launched.pieces), (0.into(), 0));
     let calls = machine.calls.lock().unwrap().clone();
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].cmd, want);
@@ -90,7 +90,7 @@ async fn the_ts_run_reads_and_cleans_as_recorded() {
     let got = exec_detached(machine.as_ref(), "echo it's", RunOptions { deadline_ms: 60_000, poll_ms: Some(1), ..Default::default() })
         .await
         .unwrap();
-    assert_eq!((got.exit_code, got.stdout.as_str(), got.stderr.as_str()), (0, "a\n", "e"));
+    assert_eq!((got.exit_code, got.stdout.as_str(), got.stderr.as_str()), (0.into(), "a\n", "e"));
     let base = machine.cmds()[1].lines().next().unwrap().strip_prefix("b=").unwrap().to_string();
     let want: Vec<String> = d["calls"].as_array().unwrap().iter().map(|c| c.as_str().unwrap().replace(BASE, &base)).collect();
     assert_eq!(machine.cmds(), want);
@@ -114,7 +114,7 @@ async fn a_down_after_an_up_still_counts_as_the_second() {
     });
     let got =
         exec_detached(machine.as_ref(), "true", RunOptions { deadline_ms: 10_000, poll_ms: Some(1), ..Default::default() }).await.unwrap();
-    assert_eq!(got.exit_code, -1);
+    assert_eq!(got.exit_code, (-1).into());
     assert_eq!(got.stdout, "x");
     assert_eq!(got.stderr, "wsp: the command ended without reporting an exit code\n");
     assert_eq!(machine.cmds().iter().filter(|c| c.contains("echo WSP_POLL")).count(), 3);
@@ -141,7 +141,7 @@ async fn the_note_goes_on_its_own_line() {
         let got = exec_detached(machine.as_ref(), "true", RunOptions { deadline_ms: 10_000, poll_ms: Some(1), ..Default::default() })
             .await
             .unwrap();
-        assert_eq!((got.exit_code, got.stderr.as_str()), (-1, want));
+        assert_eq!((got.exit_code, got.stderr.as_str()), ((-1).into(), want));
     }
 }
 
@@ -188,7 +188,7 @@ async fn a_deadline_run_kills_reads_once_more_and_cleans() {
     let got = exec_detached_in(machine.as_ref(), "sleep 9", RunOptions { deadline_ms: 0, poll_ms: Some(1), ..Default::default() }, "/r")
         .await
         .unwrap();
-    assert_eq!((got.exit_code, got.stdout.as_str(), got.stderr.as_str()), (DEADLINE_EXIT, "", ""));
+    assert_eq!((got.exit_code, got.stdout.as_str(), got.stderr.as_str()), (DEADLINE_EXIT.into(), "", ""));
     let cmds = machine.cmds();
     let base = cmds[0].lines().find_map(|l| l.strip_prefix("b=")).unwrap().to_string();
     assert!(base.starts_with("/r/") && base.len() == "/r/".len() + 12, "{base}");

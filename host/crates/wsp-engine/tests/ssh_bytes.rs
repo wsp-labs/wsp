@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use roads_common::*;
-use tokio_util::sync::CancellationToken;
+use wsp_engine::cancel::Cancel;
 use wsp_engine::errors::{Result, RoadError};
 use wsp_engine::fetch::{Fetch, FetchRequest, FetchResponse};
 use wsp_engine::land_bytes::{land_bytes, LandBytesOptions};
@@ -81,7 +81,7 @@ async fn takes_the_machines_own_road_when_it_has_one() {
 /// A machine that mints a signed URL and carries no bytes of its own, which is what every provider backend is.
 struct UrlMachine;
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for UrlMachine {
     fn id(&self) -> &str {
         "m1"
@@ -101,7 +101,7 @@ impl Machine for UrlMachine {
     async fn pause(&self, _wait_ms: Option<u64>) -> Result<()> {
         Err(plain("not in this test"))
     }
-    async fn resume(&self, _signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, _signal: Option<&Cancel>) -> Result<()> {
         Err(plain("not in this test"))
     }
     async fn kill(&self) -> Result<()> {
@@ -122,7 +122,7 @@ struct RecordingFetch {
     puts: Mutex<Vec<FetchRequest>>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Fetch for RecordingFetch {
     async fn fetch(&self, req: FetchRequest) -> std::result::Result<FetchResponse, RoadError> {
         self.puts.lock().unwrap().push(req);

@@ -5,10 +5,10 @@
 //! side answers is what its own backend answered, kind and status included.
 use std::sync::Arc;
 
+use crate::cancel::Cancel;
 use async_trait::async_trait;
 use indexmap::IndexMap;
 use serde_json::{Map, Value};
-use tokio_util::sync::CancellationToken;
 
 use crate::errors::{EngineError, Result};
 use crate::machine::{
@@ -26,8 +26,8 @@ pub struct LinkAsk {
 }
 
 /// link-backend.ts:61. The road to one place, as whoever holds the socket hands it over.
-#[async_trait]
-pub trait MachineLink: Send + Sync {
+#[async_trait(?Send)]
+pub trait MachineLink {
     /// One frame and its answer: the far side's refusal with its kind and status, `PlaceAbsent` when the place is not
     /// connected, a timeout when nothing answered inside the ask's bound.
     async fn request(&self, op: &str, params: Map<String, Value>, ask: LinkAsk) -> Result<Map<String, Value>>;
@@ -76,7 +76,7 @@ impl LinkMachine {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for LinkMachine {
     fn id(&self) -> &str {
         todo!()
@@ -123,7 +123,7 @@ impl Machine for LinkMachine {
     async fn pause(&self, wait_ms: Option<u64>) -> Result<()> {
         todo!()
     }
-    async fn resume(&self, signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, signal: Option<&Cancel>) -> Result<()> {
         todo!()
     }
     async fn kill(&self) -> Result<()> {
@@ -179,7 +179,7 @@ impl LinkBackend {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for LinkBackend {
     fn capabilities(&self) -> Capabilities {
         todo!()

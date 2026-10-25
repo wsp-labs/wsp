@@ -79,7 +79,7 @@ async fn commands_run_under_the_env_the_backend_was_given() {
     let machine = LocalBackend::new(LocalBackendOptions { root: dir.path().to_path_buf(), env: Some(env) }).get("local").await.unwrap();
     let said = machine.exec("printf %s \"$WSP_ROADS_PROBE:$HOME\"", Default::default()).await.unwrap();
     // Only what was given: no HOME of this process's leaks in.
-    assert_eq!((said.exit_code, said.stdout.as_str()), (0, "given:"));
+    assert_eq!((said.exit_code, said.stdout.as_str()), (0.into(), "given:"));
 }
 
 #[test]

@@ -3,9 +3,9 @@
 use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
 
+use crate::cancel::Cancel;
 use serde::Deserialize;
 use serde_json::Value;
-use tokio_util::sync::CancellationToken;
 
 use super::plan::BoxLimits;
 use crate::errors::{EngineError, Result, RetryClock, WspError};
@@ -162,7 +162,7 @@ pub struct RequestOpts {
     /// In order, after Authorization.
     pub headers: Vec<(String, String)>,
     pub cap_ms: Option<u64>,
-    pub signal: Option<CancellationToken>,
+    pub signal: Option<Cancel>,
     /// Sent once, for a caller that keeps a backoff of its own.
     pub once: bool,
 }
@@ -195,7 +195,7 @@ pub struct BoxBudgetsAsk {
 }
 
 /// Where `console.warn` goes; tests hand in one that records.
-pub type Warn = Arc<dyn Fn(&str) + Send + Sync>;
+pub type Warn = Arc<dyn Fn(&str)>;
 
 /// box-backend.ts:514.
 #[derive(Clone, Default)]
@@ -232,7 +232,8 @@ pub struct BoxState {
     /// The last answered read of /limits and when it was answered.
     pub limits_kept: Option<(i64, BoxLimits)>,
     /// The read of /limits out now, shared by every caller while it is out.
-    pub limits_asked: Option<futures::future::Shared<futures::future::BoxFuture<'static, std::result::Result<BoxLimits, EngineError>>>>,
+    pub limits_asked:
+        Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, std::result::Result<BoxLimits, EngineError>>>>,
     /// When each refusal (call, status, code) was last logged.
     pub refusals_logged: HashMap<String, i64>,
     pub backstops: HashMap<String, Timer>,
@@ -335,22 +336,21 @@ impl BoxBackend {
     pub async fn settle(
         &self,
         id: &str,
-        done: &(dyn Fn(&BoxView) -> bool + Send + Sync),
+        done: &(dyn Fn(&BoxView) -> bool),
         budget_ms: u64,
         what: &str,
-        signal: Option<&CancellationToken>,
+        signal: Option<&Cancel>,
         name: Option<&str>,
-        seen: Option<&(dyn Fn(&BoxView) + Send + Sync)>,
+        seen: Option<&(dyn Fn(&BoxView))>,
     ) -> Result<BoxView> {
         todo!()
     }
 
     /// box-backend.ts:774. Asks `call` again while the box is still restoring, inside the restore budget.
-    pub async fn while_restoring<T, F, Fut>(&self, call: F, signal: Option<&CancellationToken>) -> Result<T>
+    pub async fn while_restoring<T, F, Fut>(&self, call: F, signal: Option<&Cancel>) -> Result<T>
     where
-        F: FnMut() -> Fut + Send,
-        Fut: std::future::Future<Output = Result<T>> + Send,
-        T: Send,
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = Result<T>>,
     {
         todo!()
     }
