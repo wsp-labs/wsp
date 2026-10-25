@@ -12,9 +12,16 @@ use gpui_kit::{
     WindowOptions,
 };
 
+/// What the page shows: the short line, or the wide page's rows, each the printable ASCII at one text size.
+enum Shows {
+    Short,
+    Rows(Vec<f32>),
+}
+
 struct Page {
-    text: SharedString,
-    size: f32,
+    shows: Shows,
+    /// A family to draw in alone, as `ATLAS_FONT` names one, to match a computer whose fonts are few.
+    family: Option<SharedString>,
 }
 
 /// The window's root, drawing the page as a cached view, which replays its last paint until the page changes.
@@ -28,26 +35,33 @@ impl Render for Frame {
     }
 }
 
+const SHORT: &str = "The next thread, in a few words.";
+
+/// Every printable ASCII character, which every font a computer has draws: each at each size is a tile of its own.
+fn ascii() -> SharedString {
+    (0x21u8..0x7f).map(char::from).collect::<String>().into()
+}
+
 impl Render for Page {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().text_size(px(self.size)).child(self.text.clone())
+        let page = div().size_full().flex().flex_col().when_some(self.family.clone(), |el, family| el.font_family(family));
+        match &self.shows {
+            Shows::Short => page.text_size(px(15.)).child(SHORT),
+            Shows::Rows(sizes) => page.children(sizes.iter().map(|&size| div().text_size(px(size)).child(ascii()))),
+        }
     }
 }
 
-const SHORT: &str = "The next thread, in a few words.";
-
-/// One window at `scale`: the short page's glyph pages, then a wide page grown until its glyphs need pages the short
-/// page does not, then the trim, which must give those back once the short page is drawn again.
-fn trims_at(scale: f32, cx: &mut HeadlessAppContext) {
-    // Three thousand ideographs, each a glyph of its own, as a thread of another script or a long table of code draws.
-    let wide: SharedString = (0x4e00..0x4e00 + 3000).filter_map(char::from_u32).collect::<String>().into();
+/// One window at `scale`: the short page's glyph pages, then a wide page of a row more at each size until its glyphs
+/// need pages the short page does not, then the trim, which must give those back once the short page is drawn again.
+fn trims_at(scale: f32, family: Option<SharedString>, cx: &mut HeadlessAppContext) {
     let mut page = None;
     let (handle, _): (AnyWindowHandle, _) = cx
         .update(|cx| {
             let options = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(gpui_kit::Bounds {
                     origin: Default::default(),
-                    size: size(px(3000.), px(3000.)),
+                    size: size(px(2400.), px(3000.)),
                 })),
                 focus: false,
                 show: false,
@@ -55,7 +69,7 @@ fn trims_at(scale: f32, cx: &mut HeadlessAppContext) {
             };
             gpui_kit::open_window(options, cx, |window, cx| {
                 window.set_scale_factor(scale);
-                let view = cx.new(|_| Page { text: SHORT.into(), size: 15. });
+                let view = cx.new(|_| Page { shows: Shows::Short, family });
                 page = Some(view.clone());
                 cx.new(|_| Frame { page: view })
             })
@@ -68,11 +82,10 @@ fn trims_at(scale: f32, cx: &mut HeadlessAppContext) {
         cx.run_until_parked();
     };
     let glyphs = |cx: &mut HeadlessAppContext| cx.update_window(handle, |_, window, _| window.atlas_usage().glyphs).unwrap();
-    let show = |cx: &mut HeadlessAppContext, text: SharedString, size: f32| {
+    let show = |cx: &mut HeadlessAppContext, shows: Shows| {
         cx.update(|cx| {
             page.update(cx, |p, cx| {
-                p.text = text;
-                p.size = size;
+                p.shows = shows;
                 cx.notify();
             })
         });
@@ -80,18 +93,25 @@ fn trims_at(scale: f32, cx: &mut HeadlessAppContext) {
     draw(cx);
     let short = glyphs(cx);
     assert!(short > 0, "the short page draws its glyphs");
-    // Larger glyphs until the wide page's need pages past the short page's, as the scale and the renderer's page decide.
-    let mut full = short;
-    for text_size in [15., 24., 36., 54.] {
-        show(cx, wide.clone(), text_size);
+    // A row more at each size, from 12 to 96 px, until the atlas holds pages past the short page's: how many depends on
+    // the scale, the fonts and the renderer's page, so it is read off the atlas.
+    let (mut sizes, mut full) = (Vec::new(), short);
+    for size in (12..=96).step_by(6) {
+        sizes.push(size as f32);
+        show(cx, Shows::Rows(sizes.clone()));
         draw(cx);
         full = glyphs(cx);
         if full > short {
             break;
         }
     }
-    assert!(full > short, "at scale {scale} the wide page drew no glyph page past the short page's {short} bytes");
-    show(cx, SHORT.into(), 15.);
+    assert!(
+        full > short,
+        "at scale {scale} the printable ASCII at {} sizes from 12 to 96 px drew no glyph tile past the short page's {short} bytes of \
+         pages: the fonts here drew no distinct glyph for them",
+        sizes.len()
+    );
+    show(cx, Shows::Short);
     draw(cx);
     assert_eq!(glyphs(cx), full, "the glyphs of a page left stay in the atlas until a trim lets them go");
     let trimmed = cx.update_window(handle, |_, window, _| warm::trim_atlas(window, full)).unwrap();
@@ -100,7 +120,10 @@ fn trims_at(scale: f32, cx: &mut HeadlessAppContext) {
     assert!(trimmed, "{full} bytes of glyph pages are past the short page's {short}");
     draw(cx);
     let left = glyphs(cx);
-    println!("glyph pages at scale {scale}: {short} bytes for the short page, {full} with the wide one drawn, {left} after a trim");
+    println!(
+        "glyph pages at scale {scale}: {short} bytes for the short page, {full} with rows at {} sizes drawn, {left} after a trim",
+        sizes.len()
+    );
     assert!(left > 0, "the cached page drew its glyphs again after the trim");
     assert!(left <= short, "at scale {scale} the trim kept {left} of the {full} bytes of glyph pages, past the short page's {short}");
     cx.update_window(handle, |_, window, _| window.remove_window()).unwrap();
@@ -116,9 +139,10 @@ fn main() {
         gpui_kit::init(cx);
         ui::init(Side::Light, cx);
     });
+    let family = std::env::var("ATLAS_FONT").ok().map(SharedString::from);
     // One as the Linux runner's software renderer draws, two as a Mac's display does.
     for scale in [1., 2.] {
-        trims_at(scale, &mut cx);
+        trims_at(scale, family.clone(), &mut cx);
     }
     println!("atlas_trim: ok");
 }
