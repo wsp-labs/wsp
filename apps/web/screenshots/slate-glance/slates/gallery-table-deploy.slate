@@ -1,0 +1,22 @@
+<slate title="Roll out web 3.8.1 by region">
+  <value name="regions" start={[
+    {region: "eu-west-1", version: "3.8.1", pods: "24/24", state: "Done", tone: "good"},
+    {region: "us-east-1", version: "3.8.1", pods: "36/36", state: "Done", tone: "good"},
+    {region: "ap-southeast-2", version: "3.8.1", pods: "9/12", state: "Paused", tone: "bad"},
+    {region: "us-west-2", version: "3.8.0", pods: "0/24", state: "Waiting", tone: "muted"},
+    {region: "ap-south-1", version: "3.8.0", pods: "0/12", state: "Waiting", tone: "muted"}
+  ]} />
+  <value name="sydney" start="" />
+  <column>
+    <table items={$regions} key={item.region}>
+      <col title="Region" value={item.region} />
+      <col title="Version" value={item.version} mono={true} />
+      <col title="Pods" value={item.pods} mono={true} />
+      <col title="State" value={item.state} tone={item.tone} />
+    </table>
+    <decision id="sydney" label="Roll back ap-southeast-2?" value={$sydney} pick="rollback" onChange={send("ap-southeast-2", $sydney)}>
+      <option value="rollback" label="Roll back to 3.8.0" note="5xx 1.9% there since 14:20, 0.2% elsewhere" />
+      <option value="hold" label="Stay paused" note="The 9 new pods keep serving" />
+    </decision>
+  </column>
+</slate>

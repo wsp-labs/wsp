@@ -1,0 +1,32 @@
+<slate title="Full suite on main, 8c41f2e">
+  <value name="testsRun" start={1921} />
+  <value name="testsTotal" start={2496} />
+  <value name="failed" start={3} />
+  <value name="elapsed" start={185000} />
+  <value name="shards" start={[
+    {name: "Shard 1, api", done: true, note: "Passed"},
+    {name: "Shard 2, api", done: true, note: "Passed"},
+    {name: "Shard 3, api", done: true, note: "Passed"},
+    {name: "Shard 4, billing", done: true, note: "2 failed"},
+    {name: "Shard 5, billing", done: true, note: "1 failed"},
+    {name: "Shard 6, checkout", done: true, note: "Passed"},
+    {name: "Shard 7, checkout", done: true, note: "Passed"},
+    {name: "Shard 8, search", done: true, note: "Passed"},
+    {name: "Shard 9, search", done: true, note: "Passed"},
+    {name: "Shard 10, web", done: true, note: "Passed"},
+    {name: "Shard 11, web", done: true, note: "Passed"},
+    {name: "Shard 12, web", done: true, note: "Passed"},
+    {name: "Shard 13, e2e", done: true, note: "Passed"},
+    {name: "Shard 14, e2e", done: false, note: "Running, 61%"},
+    {name: "Shard 15, e2e", done: false, note: "Running, 40%"},
+    {name: "Shard 16, e2e", done: false, note: "Waiting for a runner"}
+  ]} />
+  <column>
+    <stats>
+      <stat label="Tests run" value={$testsRun} max={$testsTotal} format="percent" window="1,921 of 2,496" />
+      <stat label="Failed" value={$failed} window="all in billing" tone="bad" />
+      <stat label="Elapsed" value={$elapsed} format="duration" window="last run 4m 12s" />
+    </stats>
+    <progress label="shards finished" items={$shards} key="name" name={item.name} done={item.done} note={item.note} />
+  </column>
+</slate>

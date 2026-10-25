@@ -1,0 +1,18 @@
+<slate title="Can we drop Node 18?">
+  <value name="share" start={7.4} />
+  <value name="shareTrend" start={[12.1, 10.9, 9.8, 8.6, 7.4]} />
+  <value name="teams" start={31} />
+  <value name="depsNeed20" start={4} />
+  <value name="drop" start="" />
+  <column>
+    <stats>
+      <stat label="Installs on 18" value={$share} unit="%" trend={$shareTrend} window="last 30 days" />
+      <stat label="Teams on 18" value={$teams} window="paying, of 1,240" tone="warning" />
+      <stat label="Blocked deps" value={$depsNeed20} window="of 61 direct" />
+    </stats>
+    <decision id="drop" label="Drop Node 18 in 5.0?" value={$drop} pick="drop" onChange={send("Node 18 in 5.0", $drop)}>
+      <option value="drop" label="Drop it in 5.0" note="Share falls a point a month; 18 is past end of life" />
+      <option value="keep" label="Keep it one more major" note="Holds back 4 dependency updates" />
+    </decision>
+  </column>
+</slate>

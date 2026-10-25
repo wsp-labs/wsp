@@ -1,0 +1,20 @@
+<slate title="Deploy api 2.14.0 to production">
+  <value name="podsNew" start={18} />
+  <value name="pods" start={24} />
+  <value name="errorRate" start={0.21} />
+  <value name="errorTrend" start={[0.19, 0.22, 0.2, 0.18, 0.21, 0.21]} />
+  <value name="p95" start={184} />
+  <value name="p95Trend" start={[176, 179, 188, 183, 181, 184]} />
+  <value name="rollRest" start="" />
+  <column>
+    <stats>
+      <stat label="New pods" value={$podsNew} max={$pods} window="on 2.14.0" />
+      <stat label="5xx rate" value={$errorRate} unit="%" trend={$errorTrend} window="last 20 min" tone="good" />
+      <stat label="p95 latency" value={$p95} unit="ms" trend={$p95Trend} window="was 179 ms" />
+    </stats>
+    <decision id="rollRest" label="Roll the last 6 pods?" value={$rollRest} pick="now" onChange={send("The last 6 pods", $rollRest)}>
+      <option value="now" label="Roll them now" note="Errors and latency match 2.13.2 for 20 minutes" />
+      <option value="hold" label="Hold at 18" note="Keeps 2.13.2 serving a quarter of traffic" />
+    </decision>
+  </column>
+</slate>
