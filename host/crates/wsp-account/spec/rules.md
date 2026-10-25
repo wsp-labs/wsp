@@ -105,7 +105,7 @@ held), `kindOf(computer)`, `placeName(id)`, `rowsOn(threadId)`, `agentsHeld(reco
   `agents`, else `{ computer: placeDoor.nameOf(placeIdOf(record) ?? "here") }`. Seen through the depth refusal's
   words (R24).
 - R22 `depthUnderRoot` (250-260) walks parents; the walk is bounded by `sessions.size + threadRecords.size + 1`
-  steps, so a loop of parents answers that bound. With the fixture's loop (4 sessions, 13 records) the depth reads
+  steps, so a loop of parents answers that bound. With the fixture's loop (4 sessions, 12 records) the depth reads
   17. Test `r22_a_parent_loop_is_bounded`.
 - R23 `spawnGuard(act, caller)` (283-324), in order, the first that answers:
   1. no scope → a no-op release;
