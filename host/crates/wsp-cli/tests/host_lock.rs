@@ -96,7 +96,8 @@ fn lock_json(path: &str) -> Value {
 }
 
 fn write_lock(path: &str, pid: f64, port: f64, started_by: Option<&str>) {
-    let mut lock = serde_json::json!({"pid": pid, "port": port, "startedAt": "2026-09-01T00:00:00.000Z"});
+    let whole = |n: f64| if n.fract() == 0.0 { serde_json::json!(n as i64) } else { serde_json::json!(n) };
+    let mut lock = serde_json::json!({"pid": whole(pid), "port": whole(port), "startedAt": "2026-09-01T00:00:00.000Z"});
     if let Some(by) = started_by {
         lock["startedBy"] = Value::String(by.into());
     }
