@@ -49,7 +49,7 @@ fn cmd(stdout: &str) -> Answer {
 }
 
 fn done(stdout: &str) -> ExecResult {
-    ExecResult { exit_code: 0, stdout: stdout.to_string(), stderr: String::new() }
+    ExecResult { exit_code: 0.into(), stdout: stdout.to_string(), stderr: String::new() }
 }
 
 /// box-backend.test.ts:139 `launchedText`.
@@ -186,7 +186,7 @@ async fn runs_every_command_as_root_through_sudo_under_the_exec_environment_with
     assert!(!sent_command.contains("-lc"));
     assert_eq!(sent.body["timeoutSeconds"].as_u64(), Some(INLINE_EXEC_MS / 1000));
     // A command the provider cut off at its timeout reads as a run past its deadline does.
-    assert_eq!(machine.exec("true", exec_opts(BOX_INLINE_MAX_MS)).await.unwrap().exit_code, DEADLINE_EXIT);
+    assert_eq!(machine.exec("true", exec_opts(BOX_INLINE_MAX_MS)).await.unwrap().exit_code, DEADLINE_EXIT.into());
     assert_eq!(api.seen().last().unwrap().body["timeoutSeconds"].as_u64(), Some(BOX_INLINE_MAX_MS / 1000));
     // A box that is not running refuses the command, thrown as the stopped machine with the refusal's kind and code.
     let stopped = failed(machine.exec("true", ExecOptions::default()).await);
@@ -245,7 +245,7 @@ async fn a_command_road_whose_shell_dies_on_the_open_file_limit_is_the_providers
     // A command of its own that fails, even with a loader error of its own kind, is still a command's exit code.
     let ordinary =
         FakeBox::new().on("POST", COMMANDS, vec![command("", Some(127), json!({ "stderr": "bash: nosuchthing: command not found\n" }))]);
-    assert_eq!(machine_for(&ordinary).exec("nosuchthing", ExecOptions::default()).await.unwrap().exit_code, 127);
+    assert_eq!(machine_for(&ordinary).exec("nosuchthing", ExecOptions::default()).await.unwrap().exit_code, 127.into());
     // So is a child of the command that hits the same limit: the line is the box's only when what wsp starts died.
     let child = FakeBox::new().on(
         "POST",
@@ -256,7 +256,7 @@ async fn a_command_road_whose_shell_dies_on_the_open_file_limit_is_the_providers
             json!({ "stderr": "gh: error while loading shared libraries: libssl.so.3: cannot open shared object file: Error 24\n" }),
         )],
     );
-    assert_eq!(machine_for(&child).exec("gh auth status", ExecOptions::default()).await.unwrap().exit_code, 127);
+    assert_eq!(machine_for(&child).exec("gh auth status", ExecOptions::default()).await.unwrap().exit_code, 127.into());
     // The sudo that wraps every command is wsp's own and runs under the same limit, so it is the box's fault too.
     let wrapper = FakeBox::new().on(
         "POST",

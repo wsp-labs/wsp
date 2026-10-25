@@ -65,13 +65,13 @@ fn resurrect_into(order: &Log) -> ResurrectHook {
             order.lock().unwrap().push("resurrect".into());
             Ok(machine_ref(&FakeMachine::new("m2")))
         }
-        .boxed()
+        .boxed_local()
     })
 }
 
 /// A resurrect hook of `stubMachine({ id: "m2" })` that nothing in the test is meant to reach.
 fn resurrect_m2() -> ResurrectHook {
-    Arc::new(|_spec| async { Ok(machine_ref(&FakeMachine::new("m2"))) }.boxed())
+    Arc::new(|_spec| async { Ok(machine_ref(&FakeMachine::new("m2"))) }.boxed_local())
 }
 
 /// A wake check that answers `fault` for the first `failing` checks, then healthy; each check is one `check` entry.
@@ -85,7 +85,7 @@ fn check_failing(log: &Log, failing: u32, fault: &'static str) -> WakeCheckHook 
             log.lock().unwrap().push("check".into());
             Ok((n <= failing).then(|| fault.to_string()))
         }
-        .boxed()
+        .boxed_local()
     })
 }
 
@@ -136,7 +136,7 @@ async fn a_wake_of_a_machine_that_vanished_while_paused_throws_the_providers_404
         let forked = forked.clone();
         Arc::new(move |_spec| {
             forked.store(true, Ordering::SeqCst);
-            async { Ok(machine_ref(&FakeMachine::new("m2"))) }.boxed()
+            async { Ok(machine_ref(&FakeMachine::new("m2"))) }.boxed_local()
         })
     };
     let mut ws = Workspace::new(machine_ref(&dead), WorkspaceHooks { resurrect: Some(resurrect), ..base(2) }, running());
@@ -221,10 +221,10 @@ async fn two_failed_checks_fail_the_wake_with_both_faults_and_the_machine_stays(
                 order.lock().unwrap().push(format!("restore:{}", m.id()));
                 Ok(())
             }
-            .boxed()
+            .boxed_local()
         })
     };
-    let wake_check: WakeCheckHook = Arc::new(|m| async move { Ok(Some(format!("memMb 2048 != 4096 on {}", m.id()))) }.boxed());
+    let wake_check: WakeCheckHook = Arc::new(|m| async move { Ok(Some(format!("memMb 2048 != 4096 on {}", m.id()))) }.boxed_local());
     let hooks = WorkspaceHooks {
         resurrect: Some(resurrect_into(&order)),
         restore_vault: Some(restore_vault),
@@ -282,7 +282,7 @@ async fn a_resume_that_ends_with_the_guest_unusable_fails_the_wake_with_the_prov
                 order.lock().unwrap().push("check".into());
                 Err(EngineError::Other { message: "a machine nothing can run on is never checked".into(), code: None })
             }
-            .boxed()
+            .boxed_local()
         })
     };
     let hooks = WorkspaceHooks { resurrect: Some(resurrect_into(&order)), wake_check: Some(wake_check), ..base(2) };
@@ -311,7 +311,7 @@ async fn nap_stashes_the_vault_before_the_pause() {
                 order.lock().unwrap().push("stash".into());
                 Ok(())
             }
-            .boxed()
+            .boxed_local()
         })
     };
     let mut ws = Workspace::new(machine_ref(&m), WorkspaceHooks { stash_vault: Some(stash), ..base(2) }, running());
@@ -337,7 +337,7 @@ async fn note_running_puts_a_napping_phase_back_to_running_so_the_next_nap_pause
 #[tokio::test]
 async fn a_failed_wake_with_no_resurrect_hook_throws_and_leaves_the_workspace_napping() {
     let m = FakeMachine::new("m1");
-    let wake_check: WakeCheckHook = Arc::new(|_m| async { Ok(Some("no daemon".to_string())) }.boxed());
+    let wake_check: WakeCheckHook = Arc::new(|_m| async { Ok(Some("no daemon".to_string())) }.boxed_local());
     let mut ws = Workspace::new(machine_ref(&m), WorkspaceHooks { wake_check: Some(wake_check), ..base(2) }, running());
     ws.nap().await.unwrap();
     let e = ws.wake(false).await.unwrap_err();
@@ -368,7 +368,7 @@ async fn nap_and_wake_run_their_pause_and_resume_through_the_move_hook_with_the_
                     ProviderMove::Resume => m.resume(None).await,
                 }
             }
-            .boxed()
+            .boxed_local()
         })
     };
     let mut ws = Workspace::new(machine_ref(&m), WorkspaceHooks { move_hook: Some(move_hook), ..base(2) }, running());
@@ -401,7 +401,7 @@ async fn a_wakes_re_pause_goes_through_the_hook_too_and_a_move_the_hook_gives_up
                     ProviderMove::Resume => m.resume(None).await,
                 }
             }
-            .boxed()
+            .boxed_local()
         })
     };
     let hooks = WorkspaceHooks {
@@ -435,7 +435,7 @@ async fn rebuild_replaces_a_running_machine_with_a_golden_fork_restores_the_vaul
                 order.lock().unwrap().push(format!("restore:{}", m.id()));
                 Ok(())
             }
-            .boxed()
+            .boxed_local()
         })
     };
     let hooks = WorkspaceHooks { resurrect: Some(resurrect_into(&order)), restore_vault: Some(restore_vault), ..base(2) };

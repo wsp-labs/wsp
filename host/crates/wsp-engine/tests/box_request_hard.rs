@@ -40,7 +40,7 @@ async fn bytes_win_over_a_body_and_a_call_with_neither_sends_no_content_type() {
 
 /// A fetch whose 2xx answers an empty body.
 struct Empty;
-#[async_trait::async_trait]
+#[async_trait::async_trait(?Send)]
 impl Fetch for Empty {
     async fn fetch(
         &self,
@@ -199,8 +199,8 @@ async fn settle_reads_until_done_then_fails_naming_the_state_after_its_budget_in
     let reads = api.calls().iter().filter(|c| *c == "GET /sandboxes/bx_1").count();
     // Reads at 0, 10, ... 1490 and the one at 1500 that is past the budget: one more than the polls.
     assert_eq!(reads, 151);
-    let stop = tokio_util::sync::CancellationToken::new();
-    stop.cancel();
+    let stop = wsp_engine::cancel::Cancel::new();
+    stop.cancel(None);
     let e = on.backend.settle("bx_1", &|_| true, 100, "resume", Some(&stop), None, None).await.unwrap_err();
     assert_eq!(e, wsp_engine::errors::aborted());
 }

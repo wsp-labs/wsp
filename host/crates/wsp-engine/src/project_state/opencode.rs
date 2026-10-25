@@ -13,7 +13,7 @@ pub const DB: &str = "opencode.db";
 /// opencode.ts:26. carry transcript-only; states project, project directories, sessions; roots opencode.db; shared store project, project_directory, session, message, part; entries always empty.
 pub struct OpencodeResolver;
 
-#[async_trait]
+#[async_trait(?Send)]
 impl ProjectStateResolver for OpencodeResolver {
     fn agent(&self) -> &'static str {
         todo!()

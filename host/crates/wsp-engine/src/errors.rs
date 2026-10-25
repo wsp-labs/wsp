@@ -274,7 +274,7 @@ pub const PROVIDER_READ_CAP_MS: u64 = 20_000;
 
 /// errors.ts:261. What a fetch is given to end it early: a fresh cap per call, the caller's signal, or both, as one
 /// token; `None` where neither is given. The cap's firing reads as "TimeoutError", the caller's as "AbortError".
-pub fn abort(cap_ms: Option<f64>, signal: Option<&tokio_util::sync::CancellationToken>) -> Option<crate::fetch::Abort> {
+pub fn abort(cap_ms: Option<f64>, signal: Option<&crate::cancel::Cancel>) -> Option<crate::fetch::Abort> {
     todo!()
 }
 
@@ -300,8 +300,8 @@ pub fn road_backoff_ms(retry: u32, random: f64) -> u64 {
 }
 
 /// errors.ts:310. The clock a retry runs on; tests hand in one they move by hand.
-#[async_trait::async_trait]
-pub trait RetryClock: Send + Sync {
+#[async_trait::async_trait(?Send)]
+pub trait RetryClock {
     fn now(&self) -> i64;
     async fn sleep(&self, ms: u64);
     /// `Math.random()`, which `link_backoff_ms` draws from.
@@ -311,7 +311,7 @@ pub trait RetryClock: Send + Sync {
 /// errors.ts:315.
 pub struct RealRetryClock;
 
-#[async_trait::async_trait]
+#[async_trait::async_trait(?Send)]
 impl RetryClock for RealRetryClock {
     fn now(&self) -> i64 {
         todo!()
@@ -328,9 +328,8 @@ impl RetryClock for RealRetryClock {
 /// still ends inside the link window, then `Unreached`; any other failure is answered at once.
 pub async fn until_reached<T, F, Fut>(once: F, clock: &dyn RetryClock) -> Result<T>
 where
-    F: FnMut() -> Fut + Send,
-    Fut: std::future::Future<Output = Result<T>> + Send,
-    T: Send,
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
 {
     todo!()
 }

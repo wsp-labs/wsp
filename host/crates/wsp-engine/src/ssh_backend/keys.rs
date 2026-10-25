@@ -5,7 +5,7 @@
 //! address a typed word names; and the words a refused dial is reported in.
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 
 use crate::errors::Result;
@@ -13,10 +13,10 @@ use crate::machine::ExecResult;
 use crate::ssh_backend::dial::{SshReach, SshTransport};
 
 /// ssh-backend.ts:380. How the key a machine holds is read.
-pub type SshHostKeyReader = Arc<dyn Fn(SshReach) -> BoxFuture<'static, Option<String>> + Send + Sync>;
+pub type SshHostKeyReader = Arc<dyn Fn(SshReach) -> LocalBoxFuture<'static, Option<String>>>;
 
 /// ssh-backend.ts:384. One command on this computer: file, args, timeout in ms. A test hands its own.
-pub type SshLocalRun = Arc<dyn Fn(String, Vec<String>, u64) -> BoxFuture<'static, ExecResult> + Send + Sync>;
+pub type SshLocalRun = Arc<dyn Fn(String, Vec<String>, u64) -> LocalBoxFuture<'static, ExecResult>>;
 
 /// ssh-backend.ts:386. `run_child(file, args, { env: this process's, timeout_ms })`.
 pub fn local_run() -> SshLocalRun {

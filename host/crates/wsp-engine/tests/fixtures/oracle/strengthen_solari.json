@@ -1,0 +1,113 @@
+{
+  "pauseStarting": {
+    "error": "pause did not complete in <n>ms; the provider did not answer and reads the machine starting; try again",
+    "name": "Error",
+    "sent": {
+      "move": 1,
+      "state": 1
+    },
+    "warned": [
+      "x: pause did not complete in <n>ms; the provider did not answer and reads the machine starting; try again"
+    ]
+  },
+  "pauseArchived": {
+    "error": "pause did not complete in <n>ms; the provider did not answer and reads the machine gone; try again",
+    "name": "Error",
+    "sent": {
+      "move": 1,
+      "state": 1
+    },
+    "warned": [
+      "x: pause did not complete in <n>ms; the provider did not answer and reads the machine gone; try again"
+    ]
+  },
+  "pauseNotFound": {
+    "error": "pause did not complete in <n>ms; the provider did not answer and reads the machine gone; try again",
+    "name": "Error",
+    "sent": {
+      "move": 1,
+      "state": 1
+    },
+    "warned": [
+      "x: pause did not complete in <n>ms; the provider did not answer and reads the machine gone; try again"
+    ]
+  },
+  "pauseUnknownWord": {
+    "error": null,
+    "name": null,
+    "sent": {
+      "move": 2,
+      "state": 2
+    },
+    "warned": []
+  },
+  "pauseLands": {
+    "error": null,
+    "name": null,
+    "sent": {
+      "move": 1,
+      "state": 0
+    },
+    "warned": []
+  },
+  "pauseRefused": {
+    "error": "the provider does not pause this machine (Not pausable): its memory and disk together are over what it pauses; it runs until you delete it",
+    "name": "NapRefusedError",
+    "sent": {
+      "move": 1,
+      "state": 0
+    },
+    "warned": []
+  },
+  "resumePaused": {
+    "error": "the provider has not answered the resume request; reading the machine",
+    "name": "Error",
+    "sent": {
+      "move": 1,
+      "state": 1
+    },
+    "warned": [
+      "x: the provider has not answered the resume request; reading the machine, which still reads paused"
+    ]
+  },
+  "resumeNotFound": {
+    "error": "the provider has not answered the resume request; reading the machine",
+    "name": "Error",
+    "sent": {
+      "move": 1,
+      "state": 1
+    },
+    "warned": [
+      "x: the provider has not answered the resume request; reading the machine, which still reads gone"
+    ]
+  },
+  "resumeUnread": {
+    "error": "the provider has not answered the resume request; reading the machine",
+    "name": "Error",
+    "sent": {
+      "move": 1,
+      "state": 1
+    },
+    "warned": [
+      "x: the provider has not answered the resume request; reading the machine, which still reads nothing"
+    ]
+  },
+  "resumeRunning": {
+    "error": null,
+    "name": null,
+    "sent": {
+      "move": 1,
+      "state": 1
+    },
+    "warned": []
+  },
+  "resumeStarting": {
+    "error": null,
+    "name": null,
+    "sent": {
+      "move": 1,
+      "state": 1
+    },
+    "warned": []
+  }
+}

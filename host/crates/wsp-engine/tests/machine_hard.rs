@@ -54,7 +54,7 @@ fn no_provider_offers_nothing_optional() {
 
 struct Bare;
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for Bare {
     fn id(&self) -> &str {
         "bare"
@@ -74,7 +74,7 @@ impl Machine for Bare {
     async fn pause(&self, _: Option<u64>) -> Result<()> {
         unreachable!()
     }
-    async fn resume(&self, _: Option<tokio_util::sync::CancellationToken>) -> Result<()> {
+    async fn resume(&self, _: Option<&wsp_engine::cancel::Cancel>) -> Result<()> {
         unreachable!()
     }
     async fn kill(&self) -> Result<()> {

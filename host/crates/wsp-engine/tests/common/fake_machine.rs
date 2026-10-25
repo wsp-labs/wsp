@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use tokio_util::sync::CancellationToken;
+use wsp_engine::cancel::Cancel;
 use wsp_engine::errors::{EngineError, Result};
 use wsp_engine::machine::{
     ExecOptions, ExecResult, Machine, MachineKind, MachineLife, MachineOffers, MachineState, PreviewReach, RunOptions, SnapshotOptions,
@@ -62,10 +62,10 @@ impl FakeMachine {
 }
 
 fn ok_exec() -> ExecResult {
-    ExecResult { exit_code: 0, stdout: String::new(), stderr: String::new() }
+    ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for FakeMachine {
     fn id(&self) -> &str {
         &self.id
@@ -94,7 +94,7 @@ impl Machine for FakeMachine {
         self.record("pause".to_string());
         Ok(())
     }
-    async fn resume(&self, _signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, _signal: Option<&Cancel>) -> Result<()> {
         let failure = self.resume_error.lock().unwrap().clone();
         match failure {
             Some(e) => {

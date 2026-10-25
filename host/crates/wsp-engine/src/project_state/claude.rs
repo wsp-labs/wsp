@@ -17,7 +17,7 @@ pub const PROJECTS: &str = "projects";
 /// claude.ts:14. carry moves; states session transcripts, auto memory; roots projects; key claude_project_key; listing one keyed step over <home>/projects.
 pub struct ClaudeResolver;
 
-#[async_trait]
+#[async_trait(?Send)]
 impl ProjectStateResolver for ClaudeResolver {
     fn agent(&self) -> &'static str {
         todo!()

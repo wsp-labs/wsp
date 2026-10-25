@@ -43,7 +43,7 @@ fn trial_limits() -> Value {
 }
 
 fn window(used: i64, limit: i64) -> StartsWindow {
-    StartsWindow { used, limit }
+    StartsWindow { used: used.into(), limit: limit.into() }
 }
 
 fn sizes(words: &[&str]) -> Vec<String> {
@@ -80,9 +80,9 @@ fn reads_the_owners_plan_machines_at_once_sizes_sold_and_starts_used_in_each_win
             plan: CloudPlan {
                 key: Some("box_20".into()),
                 trial: false,
-                machines_at_once: 100,
+                machines_at_once: 100.into(),
                 sizes: sizes(&["2x4", "4x8", "8x16"]),
-                running: Some(11)
+                running: Some(11.into())
             },
             starts: Some(CloudStarts { minute: window(0, 12), hour: window(9, 60), day: window(187, 200) }),
             credit_hours: Some(JsNumber(81.6)),
@@ -100,7 +100,7 @@ fn sells_16x32_from_the_100_plan_up_and_two_sizes_on_the_trial() {
     assert_eq!(
         place_limits_of(&limits_of(&trial_limits())),
         Some(CloudLimits {
-            plan: CloudPlan { key: None, trial: true, machines_at_once: 2, sizes: sizes(&["2x4", "4x8"]), running: None },
+            plan: CloudPlan { key: None, trial: true, machines_at_once: 2.into(), sizes: sizes(&["2x4", "4x8"]), running: None },
             starts: Some(CloudStarts { minute: window(1, 5), hour: window(3, 25), day: window(3, 75) }),
             credit_hours: None,
         })

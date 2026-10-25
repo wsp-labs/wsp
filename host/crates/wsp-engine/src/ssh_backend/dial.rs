@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -71,7 +71,7 @@ pub struct SshTransportOptions {
 }
 
 /// ssh-backend.ts:82. How a script reaches the machine; a test hands its own and reads what it was asked to run.
-pub type SshTransport = Arc<dyn Fn(SshReach, String, SshTransportOptions) -> BoxFuture<'static, ExecResult> + Send + Sync>;
+pub type SshTransport = Arc<dyn Fn(SshReach, String, SshTransportOptions) -> LocalBoxFuture<'static, ExecResult>>;
 
 /// ssh-backend.ts:89.
 pub const SSH_CONNECT_TIMEOUT_S: u64 = 10;
@@ -197,16 +197,16 @@ pub enum ChildEnd {
 /// ssh-backend.ts:291. The part of a started child the holder reads; a test hands its own. `exit` resolves once, when
 /// the child ends; a real child's pipes close as it does, and a fake closes them before resolving it.
 pub struct HeldChild {
-    pub stdin: Box<dyn AsyncWrite + Send + Unpin>,
-    pub stdout: Box<dyn AsyncRead + Send + Unpin>,
-    pub stderr: Box<dyn AsyncRead + Send + Unpin>,
+    pub stdin: Box<dyn AsyncWrite + Unpin>,
+    pub stdout: Box<dyn AsyncRead + Unpin>,
+    pub stderr: Box<dyn AsyncRead + Unpin>,
     /// Sends the named signal; true where it was sent.
-    pub kill: Box<dyn FnMut(&str) -> bool + Send>,
-    pub exit: BoxFuture<'static, ChildEnd>,
+    pub kill: Box<dyn FnMut(&str) -> bool>,
+    pub exit: LocalBoxFuture<'static, ChildEnd>,
 }
 
 /// ssh-backend.ts:300.
-pub type SshSpawn = Arc<dyn Fn(&str, &[String]) -> HeldChild + Send + Sync>;
+pub type SshSpawn = Arc<dyn Fn(&str, &[String]) -> HeldChild>;
 
 /// ssh-backend.ts:302. The real ssh child, with this process's env and three pipes.
 pub fn spawn_ssh() -> SshSpawn {

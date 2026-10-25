@@ -1,0 +1,252 @@
+{
+ "ages": [
+  {
+   "ms": null,
+   "words": "age unknown"
+  },
+  {
+   "ms": -5,
+   "words": "0 s old"
+  },
+  {
+   "ms": 0,
+   "words": "0 s old"
+  },
+  {
+   "ms": 999,
+   "words": "0 s old"
+  },
+  {
+   "ms": 59999,
+   "words": "59 s old"
+  },
+  {
+   "ms": 60000,
+   "words": "1 min old"
+  },
+  {
+   "ms": 3599999,
+   "words": "59 min old"
+  },
+  {
+   "ms": 3600000,
+   "words": "1.0 h old"
+  },
+  {
+   "ms": 4500000,
+   "words": "1.3 h old"
+  },
+  {
+   "ms": 4860000,
+   "words": "1.4 h old"
+  },
+  {
+   "ms": 5400000,
+   "words": "1.5 h old"
+  },
+  {
+   "ms": 86400000,
+   "words": "24.0 h old"
+  }
+ ],
+ "fingerprints": [
+  {
+   "key": "AAAAC3NzaC1lZDI1NTE5AAAAIC6sV8jQCzynkpUOM40rRIjA7tPstUSjC+A/LVMnAZhP",
+   "fp": "SHA256:Ge9MQ9S/Faik2WzsxidRXnoEOJRIHkJKTBkOJ903vq4"
+  },
+  {
+   "key": "AAAAC3NzaC1lZDI1NTE5AAAAIC6sV8jQCzynkpUOM40rRIjA7tPstUSjC-A_LVMnAZhP",
+   "fp": "SHA256:Ge9MQ9S/Faik2WzsxidRXnoEOJRIHkJKTBkOJ903vq4"
+  },
+  {
+   "key": " AAAAC3NzaC1lZDI1NTE5\nAAAAIC6sV8jQCzynkpUOM40rRIjA7tPstUSjC+A/LVMnAZhP ",
+   "fp": "SHA256:Ge9MQ9S/Faik2WzsxidRXnoEOJRIHkJKTBkOJ903vq4"
+  },
+  {
+   "key": "AAAAC3NzaC1lZDI1NTE5AAAAIC6sV8jQCzynkpUOM40rRIjA7tPstUSjC+A/LVMnAZhP==",
+   "fp": "SHA256:Ge9MQ9S/Faik2WzsxidRXnoEOJRIHkJKTBkOJ903vq4"
+  },
+  {
+   "key": "AAAAC3NzaC1lZDI1NTE5AAAAIC6sV8jQCzynkpUOM40rRIjA7tPstUSjC+A/LVMnAZhP!!",
+   "fp": "SHA256:Ge9MQ9S/Faik2WzsxidRXnoEOJRIHkJKTBkOJ903vq4"
+  },
+  {
+   "key": "",
+   "fp": "SHA256:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU"
+  },
+  {
+   "key": "=AAAA",
+   "fp": "SHA256:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU"
+  },
+  {
+   "key": "AA=AA",
+   "fp": "SHA256:bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0"
+  },
+  {
+   "key": "QUJ",
+   "fp": "SHA256:OBZPvRdgPXP2lri01yZk1zW7anyIV3aH/SrjP9aWQVM"
+  },
+  {
+   "key": "QUJD",
+   "fp": "SHA256:tdQEXD9Gb6kf4sxqvnkjKhpXzfEE96JucW4KHieJ33g"
+  },
+  {
+   "key": "not*base64!",
+   "fp": "SHA256:fU1i9JySLFesQSDuAAzQsJZRXJs89aWIz8hyOXzxT4A"
+  }
+ ],
+ "snapshotNames": {
+  "golden": [
+   {
+    "host": "h1",
+    "golden": "default",
+    "version": 3,
+    "out": {
+     "ok": "wsp-h1-default-v3"
+    }
+   },
+   {
+    "host": "Bad",
+    "golden": "g",
+    "version": 1,
+    "out": {
+     "error": "a snapshot name needs a host of lowercase letters and digits, got \"Bad\""
+    }
+   },
+   {
+    "host": "",
+    "golden": "g",
+    "version": 1,
+    "out": {
+     "error": "a snapshot name needs a host of lowercase letters and digits, got \"\""
+    }
+   },
+   {
+    "host": "h-1",
+    "golden": "g",
+    "version": 1,
+    "out": {
+     "error": "a snapshot name needs a host of lowercase letters and digits, got \"h-1\""
+    }
+   }
+  ],
+  "project": {
+   "ok": "wsp-h1-project-my-proj-2026-10-25T00-00-00Z"
+  },
+  "owners": [
+   {
+    "name": null,
+    "owner": null
+   },
+   {
+    "name": "wsp-h1-default-v3",
+    "owner": "h1"
+   },
+   {
+    "name": "wsp-h1-",
+    "owner": null
+   },
+   {
+    "name": "wsp-H1-x",
+    "owner": null
+   },
+   {
+    "name": "wsp--x",
+    "owner": null
+   },
+   {
+    "name": "xwsp-h1-x",
+    "owner": null
+   },
+   {
+    "name": "wsp-h1-a-b-c",
+    "owner": "h1"
+   },
+   {
+    "name": "wsp-h1-\nx",
+    "owner": null
+   }
+  ]
+ },
+ "diskUse": [
+  {
+   "stdout": "100 300",
+   "use": {
+    "usedBytes": 102400,
+    "freeBytes": 307200,
+    "pct": 25
+   }
+  },
+  {
+   "stdout": " 100 300 \n",
+   "use": {
+    "usedBytes": 102400,
+    "freeBytes": 307200,
+    "pct": 25
+   }
+  },
+  {
+   "stdout": "0 0",
+   "use": null
+  },
+  {
+   "stdout": "a b",
+   "use": null
+  },
+  {
+   "stdout": "1 2\n3 4",
+   "use": {
+    "usedBytes": 1024,
+    "freeBytes": 2048,
+    "pct": 33.333333333333336
+   }
+  },
+  {
+   "stdout": "x\n5 6",
+   "use": {
+    "usedBytes": 5120,
+    "freeBytes": 6144,
+    "pct": 45.45454545454545
+   }
+  },
+  {
+   "stdout": "1  2",
+   "use": null
+  },
+  {
+   "stdout": "7 8 9",
+   "use": null
+  }
+ ],
+ "lineFeed": [
+  "ab",
+  "éfghij\r",
+  "🎉🎉"
+ ],
+ "installs": {
+  "projectInstalls": [
+   {
+    "row": "node",
+    "command": "npm ci",
+    "check": "npm --version"
+   },
+   {
+    "row": "python",
+    "command": "uv sync --frozen"
+   },
+   {
+    "row": "rust",
+    "command": "cargo fetch --locked"
+   }
+  ],
+  "stores": [
+   ".pnpm-store"
+  ],
+  "installScript": "mkdir -p '/root/.wsp/logs' && cd '/root/my proj' && pnpm install >> '/root/.wsp/logs/install'\\''s.log' 2>&1",
+  "installScriptNoSlash": "mkdir -p 'plain.log' && cd 'd' && x >> 'plain.log' 2>&1",
+  "checkScripts": [
+   "export PNPM_HOME='/root/.local/share/pnpm'\nexport A='it'\\''s'\ncd '/root/p' && pnpm --version",
+   "cd '/root/p' && env -i HOME='/root' bash -lc 'pnpm --version'"
+  ]
+ }
+}

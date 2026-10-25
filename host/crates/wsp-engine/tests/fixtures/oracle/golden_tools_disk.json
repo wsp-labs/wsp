@@ -1,0 +1,1659 @@
+{
+  "FREE_KB_CMD": "df -Pk /root | awk 'NR==2{print $4}'",
+  "USED_KB_CMD": "df -Pk /root | awk 'NR==2{print $3}'",
+  "TOOLS_DISK_FLOOR": 2147483648,
+  "GUARD_SLACK_S": 60,
+  "ALREADY_ON_MACHINE": "already on the machine",
+  "dfKbCmd": [
+    {
+      "columns": [
+        "free"
+      ],
+      "out": "df -Pk /root | awk 'NR==2{print $4}'"
+    },
+    {
+      "columns": [
+        "used",
+        "size"
+      ],
+      "out": "df -Pk /root | awk 'NR==2{print $3, $2}'"
+    },
+    {
+      "columns": [
+        "size",
+        "used",
+        "free"
+      ],
+      "path": "/data",
+      "out": "df -Pk /data | awk 'NR==2{print $2, $3, $4}'"
+    },
+    {
+      "columns": [],
+      "out": "df -Pk /root | awk 'NR==2{print }'"
+    },
+    {
+      "columns": [
+        "free"
+      ],
+      "path": "\"$(p='/opt/wsp'; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\"",
+      "out": "df -Pk \"$(p='/opt/wsp'; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\" | awk 'NR==2{print $4}'"
+    }
+  ],
+  "prefixVolume": [
+    {
+      "prefix": "/opt/wsp",
+      "out": "\"$(p='/opt/wsp'; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\""
+    },
+    {
+      "prefix": "/srv/it's here",
+      "out": "\"$(p='/srv/it'\\''s here'; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\""
+    },
+    {
+      "prefix": "relative/dir",
+      "out": "\"$(p='relative/dir'; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\""
+    },
+    {
+      "prefix": "",
+      "out": "\"$(p=''; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\""
+    }
+  ],
+  "guarded": [
+    {
+      "script": "echo hi",
+      "timeoutS": 30,
+      "out": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'echo hi' &\np=$!\nt=0\nwhile [ $t -lt 30 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "script": "set -e\nprintf '%s' \"it's\"",
+      "timeoutS": 0,
+      "out": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -e\nprintf '\\''%s'\\'' \"it'\\''s\"' &\np=$!\nt=0\nwhile [ $t -lt 0 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    }
+  ],
+  "roads": [
+    {
+      "road": "brew",
+      "limitS": 600,
+      "retry": false,
+      "deadlineMs": 660000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'install it' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "road": "npm",
+      "limitS": 300,
+      "retry": true,
+      "deadlineMs": 360000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\ninstall it' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "road": "pnpm",
+      "limitS": 300,
+      "retry": true,
+      "deadlineMs": 360000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\ninstall it' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "road": "bun",
+      "limitS": 300,
+      "retry": true,
+      "deadlineMs": 360000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'install it' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "road": "uv",
+      "limitS": 300,
+      "retry": true,
+      "deadlineMs": 360000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\ninstall it' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "road": "pipx",
+      "limitS": 300,
+      "retry": true,
+      "deadlineMs": 360000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export PIP_TIMEOUT=60 PIP_RETRIES=1\ninstall it' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "road": "cargo",
+      "limitS": 1200,
+      "retry": false,
+      "deadlineMs": 1260000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ninstall it' &\np=$!\nt=0\nwhile [ $t -lt 1200 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "road": "go",
+      "limitS": 600,
+      "retry": false,
+      "deadlineMs": 660000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'install it' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "road": "release",
+      "limitS": 300,
+      "retry": true,
+      "deadlineMs": 360000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall it' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "road": "vendor",
+      "limitS": 300,
+      "retry": true,
+      "deadlineMs": 360000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall it' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "road": "apt",
+      "limitS": 600,
+      "retry": false,
+      "deadlineMs": 660000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'install it' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    },
+    {
+      "road": "script",
+      "limitS": 600,
+      "retry": false,
+      "deadlineMs": 660000,
+      "guarded": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall it' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p"
+    }
+  ],
+  "guardDeadlineMs": [
+    {
+      "s": 0,
+      "out": 60000
+    },
+    {
+      "s": 1,
+      "out": 61000
+    },
+    {
+      "s": 300,
+      "out": 360000
+    },
+    {
+      "s": 1800,
+      "out": 1860000
+    }
+  ],
+  "reasonOf": [
+    {
+      "res": {
+        "exitCode": 124,
+        "stdout": "out",
+        "stderr": "err"
+      },
+      "timeoutS": 30,
+      "out": "timed out after 30s"
+    },
+    {
+      "res": {
+        "exitCode": 124,
+        "stdout": "out",
+        "stderr": "err"
+      },
+      "timeoutS": 1.5,
+      "out": "timed out after 1.5s"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "==> Downloading\nError: no bottle for gh\n  brew install --build-from-source gh\n"
+      },
+      "timeoutS": 30,
+      "out": "Error: no bottle for gh"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "==> Downloading\nError: no bottle for gh\n  brew install --build-from-source gh\n"
+      },
+      "timeoutS": 1.5,
+      "out": "Error: no bottle for gh"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Error: first\nError: second\nadvice\n"
+      },
+      "timeoutS": 30,
+      "out": "Error: second"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Error: first\nError: second\nadvice\n"
+      },
+      "timeoutS": 1.5,
+      "out": "Error: second"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "warning one\nthe last stderr line\n\n"
+      },
+      "timeoutS": 30,
+      "out": "the last stderr line"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "warning one\nthe last stderr line\n\n"
+      },
+      "timeoutS": 1.5,
+      "out": "the last stderr line"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "stdout one\nstdout last\n",
+        "stderr": ""
+      },
+      "timeoutS": 30,
+      "out": "stdout last"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "stdout one\nstdout last\n",
+        "stderr": ""
+      },
+      "timeoutS": 1.5,
+      "out": "stdout last"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "timeoutS": 30,
+      "out": "exit 1"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "timeoutS": 1.5,
+      "out": "exit 1"
+    },
+    {
+      "res": {
+        "exitCode": 7,
+        "stdout": "  \n",
+        "stderr": "  \n"
+      },
+      "timeoutS": 30,
+      "out": "exit 7"
+    },
+    {
+      "res": {
+        "exitCode": 7,
+        "stdout": "  \n",
+        "stderr": "  \n"
+      },
+      "timeoutS": 1.5,
+      "out": "exit 7"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\n"
+      },
+      "timeoutS": 30,
+      "out": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\n"
+      },
+      "timeoutS": 1.5,
+      "out": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Error: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+      },
+      "timeoutS": 30,
+      "out": "Error: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Error: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+      },
+      "timeoutS": 1.5,
+      "out": "Error: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+    },
+    {
+      "res": {
+        "exitCode": -1,
+        "stdout": "",
+        "stderr": "refused by the provider"
+      },
+      "timeoutS": 30,
+      "out": "refused by the provider"
+    },
+    {
+      "res": {
+        "exitCode": -1,
+        "stdout": "",
+        "stderr": "refused by the provider"
+      },
+      "timeoutS": 1.5,
+      "out": "refused by the provider"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "  Error: indented error  \nplain after\n"
+      },
+      "timeoutS": 30,
+      "out": "Error: indented error"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "  Error: indented error  \nplain after\n"
+      },
+      "timeoutS": 1.5,
+      "out": "Error: indented error"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "line\r\nlast\r\n"
+      },
+      "timeoutS": 30,
+      "out": "last"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "line\r\nlast\r\n"
+      },
+      "timeoutS": 1.5,
+      "out": "last"
+    }
+  ],
+  "roadOf": [
+    {
+      "stdout": "",
+      "out": null
+    },
+    {
+      "stdout": "WSP_ROAD release https://github.com/a/b/releases/download/v1/b.tgz\n",
+      "out": {
+        "kind": "release",
+        "from": "https://github.com/a/b/releases/download/v1/b.tgz"
+      }
+    },
+    {
+      "stdout": "WSP_ROAD release https://x/y.tgz aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa v1.2.3 x86_64\n",
+      "out": {
+        "kind": "release",
+        "from": "https://x/y.tgz",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tag": "v1.2.3",
+        "arch": "x86_64"
+      }
+    },
+    {
+      "stdout": "WSP_ROAD go github.com/a/b@v1 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb v1\n",
+      "out": {
+        "kind": "go",
+        "from": "github.com/a/b@v1",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "tag": "v1"
+      }
+    },
+    {
+      "stdout": "noise\nWSP_ROAD go github.com/a/b@v1\nmore\nWSP_ROAD release https://x/z.tgz cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc v2 aarch64 trailing\n",
+      "out": {
+        "kind": "release",
+        "from": "https://x/z.tgz",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "tag": "v2",
+        "arch": "aarch64"
+      }
+    },
+    {
+      "stdout": "WSP_ROAD release https://x/y.tgz AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA v1\n",
+      "out": {
+        "kind": "release",
+        "from": "https://x/y.tgz"
+      }
+    },
+    {
+      "stdout": "WSP_ROAD release https://x/y.tgz aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa v1\n",
+      "out": {
+        "kind": "release",
+        "from": "https://x/y.tgz"
+      }
+    },
+    {
+      "stdout": "  WSP_ROAD release https://x/y.tgz\n",
+      "out": null
+    },
+    {
+      "stdout": "WSP_ROAD vendor https://x/y.tgz\n",
+      "out": null
+    },
+    {
+      "stdout": "WSP_ROAD release https://x/y.tgz dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd v1 arm64\n",
+      "out": {
+        "kind": "release",
+        "from": "https://x/y.tgz",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "tag": "v1"
+      }
+    },
+    {
+      "stdout": "WSP_ROAD release https://x/y.tgz aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa v1\n",
+      "out": {
+        "kind": "release",
+        "from": "https://x/y.tgz",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "stdout": "WSP_ROAD go m aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa v1 x86_64x\n",
+      "out": {
+        "kind": "go",
+        "from": "m",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tag": "v1",
+        "arch": "x86_64"
+      }
+    },
+    {
+      "stdout": "x\rWSP_ROAD go m\n",
+      "out": {
+        "kind": "go",
+        "from": "m"
+      }
+    },
+    {
+      "stdout": "WSP_ROAD go\n",
+      "out": null
+    }
+  ],
+  "closing": [
+    {
+      "parts": [],
+      "out": ""
+    },
+    {
+      "parts": [
+        "a"
+      ],
+      "out": "a"
+    },
+    {
+      "parts": [
+        "a",
+        null,
+        "",
+        "b"
+      ],
+      "out": "a; b"
+    },
+    {
+      "parts": [
+        null
+      ],
+      "out": ""
+    },
+    {
+      "parts": [
+        "",
+        ""
+      ],
+      "out": ""
+    },
+    {
+      "parts": [
+        "x; y",
+        "z"
+      ],
+      "out": "x; y; z"
+    }
+  ],
+  "ownedFloorBytes": [
+    {
+      "size": null,
+      "out": 2147483648
+    },
+    {
+      "size": 0,
+      "out": 2147483648
+    },
+    {
+      "size": 1,
+      "out": 2147483648
+    },
+    {
+      "size": 10737418240,
+      "out": 2147483648
+    },
+    {
+      "size": 21474836480,
+      "out": 2147483648
+    },
+    {
+      "size": 21474836489,
+      "out": 2147483648
+    },
+    {
+      "size": 32212254720,
+      "out": 3221225472
+    },
+    {
+      "size": 549755813895,
+      "out": 54975581389
+    }
+  ],
+  "diskUse": [
+    {
+      "name": "a pair",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "1200 50000\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "use",
+          "usedBytes": 1228800,
+          "sizeBytes": 51200000
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a pair on a prefix",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "1200 50000\n"
+            }
+          ]
+        }
+      ],
+      "prefix": "/opt/wsp",
+      "out": {
+        "ok": {
+          "kind": "use",
+          "usedBytes": 1228800,
+          "sizeBytes": 51200000
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk \"$(p='/opt/wsp'; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\" | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a full disk reads used size",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "0 50000\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "use",
+          "usedBytes": 0,
+          "sizeBytes": 51200000
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a size of zero",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "10 0\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered 10 0"
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "one number",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "1200\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered 1200"
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "three numbers",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "1 2 3\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered 1 2 3"
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a negative",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "-1 50000\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered -1 50000"
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "junk",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "Filesystem 1K-blocks\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered Filesystem 1K-blocks"
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a long junk line",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "hex and exponent read as Number does",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "0x10 1e3\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "use",
+          "usedBytes": 16384,
+          "sizeBytes": 1024000
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "tabs and spaces",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "  12\t\t34  \n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "use",
+          "usedBytes": 12288,
+          "sizeBytes": 34816
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "exit 0 printing nothing",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": ""
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df failed: exit 0"
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "exit 1 with stderr",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "exit": 1,
+              "stderr": "df: /root: No such file or directory\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df failed: df: /root: No such file or directory"
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "exit 124",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "exit": 124
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df failed: timed out after 20s"
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "exit 2 printing a pair",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "exit": 2,
+              "stdout": "1 2\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df failed: 1 2"
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "the exec rejects",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "throws": "the machine went away"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df failed: the machine went away"
+        }
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $3, $2}'",
+          "timeoutMs": 20000
+        }
+      ]
+    }
+  ],
+  "freeBytes": [
+    {
+      "name": "a pair",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "1200\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "free",
+          "bytes": 1228800
+        }
+      },
+      "note": {
+        "ok": "1 MB free"
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a pair on a prefix",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "1200\n"
+            }
+          ]
+        }
+      ],
+      "prefix": "/opt/wsp",
+      "out": {
+        "ok": {
+          "kind": "free",
+          "bytes": 1228800
+        }
+      },
+      "note": {
+        "ok": "1 MB free"
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk \"$(p='/opt/wsp'; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\" | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a full disk reads used size",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "0 50000\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered 0 50000"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a size of zero",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "10 0\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered 10 0"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "one number",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "1200\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "free",
+          "bytes": 1228800
+        }
+      },
+      "note": {
+        "ok": "1 MB free"
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "three numbers",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "1 2 3\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered 1 2 3"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a negative",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "-1 50000\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered -1 50000"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "junk",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "Filesystem 1K-blocks\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered Filesystem 1K-blocks"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a long junk line",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "hex and exponent read as Number does",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "0x10 1e3\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered 0x10 1e3"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "tabs and spaces",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": "  12\t\t34  \n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df answered 12\t\t34"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "exit 0 printing nothing",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "stdout": ""
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df failed: exit 0"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "exit 1 with stderr",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "exit": 1,
+              "stderr": "df: /root: No such file or directory\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df failed: df: /root: No such file or directory"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "exit 124",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "exit": 124
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df failed: timed out after 20s"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "exit 2 printing a pair",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "exit": 2,
+              "stdout": "1 2\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "ok": {
+          "kind": "unknown",
+          "reason": "df failed: 1 2"
+        }
+      },
+      "note": {},
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "the exec rejects",
+      "rules": [
+        {
+          "has": "df -Pk",
+          "seq": [
+            {
+              "throws": "the machine went away"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "error": "the machine went away"
+      },
+      "note": {
+        "error": "the machine went away"
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    }
+  ],
+  "missingCommands": [
+    {
+      "bins": [
+        "codex",
+        "gh"
+      ],
+      "rules": [
+        {
+          "has": "command -v",
+          "seq": [
+            {
+              "stdout": "missing gh\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "missing": [
+          "gh"
+        ]
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nfor b in 'codex' 'gh'; do command -v \"$b\" >/dev/null 2>&1 || echo \"missing $b\"; done",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "bins": [
+        "it's",
+        "a b"
+      ],
+      "rules": [
+        {
+          "has": "command -v",
+          "seq": [
+            {
+              "stdout": "missing it's\nmissing  a b \nnoise\n"
+            }
+          ]
+        }
+      ],
+      "prefix": "/opt/wsp",
+      "path": "/x/bin:/usr/bin",
+      "out": {
+        "missing": [
+          "it's",
+          "a b"
+        ]
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "export PATH=/x/bin:/usr/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nfor b in 'it'\\''s' 'a b'; do command -v \"$b\" >/dev/null 2>&1 || echo \"missing $b\"; done",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "bins": [
+        "codex"
+      ],
+      "rules": [
+        {
+          "has": "command -v",
+          "seq": [
+            {
+              "exit": 1,
+              "stdout": "missing codex\n",
+              "stderr": "bash: boom\n"
+            }
+          ]
+        }
+      ],
+      "out": {
+        "missing": [
+          "codex"
+        ],
+        "failed": "bash: boom"
+      },
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nfor b in 'codex'; do command -v \"$b\" >/dev/null 2>&1 || echo \"missing $b\"; done",
+          "timeoutMs": 20000
+        }
+      ]
+    }
+  ],
+  "sweepCaches": [
+    {
+      "name": "frees bytes",
+      "rules": [
+        {
+          "has": "NR==2{print $4}",
+          "seq": [
+            {
+              "stdout": "1000\n"
+            },
+            {
+              "stdout": "3000\n"
+            }
+          ]
+        }
+      ],
+      "out": "caches swept, 2 MB back",
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        },
+        {
+          "kind": "run",
+          "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+          "deadlineMs": 360000
+        },
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "frees nothing",
+      "rules": [
+        {
+          "has": "NR==2{print $4}",
+          "seq": [
+            {
+              "stdout": "1000\n"
+            }
+          ]
+        }
+      ],
+      "out": "caches swept",
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        },
+        {
+          "kind": "run",
+          "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+          "deadlineMs": 360000
+        },
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "fails",
+      "rules": [
+        {
+          "has": "go clean",
+          "seq": [
+            {
+              "exit": 1,
+              "stderr": "rm: cannot remove\n"
+            }
+          ]
+        }
+      ],
+      "out": "cache sweep failed (rm: cannot remove)",
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        },
+        {
+          "kind": "run",
+          "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+          "deadlineMs": 360000
+        }
+      ]
+    },
+    {
+      "name": "df unknown after",
+      "rules": [
+        {
+          "has": "NR==2{print $4}",
+          "seq": [
+            {
+              "stdout": "1000\n"
+            },
+            {
+              "exit": 1
+            }
+          ]
+        }
+      ],
+      "path": "/custom/bin",
+      "out": "caches swept",
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        },
+        {
+          "kind": "run",
+          "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/custom/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+          "deadlineMs": 360000
+        },
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    }
+  ]
+}

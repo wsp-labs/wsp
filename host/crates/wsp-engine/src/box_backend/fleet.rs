@@ -67,7 +67,7 @@ impl BoxBackend {
         path: &str,
         rows_key: &str,
         query: &[(&str, &str)],
-        enough: Option<&(dyn Fn(&[Value]) -> bool + Send + Sync)>,
+        enough: Option<&(dyn Fn(&[Value]) -> bool)>,
     ) -> Result<Vec<Value>> {
         todo!()
     }
@@ -123,7 +123,7 @@ pub struct BoxLifecycle {
     pub backend: BoxBackend,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Lifecycle for BoxLifecycle {
     fn budgets(&self) -> LifecycleBudgets {
         todo!()
@@ -139,7 +139,7 @@ impl Lifecycle for BoxLifecycle {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for BoxBackend {
     fn capabilities(&self) -> Capabilities {
         todo!()
