@@ -29,7 +29,10 @@ serde reads a value's shape; `Check` enforces what zod adds on top (`.int()` bou
    as zod declares them) and the check of each field whose type has one, answering the first issue with the field's
    key in front (`under`). `Vec`, `Option` and `IndexMap` check each value with its index (a number) or key in front.
    A type with no rules keeps the trait's default `Ok(())`.
-3. Numbers: `.int()` is enforced by `i64`; `>= n` / `> n` / `<= n` / `< n` give `too_small` / `too_big` with
+3. Numbers: `.int()` is `JsInt`, a `JsNumber` that zod's integer check takes (`Number.isInteger` on the number JSON read):
+   `5.0`, `-0`, `1e21` and every integral value past 2^63 are integers, `2.5` is not (`invalid_type`, expected `integer`,
+   received `float`). A `JsInt` keeps the number JavaScript reads, so `9007199254740993` reads and writes as
+   `9007199254740992`. `>= n` / `> n` / `<= n` / `< n` give `too_small` / `too_big` with
    `minimum`/`maximum`, `type: "number"`, `inclusive`, `exact: false` and zod's message (`Number must be greater than or
    equal to 0`, `Number must be greater than 0`, ...). Strings and arrays: `type: "string"` / `"array"`, messages
    `String must contain at most 256 character(s)`, `Array must contain at most 20 element(s)`, and the `at least` and
@@ -50,6 +53,13 @@ serde reads a value's shape; `Check` enforces what zod adds on top (`.int()` bou
    `None`, null → `Some(None)`, a value → `Some(Some(v))` and writes each back. `nullable` makes a required
    `.nullable()` key refuse its absence. `from_json` reads the generated default's JSON (it never fails on generated
    text; a panic is a generator bug).
+
+7. A union follows zod 3's `z.union` (`types.cjs`): the first member that reads with no issues is the value; otherwise
+   the first member with no issue whose code aborts (`invalid_type`, `invalid_enum_value`, `invalid_literal`,
+   `invalid_union`, `invalid_union_discriminator`) answers with its issues, since a dirty member (a refinement, an unknown
+   key on a strict member) is one zod keeps; otherwise the union answers `invalid_union`. A discriminated union (a tagged
+   enum) reads the tag first: a missing or unknown tag is `invalid_union_discriminator` at the tag, and a member's own
+   issues are answered at the member's own path.
 
 ## Edge cases
 
