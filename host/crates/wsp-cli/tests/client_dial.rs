@@ -22,10 +22,9 @@ use wsp_cli::verbs::client::{
     HOST_RESTARTING_LINE,
 };
 use wsp_cli::version::VERSION;
+use wsp_wire::types::daemon_contract::HOST_CLOSED_LINE;
 use wsp_words::exit::{HostError, Kind};
-
-const HOST_STOPPING_LINE: &str = "the host is restarting; the turn goes on and its reply lands in the thread";
-const HOST_CLOSED_LINE: &str = "the host closed the connection";
+use wsp_words::words::thread::HOST_STOPPING_LINE;
 
 /// What the scripted host does with one frame it read.
 enum Act {

@@ -10,8 +10,7 @@ use serde_json::{Map, Value};
 use wsp_catalog::signin::Question;
 use wsp_words::exit::HostError;
 
-/// A frame or a reply as the daemon carries it.
-pub type Frame = Map<String, Value>;
+pub use crate::verbs::client::Frame;
 
 /// A daemon event listener; detaching is the `Detach` the link hands back.
 pub type EventSink = Arc<dyn Fn(&Frame) + Send + Sync>;

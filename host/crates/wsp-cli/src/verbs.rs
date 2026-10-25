@@ -28,8 +28,7 @@ use crate::signin_relay::RelayTerminal;
 use crate::watch::WatchSignals;
 use client::{CliIo, DialFn, LineVerb, Opener, Page, Verb};
 
-/// `AGENTS_ON_WORDS` (`verbs/agents-help.ts:572`), copied here as FLAG_WORDS reads it.
-pub const AGENTS_ON_WORDS: &str = "the computer to read, by the name wsp computers shows; this computer without it, and a thread names its own";
+pub use crate::verbs::agents_help::set::AGENTS_ON_WORDS;
 
 /// `TerminalScheme.options` in order (`protocol`, `TerminalScheme`).
 pub const TERMINAL_SCHEMES: [&str; 2] = ["light", "dark"];
@@ -61,7 +60,7 @@ pub fn verbs_for(cloud_on: bool) -> Vec<Verb> {
     todo!("verbs.ts:399")
 }
 
-/// `VERBS` of this process: `verbs_for(crate::cloud::CLOUD_ON)`, built once.
+/// `VERBS` of this process: `verbs_for(crate::cloud::cloud_on())`, built once.
 pub fn verbs() -> &'static [Verb] {
     todo!("verbs.ts:399")
 }
