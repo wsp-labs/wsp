@@ -319,3 +319,31 @@ mod every_other_codex_launch_on_a_brokered_machine {
         assert!(!title_for_command("name this", None, None, None, now).unwrap().contains("cli_auth_credentials_store"));
     }
 }
+
+/// Rules CV1 to CV3 of spec/codex_conversations.md, "Rules added for the port", each value printed by the TS at 65f6b89c7.
+mod rules_added {
+    use wsp_adapters::codex::conversations::{parse_list, parse_opened, parse_sizes, Opened};
+
+    #[test]
+    fn a_blank_preview_trims_to_an_empty_title_and_first_prompt_and_a_blank_name_is_kept_as_it_is() {
+        // CV1; conversations.ts:63-82 (`str(preview)?.trim()`, `title ?? preview`).
+        let page = parse_list("{\"id\":1,\"result\":{}}\n{\"id\":2,\"result\":{\"data\":[{\"id\":\"T1\",\"cwd\":\"/w\",\"preview\":\"   \"},{\"id\":\"T2\",\"cwd\":\"/w\",\"name\":\"  \",\"preview\":\"P\"}]}}").unwrap();
+        let rows: Vec<(String, String, Option<String>)> = page.rows.into_iter().map(|r| (r.row.id, r.row.title, r.row.first_prompt)).collect();
+        assert_eq!(rows, [("T1".into(), String::new(), Some(String::new())), ("T2".into(), "  ".into(), Some("P".into()))]);
+    }
+
+    #[test]
+    fn a_size_is_js_number_of_the_trimmed_line_where_that_is_a_safe_integer() {
+        // CV2; conversations.ts:112-118.
+        let got = parse_sizes(&["1e3", "0x10", "+5", "12.0", "-5", "Infinity", "NaN", "1_0", "5 6", "9007199254740992", "", " 7 "].join("\n"), 13);
+        assert_eq!(got, [Some(1000.0), Some(16.0), Some(5.0), Some(12.0), Some(-5.0), None, None, None, None, None, None, Some(7.0), None]);
+    }
+
+    #[test]
+    fn opening_reads_a_blank_preview_as_an_empty_title_and_an_empty_name_falls_to_the_preview() {
+        // CV3; conversations.ts:136-149.
+        let opened = |thread: &str| parse_opened(&format!("{{\"id\":1,\"result\":{{}}}}\n{{\"id\":3,\"result\":{{\"thread\":{thread}}}}}")).unwrap();
+        assert_eq!(opened(r#"{"cwd":"/w","preview":"   "}"#), Opened::Read { cwd: Some("/w".into()), title: Some(String::new()) });
+        assert_eq!(opened(r#"{"cwd":"/w","name":"","preview":"P"}"#), Opened::Read { cwd: Some("/w".into()), title: Some("P".into()) });
+    }
+}
