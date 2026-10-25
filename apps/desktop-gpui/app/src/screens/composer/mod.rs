@@ -586,6 +586,10 @@ impl Composer {
         &self.editor
     }
 
+    pub fn dock_field(&self) -> &Entity<InputState> {
+        &self.dock_field
+    }
+
     pub fn text(&self, cx: &App) -> String {
         self.editor.read(cx).value().to_string()
     }
