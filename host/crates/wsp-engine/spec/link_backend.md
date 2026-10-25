@@ -28,9 +28,9 @@ Oracle: `tests/fixtures/roads/link_backend.json` (every frame and option, byte f
 - `snapshot(..)`: fails with `NO_IMAGES_HERE` and sends nothing.
 - `pause()`, `kill()`: `machine.pause` / `machine.kill`, bare envelope.
 - `resume(signal)` (:181): sends `machine.resume` once. With a signal, answers whichever comes first: the reply, or the
-  signal's cancel (already cancelled fails at once, with the frame still sent once). The cancel fails with
-  `errors::aborted()` ("This operation was aborted"); the TS rejects with the signal's own reason, which a
-  `CancellationToken` cannot carry (an accepted difference).
+  signal's cancel (already cancelled fails at once, with the frame still sent once). A cancel with no reason fails
+  with `errors::aborted()` ("This operation was aborted"); one with a reason fails with it, or with its words where
+  it is not an error (the cancel rule in README.md, the coordinator's ruling).
 - `state()`, `download_url(path)`, `upload_url(path)`: `machine.state` (reply `state`), `machine.downloadUrl` /
   `machine.uploadUrl` with `{ path }` (reply `url`).
 - `preview_url(port)` (:214): `machine.previewUrl { port }`; the reply's `reach.url` port (WHATWG URL; an absent port
