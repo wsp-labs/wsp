@@ -1,0 +1,357 @@
+{
+  "hooks": {
+    "claude": {
+      "cd": {
+        "fact": "- Every agent session starts in the thread's folder; terminal panes open in the home folder. A cd moves your own shell, which persists across your tool calls, not the thread's folder, and the files pane follows that shell's folder unless you pinned the panes.",
+        "howto": "- Work in a folder: cd <dir> in your shell and it stays there across your tool calls; the thread's folder does not move. Absolute paths work from anywhere."
+      },
+      "conflict": null,
+      "plain": {
+        "outcome": "written",
+        "path": "/etc/claude-code/CLAUDE.md",
+        "files": [
+          {
+            "path": "/etc/claude-code/CLAUDE.md",
+            "mode": 420,
+            "content": "SHORT\n"
+          },
+          {
+            "path": "/etc/claude-code/.claude/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/etc/claude-code/.claude/skills/wsp-machine/SKILL.md"
+      },
+      "conflicted": {
+        "outcome": "written",
+        "path": "/etc/claude-code/CLAUDE.md",
+        "files": [
+          {
+            "path": "/etc/claude-code/CLAUDE.md",
+            "mode": 420,
+            "content": "SHORT\n"
+          },
+          {
+            "path": "/etc/claude-code/.claude/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/etc/claude-code/.claude/skills/wsp-machine/SKILL.md"
+      },
+      "fish": {
+        "outcome": "written",
+        "path": "/x/etc/claude-code/CLAUDE.md",
+        "files": [
+          {
+            "path": "/x/etc/claude-code/CLAUDE.md",
+            "mode": 420,
+            "content": "a ''' b"
+          },
+          {
+            "path": "/x/etc/claude-code/.claude/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL"
+          }
+        ],
+        "skill": "/x/etc/claude-code/.claude/skills/wsp-machine/SKILL.md"
+      }
+    },
+    "codex": {
+      "cd": null,
+      "conflict": null,
+      "plain": {
+        "outcome": "written",
+        "path": "/etc/codex/requirements.toml",
+        "files": [
+          {
+            "path": "/etc/codex/requirements.toml",
+            "mode": 420,
+            "content": "# wsp writes this file when a workspace is forked; edits are overwritten.\nadditional_developer_instructions = '''\nSHORT\n'''\n"
+          },
+          {
+            "path": "/etc/codex/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/etc/codex/skills/wsp-machine/SKILL.md"
+      },
+      "conflicted": {
+        "outcome": "written",
+        "path": "/etc/codex/requirements.toml",
+        "files": [
+          {
+            "path": "/etc/codex/requirements.toml",
+            "mode": 420,
+            "content": "# wsp writes this file when a workspace is forked; edits are overwritten.\nadditional_developer_instructions = '''\nSHORT\n'''\n"
+          },
+          {
+            "path": "/etc/codex/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/etc/codex/skills/wsp-machine/SKILL.md"
+      },
+      "fish": {
+        "outcome": "written",
+        "path": "/x/etc/codex/requirements.toml",
+        "files": [
+          {
+            "path": "/x/etc/codex/requirements.toml",
+            "mode": 420,
+            "content": "# wsp writes this file when a workspace is forked; edits are overwritten.\nadditional_developer_instructions = \"a ''' b\"\n"
+          },
+          {
+            "path": "/x/etc/codex/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL"
+          }
+        ],
+        "skill": "/x/etc/codex/skills/wsp-machine/SKILL.md"
+      }
+    },
+    "gemini": {
+      "cd": null,
+      "conflict": "[ -f /root/.gemini/settings.json ] && node -e 'const t=require(\"fs\").readFileSync(process.argv[1],\"utf8\");let o=\"\",i=0,s=false;while(i<t.length){const c=t[i];if(s){o+=c;if(c===\"\\\\\"&&i+1<t.length)o+=t[++i];else if(c==='\\''\"'\\'')s=false;i++}else if(c==='\\''\"'\\''){s=true;o+=c;i++}else if(c===\"/\"&&t[i+1]===\"/\"){while(i<t.length&&t[i]!==\"\\n\")i++}else if(c===\"/\"&&t[i+1]===\"*\"){const e=t.indexOf(\"*/\",i+2);i=e<0?t.length:e+2}else{o+=c;i++}}let hit;try{const j=JSON.parse(o);hit=!!(j&&j.context&&j.context.fileName!==undefined)}catch{hit=/\"fileName\"\\s*:/.test(o)}process.exit(hit?0:1)' /root/.gemini/settings.json 2>/dev/null",
+      "plain": {
+        "outcome": "written",
+        "path": "/root/.gemini/WSP-MACHINE.md",
+        "files": [
+          {
+            "path": "/etc/gemini-cli/system-defaults.json",
+            "mode": 420,
+            "content": "{\n  \"context\": {\n    \"fileName\": [\n      \"GEMINI.md\",\n      \"WSP-MACHINE.md\"\n    ]\n  }\n}\n"
+          },
+          {
+            "path": "/root/.gemini/WSP-MACHINE.md",
+            "mode": 420,
+            "content": "SHORT\n"
+          },
+          {
+            "path": "/root/.gemini/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/root/.gemini/skills/wsp-machine/SKILL.md"
+      },
+      "conflicted": {
+        "outcome": "fallback",
+        "path": "/root/.gemini/extensions/wsp-machine",
+        "note": "~/.gemini/settings.json sets context.fileName",
+        "files": [
+          {
+            "path": "/root/.gemini/extensions/wsp-machine/gemini-extension.json",
+            "mode": 420,
+            "content": "{\n  \"name\": \"wsp-machine\",\n  \"version\": \"1.0.0\",\n  \"contextFileName\": \"WSP-MACHINE.md\"\n}\n"
+          },
+          {
+            "path": "/root/.gemini/extensions/wsp-machine/WSP-MACHINE.md",
+            "mode": 420,
+            "content": "SHORT\n"
+          },
+          {
+            "path": "/root/.gemini/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/root/.gemini/skills/wsp-machine/SKILL.md"
+      },
+      "fish": {
+        "outcome": "written",
+        "path": "/x/home/.gemini/WSP-MACHINE.md",
+        "files": [
+          {
+            "path": "/x/etc/gemini-cli/system-defaults.json",
+            "mode": 420,
+            "content": "{\n  \"context\": {\n    \"fileName\": [\n      \"GEMINI.md\",\n      \"WSP-MACHINE.md\"\n    ]\n  }\n}\n"
+          },
+          {
+            "path": "/x/home/.gemini/WSP-MACHINE.md",
+            "mode": 420,
+            "content": "a ''' b"
+          },
+          {
+            "path": "/x/home/.gemini/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL"
+          }
+        ],
+        "skill": "/x/home/.gemini/skills/wsp-machine/SKILL.md"
+      }
+    },
+    "opencode": {
+      "cd": null,
+      "conflict": null,
+      "plain": {
+        "outcome": "written",
+        "path": "/etc/opencode/opencode.json",
+        "files": [
+          {
+            "path": "/etc/opencode/opencode.json",
+            "mode": 420,
+            "content": "{\n  \"instructions\": [\n    \"/etc/wsp/short.md\"\n  ]\n}\n"
+          },
+          {
+            "path": "/root/.config/opencode/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/root/.config/opencode/skills/wsp-machine/SKILL.md"
+      },
+      "conflicted": {
+        "outcome": "written",
+        "path": "/etc/opencode/opencode.json",
+        "files": [
+          {
+            "path": "/etc/opencode/opencode.json",
+            "mode": 420,
+            "content": "{\n  \"instructions\": [\n    \"/etc/wsp/short.md\"\n  ]\n}\n"
+          },
+          {
+            "path": "/root/.config/opencode/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/root/.config/opencode/skills/wsp-machine/SKILL.md"
+      },
+      "fish": {
+        "outcome": "written",
+        "path": "/x/etc/opencode/opencode.json",
+        "files": [
+          {
+            "path": "/x/etc/opencode/opencode.json",
+            "mode": 420,
+            "content": "{\n  \"instructions\": [\n    \"/s\"\n  ]\n}\n"
+          },
+          {
+            "path": "/x/home/.config/opencode/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL"
+          }
+        ],
+        "skill": "/x/home/.config/opencode/skills/wsp-machine/SKILL.md"
+      }
+    },
+    "pi": {
+      "cd": null,
+      "conflict": "[ -f /root/.pi/agent/APPEND_SYSTEM.md ] && ! head -n 1 /root/.pi/agent/APPEND_SYSTEM.md | grep -qF 'wsp writes this file when a workspace is forked; edits are overwritten.'",
+      "plain": {
+        "outcome": "written",
+        "path": "/root/.pi/agent/APPEND_SYSTEM.md",
+        "files": [
+          {
+            "path": "/root/.pi/agent/APPEND_SYSTEM.md",
+            "mode": 420,
+            "content": "SHORT\n"
+          },
+          {
+            "path": "/root/.pi/agent/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/root/.pi/agent/skills/wsp-machine/SKILL.md"
+      },
+      "conflicted": {
+        "outcome": "fallback",
+        "path": "/root/.pi/agent/extensions/wsp-machine.ts",
+        "note": "~/.pi/agent/APPEND_SYSTEM.md already exists",
+        "files": [
+          {
+            "path": "/root/.pi/agent/extensions/wsp-machine.ts",
+            "mode": 420,
+            "content": "// wsp writes this file when a workspace is forked; edits are overwritten.\nimport { readFileSync } from \"node:fs\";\nexport default function (pi) {\n  pi.on(\"before_agent_start\", async event => ({ systemPrompt: `${event.systemPrompt}\\n\\n${readFileSync(\"/etc/wsp/short.md\", \"utf8\")}` }));\n}\n"
+          },
+          {
+            "path": "/root/.pi/agent/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/root/.pi/agent/skills/wsp-machine/SKILL.md"
+      },
+      "fish": {
+        "outcome": "written",
+        "path": "/x/home/.pi/agent/APPEND_SYSTEM.md",
+        "files": [
+          {
+            "path": "/x/home/.pi/agent/APPEND_SYSTEM.md",
+            "mode": 420,
+            "content": "a ''' b"
+          },
+          {
+            "path": "/x/home/.pi/agent/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL"
+          }
+        ],
+        "skill": "/x/home/.pi/agent/skills/wsp-machine/SKILL.md"
+      }
+    },
+    "hermes": {
+      "cd": null,
+      "conflict": "[ -f /root/.hermes/config.yaml ] && awk '/^[^[:space:]#]/{blk=$1} blk==\"agent:\" && /^[[:space:]]+environment_hint[[:space:]]*:/{v=$0; sub(/^[^:]*:[[:space:]]*/,\"\",v); sub(/[[:space:]]+#.*$/,\"\",v); if (v!=\"\" && v!=\"\\\"\\\"\" && v!=\"'\\'''\\''\") f=1} END{exit !f}' /root/.hermes/config.yaml",
+      "plain": {
+        "outcome": "written",
+        "path": "/etc/profile.d/wsp-machine.sh",
+        "files": [
+          {
+            "path": "/etc/profile.d/wsp-machine.sh",
+            "mode": 420,
+            "content": "# wsp writes this file when a workspace is forked; edits are overwritten.\nexport HERMES_ENVIRONMENT_HINT=\"$(cat /etc/wsp/short.md)\"\n"
+          },
+          {
+            "path": "/root/.hermes/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/root/.hermes/skills/wsp-machine/SKILL.md"
+      },
+      "conflicted": {
+        "outcome": "not-loaded",
+        "note": "~/.hermes/config.yaml sets agent.environment_hint",
+        "files": [
+          {
+            "path": "/root/.hermes/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL\n"
+          }
+        ],
+        "skill": "/root/.hermes/skills/wsp-machine/SKILL.md"
+      },
+      "fish": {
+        "outcome": "written",
+        "path": "/x/etc/profile.d/wsp-machine.sh",
+        "files": [
+          {
+            "path": "/x/etc/profile.d/wsp-machine.sh",
+            "mode": 420,
+            "content": "# wsp writes this file when a workspace is forked; edits are overwritten.\nexport HERMES_ENVIRONMENT_HINT=\"$(cat /s)\"\n"
+          },
+          {
+            "path": "/x/etc/fish/conf.d/wsp-machine.fish",
+            "mode": 420,
+            "content": "# wsp writes this file when a workspace is forked; edits are overwritten.\nset -gx HERMES_ENVIRONMENT_HINT (cat /s | string collect)\n"
+          },
+          {
+            "path": "/x/home/.hermes/skills/wsp-machine/SKILL.md",
+            "mode": 420,
+            "content": "SKILL"
+          }
+        ],
+        "skill": "/x/home/.hermes/skills/wsp-machine/SKILL.md"
+      }
+    }
+  },
+  "pluginSkills": {
+    "index": "~/.claude/plugins/installed_plugins.json"
+  }
+}
