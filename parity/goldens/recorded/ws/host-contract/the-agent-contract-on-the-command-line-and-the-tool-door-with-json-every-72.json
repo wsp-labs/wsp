@@ -57,9 +57,11 @@
           {
             "id": "claude",
             "name": "Claude Code",
-            "installed": false,
+            "installed": true,
+            "version": "<version>",
             "pinned": "2.1.296",
-            "road": "none",
+            "road": "own",
+            "path": "/usr/bin/claude",
             "signIn": "none",
             "signInRoad": "token",
             "wspTools": false,

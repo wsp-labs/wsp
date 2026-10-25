@@ -5,9 +5,9 @@
       "ok": true,
       "placeId": "<p-1>",
       "hostPublicKey": "<id-1>",
-      "nonce": "veY79qaDz6bxYh6P2A512KiOH0/Fy83nd1s7jSDX/<reading>=",
-      "signature": "<id-2>",
-      "ephemeral": "<id-3>",
+      "nonce": "<id-2>",
+      "signature": "<id-3>",
+      "ephemeral": "<id-4>",
       "hostName": "<computer>"
     },
     {

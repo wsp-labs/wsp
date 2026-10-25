@@ -22,7 +22,7 @@
         "content": [
           {
             "type": "text",
-            "text": "AGENT         VERSION  LATEST  SIGN-IN        WSP TOOLS  UPDATE  PATH\nClaude Code   -        -       not found      no         -       -\nCodex         0.155.1  -       not signed in  no         -       /usr/bin/codex\nGemini CLI    -        -       not found      no         -       -\nOpenCode      -        -       not found      no         -       -\nPi            -        -       not found      no         -       -\nHermes Agent  -        -       not found      no         -       -\nCrush         -        -       not found      no         -       -\nQwen Code     -        -       not found      no         -       -\nGoose         -        -       not found      no         -       -\nAmp           -        -       not found      no         -       -\nCursor        -        -       not found      no         -       -"
+            "text": "AGENT         VERSION  LATEST  SIGN-IN        WSP TOOLS  UPDATE  PATH\nClaude Code   2.1.296  -       not signed in  no         -       /usr/bin/claude\nCodex         0.155.1  -       not signed in  no         -       /usr/bin/codex\nGemini CLI    -        -       not found      no         -       -\nOpenCode      -        -       not found      no         -       -\nPi            -        -       not found      no         -       -\nHermes Agent  -        -       not found      no         -       -\nCrush         -        -       not found      no         -       -\nQwen Code     -        -       not found      no         -       -\nGoose         -        -       not found      no         -       -\nAmp           -        -       not found      no         -       -\nCursor        -        -       not found      no         -       -"
           }
         ],
         "structuredContent": {
@@ -38,9 +38,11 @@
             {
               "id": "claude",
               "name": "Claude Code",
-              "installed": false,
+              "installed": true,
+              "version": "<version>",
               "pinned": "2.1.296",
-              "road": "none",
+              "road": "own",
+              "path": "/usr/bin/claude",
               "signIn": "none",
               "signInRoad": "token",
               "wspTools": false,
