@@ -268,6 +268,10 @@ export const SlatesImageAnswer = z.union([
 ]);
 export type SlatesImageAnswer = z.infer<typeof SlatesImageAnswer>;
 
+/** The page's text and the version it is, unchanged where the window holds that version, or the problem. */
+export const SlatesPageAnswer = z.union([z.object({ html: z.string(), version: z.string().optional() }), z.object({ unchanged: z.literal(true), version: z.string() }), z.object({ problem: SlateWireProblem })]);
+export type SlatesPageAnswer = z.infer<typeof SlatesPageAnswer>;
+
 // --- events ---
 
 /** Recorded in the transcript for every accepted write by the agent, a run's start and end and the host's restores:

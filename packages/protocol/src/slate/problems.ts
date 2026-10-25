@@ -41,17 +41,17 @@ export const SLATE_CODES = {
   Z800: "thread-not-yours", Z801: "thread-not-in-tree", Z802: "no-slate", Z803: "sub-thread", Z804: "rewound-before",
   R900: "data-missing", R901: "data-late", R902: "eval-failed", R903: "source-unavailable", R904: "consent-refused", R905: "draw-failed",
   R906: "tool-error", R907: "over-budget", R908: "piece-fallback", R910: "reaction-runaway", R911: "run-runaway", R912: "reaction-failed",
-  R913: "run-held", R914: "not-a-file", R915: "image-too-big", R916: "not-an-image", R917: "address-refused",
+  R913: "run-held", R914: "not-a-file", R915: "image-too-big", R916: "not-an-image", R917: "address-refused", R918: "not-a-page", R919: "page-too-big",
   W001: "content-looks-like-path", W002: "tone-alone", W003: "series-as-bars", W004: "copy-style", W006: "deprecated", W010: "short-secret",
   W011: "secret-in-argv", W012: "joined-by-mark", W013: "chart-x-index", W014: "mono-on-sentence", W015: "file-undeclared", W017: "emoji", W018: "title-case",
-  W019: "run-never-started", W020: "value-beside-series", W021: "time-in-seconds",
+  W019: "run-never-started", W020: "value-beside-series", W021: "time-in-seconds", W022: "frames-only",
   W030: "sections-open", W031: "tables-open", W032: "too-many-columns", W033: "too-many-words", W034: "raw-output", W035: "ascii-table",
   W036: "same-every-row", W037: "sketch-too-long", W038: "text-heavy",
 } as const;
 export type SlateCode = keyof typeof SLATE_CODES;
 
 /** Codes that never block a write. */
-export const SLATE_WARNINGS: ReadonlySet<string> = new Set<SlateCode>(["T311", "X403", "W001", "W002", "W003", "W004", "W006", "W010", "W011", "W012", "W013", "W014", "W015", "W017", "W018", "W019", "W020", "W021", "W030", "W031", "W032", "W033", "W034", "W035", "W036", "W037", "W038"]);
+export const SLATE_WARNINGS: ReadonlySet<string> = new Set<SlateCode>(["T311", "X403", "W001", "W002", "W003", "W004", "W006", "W010", "W011", "W012", "W013", "W014", "W015", "W017", "W018", "W019", "W020", "W021", "W022", "W030", "W031", "W032", "W033", "W034", "W035", "W036", "W037", "W038"]);
 
 export function slateProblem(code: SlateCode, message: string, extra: Omit<SlateProblem, "code" | "name" | "message"> = {}): SlateProblem {
   const out: SlateProblem = { code, name: SLATE_CODES[code], message };
@@ -104,6 +104,7 @@ const HTML_TAGS: Readonly<Record<string, string>> = slateTable({
   component: "the tag is the piece's own type, like <number ...> or <text>",
   a: "a link is a <button> whose onPress opens it",
   img: "a slate draws no images",
+  iframe: "an HTML page is a <frame src=\"figures/a.html\">",
 });
 
 /** The words for a tag the kit has no piece for: the piece an HTML habit meant, else the nearest name. */
