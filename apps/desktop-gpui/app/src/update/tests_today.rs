@@ -173,3 +173,59 @@ fn todays_stage_is_left_where_no_swap_waits_on_this_app() {
     assert_eq!(swap::settle(&installed), Settled::Nothing);
     assert!(staged.exists(), "today's checked download stays for today's app");
 }
+
+/// Today's stage beside a wsp.app under `dir`, opened by a swap that still runs (this test's own process).
+fn todays_waiting(dir: &Path) -> (PathBuf, swap::Waiting) {
+    let installed = dir.join("Applications/wsp.app");
+    std::fs::create_dir_all(&installed).unwrap();
+    let root = dir.join("Applications").join(swap::TODAYS_STAGE);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("opening"), std::process::id().to_string()).unwrap();
+    match swap::settle(&installed) {
+        Settled::Waiting(waiting) => (root, waiting),
+        other => panic!("no swap reads as waiting: {other:?}"),
+    }
+}
+
+/// Catches: a service running a newer wsp than this release (npm's) failing today's swap on every try, so the update
+/// loops; this app opens on that host and still says up.
+#[test]
+fn a_newer_host_left_as_it_is_still_hears_up() {
+    let dir = tmp();
+    let (root, waiting) = todays_waiting(dir.path());
+    let why = "wsp 0.4.0 serves this home, newer than wsp 0.3.9";
+    let followed =
+        after_swap(Some(Settled::Waiting(waiting)), || Ok(crate::service::Followed::Newer(why.into())), || panic!("nothing to move back"));
+    assert!(matches!(followed, Ok(Some(_))), "the swap is handed back to be answered once this app opens: {followed:?}");
+    assert!(!root.join("restarted").exists(), "and the old app, were it put back, has no host to move back");
+}
+
+/// Catches: `up` waiting on a drawn frame, which a locked screen or a window behind another never draws, so a person
+/// who pressed Restart and locked the screen gets the old app put back.
+#[gpui_kit::test]
+fn up_is_said_once_the_window_stands_with_no_frame_drawn(cx: &mut gpui_kit::TestAppContext) {
+    let dir = tmp();
+    let (root, waiting) = todays_waiting(dir.path());
+    cx.update(|cx| {
+        cx.set_global(AfterSwap { waiting: Some((waiting, "0.3.9".into())), ..Default::default() });
+        _ = cx.open_window(gpui_kit::WindowOptions::default(), |_, cx| gpui_kit::AppContext::new(cx, |_| gpui_kit::Empty));
+        opened(cx);
+        assert_eq!(std::fs::read_to_string(root.join("up")).unwrap(), "0.3.9", "up is written before any frame draws");
+    });
+}
+
+/// Catches: `up` holding the release compiled in rather than the one the bundle's files say, so a copy packed at
+/// another version than it was built at (the live check packs one build twice) never answers its swap.
+#[test]
+fn up_says_the_release_the_bundle_carries() {
+    let dir = tmp();
+    let exe = dir.path().join("wsp.app/Contents/MacOS").join(stage::EXE);
+    let bundled = crate::service::Bundled::beside(&exe, crate::service::Os::Mac, "aarch64");
+    for file in [&bundled.node, &bundled.command, &bundled.daemon] {
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(file, "x").unwrap();
+    }
+    std::fs::write(bundled.command.parent().unwrap().parent().unwrap().join("package.json"), r#"{"version":"9.9.9"}"#).unwrap();
+    assert_eq!(up_version(Ok(bundled)), "9.9.9");
+    assert_eq!(up_version(Err("a build out of cargo".into())), wsp_host_client::HostClient::app_release());
+}

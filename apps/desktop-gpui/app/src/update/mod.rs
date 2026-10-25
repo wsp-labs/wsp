@@ -19,9 +19,7 @@ mod tests_swap;
 #[cfg(test)]
 mod tests_today;
 
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use gpui_kit::{App, BorrowAppContext as _, Global, Task};
@@ -598,6 +596,11 @@ pub fn after_swap(
                 crate::service::Followed::Restarted | crate::service::Followed::Already | crate::service::Followed::NotServing => {
                     Ok(Some(waiting))
                 }
+                crate::service::Followed::Newer(why) => {
+                    crate::desktop::log::info(&format!("update: {why}, so this app opens on it"));
+                    waiting.not_restarted().map_err(|e| e.to_string())?;
+                    Ok(Some(waiting))
+                }
                 crate::service::Followed::Left(why) => {
                     waiting.left(&why).and_then(|()| waiting.not_restarted()).map_err(|e| e.to_string())?;
                     Err(why)
@@ -621,8 +624,9 @@ struct AfterSwap {
 
 impl Global for AfterSwap {}
 
-/// This app's window is open on a host that accepted it: the swap waiting on it hears `up` once a window has drawn a
-/// frame, and an app an unfinished swap replaced is offered back.
+/// This app's window is open on a host that accepted it: the swap waiting on it hears `up` now, not after a drawn frame,
+/// since a locked screen or a window behind another draws none and the swap would put the old app back; and an app an
+/// unfinished swap replaced is offered back.
 pub fn opened(cx: &mut App) {
     if !cx.has_global::<AfterSwap>() {
         return;
@@ -632,23 +636,10 @@ pub fn opened(cx: &mut App) {
         crate::desktop::log::info(&format!("update: {}", words::not_updated(&said)));
         crate::ui::notify(cx, crate::ui::Notice::error(words::not_updated(&said)));
     }
-    if let Some(answer) = waiting {
-        let once = Rc::new(RefCell::new(Some(answer)));
-        for handle in cx.windows() {
-            let once = once.clone();
-            // A next-frame callback runs before that frame draws, so the one it schedules runs after a frame drew.
-            _ = handle.update(cx, |_, window, _| {
-                window.on_next_frame(move |window, _| {
-                    window.on_next_frame(move |_, _| {
-                        if let Some((waiting, version)) = once.borrow_mut().take() {
-                            match waiting.up(&version) {
-                                Ok(()) => crate::desktop::log::info(&format!("update: wsp {version} is open on its host")),
-                                Err(e) => crate::desktop::log::error(&format!("update: the swap could not be told wsp is up: {e}")),
-                            }
-                        }
-                    })
-                })
-            });
+    if let Some((waiting, version)) = waiting.filter(|_| !cx.windows().is_empty()) {
+        match waiting.up(&version) {
+            Ok(()) => crate::desktop::log::info(&format!("update: wsp {version} is open on its host")),
+            Err(e) => crate::desktop::log::error(&format!("update: the swap could not be told wsp is up: {e}")),
         }
     }
     if let Some(previous) = previous {
@@ -692,6 +683,13 @@ pub fn restart_back_blocking() -> Result<(), String> {
     runtime.block_on(crate::service::restart_back())
 }
 
+/// The version a swap hears in `up`: the release of the host this bundle carries, which the package stamps with the
+/// bundle's CFBundleShortVersionString, so a copy whose files say another release than its compiled one, as the live
+/// check packs one build twice, answers the swap that checked those files; this app's own release where it carries none.
+pub fn up_version(bundled: Result<crate::service::Bundled, String>) -> String {
+    bundled.ok().and_then(|b| b.release()).unwrap_or_else(wsp_host_client::HostClient::app_release)
+}
+
 /// `after_swap` off the main thread, then `open`. A new app whose host did not follow, or that does not open on it,
 /// exits before it is up, so the swap puts the old app back.
 pub fn launch(settled: Option<swap::Settled>, state: PathBuf, vars: wsp_host_client::Env, open: Box<dyn FnOnce(&mut App)>, cx: &mut App) {
@@ -705,7 +703,7 @@ pub fn launch(settled: Option<swap::Settled>, state: PathBuf, vars: wsp_host_cli
         return open(cx);
     }
     let waiting = matches!(settled, Some(swap::Settled::Waiting(_)));
-    let version = wsp_host_client::HostClient::app_release();
+    let version = up_version(crate::service::bundled());
     crate::desktop::log::info(&format!("update: moving the host onto wsp {version}"));
     crate::screens::dialogs::startup::hold_opening(true, cx);
     let task = off_main(
