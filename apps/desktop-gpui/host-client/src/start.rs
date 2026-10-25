@@ -549,23 +549,50 @@ fn refused_for(said: &str) -> Option<u16> {
     rest.split(|c: char| !c.is_ascii_digit()).next()?.parse().ok()
 }
 
-/// The unit written again on the port its host's refusal named, where nothing of this state's serves and no computer
-/// has joined this host; none where it is left as it stands, the refusal standing.
-async fn onto_refused<R: Runner>(start: &Start, runner: &R, said: &str) -> Option<Result<(), String>> {
-    let (Some(wsp), Some(manager), Some(port)) = (&start.wsp, start.manager, refused_for(said)) else { return None };
-    let unit = std::fs::read_to_string(manager.unit(&start.home, &start.state)).ok()?;
-    let held = named_port(&manager.argv(&unit)?)?;
-    if port == held || serving(&start.state).is_some() || vanished(&start.state) || joined(&start.state) {
+/// The unit written again on the port its host's refusal named, where nothing of this state's serves and, past a
+/// fresh install, no computer has joined this host; none where it is left as it stands, said why, the refusal standing.
+async fn onto_refused<R: Runner>(start: &Start, runner: &R, said: &str, fresh: bool) -> Option<Result<(), String>> {
+    let port = refused_for(said)?;
+    let stays = |why: String| (start.say)(&format!("the host refused its port and named {port}; the unit stays as it is: {why}"));
+    let (Some(wsp), Some(manager)) = (&start.wsp, start.manager) else {
+        stays("this app owns no wsp command, or this computer has no service manager".to_owned());
+        return None;
+    };
+    let path = manager.unit(&start.home, &start.state);
+    let unit = match std::fs::read_to_string(&path) {
+        Ok(unit) => unit,
+        Err(e) => {
+            stays(format!("{} could not be read ({e})", path.display()));
+            return None;
+        }
+    };
+    let Some(held) = manager.argv(&unit).as_deref().and_then(named_port) else {
+        stays(format!("{} names no --port", path.display()));
+        return None;
+    };
+    let why = if port == held {
+        Some(format!("it already serves on {held}"))
+    } else if let Some(lock) = serving(&start.state) {
+        Some(format!("a host of this state (pid {}) serves on {}", lock.pid, lock.port))
+    } else if vanished(&start.state) {
+        Some("a host of this state whose program has gone still holds its lock".to_owned())
+    } else if fresh {
+        None
+    } else {
+        joined(&start.state)
+    };
+    if let Some(why) = why {
+        stays(why);
         return None;
     }
     let why = format!("serves on port {held}, which its host refused as in use, so it moves to {port}");
     Some(rewrite(start, runner, manager, wsp, &unit, &why, Some(port)).await)
 }
 
-/// The first port from `from` a host can bind, inside the host's own step; none where every one is held, which the
-/// host refuses in its own words.
+/// The first port above the held `from` a host can bind, inside the host's own step; none where every one is held,
+/// which the host refuses in its own words.
 fn free_port(from: u16) -> Option<u16> {
-    (0..PORT_TRIES).filter_map(|step| from.checked_add(step)).find(|port| !port_taken(*port))
+    (1..PORT_TRIES).filter_map(|step| from.checked_add(step)).find(|port| !port_taken(*port))
 }
 
 /// The port a unit's words after `up` name with `--port`; none where they leave it to the host.
@@ -574,17 +601,41 @@ fn named_port(words: &[String]) -> Option<u16> {
     words.get(at + 1)?.parse().ok()
 }
 
+/// How a probe of a port on loopback answered: the bind's error, where it failed, and whether a dial was answered.
+fn probed(port: u16) -> String {
+    let at = std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, port));
+    let bind = match std::net::TcpListener::bind(at) {
+        Ok(_) => "a bind on 127.0.0.1 took it".to_owned(),
+        Err(e) => format!("a bind on 127.0.0.1 was refused ({e})"),
+    };
+    let dial = match std::net::TcpStream::connect_timeout(&at, PORT_DIAL) {
+        Ok(_) => "a dial was answered".to_owned(),
+        Err(e) => format!("a dial was not ({e})"),
+    };
+    format!("{bind}, {dial}")
+}
+
 /// Words for `wsp up --service` with the port they name moved to a free one where something else holds it, so the
-/// unit records the port its host serves on and every later start reads it there; said where it moved.
+/// unit records the port its host serves on and every later start reads it there; said either way.
 fn on_free_port(start: &Start, manager: Manager, mut words: Vec<String>) -> Vec<String> {
-    let Some(at) = words.iter().position(|word| word == "--port") else { return words };
-    let Some(held) = named_port(&words).filter(|port| *port != 0 && port_taken(*port)) else { return words };
-    let Some(port) = free_port(held) else { return words };
-    (start.say)(&format!(
-        "port {held} is in use on this computer by another program, so the {} {} serves on {port}",
-        manager.words(),
-        manager.name(&start.state)
-    ));
+    let name = format!("{} {}", manager.words(), manager.name(&start.state));
+    let Some(at) = words.iter().position(|word| word == "--port") else {
+        (start.say)(&format!("the {name} names no port, so its host picks its own"));
+        return words;
+    };
+    let Some(held) = named_port(&words).filter(|port| *port != 0) else {
+        (start.say)(&format!("the {name} asks the system for any port"));
+        return words;
+    };
+    if !port_taken(held) {
+        (start.say)(&format!("port {held} reads free on this computer ({}), so the {name} serves on it", probed(held)));
+        return words;
+    }
+    let Some(port) = free_port(held) else {
+        (start.say)(&format!("port {held} and the {} above it are in use on this computer, so the {name} stays on {held}", PORT_TRIES - 1));
+        return words;
+    };
+    (start.say)(&format!("port {held} is in use on this computer by another program, so the {name} serves on {port}"));
     words[at + 1] = port.to_string();
     words
 }
@@ -600,16 +651,20 @@ fn port_held(start: &Start, manager: Manager) -> Option<(String, u16)> {
     (taken && serving(&start.state).is_none() && !vanished(&start.state)).then_some((unit, port))
 }
 
-/// Whether a computer has joined this host (the store's `places`), whose door moves with the port: a store that is
-/// there and cannot be read answers yes, so a unit never moves out from under one.
-fn joined(state: &Path) -> bool {
+/// Why a computer counts as joined to this host (the store's `places`), whose door moves with the port; none where
+/// none has. A store that is there and cannot be read counts, so a unit never moves out from under one.
+fn joined(state: &Path) -> Option<String> {
     let db = state.with_file_name("state.db");
     if db.exists() {
         let read = || -> rusqlite::Result<bool> {
             let db = rusqlite::Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
             db.query_row("select exists (select 1 from collections where collection = 'places')", [], |row| row.get(0))
         };
-        return read().unwrap_or(true);
+        return match read() {
+            Ok(false) => None,
+            Ok(true) => Some(format!("{} holds a computer joined to this host", db.display())),
+            Err(e) => Some(format!("{} could not be read ({e})", db.display())),
+        };
     }
     #[derive(serde::Deserialize)]
     struct Held {
@@ -617,8 +672,13 @@ fn joined(state: &Path) -> bool {
         places: std::collections::HashMap<String, serde::de::IgnoredAny>,
     }
     match std::fs::File::open(state) {
-        Ok(file) => serde_json::from_reader::<_, Held>(std::io::BufReader::new(file)).map_or(true, |held| !held.places.is_empty()),
-        Err(e) => e.kind() != std::io::ErrorKind::NotFound,
+        Ok(file) => match serde_json::from_reader::<_, Held>(std::io::BufReader::new(file)) {
+            Ok(held) if held.places.is_empty() => None,
+            Ok(_) => Some(format!("{} holds a computer joined to this host", state.display())),
+            Err(e) => Some(format!("{} could not be read ({e})", state.display())),
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => Some(format!("{} could not be read ({e})", state.display())),
     }
 }
 
@@ -641,7 +701,7 @@ pub async fn ensure<R: Runner>(start: &Start, runner: &R) -> Result<(), Failed> 
             for said in ran.output.lines().filter(|said| !said.trim().is_empty()) {
                 (start.say)(&format!("wsp up --service: {said}"));
             }
-            if let Some(moved) = onto_refused(start, runner, &ran.output).await {
+            if let Some(moved) = onto_refused(start, runner, &ran.output, true).await {
                 return moved.map_err(line);
             }
             // A unit it wrote whose host is slower than its wait is waited on as any other start is.
@@ -654,10 +714,10 @@ pub async fn ensure<R: Runner>(start: &Start, runner: &R) -> Result<(), Failed> 
     }
     if let (Some(wsp), Some((unit, port))) = (&start.wsp, port_held(start, manager)) {
         let name = format!("{} {}", manager.words(), manager.name(&start.state));
-        if joined(&start.state) {
+        if let Some(why) = joined(&start.state) {
             let door = port.saturating_add(PLACE_PORT_OFFSET);
             (start.say)(&format!(
-                "port {port}, which the {name} serves on, is in use on this computer by another program; the unit stays on it, since the computers joined to this host dial its door at {door}"
+                "port {port}, which the {name} serves on, is in use on this computer by another program; the unit stays on it, since the computers joined to this host dial its door at {door}: {why}"
             ));
         } else {
             tokio::time::sleep(HELD_AGAIN).await;
@@ -665,6 +725,10 @@ pub async fn ensure<R: Runner>(start: &Start, runner: &R) -> Result<(), Failed> 
                 let why = format!("serves on port {port}, which another program holds");
                 return rewrite(start, runner, manager, wsp, &unit, &why, None).await.map_err(line);
             }
+            (start.say)(&format!(
+                "port {port}, which the {name} serves on, was free again {}s later; the unit stays on it",
+                HELD_AGAIN.as_secs()
+            ));
         }
     }
     let off_at_login = manager.starts_at_login(&runner.run(&manager.login_read(start)).await, &start.state) == Some(false);
@@ -1023,7 +1087,7 @@ async fn open_host<R: Runner>(start: &Start, runner: &R) -> Result<HostClient, S
         Ok(client) => return Ok(client),
         Err(failed) => failed,
     };
-    match onto_refused(start, runner, &failed.failure.message).await {
+    match onto_refused(start, runner, &failed.failure.message, false).await {
         Some(moved) => moved.map_err(|refused| Short::Failed(line(refused)))?,
         None => return Err(Short::Failed(failed)),
     }
