@@ -47,6 +47,7 @@ fn fixture_program(other: &str, own: &str) -> String {
         .to_string()
 }
 
+/// The constants, then the folder they name: a constant alone passes against the stub and tests nothing (rule 13.12).
 #[test]
 fn constants_match_the_ts() {
     let c = &common::fixture("brokered")["constants"];
@@ -54,6 +55,7 @@ fn constants_match_the_ts() {
     assert_eq!(BROKERED_BIN_DIR, c["BROKERED_BIN_DIR"].as_str().unwrap());
     assert_eq!(TERMINAL_ENV, c["TERMINAL_ENV"].as_str().unwrap());
     assert_eq!(TERMINAL_PROFILE, c["TERMINAL_PROFILE"].as_str().unwrap());
+    assert_eq!(terminal_bin_of("codex"), format!("{BROKERED_BIN_DIR}/codex"), "the folder of an agent is under the bin folder");
 }
 
 #[test]

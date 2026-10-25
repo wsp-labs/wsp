@@ -28,15 +28,11 @@ fn load_world(o: Opts) -> World {
     World::load(Opts { sight_word: Some("sightMachine"), sight_first: true, ..o })
 }
 
-/// boot.ts:18.
-#[test]
-fn the_load_waits_one_and_a_half_seconds_for_every_read_together() {
-    assert_eq!(LOAD_READS_MS, 1_500);
-}
-
-/// boot.ts:27.
+/// boot.ts:18 and :27: the one deadline every load read shares, and the line a read still out at it leaves. The
+/// constant alone passes against the stub and tests nothing (rule 13.12), so it rides with the line.
 #[test]
 fn a_read_still_out_at_the_deadline_leaves_the_line_the_provider_has_not_yet_answered() {
+    assert_eq!(LOAD_READS_MS, 1_500);
     assert_eq!(late_read_line("m-a"), "the provider has not yet answered for m-a; it is read in once it does");
 }
 
