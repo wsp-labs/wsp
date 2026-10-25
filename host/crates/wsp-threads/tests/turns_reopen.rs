@@ -254,7 +254,7 @@ fn the_attach_carries_what_the_row_kept() {
         r.from = Some(4096);
         r.asked = Some(Rc::new(RefCell::new(serde_json::from_value(json!({ "prompt": "fix it\n\nfiles: a.txt", "effort": "high", "typed": "fix it" })).unwrap())));
         let steered = json!({ "st-1": { "prompt": "also this", "startedBy": "person" }, "st-2": { "prompt": "and that", "startedBy": "person" } });
-        r.turn_live = Some(Rc::new(RefCell::new(TurnLive { steered: wsp_core::types::internal::read_steered(&steered), ..TurnLive::default() })));
+        r.turn_live = Some(Rc::new(RefCell::new(TurnLive { steered: Some(serde_json::from_value(steered).expect("steered rows the fixture builds")), ..TurnLive::default() })));
         TurnsArea::new(host.clone()).reattach(r, false).await;
         let asked = adapter.asked.lock().unwrap();
         let a = &asked[0];
