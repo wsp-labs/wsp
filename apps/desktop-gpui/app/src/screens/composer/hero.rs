@@ -126,6 +126,8 @@ impl Render for HeroField {
         div()
             .debug_selector(|| "hero-field".into())
             .size_full()
+            // The last column's glyph runs past the field's edge, which today's canvas clips.
+            .overflow_hidden()
             .child(canvas(|_, _, _| {}, move |bounds, _, window, _| paint(bounds, t, ink, &family, window)).size_full())
             .into_any_element()
     }
