@@ -254,3 +254,22 @@ mod parse_catalog_probe {
         assert_eq!(probe.version.as_deref(), Some("0.153.0"));
     }
 }
+
+/// Rule CC1 of spec/codex_catalog.md, "Rules added for the port", printed by the TS at 65f6b89c7.
+mod rules_added {
+    use super::*;
+
+    #[test]
+    fn the_sandbox_modes_are_read_within_600_utf16_units_counted_from_the_flag_itself() {
+        // CC1; catalog.ts:53-69. The flag is 24 units and `[possible values: a]` 20, so 556 units between them fit and
+        // 576 do not; 285 emoji are 570 units; a bracket inside the list ends it.
+        let head = sections(&real());
+        let probe = |help: String| format!("{}{SEP}{help}{SEP}{}", head[0], head[2]);
+        let flag = "--sandbox <SANDBOX_MODE>";
+        let modes = |help: String| lists(&probe(help)).permission_modes;
+        assert_eq!(modes(format!("\n{flag}{}[possible values: a]\n", "x".repeat(556))), vec!["a".to_string()]);
+        assert_eq!(modes(format!("\n{flag}{}[possible values: a]\n", "x".repeat(576))), Vec::<String>::new());
+        assert_eq!(modes(format!("\n{flag}{}[possible values: a]\n", "\u{1F600}".repeat(285))), Vec::<String>::new());
+        assert_eq!(modes(format!("\n{flag} [possible values: a[b]c, d]\n")), vec!["a[b".to_string()]);
+    }
+}

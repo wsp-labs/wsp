@@ -5,6 +5,7 @@ use serde::Serialize;
 
 use crate::mcp::McpFormat;
 use crate::mcp_check::McpCheck;
+use crate::mcp_codex::codex_trusts;
 use crate::mcp_login::McpLogin;
 use crate::mcp_oauth::McpOAuthStore;
 
@@ -49,6 +50,11 @@ impl McpConfig {
     /// Whether the agent reads a project's own file in `folder`: `None` where it always does; for Codex false with no
     /// user file, else `codex_trusts` (agents/codex.ts:147).
     pub fn trusts(&self, user: Option<&str>, folder: &str) -> Option<bool> {
-        todo!()
+        match self.trusts? {
+            TrustRead::Codex => Some(match user {
+                None => false,
+                Some(text) => codex_trusts(text, folder),
+            }),
+        }
     }
 }

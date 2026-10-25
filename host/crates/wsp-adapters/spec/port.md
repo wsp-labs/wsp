@@ -7,6 +7,11 @@ its own for these: protocol/test/adapter-port.test.ts holds only source laws). E
 implemented first. Types and traits in port.rs are the contract for both adapter writers; their shapes are spelled in
 the file and not repeated here.
 
+One thread (the coordinator's ruling on #2448, comments 6400791637 and 6401354496): no port trait has a `Send` or `Sync`
+bound and no future or stream is required to be `Send` (`LocalBoxFuture`, `LocalBoxStream`, plain `Arc<dyn Fn(..)>`
+callbacks). An adapter runs its background work (a turn's reader, an exit wait) on `tokio::task::spawn_local`; every
+`#[tokio::test]` in this crate drives its body inside a `LocalSet` (`<name>_body`, run by `run_until`).
+
 ## Launch words (adapter-port.ts:29-41)
 
 - `program_word(bin, launch)`: `bin` where launch or its program is absent, else shell_quote(program).

@@ -60,6 +60,10 @@ fn completed(input: u64, cost: f64) -> TurnResult {
 // under the same local id, writes its message under the session the CLI named, and costs only what it added.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_only_what_it_added() {
+    tokio::task::LocalSet::new().run_until(a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_only_what_it_added_body()).await
+}
+
+async fn a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_only_what_it_added_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let (first_events, on_event) = collect();
@@ -101,6 +105,10 @@ async fn a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_on
 // resolves, never where it rejects.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_kept_turns_line_waits_for_after_and_goes_nowhere_where_it_rejects() {
+    tokio::task::LocalSet::new().run_until(a_kept_turns_line_waits_for_after_and_goes_nowhere_where_it_rejects_body()).await
+}
+
+async fn a_kept_turns_line_waits_for_after_and_goes_nowhere_where_it_rejects_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let first = adapter.start(HarnessStartOptions { prompt: "one".into(), keep: true, on_event: Some(Arc::new(|_| {})), ..Default::default() }).unwrap();
@@ -129,6 +137,10 @@ async fn a_kept_turns_line_waits_for_after_and_goes_nowhere_where_it_rejects() {
 // T4: a turn that failed on a kept process gives the process up: it is launched again for the next message.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_failed_turn_releases_its_process_and_keeps_nothing() {
+    tokio::task::LocalSet::new().run_until(a_failed_turn_releases_its_process_and_keeps_nothing_body()).await
+}
+
+async fn a_failed_turn_releases_its_process_and_keeps_nothing_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let (_events, on_event) = collect();
@@ -144,6 +156,10 @@ async fn a_failed_turn_releases_its_process_and_keeps_nothing() {
 // T5: an attached turn has no keeper: its result leaves nothing for a next message, which launches again.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_attached_turn_keeps_no_process() {
+    tokio::task::LocalSet::new().run_until(an_attached_turn_keeps_no_process_body()).await
+}
+
+async fn an_attached_turn_keeps_no_process_body() {
     let exec = Arc::new(FakeExec {
         script: Script::Manual,
         opts: StreamOpts { run: Some("/tmp/run".into()), ..Default::default() },
@@ -176,6 +192,10 @@ async fn an_attached_turn_keeps_no_process() {
 // with the warm command; its close ends it after the result wait.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_warm_process_rests_until_its_first_turn_which_is_a_fresh_session_under_the_warm_id() {
+    tokio::task::LocalSet::new().run_until(a_warm_process_rests_until_its_first_turn_which_is_a_fresh_session_under_the_warm_id_body()).await
+}
+
+async fn a_warm_process_rests_until_its_first_turn_which_is_a_fresh_session_under_the_warm_id_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let warm = adapter.warm(HarnessWarmOptions { model: Some("opus".into()), ..Default::default() }).unwrap();

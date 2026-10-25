@@ -4,8 +4,14 @@ use std::collections::HashSet;
 
 use wsp_catalog::catalog::{catalog, catalog_agents, catalog_entry, login_sign_in};
 use wsp_catalog::roads::GUEST_HOME;
-use wsp_catalog::signin::{has_login, key_env_of, lives_on_computer, login_home_in, login_state_paths, mints_token, no_sign_in, shared_login_of, token_in, SharedLogin, SignInKind};
-use wsp_catalog::signin_rows::{shares_in, sign_in_row, Share, GH_LOGIN_PATHS, LOGIN_PATHS, NEVER_IN_IMAGE, NEVER_ON_BROKERED, SHARED_LOGINS, SIGN_IN_ROWS, VAULT_VARIABLES};
+use wsp_catalog::signin::{
+    has_login, key_env_of, lives_on_computer, login_home_in, login_state_paths, mints_token, no_sign_in, shared_login_of, token_in,
+    SharedLogin, SignInKind,
+};
+use wsp_catalog::signin_rows::{
+    shares_in, sign_in_row, Share, GH_LOGIN_PATHS, LOGIN_PATHS, NEVER_IN_IMAGE, NEVER_ON_BROKERED, SHARED_LOGINS, SIGN_IN_ROWS,
+    VAULT_VARIABLES,
+};
 
 fn set(items: impl IntoIterator<Item = String>) -> HashSet<String> {
     items.into_iter().collect()
@@ -128,7 +134,14 @@ mod the_token_sign_in_and_the_vault {
 
     #[test]
     fn the_paths_a_builder_may_never_hold_are_absolute_guest_paths_the_claude_credentia() {
-        assert_eq!(*NEVER_IN_IMAGE, vec![format!("{GUEST_HOME}/.claude-cfg/.credentials.json"), format!("{GUEST_HOME}/.claude-cfg/anthropic-api-key"), format!("{GUEST_HOME}/.codex/auth.json")]);
+        assert_eq!(
+            *NEVER_IN_IMAGE,
+            vec![
+                format!("{GUEST_HOME}/.claude-cfg/.credentials.json"),
+                format!("{GUEST_HOME}/.claude-cfg/anthropic-api-key"),
+                format!("{GUEST_HOME}/.codex/auth.json")
+            ]
+        );
         for p in NEVER_IN_IMAGE.iter() {
             assert!(p.starts_with(&format!("{GUEST_HOME}/")), "{p}");
         }
@@ -141,10 +154,19 @@ mod the_token_sign_in_and_the_vault {
     #[test]
     fn the_login_paths_a_provider_s_nap_and_snapshot_read_are_every_row_s_state_every_p() {
         let rows: Vec<String> = SIGN_IN_ROWS.values().flat_map(login_state_paths).collect();
-        let expected = set(NEVER_IN_IMAGE.iter().cloned().chain(rows).chain(["/etc/profile.d/wsp-secrets.sh".to_string(), "/etc/fish/conf.d/wsp-secrets.fish".to_string()]));
+        let expected = set(NEVER_IN_IMAGE
+            .iter()
+            .cloned()
+            .chain(rows)
+            .chain(["/etc/profile.d/wsp-secrets.sh".to_string(), "/etc/fish/conf.d/wsp-secrets.fish".to_string()]));
         assert_eq!(set(LOGIN_PATHS.iter().cloned()), expected);
         assert_eq!(LOGIN_PATHS.len(), set(LOGIN_PATHS.iter().cloned()).len());
-        for p in [format!("{GUEST_HOME}/.config/gh/hosts.yml"), format!("{GUEST_HOME}/.config/gcloud"), format!("{GUEST_HOME}/.aws"), format!("{GUEST_HOME}/.hermes/.env")] {
+        for p in [
+            format!("{GUEST_HOME}/.config/gh/hosts.yml"),
+            format!("{GUEST_HOME}/.config/gcloud"),
+            format!("{GUEST_HOME}/.aws"),
+            format!("{GUEST_HOME}/.hermes/.env"),
+        ] {
             assert!(LOGIN_PATHS.contains(&p), "{p}");
         }
     }
@@ -154,7 +176,13 @@ mod the_token_sign_in_and_the_vault {
         let expected = set(LOGIN_PATHS.iter().cloned().chain(["/root/.mcp-auth".to_string(), "/root/.git-credentials".to_string()]));
         assert_eq!(set(NEVER_ON_BROKERED.iter().cloned()), expected);
         assert_eq!(NEVER_ON_BROKERED.len(), set(NEVER_ON_BROKERED.iter().cloned()).len());
-        for p in ["/root/.claude-cfg/.credentials.json", "/root/.claude-cfg/anthropic-api-key", "/root/.codex/auth.json", "/etc/profile.d/wsp-secrets.sh", "/etc/fish/conf.d/wsp-secrets.fish"] {
+        for p in [
+            "/root/.claude-cfg/.credentials.json",
+            "/root/.claude-cfg/anthropic-api-key",
+            "/root/.codex/auth.json",
+            "/etc/profile.d/wsp-secrets.sh",
+            "/etc/fish/conf.d/wsp-secrets.fish",
+        ] {
             assert!(NEVER_ON_BROKERED.contains(&p.to_string()), "{p}");
         }
         assert_eq!(*GH_LOGIN_PATHS, vec!["/root/.config/gh/hosts.yml".to_string()]);
@@ -167,7 +195,12 @@ mod a_login_signed_in_once_on_the_computer_that_runs_the_workspaces {
     #[test]
     fn codex_declares_the_file_it_shares_where_the_tool_reads_it_inside_and_the_variabl() {
         let shared = shared_login_of(sign_in_row("codex"));
-        let want = SharedLogin { dir: "codex".to_string(), file: "auth.json".to_string(), target: format!("{GUEST_HOME}/.codex/auth.json"), home_env: "CODEX_HOME".to_string() };
+        let want = SharedLogin {
+            dir: "codex".to_string(),
+            file: "auth.json".to_string(),
+            target: format!("{GUEST_HOME}/.codex/auth.json"),
+            home_env: "CODEX_HOME".to_string(),
+        };
         assert_eq!(shared, Some(&want));
         // The predicate and the declaration are one thing: a row that shares nothing lives in the image as before.
         assert!(lives_on_computer(sign_in_row("codex")));
@@ -178,7 +211,10 @@ mod a_login_signed_in_once_on_the_computer_that_runs_the_workspaces {
 
     #[test]
     fn what_a_create_shares_into_a_workspace_is_that_computer_s_own_file_at_the_path_th() {
-        assert_eq!(shares_in("/wsp/logins"), vec![Share { source: "/wsp/logins/codex/auth.json".to_string(), target: format!("{GUEST_HOME}/.codex/auth.json") }]);
+        assert_eq!(
+            shares_in("/wsp/logins"),
+            vec![Share { source: "/wsp/logins/codex/auth.json".to_string(), target: format!("{GUEST_HOME}/.codex/auth.json") }]
+        );
         // The sign-in on that computer runs with the tool's store pointed here, which is where the shared file lands.
         assert_eq!(login_home_in("/wsp/logins", shared_login_of(sign_in_row("codex")).unwrap()), "/wsp/logins/codex");
         for share in shares_in("/wsp/logins") {

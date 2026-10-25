@@ -6,8 +6,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
-use futures::stream::BoxStream;
+use futures::future::LocalBoxFuture;
+use futures::stream::LocalBoxStream;
 use indexmap::IndexSet;
 use wsp_adapters::port::ExecFailure;
 
@@ -17,7 +17,7 @@ use wsp_adapters::port::ExecFailure;
 // /** One reading of the work a turn's process tree has done, in the ticks the activity clock counts, or undefined
 //  * when this computer cannot answer for the tree. */
 // export type TreeWorkReader = (leader: number, then: (ticks: number | undefined) => void) => void;
-pub type TreeWorkReader = Arc<dyn Fn(i32) -> BoxFuture<'static, Option<i64>> + Send + Sync>;
+pub type TreeWorkReader = Arc<dyn Fn(i32) -> LocalBoxFuture<'static, Option<i64>>>;
 
 /// How often the reap looks at the group it asked to go.
 pub const GRACE_POLL_MS: u64 = 200;
@@ -368,7 +368,7 @@ pub async fn leads_this_run(base: &str, pid: i32) -> bool {
 }
 
 /// What a reader takes once the group is gone, up to the log's size at that moment.
-pub type LastRead = Box<dyn FnOnce(u64) -> BoxFuture<'static, ()> + Send>;
+pub type LastRead = Box<dyn FnOnce(u64) -> LocalBoxFuture<'static, ()>>;
 
 /// Ends a run's group (TERM, the grace in 200 ms steps while the group exists, KILL) when its recorded pid leads it,
 /// runs `last_read`, then deletes its files and its claim. `grace_ms` is `RUN_STOP_MS` at every TS call site.
@@ -546,7 +546,7 @@ impl Lines {
         todo!()
     }
     /// The stream's one reader; dropping it lets go (the queue empties and later feeds are dropped).
-    pub fn iterate(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
+    pub fn iterate(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
         todo!()
     }
 }

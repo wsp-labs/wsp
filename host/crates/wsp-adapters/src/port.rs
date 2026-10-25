@@ -4,14 +4,18 @@
 //! and revert answers) and packages/runtime/src/types/harness.ts:120-330 (HarnessAdapter, HarnessSession and their
 //! start options), plus packages/protocol/src/kept-run.ts (KeptAgent, KeptTurn, KeptRun).
 //!
-//! Async: a TS `Promise<T>` is a [`BoxFuture`]; one awaited by many (`exited`, `finished`) is a [`Shared`] future. A
-//! TS `AsyncIterable<string>` is a [`BoxStream`] of `Result<String, ExecFailure>`, the error being what the TS
+//! Async: a TS `Promise<T>` is a [`LocalBoxFuture`]; one awaited by many (`exited`, `finished`) is a [`Shared`] future. A
+//! TS `AsyncIterable<string>` is a [`LocalBoxStream`] of `Result<String, ExecFailure>`, the error being what the TS
 //! iterator throws. An optional TS method (`writeAfter?`, `attach?`) is a method answering `None` where it is absent.
+//!
+//! One thread (the coordinator's ruling on #2448): no trait here has a `Send` or `Sync` bound, no future or stream is
+//! required to be `Send`, and a callback is a plain `Arc<dyn Fn(..)>`. Work an adapter runs in the background, as a
+//! turn's reader, goes on `tokio::task::spawn_local`, so every test runs inside a `LocalSet`.
 
 use std::sync::Arc;
 
-use futures::future::{BoxFuture, Shared};
-use futures::stream::BoxStream;
+use futures::future::{LocalBoxFuture, Shared};
+use futures::stream::LocalBoxStream;
 use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -27,7 +31,7 @@ pub use wsp_wire::views::session_events::{DeltaKind, FilePatch, PlanStep, Sessio
 pub type Env = IndexMap<String, String>;
 
 /// A settled-once value many readers await: the TS `Promise` that `exited` and `finished` are.
-pub type SharedFuture<T> = Shared<BoxFuture<'static, T>>;
+pub type SharedFuture<T> = Shared<LocalBoxFuture<'static, T>>;
 
 /// What the person's setup changes about one agent's command. TS adapter-port.ts:23.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -128,7 +132,7 @@ impl std::fmt::Display for AdapterError {
 impl std::error::Error for AdapterError {}
 
 /// The wall clock in ms epoch, the TS `Date.now()`. Deps take one so a test can pin it; `system_now()` where absent.
-pub type Now = Arc<dyn Fn() -> i64 + Send + Sync>;
+pub type Now = Arc<dyn Fn() -> i64>;
 
 /// The system clock as a [`Now`].
 pub fn system_now() -> Now {
@@ -312,7 +316,7 @@ impl AdapterEvent {
 }
 
 /// Where adapter events go: called once per event, in order, on the reader's own task.
-pub type OnEvent = Arc<dyn Fn(AdapterEvent) + Send + Sync>;
+pub type OnEvent = Arc<dyn Fn(AdapterEvent)>;
 
 /// TS adapter-port.ts:217.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -368,13 +372,13 @@ pub enum WriteOutcome {
 }
 
 /// A TS `Promise<void>` that may reject: `Ok(())` when it resolves, `Err(words)` when it rejects.
-pub type Settle = BoxFuture<'static, Result<(), String>>;
+pub type Settle = LocalBoxFuture<'static, Result<(), String>>;
 
 /// The process a turn runs in, whatever launched it. TS adapter-port.ts:260.
-pub trait ExecStream: Send + Sync {
+pub trait ExecStream {
     /// The run's stdout, one line per item; an `Err` is the TS iterator's throw and ends the stream. Taken once: a
     /// second call answers an empty stream.
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>>;
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>>;
     /// What a later host attaches to this run by; `None` where runs die with their host.
     fn run(&self) -> Option<String> {
         None
@@ -389,7 +393,7 @@ pub trait ExecStream: Send + Sync {
     fn kill(&self);
     /// Appends one line to stdin; `Ok(Gone)` where the process already ended; `Err` once the stream ended or with no
     /// input channel.
-    fn write(&self, line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>>;
+    fn write(&self, line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>>;
     /// Ends stdin.
     fn close_input(&self);
     /// Holds `line` beside the run until `after` settles, then appends it; an `Err` from `after` drops it. Answers
@@ -453,22 +457,22 @@ pub enum Attached {
 }
 
 /// How a turn's process is launched. TS adapter-port.ts:300.
-pub trait ExecStreamFactory: Send + Sync {
+pub trait ExecStreamFactory {
     fn launch(&self, command: &str, options: ExecOptions) -> Arc<dyn ExecStream>;
     /// `None` where runs die with their host (TS `attach` absent).
-    fn attach(&self, run: &str, options: AttachRunOptions) -> Option<BoxFuture<'static, Result<Attached, ExecFailure>>> {
+    fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
         let _ = (run, options);
         None
     }
     /// `None` where runs die with their host (TS `sweep` absent).
-    fn sweep(&self, keep: &[String]) -> Option<BoxFuture<'static, Result<Vec<String>, ExecFailure>>> {
+    fn sweep(&self, keep: &[String]) -> Option<LocalBoxFuture<'static, Result<Vec<String>, ExecFailure>>> {
         let _ = keep;
         None
     }
 }
 
 /// Whether `turn` settled, either way, inside `ms`. TS adapter-port.ts:349.
-pub async fn settles_within<T>(turn: BoxFuture<'_, T>, ms: u64) -> bool {
+pub async fn settles_within<T>(turn: LocalBoxFuture<'_, T>, ms: u64) -> bool {
     todo!()
 }
 
@@ -520,16 +524,16 @@ pub enum HarnessCatalogAnswer {
 }
 
 /// One command on the machine a harness runs on, answering its stdout; `env` rides the command's input. TS
-/// adapter-port.ts:421. Any `Fn(&str, Option<&Env>) -> BoxFuture<..>` is one.
-pub trait HarnessExec: Send + Sync {
-    fn exec(&self, command: &str, env: Option<&Env>) -> BoxFuture<'static, Result<String, ExecFailure>>;
+/// adapter-port.ts:421. Any `Fn(&str, Option<&Env>) -> LocalBoxFuture<..>` is one.
+pub trait HarnessExec {
+    fn exec(&self, command: &str, env: Option<&Env>) -> LocalBoxFuture<'static, Result<String, ExecFailure>>;
 }
 
 impl<F> HarnessExec for F
 where
-    F: Fn(&str, Option<&Env>) -> BoxFuture<'static, Result<String, ExecFailure>> + Send + Sync,
+    F: Fn(&str, Option<&Env>) -> LocalBoxFuture<'static, Result<String, ExecFailure>>,
 {
-    fn exec(&self, command: &str, env: Option<&Env>) -> BoxFuture<'static, Result<String, ExecFailure>> {
+    fn exec(&self, command: &str, env: Option<&Env>) -> LocalBoxFuture<'static, Result<String, ExecFailure>> {
         self(command, env)
     }
 }
@@ -580,7 +584,7 @@ pub struct AsideQuestion {
     pub fast: Option<bool>,
     pub mcp_servers: Option<IndexMap<String, McpServerSpec>>,
     pub server_values: Option<ServerValues>,
-    pub on_text: Option<Arc<dyn Fn(String) + Send + Sync>>,
+    pub on_text: Option<Arc<dyn Fn(String)>>,
 }
 
 /// TS adapter-port.ts:505.
@@ -630,7 +634,7 @@ pub enum ForkTurn {
 /// What a fork's start takes. TS adapter-port.ts:544.
 pub enum ForkedSession {
     /// A copied session a start resumes; `drop` removes it where the start never ran.
-    Resume { resume: String, drop: Box<dyn FnOnce() -> BoxFuture<'static, Result<(), String>> + Send> },
+    Resume { resume: String, drop: Box<dyn FnOnce() -> LocalBoxFuture<'static, Result<(), String>>> },
     /// The start forks itself.
     Fork { session: String, turn: String },
 }
@@ -659,7 +663,7 @@ pub enum ResetSpend {
 }
 
 /// TS adapter-port.ts:577.
-pub trait PlanResets: Send + Sync {
+pub trait PlanResets {
     fn read_command(&self, road: &ResetRoad) -> String;
     fn parse_read(&self, stdout: &str) -> Option<ResetReading>;
     fn spend_command(&self, road: &ResetRoad, idempotency_key: &str, credit_id: Option<&str>) -> String;
@@ -688,7 +692,7 @@ pub struct HarnessStartOptions {
     pub server_values: Option<ServerValues>,
     pub off_servers: Option<Vec<String>>,
     /// Asked for the thread so far as text, only where the CLI holds no session under `resume`.
-    pub seed: Option<Arc<dyn Fn() -> BoxFuture<'static, Result<String, String>> + Send + Sync>>,
+    pub seed: Option<Arc<dyn Fn() -> LocalBoxFuture<'static, Result<String, String>>>>,
     pub limit_details: bool,
     pub prompt_after: Option<Settle>,
     pub version: Option<String>,
@@ -750,7 +754,7 @@ pub struct SessionFile {
 }
 
 /// One turn of a harness. TS runtime harness.ts:156 (HarnessSession). Optional TS methods answer `None` where absent.
-pub trait HarnessSession: Send + Sync {
+pub trait HarnessSession {
     fn local_id(&self) -> String;
     fn finished(&self) -> SharedFuture<TurnResult>;
     fn run(&self) -> Option<String> {
@@ -762,28 +766,28 @@ pub trait HarnessSession: Send + Sync {
     fn from(&self) -> Option<u64> {
         None
     }
-    fn interrupt(&self) -> BoxFuture<'static, ()>;
+    fn interrupt(&self) -> LocalBoxFuture<'static, ()>;
     /// A write's rejection (`Err`) is the TS method's own rejection.
     /// `None` on an adapter that keeps no process; `Some(None)` where this turn's process went with it.
     fn kept(&self) -> Option<Option<Box<dyn KeptAgent>>> {
         None
     }
-    fn steer(&self, prompt: String, id: Option<String>, images: Vec<TurnImage>) -> Option<BoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
+    fn steer(&self, prompt: String, id: Option<String>, images: Vec<TurnImage>) -> Option<LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
         let _ = (prompt, id, images);
         None
     }
     fn tells_unread(&self) -> Option<bool> {
         None
     }
-    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<BoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
+    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         let _ = (ask_id, answer);
         None
     }
-    fn set_access(&self, mode: String) -> Option<BoxFuture<'static, Result<AccessOutcome, ExecFailure>>> {
+    fn set_access(&self, mode: String) -> Option<LocalBoxFuture<'static, Result<AccessOutcome, ExecFailure>>> {
         let _ = mode;
         None
     }
-    fn stop_task(&self, task: String) -> Option<BoxFuture<'static, Result<TaskStop, ExecFailure>>> {
+    fn stop_task(&self, task: String) -> Option<LocalBoxFuture<'static, Result<TaskStop, ExecFailure>>> {
         let _ = task;
         None
     }
@@ -798,10 +802,10 @@ pub struct KeptTurn {
 }
 
 /// The process behind a thread's turns, kept up between them. TS kept-run.ts:11.
-pub trait KeptAgent: Send + Sync {
+pub trait KeptAgent {
     fn next(&self, turn: KeptTurn) -> Result<Arc<dyn HarnessSession>, AdapterError>;
     /// `now`: SIGTERM to its tree at once.
-    fn close(&self, now: bool) -> BoxFuture<'static, ()>;
+    fn close(&self, now: bool) -> LocalBoxFuture<'static, ()>;
     fn exited(&self) -> SharedFuture<()>;
     fn session_file(&self) -> Option<SessionFile> {
         None
@@ -814,14 +818,14 @@ pub trait KeptAgent: Send + Sync {
 
 /// The runtime's view of one harness adapter. TS runtime harness.ts:196. Capability flags the TS declares as
 /// `readonly x?: true` are `bool`s here, false where absent.
-pub trait HarnessAdapter: Send + Sync {
+pub trait HarnessAdapter {
     /// `Err` where the TS start throws before anything runs (a bad slug, a window with no model, a fork with a resume).
     fn start(&self, options: HarnessStartOptions) -> Result<Arc<dyn HarnessSession>, AdapterError>;
     fn warm(&self, options: HarnessWarmOptions) -> Option<Result<Box<dyn KeptAgent>, AdapterError>> {
         let _ = options;
         None
     }
-    fn attach(&self, options: AdapterAttachOptions) -> Option<BoxFuture<'static, Result<Option<Arc<dyn HarnessSession>>, ExecFailure>>> {
+    fn attach(&self, options: AdapterAttachOptions) -> Option<LocalBoxFuture<'static, Result<Option<Arc<dyn HarnessSession>>, ExecFailure>>> {
         let _ = options;
         None
     }
@@ -829,11 +833,11 @@ pub trait HarnessAdapter: Send + Sync {
     fn reports_edits(&self) -> bool {
         false
     }
-    fn revert(&self, ask: RevertAsk) -> Option<BoxFuture<'static, Result<Reverted, String>>> {
+    fn revert(&self, ask: RevertAsk) -> Option<LocalBoxFuture<'static, Result<Reverted, String>>> {
         let _ = ask;
         None
     }
-    fn fork_session(&self, session: String, turn: ForkTurn) -> Option<BoxFuture<'static, Result<ForkedSession, String>>> {
+    fn fork_session(&self, session: String, turn: ForkTurn) -> Option<LocalBoxFuture<'static, Result<ForkedSession, String>>> {
         let _ = (session, turn);
         None
     }
@@ -862,15 +866,15 @@ pub trait HarnessAdapter: Send + Sync {
         false
     }
     /// `None` at the outer level: no probe. Inner `None`: the binary did not answer.
-    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
+    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
         let _ = exec;
         None
     }
-    fn probe_version(&self, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn probe_version(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let _ = exec;
         None
     }
-    fn session_title(&self, harness_session_id: String, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn session_title(&self, harness_session_id: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let _ = (harness_session_id, exec);
         None
     }
@@ -878,19 +882,19 @@ pub trait HarnessAdapter: Send + Sync {
         let _ = session_id;
         None
     }
-    fn rename_session(&self, harness_session_id: String, title: String, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
+    fn rename_session(&self, harness_session_id: String, title: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
         let _ = (harness_session_id, title, exec);
         None
     }
-    fn title_for(&self, turn: TitleTurn, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn title_for(&self, turn: TitleTurn, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let _ = (turn, exec);
         None
     }
-    fn draft_for(&self, ask: DraftAsk, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn draft_for(&self, ask: DraftAsk, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let _ = (ask, exec);
         None
     }
-    fn aside(&self, question: AsideQuestion) -> Option<BoxFuture<'static, Result<AsideAnswer, String>>> {
+    fn aside(&self, question: AsideQuestion) -> Option<LocalBoxFuture<'static, Result<AsideAnswer, String>>> {
         let _ = question;
         None
     }
@@ -912,7 +916,7 @@ pub trait HarnessAdapter: Send + Sync {
 }
 
 /// The process behind a thread's turns, shared by the turns that read it one after another. TS kept-run.ts:51.
-pub trait KeptRun: Send + Sync {
+pub trait KeptRun {
     /// A view of the process for one turn, reading the lines it prints from now on, and where the turn starts in the
     /// run's log on every view after the first. kept-run.ts:53.
     fn turn(&self) -> (Arc<dyn ExecStream>, Option<u64>);
@@ -922,12 +926,12 @@ pub trait KeptRun: Send + Sync {
     fn up(&self) -> bool;
     fn exited(&self) -> SharedFuture<Option<i32>>;
     /// Ends the process: input closed, then end_after_result(wait_ms, grace_ms). kept-run.ts:61.
-    fn close(&self, wait_ms: u64, grace_ms: u64) -> BoxFuture<'static, ()>;
+    fn close(&self, wait_ms: u64, grace_ms: u64) -> LocalBoxFuture<'static, ()>;
 }
 
 /// One reader for a process's whole life, handing each turn a view of it; `between` takes each line printed while no
 /// turn is open. TS kept-run.ts:111 (`keepRun`).
-pub fn keep_run(stream: Arc<dyn ExecStream>, between: Option<Arc<dyn Fn(String) + Send + Sync>>) -> Arc<dyn KeptRun> {
+pub fn keep_run(stream: Arc<dyn ExecStream>, between: Option<Arc<dyn Fn(String)>>) -> Arc<dyn KeptRun> {
     todo!()
 }
 
@@ -935,12 +939,12 @@ pub fn keep_run(stream: Arc<dyn ExecStream>, between: Option<Arc<dyn Fn(String) 
 pub struct LostSessionStart {
     pub prompt: String,
     pub resume: String,
-    pub seed: Arc<dyn Fn() -> BoxFuture<'static, Result<String, String>> + Send + Sync>,
+    pub seed: Arc<dyn Fn() -> LocalBoxFuture<'static, Result<String, String>>>,
     pub on_event: OnEvent,
 }
 
 /// A turn as start_after_loss holds it: anything with a `finished`.
-pub trait Finishes: Send + Sync {
+pub trait Finishes {
     fn finished(&self) -> SharedFuture<TurnResult>;
 }
 
@@ -958,7 +962,7 @@ pub struct AfterLoss<S: ?Sized> {
 pub fn start_after_loss<S, L>(options: LostSessionStart, lost: String, launch: L) -> Result<AfterLoss<S>, AdapterError>
 where
     S: Finishes + ?Sized + 'static,
-    L: Fn(String, Option<String>, OnEvent) -> Result<Arc<S>, AdapterError> + Send + Sync + 'static,
+    L: Fn(String, Option<String>, OnEvent) -> Result<Arc<S>, AdapterError> + 'static,
 {
     todo!()
 }
@@ -1019,7 +1023,7 @@ pub enum EarlierRead {
 pub struct ConversationRoad {
     pub exec: Arc<dyn HarnessExec>,
     /// One frame to the daemon, `{ op, ... }` in key order, answering its reply object.
-    pub ask: Arc<dyn Fn(Map<String, Value>) -> BoxFuture<'static, Result<Map<String, Value>, ExecFailure>> + Send + Sync>,
+    pub ask: Arc<dyn Fn(Map<String, Value>) -> LocalBoxFuture<'static, Result<Map<String, Value>, ExecFailure>>>,
 }
 
 /// The `earlier` options. TS conversations.ts:92.
@@ -1041,18 +1045,18 @@ pub struct StoreError {
 }
 
 /// An agent's own store of conversations. TS conversations.ts:88. Optional TS members answer `None` where absent.
-pub trait ConversationStore: Send + Sync {
-    fn list(&self, cwds: Vec<String>, road: ConversationRoad) -> BoxFuture<'static, Result<Vec<StoredConversation>, StoreError>>;
+pub trait ConversationStore {
+    fn list(&self, cwds: Vec<String>, road: ConversationRoad) -> LocalBoxFuture<'static, Result<Vec<StoredConversation>, StoreError>>;
     /// Inner `None`: nothing could say (the TS `null`).
-    fn live(&self, road: ConversationRoad) -> Option<BoxFuture<'static, Option<IndexSet<String>>>> {
+    fn live(&self, road: ConversationRoad) -> Option<LocalBoxFuture<'static, Option<IndexSet<String>>>> {
         let _ = road;
         None
     }
-    fn stamp(&self, cwds: Vec<String>, road: ConversationRoad) -> Option<BoxFuture<'static, Result<String, StoreError>>> {
+    fn stamp(&self, cwds: Vec<String>, road: ConversationRoad) -> Option<LocalBoxFuture<'static, Result<String, StoreError>>> {
         let _ = (cwds, road);
         None
     }
-    fn earlier(&self, id: String, ask: EarlierAsk, road: ConversationRoad) -> BoxFuture<'static, Result<EarlierRead, StoreError>>;
+    fn earlier(&self, id: String, ask: EarlierAsk, road: ConversationRoad) -> LocalBoxFuture<'static, Result<EarlierRead, StoreError>>;
     fn lets_go(&self) -> Option<String> {
         None
     }
