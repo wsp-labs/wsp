@@ -157,7 +157,9 @@ async fn round(g: &BoxGuest, plan: &McpPlan, files: bool, into: Option<Into>) ->
     };
     let at = place_provision_paths(&root);
     let before = lines_of(&at.landing).len();
+    #[allow(clippy::type_complexity)]
     let into_fn: Option<Arc<dyn Fn(&str, &[String])>> = into.map(|seen| {
+        #[allow(clippy::type_complexity)]
         let f: Arc<dyn Fn(&str, &[String])> =
             Arc::new(move |file: &str, names: &[String]| seen.lock().unwrap().push((s(file), names.to_vec())));
         f

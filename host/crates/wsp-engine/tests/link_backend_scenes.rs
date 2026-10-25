@@ -110,7 +110,7 @@ async fn an_empty_stdin_is_sent_empty() {
 async fn a_daemon_frame_keeps_its_own_machine_id_place_and_its_replys_ok() {
     let (w, l, _b, m, skip) = opened("a_daemon_frame_keeps_its_own_machine_id_place_and_its_replys_ok").await;
     let frame = |v: Value| v.as_object().cloned().unwrap();
-    let answers = vec![
+    let answers = [
         m.daemon_frame(frame(json!({ "op": "git.ok", "machineId": "other", "a": 1 }))).await.unwrap(),
         m.daemon_frame(frame(json!({ "a": 2, "op": "git.refused" }))).await.unwrap(),
         m.daemon_frame(frame(json!({ "op": "git.coded" }))).await.unwrap(),

@@ -355,6 +355,7 @@ impl Fetch for OkFetch {
 }
 
 /// The TS oracle's recorder: answers `wc -c` with 12 and `test -e` with no, every other call with exit 0.
+#[allow(clippy::type_complexity)]
 fn recorder() -> (common::FakeMachine, Arc<Mutex<Vec<String>>>, Arc<Mutex<Vec<String>>>) {
     let execs = Arc::new(Mutex::new(Vec::new()));
     let runs = Arc::new(Mutex::new(Vec::new()));

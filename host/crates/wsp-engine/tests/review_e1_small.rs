@@ -326,7 +326,8 @@ fn a_header_with_bytes_that_are_not_utf8_opens_as_node_reads_it_with_replacement
 
 #[test]
 fn a_header_with_a_deeply_nested_unknown_key_opens_as_node_reads_it() {
-    for name in ["deep_unknown_key"] {
+    {
+        let name = "deep_unknown_key";
         assert_eq!(rust_open(name), Ok(node_opens(name)), "{name}");
     }
 }

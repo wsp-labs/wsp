@@ -149,7 +149,7 @@ async fn reads_the_owners_answer_of_17_06_utc_the_20_plan_100_machines_three_win
     let api = FakeBox::new().on("GET", "/limits", vec![limits_reply(owner_limits())]);
     let on = backend_with(api.clone() as Arc<dyn Fetch>, Default::default());
     let read = on.backend.limits().await.unwrap();
-    assert_eq!(read.trial, false);
+    assert!(!read.trial);
     assert_eq!(read.plan_key.as_deref(), Some("box_20"));
     assert_eq!(read.plan_usd, Some(20.0));
     assert_eq!(read.machines_at_once, Some(100.0));
@@ -157,7 +157,7 @@ async fn reads_the_owners_answer_of_17_06_utc_the_20_plan_100_machines_three_win
     let starts = read.starts.expect("the three windows");
     assert_eq!((starts.minute, starts.hour, starts.day), (window(0.0, 12.0), window(9.0, 60.0), window(187.0, 200.0)));
     assert_eq!(read.sizes, vec![BoxClassType::Small, BoxClassType::Default, BoxClassType::Large]);
-    assert_eq!(read.can_start, true);
+    assert!(read.can_start);
     assert_eq!(read.start_blocked_reason, None);
     assert_eq!(read.credit_balance_hours, Some(81.6));
     assert_eq!(read.billing_status, None);
@@ -172,7 +172,7 @@ async fn a_trial_offers_small_and_default_and_reads_2_machines_a_100_plan_adds_x
     let api = FakeBox::new().on("GET", "/limits", vec![limits_reply(trial_limits())]);
     let on = backend_with(api.clone() as Arc<dyn Fetch>, Default::default());
     let read = on.backend.limits().await.unwrap();
-    assert_eq!(read.trial, true);
+    assert!(read.trial);
     assert_eq!(read.machines_at_once, Some(2.0));
     assert_eq!(read.sizes, vec![BoxClassType::Small, BoxClassType::Default]);
     let starts = read.starts.expect("the three windows");
@@ -333,7 +333,7 @@ async fn a_trial_is_read_off_the_plan_key_too_which_reads_trial_before_any_payme
     let api = FakeBox::new().on("GET", "/limits", vec![limits_reply(no_tier)]);
     let on = backend_with(api.clone() as Arc<dyn Fetch>, Default::default());
     let read = on.backend.limits().await.unwrap();
-    assert_eq!(read.trial, true);
+    assert!(read.trial);
     assert_eq!(read.sizes, vec![BoxClassType::Small, BoxClassType::Default]);
 }
 
