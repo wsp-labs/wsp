@@ -1192,7 +1192,7 @@ fn invariant_3_the_tree_and_notify_by_come_from_the_callers_token() {
         let tokened = || StartOptions { notify: Some(strings(&["me"])), turn_token: Some("tok-T".into()), started_by: Some(SessionOrigin::Agent), ..go("build it") };
         let wire = |fx: &Fx, seen: &Rc<RefCell<Vec<Option<ThreadScope>>>>| {
             fx.thread_on("T", "w1", "claude");
-            hook!(fx.host, "SessionsCtx::thread_of_token", dyn Fn(&str) -> String, |t: &str| if t == "tok-T" { "T".to_string() } else { "someone-else".to_string() });
+            hook!(fx.host, "SessionsCtx::thread_of_token", dyn Fn(&str) -> Result<String, HostError>, |t: &str| Ok(if t == "tok-T" { "T".to_string() } else { "someone-else".to_string() }));
             let log = seen.clone();
             hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> TreeOf, move |s: Option<&ThreadScope>| {
                 log.borrow_mut().push(s.cloned());
@@ -1263,10 +1263,10 @@ fn notify_me_is_the_callers_thread() {
         for t in ["T1", "T2"] {
             fx.thread_on(t, "w1", "claude");
         }
-        hook!(fx.host, "SessionsCtx::thread_of_token", dyn Fn(&str) -> String, |t: &str| match t {
-            "tok-1" => "T1".to_string(),
-            "tok-2" => "T2".to_string(),
-            other => other.to_string(),
+        hook!(fx.host, "SessionsCtx::thread_of_token", dyn Fn(&str) -> Result<String, HostError>, |t: &str| match t {
+            "tok-1" => Ok("T1".to_string()),
+            "tok-2" => Ok("T2".to_string()),
+            other => Ok(other.to_string()),
         });
         let run = |notify: &[&str], token: Option<&str>| StartOptions { notify: Some(strings(notify)), turn_token: token.map(String::from), ..go("build") };
 

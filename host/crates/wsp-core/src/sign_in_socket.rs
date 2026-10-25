@@ -13,7 +13,7 @@ use wsp_wire::wire::runtime_ops::RuntimeOp;
 use wsp_words::exit::HostError;
 
 use crate::sys_socket::{Send, SocketSide};
-use crate::types::api::{AgentsApi, SignInFollowing};
+use crate::types::api::{Runtime, SignInFollowing};
 use crate::types::pending::SignInAsk;
 
 /// The ops this handler takes, in the TS's order. sign-in-socket.ts:11.
@@ -54,7 +54,7 @@ pub trait SignInRuns {
 }
 
 #[async_trait(?Send)]
-impl<A: AgentsApi + ?Sized> SignInRuns for A {
+impl<R: Runtime + ?Sized> SignInRuns for R {
     async fn sign_in(&self, target: AgentsTarget, ask: SignInAsk, emit: Rc<dyn Fn(AgentsSignInEvent)>, origin: Option<Caller>) -> Result<SignInFollowing, HostError> {
         todo!()
     }
@@ -79,8 +79,8 @@ impl<A: AgentsApi + ?Sized> SignInRuns for A {
 /// One socket's handler of every sign-in op. A refusal of a start (and an unserved cloud sign-in) is the handler's
 /// `Err`, which the door answers as it answers any op's; a code or stop for a run this socket does not hold is answered
 /// `{id, ok: false, error: noSignInRefusal, kind: "usage"}` by the handler itself. sign-in-socket.ts:26.
-pub fn sign_in_socket(
-    agents: Rc<dyn SignInRuns>,
+pub fn sign_in_socket<A: SignInRuns + ?Sized + 'static>(
+    agents: Rc<A>,
     socket: Rc<dyn SocketSide>,
     cloud_sign_in: Option<CloudSignIn>,
 ) -> Rc<dyn Fn(SignInOp, Send, Option<Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>> {

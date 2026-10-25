@@ -96,14 +96,8 @@ pub struct Sighting {}
 // Area types that rule 1.5 moves down into wsp-core because `types/api.ts` and `types/wiring.ts` name them. Each is
 // a handle here; the area writer of its TS file declares its methods on it.
 
-/// TS runtime places.ts `PlaceDoor` (wsp-machines).
-pub trait PlaceDoor {}
 /// TS runtime places.ts `PlaceWiring` (wsp-machines).
 pub trait PlaceWiring {}
-/// TS runtime slates.ts `Slates` (wsp-slates).
-pub trait Slates {}
-/// TS runtime activity.ts `ActivityDoor` (wsp-threads).
-pub trait ActivityDoor {}
 /// TS runtime agents-read.ts `AgentsReader` (wsp-machines).
 pub trait AgentsReader {}
 /// TS agents-read.ts `AgentsActs`.

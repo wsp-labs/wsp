@@ -10,7 +10,8 @@ use async_trait::async_trait;
 use indexmap::{IndexMap, IndexSet};
 
 use wsp_core::types::internal::{BuilderLife, KindModule};
-use wsp_core::types::pending::{Clock, PlaceDoor};
+use wsp_core::types::pending::Clock;
+use crate::places::types::PlaceDoor;
 use wsp_core::types::wiring::{CreateWorkspaceOptions, CreatedWorkspace, StageReport, WorkspaceRecord};
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_wire::views::place::MachineBind;
