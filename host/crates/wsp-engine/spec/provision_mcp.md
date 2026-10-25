@@ -54,16 +54,21 @@ else write `<key> = <value>\n` per missing key, then the old text, by `land_conf
    - else `replace` is every name when the file arrived whole, else the names whose list digest equals the standing
      entry's; merge (`{ text: standing or "" }` when there are no names), then `trust` when the scope and format both
      have one, then `edit` (handed `None` for empty text). A text other than `standing or ""` is kept for the file. All
-     names are planned. Results: `same` adds to `same`, `theirs` to `theirs[id] = path`, added/replaced/same to
+     names are planned, after the merge, trust and edit succeed: a scope whose merge or trust fails plans nothing, so
+     it gets neither a record nor a tombstone (S3). Results: `same` adds to `same`, `theirs` to `theirs[id] = path`, added/replaced/same to
      `wrote`. A failure is `{ file, error }`; with `trust` it also records `untrusted[agent \0 trust] = message`.
    - `records`: each wrote id to `server_digest(entry_of(final text of its file))`, absent where none; `tombstones`:
      planned ids with no record, in planned order.
 8. With a read: first pass; then per scope, keep names move to drops with a reason, first match wins: folder untrusted
-   (`untrusted_line`), theirs (`their_server_line`), no copy (`no_copy_line`). Then `missing = absent_commands(...)`,
+   (`untrusted_line`), theirs (`their_server_line`), no copy (`no_copy_line`). The untrusted map is keyed by
+   `agent \0 scope.trust` and looked up by `agent \0 scope.folder`, so every scope of that agent whose `folder` is the
+   failed folder loses all its kept names, whether or not that scope itself carried `trust`. The set-aside names are
+   appended to the scope's drops after the plan's own drops, in keep order, and leave `keep`. Then `missing = absent_commands(...)`,
    `agents = without_absent(...)`, second pass, `failure = land_configs(machine, base of path or home, own, texts)`.
 9. `present`: with no failure and a second pass, the `same` ids whose `where` file did not arrive whole.
 10. `rows = mcp_rows(machine, plan, { agents, missing, present, stage, report: second pass outcomes, failure })`.
-11. `unreached` (no failure, a second pass, `held` given and non-empty): per kept name of each scope, the server read
+11. `unreached` (no failure, a second pass, `held` given and non-empty): per kept name (the final `keep`, after step 8
+    and `without_absent`) of each scope, the server read
     from the final text (`format.read(text, project.to or home)`) whose name matches and whose scope is `home` exactly
     when the scope has a project; not disabled; `launch_misses(agent, format, server, held)` non-empty sets
     `key_unreached_line(label, misses)`.
@@ -75,6 +80,26 @@ else write `<key> = <value>\n` per missing key, then the old text, by `land_conf
     `installed` (`fetched-on-first-use` included). Note: mcp_rows' note unless present, then the unreached line unless
     skipped, joined by `; `, absent when empty. `label` `<agent> <name>`, `kind` `server`, `keys` where mcp_rows gave
     them.
+
+## What each round leaves behind (S-rules, held to the TS's run in oracle/strengthen.oracle.ts)
+
+- **S1.** The lines appended to `landing` are every record as `server_line`, in the order the second pass's merge
+  results wrote them (scope order, then the merge's result order), then every tombstone in planned order (each scope's
+  `keep` then its `drop` names, the set-aside ones last). A kept name the person or the agent owns (`theirs`), a
+  dropped name and an unticked name each get a tombstone on every round, so the close drops any older line for them.
+  A `present` server is still a record: it is re-appended with the same digest every round.
+- **S2.** The close then keeps the records alone: after two identical rounds the list holds exactly the two record
+  lines of the first round, byte for byte.
+- **S3.** A scope whose `trust` throws (codex's `the trust of <folder> is written in a shape wsp does not edit`) fails
+  both passes, its kept names are skipped with `untrusted_line(label, folder, message)`, nothing is appended for it,
+  its file is not written, and `into` hears that file with `[]`.
+- **S4.** A scope whose copy never travelled appends nothing (no record, no tombstone), so the list's earlier lines
+  for those names stand; a kept name its file defines reads `present` with no note, one it does not is skipped with
+  `no_copy_line(target)`; `into` hears the file with `[]` (records come only from a merge that wrote).
+- **S5.** A read that exits non-zero: every kept server skipped with `read_failed(res)` (`the config edit did not run
+  (<stderr>)`), the drops keep their own reasons, `into` is never called (there is no second pass), nothing is appended.
+- **S6.** Rows come in `mcp_rows`' order, which is not the plan's: on S5 the kept names come first, then the drops; on
+  S3 the plan's drops come before the set-aside names. The tests compare the whole row list.
 
 ## Rules against tests (tests/provision_mcp.rs)
 
@@ -89,6 +114,10 @@ else write `<key> = <value>\n` per missing key, then the old text, by `land_conf
 | stores: merge outside the home, headless keys once, the merged-into note, files under the store, moves and leaves | `merges_an_agents_servers_into_the_store_config_outside_the_home_and_takes_them_out_on_a_leave`, `writes_the_key_codex_keeps_a_servers_sign_in_by_into_the_store_config_once`, `says_on_the_row_of_a_store_config_that_stood_which_of_this_computers_servers_merged_into_it`, `lands_the_rest_of_an_agents_own_files_under_the_store_and_none_under_the_home`, `moves_the_copies_an_earlier_run_left_under_the_home_into_the_store`, `takes_a_dropped_skill_off_under_the_home_on_a_box_whose_claude_reads_a_store`, `takes_the_copies_left_under_the_home_off_with_a_codex_dropped_before_any_run_moved_them`, `moves_an_earlier_copy_into_the_store_without_taking_the_agents_own_folder`, `takes_every_file_landed_in_a_store_off_by_the_agents_folder_and_leaves_the_store` |
 | a config on no computer is the merge's to skip | `leaves_a_config_on_no_computer_to_the_merge_which_skips_its_servers` |
 | a round whose files never left reads present and claims nothing | files_land.rs: "reads a round whose files never left this computer ..." |
+| S1, S2: records then tombstones, every round; the close keeps the records | provision_mcp_hard.rs: `every_round_appends_its_records_then_a_tombstone_for_each_planned_name_it_did_not_write` |
+| S3: an untrusted folder sets every kept name aside, appends nothing | provision_mcp_hard.rs: `a_folder_that_cannot_be_trusted_sets_every_kept_name_aside_and_appends_nothing` |
+| S4: no copy, no write, no append, `into` with no names | provision_mcp_hard.rs: `a_round_with_no_copy_reads_the_file_writes_nothing_and_appends_nothing` |
+| S5, S6: a failed read skips every kept server, no `into` | provision_mcp_hard.rs: `a_read_that_exits_non_zero_skips_every_kept_server_and_never_calls_into` |
 | words and at_home | provision_pins.rs: `the_servers_words_are_the_ts_sentences`, `a_plan_moves_with_the_home_every_path_under_it_and_nothing_beside_it`, `a_file_travels_only_from_under_the_home` |
 
 Unclear in the TS: step 11 reads a home-scoped server for a scope with a project of any folder (`scope === "home"`
