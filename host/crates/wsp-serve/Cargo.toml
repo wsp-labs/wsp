@@ -24,6 +24,7 @@ wsp-catalog = { path = "../wsp-catalog" }
 wsp-engine = { path = "../wsp-engine" }
 wsp-adapters = { path = "../wsp-adapters" }
 wsp-core = { path = "../wsp-core" }
+wsp-machines = { path = "../wsp-machines" }
 
 [dev-dependencies]
 tempfile = "3"
