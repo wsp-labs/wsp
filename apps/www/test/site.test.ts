@@ -156,6 +156,7 @@ describe("every route, as raw HTML", () => {
     expect(blog).toContain("<title>Blog: wsp</title>");
     expect(blog).not.toContain('content="noindex"');
     expect(blog).toContain('href="/blog/mcp-freeze"');
+    expect(built("blog/mcp-freeze/index.html")).toContain("<title>It's not a memory leak. It's what your agents started.</title>");
     expect(blog).not.toContain("A sample post");
     expect(() => built("blog/sample/index.html")).toThrow();
     expect(built("sitemap.xml")).toContain("<loc>https://usewsp.com/blog/mcp-freeze</loc>");
