@@ -1,0 +1,2032 @@
+{
+ "constants": {
+  "PROC_SCOPES_MAX": 256,
+  "PROC_SCOPE_PIDS_MAX": 64
+ },
+ "main": {
+  "world": {
+   "live": [
+    {
+     "id": "ws_a",
+     "kind": "local",
+     "path": "/work/ws_a"
+    },
+    {
+     "id": "ws_b",
+     "kind": "local",
+     "path": "/work/ws_b"
+    },
+    {
+     "id": "ws_c",
+     "kind": "local",
+     "path": "/work/ws_c"
+    },
+    {
+     "id": "ws_box",
+     "kind": "place",
+     "place": "pl_1",
+     "path": "/box/ws_box"
+    },
+    {
+     "id": "ws_box2",
+     "kind": "place",
+     "place": "pl_2",
+     "path": "/box2/ws_box2"
+    }
+   ],
+   "turnGroups": [
+    [
+     "ws_a",
+     [
+      [
+       5000,
+       "t_tree"
+      ],
+      [
+       4194303,
+       "t_tree"
+      ]
+     ]
+    ]
+   ],
+   "groupsAlive": [
+    5000,
+    5001
+   ],
+   "sessions": [
+    {
+     "thread": "t_tree",
+     "workspace": "ws_a",
+     "status": "running",
+     "startedAt": 1,
+     "pid": 5000
+    },
+    {
+     "thread": "t_old",
+     "workspace": "ws_b",
+     "status": "completed",
+     "startedAt": 5
+    }
+   ],
+   "kept": [
+    [
+     "t_kept",
+     {
+      "workspace": "ws_a",
+      "pid": 5001
+     }
+    ]
+   ],
+   "latest": {
+    "t_tree": {
+     "workspace": "ws_a",
+     "cwd": "/work/ws_a/.wsp/t_tree"
+    }
+   },
+   "threadRecords": [],
+   "terminals": [],
+   "owned": [
+    [
+     "t_tree",
+     777,
+     "slate"
+    ],
+    [
+     "t_tree",
+     778,
+     "tool"
+    ]
+   ]
+  },
+  "scopes": [
+   {
+    "thread": "t_tree",
+    "workspace": "ws_a",
+    "agents": [
+     5000
+    ],
+    "groups": [
+     5000
+    ],
+    "folder": "/work/ws_a/.wsp/t_tree",
+    "pids": [
+     {
+      "pid": 777,
+      "kind": "slate"
+     },
+     {
+      "pid": 778,
+      "kind": "tool"
+     }
+    ]
+   },
+   {
+    "thread": "t_kept",
+    "workspace": "ws_a",
+    "agents": [
+     5001
+    ],
+    "folder": "/work/ws_a"
+   },
+   {
+    "thread": "t_old",
+    "workspace": "ws_b",
+    "folder": "/work/ws_b"
+   }
+  ]
+ },
+ "order": {
+  "world": {
+   "live": [
+    {
+     "id": "ws_a",
+     "kind": "local",
+     "path": "/work/ws_a"
+    },
+    {
+     "id": "ws_b",
+     "kind": "local",
+     "path": "/work/ws_b"
+    },
+    {
+     "id": "ws_c",
+     "kind": "local",
+     "path": "/work/ws_c"
+    },
+    {
+     "id": "ws_box",
+     "kind": "place",
+     "place": "pl_1",
+     "path": "/box/ws_box"
+    },
+    {
+     "id": "ws_box2",
+     "kind": "place",
+     "place": "pl_2",
+     "path": "/box2/ws_box2"
+    },
+    {
+     "id": "ws_d",
+     "kind": "local",
+     "path": "/work/ws_d"
+    }
+   ],
+   "turnGroups": [
+    [
+     "ws_a",
+     [
+      [
+       5000,
+       "th_1"
+      ],
+      [
+       5001,
+       "th_dead"
+      ]
+     ]
+    ]
+   ],
+   "groupsAlive": [
+    5000
+   ],
+   "sessions": [
+    {
+     "thread": "th_2",
+     "workspace": "ws_a",
+     "status": "running",
+     "startedAt": 5,
+     "pid": 6001
+    },
+    {
+     "thread": "th_3",
+     "workspace": "ws_b",
+     "status": "completed",
+     "startedAt": 3,
+     "pid": 6002
+    },
+    {
+     "thread": "th_4",
+     "workspace": "ws_a",
+     "status": "running",
+     "startedAt": 4
+    },
+    {
+     "workspace": "ws_a",
+     "status": "running",
+     "startedAt": 4,
+     "pid": 6003
+    },
+    {
+     "thread": "th_11",
+     "workspace": "ws_a",
+     "status": "completed",
+     "startedAt": 9
+    },
+    {
+     "thread": "th_12",
+     "workspace": "ws_b",
+     "status": "completed",
+     "startedAt": 3
+    },
+    {
+     "thread": "th_13",
+     "workspace": "ws_c",
+     "status": "completed"
+    },
+    {
+     "thread": "th_14",
+     "workspace": "ws_x",
+     "status": "running",
+     "startedAt": 2,
+     "pid": 6004
+    },
+    {
+     "thread": "th_15",
+     "workspace": "ws_box",
+     "status": "completed",
+     "startedAt": 8,
+     "pid": 6005
+    },
+    {
+     "thread": "th_16",
+     "workspace": "ws_d",
+     "status": "running",
+     "startedAt": 1,
+     "pid": 6001
+    }
+   ],
+   "kept": [
+    [
+     "th_5",
+     {
+      "workspace": "ws_a",
+      "pid": 7001
+     }
+    ],
+    [
+     "th_6",
+     {
+      "workspace": "ws_b",
+      "warmUnclaimed": true
+     }
+    ],
+    [
+     "th_7",
+     {
+      "workspace": "ws_b"
+     }
+    ],
+    [
+     "th_1",
+     {
+      "workspace": "ws_b",
+      "pid": 7002,
+      "warmUnclaimed": true
+     }
+    ]
+   ],
+   "latest": {
+    "th_8": {
+     "workspace": "ws_b"
+    },
+    "th_9": {
+     "workspace": "ws_a",
+     "cwd": "/elsewhere/th_9"
+    },
+    "th_5": {
+     "workspace": "ws_a",
+     "cwd": "/work/ws_a/.wsp/th_5"
+    }
+   },
+   "threadRecords": [
+    [
+     "th_8",
+     "ws_d"
+    ],
+    [
+     "th_17",
+     "ws_c"
+    ]
+   ],
+   "terminals": [
+    {
+     "thread": "th_9",
+     "workspace": "ws_a",
+     "pid": 4242
+    },
+    {
+     "thread": "th_10",
+     "workspace": "ws_box",
+     "pid": 77
+    },
+    {
+     "thread": "th_9",
+     "workspace": "ws_a",
+     "pid": 4243
+    },
+    {
+     "thread": "th_18",
+     "workspace": "ws_gone",
+     "pid": 4444
+    }
+   ],
+   "owned": [
+    [
+     "th_1",
+     801,
+     "slate"
+    ],
+    [
+     "th_8",
+     802,
+     "tool"
+    ],
+    [
+     "th_17",
+     803,
+     "slate"
+    ],
+    [
+     "th_19",
+     804,
+     "tool"
+    ],
+    [
+     "th_1",
+     801,
+     "tool"
+    ]
+   ]
+  },
+  "scopes": [
+   {
+    "thread": "th_1",
+    "workspace": "ws_a",
+    "agents": [
+     7002
+    ],
+    "groups": [
+     5000
+    ],
+    "folder": "/work/ws_a",
+    "warm": true,
+    "pids": [
+     {
+      "pid": 801,
+      "kind": "tool"
+     }
+    ]
+   },
+   {
+    "thread": "th_2",
+    "workspace": "ws_a",
+    "agents": [
+     6001
+    ],
+    "folder": "/work/ws_a"
+   },
+   {
+    "thread": "th_14",
+    "workspace": "ws_x",
+    "agents": [
+     6004
+    ]
+   },
+   {
+    "thread": "th_16",
+    "workspace": "ws_d",
+    "agents": [
+     6001
+    ],
+    "folder": "/work/ws_d"
+   },
+   {
+    "thread": "th_5",
+    "workspace": "ws_a",
+    "agents": [
+     7001
+    ],
+    "folder": "/work/ws_a/.wsp/th_5"
+   },
+   {
+    "thread": "th_6",
+    "workspace": "ws_b",
+    "folder": "/work/ws_b",
+    "warm": true
+   },
+   {
+    "thread": "th_8",
+    "workspace": "ws_b",
+    "folder": "/work/ws_b",
+    "pids": [
+     {
+      "pid": 802,
+      "kind": "tool"
+     }
+    ]
+   },
+   {
+    "thread": "th_17",
+    "workspace": "ws_c",
+    "folder": "/work/ws_c",
+    "pids": [
+     {
+      "pid": 803,
+      "kind": "slate"
+     }
+    ]
+   },
+   {
+    "thread": "th_19",
+    "pids": [
+     {
+      "pid": 804,
+      "kind": "tool"
+     }
+    ]
+   },
+   {
+    "thread": "th_9",
+    "workspace": "ws_a",
+    "folder": "/elsewhere/th_9",
+    "pids": [
+     {
+      "pid": 4242,
+      "kind": "terminal"
+     },
+     {
+      "pid": 4243,
+      "kind": "terminal"
+     }
+    ]
+   },
+   {
+    "thread": "th_11",
+    "workspace": "ws_a",
+    "folder": "/work/ws_a"
+   },
+   {
+    "thread": "th_3",
+    "workspace": "ws_b",
+    "folder": "/work/ws_b"
+   },
+   {
+    "thread": "th_13",
+    "workspace": "ws_c",
+    "folder": "/work/ws_c"
+   }
+  ]
+ },
+ "pid_caps": {
+  "agents": {
+   "length": 64,
+   "first": 1000,
+   "last": 1063
+  },
+  "groups": {
+   "length": 64,
+   "first": 9000,
+   "last": 9063
+  },
+  "pids": {
+   "length": 64,
+   "first": {
+    "pid": 3000,
+    "kind": "tool"
+   },
+   "last": {
+    "pid": 3063,
+    "kind": "tool"
+   }
+  }
+ },
+ "scope_cap_live": {
+  "count": 256,
+  "first": "th_000",
+  "last": "th_255"
+ },
+ "scope_cap_mixed": {
+  "count": 256,
+  "first": "th_000",
+  "last": "n1",
+  "tail": [
+   "th_253",
+   "th_254",
+   "n1"
+  ],
+  "head": [
+   "th_000",
+   "th_001"
+  ]
+ },
+ "scope_cap_room": {
+  "count": 256,
+  "tail": [
+   "th_253",
+   "n1",
+   "n2"
+  ]
+ },
+ "folders": {
+  "world": {
+   "live": [
+    {
+     "id": "ws_a",
+     "kind": "local",
+     "path": "/work/ws_a"
+    },
+    {
+     "id": "ws_b",
+     "kind": "local",
+     "path": "/work/ws_b"
+    },
+    {
+     "id": "ws_c",
+     "kind": "local",
+     "path": "/work/ws_c"
+    },
+    {
+     "id": "ws_box",
+     "kind": "place",
+     "place": "pl_1",
+     "path": "/box/ws_box"
+    },
+    {
+     "id": "ws_box2",
+     "kind": "place",
+     "place": "pl_2",
+     "path": "/box2/ws_box2"
+    }
+   ],
+   "turnGroups": [],
+   "groupsAlive": [],
+   "sessions": [
+    {
+     "thread": "th_x",
+     "workspace": "ws_a",
+     "status": "running",
+     "startedAt": 1,
+     "pid": 600
+    },
+    {
+     "thread": "th_y",
+     "workspace": "ws_gone",
+     "status": "running",
+     "startedAt": 1,
+     "pid": 601
+    }
+   ],
+   "kept": [],
+   "latest": {
+    "th_x": {
+     "workspace": "ws_a"
+    },
+    "th_y": {
+     "workspace": "ws_gone",
+     "cwd": "/gone/th_y"
+    }
+   },
+   "threadRecords": [],
+   "terminals": [],
+   "owned": []
+  },
+  "scopes": [
+   {
+    "thread": "th_x",
+    "workspace": "ws_a",
+    "agents": [
+     600
+    ],
+    "folder": "/work/ws_a"
+   },
+   {
+    "thread": "th_y",
+    "workspace": "ws_gone",
+    "agents": [
+     601
+    ]
+   }
+  ]
+ },
+ "warm": {
+  "world": {
+   "live": [
+    {
+     "id": "ws_a",
+     "kind": "local",
+     "path": "/work/ws_a"
+    },
+    {
+     "id": "ws_b",
+     "kind": "local",
+     "path": "/work/ws_b"
+    },
+    {
+     "id": "ws_c",
+     "kind": "local",
+     "path": "/work/ws_c"
+    },
+    {
+     "id": "ws_box",
+     "kind": "place",
+     "place": "pl_1",
+     "path": "/box/ws_box"
+    },
+    {
+     "id": "ws_box2",
+     "kind": "place",
+     "place": "pl_2",
+     "path": "/box2/ws_box2"
+    }
+   ],
+   "turnGroups": [],
+   "groupsAlive": [],
+   "sessions": [],
+   "kept": [
+    [
+     "t_warm",
+     {
+      "workspace": "ws_a",
+      "warmUnclaimed": true
+     }
+    ]
+   ],
+   "latest": {},
+   "threadRecords": [],
+   "terminals": [],
+   "owned": []
+  },
+  "named": {
+   "thread": "t_warm",
+   "workspace": "ws_a",
+   "folder": "/work/ws_a",
+   "warm": true
+  },
+  "claimed": null
+ },
+ "release": [
+  {
+   "name": "t_x owns 900",
+   "scopes": [
+    [
+     {
+      "thread": "t_x",
+      "pids": [
+       {
+        "pid": 900,
+        "kind": "slate"
+       }
+      ]
+     }
+    ]
+   ],
+   "now": [
+    {
+     "thread": "t_x",
+     "pids": [
+      {
+       "pid": 900,
+       "kind": "slate"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "t_y is given the same pid",
+   "scopes": [
+    [
+     {
+      "thread": "t_y",
+      "pids": [
+       {
+        "pid": 900,
+        "kind": "tool"
+       }
+      ]
+     }
+    ]
+   ],
+   "now": [
+    {
+     "thread": "t_y",
+     "pids": [
+      {
+       "pid": 900,
+       "kind": "tool"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "the first release finds the pid another thread's and leaves it",
+   "scopes": [],
+   "now": [
+    {
+     "thread": "t_y",
+     "pids": [
+      {
+       "pid": 900,
+       "kind": "tool"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "the second release takes it away",
+   "scopes": [
+    []
+   ],
+   "now": []
+  },
+  {
+   "name": "the second release again does nothing",
+   "scopes": [],
+   "now": []
+  },
+  {
+   "name": "a pid owned again by the first thread",
+   "scopes": [
+    [
+     {
+      "thread": "t_x",
+      "pids": [
+       {
+        "pid": 901,
+        "kind": "slate"
+       }
+      ]
+     }
+    ]
+   ],
+   "now": [
+    {
+     "thread": "t_x",
+     "pids": [
+      {
+       "pid": 901,
+       "kind": "slate"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "its release",
+   "scopes": [
+    []
+   ],
+   "now": []
+  },
+  {
+   "name": "its release again",
+   "scopes": [],
+   "now": []
+  }
+ ],
+ "scopes_on": {
+  "world": {
+   "live": [
+    {
+     "id": "ws_a",
+     "kind": "local",
+     "path": "/work/ws_a"
+    },
+    {
+     "id": "ws_b",
+     "kind": "local",
+     "path": "/work/ws_b"
+    },
+    {
+     "id": "ws_c",
+     "kind": "local",
+     "path": "/work/ws_c"
+    },
+    {
+     "id": "ws_box",
+     "kind": "place",
+     "place": "pl_1",
+     "path": "/box/ws_box"
+    },
+    {
+     "id": "ws_box2",
+     "kind": "place",
+     "place": "pl_2",
+     "path": "/box2/ws_box2"
+    }
+   ],
+   "turnGroups": [],
+   "groupsAlive": [],
+   "sessions": [
+    {
+     "thread": "t_new",
+     "workspace": "ws_box",
+     "status": "running",
+     "startedAt": 9
+    },
+    {
+     "thread": "t_new",
+     "workspace": "ws_box",
+     "status": "completed",
+     "startedAt": 5
+    },
+    {
+     "thread": "t_old",
+     "workspace": "ws_box",
+     "status": "completed",
+     "startedAt": 2
+    },
+    {
+     "thread": "t_here",
+     "workspace": "ws_a",
+     "status": "running",
+     "startedAt": 10
+    },
+    {
+     "thread": "t_other",
+     "workspace": "ws_box2",
+     "status": "running",
+     "startedAt": 6
+    },
+    {
+     "thread": "t_moved",
+     "workspace": "ws_box",
+     "status": "completed",
+     "startedAt": 3
+    },
+    {
+     "thread": "t_moved",
+     "workspace": "ws_box2",
+     "status": "completed",
+     "startedAt": 4
+    },
+    {
+     "workspace": "ws_box",
+     "status": "running",
+     "startedAt": 99
+    }
+   ],
+   "kept": [],
+   "latest": {
+    "t_old": {
+     "workspace": "ws_box",
+     "cwd": "/box/ws_box/.wsp/t_old"
+    }
+   },
+   "threadRecords": [
+    [
+     "t_quiet",
+     "ws_box"
+    ],
+    [
+     "t_old",
+     "ws_box"
+    ],
+    [
+     "t_quiet2",
+     "ws_box2"
+    ],
+    [
+     "t_lost",
+     "ws_gone"
+    ]
+   ],
+   "terminals": [
+    {
+     "thread": "t_new",
+     "workspace": "ws_box",
+     "pid": 77
+    },
+    {
+     "thread": "t_term",
+     "workspace": "ws_box",
+     "pid": 78
+    },
+    {
+     "thread": "t_new",
+     "workspace": "ws_box",
+     "pid": 79
+    },
+    {
+     "thread": "t_local",
+     "workspace": "ws_a",
+     "pid": 80
+    },
+    {
+     "thread": "t_other",
+     "workspace": "ws_box2",
+     "pid": 81
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1000
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1001
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1002
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1003
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1004
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1005
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1006
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1007
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1008
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1009
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1010
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1011
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1012
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1013
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1014
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1015
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1016
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1017
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1018
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1019
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1020
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1021
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1022
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1023
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1024
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1025
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1026
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1027
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1028
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1029
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1030
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1031
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1032
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1033
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1034
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1035
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1036
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1037
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1038
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1039
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1040
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1041
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1042
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1043
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1044
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1045
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1046
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1047
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1048
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1049
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1050
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1051
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1052
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1053
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1054
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1055
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1056
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1057
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1058
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1059
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1060
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1061
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1062
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1063
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1064
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1065
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1066
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1067
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1068
+    },
+    {
+     "thread": "t_many",
+     "workspace": "ws_box",
+     "pid": 1069
+    }
+   ],
+   "owned": []
+  },
+  "pl_1": [
+   {
+    "thread": "t_new",
+    "workspace": "ws_box",
+    "folder": "/box/ws_box",
+    "cgroup": "/wsp-threads/t_new",
+    "pids": [
+     {
+      "pid": 77,
+      "kind": "terminal"
+     },
+     {
+      "pid": 79,
+      "kind": "terminal"
+     }
+    ]
+   },
+   {
+    "thread": "t_moved",
+    "workspace": "ws_box",
+    "folder": "/box/ws_box",
+    "cgroup": "/wsp-threads/t_moved"
+   },
+   {
+    "thread": "t_old",
+    "workspace": "ws_box",
+    "folder": "/box/ws_box/.wsp/t_old",
+    "cgroup": "/wsp-threads/t_old"
+   },
+   {
+    "thread": "t_quiet",
+    "workspace": "ws_box",
+    "folder": "/box/ws_box",
+    "cgroup": "/wsp-threads/t_quiet"
+   },
+   {
+    "thread": "t_term",
+    "workspace": "ws_box",
+    "folder": "/box/ws_box",
+    "cgroup": "/wsp-threads/t_term",
+    "pids": [
+     {
+      "pid": 78,
+      "kind": "terminal"
+     }
+    ]
+   },
+   {
+    "thread": "t_many",
+    "workspace": "ws_box",
+    "folder": "/box/ws_box",
+    "cgroup": "/wsp-threads/t_many",
+    "pids": [
+     {
+      "pid": 1000,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1001,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1002,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1003,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1004,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1005,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1006,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1007,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1008,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1009,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1010,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1011,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1012,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1013,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1014,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1015,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1016,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1017,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1018,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1019,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1020,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1021,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1022,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1023,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1024,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1025,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1026,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1027,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1028,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1029,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1030,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1031,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1032,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1033,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1034,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1035,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1036,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1037,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1038,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1039,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1040,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1041,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1042,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1043,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1044,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1045,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1046,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1047,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1048,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1049,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1050,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1051,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1052,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1053,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1054,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1055,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1056,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1057,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1058,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1059,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1060,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1061,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1062,
+      "kind": "terminal"
+     },
+     {
+      "pid": 1063,
+      "kind": "terminal"
+     }
+    ]
+   }
+  ],
+  "pl_2": [
+   {
+    "thread": "t_other",
+    "workspace": "ws_box2",
+    "folder": "/box2/ws_box2",
+    "cgroup": "/wsp-threads/t_other",
+    "pids": [
+     {
+      "pid": 81,
+      "kind": "terminal"
+     }
+    ]
+   },
+   {
+    "thread": "t_moved",
+    "workspace": "ws_box2",
+    "folder": "/box2/ws_box2",
+    "cgroup": "/wsp-threads/t_moved"
+   },
+   {
+    "thread": "t_quiet2",
+    "workspace": "ws_box2",
+    "folder": "/box2/ws_box2",
+    "cgroup": "/wsp-threads/t_quiet2"
+   }
+  ],
+  "pl_none": [],
+  "cgroup": {
+   "t_new": "/wsp-threads/t_new"
+  }
+ },
+ "scoped": {
+  "log": [
+   {
+    "name": "a watch is told the scopes first, a refused scopes frame ignored",
+    "reply": {
+     "id": 1,
+     "ok": true
+    },
+    "thrown": null,
+    "sent": [
+     {
+      "id": null,
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "t_x",
+        "pids": [
+         {
+          "pid": 900,
+          "kind": "slate"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": 1,
+      "op": "proc.watch",
+      "cgroups": [
+       "a"
+      ]
+     }
+    ]
+   },
+   {
+    "name": "a second watch is told them again though nothing moved",
+    "reply": {
+     "id": 2,
+     "ok": true
+    },
+    "thrown": null,
+    "sent": [
+     {
+      "id": null,
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "t_x",
+        "pids": [
+         {
+          "pid": 900,
+          "kind": "slate"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": 2,
+      "op": "proc.watch"
+     }
+    ]
+   },
+   {
+    "name": "a move names them again",
+    "reply": null,
+    "thrown": null,
+    "sent": [
+     {
+      "id": null,
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "t_x",
+        "pids": [
+         {
+          "pid": 900,
+          "kind": "slate"
+         },
+         {
+          "pid": 901,
+          "kind": "tool"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "name": "a move that changes nothing names nothing",
+    "reply": null,
+    "thrown": null,
+    "sent": []
+   },
+   {
+    "name": "an unwatch stops the pushes",
+    "reply": {
+     "id": 3,
+     "ok": true
+    },
+    "thrown": null,
+    "sent": [
+     {
+      "id": 3,
+      "op": "proc.unwatch"
+     }
+    ]
+   },
+   {
+    "name": "a move while not watching names nothing",
+    "reply": null,
+    "thrown": null,
+    "sent": []
+   },
+   {
+    "name": "another op passes whole",
+    "reply": {
+     "id": 4,
+     "ok": true
+    },
+    "thrown": null,
+    "sent": [
+     {
+      "id": 4,
+      "op": "pty.list"
+     }
+    ]
+   },
+   {
+    "name": "a watch after an unwatch names them",
+    "reply": {
+     "id": 5,
+     "ok": true
+    },
+    "thrown": null,
+    "sent": [
+     {
+      "id": null,
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "t_x",
+        "pids": [
+         {
+          "pid": 900,
+          "kind": "slate"
+         },
+         {
+          "pid": 901,
+          "kind": "tool"
+         },
+         {
+          "pid": 902,
+          "kind": "tool"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": 5,
+      "op": "proc.watch"
+     }
+    ]
+   },
+   {
+    "name": "close takes the push away",
+    "reply": null,
+    "thrown": null,
+    "sent": []
+   },
+   {
+    "name": "a move after close names nothing",
+    "reply": null,
+    "thrown": null,
+    "sent": []
+   }
+  ],
+  "closes": [
+   9
+  ],
+  "afterEnd": 0
+ },
+ "standing": [
+  {
+   "name": "a move with no root dials nothing",
+   "opened": 0,
+   "sent": [],
+   "closes": []
+  },
+  {
+   "name": "the first dial fails and is dropped",
+   "opened": 1,
+   "sent": [
+    []
+   ],
+   "closes": [
+    []
+   ]
+  },
+  {
+   "name": "the next move dials again",
+   "opened": 2,
+   "sent": [
+    [],
+    [
+     {
+      "id": null,
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "t_x",
+        "pids": [
+         {
+          "pid": 900,
+          "kind": "slate"
+         },
+         {
+          "pid": 901,
+          "kind": "tool"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   ],
+   "closes": [
+    [],
+    []
+   ]
+  },
+  {
+   "name": "a move that changes nothing sends nothing",
+   "opened": 2,
+   "sent": [
+    [],
+    [
+     {
+      "id": null,
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "t_x",
+        "pids": [
+         {
+          "pid": 900,
+          "kind": "slate"
+         },
+         {
+          "pid": 901,
+          "kind": "tool"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   ],
+   "closes": [
+    [],
+    []
+   ]
+  },
+  {
+   "name": "a channel that closed lets the next move dial again",
+   "opened": 3,
+   "sent": [
+    [],
+    [
+     {
+      "id": null,
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "t_x",
+        "pids": [
+         {
+          "pid": 900,
+          "kind": "slate"
+         },
+         {
+          "pid": 901,
+          "kind": "tool"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    [
+     {
+      "id": null,
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "t_x",
+        "pids": [
+         {
+          "pid": 900,
+          "kind": "slate"
+         },
+         {
+          "pid": 901,
+          "kind": "tool"
+         },
+         {
+          "pid": 902,
+          "kind": "tool"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   ],
+   "closes": [
+    [],
+    [],
+    []
+   ]
+  },
+  {
+   "name": "a root given up is told, the others stand",
+   "opened": 3,
+   "sent": [
+    [],
+    [
+     {
+      "id": null,
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "t_x",
+        "pids": [
+         {
+          "pid": 900,
+          "kind": "slate"
+         },
+         {
+          "pid": 901,
+          "kind": "tool"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    [
+     {
+      "id": null,
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "t_x",
+        "pids": [
+         {
+          "pid": 900,
+          "kind": "slate"
+         },
+         {
+          "pid": 901,
+          "kind": "tool"
+         },
+         {
+          "pid": 902,
+          "kind": "tool"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": null,
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "t_x",
+        "pids": [
+         {
+          "pid": 900,
+          "kind": "slate"
+         },
+         {
+          "pid": 902,
+          "kind": "tool"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   ],
+   "closes": [
+    [],
+    [],
+    []
+   ]
+  }
+ ],
+ "no_daemon": {
+  "scopes": [
+   {
+    "thread": "t_x",
+    "pids": [
+     {
+      "pid": 900,
+      "kind": "slate"
+     }
+    ]
+   }
+  ]
+ }
+}

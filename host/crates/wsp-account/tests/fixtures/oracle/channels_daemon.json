@@ -1,0 +1,3040 @@
+{
+ "constants": {
+  "HELLO_WAIT_MS": 2000,
+  "ORIGIN_READ_MS": 2000,
+  "OP_TOKEN_OPS": [
+   "git.push",
+   "git.startOn",
+   "git.update",
+   "git.mergeIn",
+   "git.pr",
+   "git.prCheckout"
+  ],
+  "BLOCKED_READS": [
+   "git.status",
+   "ping"
+  ],
+  "PIPE_DAEMON_VERSION": 159,
+  "STDIO_DAEMON_VERSION": 154,
+  "HTTP_POST_DAEMON_VERSION": 155,
+  "THIS_COMPUTER": "this computer",
+  "AGENTS_ON": {
+   "maxMachines": 3,
+   "maxDepth": 2
+  }
+ },
+ "facts": {
+  "rows": [
+   {
+    "workspaceId": "ws1",
+    "claudeSessionId": "sess-1",
+    "cwd": "/old",
+    "permissionMode": "auto"
+   },
+   {
+    "workspaceId": "ws1",
+    "claudeSessionId": "sess-1",
+    "cwd": "/new"
+   },
+   {
+    "workspaceId": "ws2",
+    "claudeSessionId": "sess-1",
+    "cwd": "/other-ws"
+   },
+   {
+    "workspaceId": "ws1",
+    "claudeSessionId": "sess-3",
+    "cwd": "/x"
+   }
+  ],
+  "index": {
+   "starts": [
+    [
+     "th_a",
+     "sess-1"
+    ]
+   ],
+   "cut": [
+    [
+     "th_a",
+     true
+    ],
+    [
+     "th_b",
+     false
+    ]
+   ],
+   "facts": [
+    [
+     "sess-1",
+     {
+      "cwd": "/idx/cwd",
+      "permissionMode": "plan",
+      "effort": "high"
+     }
+    ],
+    [
+     "sess-2",
+     {
+      "cwd": "/only/index",
+      "model": "opus"
+     }
+    ],
+    [
+     "sess-4",
+     {
+      "permissionMode": "plan"
+     }
+    ]
+   ]
+  },
+  "threads": {
+   "th_a": {
+    "permissionMode": "bypassPermissions"
+   },
+   "th_b": {}
+  },
+  "startedAs": [
+   {
+    "ws": "ws1",
+    "th": "th_a",
+    "answer": "sess-1"
+   },
+   {
+    "ws": "ws1",
+    "th": "th_b",
+    "answer": null
+   },
+   {
+    "ws": "ws9",
+    "th": "th_a",
+    "answer": null
+   }
+  ],
+  "cutBefore": [
+   {
+    "ws": "ws1",
+    "th": "th_a",
+    "answer": true
+   },
+   {
+    "ws": "ws1",
+    "th": "th_b",
+    "answer": false
+   },
+   {
+    "ws": "ws1",
+    "th": "th_zzz",
+    "answer": false
+   },
+   {
+    "ws": "ws9",
+    "th": "th_a",
+    "answer": false
+   }
+  ],
+  "resumedFact": [
+   {
+    "ws": "ws1",
+    "resume": "sess-1",
+    "fact": "cwd",
+    "answer": "/new"
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-1",
+    "fact": "permissionMode",
+    "answer": "auto"
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-1",
+    "fact": "model",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-1",
+    "fact": "effort",
+    "answer": "high"
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-2",
+    "fact": "cwd",
+    "answer": "/only/index"
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-2",
+    "fact": "permissionMode",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-2",
+    "fact": "model",
+    "answer": "opus"
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-2",
+    "fact": "effort",
+    "answer": null
+   },
+   {
+    "ws": "ws2",
+    "resume": "sess-1",
+    "fact": "cwd",
+    "answer": "/other-ws"
+   },
+   {
+    "ws": "ws2",
+    "resume": "sess-1",
+    "fact": "permissionMode",
+    "answer": null
+   },
+   {
+    "ws": "ws2",
+    "resume": "sess-1",
+    "fact": "model",
+    "answer": null
+   },
+   {
+    "ws": "ws2",
+    "resume": "sess-1",
+    "fact": "effort",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-3",
+    "fact": "cwd",
+    "answer": "/x"
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-3",
+    "fact": "permissionMode",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-3",
+    "fact": "model",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-3",
+    "fact": "effort",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-4",
+    "fact": "cwd",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-4",
+    "fact": "permissionMode",
+    "answer": "plan"
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-4",
+    "fact": "model",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-4",
+    "fact": "effort",
+    "answer": null
+   },
+   {
+    "ws": "ws9",
+    "resume": "sess-1",
+    "fact": "cwd",
+    "answer": null
+   },
+   {
+    "ws": "ws9",
+    "resume": "sess-1",
+    "fact": "permissionMode",
+    "answer": null
+   },
+   {
+    "ws": "ws9",
+    "resume": "sess-1",
+    "fact": "model",
+    "answer": null
+   },
+   {
+    "ws": "ws9",
+    "resume": "sess-1",
+    "fact": "effort",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-none",
+    "fact": "cwd",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-none",
+    "fact": "permissionMode",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-none",
+    "fact": "model",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-none",
+    "fact": "effort",
+    "answer": null
+   }
+  ],
+  "folderOf": [
+   {
+    "ws": "ws1",
+    "resume": "sess-1",
+    "answer": "/new"
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-2",
+    "answer": "/only/index"
+   },
+   {
+    "ws": "ws2",
+    "resume": "sess-1",
+    "answer": "/other-ws"
+   },
+   {
+    "ws": "ws1",
+    "resume": "sess-none",
+    "answer": null
+   }
+  ],
+  "accessOf": [
+   {
+    "ws": "ws1",
+    "th": "th_a",
+    "resume": "sess-1",
+    "answer": "bypassPermissions"
+   },
+   {
+    "ws": "ws1",
+    "th": "th_b",
+    "resume": "sess-1",
+    "answer": "auto"
+   },
+   {
+    "ws": "ws1",
+    "th": "th_b",
+    "resume": null,
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "th": "th_none",
+    "resume": "sess-1",
+    "answer": "auto"
+   },
+   {
+    "ws": "ws1",
+    "th": "th_none",
+    "resume": "sess-2",
+    "answer": null
+   },
+   {
+    "ws": "ws1",
+    "th": "th_none",
+    "resume": "sess-4",
+    "answer": "plan"
+   },
+   {
+    "ws": "ws1",
+    "th": "th_a",
+    "resume": null,
+    "answer": "bypassPermissions"
+   }
+  ]
+ },
+ "home": {
+  "with": {
+   "home": "/home/dev"
+  },
+  "without": {}
+ },
+ "places": {
+  "offers": {
+   "pl_x": "hetzner"
+  },
+  "settings": {
+   "pl_x": {
+    "spawn": {
+     "maxMachines": 1
+    }
+   },
+   "pl_y": {
+    "spawn": {
+     "maxDepth": 4
+    }
+   },
+   "pl_z": {
+    "threads": 2
+   }
+  },
+  "turnLimits": {
+   "here": "undefined",
+   "pl_x": null,
+   "pl_y": 3600000,
+   "solari": 21600000
+  },
+  "wired": "solari",
+  "records": [
+   {
+    "name": "a local folder",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "local",
+     "project": "p1"
+    }
+   },
+   {
+    "name": "a cloud fork with no place",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "p1"
+    }
+   },
+   {
+    "name": "a cloud fork on a place the door offers",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "p1",
+     "place": "pl_x"
+    }
+   },
+   {
+    "name": "a folder on a joined computer",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "place",
+     "project": "p1",
+     "place": "pl_y"
+    }
+   },
+   {
+    "name": "a folder on a place nothing is known of",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "place",
+     "project": "p1",
+     "place": "pl_q"
+    }
+   },
+   {
+    "name": "a place folder naming no place",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "place",
+     "project": "p1"
+    }
+   },
+   {
+    "name": "a record with its own agents",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "p1",
+     "place": "pl_x",
+     "agents": {
+      "maxMachines": 7,
+      "maxDepth": 5
+     }
+    }
+   }
+  ],
+  "withDoor": [
+   {
+    "name": "a local folder",
+    "provider": null,
+    "placeId": "here",
+    "turnLimit": null,
+    "agents": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "name": "a cloud fork with no place",
+    "provider": "solari",
+    "placeId": "solari",
+    "turnLimit": {
+     "deadlineMs": 21600000
+    },
+    "agents": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "name": "a cloud fork on a place the door offers",
+    "provider": "hetzner",
+    "placeId": "pl_x",
+    "turnLimit": {
+     "deadlineMs": "Infinity"
+    },
+    "agents": {
+     "maxMachines": 1,
+     "maxDepth": 2
+    }
+   },
+   {
+    "name": "a folder on a joined computer",
+    "provider": null,
+    "placeId": "pl_y",
+    "turnLimit": {
+     "deadlineMs": 3600000
+    },
+    "agents": {
+     "maxMachines": 3,
+     "maxDepth": 4
+    }
+   },
+   {
+    "name": "a folder on a place nothing is known of",
+    "provider": null,
+    "placeId": "pl_q",
+    "turnLimit": null,
+    "agents": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "name": "a place folder naming no place",
+    "provider": null,
+    "placeId": null,
+    "turnLimit": null,
+    "agents": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "name": "a record with its own agents",
+    "provider": "hetzner",
+    "placeId": "pl_x",
+    "turnLimit": {
+     "deadlineMs": "Infinity"
+    },
+    "agents": {
+     "maxMachines": 7,
+     "maxDepth": 5
+    }
+   }
+  ],
+  "noDoor": [
+   {
+    "name": "a local folder",
+    "provider": null,
+    "placeId": "here",
+    "turnLimit": null,
+    "agents": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "name": "a cloud fork with no place",
+    "provider": "solari",
+    "placeId": "solari",
+    "turnLimit": null,
+    "agents": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "name": "a cloud fork on a place the door offers",
+    "provider": null,
+    "placeId": "pl_x",
+    "turnLimit": null,
+    "agents": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "name": "a folder on a joined computer",
+    "provider": null,
+    "placeId": "pl_y",
+    "turnLimit": null,
+    "agents": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "name": "a folder on a place nothing is known of",
+    "provider": null,
+    "placeId": "pl_q",
+    "turnLimit": null,
+    "agents": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "name": "a place folder naming no place",
+    "provider": null,
+    "placeId": null,
+    "turnLimit": null,
+    "agents": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "name": "a record with its own agents",
+    "provider": null,
+    "placeId": "pl_x",
+    "turnLimit": null,
+    "agents": {
+     "maxMachines": 7,
+     "maxDepth": 5
+    }
+   }
+  ],
+  "settingsWithDoor": [
+   {
+    "place": null,
+    "answer": null
+   },
+   {
+    "place": "pl_x",
+    "answer": {
+     "spawn": {
+      "maxMachines": 1
+     }
+    }
+   },
+   {
+    "place": "pl_y",
+    "answer": {
+     "spawn": {
+      "maxDepth": 4
+     }
+    }
+   },
+   {
+    "place": "pl_z",
+    "answer": {
+     "threads": 2
+    }
+   },
+   {
+    "place": "pl_unknown",
+    "answer": null
+   }
+  ],
+  "settingsNoDoor": [
+   {
+    "place": null,
+    "answer": null
+   },
+   {
+    "place": "pl_x",
+    "answer": null
+   },
+   {
+    "place": "pl_y",
+    "answer": null
+   },
+   {
+    "place": "pl_z",
+    "answer": null
+   },
+   {
+    "place": "pl_unknown",
+    "answer": null
+   }
+  ],
+  "spawnAt": [
+   {
+    "place": null,
+    "answer": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "place": "pl_x",
+    "answer": {
+     "maxMachines": 1,
+     "maxDepth": 2
+    }
+   },
+   {
+    "place": "pl_y",
+    "answer": {
+     "maxMachines": 3,
+     "maxDepth": 4
+    }
+   },
+   {
+    "place": "pl_z",
+    "answer": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   },
+   {
+    "place": "pl_unknown",
+    "answer": {
+     "maxMachines": 3,
+     "maxDepth": 2
+    }
+   }
+  ]
+ },
+ "projects": {
+  "empty": {
+   "error": {
+    "message": "no project \"nope\"; wsp add <folder> records one"
+   }
+  },
+  "two": {
+   "error": {
+    "message": "no project \"nope\"; this host holds alpha, beta"
+   }
+  },
+  "held": {
+   "ok": {
+    "id": "pA",
+    "name": "alpha",
+    "computer": "here",
+    "path": "/home/u/alpha",
+    "source": {
+     "kind": "folder",
+     "path": "/home/u/alpha"
+    },
+    "remote": "",
+    "defaultBranch": "main",
+    "memoryKey": "",
+    "memoryDir": "",
+    "createdAt": "2026-10-25T00:00:00.000Z"
+   }
+  },
+  "ref": {
+   "id": "pA",
+   "name": "alpha",
+   "path": "/home/u/alpha",
+   "computer": "here"
+  },
+  "refKeys": [
+   "id",
+   "name",
+   "path",
+   "computer"
+  ],
+  "sentences": {
+   "none": "no project \"nope\"; wsp add <folder> records one",
+   "two": "no project \"nope\"; this host holds alpha, beta"
+  }
+ },
+ "checkout": {
+  "projects": [
+   {
+    "id": "pTop",
+    "name": "top",
+    "computer": "here",
+    "path": "/repo",
+    "git": {
+     "top": "/repo"
+    },
+    "source": {
+     "kind": "folder",
+     "path": "/repo"
+    },
+    "remote": ""
+   },
+   {
+    "id": "pSub",
+    "name": "sub",
+    "computer": "here",
+    "path": "/repo/pkg/x",
+    "git": {
+     "top": "/repo"
+    },
+    "source": {
+     "kind": "folder",
+     "path": "/repo/pkg/x"
+    },
+    "remote": ""
+   },
+   {
+    "id": "pNoGit",
+    "name": "nogit",
+    "computer": "here",
+    "path": "/plain/folder",
+    "source": {
+     "kind": "folder",
+     "path": "/plain/folder"
+    },
+    "remote": ""
+   },
+   {
+    "id": "pOut",
+    "name": "out",
+    "computer": "here",
+    "path": "/repo/pkg",
+    "git": {
+     "top": "/repo/sub"
+    },
+    "source": {
+     "kind": "folder",
+     "path": "/repo/pkg"
+    },
+    "remote": ""
+   },
+   {
+    "id": "pSlash",
+    "name": "slash",
+    "computer": "here",
+    "path": "/repo/pkg",
+    "git": {
+     "top": "/repo/"
+    },
+    "source": {
+     "kind": "folder",
+     "path": "/repo/pkg"
+    },
+    "remote": ""
+   },
+   {
+    "id": "pDeep",
+    "name": "deep",
+    "computer": "here",
+    "path": "/a/b/c/d",
+    "git": {
+     "top": "/a/b"
+    },
+    "source": {
+     "kind": "folder",
+     "path": "/a/b/c/d"
+    },
+    "remote": ""
+   }
+  ],
+  "cases": [
+   {
+    "name": "a sub-machine works in its own folder",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "pTop",
+     "sub": {
+      "on": "solari",
+      "repo": "acme/x",
+      "base": {
+       "branch": "main",
+       "sha": "abc"
+      },
+      "branch": "wsp/sub",
+      "folder": "/work/sub"
+     }
+    },
+    "answer": {
+     "ok": "/work/sub"
+    }
+   },
+   {
+    "name": "no worktree",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "pSub"
+    },
+    "answer": {
+     "ok": "/repo/pkg/x"
+    }
+   },
+   {
+    "name": "a worktree that is gone",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "pSub",
+     "worktree": {
+      "path": "/wt/gone",
+      "made": true,
+      "gone": true
+     }
+    },
+    "answer": {
+     "ok": "/repo/pkg/x"
+    }
+   },
+   {
+    "name": "a worktree of a project at its repo's top",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "pTop",
+     "worktree": {
+      "path": "/wt/one",
+      "made": true
+     }
+    },
+    "answer": {
+     "ok": "/wt/one"
+    }
+   },
+   {
+    "name": "a worktree of a subfolder",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "pSub",
+     "worktree": {
+      "path": "/wt/two",
+      "made": true
+     }
+    },
+    "answer": {
+     "ok": "/wt/two/pkg/x"
+    }
+   },
+   {
+    "name": "a worktree of a folder with no git top",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "pNoGit",
+     "worktree": {
+      "path": "/wt/three",
+      "made": true
+     }
+    },
+    "answer": {
+     "ok": "/wt/three"
+    }
+   },
+   {
+    "name": "a project path outside its recorded top",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "pOut",
+     "worktree": {
+      "path": "/wt/four",
+      "made": true
+     }
+    },
+    "answer": {
+     "ok": "/wt/pkg"
+    }
+   },
+   {
+    "name": "a top with a trailing slash",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "pSlash",
+     "worktree": {
+      "path": "/wt/five",
+      "made": true
+     }
+    },
+    "answer": {
+     "ok": "/wt/five/pkg"
+    }
+   },
+   {
+    "name": "a deep subfolder",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "pDeep",
+     "worktree": {
+      "path": "/wt/six/",
+      "made": true
+     }
+    },
+    "answer": {
+     "ok": "/wt/six/c/d"
+    }
+   },
+   {
+    "name": "a project this host does not hold",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "pGone",
+     "worktree": {
+      "path": "/wt/seven",
+      "made": true
+     }
+    },
+    "answer": {
+     "error": {
+      "message": "no project \"pGone\"; this host holds top, sub, nogit, out, slash, deep"
+     }
+    }
+   }
+  ]
+ },
+ "computer": {
+  "names": {
+   "pl_x": "Hetzner box"
+  },
+  "cases": [
+   {
+    "name": "a cloud fork",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "cloud",
+     "project": "p1"
+    },
+    "withDoor": "a machine wsp forks",
+    "noDoor": "a machine wsp forks"
+   },
+   {
+    "name": "a local folder",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "local",
+     "project": "p1"
+    },
+    "withDoor": "this computer",
+    "noDoor": "this computer"
+   },
+   {
+    "name": "a folder on a named computer",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "place",
+     "project": "p1",
+     "place": "pl_x"
+    },
+    "withDoor": "Hetzner box",
+    "noDoor": "pl_x"
+   },
+   {
+    "name": "a folder on a computer with no name",
+    "record": {
+     "id": "ws1",
+     "name": "alpha",
+     "machineId": "m1",
+     "phase": "running",
+     "kind": "place",
+     "project": "p1",
+     "place": "pl_y"
+    },
+    "withDoor": "pl_y",
+    "noDoor": "pl_y"
+   }
+  ],
+  "words": {
+   "cloud": "a machine wsp forks",
+   "local": "this computer",
+   "place": "a computer you joined"
+  }
+ },
+ "served": {
+  "with": true,
+  "reply": {
+   "ok": true,
+   "id": 4
+  },
+  "heard": [
+   {
+    "op": "git.status",
+    "id": 4
+   }
+  ],
+  "without": false
+ },
+ "channel_over": {
+  "none": {
+   "error": {
+    "message": "alpha is not answering yet"
+   }
+  },
+  "dialledAfterNone": [],
+  "opened": {
+   "ok": true
+  },
+  "dialled": [
+   {
+    "url": "wss://x/ws",
+    "token": "tok"
+   }
+  ],
+  "events": [
+   {
+    "type": "daemon.hello",
+    "version": 1
+   }
+  ]
+ },
+ "own_channel": [
+  {
+   "name": "a failed dial on a paused machine adopts the pause",
+   "phase": "running",
+   "state": "scripted",
+   "roadError": null,
+   "dial": "fail",
+   "result": {
+    "error": {
+     "message": "dial refused"
+    }
+   },
+   "stateAsked": 1,
+   "adopted": [
+    "ws1"
+   ],
+   "roadsAsked": [
+    "ws1"
+   ]
+  },
+  {
+   "name": "a failed dial on a running machine adopts nothing",
+   "phase": "running",
+   "state": "running",
+   "roadError": null,
+   "dial": "fail",
+   "result": {
+    "error": {
+     "message": "dial refused"
+    }
+   },
+   "stateAsked": 1,
+   "adopted": [],
+   "roadsAsked": [
+    "ws1"
+   ]
+  },
+  {
+   "name": "a failed state read counts as running",
+   "phase": "running",
+   "state": "scripted",
+   "roadError": null,
+   "dial": "fail",
+   "result": {
+    "error": {
+     "message": "dial refused"
+    }
+   },
+   "stateAsked": 1,
+   "adopted": [],
+   "roadsAsked": [
+    "ws1"
+   ]
+  },
+  {
+   "name": "a record that is not running asks nothing",
+   "phase": "napping",
+   "state": "scripted",
+   "roadError": null,
+   "dial": "fail",
+   "result": {
+    "error": {
+     "message": "dial refused"
+    }
+   },
+   "stateAsked": 0,
+   "adopted": [],
+   "roadsAsked": [
+    "ws1"
+   ]
+  },
+  {
+   "name": "a failed road on a paused machine adopts the pause",
+   "phase": "running",
+   "state": "scripted",
+   "roadError": "the route is gone",
+   "dial": "fail",
+   "result": {
+    "error": {
+     "message": "the route is gone"
+    }
+   },
+   "stateAsked": 1,
+   "adopted": [
+    "ws1"
+   ],
+   "roadsAsked": [
+    "ws1"
+   ]
+  },
+  {
+   "name": "a dial that works asks nothing",
+   "phase": "running",
+   "state": "scripted",
+   "roadError": null,
+   "dial": "ok",
+   "result": {
+    "ok": "opened"
+   },
+   "stateAsked": 0,
+   "adopted": [],
+   "roadsAsked": [
+    "ws1"
+   ]
+  },
+  {
+   "name": "a failed dial on a machine the provider calls something else",
+   "phase": "running",
+   "state": "scripted",
+   "roadError": null,
+   "dial": "fail",
+   "result": {
+    "error": {
+     "message": "dial refused"
+    }
+   },
+   "stateAsked": 1,
+   "adopted": [],
+   "roadsAsked": [
+    "ws1"
+   ]
+  }
+ ],
+ "reply_of": [
+  {
+   "frame": {
+    "op": "git.pr"
+   },
+   "reply": {
+    "ok": true,
+    "id": 1,
+    "extra": [
+     1
+    ]
+   },
+   "answer": {
+    "ok": {
+     "ok": true,
+     "id": 1,
+     "extra": [
+      1
+     ]
+    }
+   }
+  },
+  {
+   "frame": {
+    "op": "git.pr"
+   },
+   "reply": {
+    "ok": false,
+    "code": "busy",
+    "error": "try later"
+   },
+   "answer": {
+    "error": {
+     "message": "try later",
+     "refusal": true,
+     "code": "busy"
+    }
+   }
+  },
+  {
+   "frame": {
+    "op": "git.pr"
+   },
+   "reply": {
+    "ok": false,
+    "code": 5,
+    "error": "x"
+   },
+   "answer": {
+    "error": {
+     "message": "x",
+     "refusal": true,
+     "code": null
+    }
+   }
+  },
+  {
+   "frame": {
+    "op": "git.pr"
+   },
+   "reply": {
+    "ok": false
+   },
+   "answer": {
+    "error": {
+     "message": "git.pr was refused",
+     "refusal": true,
+     "code": null
+    }
+   }
+  },
+  {
+   "frame": {
+    "op": "git.pr"
+   },
+   "reply": {
+    "ok": false,
+    "error": 7
+   },
+   "answer": {
+    "error": {
+     "message": "7",
+     "refusal": true,
+     "code": null
+    }
+   }
+  },
+  {
+   "frame": {
+    "op": "git.pr"
+   },
+   "reply": {
+    "ok": "true",
+    "error": "loose"
+   },
+   "answer": {
+    "error": {
+     "message": "loose",
+     "refusal": true,
+     "code": null
+    }
+   }
+  },
+  {
+   "frame": {
+    "op": "git.pr"
+   },
+   "reply": {
+    "error": "no ok at all"
+   },
+   "answer": {
+    "error": {
+     "message": "no ok at all",
+     "refusal": true,
+     "code": null
+    }
+   }
+  },
+  {
+   "frame": {
+    "op": "git.pr"
+   },
+   "reply": {
+    "ok": false,
+    "code": "no-host-cli",
+    "error": "no gh here"
+   },
+   "answer": {
+    "error": {
+     "message": "no gh here",
+     "refusal": true,
+     "code": "no-host-cli"
+    }
+   }
+  }
+ ],
+ "over_channel": [
+  {
+   "name": "the work's answer comes back and the channel closes",
+   "result": {
+    "ok": {
+     "first": {
+      "ok": true,
+      "v": 1
+     },
+     "second": {
+      "ok": true,
+      "v": 1
+     }
+    }
+   },
+   "heard": [
+    {
+     "op": "git.status"
+    },
+    {
+     "op": "ping"
+    }
+   ],
+   "closes": 1
+  },
+  {
+   "name": "a refused reply throws its refusal and the channel closes",
+   "result": {
+    "error": {
+     "message": "x",
+     "refusal": true,
+     "code": "busy"
+    }
+   },
+   "heard": [
+    {
+     "op": "git.push"
+    }
+   ],
+   "closes": 1
+  },
+  {
+   "name": "the work's own error closes it too",
+   "result": {
+    "error": {
+     "message": "the work failed"
+    }
+   },
+   "heard": [],
+   "closes": 1
+  }
+ ],
+ "with_daemon": {
+  "now": 1700000000000,
+  "served": {
+   "result": {
+    "ok": [
+     {
+      "ok": true,
+      "id": null
+     },
+     {
+      "error": {
+       "message": "nothing to diff",
+       "refusal": true,
+       "code": "no-diff"
+      }
+     }
+    ]
+   },
+   "heard": [
+    {
+     "op": "git.status"
+    },
+    {
+     "op": "git.diff",
+     "cwd": "/x"
+    }
+   ],
+   "dialled": [],
+   "roadsAsked": []
+  },
+  "unbrokered": {
+   "result": {
+    "ok": {
+     "ok": true,
+     "op": "git.status"
+    }
+   },
+   "heard": [
+    {
+     "op": "git.status"
+    }
+   ],
+   "dialled": [
+    {
+     "url": "wss://box/ws1",
+     "token": "daemon-token"
+    }
+   ],
+   "closes": 1,
+   "listeners": 1
+  },
+  "brokered": [
+   {
+    "name": "a git push and a git pr each carry a token of their own",
+    "version": 159,
+    "ops": [
+     "git.push",
+     "git.pr",
+     "git.status",
+     "git.diff"
+    ],
+    "threads": true,
+    "result": {
+     "ok": [
+      {
+       "ok": {
+        "ok": true
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      }
+     ]
+    },
+    "heard": [
+     {
+      "op": "git.push",
+      "cwd": "/x",
+      "token": "tok_1"
+     },
+     {
+      "op": "git.pr",
+      "cwd": "/x",
+      "token": "tok_2"
+     },
+     {
+      "op": "git.status",
+      "cwd": "/x"
+     },
+     {
+      "op": "git.diff",
+      "cwd": "/x"
+     }
+    ],
+    "liveAtOp": [
+     true,
+     true,
+     false,
+     false
+    ],
+    "minted": [
+     {
+      "name": "op git.push",
+      "scope": {
+       "kind": "thread",
+       "threadId": "th_new",
+       "workspaceId": "ws1",
+       "rootThreadId": "th_root"
+      },
+      "now": 1700000000000,
+      "more": {
+       "road": "relayed"
+      }
+     },
+     {
+      "name": "op git.pr",
+      "scope": {
+       "kind": "thread",
+       "threadId": "th_new",
+       "workspaceId": "ws1",
+       "rootThreadId": "th_root"
+      },
+      "now": 1700000000000,
+      "more": {
+       "road": "relayed"
+      }
+     }
+    ],
+    "revoked": [
+     "dev_1",
+     "dev_2"
+    ],
+    "closes": 1,
+    "warns": []
+   },
+   {
+    "name": "every op of the set carries one",
+    "version": 159,
+    "ops": [
+     "git.push",
+     "git.startOn",
+     "git.update",
+     "git.mergeIn",
+     "git.pr",
+     "git.prCheckout",
+     "git.prList",
+     "pty.create"
+    ],
+    "threads": true,
+    "result": {
+     "ok": [
+      {
+       "ok": {
+        "ok": true
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      }
+     ]
+    },
+    "heard": [
+     {
+      "op": "git.push",
+      "cwd": "/x",
+      "token": "tok_1"
+     },
+     {
+      "op": "git.startOn",
+      "cwd": "/x",
+      "token": "tok_2"
+     },
+     {
+      "op": "git.update",
+      "cwd": "/x",
+      "token": "tok_3"
+     },
+     {
+      "op": "git.mergeIn",
+      "cwd": "/x",
+      "token": "tok_4"
+     },
+     {
+      "op": "git.pr",
+      "cwd": "/x",
+      "token": "tok_5"
+     },
+     {
+      "op": "git.prCheckout",
+      "cwd": "/x",
+      "token": "tok_6"
+     },
+     {
+      "op": "git.prList",
+      "cwd": "/x"
+     },
+     {
+      "op": "pty.create",
+      "cwd": "/x"
+     }
+    ],
+    "liveAtOp": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     false,
+     false
+    ],
+    "minted": [
+     {
+      "name": "op git.push",
+      "scope": {
+       "kind": "thread",
+       "threadId": "th_new",
+       "workspaceId": "ws1",
+       "rootThreadId": "th_root"
+      },
+      "now": 1700000000000,
+      "more": {
+       "road": "relayed"
+      }
+     },
+     {
+      "name": "op git.startOn",
+      "scope": {
+       "kind": "thread",
+       "threadId": "th_new",
+       "workspaceId": "ws1",
+       "rootThreadId": "th_root"
+      },
+      "now": 1700000000000,
+      "more": {
+       "road": "relayed"
+      }
+     },
+     {
+      "name": "op git.update",
+      "scope": {
+       "kind": "thread",
+       "threadId": "th_new",
+       "workspaceId": "ws1",
+       "rootThreadId": "th_root"
+      },
+      "now": 1700000000000,
+      "more": {
+       "road": "relayed"
+      }
+     },
+     {
+      "name": "op git.mergeIn",
+      "scope": {
+       "kind": "thread",
+       "threadId": "th_new",
+       "workspaceId": "ws1",
+       "rootThreadId": "th_root"
+      },
+      "now": 1700000000000,
+      "more": {
+       "road": "relayed"
+      }
+     },
+     {
+      "name": "op git.pr",
+      "scope": {
+       "kind": "thread",
+       "threadId": "th_new",
+       "workspaceId": "ws1",
+       "rootThreadId": "th_root"
+      },
+      "now": 1700000000000,
+      "more": {
+       "road": "relayed"
+      }
+     },
+     {
+      "name": "op git.prCheckout",
+      "scope": {
+       "kind": "thread",
+       "threadId": "th_new",
+       "workspaceId": "ws1",
+       "rootThreadId": "th_root"
+      },
+      "now": 1700000000000,
+      "more": {
+       "road": "relayed"
+      }
+     }
+    ],
+    "revoked": [
+     "dev_1",
+     "dev_2",
+     "dev_3",
+     "dev_4",
+     "dev_5",
+     "dev_6"
+    ],
+    "closes": 1,
+    "warns": []
+   },
+   {
+    "name": "a refused op's token is taken away too",
+    "version": 159,
+    "ops": [
+     "refuse",
+     "git.push"
+    ],
+    "threads": true,
+    "result": {
+     "ok": [
+      {
+       "error": {
+        "message": "git.push was refused",
+        "refusal": true,
+        "code": null
+       }
+      }
+     ]
+    },
+    "heard": [
+     {
+      "op": "git.push",
+      "cwd": "/x",
+      "token": "tok_1"
+     }
+    ],
+    "liveAtOp": [
+     true
+    ],
+    "minted": [
+     {
+      "name": "op git.push",
+      "scope": {
+       "kind": "thread",
+       "threadId": "th_new",
+       "workspaceId": "ws1",
+       "rootThreadId": "th_root"
+      },
+      "now": 1700000000000,
+      "more": {
+       "road": "relayed"
+      }
+     }
+    ],
+    "revoked": [
+     "dev_1"
+    ],
+    "closes": 1,
+    "warns": []
+   },
+   {
+    "name": "a daemon from before op tokens gets none",
+    "version": 158,
+    "ops": [
+     "git.push",
+     "git.pr"
+    ],
+    "threads": true,
+    "result": {
+     "ok": [
+      {
+       "ok": {
+        "ok": true
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      }
+     ]
+    },
+    "heard": [
+     {
+      "op": "git.push",
+      "cwd": "/x"
+     },
+     {
+      "op": "git.pr",
+      "cwd": "/x"
+     }
+    ],
+    "liveAtOp": [
+     false,
+     false
+    ],
+    "minted": [],
+    "revoked": [],
+    "closes": 1,
+    "warns": []
+   },
+   {
+    "name": "a hello naming no number reads unknown",
+    "version": "x",
+    "ops": [
+     "git.push"
+    ],
+    "threads": true,
+    "result": {
+     "ok": [
+      {
+       "ok": {
+        "ok": true
+       }
+      }
+     ]
+    },
+    "heard": [
+     {
+      "op": "git.push",
+      "cwd": "/x"
+     }
+    ],
+    "liveAtOp": [
+     false
+    ],
+    "minted": [],
+    "revoked": [],
+    "closes": 1,
+    "warns": []
+   },
+   {
+    "name": "a hello a version above the least still sends one",
+    "version": 164,
+    "ops": [
+     "git.push"
+    ],
+    "threads": true,
+    "result": {
+     "ok": [
+      {
+       "ok": {
+        "ok": true
+       }
+      }
+     ]
+    },
+    "heard": [
+     {
+      "op": "git.push",
+      "cwd": "/x",
+      "token": "tok_1"
+     }
+    ],
+    "liveAtOp": [
+     true
+    ],
+    "minted": [
+     {
+      "name": "op git.push",
+      "scope": {
+       "kind": "thread",
+       "threadId": "th_new",
+       "workspaceId": "ws1",
+       "rootThreadId": "th_root"
+      },
+      "now": 1700000000000,
+      "more": {
+       "road": "relayed"
+      }
+     }
+    ],
+    "revoked": [
+     "dev_1"
+    ],
+    "closes": 1,
+    "warns": []
+   },
+   {
+    "name": "a workspace with no thread is refused before anything is sent",
+    "version": 159,
+    "ops": [
+     "git.push",
+     "git.status"
+    ],
+    "threads": false,
+    "result": {
+     "ok": [
+      {
+       "error": {
+        "message": "alpha has no thread yet, so wsp cannot reach GitHub for it. Start a thread on it first.",
+        "fix": "Start a thread on it first.",
+        "kind": "usage"
+       }
+      },
+      {
+       "ok": {
+        "ok": true
+       }
+      }
+     ]
+    },
+    "heard": [
+     {
+      "op": "git.status",
+      "cwd": "/x"
+     }
+    ],
+    "liveAtOp": [
+     false
+    ],
+    "minted": [],
+    "revoked": [],
+    "closes": 1,
+    "warns": []
+   }
+  ],
+  "hello_wait": {
+   "heardAt1999": 0,
+   "settledAt1999": false,
+   "heardAfter": [
+    {
+     "op": "git.push"
+    }
+   ],
+   "minted": []
+  },
+  "failed_revoke": {
+   "result": {
+    "ok": {
+     "ok": true,
+     "v": 1
+    }
+   },
+   "warns": [
+    "the token of git.pr on pricing was not taken away: the door is shut"
+   ],
+   "minted": [
+    {
+     "name": "op git.pr",
+     "scope": {
+      "kind": "thread",
+      "threadId": "th_new",
+      "workspaceId": "ws1",
+      "rootThreadId": "th_new"
+     },
+     "now": 1700000000000,
+     "more": {
+      "road": "relayed"
+     }
+    }
+   ],
+   "revoked": [
+    "dev_1"
+   ]
+  }
+ },
+ "brokered": [
+  {
+   "name": "a cloud fork, the broker ready",
+   "ready": true,
+   "kind": "cloud",
+   "served": false,
+   "expected": true
+  },
+  {
+   "name": "the broker not ready",
+   "ready": false,
+   "kind": "cloud",
+   "served": false,
+   "expected": false
+  },
+  {
+   "name": "a local folder",
+   "ready": true,
+   "kind": "local",
+   "served": false,
+   "expected": false
+  },
+  {
+   "name": "a folder on a joined computer",
+   "ready": true,
+   "kind": "place",
+   "served": false,
+   "place": "pl_x",
+   "joined": true,
+   "expected": false
+  },
+  {
+   "name": "a folder on a place that is not joined",
+   "ready": true,
+   "kind": "place",
+   "served": false,
+   "place": "pl_x",
+   "expected": false
+  },
+  {
+   "name": "a cloud fork its computer serves",
+   "ready": true,
+   "kind": "cloud",
+   "served": true,
+   "expected": false
+  },
+  {
+   "name": "a cloud fork on a joined place",
+   "ready": true,
+   "kind": "cloud",
+   "served": false,
+   "place": "pl_x",
+   "joined": true,
+   "expected": false
+  },
+  {
+   "name": "a cloud fork on a provider place that is not joined",
+   "ready": true,
+   "kind": "cloud",
+   "served": false,
+   "place": "solari",
+   "expected": true
+  },
+  {
+   "name": "a cloud fork naming a place on a host with no door",
+   "ready": true,
+   "kind": "cloud",
+   "served": false,
+   "place": "pl_x",
+   "door": false,
+   "expected": true
+  }
+ ],
+ "stdio": {
+  "cases": [
+   {
+    "name": "unserved",
+    "sent": {
+     "ok": {
+      "ok": true,
+      "op": "stdio.open"
+     }
+    },
+    "refused": {
+     "error": {
+      "message": "the daemon refused",
+      "refusal": true,
+      "code": "bad"
+     }
+    },
+    "heardA": [
+     {
+      "type": "stdio.data",
+      "n": 1
+     }
+    ],
+    "heardB": [
+     {
+      "type": "stdio.data",
+      "n": 1
+     },
+     {
+      "type": "stdio.data",
+      "n": 2
+     }
+    ],
+    "dialled": [
+     {
+      "url": "wss://box/ws1",
+      "token": "daemon-token"
+     }
+    ],
+    "heard": [
+     {
+      "op": "stdio.open"
+     },
+     {
+      "op": "stdio.fail"
+     }
+    ],
+    "closes": 1,
+    "closedSettles": true
+   },
+   {
+    "name": "a served machine naming no place",
+    "place": null,
+    "door": true,
+    "report": null,
+    "link": true,
+    "need": null,
+    "road": {
+     "error": {
+      "message": "alpha has no daemon of its own: a computer you joined answers its files and git through this host"
+     }
+    },
+    "reportsAsked": []
+   },
+   {
+    "name": "a served machine and no door",
+    "place": "pl_x",
+    "door": false,
+    "report": null,
+    "link": true,
+    "need": null,
+    "road": {
+     "error": {
+      "message": "alpha has no daemon of its own: pl_x answers its files and git through this host"
+     }
+    },
+    "reportsAsked": []
+   },
+   {
+    "name": "a daemon one under the default need",
+    "place": "pl_x",
+    "door": true,
+    "report": {
+     "daemonVersion": 153
+    },
+    "link": true,
+    "need": null,
+    "road": {
+     "error": {
+      "message": "Hetzner box runs a daemon too old to start a slate's MCP server there; wsp add Hetzner box --update updates it"
+     }
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   },
+   {
+    "name": "a daemon at the default need",
+    "place": "pl_x",
+    "door": true,
+    "report": {
+     "daemonVersion": 154
+    },
+    "link": true,
+    "need": null,
+    "road": {
+     "ok": {
+      "sent": {
+       "ok": {
+        "ok": true,
+        "op": "stdio.open"
+       }
+      },
+      "refused": {
+       "error": {
+        "message": "the computer refused",
+        "refusal": true,
+        "code": "bad"
+       }
+      },
+      "heard": [
+       {
+        "type": "stdio.data",
+        "n": 1
+       }
+      ],
+      "frames": [
+       {
+        "op": "stdio.open"
+       },
+       {
+        "op": "stdio.fail"
+       }
+      ],
+      "linkCloses": 1,
+      "linkHeard": []
+     }
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   },
+   {
+    "name": "a daemon that reports nothing passes",
+    "place": "pl_x",
+    "door": true,
+    "report": null,
+    "link": true,
+    "need": null,
+    "road": {
+     "ok": {
+      "sent": {
+       "ok": {
+        "ok": true,
+        "op": "stdio.open"
+       }
+      },
+      "refused": {
+       "error": {
+        "message": "the computer refused",
+        "refusal": true,
+        "code": "bad"
+       }
+      },
+      "heard": [
+       {
+        "type": "stdio.data",
+        "n": 1
+       }
+      ],
+      "frames": [
+       {
+        "op": "stdio.open"
+       },
+       {
+        "op": "stdio.fail"
+       }
+      ],
+      "linkCloses": 1,
+      "linkHeard": []
+     }
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   },
+   {
+    "name": "a daemon one under the http need",
+    "place": "pl_x",
+    "door": true,
+    "report": {
+     "daemonVersion": 154
+    },
+    "link": true,
+    "need": 155,
+    "road": {
+     "error": {
+      "message": "Hetzner box runs a daemon too old to start a slate's MCP server there; wsp add Hetzner box --update updates it"
+     }
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   },
+   {
+    "name": "a daemon at the http need",
+    "place": "pl_x",
+    "door": true,
+    "report": {
+     "daemonVersion": 155
+    },
+    "link": true,
+    "need": 155,
+    "road": {
+     "ok": {
+      "sent": {
+       "ok": {
+        "ok": true,
+        "op": "stdio.open"
+       }
+      },
+      "refused": {
+       "error": {
+        "message": "the computer refused",
+        "refusal": true,
+        "code": "bad"
+       }
+      },
+      "heard": [
+       {
+        "type": "stdio.data",
+        "n": 1
+       }
+      ],
+      "frames": [
+       {
+        "op": "stdio.open"
+       },
+       {
+        "op": "stdio.fail"
+       }
+      ],
+      "linkCloses": 1,
+      "linkHeard": []
+     }
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   },
+   {
+    "name": "no link stands",
+    "place": "pl_x",
+    "door": true,
+    "report": {
+     "daemonVersion": 154
+    },
+    "link": false,
+    "need": null,
+    "road": {
+     "error": {
+      "message": "Hetzner box is not answering; it connects on its own when it is on"
+     }
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   }
+  ],
+  "sentences": {
+   "serves": "alpha has no daemon of its own: Hetzner box answers its files and git through this host",
+   "servesPlaceId": "alpha has no daemon of its own: pl_x answers its files and git through this host",
+   "behind": "Hetzner box runs a daemon too old to start a slate's MCP server there; wsp add Hetzner box --update updates it",
+   "absent": "Hetzner box is not answering; it connects on its own when it is on"
+  }
+ },
+ "on_this_computer": {
+  "none": {
+   "error": {
+    "message": "this host runs no daemon on this computer",
+    "refusal": true,
+    "code": "no-host-cli"
+   }
+  },
+  "done": {
+   "result": {
+    "ok": {
+     "home": "/home/me",
+     "reply": {
+      "ok": true,
+      "op": "gh.pr"
+     }
+    }
+   },
+   "dialled": [
+    {
+     "url": "wss://box/ws1",
+     "token": "daemon-token"
+    }
+   ],
+   "heard": [
+    {
+     "op": "gh.pr"
+    }
+   ],
+   "closes": 1
+  },
+  "refused": {
+   "result": {
+    "error": {
+     "message": "no gh on this computer",
+     "refusal": true,
+     "code": "no-host-cli"
+    }
+   },
+   "closes": 1
+  },
+  "noToken": {
+   "result": {
+    "error": {
+     "message": "this computer is not answering yet"
+    }
+   },
+   "dialled": []
+  }
+ },
+ "guard": {
+  "now": 1700000000000,
+  "rows": [
+   {
+    "id": "solari",
+    "kind": "provider",
+    "name": "Solari",
+    "default": false,
+    "cap": {
+     "machines": 3,
+     "spendPerDayUsd": 0.2
+    }
+   },
+   {
+    "id": "pl_nocap",
+    "kind": "provider",
+    "name": "NoCap",
+    "default": false
+   },
+   {
+    "id": "here",
+    "kind": "computer",
+    "name": "This computer",
+    "default": true,
+    "cap": {
+     "threads": 4
+    }
+   },
+   {
+    "id": "pl_free",
+    "kind": "provider",
+    "name": "Free",
+    "default": false,
+    "cap": {
+     "machines": 3,
+     "spendPerDayUsd": 5
+    }
+   }
+  ],
+  "cases": [
+   {
+    "name": "a cloud at its day's spend",
+    "place": "solari",
+    "door": true,
+    "spend": [
+     {
+      "place": "solari",
+      "todayUsd": 0.22
+     }
+    ],
+    "result": {
+     "error": {
+      "message": "spend limit reached today on Solari ($0.22/$0.20); raise its spend per day or start the machine after midnight"
+     }
+    },
+    "spendAsked": [
+     {
+      "ids": [
+       "solari",
+       "pl_nocap",
+       "here",
+       "pl_free"
+      ],
+      "now": 1700000000000
+     }
+    ]
+   },
+   {
+    "name": "a cloud exactly at the limit",
+    "place": "solari",
+    "door": true,
+    "spend": [
+     {
+      "place": "solari",
+      "todayUsd": 0.2
+     }
+    ],
+    "result": {
+     "error": {
+      "message": "spend limit reached today on Solari ($0.20/$0.20); raise its spend per day or start the machine after midnight"
+     }
+    },
+    "spendAsked": [
+     {
+      "ids": [
+       "solari",
+       "pl_nocap",
+       "here",
+       "pl_free"
+      ],
+      "now": 1700000000000
+     }
+    ]
+   },
+   {
+    "name": "a cloud under the limit",
+    "place": "solari",
+    "door": true,
+    "spend": [
+     {
+      "place": "solari",
+      "todayUsd": 0.1
+     }
+    ],
+    "result": {
+     "ok": null
+    },
+    "spendAsked": [
+     {
+      "ids": [
+       "solari",
+       "pl_nocap",
+       "here",
+       "pl_free"
+      ],
+      "now": 1700000000000
+     }
+    ]
+   },
+   {
+    "name": "a cloud with no figure today",
+    "place": "solari",
+    "door": true,
+    "spend": [
+     {
+      "place": "solari"
+     }
+    ],
+    "result": {
+     "ok": null
+    },
+    "spendAsked": [
+     {
+      "ids": [
+       "solari",
+       "pl_nocap",
+       "here",
+       "pl_free"
+      ],
+      "now": 1700000000000
+     }
+    ]
+   },
+   {
+    "name": "a cloud the spend list does not name",
+    "place": "solari",
+    "door": true,
+    "spend": [
+     {
+      "place": "other",
+      "todayUsd": 9
+     }
+    ],
+    "result": {
+     "ok": null
+    },
+    "spendAsked": [
+     {
+      "ids": [
+       "solari",
+       "pl_nocap",
+       "here",
+       "pl_free"
+      ],
+      "now": 1700000000000
+     }
+    ]
+   },
+   {
+    "name": "a place with no row",
+    "place": "pl_gone",
+    "door": true,
+    "spend": [
+     {
+      "place": "pl_gone",
+      "todayUsd": 9
+     }
+    ],
+    "result": {
+     "ok": null
+    },
+    "spendAsked": []
+   },
+   {
+    "name": "a row with no cap",
+    "place": "pl_nocap",
+    "door": true,
+    "spend": [
+     {
+      "place": "pl_nocap",
+      "todayUsd": 9
+     }
+    ],
+    "result": {
+     "ok": null
+    },
+    "spendAsked": []
+   },
+   {
+    "name": "a computer, which has no spend limit",
+    "place": "here",
+    "door": true,
+    "spend": [
+     {
+      "place": "here",
+      "todayUsd": 9
+     }
+    ],
+    "result": {
+     "ok": null
+    },
+    "spendAsked": []
+   },
+   {
+    "name": "a cloud far under a high limit",
+    "place": "pl_free",
+    "door": true,
+    "spend": [
+     {
+      "place": "pl_free",
+      "todayUsd": 4.99
+     }
+    ],
+    "result": {
+     "ok": null
+    },
+    "spendAsked": [
+     {
+      "ids": [
+       "solari",
+       "pl_nocap",
+       "here",
+       "pl_free"
+      ],
+      "now": 1700000000000
+     }
+    ]
+   },
+   {
+    "name": "no door",
+    "place": "solari",
+    "door": false,
+    "spend": [
+     {
+      "place": "solari",
+      "todayUsd": 9
+     }
+    ],
+    "result": {
+     "ok": null
+    },
+    "spendAsked": []
+   }
+  ],
+  "sentence": "spend limit reached today on Solari ($0.22/$0.20); raise its spend per day or start the machine after midnight"
+ },
+ "refuses": {
+  "cases": [
+   {
+    "name": "a blocked computer, with the reason",
+    "place": "pl_x",
+    "door": true,
+    "reports": {
+     "pl_x": {
+      "name": "Hetzner box",
+      "platform": "linux",
+      "arch": "x64",
+      "os": "debian",
+      "shape": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "login": {},
+      "runsWorkspaces": false,
+      "engine": "none",
+      "daemonVersion": 170,
+      "wsp": [],
+      "agents": [],
+      "dialed": "ssh",
+      "workspacesBlocked": "this computer's disk is full"
+     }
+    },
+    "result": {
+     "error": {
+      "message": "Hetzner box cannot run wsp workspaces: its disk is full"
+     }
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   },
+   {
+    "name": "a blocked computer, with no reason",
+    "place": "pl_x",
+    "door": true,
+    "reports": {
+     "pl_x": {
+      "name": "Hetzner box",
+      "platform": "linux",
+      "arch": "x64",
+      "os": "debian",
+      "shape": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "login": {},
+      "runsWorkspaces": false,
+      "engine": "none",
+      "daemonVersion": 170,
+      "wsp": [],
+      "agents": [],
+      "dialed": "ssh"
+     }
+    },
+    "result": {
+     "error": {
+      "message": "Hetzner box cannot run wsp workspaces, so it cannot be a place"
+     }
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   },
+   {
+    "name": "a computer that runs workspaces",
+    "place": "pl_x",
+    "door": true,
+    "reports": {
+     "pl_x": {
+      "name": "Hetzner box",
+      "platform": "linux",
+      "arch": "x64",
+      "os": "debian",
+      "shape": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "login": {},
+      "runsWorkspaces": true,
+      "engine": "none",
+      "daemonVersion": 170,
+      "wsp": [],
+      "agents": [],
+      "dialed": "ssh"
+     }
+    },
+    "result": {
+     "ok": null
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   },
+   {
+    "name": "a computer with no report",
+    "place": "pl_x",
+    "door": true,
+    "reports": {},
+    "result": {
+     "ok": null
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   },
+   {
+    "name": "no place",
+    "place": null,
+    "door": true,
+    "reports": {
+     "pl_x": {
+      "name": "Hetzner box",
+      "platform": "linux",
+      "arch": "x64",
+      "os": "debian",
+      "shape": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "login": {},
+      "runsWorkspaces": false,
+      "engine": "none",
+      "daemonVersion": 170,
+      "wsp": [],
+      "agents": [],
+      "dialed": "ssh",
+      "workspacesBlocked": "this computer's disk is full"
+     }
+    },
+    "result": {
+     "ok": null
+    },
+    "reportsAsked": []
+   },
+   {
+    "name": "no door",
+    "place": "pl_x",
+    "door": false,
+    "reports": {
+     "pl_x": {
+      "name": "Hetzner box",
+      "platform": "linux",
+      "arch": "x64",
+      "os": "debian",
+      "shape": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "login": {},
+      "runsWorkspaces": false,
+      "engine": "none",
+      "daemonVersion": 170,
+      "wsp": [],
+      "agents": [],
+      "dialed": "ssh",
+      "workspacesBlocked": "this computer's disk is full"
+     }
+    },
+    "result": {
+     "ok": null
+    },
+    "reportsAsked": []
+   }
+  ],
+  "copy": [
+   {
+    "name": "a folder on a blocked computer is not asked",
+    "kind": "place",
+    "place": "pl_x",
+    "reports": {
+     "pl_x": {
+      "name": "Hetzner box",
+      "platform": "linux",
+      "arch": "x64",
+      "os": "debian",
+      "shape": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "login": {},
+      "runsWorkspaces": false,
+      "engine": "none",
+      "daemonVersion": 170,
+      "wsp": [],
+      "agents": [],
+      "dialed": "ssh",
+      "workspacesBlocked": "this computer's disk is full"
+     }
+    },
+    "result": {
+     "ok": null
+    },
+    "reportsAsked": []
+   },
+   {
+    "name": "a local folder is not asked",
+    "kind": "local",
+    "place": null,
+    "reports": {
+     "pl_x": {
+      "name": "Hetzner box",
+      "platform": "linux",
+      "arch": "x64",
+      "os": "debian",
+      "shape": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "login": {},
+      "runsWorkspaces": false,
+      "engine": "none",
+      "daemonVersion": 170,
+      "wsp": [],
+      "agents": [],
+      "dialed": "ssh",
+      "workspacesBlocked": "this computer's disk is full"
+     }
+    },
+    "result": {
+     "ok": null
+    },
+    "reportsAsked": []
+   },
+   {
+    "name": "a fork on a blocked computer",
+    "kind": "cloud",
+    "place": "pl_x",
+    "reports": {
+     "pl_x": {
+      "name": "Hetzner box",
+      "platform": "linux",
+      "arch": "x64",
+      "os": "debian",
+      "shape": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "login": {},
+      "runsWorkspaces": false,
+      "engine": "none",
+      "daemonVersion": 170,
+      "wsp": [],
+      "agents": [],
+      "dialed": "ssh",
+      "workspacesBlocked": "this computer's disk is full"
+     }
+    },
+    "result": {
+     "error": {
+      "message": "Hetzner box cannot run wsp workspaces: its disk is full"
+     }
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   },
+   {
+    "name": "a fork with no place",
+    "kind": "cloud",
+    "place": null,
+    "reports": {
+     "pl_x": {
+      "name": "Hetzner box",
+      "platform": "linux",
+      "arch": "x64",
+      "os": "debian",
+      "shape": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "login": {},
+      "runsWorkspaces": false,
+      "engine": "none",
+      "daemonVersion": 170,
+      "wsp": [],
+      "agents": [],
+      "dialed": "ssh",
+      "workspacesBlocked": "this computer's disk is full"
+     }
+    },
+    "result": {
+     "ok": null
+    },
+    "reportsAsked": []
+   },
+   {
+    "name": "a fork on a computer that runs workspaces",
+    "kind": "cloud",
+    "place": "pl_x",
+    "reports": {
+     "pl_x": {
+      "name": "Hetzner box",
+      "platform": "linux",
+      "arch": "x64",
+      "os": "debian",
+      "shape": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "login": {},
+      "runsWorkspaces": true,
+      "engine": "none",
+      "daemonVersion": 170,
+      "wsp": [],
+      "agents": [],
+      "dialed": "ssh"
+     }
+    },
+    "result": {
+     "ok": null
+    },
+    "reportsAsked": [
+     "pl_x"
+    ]
+   }
+  ],
+  "sentences": {
+   "blocked": "Hetzner box cannot run wsp workspaces: its disk is full",
+   "blockedNoWhy": "Hetzner box cannot run wsp workspaces, so it cannot be a place"
+  }
+ }
+}

@@ -1,0 +1,924 @@
+{
+ "scope": [
+  {
+   "name": "none",
+   "asks": [],
+   "answer": []
+  },
+  {
+   "name": "one null",
+   "asks": [
+    null
+   ],
+   "answer": null
+  },
+  {
+   "name": "null among asks",
+   "asks": [
+    [
+     "/wsp-threads/a"
+    ],
+    null
+   ],
+   "answer": null
+  },
+  {
+   "name": "two",
+   "asks": [
+    [
+     "/wsp-threads/b"
+    ],
+    [
+     "/wsp-threads/a"
+    ]
+   ],
+   "answer": [
+    "/wsp-threads/a",
+    "/wsp-threads/b"
+   ]
+  },
+  {
+   "name": "duplicates",
+   "asks": [
+    [
+     "/wsp-threads/a",
+     "/wsp-threads/a"
+    ],
+    [
+     "/wsp-threads/a"
+    ]
+   ],
+   "answer": [
+    "/wsp-threads/a"
+   ]
+  },
+  {
+   "name": "nested",
+   "asks": [
+    [
+     "/wsp-threads/a"
+    ],
+    [
+     "/wsp-threads/a/x",
+     "/wsp-threads/ab"
+    ]
+   ],
+   "answer": [
+    "/wsp-threads/a",
+    "/wsp-threads/ab"
+   ]
+  },
+  {
+   "name": "empty ask",
+   "asks": [
+    []
+   ],
+   "answer": []
+  },
+  {
+   "name": "sixteen",
+   "asks": [
+    [
+     "/wsp-threads/t00",
+     "/wsp-threads/t01",
+     "/wsp-threads/t02",
+     "/wsp-threads/t03",
+     "/wsp-threads/t04",
+     "/wsp-threads/t05",
+     "/wsp-threads/t06",
+     "/wsp-threads/t07",
+     "/wsp-threads/t08",
+     "/wsp-threads/t09",
+     "/wsp-threads/t10",
+     "/wsp-threads/t11",
+     "/wsp-threads/t12",
+     "/wsp-threads/t13",
+     "/wsp-threads/t14",
+     "/wsp-threads/t15"
+    ]
+   ],
+   "answer": [
+    "/wsp-threads/t00",
+    "/wsp-threads/t01",
+    "/wsp-threads/t02",
+    "/wsp-threads/t03",
+    "/wsp-threads/t04",
+    "/wsp-threads/t05",
+    "/wsp-threads/t06",
+    "/wsp-threads/t07",
+    "/wsp-threads/t08",
+    "/wsp-threads/t09",
+    "/wsp-threads/t10",
+    "/wsp-threads/t11",
+    "/wsp-threads/t12",
+    "/wsp-threads/t13",
+    "/wsp-threads/t14",
+    "/wsp-threads/t15"
+   ]
+  },
+  {
+   "name": "seventeen",
+   "asks": [
+    [
+     "/wsp-threads/t00",
+     "/wsp-threads/t01",
+     "/wsp-threads/t02",
+     "/wsp-threads/t03",
+     "/wsp-threads/t04",
+     "/wsp-threads/t05",
+     "/wsp-threads/t06",
+     "/wsp-threads/t07",
+     "/wsp-threads/t08",
+     "/wsp-threads/t09",
+     "/wsp-threads/t10",
+     "/wsp-threads/t11",
+     "/wsp-threads/t12",
+     "/wsp-threads/t13",
+     "/wsp-threads/t14",
+     "/wsp-threads/t15",
+     "/wsp-threads/t16"
+    ]
+   ],
+   "answer": null
+  },
+  {
+   "name": "seventeen nested to sixteen",
+   "asks": [
+    [
+     "/wsp-threads/t00",
+     "/wsp-threads/t01",
+     "/wsp-threads/t02",
+     "/wsp-threads/t03",
+     "/wsp-threads/t04",
+     "/wsp-threads/t05",
+     "/wsp-threads/t06",
+     "/wsp-threads/t07",
+     "/wsp-threads/t08",
+     "/wsp-threads/t09",
+     "/wsp-threads/t10",
+     "/wsp-threads/t11",
+     "/wsp-threads/t12",
+     "/wsp-threads/t13",
+     "/wsp-threads/t14",
+     "/wsp-threads/t15",
+     "/wsp-threads/t00/child"
+    ]
+   ],
+   "answer": [
+    "/wsp-threads/t00",
+    "/wsp-threads/t01",
+    "/wsp-threads/t02",
+    "/wsp-threads/t03",
+    "/wsp-threads/t04",
+    "/wsp-threads/t05",
+    "/wsp-threads/t06",
+    "/wsp-threads/t07",
+    "/wsp-threads/t08",
+    "/wsp-threads/t09",
+    "/wsp-threads/t10",
+    "/wsp-threads/t11",
+    "/wsp-threads/t12",
+    "/wsp-threads/t13",
+    "/wsp-threads/t14",
+    "/wsp-threads/t15"
+   ]
+  }
+ ],
+ "refusal": [
+  {
+   "version": null,
+   "answer": {
+    "ok": false,
+    "code": "unsupported",
+    "error": "studio is behind: daemon version unknown, host 167; wsp add studio --update puts this wsp's daemon on it"
+   }
+  },
+  {
+   "version": 0,
+   "answer": {
+    "ok": false,
+    "code": "unsupported",
+    "error": "studio is behind: daemon 0, host 167; wsp add studio --update puts this wsp's daemon on it"
+   }
+  },
+  {
+   "version": 135,
+   "answer": {
+    "ok": false,
+    "code": "unsupported",
+    "error": "studio is behind: daemon 135, host 167; wsp add studio --update puts this wsp's daemon on it"
+   }
+  },
+  {
+   "version": 136,
+   "answer": null
+  },
+  {
+   "version": 200,
+   "answer": null
+  }
+ ],
+ "sessions": {
+  "ports three threads": {
+   "reply": {
+    "ok": true,
+    "ports": [
+     {
+      "port": 3000,
+      "pid": 1
+     },
+     {
+      "port": 5173,
+      "pid": 2
+     }
+    ]
+   },
+   "served": [
+    {
+     "op": "ports.watch",
+     "roots": [
+      7,
+      9
+     ],
+     "folder": "/srv/alpha",
+     "cgroups": [
+      "/wsp-threads/tb",
+      "/wsp-threads/ta",
+      "/wsp-threads/tc"
+     ],
+     "watch": "w1"
+    }
+   ],
+   "placed": {
+    "/wsp-threads/tb": 0,
+    "/wsp-threads/ta": 0,
+    "/wsp-threads/tc": 0
+   }
+  },
+  "ports twenty threads": {
+   "first": {
+    "ok": true,
+    "ports": []
+   },
+   "placedFirst": {
+    "/wsp-threads/t00": 0,
+    "/wsp-threads/t01": 0,
+    "/wsp-threads/t02": 0,
+    "/wsp-threads/t03": 0,
+    "/wsp-threads/t04": 0,
+    "/wsp-threads/t05": 0,
+    "/wsp-threads/t06": 0,
+    "/wsp-threads/t07": 0,
+    "/wsp-threads/t08": 0,
+    "/wsp-threads/t09": 0,
+    "/wsp-threads/t10": 0,
+    "/wsp-threads/t11": 0,
+    "/wsp-threads/t12": 0,
+    "/wsp-threads/t13": 0,
+    "/wsp-threads/t14": 0,
+    "/wsp-threads/t15": 0,
+    "/wsp-threads/t16": 1,
+    "/wsp-threads/t17": 1,
+    "/wsp-threads/t18": 1,
+    "/wsp-threads/t19": 1
+   },
+   "servedFirst": [
+    {
+     "op": "ports.watch",
+     "roots": [],
+     "folder": "/srv/alpha",
+     "cgroups": [
+      "/wsp-threads/t00",
+      "/wsp-threads/t01",
+      "/wsp-threads/t02",
+      "/wsp-threads/t03",
+      "/wsp-threads/t04",
+      "/wsp-threads/t05",
+      "/wsp-threads/t06",
+      "/wsp-threads/t07",
+      "/wsp-threads/t08",
+      "/wsp-threads/t09",
+      "/wsp-threads/t10",
+      "/wsp-threads/t11",
+      "/wsp-threads/t12",
+      "/wsp-threads/t13",
+      "/wsp-threads/t14",
+      "/wsp-threads/t15"
+     ],
+     "watch": "w1"
+    },
+    {
+     "op": "ports.watch",
+     "roots": [],
+     "cgroups": [
+      "/wsp-threads/t16",
+      "/wsp-threads/t17",
+      "/wsp-threads/t18",
+      "/wsp-threads/t19"
+     ],
+     "watch": "w1-2"
+    }
+   ],
+   "placedMoved": {
+    "/wsp-threads/t00": 0,
+    "/wsp-threads/t01": 0,
+    "/wsp-threads/t02": 0,
+    "/wsp-threads/t04": 0,
+    "/wsp-threads/t05": 0,
+    "/wsp-threads/t06": 0,
+    "/wsp-threads/t07": 0,
+    "/wsp-threads/t08": 0,
+    "/wsp-threads/t09": 0,
+    "/wsp-threads/t10": 0,
+    "/wsp-threads/t11": 0,
+    "/wsp-threads/t12": 0,
+    "/wsp-threads/t13": 0,
+    "/wsp-threads/t14": 0,
+    "/wsp-threads/t15": 0,
+    "/wsp-threads/t16": 1,
+    "/wsp-threads/t17": 1,
+    "/wsp-threads/t18": 1,
+    "/wsp-threads/t19": 1,
+    "/wsp-threads/t20": 0
+   },
+   "servedMoved": [
+    {
+     "op": "ports.watch",
+     "roots": [],
+     "folder": "/srv/alpha",
+     "cgroups": [
+      "/wsp-threads/t00",
+      "/wsp-threads/t01",
+      "/wsp-threads/t02",
+      "/wsp-threads/t04",
+      "/wsp-threads/t05",
+      "/wsp-threads/t06",
+      "/wsp-threads/t07",
+      "/wsp-threads/t08",
+      "/wsp-threads/t09",
+      "/wsp-threads/t10",
+      "/wsp-threads/t11",
+      "/wsp-threads/t12",
+      "/wsp-threads/t13",
+      "/wsp-threads/t14",
+      "/wsp-threads/t15",
+      "/wsp-threads/t20"
+     ],
+     "watch": "w1"
+    },
+    {
+     "op": "ports.watch",
+     "roots": [],
+     "cgroups": [
+      "/wsp-threads/t16",
+      "/wsp-threads/t17",
+      "/wsp-threads/t18",
+      "/wsp-threads/t19"
+     ],
+     "watch": "w1-2"
+    }
+   ],
+   "placedShrunk": {
+    "/wsp-threads/t00": 0,
+    "/wsp-threads/t01": 0,
+    "/wsp-threads/t02": 0,
+    "/wsp-threads/t04": 0,
+    "/wsp-threads/t20": 0
+   },
+   "servedShrunk": [
+    {
+     "op": "ports.watch",
+     "roots": [],
+     "folder": "/srv/alpha",
+     "cgroups": [
+      "/wsp-threads/t00",
+      "/wsp-threads/t01",
+      "/wsp-threads/t02",
+      "/wsp-threads/t04",
+      "/wsp-threads/t20"
+     ],
+     "watch": "w1"
+    },
+    {
+     "op": "ports.watch",
+     "roots": [],
+     "cgroups": [],
+     "watch": "w1-2"
+    }
+   ],
+   "servedSame": []
+  },
+  "ports holders": {
+   "reply": {
+    "ok": true,
+    "ports": [
+     {
+      "port": 3000,
+      "pid": 1
+     },
+     {
+      "port": 4000,
+      "pid": 3
+     }
+    ]
+   },
+   "heard": [
+    {
+     "type": "port.close",
+     "port": 3000,
+     "watch": "w1",
+     "heard": false
+    },
+    {
+     "type": "port.close",
+     "port": 3000,
+     "watch": "w1-2",
+     "heard": true
+    },
+    {
+     "type": "port.open",
+     "port": 3000,
+     "watch": "w1-2",
+     "heard": true
+    },
+    {
+     "type": "port.open",
+     "port": 3000,
+     "watch": "w1",
+     "heard": false
+    },
+    {
+     "type": "port.close",
+     "port": 9999,
+     "watch": "w1",
+     "heard": true
+    },
+    {
+     "type": "port.open",
+     "port": 4000,
+     "watch": "other",
+     "heard": false
+    },
+    {
+     "type": "port.close",
+     "port": 4000,
+     "watch": "w1-2",
+     "heard": true
+    },
+    {
+     "type": "port.close",
+     "port": 4000,
+     "watch": "w1-2",
+     "heard": true
+    }
+   ]
+  },
+  "ports behind 135": {
+   "reply": {
+    "ok": false,
+    "code": "unsupported",
+    "error": "studio is behind: daemon 135, host 167; wsp add studio --update puts this wsp's daemon on it"
+   },
+   "served": []
+  },
+  "ports behind unknown": {
+   "reply": {
+    "ok": false,
+    "code": "unsupported",
+    "error": "studio is behind: daemon version unknown, host 167; wsp add studio --update puts this wsp's daemon on it"
+   },
+   "served": []
+  },
+  "ports one share refused": {
+   "reply": {
+    "ok": false,
+    "error": "too many watches"
+   },
+   "served": [
+    {
+     "op": "ports.watch",
+     "roots": [],
+     "folder": "/srv/alpha",
+     "cgroups": [
+      "/wsp-threads/t00",
+      "/wsp-threads/t01",
+      "/wsp-threads/t02",
+      "/wsp-threads/t03",
+      "/wsp-threads/t04",
+      "/wsp-threads/t05",
+      "/wsp-threads/t06",
+      "/wsp-threads/t07",
+      "/wsp-threads/t08",
+      "/wsp-threads/t09",
+      "/wsp-threads/t10",
+      "/wsp-threads/t11",
+      "/wsp-threads/t12",
+      "/wsp-threads/t13",
+      "/wsp-threads/t14",
+      "/wsp-threads/t15"
+     ],
+     "watch": "w1"
+    },
+    {
+     "op": "ports.watch",
+     "roots": [],
+     "cgroups": [
+      "/wsp-threads/t16"
+     ],
+     "watch": "w1-2"
+    }
+   ]
+  },
+  "procs two panes": [
+   {
+    "step": "a watches ta",
+    "reply": {
+     "ok": true
+    },
+    "served": [
+     {
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "ta",
+        "workspace": "w1",
+        "folder": "/srv/alpha",
+        "cgroup": "/wsp-threads/ta"
+       },
+       {
+        "thread": "tb",
+        "workspace": "w1",
+        "folder": "/srv/alpha",
+        "cgroup": "/wsp-threads/tb"
+       }
+      ]
+     },
+     {
+      "op": "proc.watch",
+      "cgroups": [
+       "/wsp-threads/ta"
+      ]
+     }
+    ]
+   },
+   {
+    "step": "b watches tb",
+    "reply": {
+     "ok": true
+    },
+    "served": [
+     {
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "ta",
+        "workspace": "w1",
+        "folder": "/srv/alpha",
+        "cgroup": "/wsp-threads/ta"
+       },
+       {
+        "thread": "tb",
+        "workspace": "w1",
+        "folder": "/srv/alpha",
+        "cgroup": "/wsp-threads/tb"
+       }
+      ]
+     },
+     {
+      "op": "proc.watch",
+      "cgroups": [
+       "/wsp-threads/ta",
+       "/wsp-threads/tb"
+      ]
+     }
+    ]
+   },
+   {
+    "step": "a heard",
+    "snapshot": true,
+    "changes": true,
+    "sys": false,
+    "other": false
+   },
+   {
+    "step": "a unwatches",
+    "reply": {
+     "ok": true
+    },
+    "served": [
+     {
+      "op": "proc.watch",
+      "cgroups": [
+       "/wsp-threads/tb"
+      ]
+     }
+    ]
+   },
+   {
+    "step": "a heard after",
+    "snapshot": false
+   },
+   {
+    "step": "a unwatches again",
+    "reply": {
+     "ok": true
+    },
+    "served": []
+   },
+   {
+    "step": "a thread starts",
+    "served": [
+     {
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "ta",
+        "workspace": "w1",
+        "folder": "/srv/alpha",
+        "cgroup": "/wsp-threads/ta"
+       },
+       {
+        "thread": "tb",
+        "workspace": "w1",
+        "folder": "/srv/alpha",
+        "cgroup": "/wsp-threads/tb"
+       },
+       {
+        "thread": "tc",
+        "workspace": "w1",
+        "folder": "/srv/alpha",
+        "cgroup": "/wsp-threads/tc"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "step": "nothing moved",
+    "served": []
+   },
+   {
+    "step": "b closes",
+    "served": [
+     {
+      "op": "proc.unwatch"
+     }
+    ]
+   },
+   {
+    "step": "b closes again",
+    "served": []
+   }
+  ],
+  "procs whole and refused": [
+   {
+    "step": "a watches ta",
+    "reply": {
+     "ok": true
+    },
+    "served": [
+     {
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "ta",
+        "workspace": "w1",
+        "folder": "/srv/alpha",
+        "cgroup": "/wsp-threads/ta"
+       }
+      ]
+     },
+     {
+      "op": "proc.watch",
+      "cgroups": [
+       "/wsp-threads/ta"
+      ]
+     }
+    ]
+   },
+   {
+    "step": "b watches all",
+    "reply": {
+     "ok": true
+    },
+    "served": [
+     {
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "ta",
+        "workspace": "w1",
+        "folder": "/srv/alpha",
+        "cgroup": "/wsp-threads/ta"
+       }
+      ]
+     },
+     {
+      "op": "proc.watch"
+     }
+    ]
+   },
+   {
+    "step": "b refused",
+    "reply": {
+     "ok": false,
+     "error": "proc reads off"
+    },
+    "served": [
+     {
+      "op": "proc.scopes",
+      "scopes": [
+       {
+        "thread": "ta",
+        "workspace": "w1",
+        "folder": "/srv/alpha",
+        "cgroup": "/wsp-threads/ta"
+       }
+      ]
+     },
+     {
+      "op": "proc.watch",
+      "cgroups": [
+       "/wsp-threads/ta"
+      ]
+     }
+    ],
+    "heard": false
+   }
+  ],
+  "procs link replaced": {
+   "served": []
+  },
+  "readings": [
+   {
+    "step": "refused",
+    "reply": {
+     "ok": false,
+     "error": "this computer reads no load"
+    },
+    "heard": false
+   },
+   {
+    "step": "taken",
+    "reply": {
+     "ok": true
+    },
+    "heard": true
+   },
+   {
+    "step": "again",
+    "reply": {
+     "ok": true
+    }
+   },
+   {
+    "step": "unwatch",
+    "reply": {
+     "ok": true
+    },
+    "released": [
+     "sys"
+    ],
+    "heard": false
+   },
+   {
+    "step": "unwatch again",
+    "reply": {
+     "ok": true
+    },
+    "released": [
+     "sys"
+    ]
+   },
+   {
+    "step": "served",
+    "served": []
+   }
+  ],
+  "terminal and pass through": {
+   "replies": [
+    {
+     "ok": true,
+     "ptyId": "pty_1",
+     "pid": 4242
+    },
+    {
+     "ok": true,
+     "ptyId": "pty_1",
+     "pid": 4242
+    },
+    {
+     "ok": true,
+     "ptyId": "pty_1",
+     "pid": 4242
+    },
+    {
+     "ok": true
+    },
+    {
+     "ok": true
+    }
+   ],
+   "served": [
+    {
+     "op": "pty.create",
+     "cols": 80,
+     "env": {
+      "WSP_THREAD_HOME": "/srv/alpha",
+      "PATH": "/opt/bin",
+      "TERM": "xterm"
+     },
+     "cwd": "/srv/alpha"
+    },
+    {
+     "op": "pty.create",
+     "cwd": "/srv/alpha/sub",
+     "env": {
+      "WSP_THREAD_HOME": "/srv/alpha",
+      "PATH": "/usr/bin"
+     }
+    },
+    {
+     "op": "pty.create",
+     "cwd": "/srv/alpha",
+     "env": {
+      "WSP_THREAD_HOME": "/srv/alpha",
+      "PATH": "/usr/bin"
+     }
+    },
+    {
+     "op": "container.stop",
+     "id": "c1"
+    },
+    {
+     "op": "fs.list",
+     "path": "/"
+    }
+   ],
+   "answers": [
+    [
+     "ports.watch",
+     true
+    ],
+    [
+     "sys.watch",
+     true
+    ],
+    [
+     "sys.unwatch",
+     true
+    ],
+    [
+     "proc.watch",
+     true
+    ],
+    [
+     "proc.unwatch",
+     true
+    ],
+    [
+     "proc.inspect",
+     true
+    ],
+    [
+     "proc.kill",
+     true
+    ],
+    [
+     "container.stop",
+     true
+    ],
+    [
+     "pty.create",
+     true
+    ],
+    [
+     "pty.list",
+     false
+    ],
+    [
+     "fs.list",
+     false
+    ],
+    [
+     "git.status",
+     false
+    ]
+   ]
+  },
+  "close and delete": {
+   "before": {
+    "pushes": 2,
+    "placed": {
+     "/wsp-threads/ta": 0
+    }
+   },
+   "afterClose": {
+    "pushes": 1
+   },
+   "afterDelete": {
+    "placements": false
+   }
+  }
+ }
+}
