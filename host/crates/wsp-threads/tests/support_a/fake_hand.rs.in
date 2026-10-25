@@ -198,7 +198,7 @@
         TreeOf::default()
 //@end
 //@ SessionsCtx::thread_of_token
-        token.to_string()
+        Ok(token.to_string())
 //@end
 //@ SessionsCtx::reaches_row
         true

@@ -1,7 +1,7 @@
 # runtime_of: the public runtime, the sweep and the close
 
 runtime.ts:1017-1277 and index.ts at `65f6b89c7`. Rust: `src/runtime/public.rs` (`AssembledRuntime`, which
-implements wsp-core's `Runtime` and this crate's `ServedRuntime`), `src/lib.rs` (index.ts's re-exports). Tests:
+implements wsp-core's `Runtime`, which is what a socket serves), `src/lib.rs` (index.ts's re-exports). Tests:
 `tests/runtime_of.rs`, over `PublicCtx` (the calls `runtimeOf` makes on the core and the areas), faked.
 
 ## The public members (runtime.ts:1022-1104)

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! A runtime over the script: wsp-core's `Runtime` and this crate's `ServedRuntime`. Each sub-API (`workspaces()`,
+//! A runtime over the script: wsp-core's `Runtime`, with wsp-machines' `PlaceDoor`, wsp-slates' `Slates` and wsp-threads'
+//! `ActivityDoor` as its three doors (`DynRuntime`). Each sub-API (`workspaces()`,
 //! `sessions()`, ...) is the fake itself; every method records `<area>.<method in camelCase>` (`workspaces.get`,
 //! `sessions.history`, `status.list`, `agents.read`, `harnesses.list`, `golden.get`, `usage.used`,
 //! `preferences.get`, `conversations.list`, `projects.list`, `slates.write`, `activity.read`, `startRoads.startAt`,
 //! ...) with its arguments as JSON (camelCase keys as the TS names them; the origin through `caller_json`), then
 //! answers what the test scripted under that name. A `Result` method unscripted refuses `unscripted call: <name>`.
 //!
-//! The sockets' roads: `sys_ops` and `sign_in_ops` answer a road that records `sys.answer` / `signIn.answer` with
-//! the request's JSON and sends `{"id":..,"ok":true}` through the send it is handed unless the test scripted a
-//! `Result<(), HostError>` under that name. `forwards` answers `self.forwards` (set by the test) or an empty source.
-//! `place_door` answers `self.places` (none unless the test sets it). `is_sign_in_op` reads the six sign-in ops.
+//! `sessions.start` calls the start's `on_held` first with the `HeldStart` scripted under `sessions.start.held`, if any.
+//! `places()` answers `self.places` (none unless the test sets it). `slates()` and `activity()` answer fakes that
+//! record `slates.<method>` and `activity.<method>` with their params as JSON (a key only where the param is set) and
+//! answer what the test scripted, typed as the real answer (`SlateWriteAnswer`, `ActivityEnded`, ...).
 //!
 //! Runtime's own members record `runtime.<name>` (`runtime.recipes`, `runtime.hereChannel`, `runtime.owner`,
 //! `runtime.reap`, `runtime.close`, `runtime.watchPlaceSys`, `runtime.placeKills`, `runtime.ownProcess`). Every
@@ -29,17 +30,15 @@ use wsp_core::status::{StatusApi, StatusListOptions, StatusWatchOptions};
 use wsp_core::types::api::*;
 use wsp_core::types::events::EventBus;
 use wsp_core::types::harness::StartPicksAsked;
-use wsp_core::types::pending::{ActivityDoor, CallbackForwards, DaemonChannel, DeviceDoor, GoldenDelta, SignInAsk, SkillAsk, Slates};
+use wsp_core::types::pending::{CallbackForwards, DaemonChannel, DeviceDoor, GoldenDelta, SignInAsk, SkillAsk};
 use wsp_core::types::wiring::*;
 use wsp_engine::machine::{Machine, MachineBackend, MachineListRow, MachineSpec, Waiting};
 use wsp_engine::snapshot_storage::RetentionPlan;
 use wsp_frames::{GitCommitReply, GitDiscardReply, ProcKind};
 use wsp_machines::places::types::PlaceDoor;
-use wsp_serve::serve::served::{ForwardsSource, Payload, Send, ServedRuntime, SocketHooks, SocketOps};
-use wsp_serve::serve_broker::CloudSignIn;
-use wsp_serve::serve_processes::ActivityOps;
-use wsp_serve::serve_slates::SlateDoor;
-use wsp_serve::serve_start::{AnswerFn, StartFn, StartFolder, StartRoads};
+use wsp_slates::pending::wire::{SlateEventAnswer, SlateReadAnswer, SlateStateAnswer, SlateView, SlateWriteAnswer, SlatesImageAnswer};
+use wsp_slates::slates::{ApproveParams, CatalogParams, EventParams, ReadParams, SlateTarget, Slates, StateParams, WriteParams};
+use wsp_threads::activity::{ActivityAsk, ActivityDoor, EndAsk, MeetVerb};
 use wsp_wire::types::agents_report::*;
 use wsp_wire::types::attachments::KeptAttachment;
 use wsp_wire::types::bring_back::BringBackResult;
@@ -50,7 +49,7 @@ use wsp_wire::types::start::{GitPrDiffReply, ReviewDraft};
 use wsp_wire::types::thread_defaults::{AgentSetupSet, ThreadDefaults};
 use wsp_wire::types::tree::MergeInResult;
 use wsp_wire::types::workspace_look::WorkspaceLook;
-use wsp_wire::views::activity::ActivityView;
+use wsp_wire::views::activity::{ActivityEnded, ActivityView, ProcessesAsk};
 use wsp_wire::views::golden_image::*;
 use wsp_wire::views::harness::{HarnessCatalog, ReviewPostResult, StartResult};
 use wsp_wire::views::place_more::{PlaceSpend, PlaceView};
@@ -72,14 +71,13 @@ use wsp_words::exit::HostError;
 use super::fake_bus::FakeBus;
 use super::fake_devices::FakeDevices;
 use super::fake_places::{dbg, sj, FakePlaceDoor};
-use super::script::{caller_json as oj, Script};
+use super::script::{caller_json as oj, Call, Script};
 
 pub struct FakeRuntime {
     pub script: Rc<Script>,
     pub bus: Rc<FakeBus>,
     pub devices: Rc<FakeDevices>,
     pub places: RefCell<Option<Rc<FakePlaceDoor>>>,
-    pub forwards: RefCell<Option<Rc<dyn ForwardsSource>>>,
     /// What `backend().capabilities` reads: the stub backend's flags, as JSON.
     pub capabilities: RefCell<serde_json::Value>,
     /// Every `on_event` handed to `here_channel`, `workspaces.daemon_channel` and `workspaces.guest_channel`, oldest first.
@@ -87,14 +85,13 @@ pub struct FakeRuntime {
 }
 
 impl FakeRuntime {
-    /// A runtime with no place door, no forwards and the default capabilities.
+    /// A runtime with no place door and the default capabilities.
     pub fn new() -> Rc<FakeRuntime> {
         let script = Script::new();
         Rc::new(FakeRuntime {
             bus: FakeBus::new(script.clone()),
             devices: FakeDevices::new(script.clone()),
             places: RefCell::new(None),
-            forwards: RefCell::new(None),
             capabilities: RefCell::new(serde_json::json!({})),
             daemon_listeners: RefCell::new(Vec::new()),
             script,
@@ -128,6 +125,9 @@ fn noop_detach() -> Detach {
 
 #[async_trait(?Send)]
 impl Runtime for FakeRuntime {
+    type Places = dyn PlaceDoor;
+    type Slates = dyn Slates;
+    type Activity = dyn ActivityDoor;
     fn events(&self) -> Rc<dyn EventBus> {
         self.bus.clone()
     }
@@ -145,8 +145,8 @@ impl Runtime for FakeRuntime {
         let capabilities = serde_json::from_value(base).expect("the scripted capabilities parse as Capabilities");
         Arc::new(FakeBackend { capabilities })
     }
-    fn places(&self) -> Option<Rc<dyn wsp_core::types::pending::PlaceDoor>> {
-        panic!("serve reads place_door(), never places()")
+    fn places(&self) -> Option<Rc<dyn PlaceDoor>> {
+        self.places.borrow().clone().map(|p| p as Rc<dyn PlaceDoor>)
     }
     fn recipes(&self) -> Option<Rc<dyn RecipeShelf>> {
         self.script.call_or("runtime.recipes", json!({}), || None::<Rc<dyn RecipeShelf>>)
@@ -195,10 +195,10 @@ impl Runtime for FakeRuntime {
         self
     }
     fn slates(&self) -> Rc<dyn Slates> {
-        Rc::new(FakeSlates)
+        Rc::new(FakeSlates { script: self.script.clone() })
     }
     fn activity(&self) -> Rc<dyn ActivityDoor> {
-        Rc::new(FakeActivity)
+        Rc::new(FakeActivity { script: self.script.clone() })
     }
     fn devices(&self) -> Rc<dyn DeviceDoor> {
         self.devices.clone()
@@ -523,7 +523,14 @@ impl ProjectsApi for FakeRuntime {
 #[async_trait(?Send)]
 impl SessionsApi for FakeRuntime {
     async fn start(&self, workspace_id: &str, opts: StartOptions, origin: Option<Caller>) -> Result<Rc<dyn SessionHandle>, HostError> {
-        self.script.call("sessions.start", json!({ "workspaceId": workspace_id, "opts": start_json(&opts), "origin": oj(&origin) }))
+        let args = json!({ "workspaceId": workspace_id, "opts": start_json(&opts), "origin": oj(&origin) });
+        if let Some(on_held) = &opts.on_held {
+            let held = self.script.answer::<HeldStart>(&Call { name: "sessions.start.held".into(), args: Value::Null });
+            if let Some(held) = held {
+                on_held(held);
+            }
+        }
+        self.script.call("sessions.start", args)
     }
     async fn list(&self, workspace_id: Option<String>, origin: Option<Caller>) -> Result<Vec<SessionView>, HostError> {
         self.script.call("sessions.list", json!({ "workspaceId": workspace_id, "origin": oj(&origin) }))
@@ -781,11 +788,6 @@ impl UsageDoor for FakeUsage {
     }
 }
 
-pub struct FakeSlates;
-impl Slates for FakeSlates {}
-
-pub struct FakeActivity;
-impl ActivityDoor for FakeActivity {}
 
 /// A backend that answers capabilities only.
 pub struct FakeBackend {
@@ -814,158 +816,174 @@ impl MachineBackend for FakeBackend {
     }
 }
 
-impl ServedRuntime for FakeRuntime {
-    fn place_door(&self) -> Option<Rc<dyn PlaceDoor>> {
-        self.places.borrow().clone().map(|p| p as Rc<dyn PlaceDoor>)
-    }
-    fn slate_door(&self) -> Rc<dyn SlateDoor> {
-        Rc::new(FakeSlateDoor { script: self.script.clone() })
-    }
-    fn activity_door(&self) -> Rc<dyn ActivityOps> {
-        Rc::new(FakeActivityOps { script: self.script.clone() })
-    }
-    fn sys_ops(&self, _socket: SocketHooks) -> Rc<dyn SocketOps> {
-        Rc::new(ScriptedRoad { script: self.script.clone(), name: "sys.answer" })
-    }
-    fn sign_in_ops(&self, _socket: SocketHooks, _cloud: Option<CloudSignIn>) -> Rc<dyn SocketOps> {
-        Rc::new(ScriptedRoad { script: self.script.clone(), name: "signIn.answer" })
-    }
-    fn is_sign_in_op(&self, msg: &RuntimeRequest) -> bool {
-        matches!(msg.op.name(), "agents.signIn" | "servers.signIn" | "agents.cloudSignIn" | "agents.signIns" | "agents.signInCode" | "agents.signInStop")
-    }
-    fn forwards(&self, host: Option<Rc<dyn ForwardsSource>>) -> Rc<dyn ForwardsSource> {
-        self.script.record("forwards.of", json!({ "host": host.is_some() }));
-        if let Some(set) = self.forwards.borrow().clone() {
-            return set;
-        }
-        host.unwrap_or_else(|| Rc::new(EmptyForwards))
-    }
-    fn start_roads(&self) -> Rc<dyn StartRoads> {
-        Rc::new(FakeStartRoads { script: self.script.clone() })
-    }
-}
-
-struct EmptyForwards;
-
-impl ForwardsSource for EmptyForwards {
-    fn list(&self) -> Vec<PortForward> {
-        Vec::new()
-    }
-    fn stop(&self, _workspace_id: &str, _port: u16) -> bool {
-        false
-    }
-    fn on(&self, _f: Rc<dyn Fn(&Value)>) -> Box<dyn FnOnce()> {
-        noop_detach()
-    }
-}
-
-/// A per-socket road: records `<name>` with the request's JSON, then answers what the test scripted, else sends
-/// `{"id": <id>, "ok": true}`.
-struct ScriptedRoad {
+/// `slates.*`: each call's params as JSON, a key only where the param is set.
+pub struct FakeSlates {
     script: Rc<Script>,
-    name: &'static str,
 }
 
-impl SocketOps for ScriptedRoad {
-    fn answer(&self, msg: RuntimeRequest, send: Send, _origin: Option<Caller>) -> LocalBoxFuture<'static, Result<(), HostError>> {
-        let asked = serde_json::to_value(&msg).unwrap();
-        let call = self.script.record(self.name, asked.clone());
-        let result = match self.script.answer::<Result<(), HostError>>(&call) {
-            Some(scripted) => scripted,
-            None => {
-                let mut reply = Payload::new();
-                reply.insert("id".to_string(), asked.get("id").cloned().unwrap_or(Value::Null));
-                reply.insert("ok".to_string(), Value::Bool(true));
-                send(reply);
-                Ok(())
-            }
-        };
-        Box::pin(ready(result))
+fn target_json(target: &SlateTarget) -> serde_json::Map<String, Value> {
+    let mut out = serde_json::Map::new();
+    if let Some(t) = &target.thread_id {
+        out.insert("threadId".into(), json!(t));
+    }
+    if let Some(t) = &target.turn_token {
+        out.insert("turnToken".into(), json!(t));
+    }
+    out
+}
+
+fn set<T: serde::Serialize>(out: &mut serde_json::Map<String, Value>, key: &str, v: &Option<T>) {
+    if let Some(v) = v {
+        out.insert(key.into(), serde_json::to_value(v).unwrap());
     }
 }
 
-struct FakeSlateDoor {
-    script: Rc<Script>,
+fn write_json(p: &WriteParams) -> Value {
+    let mut o = target_json(&p.target);
+    set(&mut o, "text", &p.text);
+    set(&mut o, "document", &p.document);
+    set(&mut o, "check", &p.check);
+    set(&mut o, "ifVersion", &p.if_version);
+    set(&mut o, "values", &p.values);
+    if let Some(press) = &p.press {
+        let mut pr = serde_json::Map::new();
+        pr.insert("piece".into(), json!(press.piece));
+        set(&mut pr, "index", &press.index);
+        set(&mut pr, "action", &press.action);
+        o.insert("press".into(), Value::Object(pr));
+    }
+    Value::Object(o)
+}
+
+fn state_json(p: &StateParams) -> Value {
+    let mut o = target_json(&p.target);
+    set(&mut o, "values", &p.values);
+    set(&mut o, "start", &p.start);
+    set(&mut o, "ifVersion", &p.if_version);
+    Value::Object(o)
+}
+
+fn read_json(p: &ReadParams) -> Value {
+    let mut o = target_json(&p.target);
+    set(&mut o, "values", &p.values);
+    set(&mut o, "text", &p.text);
+    set(&mut o, "sketch", &p.sketch);
+    set(&mut o, "document", &p.document);
+    Value::Object(o)
+}
+
+fn catalog_json(p: &CatalogParams) -> Value {
+    let mut o = target_json(&p.target);
+    set(&mut o, "name", &p.name);
+    Value::Object(o)
+}
+
+fn event_json(p: &EventParams) -> Value {
+    let mut o = serde_json::Map::new();
+    o.insert("threadId".into(), json!(p.thread_id));
+    o.insert("version".into(), json!(p.version));
+    o.insert("piece".into(), json!(p.piece));
+    o.insert("event".into(), json!(p.event));
+    o.insert("requestId".into(), json!(p.request_id));
+    if let Some(scope) = &p.scope {
+        let mut sc = serde_json::Map::new();
+        set(&mut sc, "item", &scope.item);
+        sc.insert("index".into(), json!(scope.index));
+        o.insert("scope".into(), Value::Object(sc));
+    }
+    set(&mut o, "rowAction", &p.row_action);
+    Value::Object(o)
 }
 
 #[async_trait(?Send)]
-impl SlateDoor for FakeSlateDoor {
-    async fn get(&self, thread_id: &str) -> Result<Value, HostError> {
+impl Slates for FakeSlates {
+    async fn get(&self, thread_id: &str) -> Result<Option<SlateView>, HostError> {
         self.script.call("slates.get", json!({ "threadId": thread_id }))
     }
-    async fn write(&self, params: Payload, origin: Option<Caller>) -> Result<Payload, HostError> {
-        self.script.call("slates.write", json!({ "params": params, "origin": oj(&origin) }))
+    async fn write(&self, p: WriteParams, caller: Option<&Caller>) -> Result<SlateWriteAnswer, HostError> {
+        self.script.call("slates.write", json!({ "params": write_json(&p), "origin": oj(&caller.cloned()) }))
     }
-    async fn state(&self, params: Payload, origin: Option<Caller>) -> Result<Payload, HostError> {
-        self.script.call("slates.state", json!({ "params": params, "origin": oj(&origin) }))
+    async fn state(&self, p: StateParams, caller: Option<&Caller>) -> Result<SlateStateAnswer, HostError> {
+        self.script.call("slates.state", json!({ "params": state_json(&p), "origin": oj(&caller.cloned()) }))
     }
-    async fn read(&self, params: Payload, origin: Option<Caller>) -> Result<Payload, HostError> {
-        self.script.call("slates.read", json!({ "params": params, "origin": oj(&origin) }))
+    async fn read(&self, p: ReadParams, caller: Option<&Caller>) -> Result<SlateReadAnswer, HostError> {
+        self.script.call("slates.read", json!({ "params": read_json(&p), "origin": oj(&caller.cloned()) }))
     }
-    async fn catalog(&self, params: Payload, origin: Option<Caller>) -> Result<Payload, HostError> {
-        self.script.call("slates.catalog", json!({ "params": params, "origin": oj(&origin) }))
+    async fn catalog(&self, p: CatalogParams, caller: Option<&Caller>) -> Result<String, HostError> {
+        self.script.call("slates.catalog", json!({ "params": catalog_json(&p), "origin": oj(&caller.cloned()) }))
     }
     async fn shown(&self, thread_id: &str) -> Result<(), HostError> {
         self.script.call("slates.shown", json!({ "threadId": thread_id }))
     }
-    async fn event(&self, params: Payload) -> Result<Payload, HostError> {
-        self.script.call("slates.event", json!({ "params": params }))
+    async fn revoke(&self, thread_id: &str, key: &str) -> Result<(), HostError> {
+        self.script.call("slates.revoke", json!({ "threadId": thread_id, "key": key }))
     }
-    async fn approve(&self, thread_id: &str, key: &str, scope: &str) -> Result<(), HostError> {
-        self.script.call("slates.approve", json!({ "threadId": thread_id, "key": key, "scope": scope }))
+    async fn event(&self, p: EventParams) -> Result<SlateEventAnswer, HostError> {
+        self.script.call("slates.event", json!({ "params": event_json(&p) }))
+    }
+    async fn approve(&self, p: ApproveParams) -> Result<(), HostError> {
+        self.script.call("slates.approve", json!({ "threadId": p.thread_id, "key": p.key, "scope": format!("{:?}", p.scope).to_lowercase() }))
     }
     async fn cancel(&self, thread_id: &str, run: &str) -> Result<(), HostError> {
         self.script.call("slates.cancel", json!({ "threadId": thread_id, "run": run }))
     }
-    async fn revoke(&self, thread_id: &str, key: &str) -> Result<(), HostError> {
-        self.script.call("slates.revoke", json!({ "threadId": thread_id, "key": key }))
-    }
-    fn subscribe(&self, thread_id: &str, sources: Vec<String>) -> Box<dyn FnOnce()> {
+    fn subscribe(&self, thread_id: &str, sources: &[String]) -> Rc<dyn Fn()> {
         let args = json!({ "threadId": thread_id, "sources": sources });
         self.script.record("slates.subscribe", args.clone());
         let script = self.script.clone();
-        Box::new(move || {
-            script.record("slates.release", args);
+        Rc::new(move || {
+            script.record("slates.release", args.clone());
         })
     }
-    async fn resolve(&self, thread_id: &str, paths: Vec<String>) -> Result<Payload, HostError> {
+    async fn resolve(&self, thread_id: &str, paths: &[String]) -> Result<IndexMap<String, Value>, HostError> {
         self.script.call("slates.resolve", json!({ "threadId": thread_id, "paths": paths }))
     }
-    async fn image(&self, thread_id: &str, src: &str, have: Option<String>) -> Result<Payload, HostError> {
+    async fn image(&self, thread_id: &str, src: &str, have: Option<&str>) -> Result<SlatesImageAnswer, HostError> {
         self.script.call("slates.image", json!({ "threadId": thread_id, "src": src, "have": have }))
     }
+    async fn turn_ended(&self, _thread_id: &str, _turn_id: &str) -> Result<(), HostError> {
+        panic!("serve never tells the slates a turn ended")
+    }
+    async fn rewound(&self, _thread_id: &str, _turn_id: &str, _cut: &[String]) -> Result<(), HostError> {
+        panic!("serve never tells the slates a thread rewound")
+    }
+    async fn forget(&self, _thread_id: &str, _keep: bool) -> Result<(), HostError> {
+        panic!("serve never makes the slates forget a thread")
+    }
+    fn close_servers(&self, _thread_id: &str) {
+        panic!("serve never closes a thread's slate servers")
+    }
+    fn watches_pr(&self, _workspace_id: &str) -> bool {
+        panic!("serve never asks what the slates watch")
+    }
+    fn napped(&self, _workspace_id: &str) {
+        panic!("serve never tells the slates a workspace napped")
+    }
+    async fn ready(&self) -> Result<(), HostError> {
+        panic!("serve never waits on the slates")
+    }
+    async fn settled(&self) {
+        panic!("serve never waits on the slates")
+    }
+    fn close(&self) {
+        panic!("serve never closes the slates")
+    }
 }
 
-struct FakeActivityOps {
+/// `activity.*`: each call's params as JSON.
+pub struct FakeActivity {
     script: Rc<Script>,
 }
 
 #[async_trait(?Send)]
-impl ActivityOps for FakeActivityOps {
-    async fn read(&self, computer: Option<String>, thread: Option<String>, origin: Option<Caller>) -> Result<ActivityView, HostError> {
-        self.script.call("activity.read", json!({ "computer": computer, "thread": thread, "origin": oj(&origin) }))
+impl ActivityDoor for FakeActivity {
+    async fn read(&self, ask: ActivityAsk, caller: Option<Caller>) -> Result<ActivityView, HostError> {
+        self.script.call("activity.read", json!({ "computer": ask.computer, "thread": ask.thread, "threadIds": ask.thread_ids, "origin": oj(&caller) }))
     }
-    async fn end(&self, computer: Option<String>, pid: i64, started_at: f64, origin: Option<Caller>) -> Result<Payload, HostError> {
-        self.script.call("activity.end", json!({ "computer": computer, "pid": pid, "startedAt": started_at, "origin": oj(&origin) }))
+    async fn end(&self, ask: EndAsk, caller: Option<Caller>) -> Result<ActivityEnded, HostError> {
+        self.script.call("activity.end", json!({ "computer": ask.computer, "pid": ask.pid, "startedAt": ask.started_at, "origin": oj(&caller) }))
     }
-}
-
-struct FakeStartRoads {
-    script: Rc<Script>,
-}
-
-#[async_trait(?Send)]
-impl StartRoads for FakeStartRoads {
-    async fn start_at(&self, _workspaces: &dyn WorkspacesApi, msg: &RuntimeRequest, origin: Option<Caller>, opens: bool) -> Result<StartFolder, HostError> {
-        self.script.call("startRoads.startAt", json!({ "msg": serde_json::to_value(msg).unwrap(), "origin": oj(&origin), "opens": opens }))
-    }
-    async fn answered_start(&self, answer_held: bool, start: StartFn, answer: AnswerFn) -> Result<(), HostError> {
-        let call = self.script.record("startRoads.answeredStart", json!({ "answerHeld": answer_held }));
-        if let Some(scripted) = self.script.answer::<Result<(), HostError>>(&call) {
-            return scripted;
-        }
-        let handle = start(None).await?;
-        answer(SessionStartResult { session: handle.view(), outcome: handle.outcome(), turn_id: handle.turn_id(), notice: handle.notice() });
-        Ok(())
+    async fn meet(&self, thread_ids: &[String], processes: ProcessesAsk, verb: MeetVerb, caller: Option<Caller>) -> Result<Vec<ActivityEnded>, HostError> {
+        self.script.call("activity.meet", json!({ "threadIds": thread_ids, "processes": sj(&processes), "verb": dbg(&verb), "origin": oj(&caller) }))
     }
 }

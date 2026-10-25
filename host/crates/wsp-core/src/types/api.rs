@@ -54,7 +54,7 @@ use wsp_words::start::ReviewVerdict;
 
 use super::events::EventBus;
 use super::harness::StartPicksAsked;
-use super::pending::{ActivityDoor, CallbackForwards, DaemonChannel, DeviceDoor, GoldenDelta, PlaceDoor, SignInAsk, SkillAsk, Slates};
+use super::pending::{CallbackForwards, DaemonChannel, DeviceDoor, GoldenDelta, SignInAsk, SkillAsk};
 use super::wiring::{
     CreateWorkspaceOptions, CreatedWorkspace, Detach, GoldenBuildRequest, GoldenPromotion, GoldenRecipe, GoldenUpgradeResult,
     OriginStatusApi, ProjectExportOptions, ProjectImportOptions, RecipeShelf, RunningExec, SessionHandle, SizeAsk, SweepResult,
@@ -65,12 +65,19 @@ use super::wiring::{
 pub type DaemonEventListener = Rc<dyn Fn(serde_json::Map<String, serde_json::Value>)>;
 
 /// The host's core, as every door calls it. api.ts:65-712.
+///
+/// `places`, `slates` and `activity` are typed by the crates that hold them (wsp-machines' `PlaceDoor`, wsp-slates'
+/// `Slates`, wsp-threads' `ActivityDoor`), which sit above this one and cannot be named here, so the runtime says
+/// which they are: `dyn Runtime<Places = dyn PlaceDoor, Slates = dyn Slates, Activity = dyn ActivityDoor>`.
 #[async_trait(?Send)]
 pub trait Runtime {
+    type Places: ?Sized;
+    type Slates: ?Sized;
+    type Activity: ?Sized;
     fn events(&self) -> Rc<dyn EventBus>;
     fn backend(&self) -> std::sync::Arc<dyn MachineBackend>;
     /// None on a runtime wired without places.
-    fn places(&self) -> Option<Rc<dyn PlaceDoor>>;
+    fn places(&self) -> Option<Rc<Self::Places>>;
     fn recipes(&self) -> Option<Rc<dyn RecipeShelf>>;
     async fn here_channel(&self, on_event: DaemonEventListener) -> Result<Rc<dyn DaemonChannel>, HostError>;
     fn place_kills(&self, channel: Rc<dyn DaemonChannel>) -> Rc<dyn DaemonChannel>;
@@ -87,8 +94,8 @@ pub trait Runtime {
     fn status(&self) -> Rc<dyn OriginStatusApi>;
     fn usage(&self) -> Rc<dyn UsageDoor>;
     fn conversations(&self) -> &dyn ConversationsApi;
-    fn slates(&self) -> Rc<dyn Slates>;
-    fn activity(&self) -> Rc<dyn ActivityDoor>;
+    fn slates(&self) -> Rc<Self::Slates>;
+    fn activity(&self) -> Rc<Self::Activity>;
     fn devices(&self) -> Rc<dyn DeviceDoor>;
     fn preferences(&self) -> &dyn PreferencesApi;
     /// This state file's owner id, minted on the first read when it has none.

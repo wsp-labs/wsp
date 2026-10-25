@@ -67,7 +67,7 @@ serve.ts:369-373 (`handed`), 1170-1473, 1634-1678 at `65f6b89c7`. Rust: `src/ser
 
 ## Readings and exec
 
-- S17. `sys.subscribe` and `sys.unsubscribe` go to the socket's sys road (`ServedRuntime::sys_ops`); a
+- S17. `sys.subscribe` and `sys.unsubscribe` go to the socket's sys road (wsp-core's `sys_socket`, handed the runtime and this socket); a
   `sys.subscribe` naming a `placeId` is gated to the own road first (serve.ts:1468-1473). The road's own rules
   (one subscription however many panes, one sampler, a machine that reads its own refused) are wsp-core's
   `sys_socket`, not this unit's.

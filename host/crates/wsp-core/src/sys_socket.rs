@@ -53,6 +53,6 @@ pub struct SysAsk {
 /// One socket's handler of every sys op. Registers the socket's leave at once, which detaches every watch the socket
 /// holds. Refuses an ask naming both or neither of `workspace_id` and `place_id` with SYS_SUBSCRIBE_ONE_OF before
 /// anything is sent. sys-socket.ts:15.
-pub fn sys_socket(rt: Rc<dyn SysWatch>, socket: Rc<dyn SocketSide>) -> Rc<dyn Fn(SysAsk, Send, Option<Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>> {
+pub fn sys_socket<R: SysWatch + ?Sized + 'static>(rt: Rc<R>, socket: Rc<dyn SocketSide>) -> Rc<dyn Fn(SysAsk, Send, Option<Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>> {
     todo!()
 }

@@ -8,10 +8,14 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use async_trait::async_trait;
+use futures::future::{FutureExt, LocalBoxFuture, Shared};
+use indexmap::IndexMap;
 use serde_json::{json, Value};
-use wsp_core::types::api::{OutsideOpening, Placed, PlacedStart, ProjectAdded, ProjectRemoved, Runtime, SeedAsk, SettleAsk};
-use wsp_core::types::api::{ConversationAsk, WorkspacesApi};
-use wsp_serve::serve::served::{Payload, ServedRuntime};
+use wsp_adapters::port::{TaskStop, TurnImage};
+use wsp_core::types::api::{ConversationAsk, FolderFor, FolderForAsk, HeldStart, Runtime};
+use wsp_core::types::api::{OutsideOpening, Placed, PlacedStart, ProjectAdded, ProjectRemoved, SeedAsk, SettleAsk};
+use wsp_core::types::wiring::{AccessMove, Local, SessionHandle, SteerTaken};
+use wsp_serve::serve::served::{DynRuntime, Payload};
 use wsp_serve::serve_app_procs::{
     app_procs_hub_of, is_app_procs_request, AppProcsHub, AppProcsSocket, Push, APP_PROCS_OFF_ROAD, APP_PROCS_UNOFFERED, APP_PROCS_WATCH_OFF_ROAD,
 };
@@ -19,15 +23,20 @@ use wsp_serve::serve_broker::{answer_broker, BrokerDoor, CloudSignIn, BROKER_UNS
 use wsp_serve::serve_conversations::answer_conversations;
 use wsp_serve::serve_processes::answer_processes;
 use wsp_serve::serve_projects::{answer_project, thread_places};
-use wsp_serve::serve_slates::{answer_slate, hold_key, SlateDoor, SlateHolds};
-use wsp_serve::serve_start::{serve_start, start_options_of, AnswerFn, StartFn, StartFolder, StartRoads};
+use wsp_serve::serve_slates::{answer_slate, hold_key, SlateHolds};
+use wsp_serve::serve_start::{serve_start, start_options_of, AnswerFn};
+use wsp_slates::pending::wire::{SlateEventAnswer, SlateEventOutcome, SlateReadAnswer, SlateStateAnswer, SlateView, SlateWriteAnswer, SlatesImageAnswer};
+use wsp_slates::slates::{ApprovalScope, ApproveParams, CatalogParams, EventParams, ReadParams, SlateTarget, Slates, StateParams, WriteParams};
+use wsp_threads::threads::answered_start::{OnHeld, StartedAt};
 use wsp_wire::types::projects::BRANCH_ON_A_THREAD_LINE;
 use wsp_wire::types::thread_defaults::AccessChoice;
-use wsp_wire::views::session::SessionOrigin;
+use wsp_wire::views::activity::ActivityEnded;
+use wsp_wire::views::session::{SessionOrigin, SessionView};
+use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::views::workspace_more::WorkspaceOrigin;
 use wsp_wire::wire::place_link::PLACES_TICKET_REFUSAL;
-use wsp_wire::wire::runtime::{BrokerStatus, ProviderKeyWorks, SessionStartResult};
+use wsp_wire::wire::runtime::{BrokerStatus, ProviderKeyWorks, SessionAnswerResult, SessionStartOutcome};
 use wsp_wire::wire::runtime_ops::{parse_runtime_request, RuntimeRequest};
 use wsp_words::exit::{usage_refusal, HostError, Kind};
 use wsp_words::place_word::{place_said, PlaceRef};
@@ -239,90 +248,183 @@ fn a_close_drops_the_offer_and_tells_every_watcher() {
 // ---------------------------------------------------------------------------------------------------------------
 // The slate answers (serve-slates.ts).
 
-struct Slates {
+struct RecordedSlates {
     log: Rc<RefCell<Vec<Value>>>,
     held: Cell<u64>,
 }
 
-fn slates() -> (Rc<dyn SlateDoor>, Rc<RefCell<Vec<Value>>>) {
+fn slates() -> (Rc<dyn Slates>, Rc<RefCell<Vec<Value>>>) {
     let log = Rc::new(RefCell::new(Vec::new()));
-    (Rc::new(Slates { log: log.clone(), held: Cell::new(0) }), log)
+    (Rc::new(RecordedSlates { log: log.clone(), held: Cell::new(0) }), log)
 }
 
-impl Slates {
+impl RecordedSlates {
     fn note(&self, call: &str, args: Value) {
         self.log.borrow_mut().push(json!({ "call": call, "args": args }));
     }
 }
 
-fn payload(v: Value) -> Payload {
-    match v {
-        Value::Object(m) => m,
-        other => panic!("not an object: {other}"),
+fn put<T: serde::Serialize>(out: &mut serde_json::Map<String, Value>, key: &str, v: &Option<T>) {
+    if let Some(v) = v {
+        out.insert(key.into(), serde_json::to_value(v).unwrap());
     }
 }
 
+fn target_json(t: &SlateTarget) -> serde_json::Map<String, Value> {
+    let mut out = serde_json::Map::new();
+    put(&mut out, "threadId", &t.thread_id);
+    put(&mut out, "turnToken", &t.turn_token);
+    out
+}
+
+fn origin_json(origin: Option<&Caller>) -> Value {
+    support::script::caller_json(&origin.cloned())
+}
+
 #[async_trait(?Send)]
-impl SlateDoor for Slates {
-    async fn get(&self, thread_id: &str) -> Result<Value, HostError> {
+impl Slates for RecordedSlates {
+    async fn get(&self, thread_id: &str) -> Result<Option<SlateView>, HostError> {
         self.note("get", json!({ "threadId": thread_id }));
-        Ok(json!({ "version": 4 }))
+        Ok(Some(SlateView {
+            thread_id: thread_id.into(),
+            workspace_id: "ws_1".into(),
+            version: 4,
+            revision: 1,
+            document: None,
+            values: IndexMap::new(),
+            empty: None,
+            comments: vec![],
+            approvals: IndexMap::new(),
+            asks: vec![],
+            problems: vec![],
+            shown_once: false,
+            can_undo: false,
+            updated_at: 0,
+        }))
     }
-    async fn write(&self, params: Payload, origin: Option<Caller>) -> Result<Payload, HostError> {
-        self.note("write", json!({ "params": params, "origin": support::script::caller_json(&origin) }));
-        Ok(payload(json!({ "version": 5, "from": "write" })))
+    async fn write(&self, p: WriteParams, caller: Option<&Caller>) -> Result<SlateWriteAnswer, HostError> {
+        let mut o = target_json(&p.target);
+        put(&mut o, "text", &p.text);
+        put(&mut o, "document", &p.document);
+        put(&mut o, "check", &p.check);
+        put(&mut o, "ifVersion", &p.if_version);
+        put(&mut o, "values", &p.values);
+        self.note("write", json!({ "params": o, "origin": origin_json(caller) }));
+        Ok(SlateWriteAnswer { version: 5, text: "wrote".into(), warnings: vec![], problems: vec![], waiting: None })
     }
-    async fn state(&self, params: Payload, origin: Option<Caller>) -> Result<Payload, HostError> {
-        self.note("state", json!({ "params": params, "origin": support::script::caller_json(&origin) }));
-        Ok(payload(json!({ "from": "state" })))
+    async fn state(&self, p: StateParams, caller: Option<&Caller>) -> Result<SlateStateAnswer, HostError> {
+        let mut o = target_json(&p.target);
+        put(&mut o, "values", &p.values);
+        put(&mut o, "start", &p.start);
+        put(&mut o, "ifVersion", &p.if_version);
+        self.note("state", json!({ "params": o, "origin": origin_json(caller) }));
+        Ok(SlateStateAnswer { version: 6, text: "stated".into(), problems: vec![], waiting: None, not_started: None })
     }
-    async fn read(&self, params: Payload, origin: Option<Caller>) -> Result<Payload, HostError> {
-        self.note("read", json!({ "params": params, "origin": support::script::caller_json(&origin) }));
-        Ok(payload(json!({ "from": "read" })))
+    async fn read(&self, p: ReadParams, caller: Option<&Caller>) -> Result<SlateReadAnswer, HostError> {
+        let mut o = target_json(&p.target);
+        put(&mut o, "values", &p.values);
+        put(&mut o, "text", &p.text);
+        put(&mut o, "sketch", &p.sketch);
+        put(&mut o, "document", &p.document);
+        self.note("read", json!({ "params": o, "origin": origin_json(caller) }));
+        Ok(SlateReadAnswer {
+            version: 4,
+            text: "read".into(),
+            document: None,
+            values: IndexMap::new(),
+            state: IndexMap::new(),
+            derived: IndexMap::new(),
+            runs: IndexMap::new(),
+            problems: vec![],
+            waiting: vec![],
+            comments: vec![],
+            approvals: IndexMap::new(),
+        })
     }
-    async fn catalog(&self, params: Payload, origin: Option<Caller>) -> Result<Payload, HostError> {
-        self.note("catalog", json!({ "params": params, "origin": support::script::caller_json(&origin) }));
-        Ok(payload(json!({ "from": "catalog" })))
+    async fn catalog(&self, p: CatalogParams, caller: Option<&Caller>) -> Result<String, HostError> {
+        let mut o = target_json(&p.target);
+        put(&mut o, "name", &p.name);
+        self.note("catalog", json!({ "params": o, "origin": origin_json(caller) }));
+        Ok("catalog".into())
     }
     async fn shown(&self, thread_id: &str) -> Result<(), HostError> {
         self.note("shown", json!({ "threadId": thread_id }));
-        Ok(())
-    }
-    async fn event(&self, params: Payload) -> Result<Payload, HostError> {
-        self.note("event", json!({ "params": params }));
-        Ok(payload(json!({ "from": "event" })))
-    }
-    async fn approve(&self, thread_id: &str, key: &str, scope: &str) -> Result<(), HostError> {
-        self.note("approve", json!({ "threadId": thread_id, "key": key, "scope": scope }));
-        Ok(())
-    }
-    async fn cancel(&self, thread_id: &str, run: &str) -> Result<(), HostError> {
-        self.note("cancel", json!({ "threadId": thread_id, "run": run }));
         Ok(())
     }
     async fn revoke(&self, thread_id: &str, key: &str) -> Result<(), HostError> {
         self.note("revoke", json!({ "threadId": thread_id, "key": key }));
         Ok(())
     }
-    fn subscribe(&self, thread_id: &str, sources: Vec<String>) -> Box<dyn FnOnce()> {
+    async fn event(&self, p: EventParams) -> Result<SlateEventAnswer, HostError> {
+        let mut o = serde_json::Map::new();
+        o.insert("threadId".into(), json!(p.thread_id));
+        o.insert("version".into(), json!(p.version));
+        o.insert("piece".into(), json!(p.piece));
+        o.insert("event".into(), json!(p.event));
+        o.insert("requestId".into(), json!(p.request_id));
+        put(&mut o, "rowAction", &p.row_action);
+        self.note("event", json!({ "params": o }));
+        Ok(SlateEventAnswer { outcome: SlateEventOutcome::Done, said: "pressed".into(), turn_id: None, ask: None })
+    }
+    async fn approve(&self, p: ApproveParams) -> Result<(), HostError> {
+        let scope = match p.scope {
+            ApprovalScope::Once => "once",
+            ApprovalScope::Thread => "thread",
+            ApprovalScope::Refuse => "refuse",
+        };
+        self.note("approve", json!({ "threadId": p.thread_id, "key": p.key, "scope": scope }));
+        Ok(())
+    }
+    async fn cancel(&self, thread_id: &str, run: &str) -> Result<(), HostError> {
+        self.note("cancel", json!({ "threadId": thread_id, "run": run }));
+        Ok(())
+    }
+    fn subscribe(&self, thread_id: &str, sources: &[String]) -> Rc<dyn Fn()> {
         let n = self.held.get() + 1;
         self.held.set(n);
         self.note("subscribe", json!({ "n": n, "threadId": thread_id, "sources": sources }));
         let log = self.log.clone();
-        Box::new(move || log.borrow_mut().push(json!({ "call": "release", "args": { "n": n } })))
+        Rc::new(move || log.borrow_mut().push(json!({ "call": "release", "args": { "n": n } })))
     }
-    async fn resolve(&self, thread_id: &str, paths: Vec<String>) -> Result<Payload, HostError> {
+    async fn resolve(&self, thread_id: &str, paths: &[String]) -> Result<IndexMap<String, Value>, HostError> {
         self.note("resolve", json!({ "threadId": thread_id, "paths": paths }));
-        Ok(payload(json!({ "from": "resolve" })))
+        Ok(IndexMap::from([("a.png".to_string(), json!("resolved"))]))
     }
-    async fn image(&self, thread_id: &str, src: &str, have: Option<String>) -> Result<Payload, HostError> {
+    async fn image(&self, thread_id: &str, src: &str, have: Option<&str>) -> Result<SlatesImageAnswer, HostError> {
         self.note("image", json!({ "threadId": thread_id, "src": src, "have": have }));
-        Ok(payload(json!({ "from": "image" })))
+        Ok(json!({ "from": "image" }))
+    }
+    async fn turn_ended(&self, _thread_id: &str, _turn_id: &str) -> Result<(), HostError> {
+        panic!("serve never tells the slates a turn ended")
+    }
+    async fn rewound(&self, _thread_id: &str, _turn_id: &str, _cut: &[String]) -> Result<(), HostError> {
+        panic!("serve never tells the slates a thread rewound")
+    }
+    async fn forget(&self, _thread_id: &str, _keep: bool) -> Result<(), HostError> {
+        panic!("serve never makes the slates forget a thread")
+    }
+    fn close_servers(&self, _thread_id: &str) {
+        panic!("serve never closes a thread's slate servers")
+    }
+    fn watches_pr(&self, _workspace_id: &str) -> bool {
+        panic!("serve never asks what the slates watch")
+    }
+    fn napped(&self, _workspace_id: &str) {
+        panic!("serve never tells the slates a workspace napped")
+    }
+    async fn ready(&self) -> Result<(), HostError> {
+        panic!("serve never waits on the slates")
+    }
+    async fn settled(&self) {
+        panic!("serve never waits on the slates")
+    }
+    fn close(&self) {
+        panic!("serve never closes the slates")
     }
 }
 
 struct SlateRig {
-    door: Rc<dyn SlateDoor>,
+    door: Rc<dyn Slates>,
     log: Rc<RefCell<Vec<Value>>>,
     holds: Rc<RefCell<SlateHolds>>,
     detaches: Rc<RefCell<Vec<Box<dyn FnOnce()>>>>,
@@ -358,9 +460,10 @@ impl SlateRig {
 fn slate_answers_split_params_and_origin() {
     block(async {
         let rig = slate_rig();
-        assert_eq!(rig.ask("slates.get", json!({ "threadId": "t1" })).await.unwrap(), json!({ "slate": { "version": 4 } }));
+        let got = rig.ask("slates.get", json!({ "threadId": "t1" })).await.unwrap();
+        assert_eq!(got["slate"]["version"], json!(4), "the slate rides under its own key");
         let wrote = rig.ask("slates.write", json!({ "threadId": "t1", "text": "hi", "origin": "paired" })).await.unwrap();
-        assert_eq!(wrote, json!({ "version": 5, "from": "write" }));
+        assert_eq!(wrote, json!({ "version": 5, "text": "wrote", "warnings": [], "problems": [] }));
         rig.ask("slates.state", json!({ "threadId": "t1", "start": ["run"] })).await.unwrap();
         rig.ask("slates.read", json!({ "threadId": "t1", "values": ["a"] })).await.unwrap();
         rig.ask("slates.catalog", json!({ "name": "runs" })).await.unwrap();
@@ -372,7 +475,7 @@ fn slate_answers_split_params_and_origin() {
             .ask("slates.event", json!({ "threadId": "t1", "version": 4, "piece": "p", "event": "press", "requestId": "q", "origin": "paired" }))
             .await
             .unwrap();
-        assert_eq!(event, json!({ "from": "event" }));
+        assert_eq!(event, json!({ "outcome": "done", "said": "pressed" }));
         rig.ask("slates.resolve", json!({ "threadId": "t1", "paths": ["a.png"] })).await.unwrap();
         rig.ask("slates.image", json!({ "threadId": "t1", "src": "a.png" })).await.unwrap();
         rig.ask("slates.image", json!({ "threadId": "t1", "src": "a.png", "have": "h" })).await.unwrap();
@@ -713,7 +816,7 @@ fn project_answers_pass_only_the_fields_sent() {
 fn processes_and_conversations_pass_only_the_fields_sent() {
     block(async {
         let rt = FakeRuntime::new();
-        let door: &dyn ServedRuntime = &*rt;
+        let door: &DynRuntime = &*rt;
 
         let view = json!({ "computer": "here", "at": 1, "threads": [], "wsp": [], "unowned": [] });
         rt.script.once::<Result<wsp_wire::views::activity::ActivityView, HostError>>("activity.read", Ok(from(view.clone())));
@@ -722,9 +825,10 @@ fn processes_and_conversations_pass_only_the_fields_sent() {
         let a = args_of(&rt, "activity.read", 0);
         assert_eq!((a["computer"].clone(), a["thread"].clone()), (Value::Null, json!("t1")), "computer is passed only when present");
 
-        rt.script.once::<Result<Payload, HostError>>("activity.end", Ok(payload(json!({ "ended": [4200] }))));
+        let ending = json!({ "pid": 4200, "ended": [], "forced": [], "left": [] });
+        rt.script.once::<Result<ActivityEnded, HostError>>("activity.end", Ok(from(ending.clone())));
         let ended = answer_processes(door, &req("activity.end", json!({ "computer": "pl_1", "pid": 4200, "startedAt": 7 })), here()).await.unwrap();
-        assert_eq!(Value::Object(ended), json!({ "ended": [4200] }));
+        assert_eq!(Value::Object(ended), ending);
         let a = args_of(&rt, "activity.end", 0);
         assert_eq!((a["computer"].clone(), a["pid"].clone(), a["startedAt"].clone()), (json!("pl_1"), json!(4200), json!(7.0)));
 
@@ -770,35 +874,12 @@ fn processes_and_conversations_pass_only_the_fields_sent() {
 // ---------------------------------------------------------------------------------------------------------------
 // serveStart (serve-start.ts)
 
-struct Roads {
-    log: Rc<RefCell<Vec<Value>>>,
-    folder: StartFolder,
-    answers: Vec<SessionStartResult>,
+fn found(workspace_id: &str, cwd: &str, setup: &str) -> FolderFor {
+    FolderFor { workspace: workspace(workspace_id, "local"), cwd: Some(cwd.into()), setup: Some(setup.into()) }
 }
 
-fn roads(folder: StartFolder, answers: Vec<SessionStartResult>) -> (Rc<Roads>, Rc<RefCell<Vec<Value>>>) {
-    let log = Rc::new(RefCell::new(Vec::new()));
-    (Rc::new(Roads { log: log.clone(), folder, answers }), log)
-}
-
-#[async_trait(?Send)]
-impl StartRoads for Roads {
-    async fn start_at(&self, _workspaces: &dyn WorkspacesApi, msg: &RuntimeRequest, origin: Option<Caller>, opens: bool) -> Result<StartFolder, HostError> {
-        self.log.borrow_mut().push(json!({ "call": "startAt", "opens": opens, "op": msg.op.name(), "origin": support::script::caller_json(&origin) }));
-        Ok(self.folder.clone())
-    }
-    async fn answered_start(&self, answer_held: bool, start: StartFn, answer: AnswerFn) -> Result<(), HostError> {
-        self.log.borrow_mut().push(json!({ "call": "answeredStart", "answerHeld": answer_held }));
-        for a in &self.answers {
-            answer(a.clone());
-        }
-        start(None).await?;
-        Ok(())
-    }
-}
-
-fn folder() -> StartFolder {
-    StartFolder { workspace_id: "ws_7".into(), cwd: Some("/work".into()), setup: Some("make".into()) }
+fn script_folder(rt: &FakeRuntime) {
+    rt.script.once::<Result<FolderFor, HostError>>("workspaces.folderFor", Ok(found("ws_7", "/work", "make")));
 }
 
 fn quiet_reply() -> AnswerFn {
@@ -829,11 +910,9 @@ type Handle = Rc<dyn wsp_core::types::wiring::SessionHandle>;
 fn start_refusals_in_order() {
     block(async {
         let rt = FakeRuntime::new();
-        let (r, log) = roads(folder(), vec![]);
         let run = |fields: Value| {
             let rt = rt.clone();
-            let r = r.clone();
-            async move { serve_start(&*rt, &*r, &start_msg(fields), here(), quiet_reply()).await.unwrap_err() }
+            async move { serve_start(&*rt, &start_msg(fields), here(), quiet_reply()).await.unwrap_err() }
         };
         let branch = run(json!({ "workspaceId": "ws_1", "branch": "b" })).await;
         assert_eq!(branch.message, BRANCH_ON_A_THREAD_LINE);
@@ -853,7 +932,6 @@ fn start_refusals_in_order() {
         assert_eq!(both, beside, "beside is checked before resume");
 
         assert!(rt.script.calls().is_empty(), "nothing is read before a refusal");
-        assert!(log.borrow().is_empty());
     })
 }
 
@@ -863,12 +941,10 @@ fn a_fork_reads_nothing_else() {
     block(async {
         let rt = FakeRuntime::new();
         stopped::<Handle>(&rt, "sessions.fork", 1);
-        let (r, log) = roads(folder(), vec![]);
         let msg = start_msg(json!({ "fork": { "threadId": "t1" }, "branch": "feature", "model": "opus", "answerHeld": true, "title": "T" }));
-        let e = serve_start(&*rt, &*r, &msg, here(), quiet_reply()).await.unwrap_err();
+        let e = serve_start(&*rt, &msg, here(), quiet_reply()).await.unwrap_err();
         assert_eq!(e.message, "stop", "the fork's own answer comes back");
         assert_eq!(rt.script.names(), vec!["sessions.fork"], "no conversation placed, no folder read, no start");
-        assert_eq!(*log.borrow(), vec![json!({ "call": "answeredStart", "answerHeld": true })]);
         let a = args_of(&rt, "sessions.fork", 0);
         assert_eq!(a["origin"], json!("here"));
         assert_eq!(a["opts"]["fork"], json!({ "threadId": "t1" }));
@@ -877,6 +953,7 @@ fn a_fork_reads_nothing_else() {
         assert_eq!((start["prompt"].clone(), start["model"].clone(), start["title"].clone()), (json!("go"), json!("opus"), json!("T")));
         assert_eq!((start["cwd"].clone(), start["setup"].clone(), start["thread"].clone()), (Value::Null, Value::Null, Value::Null), "a fork has no folder of its own");
         assert_eq!(start["outside"], Value::Null);
+        assert_eq!(start["onHeld"], json!(true), "answerHeld asks the start road to hear of a hold");
     })
 }
 
@@ -888,11 +965,9 @@ fn a_resume_is_read_before_the_folder() {
         let outside = OutsideOpening { harness: "claude".into(), id: "c9".into(), copy: true, project: "app".into(), cwd: Some("/w".into()), title: "old".into(), earlier: vec![] };
         rt.script.once::<Result<Placed, HostError>>("conversations.placed", Ok(Placed { workspace_id: "ws_resumed".into(), cwd: Some("/w".into()), outside }));
         stopped::<Handle>(&rt, "sessions.start", 1);
-        let (r, log) = roads(folder(), vec![]);
         let msg = start_msg(json!({ "resume": { "id": "c9", "copy": true }, "project": "app", "harness": "claude" }));
-        serve_start(&*rt, &*r, &msg, here(), quiet_reply()).await.unwrap_err();
-        assert_eq!(rt.script.names(), vec!["conversations.placed", "sessions.start"]);
-        assert!(log.borrow().iter().all(|c| c["call"] != "startAt"), "where the conversation answers it is the folder");
+        serve_start(&*rt, &msg, here(), quiet_reply()).await.unwrap_err();
+        assert_eq!(rt.script.names(), vec!["conversations.placed", "sessions.start"], "where the conversation answers it is the folder");
         let placed = args_of(&rt, "conversations.placed", 0);
         let ask = PlacedStart { workspace_id: None, project: Some("app".into()), harness: Some("claude".into()), thread: None, branch: None, cwd: None };
         assert_eq!(placed["start"], json!(format!("{ask:?}")));
@@ -909,38 +984,108 @@ fn a_resume_is_read_before_the_folder() {
 fn opens_only_without_a_thread() {
     block(async {
         let rt = FakeRuntime::new();
-        stopped::<Handle>(&rt, "sessions.start", 2);
-        let (r, log) = roads(folder(), vec![]);
-        serve_start(&*rt, &*r, &start_msg(json!({ "project": "app" })), here(), quiet_reply()).await.unwrap_err();
-        serve_start(&*rt, &*r, &start_msg(json!({ "thread": "t1", "workspaceId": "ws_1" })), here(), quiet_reply()).await.unwrap_err();
-        let reads: Vec<Value> = log.borrow().iter().filter(|c| c["call"] == "startAt").cloned().collect();
-        assert_eq!(reads.len(), 2);
-        assert_eq!((reads[0]["opens"].clone(), reads[1]["opens"].clone()), (json!(true), json!(false)));
-        assert_eq!(reads[0]["op"], json!("sessions.start"));
+        stopped::<Handle>(&rt, "sessions.start", 4);
+        script_folder(&rt);
+        script_folder(&rt);
+        rt.script.once::<Result<Option<String>, HostError>>("workspaces.takeSetupLine", Ok(Some("make".into())));
+        for fields in [json!({ "project": "app" }), json!({ "project": "app", "thread": "t1" }), json!({ "workspaceId": "ws_1" }), json!({ "thread": "t1", "workspaceId": "ws_1" })] {
+            serve_start(&*rt, &start_msg(fields), here(), quiet_reply()).await.unwrap_err();
+        }
+        let asked = |n: usize| args_of(&rt, "workspaces.folderFor", n)["ask"].clone();
+        assert_eq!(rt.script.calls_to("workspaces.folderFor").len(), 2);
+        assert_eq!(asked(0), json!(format!("{:?}", FolderForAsk { project: Some("app".into()), opens: true, ..Default::default() })));
+        assert_eq!(asked(1), json!(format!("{:?}", FolderForAsk { project: Some("app".into()), opens: false, ..Default::default() })));
+        let setups = rt.script.calls_to("workspaces.takeSetupLine");
+        assert_eq!(setups.len(), 1, "a start with a thread takes no setup line");
+        assert_eq!(setups[0].args["workspaceId"], json!("ws_1"));
         assert!(rt.script.calls_to("conversations.placed").is_empty(), "no resume reads no conversation");
         let first = args_of(&rt, "sessions.start", 0);
         assert_eq!(first["workspaceId"], json!("ws_7"), "the folder's record");
         assert_eq!((first["opts"]["cwd"].clone(), first["opts"]["setup"].clone()), (json!("/work"), json!("make")));
         assert_eq!(first["opts"]["outside"], Value::Null);
         assert_eq!(first["origin"], json!("here"));
+        assert_eq!(args_of(&rt, "sessions.start", 2)["opts"]["setup"], json!("make"), "a named workspace that opens takes its setup line");
+        assert_eq!(args_of(&rt, "sessions.start", 3)["opts"]["setup"], Value::Null);
     })
 }
 
-// H14. Each answer the start road makes reaches the reply, in turn, whatever the road's own words are.
+struct StartedHandle {
+    view: SessionView,
+}
+
+impl SessionHandle for StartedHandle {
+    fn id(&self) -> String {
+        self.view.id.clone()
+    }
+    fn workspace_id(&self) -> String {
+        self.view.workspace_id.clone()
+    }
+    fn finished(&self) -> Shared<LocalBoxFuture<'static, TurnResult>> {
+        futures::future::pending::<TurnResult>().boxed_local().shared()
+    }
+    fn turn_id(&self) -> String {
+        "tu_1".into()
+    }
+    fn outcome(&self) -> SessionStartOutcome {
+        SessionStartOutcome::Started
+    }
+    fn notice(&self) -> Option<String> {
+        None
+    }
+    fn view(&self) -> SessionView {
+        self.view.clone()
+    }
+    fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
+        async {}.boxed_local()
+    }
+    fn steer(&self, _prompt: String, _id: Option<String>, _images: Vec<TurnImage>) -> Option<Local<'static, SteerTaken>> {
+        None
+    }
+    fn tells_unread(&self) -> Option<bool> {
+        None
+    }
+    fn answer(&self, _ask_id: String, _option_id: String, _reason: Option<String>) -> Option<Local<'static, SessionAnswerResult>> {
+        None
+    }
+    fn set_access(&self, _mode: String) -> Option<Local<'static, AccessMove>> {
+        None
+    }
+    fn stop_task(&self, _task: String) -> Option<Local<'static, TaskStop>> {
+        None
+    }
+}
+
+// H14. What the start road answers reaches the reply, whatever the road's own words are.
 #[test]
 fn answers_reach_the_reply_each_in_turn() {
     block(async {
         let rt = FakeRuntime::new();
-        stopped::<Handle>(&rt, "sessions.start", 1);
-        let held = json!({ "session": { "id": "s1", "workspaceId": "ws_7", "harness": "claude", "status": "running" }, "outcome": "held", "turnId": "tu_1" });
-        let started = json!({ "session": { "id": "s1", "workspaceId": "ws_7", "harness": "claude", "status": "running" }, "outcome": "started", "turnId": "tu_1" });
-        let (r, _) = roads(folder(), vec![from(held), from(started)]);
+        script_folder(&rt);
+        let view = from(json!({ "id": "s1", "workspaceId": "ws_7", "harness": "claude", "status": "running" }));
+        rt.script.once::<Result<Handle, HostError>>("sessions.start", Ok(Rc::new(StartedHandle { view })));
         let seen: Rc<RefCell<Vec<Value>>> = Rc::new(RefCell::new(Vec::new()));
         let kept = seen.clone();
         let reply: AnswerFn = Rc::new(move |a| kept.borrow_mut().push(serde_json::to_value(&a).unwrap()));
-        serve_start(&*rt, &*r, &start_msg(json!({ "project": "app", "answerHeld": true })), here(), reply).await.unwrap_err();
+        serve_start(&*rt, &start_msg(json!({ "project": "app", "answerHeld": true })), here(), reply).await.unwrap();
         let outcomes: Vec<Value> = seen.borrow().iter().map(|a| a["outcome"].clone()).collect();
-        assert_eq!(outcomes, vec![json!("held"), json!("started")]);
+        assert_eq!(outcomes, vec![json!("started")]);
+        assert_eq!(seen.borrow()[0]["turnId"], json!("tu_1"));
+        assert_eq!(args_of(&rt, "sessions.start", 0)["opts"]["onHeld"], json!(true));
+
+        let capped = json!({ "placeId": "here", "place": "this computer", "running": 1, "atOnce": 1 });
+        let held_view: SessionView = from(json!({ "id": "s2", "workspaceId": "ws_7", "harness": "claude", "status": "running", "capped": capped }));
+        rt.script.once::<HeldStart>("sessions.start.held", HeldStart { view: held_view, turn_id: "tu_2".into(), wait: from(capped) });
+        rt.script.once::<Result<Handle, HostError>>("sessions.start", Ok(Rc::new(StartedHandle { view: from(json!({ "id": "s2", "workspaceId": "ws_7", "harness": "claude", "status": "running" })) })));
+        seen.borrow_mut().clear();
+        serve_start(&*rt, &start_msg(json!({ "project": "app", "answerHeld": true })), here(), Rc::new({
+            let kept = seen.clone();
+            move |a| kept.borrow_mut().push(serde_json::to_value(&a).unwrap())
+        }))
+        .await
+        .unwrap();
+        let outcomes: Vec<Value> = seen.borrow().iter().map(|a| a["outcome"].clone()).collect();
+        assert_eq!(outcomes, vec![json!("held")], "a held start is answered at once and not again when its turn starts");
+        assert_eq!(seen.borrow()[0]["turnId"], json!("tu_2"));
     })
 }
 
@@ -952,8 +1097,8 @@ fn start_options_copy_only_the_named_fields_in_order() {
         "permissionMode": "plan", "access": "full", "contextWindow": "1m", "fast": true, "startedBy": "cli", "requestId": "rq", "answerHeld": true,
         "followed": true, "attempt": "a1", "notify": ["x"], "turnToken": "tt", "title": "T", "replaces": "t0",
     }));
-    let at = StartFolder { workspace_id: "ws_7".into(), cwd: Some("/work".into()), setup: Some("make".into()) };
-    let held: wsp_serve::serve_start::OnHeld = Rc::new(|_| {});
+    let at = StartedAt { workspace_id: "ws_7".into(), cwd: Some("/work".into()), setup: Some("make".into()) };
+    let held: OnHeld = Rc::new(|_| {});
     let o = start_options_of(&msg, &at, None, Some(held));
     assert_eq!(o.prompt, "go");
     assert!(o.on_held.is_some());
@@ -972,7 +1117,7 @@ fn start_options_copy_only_the_named_fields_in_order() {
     assert!(o.r#as.is_none() && o.mcp_servers.is_none() && o.behind.is_none() && o.after_limit.is_none() && o.fork.is_none());
     assert!(!o.via_slate && !o.wakes_lead && !o.owed && !o.asks_until_stopped, "what the frame cannot name stays off");
 
-    let bare = start_options_of(&start_msg(json!({ "followed": false })), &StartFolder::default(), None, None);
+    let bare = start_options_of(&start_msg(json!({ "followed": false })), &StartedAt::default(), None, None);
     assert_eq!(bare.prompt, "go");
     assert!(bare.followed.is_none(), "followed rides only when true");
     assert!(bare.on_held.is_none() && bare.harness.is_none() && bare.cwd.is_none() && bare.setup.is_none() && bare.outside.is_none());

@@ -4,6 +4,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 use wsp_core::daemon_channel::DaemonChannel;
 use wsp_machines::places::helpers::LinkSocket;
@@ -12,7 +13,11 @@ use wsp_wire::views::workspace::Caller;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 
 use super::door::Served;
-use super::served::{Payload, SocketOps};
+use wsp_core::sign_in_socket::SignInOp;
+use wsp_core::sys_socket::{Send, SocketSide, SysAsk};
+use wsp_words::exit::HostError;
+
+use super::served::Payload;
 use super::{Authed, UpgradeHead};
 use crate::serve_slates::SlateHolds;
 
@@ -75,6 +80,11 @@ impl Road {
     }
 }
 
+/// One socket's handler of every sys op: wsp-core's `sys_socket`, handed this socket. sys-socket.ts:15.
+pub type SysRoad = Rc<dyn Fn(SysAsk, Send, Option<Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>;
+/// One socket's handler of every sign-in op: wsp-core's `sign_in_socket`, handed this socket. sign-in-socket.ts:26.
+pub type SignInRoad = Rc<dyn Fn(SignInOp, Send, Option<Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>;
+
 /// One live socket. Its fields are the door's state; `Served` holds what every socket of one server shares.
 pub struct Socket {
     pub(crate) served: Rc<Served>,
@@ -96,8 +106,8 @@ pub struct Socket {
     pub(crate) slate_holds: Rc<RefCell<SlateHolds>>,
     /// The daemon links this socket holds, by the id it was answered with (serve.ts:559-561).
     pub(crate) channels: Rc<RefCell<IndexMap<String, Rc<dyn DaemonChannel>>>>,
-    pub(crate) sign_in_ops: RefCell<Option<Rc<dyn SocketOps>>>,
-    pub(crate) sys_ops: RefCell<Option<Rc<dyn SocketOps>>>,
+    pub(crate) sign_in_road: RefCell<Option<SignInRoad>>,
+    pub(crate) sys_road: RefCell<Option<SysRoad>>,
     /// The device hold a revoke cuts, by its id in `Served::held` (serve.ts:568, 612-613).
     pub(crate) bound: Cell<Option<u64>>,
 }
@@ -136,5 +146,15 @@ impl Socket {
     /// Pushes a leave the socket's close runs.
     pub fn detach(&self, leave: Box<dyn FnOnce()>) {
         todo!()
+    }
+}
+
+/// What the per-socket roads of wsp-core ask of a socket: whether it is open, and where its leaves go.
+impl SocketSide for Socket {
+    fn open(&self) -> bool {
+        self.sink.is_open()
+    }
+    fn detach(&self, leave: Box<dyn FnOnce()>) {
+        Socket::detach(self, leave)
     }
 }

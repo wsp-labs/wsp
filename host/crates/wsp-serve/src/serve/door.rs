@@ -10,7 +10,12 @@ use indexmap::IndexMap;
 use wsp_wire::wire::devices::TicketPurpose;
 use wsp_words::exit::HostError;
 
-use super::served::{ForwardsSource, Payload, ServedRuntime};
+use wsp_core::forwards::{ForwardEvent, ForwardsSource};
+use wsp_core::types::wiring::Detach;
+use wsp_machines::places::pane_ports::PanePorts;
+use wsp_wire::wire::limits::PortForward;
+
+use super::served::{DynRuntime, Payload};
 use super::socket::{Incoming, Socket};
 use super::{Authed, NowFn, Released, ServeOptions};
 use crate::serve_app_procs::AppProcsHub;
@@ -26,7 +31,7 @@ pub struct Ticket {
 
 /// What every socket of one server shares (serve.ts:376-418, 453). Nothing here outlives the process (spec R7).
 pub struct Served {
-    pub rt: Rc<dyn ServedRuntime>,
+    pub rt: Rc<DynRuntime>,
     pub opts: ServeOptions,
     pub(crate) now: NowFn,
     pub(crate) released: Released,
@@ -41,14 +46,33 @@ pub struct Served {
     /// Every live socket a device holds, by hold id: the device id and the socket (serve.ts:451-453).
     pub(crate) held: RefCell<IndexMap<u64, (String, Weak<Socket>)>>,
     pub(crate) next_hold: Cell<u64>,
-    pub(crate) forwards: Rc<dyn ForwardsSource>,
+    /// `forwardsOf(opts.forwards, rt.places?.paneForwards)`, built at the first forwards op: the panes' source is read
+    /// from the place door then, not at start.
+    pub(crate) forwards: std::cell::OnceCell<Rc<dyn ForwardsSource>>,
     pub(crate) app_procs: Rc<AppProcsHub>,
+}
+
+/// The panes' forwards as the one source `forwardsOf` takes. wsp-machines' `PanePorts` lists, stops and tells of its
+/// forwards through its own `PaneForwards` and `ForwardEvent`, the same TS type as wsp-core's `ForwardsSource`; this
+/// maps the one onto the other until it implements the core's.
+pub(crate) struct PaneSource(pub Rc<PanePorts>);
+
+impl ForwardsSource for PaneSource {
+    fn list(&self) -> Vec<PortForward> {
+        todo!()
+    }
+    fn stop(&self, workspace_id: &str, port: i64) -> bool {
+        todo!()
+    }
+    fn on(&self, listener: Rc<dyn Fn(&ForwardEvent)>) -> Detach {
+        todo!()
+    }
 }
 
 impl Served {
     /// The shared state of one server over `rt` (serve.ts:376-395): refuses an empty host token (spec D1) and reads
     /// every default (spec W1). The app-process hub is the runtime's own (`app_procs_hub_of`).
-    pub fn new(rt: Rc<dyn ServedRuntime>, opts: ServeOptions) -> Result<Rc<Served>, HostError> {
+    pub fn new(rt: Rc<DynRuntime>, opts: ServeOptions) -> Result<Rc<Served>, HostError> {
         todo!()
     }
     /// `now()`.

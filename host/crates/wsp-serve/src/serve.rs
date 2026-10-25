@@ -32,7 +32,8 @@ use wsp_wire::views::harness::StartResult;
 use wsp_words::exit::HostError;
 
 pub use crate::serve_broker::BrokerDoor;
-pub use served::{ForwardsSource, ServedRuntime};
+pub use served::DynRuntime;
+pub use wsp_core::forwards::ForwardsSource;
 pub use socket::{FrameSink, Road, Socket};
 
 /// How long a stopping host waits for a client to answer its close frame before the socket is cut. serve.ts:327-331.
@@ -216,7 +217,7 @@ pub trait RuntimeServer {
 }
 
 /// Serves the runtime: binds its own port where given, and answers the upgrades the host hands it. serve.ts:375.
-pub async fn serve_runtime(rt: Rc<dyn ServedRuntime>, opts: ServeOptions) -> Result<Rc<dyn RuntimeServer>, HostError> {
+pub async fn serve_runtime(rt: Rc<DynRuntime>, opts: ServeOptions) -> Result<Rc<dyn RuntimeServer>, HostError> {
     todo!()
 }
 

@@ -4,27 +4,16 @@
 use std::rc::Rc;
 
 use async_trait::async_trait;
-use futures::future::LocalBoxFuture;
-use wsp_wire::types::agents_report::AgentsSignInEvent;
-use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::runtime::{BrokerStatus, ProviderKeyWorks};
 use wsp_wire::wire::runtime_ops::RuntimeRequest;
 use wsp_words::exit::HostError;
 
 use crate::serve::served::Payload;
 
+pub use wsp_core::sign_in_socket::CloudSignIn;
+
 /// What a host with no broker answers the broker ops with. serve-broker.ts:7.
 pub const BROKER_UNSERVED: &str = "the host that answered wired no broker for machines at a cloud provider";
-
-/// A sign-in followed through the cloud road: its id and the leave that stops following. sign-in-socket.ts:20-24.
-pub struct CloudSignInFollowing {
-    pub sign_in_id: String,
-    pub leave: Box<dyn FnOnce()>,
-}
-
-/// `CloudSignIn`: the host's own road to an agent's login on this computer, which machines at a provider borrow.
-/// sign-in-socket.ts:20-24.
-pub type CloudSignIn = Rc<dyn Fn(String, Rc<dyn Fn(AgentsSignInEvent)>, Option<Caller>) -> LocalBoxFuture<'static, Result<CloudSignInFollowing, HostError>>>;
 
 /// The host's broker as its socket answers it; each road absent is refused. serve-broker.ts:9-16.
 #[async_trait(?Send)]

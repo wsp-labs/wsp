@@ -15,9 +15,13 @@ use wsp_core::devices::{DeviceDoor, PairedDevice};
 use wsp_core::types::events::EventBus;
 use wsp_engine::machine::MachineState;
 use wsp_serve::runtime::core::{
-    core_defaults, reads_state, took_the_resume, vault_paths_of, Core, CoreCtx, CoreDefaults, DefaultsAsked, FolderPick, LaunchReach, NamedCount, ProjectLook,
-    StageAt, StandingEntry, StandingRows,
+    core_defaults, reads_state, took_the_resume, vault_paths_of, Core, CoreCtx, CoreDefaults, DefaultsAsked, LaunchReach, NamedCount, StandingEntry, StandingRows,
 };
+use wsp_core::types::internal::StageFrame;
+use wsp_machines::images::builders::StageAt;
+use wsp_wire::types::project_look::{ProjectHue, ProjectIcon, ProjectIconHash};
+use wsp_wire::types::recipe_file::RecipeFileFoldersValue;
+use wsp_wire::views::preferences::ProjectLook;
 use wsp_wire::views::harness::McpServerSpec;
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::ProjectView;
@@ -854,8 +858,15 @@ fn remove_folder_refuses_while_records_stand() {
 
 // ---- The look a recipe moves ----
 
-fn pick(icon: Option<&str>, hue: Option<&str>, image: Option<&str>) -> FolderPick {
-    FolderPick { icon: icon.map(Into::into), hue: hue.map(Into::into), image: image.map(Into::into) }
+fn pick(icon: Option<&str>, hue: Option<&str>, image: Option<&str>) -> RecipeFileFoldersValue {
+    RecipeFileFoldersValue {
+        from: "~/p".into(),
+        name: None,
+        icon: icon.map(|i| serde_json::from_value::<ProjectIcon>(json!(i)).expect("an icon of the look's list")),
+        hue: hue.map(|h| serde_json::from_value::<ProjectHue>(json!(h)).expect("a hue of the look's list")),
+        image: image.map(|h| ProjectIconHash(h.into())),
+        keep: Vec::new(),
+    }
 }
 
 #[test]
@@ -863,7 +874,7 @@ fn folder_look_keeps_what_the_person_set() {
     // C21. runtime.ts:583-589
     block(async {
         let ctx = Ctx::new();
-        ctx.script.once::<Option<ProjectLook>>("projectLook", Some(ProjectLook { icon: Some("star".into()), hue: Some("red".into()) }));
+        ctx.script.once::<Option<ProjectLook>>("projectLook", Some(ProjectLook { icon: Some(ProjectIcon::Star), hue: Some(ProjectHue::Red) }));
         let core = Core::new(ctx.clone());
         // The icon moved, the hue did not: the recipe's new icon, the person's own hue; the image stayed.
         core.folder_look("p-1", &pick(Some("code"), Some("blue"), Some("h1")), &pick(Some("rocket"), Some("blue"), Some("h1"))).await.unwrap();
@@ -945,7 +956,7 @@ fn place_absent_and_present_re_emit_the_stage() {
         let ctx = Ctx::new();
         let seen = emitted(&ctx);
         let core = Core::new(ctx.clone());
-        let frame = json!({ "type": "golden.stage", "name": "default", "stage": "installing-tools", "detail": "apt-get install", "step": 3 });
+        let frame: StageFrame = serde_json::from_value(json!({ "name": "default", "stage": "installing-tools", "detail": "apt-get install", "step": 3 })).expect("a stage frame");
         core.note_stage(StageAt { place: "box-1".into(), name: "default".into(), named: true, frame: frame.clone() });
         core.note_stage(StageAt { place: "box-2".into(), name: "default".into(), named: false, frame: frame.clone() });
         core.on_place_event(&json!({ "type": "place.absent", "placeId": "box-1" }));

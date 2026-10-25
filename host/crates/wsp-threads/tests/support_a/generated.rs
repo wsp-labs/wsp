@@ -1257,12 +1257,12 @@ impl SessionsCtx for FakeHost {
         }
         TreeOf::default()
     }
-    fn thread_of_token(&self, token: &str) -> String {
+    fn thread_of_token(&self, token: &str) -> Result<String, HostError> {
         self.hooks.log("thread_of_token", vec![token.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> String>("SessionsCtx::thread_of_token") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> Result<String, HostError>>("SessionsCtx::thread_of_token") {
             return hook(token);
         }
-        token.to_string()
+        Ok(token.to_string())
     }
     fn reaches_row(&self, view: &SessionView, origin: Option<&Caller>, talk: Option<TreeTalk>) -> bool {
         self.hooks.log("reaches_row", vec![]);

@@ -4,7 +4,7 @@ use std::future::Future;
 use std::rc::Rc;
 
 use async_trait::async_trait;
-use wsp_core::types::api::{FolderFor, FolderForAsk, HeldStart};
+use wsp_core::types::api::{FolderFor, FolderForAsk, HeldStart, WorkspacesApi};
 use wsp_core::types::wiring::SessionHandle;
 use wsp_wire::types::thread_defaults::AccessChoice;
 use wsp_wire::views::workspace::Caller;
@@ -28,6 +28,16 @@ where
 pub trait StartAtWorkspaces {
     async fn folder_for(&self, ask: FolderForAsk, origin: Option<Caller>) -> Result<FolderFor, HostError>;
     async fn take_setup_line(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Option<String>, HostError>;
+}
+
+#[async_trait(?Send)]
+impl<W: WorkspacesApi + ?Sized> StartAtWorkspaces for W {
+    async fn folder_for(&self, ask: FolderForAsk, origin: Option<Caller>) -> Result<FolderFor, HostError> {
+        WorkspacesApi::folder_for(self, ask, origin).await
+    }
+    async fn take_setup_line(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Option<String>, HostError> {
+        WorkspacesApi::take_setup_line(self, workspace_id, origin).await
+    }
 }
 
 /// The message a `sessions.start` or `sessions.warm` names its place by (answered-start.ts:27).
