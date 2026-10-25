@@ -67,3 +67,49 @@ workspace. TS tests: `test/channels.test.ts` (owners, tags, kill guard, roots), 
 ## What survives a restart
 
 The `pty-threads` documents (Y5 to Y7). The owners, port pids, turn groups and watchers are memory.
+
+## Tests
+
+`tests/channels_ptys.rs` (26 tests). Expected values are `tests/fixtures/oracle/channels_ptys.json`, written by
+`oracle/channels_ptys.oracle.ts` (the TS area over a fake daemon and context; process ids, the host name and the
+host's pids are fixed in the oracle so the fixture does not move). A spawned write or push is read only after
+`settle()`; the TS's awaits give each tag write the turn before the next send, so the tests settle between sends.
+JavaScript objects list integer keys ascending, so `turnGroups` is compared in that order.
+
+| Rule | Tests |
+|---|---|
+| Y1 | `y1_frame_lists` |
+| Y2 | `y2_an_owner_sees_and_drives_only_its_ptys`, `y2_a_list_drops_only_what_it_was_asked_over`, `y2_a_refused_reply_passes_whole_and_changes_nothing`, `y2_a_replaced_daemon_forgets_every_owner` |
+| Y3 | `y3_kill_guard_here_and_elsewhere` |
+| Y4 | `y4_app_main_table` |
+| Y5 | `y5_a_create_tags_its_thread`, `y5_pty_thread_hands_a_shell_over`, `y5_a_list_names_and_drops`, `y5_a_bad_tag_document_reads_as_no_tags` |
+| Y6 | `y6_tag_writes_run_in_turn_last_wins`, `y6_a_failed_tag_write_warns_and_the_next_runs` |
+| Y7 | `y7_deleted_workspace_tags_go_with_it`, `y7_a_reply_after_the_delete_writes_nothing`, `y7_tags_survive_a_restart`, `channels_area_registers_its_two_deleted_listeners` |
+| Y8 | `y8_thread_terminals_from_tags_read` |
+| Y9 | `y9_end_thread_shells` (needs copy's `shells_ended`) |
+| Y10 | `y10_port_roots_sorted_and_pruned`, `y10_recheck_runs_every_5s_and_stops` |
+| Y11 | `y11_rooted_ports_watch_and_push`, `y11_a_list_drops_exited_ptys`, `y11_the_push_leaves_at_close_and_at_the_channels_end` |
+| proc_scopes P1, P3 (terminals) | `proc_scopes_terminal_follows_its_thread_and_a_watching_channel_hears_each_move`, `proc_scopes_terminal_on_a_box_is_named_to_the_boxs_daemon_never_this_computers` |
+
+TS cases ported (under `packages/runtime/test/`):
+
+| TS case | Test |
+|---|---|
+| local-workspace.test.ts:262 | `y10_port_roots_sorted_and_pruned`, `y11_rooted_ports_watch_and_push` |
+| local-workspace.test.ts:369, :453, :472 | `y2_an_owner_sees_and_drives_only_its_ptys` |
+| local-workspace.test.ts:391 | `y5_a_create_tags_its_thread` (the TS case's "daemon never hears the thread" is copy's strip: here the thread reaches the inner channel) |
+| local-workspace.test.ts:405 | `y5_pty_thread_hands_a_shell_over` |
+| local-workspace.test.ts:419 | `y7_tags_survive_a_restart` |
+| local-workspace.test.ts:437, box-settle.test.ts:172 | `y9_end_thread_shells` |
+| local-workspace.test.ts:484 | `y2_a_replaced_daemon_forgets_every_owner` |
+| local-workspace.test.ts:505 | `y2_a_list_drops_only_what_it_was_asked_over` |
+| local-workspace.test.ts:520, :561 | `y10_recheck_runs_every_5s_and_stops` |
+| local-workspace.test.ts:612, box-panes.test.ts:84 | `y3_kill_guard_here_and_elsewhere` |
+| box-panels.test.ts:661 (roots part) | `y11_rooted_ports_watch_and_push` |
+| deleted-workspace-state.test.ts:20, :38 | `y7_deleted_workspace_tags_go_with_it`, `y7_a_reply_after_the_delete_writes_nothing` |
+| proc-scopes.test.ts:195, :211 | the two `proc_scopes_terminal_*` tests |
+
+Fields the implementation needs that `ChannelsArea` does not hold yet (the note says the in-flight reads and writes are
+private to ptys.rs, which Rust cannot do without a field): `tags_held` (a map of workspace to the shared read future and
+a token telling it from the read that replaced it) and `tag_writes` (the same for the last queued write, which
+`tag_write` answers). Add both to `ChannelsArea` when implementing.

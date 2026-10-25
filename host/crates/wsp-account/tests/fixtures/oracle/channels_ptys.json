@@ -1,0 +1,2322 @@
+{
+ "lists": {
+  "GUEST_EVENTS": [
+   "guest.opened",
+   "guest.message",
+   "guest.closed",
+   "tunnel.data",
+   "tunnel.end"
+  ],
+  "PTY_EVENTS": [
+   "pty.data",
+   "pty.exit",
+   "pty.mode"
+  ],
+  "COMPUTER_WATCHES": [
+   "ports.watch",
+   "sys.watch"
+  ],
+  "COMPUTER_PROCS": [
+   "proc.watch",
+   "proc.unwatch",
+   "proc.inspect",
+   "proc.kill",
+   "container.stop"
+  ],
+  "WORKSPACE_FRAMES": [
+   "pty.create",
+   "pty.attach",
+   "pty.detach",
+   "pty.write",
+   "pty.resize",
+   "pty.kill",
+   "pty.tab",
+   "pty.list",
+   "fs.list",
+   "fs.files",
+   "fs.read",
+   "fs.write",
+   "fs.search",
+   "git.status",
+   "git.diff",
+   "git.snapshot",
+   "git.range",
+   "git.turn",
+   "git.push",
+   "git.pr",
+   "git.prList",
+   "ping"
+  ],
+  "GUEST_ROAD_FRAMES": [
+   "pty.create",
+   "pty.attach",
+   "pty.detach",
+   "pty.write",
+   "pty.resize",
+   "pty.kill",
+   "pty.tab",
+   "pty.list",
+   "fs.list",
+   "fs.files",
+   "fs.read",
+   "fs.write",
+   "fs.search",
+   "git.status",
+   "git.diff",
+   "git.snapshot",
+   "git.range",
+   "git.turn",
+   "git.push",
+   "git.pr",
+   "git.prList",
+   "ping",
+   "guest.watch",
+   "guest.reply",
+   "guest.close",
+   "ssh.start",
+   "tunnel.open",
+   "tunnel.write",
+   "tunnel.close"
+  ],
+  "PORT_ROOTS_RECHECK_MS": 5000
+ },
+ "owners": {
+  "created": [
+   {
+    "id": null,
+    "ok": true,
+    "ptyId": "pty_1",
+    "pid": 4001
+   },
+   {
+    "id": null,
+    "ok": true,
+    "ptyId": "pty_2",
+    "pid": 4002
+   },
+   {
+    "id": null,
+    "ok": true,
+    "ptyId": "pty_3",
+    "pid": 4003
+   }
+  ],
+  "lists": {
+   "a": [
+    "pty_1"
+   ],
+   "b": [
+    "pty_2"
+   ],
+   "here": [
+    "pty_3"
+   ]
+  },
+  "reloaded": [
+   "pty_1"
+  ],
+  "afterKill": {
+   "a": [],
+   "b": [
+    "pty_2"
+   ]
+  },
+  "refused": [
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.attach",
+     "ptyId": "pty_2"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_2"
+    }
+   },
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.write",
+     "data": "x",
+     "ptyId": "pty_2"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_2"
+    }
+   },
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.resize",
+     "cols": 80,
+     "rows": 24,
+     "ptyId": "pty_2"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_2"
+    }
+   },
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.tab",
+     "ptyId": "pty_2"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_2"
+    }
+   },
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.detach",
+     "ptyId": "pty_2"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_2"
+    }
+   },
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.kill",
+     "ptyId": "pty_2"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_2"
+    }
+   },
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.attach",
+     "ptyId": "pty_3"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_3"
+    }
+   },
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.write",
+     "data": "x",
+     "ptyId": "pty_3"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_3"
+    }
+   },
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.resize",
+     "cols": 80,
+     "rows": 24,
+     "ptyId": "pty_3"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_3"
+    }
+   },
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.tab",
+     "ptyId": "pty_3"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_3"
+    }
+   },
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.detach",
+     "ptyId": "pty_3"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_3"
+    }
+   },
+   {
+    "frame": {
+     "id": 7,
+     "op": "pty.kill",
+     "ptyId": "pty_3"
+    },
+    "reply": {
+     "id": 7,
+     "ok": false,
+     "error": "no such pty: pty_3"
+    }
+   }
+  ],
+  "reachedDaemon": [],
+  "mine": "pty_4",
+  "answered": [
+   {
+    "op": "pty.attach",
+    "ok": true
+   },
+   {
+    "op": "pty.write",
+    "ok": true
+   },
+   {
+    "op": "pty.resize",
+    "ok": true
+   },
+   {
+    "op": "pty.tab",
+    "ok": true
+   },
+   {
+    "op": "pty.detach",
+    "ok": true
+   },
+   {
+    "op": "pty.kill",
+    "ok": true
+   }
+  ],
+  "odd": [
+   {
+    "id": 8,
+    "ok": false,
+    "error": "no such pty: 2"
+   },
+   {
+    "id": null,
+    "ok": true
+   }
+  ]
+ },
+ "list_over": {
+  "shell": "pty_1",
+  "second": "pty_2",
+  "attach": {
+   "id": null,
+   "ok": true
+  },
+  "lists": {
+   "late": [],
+   "one": [
+    "pty_1"
+   ]
+  },
+  "dropped": {
+   "list": [
+    "pty_2"
+   ],
+   "attachForgotten": {
+    "id": 6,
+    "ok": false,
+    "error": "no such pty: pty_1"
+   },
+   "attachKept": {
+    "id": null,
+    "ok": true
+   }
+  },
+  "refusedCreate": {
+   "id": null,
+   "ok": false,
+   "error": "no room"
+  },
+  "refusedAttach": {
+   "id": 2,
+   "ok": false,
+   "error": "no such pty: pty_x"
+  },
+  "refusedList": {
+   "id": null,
+   "ok": false,
+   "error": "busy"
+  },
+  "refusedHeard": [
+   {
+    "id": 1,
+    "op": "pty.create"
+   },
+   {
+    "id": 3,
+    "op": "pty.list"
+   }
+  ]
+ },
+ "replaced": {
+  "first": [
+   "pty_1",
+   "pty_2"
+  ],
+  "bAgain": "pty_1",
+  "aList": [],
+  "aAttach": {
+   "id": 3,
+   "ok": false,
+   "error": "no such pty: pty_1"
+  },
+  "reached": [],
+  "bList": [
+   "pty_1"
+  ],
+  "bAttach": {
+   "id": null,
+   "ok": true
+  }
+ },
+ "kill_guard": {
+  "hostPid": 4100,
+  "hostParentPid": 4099,
+  "agentBins": [
+   "claude",
+   "codex",
+   "gemini",
+   "opencode",
+   "pi",
+   "hermes",
+   "crush",
+   "qwen",
+   "goose",
+   "amp",
+   "cursor-agent"
+  ],
+  "appPid": 4999,
+  "agentPids": {
+   "run1": 5100,
+   "run3": 5300
+  },
+  "runs": {
+   "run1": "run1",
+   "run2": "run2",
+   "run3": "run3"
+  },
+  "sessions": [
+   {
+    "id": "s1",
+    "view": {
+     "status": "running"
+    },
+    "pid": 5000,
+    "run": "run1"
+   },
+   {
+    "id": "s2",
+    "view": {
+     "status": "running"
+    },
+    "pid": 5001
+   },
+   {
+    "id": "s3",
+    "view": {
+     "status": "completed"
+    },
+    "pid": 5002,
+    "run": "run3"
+   },
+   {
+    "id": "s4",
+    "view": {
+     "status": "running"
+    },
+    "run": "run3"
+   },
+   {
+    "id": "s5",
+    "view": {
+     "status": "running"
+    },
+    "pid": 5003,
+    "run": "run2"
+   },
+   {
+    "id": "s6",
+    "view": {
+     "status": "running"
+    },
+    "pid": 5100,
+    "run": "run1"
+   }
+  ],
+  "asked": [
+   {
+    "id": 1,
+    "op": "proc.kill",
+    "pid": 50,
+    "protect": [],
+    "agents": [],
+    "apps": [],
+    "agentBins": []
+   },
+   {
+    "id": 2,
+    "op": "proc.kill",
+    "pid": 51,
+    "signal": "TERM",
+    "protect": [
+     1
+    ],
+    "mode": "tree"
+   },
+   {
+    "id": 3,
+    "op": "proc.kill",
+    "agentBins": [
+     "x"
+    ],
+    "pid": 52,
+    "apps": [
+     2
+    ],
+    "agents": [
+     3
+    ]
+   }
+  ],
+  "heard": [
+   {
+    "id": 1,
+    "op": "proc.kill",
+    "pid": 50,
+    "agentBins": [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor-agent"
+    ],
+    "protect": [
+     4100,
+     4099
+    ],
+    "apps": [
+     4999
+    ],
+    "agents": [
+     5000,
+     5100,
+     5001,
+     5003,
+     5100,
+     5100
+    ]
+   },
+   {
+    "id": 2,
+    "op": "proc.kill",
+    "pid": 51,
+    "signal": "TERM",
+    "mode": "tree",
+    "protect": [
+     4100,
+     4099
+    ],
+    "apps": [
+     4999
+    ],
+    "agents": [
+     5000,
+     5100,
+     5001,
+     5003,
+     5100,
+     5100
+    ],
+    "agentBins": [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor-agent"
+    ]
+   },
+   {
+    "id": 3,
+    "op": "proc.kill",
+    "agentBins": [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor-agent"
+    ],
+    "pid": 52,
+    "protect": [
+     4100,
+     4099
+    ],
+    "apps": [
+     4999
+    ],
+    "agents": [
+     5000,
+     5100,
+     5001,
+     5003,
+     5100,
+     5100
+    ]
+   },
+   {
+    "id": 1,
+    "op": "proc.kill",
+    "pid": 50,
+    "agentBins": [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor-agent"
+    ]
+   },
+   {
+    "id": 2,
+    "op": "proc.kill",
+    "pid": 51,
+    "signal": "TERM",
+    "mode": "tree",
+    "agentBins": [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor-agent"
+    ]
+   },
+   {
+    "id": 3,
+    "op": "proc.kill",
+    "agentBins": [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor-agent"
+    ],
+    "pid": 52
+   },
+   {
+    "id": 4,
+    "op": "pty.list",
+    "protect": [
+     9
+    ]
+   },
+   {
+    "id": 5,
+    "op": "ping"
+   }
+  ],
+  "afterAgentGone": [
+   {
+    "id": 6,
+    "op": "proc.kill",
+    "pid": 53,
+    "protect": [
+     4100,
+     4099
+    ],
+    "apps": [
+     4999
+    ],
+    "agents": [
+     5000,
+     5001,
+     5003,
+     5100
+    ],
+    "agentBins": [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor-agent"
+    ]
+   },
+   {
+    "id": 7,
+    "op": "proc.kill",
+    "pid": 54,
+    "protect": [
+     4100,
+     4099
+    ],
+    "apps": [],
+    "agents": [
+     5000,
+     5001,
+     5003,
+     5100
+    ],
+    "agentBins": [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor-agent"
+    ]
+   }
+  ],
+  "noState": [
+   {
+    "id": 8,
+    "op": "proc.kill",
+    "pid": 55,
+    "protect": [
+     4100,
+     4099
+    ],
+    "apps": [],
+    "agents": [],
+    "agentBins": [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor-agent"
+    ]
+   }
+  ]
+ },
+ "app_main": {
+  "host": "oracle-host",
+  "lockPath": [
+   "desktop",
+   "SingletonLock"
+  ],
+  "cases": [
+   {
+    "name": "a lock of this host's own and a pid that answers",
+    "link": "oracle-host-4999",
+    "statePath": true,
+    "alive": [
+     4999
+    ],
+    "expected": [
+     4999
+    ]
+   },
+   {
+    "name": "no state path",
+    "link": "oracle-host-4999",
+    "statePath": false,
+    "alive": [
+     4999
+    ],
+    "expected": []
+   },
+   {
+    "name": "another host's name",
+    "link": "other-4999",
+    "statePath": true,
+    "alive": [
+     4999
+    ],
+    "expected": []
+   },
+   {
+    "name": "a pid that answers nothing",
+    "link": "oracle-host-4998",
+    "statePath": true,
+    "alive": [],
+    "expected": []
+   },
+   {
+    "name": "an unreadable link",
+    "link": null,
+    "statePath": true,
+    "alive": [],
+    "expected": []
+   },
+   {
+    "name": "a link that is no host-pid",
+    "link": "garbage",
+    "statePath": true,
+    "alive": [
+     4999
+    ],
+    "expected": []
+   },
+   {
+    "name": "a host name with a dash in it",
+    "link": "oracle-host-x-4999",
+    "statePath": true,
+    "alive": [
+     4999
+    ],
+    "expected": []
+   },
+   {
+    "name": "a name that is only a pid",
+    "link": "4999",
+    "statePath": true,
+    "alive": [
+     4999
+    ],
+    "expected": []
+   },
+   {
+    "name": "the greedy name",
+    "link": "oracle-host-1-4999",
+    "statePath": true,
+    "alive": [
+     4999
+    ],
+    "expected": []
+   }
+  ]
+ },
+ "create_tags": {
+  "replies": [
+   {
+    "id": null,
+    "ok": true,
+    "ptyId": "pty_1",
+    "pid": 4001
+   },
+   {
+    "id": null,
+    "ok": true,
+    "ptyId": "pty_2",
+    "pid": 4002
+   },
+   {
+    "id": null,
+    "ok": true,
+    "ptyId": "pty_3",
+    "pid": 4003
+   },
+   {
+    "id": null,
+    "ok": true,
+    "ptyId": "pty_4",
+    "pid": 4004
+   },
+   {
+    "id": null,
+    "ok": true,
+    "ptyId": "pty_5",
+    "pid": 4005
+   }
+  ],
+  "heardCreates": [
+   {
+    "id": 1,
+    "op": "pty.create",
+    "thread": "th_a"
+   },
+   {
+    "id": 2,
+    "op": "pty.create",
+    "thread": "th_b"
+   },
+   {
+    "id": 3,
+    "op": "pty.create",
+    "thread": 7
+   },
+   {
+    "id": 4,
+    "op": "pty.create"
+   },
+   {
+    "id": 5,
+    "op": "pty.create",
+    "thread": ""
+   }
+  ],
+  "afterCreates": {
+   "ops": [
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_1": "th_a"
+     }
+    ],
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_1": "th_a",
+      "pty_2": "th_b"
+     }
+    ],
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_1": "th_a",
+      "pty_2": "th_b",
+      "pty_5": ""
+     }
+    ]
+   ],
+   "doc": {
+    "ws_a": {
+     "pty_1": "th_a",
+     "pty_2": "th_b",
+     "pty_5": ""
+    }
+   }
+  },
+  "list": {
+   "id": null,
+   "ok": true,
+   "ptys": [
+    {
+     "id": "pty_1",
+     "pid": 4001,
+     "cols": 80,
+     "rows": 24,
+     "exited": false,
+     "thread": "th_a"
+    },
+    {
+     "id": "pty_2",
+     "pid": 4002,
+     "cols": 80,
+     "rows": 24,
+     "exited": false,
+     "thread": "th_b"
+    },
+    {
+     "id": "pty_3",
+     "pid": 4003,
+     "cols": 80,
+     "rows": 24,
+     "exited": false
+    },
+    {
+     "id": "pty_4",
+     "pid": 4004,
+     "cols": 80,
+     "rows": 24,
+     "exited": false
+    },
+    {
+     "id": "pty_5",
+     "pid": 4005,
+     "cols": 80,
+     "rows": 24,
+     "exited": false,
+     "thread": ""
+    }
+   ]
+  },
+  "killUntagged": {
+   "id": null,
+   "ok": true
+  },
+  "writesByUntaggedKill": 0,
+  "kill": {
+   "id": null,
+   "ok": true
+  },
+  "refusedKill": {
+   "id": null,
+   "ok": false,
+   "error": "no such pty: pty_1"
+  },
+  "afterKill": {
+   "ops": [
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_2": "th_b",
+      "pty_5": ""
+     }
+    ]
+   ],
+   "doc": {
+    "ws_a": {
+     "pty_2": "th_b",
+     "pty_5": ""
+    }
+   },
+   "list": {
+    "id": null,
+    "ok": true,
+    "ptys": [
+     {
+      "id": "pty_2",
+      "pid": 4001,
+      "cols": 80,
+      "rows": 24,
+      "exited": false,
+      "thread": "th_b"
+     },
+     {
+      "id": "pty_3",
+      "pid": 4002,
+      "cols": 80,
+      "rows": 24,
+      "exited": false
+     },
+     {
+      "id": "pty_5",
+      "pid": 4003,
+      "cols": 80,
+      "rows": 24,
+      "exited": false,
+      "thread": ""
+     }
+    ]
+   }
+  },
+  "warns": []
+ },
+ "handover": {
+  "page": "pty_1",
+  "theirs": "pty_2",
+  "handed": {
+   "id": 3,
+   "ok": true
+  },
+  "movedByHandover": 1,
+  "writes": [
+   [
+    "put",
+    "pty-threads",
+    "ws_a",
+    {
+     "pty_1": "th_new"
+    }
+   ]
+  ],
+  "notOwned": {
+   "id": 4,
+   "ok": false,
+   "error": "no such pty: pty_2"
+  },
+  "noThread": {
+   "id": 5,
+   "ok": false,
+   "error": "pty.thread names a ptyId and a thread"
+  },
+  "noPty": {
+   "id": 6,
+   "ok": false,
+   "error": "pty.thread names a ptyId and a thread"
+  },
+  "numberPty": {
+   "id": 7,
+   "ok": false,
+   "error": "no such pty: 7"
+  },
+  "numberThread": {
+   "id": 8,
+   "ok": false,
+   "error": "pty.thread names a ptyId and a thread"
+  },
+  "rows": [
+   {
+    "id": "pty_1",
+    "pid": 4001,
+    "cols": 80,
+    "rows": 24,
+    "exited": false,
+    "thread": "th_new"
+   }
+  ],
+  "heardThread": [],
+  "ghost": {
+   "id": 10,
+   "ok": true
+  },
+  "ghostDoc": {
+   "ws_c": {
+    "ghost": "th_g"
+   }
+  },
+  "ghostList": {
+   "id": null,
+   "ok": true,
+   "ptys": [
+    {
+     "id": "pty_1",
+     "pid": 4001,
+     "cols": 80,
+     "rows": 24,
+     "exited": false
+    },
+    {
+     "id": "pty_2",
+     "pid": 4002,
+     "cols": 80,
+     "rows": 24,
+     "exited": false
+    }
+   ]
+  },
+  "ghostAfter": {
+   "ws_c": null
+  }
+ },
+ "list_names": {
+  "first": {
+   "id": null,
+   "ok": true,
+   "ptys": [
+    {
+     "id": "pty_1",
+     "pid": 100,
+     "cols": 80,
+     "thread": "th_a"
+    },
+    {
+     "id": "pty_2",
+     "pid": 101,
+     "cols": 80,
+     "thread": "th_b"
+    },
+    {
+     "id": "pty_3",
+     "pid": 102,
+     "cols": 80
+    }
+   ]
+  },
+  "afterFirst": {
+   "ops": [
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_1": "th_a",
+      "pty_2": "th_b"
+     }
+    ]
+   ],
+   "doc": {
+    "ws_a": {
+     "pty_1": "th_a",
+     "pty_2": "th_b"
+    }
+   }
+  },
+  "second": {
+   "id": null,
+   "ok": true,
+   "ptys": [
+    {
+     "id": "pty_1",
+     "pid": 100,
+     "cols": 80,
+     "thread": "th_a"
+    },
+    {
+     "id": "pty_2",
+     "pid": 101,
+     "cols": 80,
+     "thread": "th_b"
+    },
+    {
+     "id": "pty_3",
+     "pid": 102,
+     "cols": 80
+    }
+   ]
+  },
+  "writesAfterSecond": 1,
+  "refused": {
+   "id": null,
+   "ok": false,
+   "error": "no"
+  },
+  "reads": [
+   [
+    "pty-threads",
+    "ws_a"
+   ]
+  ]
+ },
+ "tags_read": {
+  "ws_obj": {
+   "id": null,
+   "ok": true,
+   "ptys": [
+    {
+     "id": "pty_1",
+     "pid": 100,
+     "cols": 80,
+     "thread": "th_a"
+    },
+    {
+     "id": "pty_2",
+     "pid": 101,
+     "cols": 80
+    },
+    {
+     "id": "pty_3",
+     "pid": 102,
+     "cols": 80
+    },
+    {
+     "id": "pty_4",
+     "pid": 103,
+     "cols": 80
+    },
+    {
+     "id": "pty_5",
+     "pid": 104,
+     "cols": 80,
+     "thread": ""
+    }
+   ]
+  },
+  "ws_str": {
+   "id": null,
+   "ok": true,
+   "ptys": [
+    {
+     "id": "pty_1",
+     "pid": 100,
+     "cols": 80
+    },
+    {
+     "id": "pty_2",
+     "pid": 101,
+     "cols": 80
+    },
+    {
+     "id": "pty_3",
+     "pid": 102,
+     "cols": 80
+    },
+    {
+     "id": "pty_4",
+     "pid": 103,
+     "cols": 80
+    },
+    {
+     "id": "pty_5",
+     "pid": 104,
+     "cols": 80
+    }
+   ]
+  },
+  "ws_null": {
+   "id": null,
+   "ok": true,
+   "ptys": [
+    {
+     "id": "pty_1",
+     "pid": 100,
+     "cols": 80
+    },
+    {
+     "id": "pty_2",
+     "pid": 101,
+     "cols": 80
+    },
+    {
+     "id": "pty_3",
+     "pid": 102,
+     "cols": 80
+    },
+    {
+     "id": "pty_4",
+     "pid": 103,
+     "cols": 80
+    },
+    {
+     "id": "pty_5",
+     "pid": 104,
+     "cols": 80
+    }
+   ]
+  },
+  "ws_none": {
+   "id": null,
+   "ok": true,
+   "ptys": [
+    {
+     "id": "pty_1",
+     "pid": 100,
+     "cols": 80
+    },
+    {
+     "id": "pty_2",
+     "pid": 101,
+     "cols": 80
+    },
+    {
+     "id": "pty_3",
+     "pid": 102,
+     "cols": 80
+    },
+    {
+     "id": "pty_4",
+     "pid": 103,
+     "cols": 80
+    },
+    {
+     "id": "pty_5",
+     "pid": 104,
+     "cols": 80
+    }
+   ]
+  },
+  "ws_failed": {
+   "id": null,
+   "ok": true,
+   "ptys": [
+    {
+     "id": "pty_1",
+     "pid": 100,
+     "cols": 80
+    },
+    {
+     "id": "pty_2",
+     "pid": 101,
+     "cols": 80
+    },
+    {
+     "id": "pty_3",
+     "pid": 102,
+     "cols": 80
+    },
+    {
+     "id": "pty_4",
+     "pid": 103,
+     "cols": 80
+    },
+    {
+     "id": "pty_5",
+     "pid": 104,
+     "cols": 80
+    }
+   ]
+  }
+ },
+ "writes_in_turn": {
+  "whileHeld": {
+   "ops": [
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_1": "th_a"
+     }
+    ]
+   ],
+   "doc": {
+    "ws_a": null
+   }
+  },
+  "afterRelease": {
+   "ops": [
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_1": "th_a"
+     }
+    ],
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_2": "th_b"
+     }
+    ],
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_2": "th_b"
+     }
+    ]
+   ],
+   "doc": {
+    "ws_a": {
+     "pty_2": "th_b"
+    }
+   }
+  },
+  "last": {
+   "ops": [
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_1": "th_a"
+     }
+    ],
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_2": "th_b"
+     }
+    ],
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_2": "th_b"
+     }
+    ],
+    [
+     "delete",
+     "pty-threads",
+     "ws_a"
+    ]
+   ],
+   "doc": {
+    "ws_a": null
+   }
+  },
+  "warns": []
+ },
+ "failed_write": {
+  "afterFailure": {
+   "ops": [
+    [
+     "put",
+     "pty-threads",
+     "ws_a",
+     {
+      "pty_1": "th_a"
+     }
+    ]
+   ],
+   "doc": {
+    "ws_a": null
+   },
+   "warns": [
+    "whose shells are whose in ws_a was not kept for the next host: disk full"
+   ]
+  },
+  "ops": [
+   [
+    "put",
+    "pty-threads",
+    "ws_a",
+    {
+     "pty_1": "th_a"
+    }
+   ],
+   [
+    "put",
+    "pty-threads",
+    "ws_a",
+    {
+     "pty_1": "th_a",
+     "pty_2": "th_b"
+    }
+   ]
+  ],
+  "doc": {
+   "ws_a": {
+    "pty_1": "th_a",
+    "pty_2": "th_b"
+   }
+  },
+  "warns": [
+   "whose shells are whose in ws_a was not kept for the next host: disk full"
+  ]
+ },
+ "deleted": {
+  "before": {
+   "doc": {
+    "ws_gone": {
+     "pty_1": "th_a"
+    },
+    "ws_kept": {
+     "pty_1": "th_a"
+    }
+   },
+   "ops": [
+    [
+     "put",
+     "pty-threads",
+     "ws_gone",
+     {
+      "pty_1": "th_a"
+     }
+    ],
+    [
+     "put",
+     "pty-threads",
+     "ws_kept",
+     {
+      "pty_1": "th_a"
+     }
+    ]
+   ]
+  },
+  "afterDelete": {
+   "doc": {
+    "ws_gone": null,
+    "ws_kept": {
+     "pty_1": "th_a"
+    }
+   },
+   "ops": [
+    [
+     "delete",
+     "pty-threads",
+     "ws_gone"
+    ]
+   ],
+   "writes": []
+  },
+  "reread": {
+   "ws_gone": [
+    {
+     "id": "pty_7",
+     "thread": "th_z"
+    },
+    {
+     "id": "pty_1"
+    }
+   ],
+   "ws_kept": [
+    {
+     "id": "pty_7"
+    },
+    {
+     "id": "pty_1",
+     "thread": "th_a"
+    }
+   ]
+  },
+  "late": {
+   "opsAtDelete": [
+    [
+     "delete",
+     "pty-threads",
+     "ws_gone"
+    ]
+   ],
+   "afterLate": {
+    "ops": [
+     [
+      "delete",
+      "pty-threads",
+      "ws_gone"
+     ]
+    ],
+    "doc": {
+     "ws_gone": null
+    },
+    "writes": []
+   }
+  },
+  "restart": {
+   "doc": {
+    "ws_c": {
+     "pty_1": "th_a",
+     "pty_2": "th_c"
+    }
+   },
+   "restarted": [
+    {
+     "id": "pty_1",
+     "pid": 4001,
+     "cols": 80,
+     "rows": 24,
+     "exited": false,
+     "thread": "th_a"
+    },
+    {
+     "id": "pty_2",
+     "pid": 4002,
+     "cols": 80,
+     "rows": 24,
+     "exited": false,
+     "thread": "th_c"
+    }
+   ]
+  }
+ },
+ "terminals": {
+  "unread": [],
+  "afterOneRead": [
+   {
+    "thread": "th_a",
+    "workspace": "ws_a",
+    "pid": 4242
+   },
+   {
+    "thread": "th_c",
+    "workspace": "ws_a",
+    "pid": 4444
+   },
+   {
+    "thread": "th_b",
+    "workspace": "ws_a",
+    "pid": 4545
+   }
+  ],
+  "afterTwoRead": [
+   {
+    "thread": "th_a",
+    "workspace": "ws_a",
+    "pid": 4242
+   },
+   {
+    "thread": "th_c",
+    "workspace": "ws_a",
+    "pid": 4444
+   },
+   {
+    "thread": "th_b",
+    "workspace": "ws_a",
+    "pid": 4545
+   },
+   {
+    "thread": "th_x",
+    "workspace": "ws_b",
+    "pid": 77
+   }
+  ]
+ },
+ "end_shells": {
+  "served": [
+   {
+    "op": "pty.kill",
+    "ptyId": "pty_1"
+   },
+   {
+    "op": "pty.kill",
+    "ptyId": "pty_3"
+   },
+   {
+    "op": "pty.kill",
+    "ptyId": "pty_4"
+   }
+  ],
+  "revoked": [
+   "dev_1",
+   "dev_4"
+  ],
+  "warns": [
+   "shell pty_3 of a deleted thread was not ended: no such pty: pty_3",
+   "shell pty_4 of a deleted thread was not ended: pty.kill was refused"
+  ],
+  "tags": {
+   "ws_a": {
+    "pty_2": "th_kept"
+   }
+  },
+  "tokens": {
+   "ws_a": {
+    "pty_2": "dev_2"
+   }
+  }
+ },
+ "roots": {
+  "roots": {
+   "ws_a": [
+    17,
+    3100,
+    3200,
+    4242
+   ],
+   "ws_b": [],
+   "ws_c": [
+    5
+   ],
+   "ws_none": []
+  },
+  "groupsAfter": {
+   "ws_a": {
+    "3100": "th_1",
+    "3200": "th_2"
+   }
+  },
+  "watched": [
+   {
+    "ws": "ws_a",
+    "frame": {
+     "id": null,
+     "op": "ports.watch",
+     "roots": [
+      17,
+      3100,
+      3200,
+      4242
+     ],
+     "folder": "/work/ws_a"
+    }
+   },
+   {
+    "ws": "ws_b",
+    "frame": {
+     "id": null,
+     "op": "ports.watch",
+     "roots": [],
+     "folder": "/work/ws_b"
+    }
+   },
+   {
+    "ws": "ws_c",
+    "frame": {
+     "id": null,
+     "op": "ports.watch",
+     "roots": [
+      5
+     ],
+     "folder": "/work/ws_c"
+    }
+   },
+   {
+    "ws": "ws_none",
+    "frame": {
+     "id": null,
+     "op": "ports.watch",
+     "roots": [],
+     "folder": "/work/ws_none"
+    }
+   }
+  ]
+ },
+ "recheck": [
+  {
+   "name": "watching",
+   "moved": 0,
+   "armed": false,
+   "watches": [
+    [
+     3100,
+     3200
+    ]
+   ],
+   "groups": {
+    "ws_a": [
+     3100,
+     3200
+    ],
+    "ws_b": [
+     3300
+    ]
+   }
+  },
+  {
+   "name": "armed twice, one stands",
+   "same": true
+  },
+  {
+   "name": "4999 ms",
+   "moved": 0,
+   "armed": true,
+   "watches": [
+    [
+     3100,
+     3200
+    ]
+   ],
+   "groups": {
+    "ws_a": [
+     3100,
+     3200
+    ],
+    "ws_b": [
+     3300
+    ]
+   }
+  },
+  {
+   "name": "5000 ms, everything still stands",
+   "moved": 2,
+   "armed": true,
+   "watches": [
+    [
+     3100,
+     3200
+    ]
+   ],
+   "groups": {
+    "ws_a": [
+     3100,
+     3200
+    ],
+    "ws_b": [
+     3300
+    ]
+   }
+  },
+  {
+   "name": "10000 ms, one group of ws_a gone",
+   "moved": 4,
+   "armed": true,
+   "watches": [
+    [
+     3100,
+     3200
+    ],
+    [
+     3100
+    ]
+   ],
+   "groups": {
+    "ws_a": [
+     3100
+    ],
+    "ws_b": [
+     3300
+    ]
+   }
+  },
+  {
+   "name": "15000 ms, every group gone",
+   "moved": 6,
+   "armed": false,
+   "watches": [
+    [
+     3100,
+     3200
+    ],
+    [
+     3100
+    ],
+    []
+   ],
+   "groups": {}
+  },
+  {
+   "name": "20000 ms, nothing left to move",
+   "moved": 6,
+   "armed": false,
+   "watches": [
+    [
+     3100,
+     3200
+    ],
+    [
+     3100
+    ],
+    []
+   ],
+   "groups": {}
+  },
+  {
+   "name": "armed again after it stopped",
+   "armed": true
+  }
+ ],
+ "rooted": {
+  "steps": [
+   {
+    "name": "before a watch, a move names nothing",
+    "reply": null,
+    "heard": [],
+    "moved": 1,
+    "ptys": []
+   },
+   {
+    "name": "a watch names the roots, the folder after the frame's own keys",
+    "reply": {
+     "id": null,
+     "ok": true,
+     "ports": []
+    },
+    "heard": [
+     {
+      "id": 1,
+      "op": "ports.watch",
+      "roots": [
+       3100
+      ],
+      "folder": "/work/ws_a"
+     }
+    ],
+    "moved": 0,
+    "ptys": []
+   },
+   {
+    "name": "a move with the same roots names nothing",
+    "reply": null,
+    "heard": [],
+    "moved": 1,
+    "ptys": []
+   },
+   {
+    "name": "a terminal with a pid joins and the roots are named again",
+    "reply": {
+     "id": null,
+     "ok": true,
+     "ptyId": "pty_1",
+     "pid": 4242
+    },
+    "heard": [
+     {
+      "id": 2,
+      "op": "pty.create"
+     },
+     {
+      "id": null,
+      "op": "ports.watch",
+      "roots": [
+       3100,
+       4242
+      ],
+      "folder": "/work/ws_a"
+     }
+    ],
+    "moved": 1,
+    "ptys": [
+     [
+      "pty_1",
+      4242
+     ]
+    ]
+   },
+   {
+    "name": "a watch carrying roots and folder of its own keeps their slots",
+    "reply": {
+     "id": null,
+     "ok": true,
+     "ports": []
+    },
+    "heard": [
+     {
+      "id": 3,
+      "op": "ports.watch",
+      "roots": [
+       3100,
+       4242
+      ],
+      "folder": "/work/ws_a",
+      "extra": true
+     }
+    ],
+    "moved": 0,
+    "ptys": [
+     [
+      "pty_1",
+      4242
+     ]
+    ]
+   },
+   {
+    "name": "a second watch with nothing changed still carries the roots",
+    "reply": {
+     "id": null,
+     "ok": true,
+     "ports": []
+    },
+    "heard": [
+     {
+      "id": 4,
+      "op": "ports.watch",
+      "roots": [
+       3100,
+       4242
+      ],
+      "folder": "/work/ws_a"
+     }
+    ],
+    "moved": 0,
+    "ptys": [
+     [
+      "pty_1",
+      4242
+     ]
+    ]
+   },
+   {
+    "name": "a terminal with no numeric pid is no root",
+    "reply": {
+     "id": null,
+     "ok": true,
+     "ptyId": "pty_2",
+     "pid": "x"
+    },
+    "heard": [
+     {
+      "id": 5,
+      "op": "pty.create",
+      "pid": "x"
+     }
+    ],
+    "moved": 0,
+    "ptys": [
+     [
+      "pty_1",
+      4242
+     ]
+    ]
+   },
+   {
+    "name": "a refused create joins nothing",
+    "reply": {
+     "id": null,
+     "ok": false,
+     "error": "no room",
+     "pid": 1
+    },
+    "heard": [
+     {
+      "id": 6,
+      "op": "pty.create"
+     }
+    ],
+    "moved": 0,
+    "ptys": [
+     [
+      "pty_1",
+      4242
+     ]
+    ]
+   },
+   {
+    "name": "a refused list drops nothing",
+    "reply": {
+     "id": null,
+     "ok": false,
+     "error": "busy"
+    },
+    "heard": [
+     {
+      "id": 7,
+      "op": "pty.list"
+     }
+    ],
+    "moved": 0,
+    "ptys": [
+     [
+      "pty_1",
+      4242
+     ],
+     [
+      "pty_8",
+      4848
+     ]
+    ]
+   },
+   {
+    "name": "a list that holds every pty it was given standing moves nothing",
+    "reply": {
+     "id": null,
+     "ok": true,
+     "ptys": [
+      {
+       "id": "pty_1"
+      },
+      {
+       "id": "pty_2",
+       "exited": true
+      },
+      {
+       "id": "pty_3",
+       "exited": false
+      }
+     ]
+    },
+    "heard": [
+     {
+      "id": 8,
+      "op": "pty.list"
+     }
+    ],
+    "moved": 0,
+    "ptys": [
+     [
+      "pty_1",
+      4242
+     ]
+    ]
+   },
+   {
+    "name": "a pty the host holds that the daemon does not list is dropped and the roots are named again",
+    "reply": {
+     "id": null,
+     "ok": true,
+     "ptys": [
+      {
+       "id": "pty_1"
+      },
+      {
+       "id": "pty_2",
+       "exited": true
+      },
+      {
+       "id": "pty_3",
+       "exited": false
+      }
+     ]
+    },
+    "heard": [
+     {
+      "id": null,
+      "op": "ports.watch",
+      "roots": [
+       3100,
+       4242,
+       4848
+      ],
+      "folder": "/work/ws_a"
+     },
+     {
+      "id": 9,
+      "op": "pty.list"
+     },
+     {
+      "id": null,
+      "op": "ports.watch",
+      "roots": [
+       3100,
+       4242
+      ],
+      "folder": "/work/ws_a"
+     }
+    ],
+    "moved": 2,
+    "ptys": [
+     [
+      "pty_1",
+      4242
+     ]
+    ]
+   },
+   {
+    "name": "a pty listed as exited is dropped and the roots are named again",
+    "reply": {
+     "id": null,
+     "ok": true,
+     "ptys": [
+      {
+       "id": "pty_1"
+      },
+      {
+       "id": "pty_2",
+       "exited": true
+      },
+      {
+       "id": "pty_3",
+       "exited": false
+      }
+     ]
+    },
+    "heard": [
+     {
+      "id": null,
+      "op": "ports.watch",
+      "roots": [
+       3100,
+       4242,
+       4949
+      ],
+      "folder": "/work/ws_a"
+     },
+     {
+      "id": 10,
+      "op": "pty.list"
+     },
+     {
+      "id": null,
+      "op": "ports.watch",
+      "roots": [
+       3100,
+       4242
+      ],
+      "folder": "/work/ws_a"
+     }
+    ],
+    "moved": 2,
+    "ptys": [
+     [
+      "pty_1",
+      4242
+     ]
+    ]
+   },
+   {
+    "name": "another op passes whole",
+    "reply": {
+     "id": null,
+     "ok": true,
+     "ports": []
+    },
+    "heard": [
+     {
+      "id": 11,
+      "op": "fs.list",
+      "path": "/"
+     }
+    ],
+    "moved": 0,
+    "ptys": [
+     [
+      "pty_1",
+      4242
+     ]
+    ]
+   }
+  ],
+  "closed": {
+   "whileWatching": [
+    {
+     "id": null,
+     "op": "ports.watch",
+     "roots": [
+      2020,
+      3100,
+      4242
+     ],
+     "folder": "/work/ws_a"
+    }
+   ],
+   "afterLeaving": []
+  },
+  "ended": {
+   "whileWatching": [
+    {
+     "id": null,
+     "op": "ports.watch",
+     "roots": [
+      2020,
+      3100,
+      4242
+     ],
+     "folder": "/work/ws_a"
+    }
+   ],
+   "afterLeaving": []
+  }
+ },
+ "list_exited": {
+  "reply": {
+   "id": null,
+   "ok": true,
+   "ptys": [
+    {
+     "id": "pty_1"
+    },
+    {
+     "id": "pty_2",
+     "exited": true
+    },
+    {
+     "id": "pty_3",
+     "exited": false
+    }
+   ]
+  },
+  "heard": [
+   {
+    "id": 1,
+    "op": "ports.watch",
+    "roots": [
+     4242,
+     4848,
+     4949
+    ],
+    "folder": "/work/ws_a"
+   },
+   {
+    "id": 2,
+    "op": "pty.list"
+   },
+   {
+    "id": null,
+    "op": "ports.watch",
+    "roots": [
+     4242
+    ],
+    "folder": "/work/ws_a"
+   }
+  ],
+  "moved": 1,
+  "ptys": [
+   [
+    "pty_1",
+    4242
+   ]
+  ]
+ }
+}
