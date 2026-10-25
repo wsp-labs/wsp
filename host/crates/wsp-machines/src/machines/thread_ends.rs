@@ -52,12 +52,8 @@ pub enum PlaceEvent {
     Other,
 }
 
-/// What a stop or a delete asks of `end` (thread-ends.ts:24).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct EndAsk {
-    pub remove: bool,
-    pub away: bool,
-}
+/// What a stop or a delete asks of `end` (thread-ends.ts:24): wsp-core's `EndThread`, the same two flags.
+pub use wsp_core::types::internal::EndThread as EndAsk;
 
 /// A debt still owed: `paid` resolves once that computer ran the end or was removed (thread-ends.ts:27).
 pub struct OwedEnd {

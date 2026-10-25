@@ -33,8 +33,8 @@ use wsp_words::exit::HostError;
 
 use super::machines::{Entry, Ids, Row, ThreadOn};
 
-/// A builder as this host holds it (TS `LiveBuilder`, internal.ts:923, less the engine `Builder` handle wsp-core has
-/// not written yet): its record, its machine, whether a seal may be taken from it, and its life.
+/// A builder as this host holds it (TS `LiveBuilder`, internal.ts:923). wsp-core's `LiveBuilder` holds `Rc<dyn Builder>`, whose
+/// trait is empty (pending.rs:32) and has no `machine`, which the start reads: so this keeps the machine itself.
 pub struct HeldBuilder {
     pub record: BuilderRecord,
     pub machine: Arc<dyn Machine>,
