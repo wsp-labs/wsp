@@ -228,9 +228,6 @@
             "agents": {
               "type": "object",
               "properties": {
-                "spawn": {
-                  "type": "boolean"
-                },
                 "maxMachines": {
                   "type": "integer",
                   "minimum": 0
@@ -241,7 +238,6 @@
                 }
               },
               "required": [
-                "spawn",
                 "maxMachines",
                 "maxDepth"
               ],

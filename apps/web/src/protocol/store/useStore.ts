@@ -117,12 +117,6 @@ let preferenceSetsInFlight = 0;
  * defaults and picker, or a project's own picks, which a workspace's lists are marked by. */
 const agentListsMoved = (a: Preferences, b: Preferences): boolean =>
   a.defaultAgent !== b.defaultAgent || JSON.stringify(a.agentDefaults) !== JSON.stringify(b.agentDefaults) || JSON.stringify(a.projectDefaults) !== JSON.stringify(b.projectDefaults);
-/** Every init.job view taken so far. The setup snapshot read on a connect is a view of the moment it was asked
- * for, so a job started or ended between the ask and the reply would be painted over by the older one; a snapshot
- * that raced a view is dropped and the view stands. Dropping it loses nothing because the reply and the events
- * travel one ordered socket and the host emits on every change, so the last event before a reply carries the state
- * that reply was computed from or newer. The day they travel separate channels this needs a stamp instead. */
-let initJobViews = 0;
 /** Counts the marks this window sent, so a hold knows which one set it. */
 let holdMarks = 0;
 
@@ -343,14 +337,6 @@ export const useStore = create<State>((set, get) => {
         noticeFailure(e, said => `Forwards not read: ${said}`);
       });
     set({ goldenFrames: {} });
-    const initJobsAtAsk = initJobViews;
-    void api
-      .initGet?.()
-      .then(setup => {
-        if (initJobViews !== initJobsAtAsk) return;
-        set({ initJob: setup.job });
-      })
-      .catch(notRead("Setup"));
     readPlaces(api);
     // A hash the host did not keep before the gap may be kept now.
     followProjectIcons({ api, projectIcon: get().preferences.projectIcon, again: true });
@@ -386,7 +372,6 @@ export const useStore = create<State>((set, get) => {
     conn: "connecting",
     capabilities: null,
     hasGolden: null,
-    initJob: null,
     goldenFrames: {},
     harnesses: [],
     harnessesByWorkspace: {},
@@ -1042,7 +1027,7 @@ export const useStore = create<State>((set, get) => {
           if (e.stage === "sealed") useSettingsStore.getState().rereadImage(imageRead());
           // Kept per place for that computer's image card, and folded into the log of a create waiting on the build
           // there, so the build's own stages read as its first lines. A frame naming no place is the image's own
-          // build, which the init job owns; one naming a place nobody here is waiting on is only the card's.
+          // build; one naming a place nobody here is waiting on is only the card's.
           const word = e.place;
           if (word === undefined) return;
           set(s => {
@@ -1182,20 +1167,6 @@ export const useStore = create<State>((set, get) => {
         case "release.changed":
           set({ release: e.release });
           return;
-        case "init.job": {
-          initJobViews++;
-          const ended = e.job.phase === "done" && get().initJob?.phase !== "done";
-          set({ initJob: e.job });
-          // The sealed frame comes before the host files the copy, so the job's end is when the image reads it.
-          if (ended) useSettingsStore.getState().rereadImage(imageRead());
-          // A seal is what the cloud row waits on, and the provider the host wired in is what the sizes come from.
-          if (e.job.phase === "done") {
-            set({ hasGolden: true });
-            const api = get().api;
-            if (api !== null) readCapabilities(api);
-          }
-          return;
-        }
         default:
           return;
       }

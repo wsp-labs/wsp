@@ -560,8 +560,8 @@ export const NEVER_IN_IMAGE: readonly string[] = [
   ...SHARED_LOGINS.map(s => s.target),
 ];
 
-/** Where the secrets step of an image build writes the values typed at it: login shells read profile.d, and fish
- * reads its conf.d instead, so a fish machine gets the value twice. */
+/** Where a machine exports the secrets it is given by name: login shells read profile.d, and fish reads its conf.d
+ * instead, so a fish machine gets the value twice. */
 export const SECRETS_FILES = { sh: "/etc/profile.d/wsp-secrets.sh", fish: "/etc/fish/conf.d/wsp-secrets.fish" } as const;
 
 /** Every path a sign-in or a typed secret leaves on a machine: each row's login state, every file the seal refuses,

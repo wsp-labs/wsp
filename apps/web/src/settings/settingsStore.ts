@@ -117,7 +117,6 @@ export interface SettingsState {
   readonly buildShown: string | null;
   /** The computer whose Image card opens its recipe when it is drawn: an Edit image pressed outside that card. Moving
    * to another page drops it, so an ask no card took never opens a recipe later. */
-  readonly recipeAsked: string | null;
   /** The Usage page's tab, kept while the window is open so coming back finds the same one. */
   readonly usageTab: UsageTab;
   /** Each ask to read usage and limits again, from the head's refresh, the minute's tick or the window's focus. */
@@ -147,7 +146,6 @@ export interface SettingsState {
   rereadImage(read?: () => Promise<SealedImageView>): void;
   showBuild(placeId: string): void;
   hideBuild(placeId: string): void;
-  askRecipe(placeId: string | null): void;
   /** Add a cloud provider, opened on the setup that stands where one does. */
   askAdd(road: AddRoad): void;
   pickUsageTab(tab: UsageTab): void;
@@ -182,7 +180,6 @@ export const useSettingsStore = create<SettingsState>(set => ({
   devicesAsked: 0,
   imageAsked: 0,
   buildShown: null,
-  recipeAsked: null,
   usageTab: "used",
   usageAsked: 0,
   usageRead: { at: null, reading: false },
@@ -193,7 +190,7 @@ export const useSettingsStore = create<SettingsState>(set => ({
   activityPlace: null,
   parting: null,
   go(at) {
-    set({ at, search: "", recipeAsked: null, agentsLevel: null });
+    set({ at, search: "", agentsLevel: null });
     try {
       window.localStorage.setItem(AT_KEY, atId(at));
     } catch {
@@ -253,9 +250,6 @@ export const useSettingsStore = create<SettingsState>(set => ({
   },
   hideBuild(placeId) {
     set(s => (s.buildShown === placeId ? { buildShown: null } : {}));
-  },
-  askRecipe(placeId) {
-    set({ recipeAsked: placeId });
   },
   askAdd() {
     openCloudAdd();

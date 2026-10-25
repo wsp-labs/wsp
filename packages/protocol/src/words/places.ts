@@ -262,14 +262,6 @@ export function placesSpendFoot(monthUsd: number, providers: number): string {
   return `${spentThisMonth(monthUsd)} across ${plural(providers, "provider")}`;
 }
 
-/** The doctor's word on the engine a project's own containers run on here: the engine when the box has one, else
- * the line that says installing one opens it. A place that has not yet said reads nothing. */
-export function placeEngineLine(view: Pick<PlaceView, "name" | "engine">): string | undefined {
-  if (view.engine === undefined) return undefined;
-  if (view.engine === "none") return `${view.name} has no container engine; a project's docker compose runs there once you install Docker or podman on it`;
-  return `${view.name} runs a project's own containers on ${view.engine}; a workspace made with --engine gets a socket to it and sees its own containers alone`;
-}
-
 /** An agent wsp hands a token or a key of the person's at every turn, which needs no login on the computer. */
 export const TOKEN_SIGN_IN_WORD = "signed in with a token";
 

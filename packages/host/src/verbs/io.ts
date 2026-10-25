@@ -394,9 +394,8 @@ export const PICK_INPUTS = {
 export const SEND_INPUTS = { model: PICK_INPUTS.model, effort: PICK_INPUTS.effort };
 /** The same word on new and fork; the refusal for a size the provider does not offer names the ones it does. */
 export const SizeIn = z.string().optional().describe("the machine size as <cpu>x<memGb>, like 2x4; absent takes the image's size. A size the provider does not offer is refused with the list it does, so read that list rather than guessing twice; a build wants the largest memory offered");
-export const SpawnIn = z.enum(["on", "off"]).optional().describe("whether the agents on this workspace may drive this host: open threads and fork machines under the thread they run in, capped. Absent is on under the default caps, which is what every workspace made without it reads as");
-export const MaxMachinesIn = z.number().int().min(0).optional().describe("how many machines may stand at once under one root thread while spawn is on; defaults to 3");
-export const MaxDepthIn = z.number().int().min(1).optional().describe("how many levels deep the tree under a root thread may go while spawn is on, 2 by default; 1 stops at the root's own children");
+export const MaxMachinesIn = z.number().int().min(0).optional().describe("how many machines may stand at once under one root thread; defaults to 3");
+export const MaxDepthIn = z.number().int().min(1).optional().describe("how many levels deep the tree under a root thread may go, 2 by default; 1 stops at the root's own children");
 
 export const PROJECT_FOLDERS = z.array(z.string()).optional().describe("folders on this computer, absolute, to weigh the histories by: only sessions that ran in one of them or under it count");
 /** The same folders on the write verb, where naming them is also naming a rule input, so it re-decides the ticks. */

@@ -101,5 +101,5 @@ export function placeHere(name: string = placeNameHere()): HerePlace {
   const report = placeFacts({ name });
   const label = placeLabelHere();
   const mac = placeMacHere();
-  return { name: report.name, ...(label !== undefined ? { label } : {}), ...(mac !== undefined ? { mac } : {}), os: report.os, shape: report.shape, engine: report.engine, ...(report.diskFreeBytes !== undefined ? { diskFreeBytes: report.diskFreeBytes } : {}), home: homedir() };
+  return { name: report.name, ...(label !== undefined ? { label } : {}), ...(mac !== undefined ? { mac } : {}), os: report.os, shape: report.shape, ...(report.diskFreeBytes !== undefined ? { diskFreeBytes: report.diskFreeBytes } : {}), home: homedir() };
 }

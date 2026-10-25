@@ -145,7 +145,6 @@ pub struct Release {
     pub restart: String,
     pub reopen_app: String,
     pub restart_up: String,
-    pub init_finish: String,
     pub update_there: String,
     pub update_here: String,
     pub roads: HashMap<String, String>,

@@ -155,7 +155,7 @@ async function workspace(adapter: HarnessAdapterFactory, daemon = fakeDaemon(), 
   const backend = stubBackend();
   backend.execImpl = tokenGuest;
   rt = createRuntime({ backend, store, adapters: { claude: adapter }, daemonToken: DAEMON_TOKEN, daemonChannel: daemon.open });
-  const ws = await createOn(rt, { golden: "snap_g", name: "pricing page", agents: { spawn: true, maxMachines: 2, maxDepth: 2 } });
+  const ws = await createOn(rt, { golden: "snap_g", name: "pricing page", agents: { maxMachines: 2, maxDepth: 2 } });
   backend.machines[0]!.previewUrl = async () => ({ url: "http://127.0.0.1:7070", token: "e", expiresAt: Date.now() + 3_600_000 });
   const events: EventUnion[] = [];
   rt.events.on("*", e => events.push(e as EventUnion));

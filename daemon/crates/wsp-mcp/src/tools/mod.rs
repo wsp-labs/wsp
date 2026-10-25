@@ -21,7 +21,6 @@ mod plugins;
 mod projects;
 mod projects_change;
 mod pull_request;
-mod recipe;
 mod recipes;
 pub(crate) mod said;
 mod seed;
@@ -99,12 +98,9 @@ pub const TOOLS: &[Tool] = &[
     wait::RESTART,
     thread::STOP,
     exec::TOOL,
-    recipe::RECIPE,
-    recipe::SCAN,
     projects_change::ADD,
     projects_change::REMOVE,
     machine::RENAME,
-    machine::SNAPSHOT,
     create::FORK,
     changes::COMMIT,
     changes::DISCARD,
@@ -121,7 +117,6 @@ pub const TOOLS: &[Tool] = &[
     machine::REBUILD,
     image::IMAGE,
     image::BUILD,
-    image::REMOVE,
     dropping::FORGET,
     dropping::DELETE,
     worktree::MAKE,

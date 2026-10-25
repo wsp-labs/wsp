@@ -19,7 +19,7 @@ function sources(dir: string): string[] {
 
 /** Letter-spacing that sets a code apart for reading, never a label: the pairing sketch's masked code and a device
  * sign-in code. */
-const CODES = ["settings/AddComputer.tsx: rounded-[4px]", "settings/recipe/BuildRows.tsx: shrink-0 whitespace-nowrap font-mono text-[20px]"];
+const CODES = ["settings/AddComputer.tsx: rounded-[4px]"];
 
 describe("group headings", () => {
   it("no class in the app spells caps or any letter-spacing wider than normal", () => {

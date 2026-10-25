@@ -344,17 +344,6 @@ describe("a host restart while a reply waits on a steered message", () => {
     expect(await outcome(rt, workspaceId, threadId)).toEqual({ starts: ["Write a 250-word story about a lighthouse."], told: [unreadLine(LINE)] });
   }, 30_000);
 
-  it("a line steered as a thread goes back as that thread after the restart, so a switch turned off meanwhile refuses it to the person", async () => {
-    const { rt, workspaceId, threadId } = await restartDuringHold("dies", {
-      as: (workspaceId, threadId) => asThread(scopeOf(workspaceId, threadId), "here"),
-      // The host comes back to the folder's switch held off in the store.
-      down: async workspaceId => void (await store.put("workspaces", workspaceId, { ...((await store.get("workspaces", workspaceId)) as Record<string, unknown>), agents: { spawn: false, maxMachines: 1, maxDepth: 2 } })),
-    });
-    await until(async () => (await outcome(rt, workspaceId, threadId)).told.length > 0, 20_000);
-    await new Promise(r => setTimeout(r, 200));
-    expect(await outcome(rt, workspaceId, threadId)).toEqual({ starts: ["Write a 250-word story about a lighthouse."], told: [unreadLine(LINE)] });
-  }, 30_000);
-
   it("a line the agent appends to the run's input under the steer's own id sends back the words the person steered, never the agent's", async () => {
     const { rt, workspaceId, threadId } = await restartDuringHold("dies", {
       before: async () => {

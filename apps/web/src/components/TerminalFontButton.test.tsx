@@ -26,15 +26,14 @@ describe("terminal font button and card", () => {
     delete (window as unknown as { __WSP__?: unknown }).__WSP__;
   });
 
-  it("opens on click, names the detected font as what empty means, and commits a typed family on blur", async () => {
-    (window as unknown as { __WSP__: unknown }).__WSP__ = { token: "", terminalFont: "Hack" };
+  it("opens on click, names the default font as what empty means, and commits a typed family on blur", async () => {
     render(<Harness />);
-    expect(screen.getByTestId("family").textContent).toBe("Hack");
+    expect(screen.getByTestId("family").textContent).toBe("(default)");
     expect(screen.queryByRole("textbox", { name: "Terminal font" })).toBeNull();
     await open();
     const input = screen.getByRole("textbox", { name: "Terminal font" }) as HTMLInputElement;
-    expect(input.placeholder).toBe("Hack");
-    expect(screen.getByText(/Empty draws with Hack, your terminal's font\./)).toBeTruthy();
+    expect(input.placeholder).toBe("SF Mono");
+    expect(screen.getByText(/Empty draws with the default font\./)).toBeTruthy();
     await act(async () => {
       fireEvent.focus(input);
       fireEvent.change(input, { target: { value: "Iosevka" } });

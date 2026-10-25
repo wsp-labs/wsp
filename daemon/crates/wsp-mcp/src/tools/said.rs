@@ -70,7 +70,6 @@ pub struct Turns {
     pub files: Files,
     pub turn_token_env: String,
     pub notify_me: String,
-    pub recipe: Recipe,
 }
 
 #[derive(Deserialize)]
@@ -154,34 +153,6 @@ pub struct Files {
     pub image_max_bytes: u64,
     pub file_max_bytes: u64,
     pub max: usize,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Recipe {
-    pub out_not_absolute: String,
-    pub project_not_absolute: String,
-    pub agents_title: String,
-    pub tools_title: String,
-    pub tick_on: String,
-    pub tick_off: String,
-    pub gutter: String,
-    pub group_labels: HashMap<String, String>,
-    pub floor_line: String,
-    pub floor_applies: HashMap<String, bool>,
-    pub unknown_size: String,
-    pub totals: String,
-    pub totals_unknown: String,
-    pub pin_latest: String,
-    pub commands_title: String,
-    pub commands_shown: usize,
-    pub commands_head: Vec<String>,
-    pub none: String,
-    pub more: String,
-    pub not_scanned: String,
-    pub sign_ins_title: String,
-    pub sign_ins_head: Vec<String>,
-    pub also_title: HashMap<String, String>,
 }
 
 /// The record this build carries; one it cannot read is a build that never passed its own tests.
@@ -288,10 +259,6 @@ pub fn fmt_bytes(n: f64) -> String {
     format!("{} GB", if whole { js_number(js_round(gb)) } else { tenth })
 }
 
-pub fn plural(n: usize, noun: &str) -> String {
-    format!("{n} {noun}{}", if n == 1 { "" } else { "s" })
-}
-
 /// What JavaScript's \s and trim() take for white space.
 pub fn js_space(c: char) -> bool {
     matches!(
@@ -326,19 +293,6 @@ pub fn collapsed(text: &str) -> String {
 /// The last line with anything on it, its white space collapsed.
 pub fn last_line(text: &str) -> Option<String> {
     text.split('\n').map(|line| line.strip_suffix('\r').unwrap_or(line)).rfind(|line| !js_trim(line).is_empty()).map(collapsed)
-}
-
-/// A string's length as JavaScript counts it, in UTF-16 units, which is what its padding pads to.
-pub fn js_len(text: &str) -> usize {
-    text.encode_utf16().count()
-}
-
-pub fn pad_end(text: &str, width: usize) -> String {
-    format!("{text}{}", " ".repeat(width.saturating_sub(js_len(text))))
-}
-
-pub fn pad_start(text: &str, width: usize) -> String {
-    format!("{}{text}", " ".repeat(width.saturating_sub(js_len(text))))
 }
 
 /// The first `n` UTF-16 units, as `.slice(0, n)` cuts.
@@ -385,6 +339,5 @@ mod tests {
         assert_eq!(last_line("a\r\n\n  last \u{a0} line \n\n"), Some("last line".to_owned()));
         assert_eq!(last_line(" \n "), None);
         assert_eq!(collapsed("\u{85}x"), "\u{85}x");
-        assert_eq!(pad_end("🧪", 3), "🧪 ");
     }
 }

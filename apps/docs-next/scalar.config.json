@@ -603,16 +603,6 @@
                     "title": "wsp projects set",
                     "filepath": "content/reference/cli/projects-set.mdx"
                   },
-                  "/recipe": {
-                    "type": "page",
-                    "title": "wsp recipe",
-                    "filepath": "content/reference/cli/recipe.mdx"
-                  },
-                  "/recipe-scan": {
-                    "type": "page",
-                    "title": "wsp recipe scan",
-                    "filepath": "content/reference/cli/recipe-scan.mdx"
-                  },
                   "/recipes": {
                     "type": "page",
                     "title": "wsp recipes",

@@ -14,7 +14,7 @@ import { agentName } from "@wsp/catalog";
 import { HERE_PLACE_ID, type AgentsReport, type PlaceView } from "@wsp/protocol";
 import { copyText } from "../actions/clipboard.js";
 import { ActButton, AgentMarks, LeadMark } from "../components/agents/agentsParts.js";
-import { AGENTS_LIST_WORDS as L, editImageAct, heldReason, onImage, recipeMissLines, refusedLines, type RefusedLine, type RowAct, type RowsContext } from "../components/agents/agentsRows.js";
+import { AGENTS_LIST_WORDS as L, heldReason, onImage, recipeMissLines, refusedLines, type RefusedLine, type RowAct, type RowsContext } from "../components/agents/agentsRows.js";
 import type { AddModule, AnyKind, Choice, DetailView, Fact, GroupView, RowView, Status, Tone, UnderLevel } from "../components/agents/kinds/kind.js";
 import { SignInFlowView } from "../components/agents/SignInFlowView.js";
 import { SkillPreview } from "../components/agents/SkillPreview.js";
@@ -404,10 +404,8 @@ function KindList({ kind, items, read, rows, on, now, misses, open, add }: { kin
   const head = (text: ReactNode) => <OnHead head={text} readAt={readAt} reading={reading} now={now} refresh={again} {...(on.stale === undefined ? {} : { stale: on.stale })} />;
   const held = heldReason(rows);
   const addWord = kind.add;
-  // A copy of the image adds nothing of its own: what it holds is the image's, so its one act is Edit image.
-  const addButton = onImage(rows) ? (
-    <ActButton act={editImageAct(rows)} k="kind-add" />
-  ) : addWord === undefined ? null : (
+  // A copy of the image adds nothing of its own: what it holds is the image's.
+  const addButton = onImage(rows) || addWord === undefined ? null : (
     <span className="inline-flex shrink-0" {...(add === undefined && report !== null ? { title: held ?? L.notYet } : {})}>
       <AddButton data-k="kind-add" className="h-[30px] text-[13px]" held={add === undefined} {...(add === undefined ? {} : { onClick: () => open({ kind: "add", name: add }) })}>
         {addWord}

@@ -1040,7 +1040,7 @@ describe("a turn the host comes back to", () => {
     const store = memoryStore();
     const h = machineRuns();
     const rt1 = createRuntime({ backend, store, adapters: { claude: h.adapter } });
-    const ws = await createOn(rt1, { golden: "snap_g", name: "a", agents: { spawn: true, maxMachines: 3, maxDepth: 1 } });
+    const ws = await createOn(rt1, { golden: "snap_g", name: "a", agents: { maxMachines: 3, maxDepth: 1 } });
     await rt1.sessions.start(ws.id, { prompt: "coordinate the builders" });
     await until(async () => (await rt1.sessions.history(ws.id)).some(e => e.type === "session.start"));
     const device = (await rt1.devices.list())[0]!;

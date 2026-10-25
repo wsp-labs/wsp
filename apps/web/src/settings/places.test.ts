@@ -8,7 +8,7 @@ const NOW = Date.parse("2026-09-12T12:00:00.000Z");
 const ago = (ms: number): string => new Date(NOW - ms).toISOString();
 
 const MAC = "zingzy's MacBook Pro";
-const here: PlaceView = { id: "here", kind: "computer", name: "zingzys-macbook-pro.local", default: false, shape: { cpu: 8, memMb: 16 * 1024 }, diskFreeBytes: 210 * 1024 ** 3, engine: "none", present: true, takesForks: false };
+const here: PlaceView = { id: "here", kind: "computer", name: "zingzys-macbook-pro.local", default: false, shape: { cpu: 8, memMb: 16 * 1024 }, diskFreeBytes: 210 * 1024 ** 3, present: true, takesForks: false };
 const hetzner: PlaceView = {
   id: "p_1",
   kind: "computer",
@@ -16,14 +16,13 @@ const hetzner: PlaceView = {
   default: true,
   shape: { cpu: 2, memMb: 4 * 1024 },
   diskFreeBytes: 38 * 1024 ** 3,
-  engine: "docker",
   present: true,
   takesForks: true,
   takesRuntime: true,
   joinedAt: ago(60 * 60 * 1000),
   lastSeenAt: ago(3_000),
 };
-const laptop: PlaceView = { ...hetzner, id: "p_2", name: "old-macbook", default: false, takesRuntime: false, shape: { cpu: 4, memMb: 8 * 1024 }, diskFreeBytes: 91 * 1024 ** 3, engine: "none", present: false, lastSeenAt: ago(2 * 60 * 60 * 1000) };
+const laptop: PlaceView = { ...hetzner, id: "p_2", name: "old-macbook", default: false, takesRuntime: false, shape: { cpu: 4, memMb: 8 * 1024 }, diskFreeBytes: 91 * 1024 ** 3, present: false, lastSeenAt: ago(2 * 60 * 60 * 1000) };
 const SOLARI: PlaceView = { id: "solari", kind: "provider", name: "solari", default: false, rateUsdPerHour: 0.11, takesForks: true };
 const ascii: PlaceView = { id: "box", kind: "provider", name: "box", default: false, shape: { cpu: 2, memMb: 4 * 1024 }, diskFreeBytes: 40 * 1024 ** 3, rateUsdPerHour: 0.018, takesForks: true };
 

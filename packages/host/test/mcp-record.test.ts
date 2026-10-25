@@ -29,7 +29,7 @@ import { defaultHomeIn } from "../src/serving-home.js";
 import { addressNotPairedLine, aliasOk, deviceRefusedLine, dialWindowMs, hostsDir, NAME_ONE_HOST, noAnswerRefusal, noAnswerWithin, noSuchHostAmong, READ_THE_HOSTS, severalAccountHostsLine } from "../src/hosts.js";
 import { GUEST_SERVED } from "../src/guest-mcp.js";
 import { mcpServer, type Dialer } from "../src/mcp.js";
-import { recipeCases, TURN_ANSWERED, turnWords, type TurnCase } from "./mcp-record-turns.js";
+import { TURN_ANSWERED, turnWords, type TurnCase } from "./mcp-record-turns.js";
 import { absolutePath, afterWorktreeLine, afterWorktreeBlankLine, AFTER_WORKTREE_BLANK_FIX, TRACKER_SHAPE_FIX, trackerShapeLine, trackersLine, DEFAULTS_LABELS, defaultsValueLine, noDefaultsAnsweredLine, RELEASE_WORDS, releaseRefusal, agentSetNothingLine, agentSetupNothingLine, defaultAgentLine, ENV_NAME_FIX, envNameLine, FROM_WORDS, newThreadsHeadLine, NOTHING_TO_SET_FIX, PICKER_WORDS, projectSetNothingLine, SETUP_WORDS, setupOnLine, startsOnLine, startsOnOwnLine, agentCopyWords, aimedBothLine, aimedUsage, c1Escaped, CLOSE_GRACE_MS, goneFromLine, hasTool, hostTokenMissingLine, isInAlsoLine, isInLine, noHostServingLine, noSkillHitsLine, notHeaderLine, otherVersion, PLACES_FIX, previewCutLine, projectOffComputerLine, projectScopeLine, projectUnnamedLine, SERVER_TOOL_COLUMNS, SKILL_HIT_COLUMNS, skillsShPlacelessLine, threadOf, toolLines, toolName, toolsAddedLine, toolsProjectBareLine, turnedInLine, turnedLine, UNAUTHORIZED_CLOSE, unsetVariableLine, VERBS, workspaceOf, type HostClient } from "../src/verbs.js";
 import { VERSION } from "../src/version.js";
 import { releaseLineOf, roadOf } from "../src/daemon-fix.js";
@@ -126,7 +126,6 @@ const REFUSED: readonly [string, Record<string, unknown>][] = [
   ["computers_set", { computer: "attic", nap: 2.5 }],
   ["computers_set", { computer: "attic", nap: -1 }],
   ["computers_set", { computer: "attic", nap: 181 }],
-  ["computers_set", { computer: "attic", spawn: "yes" }],
   ["computers_set", { computer: "attic", turn_limit: 1.5 }],
   ["computers_set", { computer: "attic", turn_limit: -1 }],
   ["computers_set", { computer: "attic", turn_limit: 25 }],
@@ -139,7 +138,6 @@ const REFUSED: readonly [string, Record<string, unknown>][] = [
   ["threads_wait", { threads: [] }],
   ["threads_wait", { threads: ["t"], timeout: 0 }],
   ["skills_show", { skill: "x", project: 3 }],
-  ["recipe", { set: [1] }],
 ];
 
 /** Each refusal as the text this package's server answers it with. */
@@ -228,7 +226,6 @@ async function words(): Promise<Record<string, unknown>> {
       restart: RELEASE_WORDS.restart,
       reopenApp: RELEASE_WORDS.reopenApp("{mine}"),
       restartUp: RELEASE_WORDS.restartUp,
-      initFinish: RELEASE_WORDS.initFinish,
       updateThere: RELEASE_WORDS.updateThere("{mine}"),
       updateHere: RELEASE_WORDS.updateHere("{line}", "{theirs}"),
       roads: Object.fromEntries((["npm", "app", "checkout"] as const).map(road => [road, releaseLineOf(road, "{version}")])),
@@ -717,7 +714,6 @@ const ANSWERED: Answered = {
     { case: "nap after in minutes", arguments: { computer: "attic", nap: 45, threads: 3 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 3 }, capDefault: { threads: 8 }, settings: { threads: 3, napMs: 2_700_000 }, napMs: 2_700_000, running: 0 } }) } },
     { case: "no turn limit", arguments: { computer: "attic", turn_limit: 0 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, settings: { turnLimitMs: null }, turnLimitMs: null, turnLimitDefault: null, running: 0 } }) } },
     { case: "a turn limit in hours", arguments: { computer: "solari", turn_limit: 12 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...CLOUD, settings: { turnLimitMs: 43_200_000 }, turnLimitMs: 43_200_000, turnLimitDefault: 21_600_000 } }) } },
-    { case: "agents may not start agents", arguments: { computer: "attic", spawn: "off", max_depth: 2 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, settings: { spawn: { spawn: false, maxMachines: 3, maxDepth: 2 } }, spawn: { spawn: false, maxMachines: 3, maxDepth: 2 }, running: 0 } }) } },
     { case: "a new name", arguments: { computer: "attic", name: "hetzner" }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, name: "hetzner", cap: { threads: 8 }, capDefault: { threads: 8 }, running: 0 } }) } },
     { case: "a name another computer holds", arguments: { computer: "attic", name: "spoo", threads: 2 }, replies: { "places.list": reply({ places: [PLACE, SPOO] }), "places.set": refusedHalves(placeRenameRefusal(PLACE, "spoo", [PLACE, SPOO])!) } },
     { case: "a new ssh login", arguments: { computer: "attic", ssh: "root@hetzner" }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, running: 0 } }) } },
@@ -860,11 +856,6 @@ async function regeneratedHere(): Promise<Files> {
   for (const [tool, cases] of Object.entries(ANSWERED)) {
     const answered = [];
     for (const c of cases) answered.push(withGuest({ ...c, ...(await answeredLine(tool, c.arguments, c.replies, c)) }, await answeredLine(tool, c.arguments, c.replies, { ...c, guest: true })));
-    files.set(`tests/answers/${tool}.json`, fileText({ tool, cases: answered }));
-  }
-  for (const [tool, cases] of Object.entries(recipeCases())) {
-    const answered = [];
-    for (const { result, ...c } of cases) answered.push(withGuest({ ...c, replies: {}, ...(await answeredLine(tool, c.arguments, {}, result !== undefined ? { result } : {})) }, await answeredLine(tool, c.arguments, {}, { ...(result !== undefined ? { result } : {}), guest: true })));
     files.set(`tests/answers/${tool}.json`, fileText({ tool, cases: answered }));
   }
   return files;

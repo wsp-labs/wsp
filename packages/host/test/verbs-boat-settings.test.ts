@@ -179,7 +179,7 @@ describe("Boat's settings and its limits on the command line", () => {
       ["--spend", "100"],
       ["--nap", "5"],
       ["--turn-limit", "off"],
-      ["--spawn", "on", "--max-machines", "9", "--max-depth", "4"],
+      ["--max-machines", "9", "--max-depth", "4"],
       ["--reset", "size"],
     ];
     for (const flags of lines) {

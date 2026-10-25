@@ -21,9 +21,3 @@ export function openComputerSettings(placeId: string): void {
   useStore.getState().openSettings();
 }
 
-/** A computer's page in Settings with its Image card's recipe open: every Edit image outside that card. */
-export function openImageRecipe(placeId: string): void {
-  useSettingsStore.getState().go({ kind: "computer", id: placeId });
-  useSettingsStore.getState().askRecipe(placeId);
-  useStore.getState().openSettings();
-}

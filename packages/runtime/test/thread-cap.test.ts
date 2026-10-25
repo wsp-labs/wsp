@@ -350,7 +350,7 @@ describe("a computer's threads at once against what one tree opens", () => {
     try {
       const { host, set } = await onHere(root, adapter);
       clients.push(host);
-      const mac = await createOn(ctx.runtime!, { on: HERE_PLACE_ID, name: "mac", agents: { spawn: true, maxMachines: 3, maxDepth: 4 } });
+      const mac = await createOn(ctx.runtime!, { on: HERE_PLACE_ID, name: "mac", agents: { maxMachines: 3, maxDepth: 4 } });
       await set(1);
       await ctx.runtime!.sessions.start(mac.id, { prompt: "l0" });
       for (let d = 1; d <= 4; d++) {

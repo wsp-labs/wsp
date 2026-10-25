@@ -4,7 +4,8 @@
 // the tool prints it (fake names, masked tokens; nothing real).
 import { describe, expect, it } from "vitest";
 import { SignInFinish } from "@wsp/protocol";
-import { AWS_STATUS, CLOUDFLARED_STATUS, GEMINI_STATUS, SIGN_INS, TOKEN_SOURCE, claudeSource, geminiSource, hasLogin, asksThePerson, livesOnComputer, loginWords, mintsToken, questionsOf, secretNamed, signInFor, signInWords, signsInByDefault, type SignIn } from "../src/signin-table.js";
+import { AWS_STATUS, CLOUDFLARED_STATUS, GEMINI_STATUS, SIGN_INS, TOKEN_SOURCE, claudeSource, geminiSource, hasLogin, questionsOf, secretNamed, signInFor, signsInByDefault, type SignIn } from "../src/signin-table.js";
+import { asksThePerson, livesOnComputer, loginWords, mintsToken } from "@wsp/catalog";
 import { collectorLogins } from "./collector-logins.js";
 import { ASKED, REACHED } from "./signin-questions.js";
 
@@ -52,7 +53,6 @@ describe("sign-in table", () => {
     const claude = signInFor("claude");
     expect(mintsToken(claude) && claude.mint).toBe("claude setup-token");
     expect(hasLogin(claude)).toBe(false);
-    expect(signInWords(claude)).toBe("claude setup-token");
     expect(command("opencode").note).toMatch(/1\.3\.0/);
     // pi signs in only through /login inside its TUI and hermes through its auth menu; both run in the machine's pty.
     expect(command("pi").login).toBe("pi");
@@ -299,14 +299,10 @@ describe("sign-in table", () => {
     expect(signsInByDefault({ kind: "shell" })).toBe(false);
   });
 
-  it("words a row for a checklist: the command, what to do instead, or a plain ask", () => {
-    expect(signInWords(signInFor("gh"))).toBe(command("gh").login);
-    // A row has no room for the flags that answer a tool's questions, and nobody has to type them.
+  it("words a row's login without the flags that answer a tool's questions, which nobody has to type", () => {
     expect(loginWords(command("gh"))).toBe("gh auth login");
     expect(loginWords(command("gemini"))).toBe("gemini");
     expect(loginWords(command("aws"))).toBe("aws configure sso");
-    expect(signInWords(signInFor("kube"))).toBe("kubectl has no sign-in; copy the kubeconfig instead");
-    expect(signInWords(signInFor("unknown"))).toBe("sign in as the tool asks");
   });
 
   it("never carries a token-looking value", () => {

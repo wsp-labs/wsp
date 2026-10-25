@@ -7,19 +7,17 @@
 // it got; a stopped one says so in the failed ink, and one that waits on the
 // person in its ink with its mark. The bar moves by a width transition when a
 // step ends and nothing animates at rest. A card opens Add a computer on its
-// running steps; a cloud's image build stands here the same way and opens Add
-// a cloud provider on it.
-import { INIT_ROW_STATES, SETUP_WORDS, initBuildRows, initJobBuilding, initStageCount, placeWord, setupWord, type InitJob, type PlaceView } from "@wsp/protocol";
+// running steps.
+import { SETUP_WORDS, placeWord, setupWord, type PlaceView } from "@wsp/protocol";
 import { StateMark } from "../components/status/StateMark.js";
 import { SidebarMenuButton } from "../components/ui/sidebar.js";
 import { cn } from "../lib/utils.js";
-import { useStore, usePlaces } from "../protocol/store.js";
+import { usePlaces } from "../protocol/store.js";
 import { openSetup } from "../settings/add/addFlow.js";
-import { openCloudAdd } from "../settings/add/cloudFlow.js";
 import { setupCount, setupRows } from "../settings/add/setup.js";
 import { ComputerGlyph } from "../settings/ComputerGlyph.js";
 import { capitalised } from "../settings/format.js";
-import { isProviderPlace, placeName } from "../settings/places.js";
+import { placeName } from "../settings/places.js";
 import { SectionRow } from "./SectionRow.js";
 
 type CardTone = "working" | "needs-you" | "failed";
@@ -39,29 +37,18 @@ export function settingUp(places: readonly PlaceView[]): { place: PlaceView; ton
   });
 }
 
-/** A cloud's image build as a card: the cloud its job is for, while it builds or once it failed. */
-export function cloudBuilding(job: InitJob | null, places: readonly PlaceView[]): { place: PlaceView; tone: CardTone; line: string; done: number; of: number } | undefined {
-  const place = job?.place === undefined ? undefined : places.find(p => p.id === job.place!.id && isProviderPlace(p));
-  if (job === null || place === undefined || (!initJobBuilding(job.phase) && job.phase !== "failed")) return undefined;
-  const rows = initBuildRows(job.rows).rows;
-  const { done, total } = initStageCount(rows);
-  const failed = job.phase === "failed";
-  const line = failed ? SETUP_WORDS.failed : (rows.find(r => r.state === INIT_ROW_STATES.running)?.label ?? SETUP_WORDS.settingUp);
-  return { place, tone: failed ? "failed" : "working", line, done, of: total };
-}
-
 const INK: Record<CardTone, { line: string; bar: string }> = {
   working: { line: "text-[var(--sidebar-prose)]", bar: "bg-sidebar-foreground" },
   "needs-you": { line: "text-status-input", bar: "bg-status-input" },
   failed: { line: "text-status-failed", bar: "bg-status-failed" },
 };
 
-function SetupCard({ place, tone, line, count, onOpen }: { place: PlaceView; tone: CardTone; line: string; count?: { done: number; of: number }; onOpen?: () => void }) {
-  const { done, of } = count ?? setupCount(setupRows(place));
+function SetupCard({ place, tone, line }: { place: PlaceView; tone: CardTone; line: string }) {
+  const { done, of } = setupCount(setupRows(place));
   const name = placeName(place);
   return (
     <li data-setup-card={place.id} data-tone={tone} className="min-w-0">
-      <SidebarMenuButton data-sidebar-row data-row-id={`setup:${place.id}`} className="h-auto flex-col items-stretch gap-1.5 px-2 py-2 data-[active=true]:font-normal" onClick={onOpen ?? (() => openSetup(place.id))}>
+      <SidebarMenuButton data-sidebar-row data-row-id={`setup:${place.id}`} className="h-auto flex-col items-stretch gap-1.5 px-2 py-2 data-[active=true]:font-normal" onClick={() => openSetup(place.id)}>
         <span className="flex min-w-0 items-center gap-2">
           <ComputerGlyph place={place} className="size-3.5 text-sidebar-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-sm leading-[18px] text-sidebar-foreground">{name}</span>
@@ -90,8 +77,7 @@ function SetupCard({ place, tone, line, count, onOpen }: { place: PlaceView; ton
 export function SettingUpSection({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const places = usePlaces();
   const cards = settingUp(places);
-  const cloud = cloudBuilding(useStore(s => s.initJob), places);
-  const count = cards.length + (cloud === undefined ? 0 : 1);
+  const count = cards.length;
   if (count === 0) return null;
   return (
     <ul data-sidebar-foot-setup className="flex w-full min-w-0 flex-col">
@@ -103,7 +89,6 @@ export function SettingUpSection({ collapsed, onToggle }: { collapsed: boolean; 
             {cards.map(card => (
               <SetupCard key={card.place.id} {...card} />
             ))}
-            {cloud === undefined ? null : <SetupCard place={cloud.place} tone={cloud.tone} line={cloud.line} count={{ done: cloud.done, of: cloud.of }} onOpen={() => openCloudAdd(cloud.place.id)} />}
           </ul>
         )}
       </li>
