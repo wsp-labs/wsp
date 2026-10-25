@@ -488,7 +488,7 @@ fn take(mut rx: mpsc::UnboundedReceiver<Fed>, begun: u64, cx: &mut App) {
 
 /// The feed dialled again at the host the window is on now, once the window moved; nothing before the feed began.
 pub fn follow_window(cx: &mut App) {
-    if !cx.try_global::<Desk>().is_some_and(|d| d.feed.is_some()) {
+    if cx.try_global::<Desk>().is_none_or(|d| d.feed.is_none()) {
         return;
     }
     let desk = cx.global_mut::<Desk>();

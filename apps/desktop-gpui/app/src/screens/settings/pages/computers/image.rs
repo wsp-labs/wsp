@@ -243,7 +243,7 @@ pub fn image_state(place: &PlaceView, ctx: &Ctx) -> Option<State> {
         return Some(build);
     }
     let view = ctx.data.image.as_ref();
-    if let Some((image, copy)) = view.and_then(|v| v.image.as_ref().and_then(|i| copy_on(&v.copies, place).map(|c| (i, c)))) {
+    if let Some((image, copy)) = view.and_then(|v| v.image.as_ref().zip(copy_on(&v.copies, place))) {
         let stale = (image.vault.is_some() || image.no_secrets == Some(true)) && copy.hash.as_deref() != Some(image.hash.as_str());
         return Some(if stale { State::Stale } else { State::Ready });
     }
