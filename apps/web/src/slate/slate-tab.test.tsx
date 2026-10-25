@@ -181,6 +181,8 @@ describe("the Slate tab", () => {
     push({ type: "slate.run", workspaceId: "ws", threadId: tid(), run: "tests", lines: ["RUN  v3", " ✓ rounds once"] });
     push({ type: "slate.run", workspaceId: "ws", threadId: tid(), run: "tests", lines: [" ✓ totals add up"] });
     flush();
+    expect(document.querySelector("[data-slate-summary]")!.textContent).toBe("✓ totals add up");
+    fireEvent.click(screen.getByRole("button", { name: "All 3 lines" }));
     const log = screen.getByRole("log");
     expect([...log.children].map(line => line.textContent)).toEqual(["RUN  v3", " ✓ rounds once", " ✓ totals add up"]);
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Cancel" })));
@@ -299,7 +301,7 @@ describe("held runs ask on their own, held buttons say why, submit is Enter", ()
     expect(sheet.querySelector("[data-slate-consent-cadence]")?.textContent).toBe("Runs each time $project changes");
   });
 
-  it("draws a held button disabled with its sentence on hover, and lets null or false go", async () => {
+  it("draws a held button disabled with its sentence under it, and lets null or false go", async () => {
     const doc = slate({
       root: "root",
       values: { ok: { start: false } },
@@ -315,10 +317,7 @@ describe("held runs ask on their own, held buttons say why, submit is Enter", ()
     expect(next.disabled).toBe(true);
     const wrap = next.closest("[data-slate-held-button]") as HTMLElement;
     expect(wrap.dataset["slateHeldButton"]).toBe("Check the project first");
-    fireEvent.pointerEnter(wrap, { pointerType: "mouse" });
-    fireEvent.mouseEnter(wrap);
-    fireEvent.mouseMove(wrap);
-    expect(await screen.findByText("Check the project first", {}, { timeout: 2_000 })).toBeTruthy();
+    expect(wrap.querySelector("[data-slate-held-why]")?.textContent).toBe("Check the project first");
     for (const name of ["Free", "Off"]) {
       const button = screen.getByRole("button", { name }) as HTMLButtonElement;
       expect(button.disabled).toBe(false);
@@ -402,10 +401,10 @@ describe("held runs ask on their own, held buttons say why, submit is Enter", ()
     });
     openThread(host(record(doc, { spot: { state: "done", exit: 0, out: "Mumbai 31C", runs: 3, stale: true } }, { revision: 10 })));
     expect(await screen.findByText("from before the command changed")).toBeTruthy();
-    expect(screen.getByRole("log").className).toContain("text-muted-foreground");
+    expect(document.querySelector("[data-slate-summary]")!.className).toContain("text-muted-foreground");
     push({ type: "slate.values", workspaceId: "ws", threadId: tid(), version: 1, revision: 11, values: { $spot: { state: "done", exit: 0, out: "Pune 27C", runs: 4 } } });
     flush();
     expect(screen.queryByText("from before the command changed")).toBeNull();
-    expect(screen.getByRole("log").textContent).toBe("Pune 27C");
+    expect(document.querySelector("[data-slate-summary]")!.textContent).toBe("Pune 27C");
   });
 });
