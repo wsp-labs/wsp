@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/host/test/contract.test.ts > the agent contract on the command line and the tool door > with --json every command-line verb prints JSON alone on stdout and its last object is the one its MCP tool answers with"}}
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"in":{"ref":"alpha","id":2,"op":"projects.resolve"}}
-{"in":{"patch":{"projectDefaults":{"pr_9748e189":{"access":null}}},"id":3,"op":"preferences.set"}}
+{"in":{"patch":{"projectDefaults":{"pr_00000001":{"access":null}}},"id":3,"op":"preferences.set"}}
 {"in":{"id":4,"op":"projects.defaults"}}

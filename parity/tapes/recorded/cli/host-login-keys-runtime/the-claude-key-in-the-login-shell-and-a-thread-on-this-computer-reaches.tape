@@ -1,2 +1,2 @@
 {"meta":{"door":"cli","source":"packages/host/test/login-keys-runtime.test.ts > the Claude key in the login shell and a thread on this computer > reaches the turn's environment, and no log line, frame or state file holds it"}}
-{"in":{"argv":["exec","--state","<run>/wsp-login-keys-5qdaAw/home/state.json","e86fd640-48d5-49e4-87d7-e8606745a6d8","--","sh","-c","printf %s \"$ANTHROPIC_API_KEY\" | cksum"]}}
+{"in":{"argv":["exec","--state","<run>/wsp-login-keys-000001/home/state.json","00000000-0000-4000-8000-000000000001","--","sh","-c","printf %s \"$ANTHROPIC_API_KEY\" | cksum"]}}

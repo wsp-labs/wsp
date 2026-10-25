@@ -1,6 +1,3 @@
-{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead's tree, once its folder passed its row cap with the lead's and a child's rows kept > a child in the folder stops the lead: not running, and the running threads under it stopped"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"ref":"lab","id":2,"op":"projects.resolve"}}
-{"in":{"ref":"pr_df09c4e4","id":3,"op":"projects.resolve"}}
-{"in":{"id":4,"op":"harnesses.list"}}
-{"in":{"project":"pr_df09c4e4","prompt":"hold: build it","turnToken":"9172d9f658b4f90a98cb843c9d5a3321","startedBy":"cli","requestId":"b4e0d734-fd9e-4f5e-9866-462901e992c2","answerHeld":true,"id":5,"op":"sessions.start"}}
+{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead's tree, once its folder passed its row cap with the lead's and a child's rows kept > a child on the box lists the lead and reaches it with wsp send and the send tool"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAER3xNgcargLKqJVst2rVt2T/dRoEl7IKIiAbB8M9nCA=","nonce":"RKefPvr8tcFcLwxv702CwagJP0CYeAvXFTjJeXJN0I0=","ephemeral":"iGvtHBj2fqKR8XC4Lfwy8eYpU6XR6LbRM71iGaQIxg0=","id":1,"op":"place.join"}}
+{"in":{"signature":"uDfH3HnvCimLqU4uH5Sn4Ed2AP863Pl3Rcne1lGwHXoR3meLIEQRUfrkxJUtJ7RpfqxmktZb3KOoE/a7UmmeBA==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}
