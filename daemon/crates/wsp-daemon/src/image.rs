@@ -4,6 +4,7 @@
 //! through it. Opened without blocking and judged on the handle it was opened as, so a fifo or a device in its place
 //! can neither hold the read nor feed it. A path on this computer may pass links, since any path here is what is asked
 //! for; a path in a workspace is read under its root with no link followed, since an agent arranges every name there.
+//! A frame's page takes the same road, answered only where the file is named .html or .htm and its bytes are text.
 
 use std::fs::File;
 use std::io::Read;
@@ -51,9 +52,33 @@ pub(crate) fn looks_svg(bytes: &[u8]) -> bool {
     head.match_indices("<svg").any(|(at, _)| head[at + 4..].starts_with(|c: char| c == '>' || c.is_whitespace()))
 }
 
-/// The answer for an opened file, with its modified time: its size alone where it is over the cap or not an image,
-/// whether an SVG stands there, else its bytes.
-fn judged(file: File, shown: &str, cap: u64) -> Result<FsImageReply, OpError> {
+/// What a slate reads off a file: an image its bytes name, or a page that is text.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Kind {
+    Image,
+    Page,
+}
+
+impl Kind {
+    /// The most a read of this kind carries; past it only the size is answered, which the host refuses.
+    fn cap(self) -> u64 {
+        match self {
+            Kind::Image => numbers::FS_IMAGE_CAP_BYTES,
+            Kind::Page => numbers::FS_PAGE_CAP_BYTES,
+        }
+    }
+
+    fn type_of(self, bytes: &[u8]) -> Option<&'static str> {
+        match self {
+            Kind::Image => media_type(bytes),
+            Kind::Page => std::str::from_utf8(bytes).is_ok().then_some("text/html"),
+        }
+    }
+}
+
+/// The answer for an opened file, with its modified time: its size alone where it is over the cap or not of its
+/// kind, whether an SVG stands where an image was asked for, else its bytes.
+fn judged(file: File, shown: &str, cap: u64, kind: Kind) -> Result<FsImageReply, OpError> {
     let meta = file.metadata()?;
     if !meta.is_file() {
         return Err(not_a_file(shown));
@@ -71,26 +96,26 @@ fn judged(file: File, shown: &str, cap: u64) -> Result<FsImageReply, OpError> {
     if size > cap {
         return Ok(only(size, false));
     }
-    let Some(kind) = media_type(&bytes) else {
-        return Ok(only(size, looks_svg(&bytes)));
+    let Some(found) = kind.type_of(&bytes) else {
+        return Ok(only(size, kind == Kind::Image && looks_svg(&bytes)));
     };
     Ok(FsImageReply {
         size,
         modified,
         inode,
         changed,
-        media_type: Some(kind.to_owned()),
+        media_type: Some(found.to_owned()),
         content: Some(base64::engine::general_purpose::STANDARD.encode(&bytes)),
         svg: None,
     })
 }
 
 /// A whole path on this computer.
-pub(crate) async fn read_here(path: String, cap: u64) -> Result<FsImageReply, OpError> {
+pub(crate) async fn read_here(path: String, cap: u64, kind: Kind) -> Result<FsImageReply, OpError> {
     blocking(move || {
         let opened = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC).open(&path);
         match opened {
-            Ok(file) => judged(file, &path, cap),
+            Ok(file) => judged(file, &path, cap, kind),
             Err(e) if matches!(e.raw_os_error(), Some(libc::ENOENT) | Some(libc::ENOTDIR)) => Err(not_found(&path)),
             // A socket refuses an open outright; anything standing there that is not a file is said as such.
             Err(e) => match std::fs::metadata(&path) {
@@ -105,7 +130,7 @@ pub(crate) async fn read_here(path: String, cap: u64) -> Result<FsImageReply, Op
 /// A whole path inside a workspace whose root is `root` on this computer, each name opened with no link followed.
 /// Workspaces run on Linux alone; its test runs everywhere.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) async fn read_beneath(root: PathBuf, path: String, cap: u64) -> Result<FsImageReply, OpError> {
+pub(crate) async fn read_beneath(root: PathBuf, path: String, cap: u64, kind: Kind) -> Result<FsImageReply, OpError> {
     blocking(move || {
         let held: OwnedFd = open(&root, beneath::dir_flags(), Mode::empty()).map_err(|e| OpError::plain(e.to_string()))?;
         let rel = path.trim_start_matches('/');
@@ -113,7 +138,7 @@ pub(crate) async fn read_beneath(root: PathBuf, path: String, cap: u64) -> Resul
             return Err(not_a_file(&path));
         }
         match beneath::file(&held, rel) {
-            Ok(Some(file)) => judged(file, &path, cap),
+            Ok(Some(file)) => judged(file, &path, cap, kind),
             Ok(None) => match beneath::parent_of(&held, rel) {
                 Ok(Some((parent, leaf))) if fstatat(&parent, leaf, AtFlags::AT_SYMLINK_NOFOLLOW).is_ok() => Err(not_a_file(&path)),
                 _ => Err(not_found(&path)),
@@ -126,23 +151,40 @@ pub(crate) async fn read_beneath(root: PathBuf, path: String, cap: u64) -> Resul
 
 /// The image a frame names: a whole path on this computer, or inside the workspace it names.
 pub(crate) async fn image_of(ctx: &Ctx, machine: Option<&str>, path: String) -> Result<FsImageReply, OpError> {
+    file_of(ctx, machine, path, Kind::Image).await
+}
+
+/// A frame's page, by the same road as an image, refused unless it is named as an HTML file.
+pub(crate) async fn page_of(ctx: &Ctx, machine: Option<&str>, path: String) -> Result<FsImageReply, OpError> {
+    if !is_page_name(&path) {
+        return Err(OpError::coded(DaemonErrorCode::BadRequest, format!("{path} is not an .html file")));
+    }
+    file_of(ctx, machine, path, Kind::Page).await
+}
+
+fn is_page_name(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower.ends_with(".html") || lower.ends_with(".htm")
+}
+
+async fn file_of(ctx: &Ctx, machine: Option<&str>, path: String, kind: Kind) -> Result<FsImageReply, OpError> {
     if !Path::new(&path).is_absolute() {
         return Err(OpError::coded(DaemonErrorCode::BadRequest, format!("{path} is not a whole path")));
     }
     match machine {
-        None => read_here(path, numbers::FS_IMAGE_CAP_BYTES).await,
-        Some(machine) => inside(ctx, machine, path).await,
+        None => read_here(path, kind.cap(), kind).await,
+        Some(machine) => inside(ctx, machine, path, kind).await,
     }
 }
 
 #[cfg(target_os = "linux")]
-async fn inside(ctx: &Ctx, machine: &str, path: String) -> Result<FsImageReply, OpError> {
+async fn inside(ctx: &Ctx, machine: &str, path: String, kind: Kind) -> Result<FsImageReply, OpError> {
     let root = crate::workspace::workspaces_of(ctx, machine)?.rootfs_of_running(machine).map_err(crate::ops::from_runtime)?;
-    read_beneath(root, path, numbers::FS_IMAGE_CAP_BYTES).await
+    read_beneath(root, path, kind.cap(), kind).await
 }
 
 #[cfg(not(target_os = "linux"))]
-async fn inside(_ctx: &Ctx, machine: &str, _path: String) -> Result<FsImageReply, OpError> {
+async fn inside(_ctx: &Ctx, machine: &str, _path: String, _kind: Kind) -> Result<FsImageReply, OpError> {
     Err(crate::workspace::no_such_workspace(machine))
 }
 
@@ -161,7 +203,7 @@ mod tests {
         std::fs::write(outside.path().join("key.png"), PNG).unwrap();
         std::os::unix::fs::symlink(outside.path().join("key.png"), root.path().join("root/shots/link.png")).unwrap();
         std::os::unix::fs::symlink(outside.path(), root.path().join("root/away")).unwrap();
-        let read = |path: &str| read_beneath(root.path().to_path_buf(), path.to_owned(), 1024);
+        let read = |path: &str| read_beneath(root.path().to_path_buf(), path.to_owned(), 1024, Kind::Image);
 
         let shown = read("/root/shots/home.png").await.unwrap();
         assert_eq!((shown.media_type.as_deref(), shown.size), (Some("image/png"), PNG.len() as u64));
@@ -171,6 +213,23 @@ mod tests {
         assert_eq!(read("/root/shots").await.unwrap_err().code, Some(DaemonErrorCode::NotAFile));
         assert_eq!(read("/root/shots/gone.png").await.unwrap_err().code, Some(DaemonErrorCode::NotFound));
         assert_eq!(read("/root/../etc/passwd").await.unwrap_err().code, Some(DaemonErrorCode::NotAFile));
+    }
+
+    #[tokio::test]
+    async fn a_page_is_answered_only_as_text_under_an_html_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let at = |name: &str| dir.path().join(name).to_string_lossy().into_owned();
+        std::fs::write(at("dial.html"), "<!doctype html><p>dial</p>").unwrap();
+        std::fs::write(at("bytes.html"), [0xff, 0xfe, 0x00]).unwrap();
+        let page = read_here(at("dial.html"), 1024, Kind::Page).await.unwrap();
+        assert_eq!(page.media_type.as_deref(), Some("text/html"));
+        assert_eq!(base64::engine::general_purpose::STANDARD.decode(page.content.unwrap()).unwrap(), b"<!doctype html><p>dial</p>");
+        let bytes = read_here(at("bytes.html"), 1024, Kind::Page).await.unwrap();
+        assert_eq!((bytes.media_type, bytes.content, bytes.size), (None, None, 3));
+        let over = read_here(at("dial.html"), 8, Kind::Page).await.unwrap();
+        assert_eq!((over.content, over.size), (None, 26));
+        assert!(is_page_name("/tmp/a.HTML") && is_page_name("/tmp/b.htm"));
+        assert!(!is_page_name("/root/.ssh/id_ed25519") && !is_page_name("/tmp/a.html.txt"));
     }
 
     #[test]

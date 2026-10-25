@@ -1,0 +1,21 @@
+# wsp slate look
+
+{/* Written by apps/docs-next/scripts/cli.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
+
+```text
+usage: wsp slate look [<thread>] [--width <px>] [--out <file>]
+  draws the thread's slate as the app's window does, in the person's theme at
+  the panel's width, and saves it as a PNG; the tool answers the picture
+
+  --width    the panel's width in px to draw at, from 280 to 1600; the person's
+             own panel width unless given
+  --out      the file to save the PNG to; else one file per thread in the
+             temporary folder, each look over the last
+  --json     print the raw protocol values, one JSON object per line, with
+             everything else on stderr
+  --state    the state file the host serves
+  --host     run the line against a host on your account, by the name wsp hosts
+             lists it under; WSP_HOST names one for a whole shell
+```
+
+MCP tool: [`slate_look`](/reference/mcp-tools#slatelook).

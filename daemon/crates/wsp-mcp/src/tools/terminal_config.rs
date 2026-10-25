@@ -511,7 +511,7 @@ async fn call(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let (config, files, theme) = read(host.env(), asked.scheme.as_deref().unwrap_or("dark"));
     let structured = config.json(&files, theme.as_deref());
     let text = config.lines(&files, theme.as_deref(), &record::words().no_terminal_config).join("\n");
-    Ok(Answer { text, structured, error: false })
+    Ok(Answer { text, structured, error: false, image: None })
 }
 
 #[cfg(test)]

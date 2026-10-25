@@ -252,11 +252,11 @@ describe("a guest session on the host", () => {
       const server = join(dir, "tool-server");
       writeStub(server, `#!/bin/sh\necho "$@" >> ${seen}\n`);
       const kind = guestTools(statePath, server);
-      for (const noSlate of [false, true]) {
-        kind.open({ argv: ["mcp"], cwd: "/root", env: {}, ...(noSlate ? { noSlate: true as const } : {}), reply: () => undefined, close: () => undefined });
+      for (const told of [{}, { noSlate: true as const }, { noLook: true as const }]) {
+        kind.open({ argv: ["mcp"], cwd: "/root", env: {}, ...told, reply: () => undefined, close: () => undefined });
       }
-      await settled(() => existsSync(seen) && readFileSync(seen, "utf8").split("\n").length > 2);
-      expect(readFileSync(seen, "utf8").trim().split("\n").sort()).toEqual([`mcp --state ${statePath} --scoped --guest`, `mcp --state ${statePath} --scoped --guest --no-slate`]);
+      await settled(() => existsSync(seen) && readFileSync(seen, "utf8").split("\n").length > 3);
+      expect(readFileSync(seen, "utf8").trim().split("\n").sort()).toEqual([`mcp --state ${statePath} --scoped --guest`, `mcp --state ${statePath} --scoped --guest --no-look`, `mcp --state ${statePath} --scoped --guest --no-slate`]);
     });
 
     it("names the tool server's process as its thread's to the owner ladder while the session stands", async () => {

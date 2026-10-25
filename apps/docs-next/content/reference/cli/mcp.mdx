@@ -3,7 +3,7 @@
 {/* Written by apps/docs-next/scripts/cli.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
 
 ```text
-usage: wsp mcp [--host <alias>] [--scoped [--no-slate]]
+usage: wsp mcp [--host <alias>] [--scoped [--no-slate] [--no-look]]
        wsp mcp install --agent <id> [--agent <id>] [--host <alias>] [--json]
        [--remove]   (claude, codex, gemini, opencode)
   serve the verbs as tools over stdio to an agent on this computer
@@ -17,6 +17,8 @@ usage: wsp mcp [--host <alias>] [--scoped [--no-slate]]
   --no-slate    what the host puts beside it for a thread another thread
                 started, which has no slate: the server's instructions say
                 nothing of one
+  --no-look     what the host puts beside it for a turn launched while no app on
+                its computer draws looks: slate_look is not listed
 ```
 
 No MCP tool: is the tool server itself.

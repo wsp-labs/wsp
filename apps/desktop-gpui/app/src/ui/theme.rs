@@ -159,6 +159,7 @@ palette!(
     popover_edge,
     ring,
     success,
+    success_foreground,
     warning,
     warning_foreground,
     yellow_foreground,

@@ -505,6 +505,7 @@ fn rendered_numbers() -> BTreeMap<&'static str, Value> {
     m.insert("tunnelCap", Value::from(numbers::TUNNEL_CAP));
     m.insert("fsReadCapBytes", Value::from(numbers::FS_READ_CAP_BYTES));
     m.insert("fsImageCapBytes", Value::from(numbers::FS_IMAGE_CAP_BYTES));
+    m.insert("fsPageCapBytes", Value::from(numbers::FS_PAGE_CAP_BYTES));
     m.insert("fsHashFilesMax", Value::from(numbers::FS_HASH_FILES_MAX));
     m.insert("fsHashCapBytes", Value::from(numbers::FS_HASH_CAP_BYTES));
     m.insert("fsHashPathsMax", Value::from(numbers::FS_HASH_PATHS_MAX));

@@ -6,6 +6,7 @@
 pub mod barswitch;
 pub mod charts;
 pub mod controls;
+pub mod frame;
 pub mod layout;
 pub mod lists;
 pub mod look;
@@ -46,7 +47,7 @@ pub fn flags(kind: &str) -> Flags {
     let bare = Flags { bare: true, ..Flags::default() };
     match kind {
         "heading" => Flags { heads: true, ..bare },
-        "text" | "markdown" | "diagram" | "image" | "images" | "bars" => bare,
+        "text" | "markdown" | "diagram" | "image" | "images" | "frame" | "bars" => bare,
         "timeline" | "donut" | "treemap" | "chart" => Flags { accent: true, ..bare },
         "button" => Flags { control: true, ..bare },
         "input" | "select" | "toggle" => Flags { control: true, ..Flags::default() },
@@ -58,7 +59,7 @@ pub fn flags(kind: &str) -> Flags {
 }
 
 /// The types this build draws, `SLATE_PIECES` in `protocol:slate/catalog.ts`.
-pub const KNOWN: [&str; 31] = [
+pub const KNOWN: [&str; 32] = [
     "column",
     "row",
     "grid",
@@ -76,6 +77,7 @@ pub const KNOWN: [&str; 31] = [
     "diagram",
     "image",
     "images",
+    "frame",
     "sparkline",
     "bars",
     "status",
@@ -173,6 +175,7 @@ fn view(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
         "number" | "meter" | "ring" | "sparkline" | "bars" => numbers::draw(p, window, cx),
         "chart" | "donut" | "timeline" | "treemap" => charts::draw(p, window, cx),
         "diagram" | "image" | "images" => media::draw(p, window, cx),
+        "frame" => frame::draw(p, window, cx),
         "table" | "checklist" => lists::draw(p, window, cx),
         "button" | "input" | "select" | "choices" | "toggle" => controls::draw(p, window, cx),
         "output" => output::draw(p, window, cx),
