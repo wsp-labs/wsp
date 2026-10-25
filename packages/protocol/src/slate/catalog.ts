@@ -31,7 +31,7 @@ export const SLATE_RULES: readonly string[] = [
   "Small edit: patch by id, <props id=\"price\" value={$spot.json.v} />; bigger: resend the whole slate with if_version.",
   `At a glance: at most ${SLATE_GLANCE.sectionsOpen} sections open, the rest collapsible open={false}; ${SLATE_GLANCE.tablesOpen} table of ${SLATE_GLANCE.columns} columns; notes, cells to ${SLATE_GLANCE.cellWords} words, texts to ${SLATE_GLANCE.textWords}; no logs, drawn tables. Replace a section, never add one beside it.`,
   "Fill pieces, not layout: no card in a card, never ·, • or | between things, short labels, no emoji. Heads in sentence case, never bold text.",
-  "Every live number says its window and unit. Show a run's json fields, never its raw out; times through date(), time() or ago().",
+  "A live number shows once, with its window and unit: never a progress count as a stat too. Show a run's json fields, never its raw out; times through date(), time() or ago().",
   "Use the slate tools, never wsp from a shell.",
   "A secret the person types goes in a <secret> input, never a file or the chat. One in a file stays there for the run to read, never you.",
   "A button asked for where the project has no UI goes here: the slate is its UI, and the reply says so.",
@@ -52,7 +52,6 @@ export const SLATE_INDEX_EXAMPLE = `<slate title="Deploy">
     <decision label="Ship it?" value={$ship} pick="yes" onChange={send("Ship it?", $ship)}>
       <option value="yes" label="Ship now" /><option value="no" label="Wait" />
     </decision>
-    <section title="Log" collapsible open={false}><output run={$ci} /></section>
   </column>
 </slate>`;
 
