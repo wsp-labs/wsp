@@ -43,26 +43,25 @@ pub struct PluginsRead {
 // const PEEK_FILE_BYTES = 256 * 1024;
 pub const PEEK_FILE_BYTES: usize = 256 * 1024;
 
-/// The `peek` and `from` shell functions every peek line opens with, byte for byte the TS array joined by `\n`
-/// (plugins.ts:204-224).
+/// The `peek` and `from` shell functions every peek line opens with, generated from plugins.ts:204-224.
 pub const PEEK: &str = concat!(
     "peek() {\n",
     "  files=$1; dirs=$2; shift 2\n",
     "  for r; do\n",
-    r#"    printf '\036r%s\037' "$r""#, "\n",
-    r#"    printf '%s\n' "$files" | while IFS= read -r f; do [ -n "$f" ] && [ -f "$r/$f" ] && { printf '\036f%s/%s\037' "$r" "$f"; head -c 262144 "$r/$f"; }; done"#, "\n",
-    r#"    printf '%s\n' "$dirs" | while IFS=' ' read -r k d; do"#, "\n",
-    r#"      [ -n "$d" ] || continue"#, "\n",
-    r#"      if [ "$d" = . ]; then p=$r; else p=$r/$d; fi"#, "\n",
-    r#"      [ -d "$p" ] || continue"#, "\n",
-    r#"      printf '\036d%s\037' "$p""#, "\n",
-    r#"      find -L "$p" -mindepth 1 -maxdepth "$k" 2>/dev/null | while IFS= read -r x; do printf '%s\037' "${x#"$p"/}"; done"#, "\n",
+    "    printf '\\036r%s\\037' \"$r\"\n",
+    "    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n",
+    "    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n",
+    "      [ -n \"$d\" ] || continue\n",
+    "      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n",
+    "      [ -d \"$p\" ] || continue\n",
+    "      printf '\\036d%s\\037' \"$p\"\n",
+    "      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n",
     "    done\n",
     "  done\n",
     "}\n",
     "from() {\n",
     "  k=$1; shift\n",
-    r#"  for f; do [ -f "$f" ] && LC_ALL=C grep -o "\"$k\"[[:space:]]*:[[:space:]]*\"[^\"\\]*\"" "$f"; done | sed 's/^"[^"]*"[[:space:]]*:[[:space:]]*"//; s/"$//' | sort -u"#, "\n",
+    "  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n",
     "}",
 );
 
