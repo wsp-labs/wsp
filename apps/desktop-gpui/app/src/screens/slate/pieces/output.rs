@@ -172,8 +172,8 @@ pub fn draw(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement
             .gap(px(4.))
             .h(px(28.))
             .cursor_pointer()
-            .text_size(px(13.))
-            .line_height(px(20.))
+            .text_size(px(12.))
+            .line_height(px(16.))
             .text_color(pal.muted_foreground)
             .hover(|el| el.text_color(pal.foreground))
             .on_click(move |_, _, cx| {
@@ -258,16 +258,39 @@ pub struct RunSummary {
 /// `SLATE_SUMMARY_LINES`.
 pub const SUMMARY_LINES: usize = 5;
 
+// JavaScript reads `\d`, `\w` and `\b` as ASCII and `$` before a `\r` too, so these spell them out to read alike.
 static TALLY: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(\d[\d,]*) (passed|passing|failed|failing|failures|errors?|skipped|pending|ignored|todo)\b").unwrap()
+    Regex::new(r"(?i)([0-9][0-9,]*) (passed|passing|failed|failing|failures|errors?|skipped|pending|ignored|todo)(?-u:\b)").unwrap()
 });
 /// cargo prints one per test binary, so a run of several crates sums them.
-static CARGO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*test result: \w+\. ").unwrap());
-/// Lines that name a failure in vitest, jest, mocha, pytest, cargo, go, tsc, eslint and plain shells.
+static CARGO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*test result: [0-9A-Za-z_]+\. ").unwrap());
+/// `RUNNER_FAILURE`, then `NAMED_FAILURE`: the lines a runner or a language prints on its own, then the ones that only
+/// name a failure inside a log; the summary reads both.
 static MATTERS: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\s*(?:FAIL\b|FAILED\b|ERROR\b|--- FAIL|[×✗✖❌]|\d+\) )|\.\.\. FAILED$|\berror(?:\[\w+\])?:|\bpanicked at\b|\bAssertionError\b|^Traceback \(most recent call last\)|\bnpm ERR!").unwrap()
+    Regex::new(concat!(
+        r"(?mR)^\s*FAIL +(?:\|[^|]+\| +)?\S+\.[0-9A-Za-z_]+|--- FAIL|\.\.\. FAILED$|^\s*error(?:\[[0-9A-Za-z_]+\])?:",
+        r"|^\s*[0-9A-Za-z_.]*(?:Error|Exception)(?:\[[0-9A-Za-z_]+\])?:|(?-u:\b)panicked at(?-u:\b)",
+        r"|^Traceback \(most recent call last\)|(?-u:\b)npm ERR!",
+        r"|^\s*(?:FAIL(?-u:\b)|FAILED(?-u:\b)|ERROR(?-u:\b)|[×✗✖❌]|[0-9]+\) )|(?-u:\b)error(?:\[[0-9A-Za-z_]+\])?:",
+        r"|(?-u:\b)AssertionError(?-u:\b)",
+    ))
+    .unwrap()
 });
+/// `FAIL_NAMES` and `MARK_NAMES`: vitest names a failed test twice, by its mark in the tree and on its FAIL line after;
+/// the FAIL line, with the file, is the one kept.
+static FAIL_NAMES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?R)^\s*FAIL\s+(?:\|[^|]+\|\s+)?\S+ > (.+)$").unwrap());
+static MARK_NAMES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?R)^\s*[×✗✖]\s+(.+?)(?:\s+[0-9]+(?:\.[0-9]+)?m?s)?$").unwrap());
 static ANSI: LazyLock<Regex> = LazyLock::new(|| Regex::new("\x1b\\[[0-9;]*m").unwrap());
+/// `LINE_CHARS`: a failure line or the last line is cut to one line's worth.
+const LINE_CHARS: usize = 160;
+
+fn cut(line: &str) -> String {
+    if line.chars().count() > LINE_CHARS {
+        format!("{}…", line.chars().take(LINE_CHARS - 1).collect::<String>())
+    } else {
+        line.to_owned()
+    }
+}
 
 /// One line's counts, by passed, failed and skipped.
 fn tally(line: &str) -> [Option<u64>; 3] {
@@ -315,22 +338,22 @@ pub fn slate_run_summary(lines: &[String]) -> RunSummary {
             }
         }
     }
+    let fail_named: Vec<&str> = clean.iter().filter_map(|l| FAIL_NAMES.captures(l)).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
     let mut matters: Vec<String> = Vec::new();
     for line in &clean {
-        let said = line.trim();
-        if said.is_empty() || !MATTERS.is_match(line) || matters.iter().any(|m| m == said) || tallies(line) {
+        let said = cut(line.trim());
+        if said.is_empty() || !MATTERS.is_match(line) || matters.contains(&said) || tallies(line) {
             continue;
         }
-        matters.push(if said.chars().count() > 160 {
-            format!("{}…", said.chars().take(159).collect::<String>())
-        } else {
-            said.to_owned()
-        });
+        if MARK_NAMES.captures(line).and_then(|c| c.get(1)).is_some_and(|m| fail_named.contains(&m.as_str())) {
+            continue;
+        }
+        matters.push(said);
         if matters.len() == SUMMARY_LINES {
             break;
         }
     }
-    let last = clean.iter().rev().map(|l| l.trim()).find(|l| !l.is_empty()).map(str::to_owned);
+    let last = clean.iter().rev().map(|l| l.trim()).find(|l| !l.is_empty()).map(cut);
     RunSummary { passed: counts[0], failed: counts[1], skipped: counts[2], matters, last }
 }
 
@@ -582,53 +605,45 @@ mod tests {
 
     use super::*;
 
-    /// What vitest 2.1.9 and cargo 1.97.1 printed, the fixtures `protocol:test/slate/output.test.ts` reads.
-    fn printed(text: &str) -> Vec<String> {
-        text.split('\n').map(str::to_owned).collect()
-    }
-    const VITEST: &str = include_str!("../../../../../../../packages/protocol/test/slate/output/vitest.txt");
-    const VITEST_COLOR: &str = include_str!("../../../../../../../packages/protocol/test/slate/output/vitest-color.txt");
-    const CARGO: &str = include_str!("../../../../../../../packages/protocol/test/slate/output/cargo.txt");
-
-    #[test]
-    fn a_summary_reads_vitests_tests_line_and_its_failure_lines_as_the_protocol_does() {
-        let s = slate_run_summary(&printed(VITEST));
-        assert_eq!((s.failed, s.passed, s.skipped), (Some(1), Some(1), Some(1)));
-        let words: Vec<String> = summary_counts(&s).into_iter().map(|c| c.1).collect();
-        assert_eq!(words, ["1 failed", "1 passed", "1 skipped"]);
-        assert_eq!(
-            s.matters,
-            [
-                "× checkout > rounds a refund 7ms",
-                "FAIL |node|  src/checkout.test.ts > checkout > rounds a refund",
-                "AssertionError: expected 0.30000000000000004 to be 0.3 // Object.is equality",
-            ]
-        );
-        let coloured = slate_run_summary(&printed(VITEST_COLOR));
-        assert_eq!(
-            RunSummary { last: None, ..coloured },
-            RunSummary { last: None, ..s },
-            "the terminal's colours change nothing but the timing line"
-        );
+    /// The protocol's own readings of real and written runner output, which `protocol:test/slate/output.test.ts` holds
+    /// `slateRunSummary` to, so the two apps never read one output two ways.
+    const READINGS: &str = include_str!("../../../../../../../packages/protocol/test/slate/output/readings.json");
+    fn printed(name: &str) -> String {
+        match name {
+            "vitest.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/vitest.txt"),
+            "vitest-color.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/vitest-color.txt"),
+            "cargo.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/cargo.txt"),
+            other => panic!("readings.json names {other}: include it here too"),
+        }
+        .to_owned()
     }
 
     #[test]
-    fn a_summary_sums_cargos_test_result_lines() {
-        let s = slate_run_summary(&printed(CARGO));
-        assert_eq!((s.failed, s.passed, s.skipped), (Some(1), Some(1), Some(1)));
-        assert_eq!(s.matters[0], "test tests::rounds_refund ... FAILED");
-        assert!(s.matters.iter().any(|m| m == "thread 'tests::rounds_refund' (2383223) panicked at src/lib.rs:6:34:"), "{:?}", s.matters);
-        let mut twice = printed(CARGO);
-        twice.push("test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s".into());
-        let twice = slate_run_summary(&twice);
-        assert_eq!((twice.failed, twice.passed), (Some(1), Some(5)));
+    fn a_summary_reads_every_output_as_the_protocols_readings_say() {
+        let cases: Vec<Value> = serde_json::from_str(READINGS).unwrap();
+        assert!(cases.len() > 20);
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let lines: Vec<String> = match case["file"].as_str() {
+                Some(file) => printed(file).split('\n').map(str::to_owned).collect(),
+                None => case["lines"].as_array().unwrap().iter().map(|l| l.as_str().unwrap().to_owned()).collect(),
+            };
+            let s = slate_run_summary(&lines);
+            let want = &case["summary"];
+            let count = |k: &str| want.get(k).and_then(Value::as_u64);
+            assert_eq!((s.passed, s.failed, s.skipped), (count("passed"), count("failed"), count("skipped")), "{name}: the counts");
+            assert_eq!(json!(s.matters), want["matters"], "{name}: the lines that name a failure");
+            assert_eq!(s.last.as_deref(), want.get("last").and_then(Value::as_str), "{name}: the last line");
+            let words: Vec<String> = summary_counts(&s).into_iter().map(|c| c.1).collect();
+            assert_eq!(json!(words), case["counts"], "{name}: the counts as words");
+        }
     }
 
     #[test]
-    fn a_summary_with_no_tally_leads_with_the_last_line() {
-        let s = slate_run_summary(&printed("building acme\nwrote dist/acme.js\n"));
-        assert!(summary_counts(&s).is_empty());
-        assert_eq!(s.last.as_deref(), Some("wrote dist/acme.js"));
+    fn r3_a_long_last_line_is_kept_to_one_lines_worth_as_a_failure_line_is() {
+        let rows: Vec<String> = (0..60).map(|i| format!("{{\"number\":{i},\"title\":\"Pull request {i}\",\"state\":\"open\"}}")).collect();
+        let last = slate_run_summary(&[format!("[{}]", rows.join(","))]).last.unwrap();
+        assert!(last.chars().count() <= 160, "{} characters", last.chars().count());
     }
 
     #[test]

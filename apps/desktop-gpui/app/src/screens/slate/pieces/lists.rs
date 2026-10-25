@@ -787,9 +787,14 @@ fn progress(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement
                         .text_color(palette.foreground)
                         .child(progress_count(done, rows.len())),
                 )
-                .children(
-                    p.str("label").map(|l| div().text_size(px(14.)).line_height(px(20.)).text_color(palette.muted_foreground).child(l)),
-                ),
+                .children(p.str("label").filter(|_| !rows.is_empty()).map(|l| {
+                    div()
+                        .debug_selector(|| "slate-progress-label".into())
+                        .text_size(px(14.))
+                        .line_height(px(20.))
+                        .text_color(palette.muted_foreground)
+                        .child(l)
+                })),
         )
         .child(div().h(px(4.)).w_full().rounded_full().overflow_hidden().bg(palette.foreground.opacity(0.1)).child(
             div().debug_selector(|| "slate-progress-fill".into()).h_full().w(relative(eased.clamp(0., 1.))).rounded_full().bg(fill),
