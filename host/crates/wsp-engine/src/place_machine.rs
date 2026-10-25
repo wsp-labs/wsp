@@ -449,6 +449,7 @@ impl MachineBackend for PlaceFolderBackend {
             copies: false,
             own_network: false,
             sizes: Vec::new(),
+            sizes_last: false,
         }
     }
     fn pricing(&self) -> Arc<dyn BackendPricing> {

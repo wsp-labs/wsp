@@ -4,6 +4,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
 
 use crate::cancel::Cancel;
+use wsp_catalog::json_parse::parse_json;
 use futures::FutureExt;
 use indexmap::IndexMap;
 use serde::Deserialize;
@@ -31,29 +32,31 @@ use wsp_words::words::units::{
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BoxView {
+    #[serde(default = "undefined", deserialize_with = "js_text")]
     pub id: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub name: Option<String>,
+    #[serde(default = "undefined", deserialize_with = "js_text")]
     pub state: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub error: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub last_snapshot_status: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub last_snapshot_attempt_at: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub snapshot_completed_at: Option<String>,
-    #[serde(default, rename = "type")]
+    #[serde(default, rename = "type", deserialize_with = "lenient_string")]
     pub kind: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_number")]
     pub vcpu: Option<f64>,
-    #[serde(default, rename = "memoryGB")]
+    #[serde(default, rename = "memoryGB", deserialize_with = "lenient_number")]
     pub memory_gb: Option<f64>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub created_at: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub archive_after: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub subdomain: Option<String>,
 }
 
@@ -61,13 +64,13 @@ pub struct BoxView {
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandView {
-    #[serde(default)]
-    pub exit_code: Option<i64>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_number")]
+    pub exit_code: Option<f64>,
+    #[serde(default, deserialize_with = "lenient_string")]
     pub stdout: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub stderr: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_bool")]
     pub timed_out: Option<bool>,
 }
 
@@ -75,44 +78,82 @@ pub struct CommandView {
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NamedSnapshotView {
+    #[serde(default = "undefined", deserialize_with = "js_text")]
     pub name: String,
     /// "saving", "ready" or "failed".
+    #[serde(default = "undefined", deserialize_with = "js_text")]
     pub status: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub error: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub source_sandbox_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub snapshot_id: Option<String>,
-    #[serde(default, rename = "type")]
+    #[serde(default, rename = "type", deserialize_with = "lenient_string")]
     pub kind: Option<String>,
     #[serde(default, deserialize_with = "lenient_number")]
     pub size_bytes: Option<f64>,
-    pub created_at: String,
+    #[serde(default, deserialize_with = "lenient_string")]
+    pub created_at: Option<String>,
 }
 
 /// box-backend.ts:386.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotView {
+    #[serde(default = "undefined", deserialize_with = "js_text")]
     pub id: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub sandbox_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub status: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub kind: Option<String>,
     /// `Some(None)` is a chainId the API answered as null, which the listing passes on as `parent: null`.
     #[serde(default, deserialize_with = "crate::box_backend::request::double_option")]
     pub chain_id: Option<Option<String>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub created_at: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub completed_at: Option<String>,
     #[serde(default, deserialize_with = "lenient_number")]
     pub size_bytes: Option<f64>,
     #[serde(default, deserialize_with = "lenient_number")]
     pub content_size_bytes: Option<f64>,
+}
+
+/// What a field the TS never checks reads as in a template literal: its JavaScript text, `undefined` where it is absent.
+fn js_text<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<String, D::Error> {
+    Ok(js_string(&Value::deserialize(d)?))
+}
+
+/// `String(value)`: what a template literal writes for a JSON value.
+pub fn js_string(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        Value::Null => "null".to_string(),
+        Value::Number(n) => number_string(n.as_f64().unwrap_or(f64::NAN)),
+        Value::Bool(b) => b.to_string(),
+        Value::Array(items) => items.iter().map(|v| if v.is_null() { String::new() } else { js_string(v) }).collect::<Vec<_>>().join(","),
+        Value::Object(_) => "[object Object]".to_string(),
+    }
+}
+
+fn undefined() -> String {
+    "undefined".to_string()
+}
+
+/// A text the TS reads as it stands: a value that is not a string reads as absent, as its `typeof` checks do.
+pub fn lenient_string<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Option<String>, D::Error> {
+    Ok(match Value::deserialize(d)? {
+        Value::String(s) => Some(s),
+        _ => None,
+    })
+}
+
+/// A flag the TS reads as it stands: only `true` and `false` count.
+pub fn lenient_bool<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Option<bool>, D::Error> {
+    Ok(Value::deserialize(d)?.as_bool())
 }
 
 /// A size the TS reads as it stands: a value that is not a JSON number reads as absent, as its `typeof` checks do.
@@ -153,7 +194,7 @@ pub fn template_row_of(s: &NamedSnapshotView) -> TemplateRow {
         name: s.name.clone(),
         status,
         error: if s.status == "failed" { s.error.clone() } else { None },
-        created_at: Some(s.created_at.clone()),
+        created_at: s.created_at.clone(),
     }
 }
 
@@ -185,16 +226,21 @@ fn names_the_concurrent_cap(message: &str) -> bool {
     lower.contains("concurrent box") || lower.contains("concurrent sandbox")
 }
 
-/// box-backend.ts:446. `body` is the refusal's parsed JSON, `Value::Null` where it was not JSON.
-pub fn request_limit_wait_ms(body: &Value) -> u64 {
+/// box-backend.ts:446, before the milliseconds are whole: `s * 1000`, a number as it comes.
+pub fn request_limit_wait_exact_ms(body: &Value) -> f64 {
     let named = match body.get("retryAfter") {
         None | Some(Value::Null) => body.get("error").and_then(|e| e.get("details")).and_then(|d| d.get("retryAfter")),
         top => top,
     };
     match named.and_then(Value::as_f64) {
-        Some(s) if s > 0.0 => ((s * 1000.0).min(REQUEST_LIMIT_WINDOW_MS as f64)) as u64,
-        _ => REQUEST_LIMIT_WINDOW_MS,
+        Some(s) if s > 0.0 => (s * 1000.0).min(REQUEST_LIMIT_WINDOW_MS as f64),
+        _ => REQUEST_LIMIT_WINDOW_MS as f64,
     }
+}
+
+/// box-backend.ts:446. `body` is the refusal's parsed JSON, `Value::Null` where it was not JSON.
+pub fn request_limit_wait_ms(body: &Value) -> u64 {
+    request_limit_wait_exact_ms(body) as u64
 }
 
 /// box-backend.ts:459. A refusal read by its code.
@@ -366,12 +412,21 @@ pub struct BoxState {
     pub limits_kept: Option<(i64, BoxLimits)>,
     /// The read of /limits out now, shared by every caller while it is out.
     pub limits_asked:
-        Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, std::result::Result<BoxLimits, EngineError>>>>,
+        Option<futures::future::WeakShared<futures::future::LocalBoxFuture<'static, std::result::Result<BoxLimits, EngineError>>>>,
     /// When each refusal (call, status, code) was last logged.
     pub refusals_logged: HashMap<String, i64>,
     pub backstops: HashMap<String, Timer>,
     pub backstops_sending: BTreeSet<String>,
     pub backstop_failures: HashMap<String, BackstopFailure>,
+}
+
+/// Clears the read of /limits that is out when its future ends, finished or dropped.
+struct ClearsLimitsAsked(Arc<BoxShared>);
+
+impl Drop for ClearsLimitsAsked {
+    fn drop(&mut self) {
+        self.0.state.lock().unwrap().limits_asked = None;
+    }
 }
 
 /// What a BoxBackend is made of; the handle is cheap to clone and every clone is the same backend.
@@ -480,10 +535,13 @@ impl BoxBackend {
                 return if text.is_empty() {
                     Ok(Value::Object(serde_json::Map::new()))
                 } else {
-                    serde_json::from_str(&text).map_err(|e| other(e.to_string()))
+                    parse_json(&text).map_err(|e| other(e.to_string()))
                 };
             }
-            let envelope: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+            let envelope = parse_json(&text).unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
+            if envelope.is_null() {
+                return Err(other("Cannot read properties of null (reading 'code')".to_string()));
+            }
             let error = envelope.get("error");
             let code = envelope
                 .get("code")
@@ -504,11 +562,11 @@ impl BoxBackend {
                 if opts.once || limited >= REQUEST_LIMIT_TRIES {
                     return Err(fail(e));
                 }
-                let wait = request_limit_wait_ms(&envelope);
-                self.warn(&boat_request_limit_wait_line(&call, wait as f64, f64::from(limited + 1), f64::from(REQUEST_LIMIT_TRIES)));
-                self.shared.clock.sleep(wait).await;
-                if opts.signal.as_ref().is_some_and(|c| c.is_cancelled()) {
-                    return Err(aborted());
+                let wait = request_limit_wait_exact_ms(&envelope);
+                self.warn(&boat_request_limit_wait_line(&call, wait, f64::from(limited + 1), f64::from(REQUEST_LIMIT_TRIES)));
+                self.shared.clock.sleep(wait as u64).await;
+                if let Some(stopped) = opts.signal.as_ref().filter(|c| c.is_cancelled()) {
+                    return Err(stop_error(stopped, stopped.reason()));
                 }
                 continue;
             }
@@ -552,20 +610,21 @@ impl BoxBackend {
     pub async fn read_limits(&self) -> Result<BoxLimits> {
         let asked = {
             let mut state = self.shared.state.lock().unwrap();
-            match &state.limits_asked {
-                Some(asked) => asked.clone(),
+            match state.limits_asked.as_ref().and_then(|weak| weak.upgrade()) {
+                Some(asked) => asked,
                 None => {
                     let this = self.clone();
                     let read = async move {
                         // A fetch that answers without yielding would end before a second caller is polled; the TS's
                         // promise is out from the call, so the second caller joins it.
                         tokio::task::yield_now().await;
-                        let out = this.fetch_limits().await;
-                        this.shared.state.lock().unwrap().limits_asked = None;
-                        out
+                        // The TS's promise runs on and its `finally` clears the guard; here a read every caller has
+                        // stopped waiting on is dropped, and the guard clears with it.
+                        let _clears = ClearsLimitsAsked(this.shared.clone());
+                        this.fetch_limits().await
                     };
                     let asked = read.boxed_local().shared();
-                    state.limits_asked = Some(asked.clone());
+                    state.limits_asked = asked.downgrade();
                     asked
                 }
             }
@@ -649,9 +708,14 @@ impl BoxBackend {
 
     /// box-backend.ts:733. `instant` in ms since the epoch on the backend's clock.
     pub async fn ttl_seconds_for(&self, instant: Option<i64>) -> Result<Option<u64>> {
+        self.ttl_seconds_until(instant.map(|at| at as f64)).await
+    }
+
+    /// `ttl_seconds_for` with the instant a JavaScript number holds it: an idle window past an i64 is not a crash.
+    pub async fn ttl_seconds_until(&self, instant: Option<f64>) -> Result<Option<u64>> {
         let cap = self.ttl_cap().await?;
         let Some(instant) = instant else { return Ok(cap) };
-        let seconds = ((instant - self.shared.clock.now()) as f64 / 1000.0).ceil().max(1.0) as u64;
+        let seconds = ((instant - self.shared.clock.now() as f64) / 1000.0).ceil().max(1.0) as u64;
         Ok(Some(cap.map_or(seconds, |cap| seconds.min(cap))))
     }
 

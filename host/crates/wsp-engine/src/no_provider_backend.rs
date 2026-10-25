@@ -67,6 +67,7 @@ impl NoProviderBackend {
             kept: false,
             copies: false,
             own_network: false,
+            sizes_last: false,
         };
         NoProviderBackend { line: line.unwrap_or_else(|| NO_PROVIDER_LINE.to_string()), capabilities, pricing: Arc::new(NoProviderPricing) }
     }

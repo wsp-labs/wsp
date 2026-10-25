@@ -50,14 +50,18 @@ pub fn agent_paths(agent: &wsp_catalog::catalog::AgentEntry) -> Vec<String> {
 
 /// provision-files.ts:74 `agentStateFile`: the row is an agent's own (`agent_of_row`) or one of its MCP servers
 /// (`parse_mcp_id`), that agent is in the catalog, and `source` is covered by one of its paths under `home`.
-pub fn agent_state_file(id: &str, source: &str, home: &str) -> bool {
-    let Some(agent) = agent_of_row(id).or_else(|| parse_mcp_id(id).map(|m| m.agent)) else {
-        return false;
+pub fn agent_state_file(id: &str, source: &str, home: &str) -> Result<bool> {
+    let agent = match agent_of_row(id) {
+        Some(agent) => agent,
+        None => match parse_mcp_id(id)? {
+            Some(m) => m.agent,
+            None => return Ok(false),
+        },
     };
     let Some(entry) = catalog_agents().into_iter().find(|a| a.id == agent) else {
-        return false;
+        return Ok(false);
     };
-    agent_paths(entry).iter().any(|p| covers(&format!("{home}/{}", &p[2..]), source))
+    Ok(agent_paths(entry).iter().any(|p| covers(&format!("{home}/{}", &p[2..]), source)))
 }
 
 /// provision-files.ts:82.

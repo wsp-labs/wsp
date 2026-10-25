@@ -9,6 +9,7 @@ use indexmap::IndexMap;
 use serde_json::{json, Value};
 
 use super::machine::BoxMachine;
+use super::request::{js_string, BoxShared};
 use super::plan::{
     box_budgets, box_class_for, box_labels, box_name, box_root_disk_gb, is_uuid, state_map, state_of, BoxLimits, BoxPricing, SizeAsk,
     BACKSTOP_RETRY_MAX_MS, BACKSTOP_RETRY_MS, BACKSTOP_SLACK_MS, BOX_BASE_TEMPLATE, BOX_CLASSES, BOX_KEY_KEPT_MS, IN_PROGRESS_WAIT_MS,
@@ -73,6 +74,7 @@ impl BoxBackend {
             copies: true,
             own_network: true,
             sizes,
+            sizes_last: true,
         }
     }
 
@@ -80,8 +82,8 @@ impl BoxBackend {
     pub async fn box_create_request(&self, spec: &MachineSpec) -> Result<String> {
         let named = spec.from_snapshot.as_deref().or(spec.template.as_deref());
         let from = named.filter(|n| *n != BOX_BASE_TEMPLATE);
-        let timer_until = spec.idle_timeout_ms.map(|ms| self.shared.clock.now() + ms.0 as i64);
-        let ttl = self.ttl_seconds_for(timer_until).await?;
+        let timer_until = spec.idle_timeout_ms.map(|ms| self.shared.clock.now() as f64 + ms.0);
+        let ttl = self.ttl_seconds_until(timer_until).await?;
         let labels = spec.labels.clone().unwrap_or_default();
         let mut body = serde_json::Map::new();
         body.insert("type".to_string(), json!(box_class_for(size_ask(spec)).kind.as_str()));
@@ -108,7 +110,7 @@ impl BoxBackend {
             };
             match self.request("POST", "/sandboxes", opts).await {
                 Ok(answer) => {
-                    let status = answer.get("status").and_then(Value::as_str).map(str::to_string);
+                    let status = answer.get("status").map(js_string);
                     let sandbox: BoxView =
                         serde_json::from_value(answer.get("sandbox").cloned().unwrap_or(Value::Null)).map_err(|e| other(e.to_string()))?;
                     return Ok(PostedCreate { status, sandbox, lost });
@@ -146,7 +148,7 @@ impl BoxBackend {
             let happened = size_refusal(&word, &self.box_capabilities().sizes);
             return Err(EngineError::Invalid { message: refusal_line(&happened, SIZE_PICK_FIX) });
         }
-        let timer_until = spec.idle_timeout_ms.map(|ms| self.shared.clock.now() + ms.0 as i64);
+        let timer_until = spec.idle_timeout_ms.map(|ms| self.shared.clock.now().saturating_add(ms.0 as i64));
         let bytes = match sent {
             Some(bytes) => bytes,
             None => self.box_create_request(&spec).await?,
@@ -263,7 +265,7 @@ impl BoxBackend {
             if let Some(rows) = page.get(rows_key).and_then(Value::as_array) {
                 out.extend(rows.iter().cloned());
             }
-            cursor = page.get("pageInfo").and_then(|info| info.get("nextCursor")).and_then(Value::as_str).map(str::to_string);
+            cursor = page.get("pageInfo").and_then(|info| info.get("nextCursor")).filter(|c| !c.is_null()).map(js_string);
             if cursor.is_none() || enough.is_some_and(|enough| enough(&out)) {
                 return Ok(out);
             }
@@ -320,7 +322,7 @@ impl BoxBackend {
                 name: Some(s.name.clone()),
                 size_bytes: JsNumber(s.size_bytes.unwrap_or(0.0)),
                 restored_bytes: None,
-                created_at: Some(s.created_at.clone()),
+                created_at: s.created_at.clone(),
                 parent: None,
             })
             .collect();
@@ -389,8 +391,9 @@ impl BoxBackend {
             }
             state.backstops_sending.insert(machine_id.to_string());
         }
+        let sending = SendingBackstop { shared: self.shared.clone(), id: machine_id.to_string() };
         let sent = self.send_backstop(machine_id, until, exact).await;
-        self.shared.state.lock().unwrap().backstops_sending.remove(machine_id);
+        drop(sending);
         if sent.is_err() {
             let wait_ms = failed.map_or(BACKSTOP_RETRY_MS, |f| (f.wait_ms * 2).min(BACKSTOP_RETRY_MAX_MS));
             let at = self.shared.clock.now();
@@ -429,6 +432,19 @@ impl BoxBackend {
         let mut state = self.shared.state.lock().unwrap();
         state.backstops.remove(id);
         state.backstop_failures.remove(id);
+    }
+}
+
+/// The mark that a backstop is out for a box, cleared when the send ends, a caller that stopped waiting on it included
+/// (the TS's promise runs on and its `finally` clears it).
+struct SendingBackstop {
+    shared: Arc<BoxShared>,
+    id: String,
+}
+
+impl Drop for SendingBackstop {
+    fn drop(&mut self) {
+        self.shared.state.lock().unwrap().backstops_sending.remove(&self.id);
     }
 }
 

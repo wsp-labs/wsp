@@ -352,7 +352,7 @@ pub async fn provision_mcp(machine: &dyn Machine, planned: &McpPlan, o: Provisio
         let mut per_file: IndexMap<String, IndexSet<String>> = m.file_of.values().map(|f| (f.clone(), IndexSet::new())).collect();
         if failure.is_none() {
             for id in m.records.keys() {
-                if let (Some(name), Some(file)) = (parse_mcp_id(id).map(|p| p.name), m.file_of.get(id)) {
+                if let (Some(name), Some(file)) = (parse_mcp_id(id).ok().flatten().map(|p| p.name), m.file_of.get(id)) {
                     if let Some(names) = per_file.get_mut(file) {
                         names.insert(name);
                     }

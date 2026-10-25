@@ -101,22 +101,23 @@ pub struct McpId {
 //   const home = rest.length === 3 && rest[1] === "home";
 //   return { agent, home, name: home ? rest[2]! : rest.slice(1).join("/") };
 // }
-/// golden-mcp.ts:107 `parseMcpId`. A folder that does not decode is the TS's thrown `URIError`; this answers `None`.
-pub fn parse_mcp_id(id: &str) -> Option<McpId> {
+/// golden-mcp.ts:107 `parseMcpId`. A folder that does not decode is the TS's thrown `URIError`, the same words.
+pub fn parse_mcp_id(id: &str) -> crate::errors::Result<Option<McpId>> {
     if !id.starts_with(MCP_ID_PREFIX) || id == MCP_REMOTE_ID {
-        return None;
+        return Ok(None);
     }
     let rest: Vec<&str> = id[MCP_ID_PREFIX.len()..].split('/').collect();
     let agent = rest[0].to_string();
     if rest.len() < 2 {
-        return None;
+        return Ok(None);
     }
     if rest.len() >= 3 && rest[1].starts_with('@') {
-        return Some(McpId { agent, home: false, folder: Some(decode_component(&rest[1][1..])?), name: rest[2..].join("/") });
+        let folder = decode_component(&rest[1][1..]).ok_or_else(|| crate::errors::EngineError::Other { message: "URI malformed".to_string(), code: None })?;
+        return Ok(Some(McpId { agent, home: false, folder: Some(folder), name: rest[2..].join("/") }));
     }
     let home = rest.len() == 3 && rest[1] == "home";
     let name = if home { rest[2].to_string() } else { rest[1..].join("/") };
-    Some(McpId { agent, home, folder: None, name })
+    Ok(Some(McpId { agent, home, folder: None, name }))
 }
 
 // TS golden-mcp.ts:93-94
@@ -164,15 +165,17 @@ pub fn parse_mcp_id(id: &str) -> Option<McpId> {
 //   };
 // }
 /// golden-mcp.ts:120 `mcpPlanFor(rows, opts)`: `None` when no agent has a server row.
-pub fn mcp_plan_for(rows: &[RecipeEntry], opts: &McpPlanOptions) -> Option<McpPlan> {
+pub fn mcp_plan_for(rows: &[RecipeEntry], opts: &McpPlanOptions) -> crate::errors::Result<Option<McpPlan>> {
     let guest_home = opts.guest_home.clone().unwrap_or_else(|| GUEST_HOME.to_string());
     let ticked: IndexSet<&str> = rows.iter().filter(|e| e.bring == Some(true)).map(|e| e.id.as_str()).collect();
     let mut agents = Vec::new();
     for (agent, source) in &opts.agents {
-        let own: Vec<Own> = rows
-            .iter()
-            .filter_map(|e| parse_mcp_id(&e.id).filter(|p| p.agent == *agent).map(|p| Own { row: e, home: p.home, name: p.name }))
-            .collect();
+        let mut own: Vec<Own> = Vec::new();
+        for e in rows {
+            if let Some(p) = parse_mcp_id(&e.id)?.filter(|p| p.agent == *agent) {
+                own.push(Own { row: e, home: p.home, name: p.name });
+            }
+        }
         if own.is_empty() {
             continue;
         }
@@ -223,13 +226,13 @@ pub fn mcp_plan_for(rows: &[RecipeEntry], opts: &McpPlanOptions) -> Option<McpPl
         agents.push(McpAgentPlan { id: agent.clone(), label: source.label.clone(), scopes, aside: Vec::new() });
     }
     if agents.is_empty() {
-        return None;
+        return Ok(None);
     }
     let bin_dirs = match &opts.bin_dirs {
         Some(dirs) => dirs.clone(),
         None => MAC_BIN_DIRS.iter().map(|d| d.to_string()).collect(),
     };
-    Some(McpPlan {
+    Ok(Some(McpPlan {
         agents,
         rewrites: vec![(format!("{}/", opts.home), format!("{guest_home}/")), (format!("{MAC_BREW}/"), format!("{BREW_PREFIX}/"))],
         bin_dirs: [vec![format!("{}/.local/bin/", opts.home), "~/.local/bin/".to_string()], bin_dirs].concat(),
@@ -239,7 +242,7 @@ pub fn mcp_plan_for(rows: &[RecipeEntry], opts: &McpPlanOptions) -> Option<McpPl
             .map(|e| McpToolRow { id: e.id.clone(), ticked: e.bring == Some(true), reason: e.reason.clone() })
             .collect(),
         guest_home,
-    })
+    }))
 }
 
 /// golden-mcp.ts:161.

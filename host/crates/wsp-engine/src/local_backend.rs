@@ -336,6 +336,7 @@ impl MachineBackend for LocalBackend {
             kept: true,
             copies: true,
             own_network: false,
+            sizes_last: false,
         }
     }
     fn pricing(&self) -> Arc<dyn BackendPricing> {

@@ -13,7 +13,7 @@ use crate::machine::{CloudLimits, LifecycleBudgets, MachineState, Size, Snapshot
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::views::place_more::{CloudPlan, CloudStarts, StartsWindow};
 use wsp_wire::wire::capabilities::WorkspaceSize;
-use wsp_words::js::{collate, utf16};
+use wsp_words::js::{collate, js_key_order, utf16};
 use wsp_words::words::units::size_word;
 pub use wsp_words::words::units::StartWindow;
 
@@ -385,9 +385,12 @@ pub fn box_labels(name: Option<&str>) -> Option<IndexMap<String, String>> {
             continue;
         }
         let key = SHORT_KEYS.iter().find(|(_, s)| *s == short).map_or(short, |(k, _)| k);
-        labels.insert(key.to_string(), decode_value(value));
+        // A string assigned to `__proto__` of an object is no key.
+        if key != "__proto__" {
+            labels.insert(key.to_string(), decode_value(value));
+        }
     }
-    Some(labels)
+    Some(js_key_order(&labels).into_iter().map(|(k, v)| (k.clone(), v.clone())).collect())
 }
 
 /// box-backend.ts:336.

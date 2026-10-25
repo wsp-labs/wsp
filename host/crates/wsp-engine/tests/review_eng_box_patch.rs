@@ -119,13 +119,11 @@ async fn a_size_the_machine_prints_that_no_file_has_is_a_failure_not_a_panic() {
 }
 
 #[tokio::test]
-#[ignore = "aborts the whole test process: memory allocation of 572204589843768 bytes failed (SIGABRT)"]
 async fn a_size_the_machine_prints_that_would_need_trillions_of_pieces_is_a_failure_not_an_abort() {
     assert!(read_after_stat_says("99999999999999999999").await.is_err());
 }
 
 #[tokio::test]
-#[ignore = "aborts the whole test process: memory allocation of 5722045898437512 bytes failed (SIGABRT)"]
 async fn a_size_of_1e21_the_machine_prints_is_a_failure_not_an_abort() {
     assert!(read_after_stat_says("1e21").await.is_err());
 }
