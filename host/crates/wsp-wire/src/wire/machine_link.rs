@@ -17,7 +17,7 @@ use crate::views::place::{MachineBind, MachineShare, WorkspaceCopy};
 use crate::views::workspace::{MachineFacts, MachineState};
 use crate::wire::capabilities::{Capabilities, WorkspaceSize};
 use crate::wire::daemon::{CgroupMemory, ProcEntry};
-pub use wsp_frames::{ContainerPlacedBy, ProcCost, SysHistoryReply, SysPoint, TranscriptsListReply, TranscriptsReadReply, UsageLogsReply};
+pub use super::machine_replies::{ContainerPlacedBy, ProcCost, SysHistoryReply, SysPoint, TranscriptsListReply, TranscriptsReadReply, UsageLogsReply};
 use wsp_frames::{False, True};
 
 /// A refusal in the two halves the command line and the app say: what happened, and what to do.
@@ -2628,14 +2628,6 @@ pub const MACHINE_LINK_OPS: &[&str] = &[
     "machine.uploadUrl",
     "machine.putBytes",
 ];
-
-// The shapes wsp-frames holds read every bound while deserializing, so each Check has nothing left to refuse.
-impl Check for ProcCost {}
-impl Check for SysHistoryReply {}
-impl Check for SysPoint {}
-impl Check for TranscriptsListReply {}
-impl Check for TranscriptsReadReply {}
-impl Check for UsageLogsReply {}
 
 // A word list zod reads with z.enum: serde refuses any other word, so nothing is left to check.
 impl Check for DaemonSupervisor {
