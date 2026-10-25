@@ -255,7 +255,7 @@ pub fn start(s: &Swap, env: &[(String, String)]) -> std::io::Result<()> {
     cmd.spawn().map(drop)
 }
 
-fn running(pid: i32) -> bool {
+pub(crate) fn running(pid: i32) -> bool {
     // SAFETY: signal 0 checks the pid and sends nothing.
     pid > 0 && (unsafe { libc::kill(pid, 0) } == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM))
 }
