@@ -18,28 +18,38 @@ default to it. Five terminals are known, in this order: Ghostty, iTerm2, WezTerm
    `<key>Default Bookmark Guid</key>\s*<string>([^<]*)</string>`; the bookmark starts at the first
    `<key>Guid</key>\s*<string>{escape_reg_exp(guid)}</string>` and runs to the next `<key>Guid</key>` searched from one
    unit past that start; no guid or no such bookmark reads the whole text. Its first
-   `<key>Normal Font</key>\s*<string>([^<]*)</string>`, less a trailing `\s+[\d.]+`, through `usable`.
+   `<key>Normal Font</key>\s*<string>([^<]*)</string>`, less a trailing `\s+[\d.]+` (anchored at the end before any trim, so `Monaco 12 ` with a trailing space keeps its size,
+   and `usable` then trims it to `Monaco 12`), through `usable`. The default bookmark with no Normal Font is `None`: no other bookmark
+   is tried.
 4. `wezterm_font(lua)` (terminal.ts:48-52): drop `--[[ ... ]]` blocks (lazy, across lines) then `--` to end of line;
    the first match of `\bfont(?:_with_fallback)?\s*\(?\s*\{?\s*(?:\{\s*)?(?:family\s*=\s*)?(["'])([^"']+)\1`, group 2
    through `usable`, else GHOSTTY_BUILT_IN_FONT. Never `None`.
-5. `kitty_font(conf)` (terminal.ts:55-61): the first line `^\s*font_family\s+(.+?)\s*$` (multiline); in its value a
+5. `kitty_font(conf)` (terminal.ts:55-61): the first match of `^\s*font_family\s+(.+?)\s*$` (multiline, JS `\s`, so a bare
+   `font_family` line matches across the newline and takes the next non-blank line as its value; only that first
+   match is used, a later `font_family` is never tried even when the first is unusable); in its value a
    `\bfamily\s*=\s*(?:"([^"]*)"|(\S+))` gives the family, else the whole value; through `usable`.
 6. `alacritty_font(text)` (terminal.ts:64-72): the first of three TOML forms that matches (`[font.normal]` table,
    `normal = { family = ... }`, `normal.family = ...`), else the YAML form; through `usable`. Patterns at
-   terminal.ts:66-70, multiline.
+   terminal.ts:66-70, multiline. A TOML form that matches gives its family through `usable` and the answer stops
+   there: an unusable family is `None` and the YAML form is not tried. None of the patterns is anchored to a real
+   table header, and the YAML `family:` with nothing after it takes the next line (JS `\s` crosses the newline).
 7. Configured fonts (terminal.ts:98-150): Ghostty: `read_ghostty_config`; no files is `None`, else
    `primary_face(font_family)` or the built-in. iTerm2: only on darwin and when
    `~/Library/Preferences/com.googlecode.iterm2.plist` exists, run `defaults ["export","com.googlecode.iterm2","-"]`
-   and read its XML; the plist is never read as a file. WezTerm: the first readable of `~/.wezterm.lua`,
+   and read its XML; the plist is never read as a file; a `defaults` answer of `None` or `""` gives `None` (no font). WezTerm: the first readable of `~/.wezterm.lua`,
    `~/.config/wezterm/wezterm.lua`. kitty: `~/.config/kitty/kitty.conf`. Alacritty: the first readable of
    `~/.config/alacritty/alacritty.toml`, `~/.alacritty.toml`, `~/.config/alacritty/alacritty.yml`, `~/.alacritty.yml`.
-   "Readable" is `read_text` answering, each path through `expand`.
+   "Readable" is `read_text` answering, each path through `expand`: an empty file answers `""`, so it is readable,
+   stops the search over that terminal's paths, and is parsed (giving no font). WezTerm's configured font is never
+   `None` once a file is readable (`wezterm_font` falls back to the built-in). Ghostty's `read_ghostty_config` now
+   answers an ordered JSON map (ghostty_config rule 8a): read `files` and `fontFamily` from it.
 8. Built-ins: Ghostty and WezTerm draw with GHOSTTY_BUILT_IN_FONT; iTerm2, kitty and Alacritty have none.
    Ghostty is installed when `/Applications/Ghostty.app` exists on darwin, or `which("ghostty")` on linux; no other
    terminal has an installed check.
 9. `detect_terminal_font` (terminal.ts:159-174): own terminals are those whose name pattern (`/ghostty/i`, `/iterm/i`,
-   `/wezterm/i`, `/kitty/i`, `/alacritty/i`) matches `host.terminal`; for each own terminal in table order, its
-   configured font or its built-in wins. Then each other terminal's configured font in table order. Then the first
+   `/wezterm/i`, `/kitty/i`, `/alacritty/i`) matches `host.terminal` (every matching row is own; `None` or `""` matches
+   none); for each own terminal in table order, its configured font or its built-in wins; an own terminal with
+   neither is passed over, and an own terminal is never asked again among the others. Then each other terminal's configured font in table order. Then the first
    other terminal with a built-in whose installed check is true. Else `[]`.
 10. The row: rung shell, id TERMINAL_FONT_ID, label `terminal font: <font> (<terminal name>)`, `paths: []`, `bytes: 0`,
     default bring, `font` (terminal.ts:154). The names are `Ghostty`, `iTerm2`, `WezTerm`, `kitty`, `Alacritty`.

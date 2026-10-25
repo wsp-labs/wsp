@@ -1,0 +1,4499 @@
+{
+ "parse_entry": [
+  {
+   "name": "bytes written as 1.0",
+   "args_json": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":1.0,\"default\":\"bring\"}",
+   "ok": {
+    "rung": "identity",
+    "id": "identity/x",
+    "label": "l",
+    "paths": [],
+    "bytes": 1,
+    "default": "bring"
+   },
+   "text": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":1,\"default\":\"bring\"}"
+  },
+  {
+   "name": "bytes written as 1e3",
+   "args_json": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":1e3,\"default\":\"bring\"}",
+   "ok": {
+    "rung": "identity",
+    "id": "identity/x",
+    "label": "l",
+    "paths": [],
+    "bytes": 1000,
+    "default": "bring"
+   },
+   "text": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":1000,\"default\":\"bring\"}"
+  },
+  {
+   "name": "bytes written as 1e20",
+   "args_json": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":1e20,\"default\":\"bring\"}",
+   "ok": {
+    "rung": "identity",
+    "id": "identity/x",
+    "label": "l",
+    "paths": [],
+    "bytes": 100000000000000000000,
+    "default": "bring"
+   },
+   "text": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":100000000000000000000,\"default\":\"bring\"}"
+  },
+  {
+   "name": "bytes written as above 2^53 (the TS rounds it)",
+   "args_json": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":9007199254740993,\"default\":\"bring\"}",
+   "ok": {
+    "rung": "identity",
+    "id": "identity/x",
+    "label": "l",
+    "paths": [],
+    "bytes": 9007199254740992,
+    "default": "bring"
+   },
+   "text": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":9007199254740992,\"default\":\"bring\"}"
+  },
+  {
+   "name": "bytes written as -0",
+   "args_json": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":-0,\"default\":\"bring\"}",
+   "ok": {
+    "rung": "identity",
+    "id": "identity/x",
+    "label": "l",
+    "paths": [],
+    "bytes": 0,
+    "default": "bring"
+   },
+   "text": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":0,\"default\":\"bring\"}"
+  },
+  {
+   "name": "bytes written as 0.0",
+   "args_json": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":0.0,\"default\":\"bring\"}",
+   "ok": {
+    "rung": "identity",
+    "id": "identity/x",
+    "label": "l",
+    "paths": [],
+    "bytes": 0,
+    "default": "bring"
+   },
+   "text": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[],\"bytes\":0,\"default\":\"bring\"}"
+  },
+  {
+   "name": "bytes -0.5",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": -0.5,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Expected integer, received float"
+    },
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Number must be greater than or equal to 0"
+    }
+   ]
+  },
+  {
+   "name": "bytes -1.5",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": -1.5,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Expected integer, received float"
+    },
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Number must be greater than or equal to 0"
+    }
+   ]
+  },
+  {
+   "name": "bytes 1.5",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1.5,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Expected integer, received float"
+    }
+   ]
+  },
+  {
+   "name": "bytes -1",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": -1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Number must be greater than or equal to 0"
+    }
+   ]
+  },
+  {
+   "name": "bytes true",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": true,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Expected number, received boolean"
+    }
+   ]
+  },
+  {
+   "name": "bytes null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": null,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Expected number, received null"
+    }
+   ]
+  },
+  {
+   "name": "bytes a string",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": "1",
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Expected number, received string"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus bytes 1.5",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1.5,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Expected integer, received float"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus bytes -1",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": -1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Number must be greater than or equal to 0"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus bytes -1.5",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": -1.5,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Expected integer, received float"
+    },
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Number must be greater than or equal to 0"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus bytes a string",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": "1",
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Expected number, received string"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus label a number",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": 5,
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "label"
+     ],
+     "message": "Expected string, received number"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus paths [1]",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      1
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "paths",
+      0
+     ],
+     "message": "Expected string, received number"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus paths a string",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": "x",
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "paths"
+     ],
+     "message": "Expected array, received string"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus sources [\"\"]",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "sources": [
+      ""
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "sources",
+      0
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    },
+    {
+     "path": [
+      "sources"
+     ],
+     "message": "only a shell row carries sourced files"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus secrets [1]",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "secrets": [
+      1
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "secrets",
+      0
+     ],
+     "message": "Expected string, received number"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus default a bad string",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "no"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Invalid enum value. Expected 'bring' | 'skip', received 'no'"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus default a number",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": 3
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Expected 'bring' | 'skip', received number"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus pin.latest false",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": "v",
+      "latest": false
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "latest"
+     ],
+     "message": "Invalid literal value, expected true"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus pin.tag empty",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": ""
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "tag"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus pin.sha256 empty",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": "v",
+      "sha256": ""
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "sha256"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus pin.arch bad",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": "v",
+      "arch": "arm64"
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "arch"
+     ],
+     "message": "Invalid enum value. Expected 'x86_64' | 'aarch64', received 'arm64'"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus an unknown key",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "zzz": 1
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus version empty",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "version": ""
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "version"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    },
+    {
+     "path": [
+      "version"
+     ],
+     "message": "only a tools row carries a version"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus keys [\"\"]",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "keys": [
+      ""
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "keys",
+      0
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus signIn bad",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "signIn": "magic"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "signIn"
+     ],
+     "message": "Invalid enum value. Expected 'none' | 'key' | 'token' | 'oauth', received 'magic'"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus choice bad",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "choice": "maybe"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "choice"
+     ],
+     "message": "Invalid enum value. Expected 'copy' | 'machine' | 'later' | 'key' | 'skip' | 'token', received 'maybe'"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus linux bad",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "linux": "maybe"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "linux"
+     ],
+     "message": "Invalid enum value. Expected 'yes' | 'no' | 'unknown', received 'maybe'"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus required a string",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "required": "yes"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "required"
+     ],
+     "message": "Expected boolean, received string"
+    }
+   ]
+  },
+  {
+   "name": "bad id plus id empty",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "bad id with the label missing",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "label"
+     ],
+     "message": "Required"
+    }
+   ]
+  },
+  {
+   "name": "excludes: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "excludes": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "excludes"
+     ],
+     "message": "Expected array, received null"
+    }
+   ]
+  },
+  {
+   "name": "volatile: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "volatile": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "volatile"
+     ],
+     "message": "Expected array, received null"
+    }
+   ]
+  },
+  {
+   "name": "reason: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "reason": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "reason"
+     ],
+     "message": "Expected string, received null"
+    }
+   ]
+  },
+  {
+   "name": "group: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "group": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "group"
+     ],
+     "message": "Expected string, received null"
+    }
+   ]
+  },
+  {
+   "name": "required: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "required": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "required"
+     ],
+     "message": "Expected boolean, received null"
+    }
+   ]
+  },
+  {
+   "name": "bring: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "bring": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "bring"
+     ],
+     "message": "Expected boolean, received null"
+    }
+   ]
+  },
+  {
+   "name": "choice: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "choice": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "choice"
+     ],
+     "message": "Expected 'copy' | 'machine' | 'later' | 'key' | 'skip' | 'token', received null"
+    }
+   ]
+  },
+  {
+   "name": "linux: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "linux": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "linux"
+     ],
+     "message": "Expected 'yes' | 'no' | 'unknown', received null"
+    }
+   ]
+  },
+  {
+   "name": "version: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "version": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "version"
+     ],
+     "message": "Expected string, received null"
+    }
+   ]
+  },
+  {
+   "name": "pin: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin"
+     ],
+     "message": "Expected object, received null"
+    }
+   ]
+  },
+  {
+   "name": "consent: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "consent": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "consent"
+     ],
+     "message": "Expected boolean, received null"
+    }
+   ]
+  },
+  {
+   "name": "detail: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "detail": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "detail"
+     ],
+     "message": "Expected string, received null"
+    }
+   ]
+  },
+  {
+   "name": "secrets: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "secrets": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "secrets"
+     ],
+     "message": "Expected array, received null"
+    }
+   ]
+  },
+  {
+   "name": "login: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "login": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "login"
+     ],
+     "message": "Expected string, received null"
+    }
+   ]
+  },
+  {
+   "name": "font: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "font": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "font"
+     ],
+     "message": "Expected string, received null"
+    }
+   ]
+  },
+  {
+   "name": "sources: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "sources": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "sources"
+     ],
+     "message": "Expected array, received null"
+    }
+   ]
+  },
+  {
+   "name": "signIn: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "signIn": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "signIn"
+     ],
+     "message": "Expected 'none' | 'key' | 'token' | 'oauth', received null"
+    }
+   ]
+  },
+  {
+   "name": "keys: null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "keys": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "keys"
+     ],
+     "message": "Expected array, received null"
+    }
+   ]
+  },
+  {
+   "name": "paths an array of mixed items",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      1,
+      "a",
+      null,
+      [
+       "x"
+      ]
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "paths",
+      0
+     ],
+     "message": "Expected string, received number"
+    },
+    {
+     "path": [
+      "paths",
+      2
+     ],
+     "message": "Expected string, received null"
+    },
+    {
+     "path": [
+      "paths",
+      3
+     ],
+     "message": "Expected string, received array"
+    }
+   ]
+  },
+  {
+   "name": "paths an object",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": {},
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "paths"
+     ],
+     "message": "Expected array, received object"
+    }
+   ]
+  },
+  {
+   "name": "excludes a string",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "excludes": "x"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "excludes"
+     ],
+     "message": "Expected array, received string"
+    }
+   ]
+  },
+  {
+   "name": "secrets a number and an empty string",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "secrets": [
+      1,
+      ""
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "secrets",
+      0
+     ],
+     "message": "Expected string, received number"
+    }
+   ]
+  },
+  {
+   "name": "volatile an object item",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "volatile": [
+      {}
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "volatile",
+      0
+     ],
+     "message": "Expected string, received object"
+    }
+   ]
+  },
+  {
+   "name": "label a number",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": 5,
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "label"
+     ],
+     "message": "Expected string, received number"
+    }
+   ]
+  },
+  {
+   "name": "id a number",
+   "args": [
+    {
+     "rung": "identity",
+     "id": 5,
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "Expected string, received number"
+    }
+   ]
+  },
+  {
+   "name": "default 1",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": 1
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Expected 'bring' | 'skip', received number"
+    }
+   ]
+  },
+  {
+   "name": "default null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Expected 'bring' | 'skip', received null"
+    }
+   ]
+  },
+  {
+   "name": "default [\"bring\"]",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": [
+      "bring"
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Expected 'bring' | 'skip', received array"
+    }
+   ]
+  },
+  {
+   "name": "default true",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": true
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Expected 'bring' | 'skip', received boolean"
+    }
+   ]
+  },
+  {
+   "name": "default {}",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": {}
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Expected 'bring' | 'skip', received object"
+    }
+   ]
+  },
+  {
+   "name": "default \"\"",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": ""
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Invalid enum value. Expected 'bring' | 'skip', received ''"
+    }
+   ]
+  },
+  {
+   "name": "default \"Bring\"",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "Bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Invalid enum value. Expected 'bring' | 'skip', received 'Bring'"
+    }
+   ]
+  },
+  {
+   "name": "default \"it's\"",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "it's"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Invalid enum value. Expected 'bring' | 'skip', received 'it's'"
+    }
+   ]
+  },
+  {
+   "name": "default \"a'b'c\"",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "a'b'c"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Invalid enum value. Expected 'bring' | 'skip', received 'a'b'c'"
+    }
+   ]
+  },
+  {
+   "name": "rung \"\"",
+   "args": [
+    {
+     "rung": "",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "rung"
+     ],
+     "message": "Invalid enum value. Expected 'identity' | 'shell' | 'toolchains' | 'tools' | 'agents' | 'logins', received ''"
+    }
+   ]
+  },
+  {
+   "name": "rung \"Identity\"",
+   "args": [
+    {
+     "rung": "Identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "rung"
+     ],
+     "message": "Invalid enum value. Expected 'identity' | 'shell' | 'toolchains' | 'tools' | 'agents' | 'logins', received 'Identity'"
+    }
+   ]
+  },
+  {
+   "name": "linux a number",
+   "args": [
+    {
+     "rung": "tools",
+     "id": "tools/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "linux": 1
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "linux"
+     ],
+     "message": "Expected 'yes' | 'no' | 'unknown', received number"
+    }
+   ]
+  },
+  {
+   "name": "linux Yes",
+   "args": [
+    {
+     "rung": "tools",
+     "id": "tools/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "linux": "Yes"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "linux"
+     ],
+     "message": "Invalid enum value. Expected 'yes' | 'no' | 'unknown', received 'Yes'"
+    }
+   ]
+  },
+  {
+   "name": "signIn a number",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "signIn": 1
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "signIn"
+     ],
+     "message": "Expected 'none' | 'key' | 'token' | 'oauth', received number"
+    }
+   ]
+  },
+  {
+   "name": "choice empty",
+   "args": [
+    {
+     "rung": "logins",
+     "id": "logins/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "choice": ""
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "choice"
+     ],
+     "message": "Invalid enum value. Expected 'copy' | 'machine' | 'later' | 'key' | 'skip' | 'token', received ''"
+    }
+   ]
+  },
+  {
+   "name": "choice a number",
+   "args": [
+    {
+     "rung": "logins",
+     "id": "logins/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "choice": 3
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "choice"
+     ],
+     "message": "Expected 'copy' | 'machine' | 'later' | 'key' | 'skip' | 'token', received number"
+    }
+   ]
+  },
+  {
+   "name": "pin empty",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {}
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "tag"
+     ],
+     "message": "Required"
+    }
+   ]
+  },
+  {
+   "name": "pin a string",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": "x"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin"
+     ],
+     "message": "Expected object, received string"
+    }
+   ]
+  },
+  {
+   "name": "pin an array",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": []
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin"
+     ],
+     "message": "Expected object, received array"
+    }
+   ]
+  },
+  {
+   "name": "pin tag a number",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": 1
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "tag"
+     ],
+     "message": "Expected string, received number"
+    }
+   ]
+  },
+  {
+   "name": "pin sha256 empty",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": "v",
+      "sha256": ""
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "sha256"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    }
+   ]
+  },
+  {
+   "name": "pin arch bad",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": "v",
+      "arch": "arm64"
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "arch"
+     ],
+     "message": "Invalid enum value. Expected 'x86_64' | 'aarch64', received 'arm64'"
+    }
+   ]
+  },
+  {
+   "name": "pin arch a number",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": "v",
+      "arch": 1
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "arch"
+     ],
+     "message": "Expected 'x86_64' | 'aarch64', received number"
+    }
+   ]
+  },
+  {
+   "name": "pin latest false",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": "v",
+      "latest": false
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "latest"
+     ],
+     "message": "Invalid literal value, expected true"
+    }
+   ]
+  },
+  {
+   "name": "pin latest a string",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": "v",
+      "latest": "yes"
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "latest"
+     ],
+     "message": "Invalid literal value, expected true"
+    }
+   ]
+  },
+  {
+   "name": "pin latest null",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": "v",
+      "latest": null
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "latest"
+     ],
+     "message": "Invalid literal value, expected true"
+    }
+   ]
+  },
+  {
+   "name": "pin tag and sha256 empty",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "tag": "",
+      "sha256": ""
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "tag"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "pin",
+      "sha256"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    }
+   ]
+  },
+  {
+   "name": "pin sha256 a number, no tag",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "sha256": 1
+     }
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "tag"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "pin",
+      "sha256"
+     ],
+     "message": "Expected string, received number"
+    }
+   ]
+  },
+  {
+   "name": "pin key order and stripping",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "latest": true,
+      "arch": "aarch64",
+      "sha256": "ab",
+      "tag": "v1",
+      "extra": 1
+     }
+    }
+   ],
+   "ok": {
+    "rung": "identity",
+    "id": "identity/x",
+    "label": "l",
+    "paths": [
+     "~/a"
+    ],
+    "bytes": 1,
+    "default": "bring",
+    "pin": {
+     "tag": "v1",
+     "sha256": "ab",
+     "arch": "aarch64",
+     "latest": true
+    }
+   },
+   "text": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[\"~/a\"],\"bytes\":1,\"default\":\"bring\",\"pin\":{\"tag\":\"v1\",\"sha256\":\"ab\",\"arch\":\"aarch64\",\"latest\":true}}"
+  },
+  {
+   "name": "pin with only tag and sha256",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "pin": {
+      "sha256": "ab",
+      "tag": "v1"
+     }
+    }
+   ],
+   "ok": {
+    "rung": "identity",
+    "id": "identity/x",
+    "label": "l",
+    "paths": [
+     "~/a"
+    ],
+    "bytes": 1,
+    "default": "bring",
+    "pin": {
+     "tag": "v1",
+     "sha256": "ab"
+    }
+   },
+   "text": "{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[\"~/a\"],\"bytes\":1,\"default\":\"bring\",\"pin\":{\"tag\":\"v1\",\"sha256\":\"ab\"}}"
+  },
+  {
+   "name": "shape issues then refine issues",
+   "args": [
+    {
+     "rung": "tools",
+     "id": "x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "skip",
+     "choice": "copy",
+     "required": true,
+     "login": "",
+     "font": "",
+     "sources": [
+      "a",
+      ""
+     ],
+     "version": ""
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "version"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "login"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "font"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "sources",
+      1
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with tools/"
+    },
+    {
+     "path": [
+      "choice"
+     ],
+     "message": "only a logins row or a consent row carries a choice"
+    },
+    {
+     "path": [
+      "login"
+     ],
+     "message": "only a shell row carries a login shell"
+    },
+    {
+     "path": [
+      "font"
+     ],
+     "message": "only a shell row carries a terminal font"
+    },
+    {
+     "path": [
+      "sources"
+     ],
+     "message": "only a shell row carries sourced files"
+    },
+    {
+     "path": [
+      "required"
+     ],
+     "message": "a required row cannot default to skip"
+    }
+   ]
+  },
+  {
+   "name": "every refine at once",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "shell/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "skip",
+     "choice": "copy",
+     "linux": "yes",
+     "version": "1",
+     "login": "zsh",
+     "font": "F",
+     "sources": [
+      "a"
+     ],
+     "required": true
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    },
+    {
+     "path": [
+      "choice"
+     ],
+     "message": "only a logins row or a consent row carries a choice"
+    },
+    {
+     "path": [
+      "linux"
+     ],
+     "message": "only a tools row carries a linux marker"
+    },
+    {
+     "path": [
+      "version"
+     ],
+     "message": "only a tools row carries a version"
+    },
+    {
+     "path": [
+      "login"
+     ],
+     "message": "only a shell row carries a login shell"
+    },
+    {
+     "path": [
+      "font"
+     ],
+     "message": "only a shell row carries a terminal font"
+    },
+    {
+     "path": [
+      "sources"
+     ],
+     "message": "only a shell row carries sourced files"
+    },
+    {
+     "path": [
+      "required"
+     ],
+     "message": "a required row cannot default to skip"
+    }
+   ]
+  },
+  {
+   "name": "empty id, empty source, required skip",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "skip",
+     "sources": [
+      ""
+     ],
+     "required": true
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "sources",
+      0
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    },
+    {
+     "path": [
+      "sources"
+     ],
+     "message": "only a shell row carries sourced files"
+    },
+    {
+     "path": [
+      "required"
+     ],
+     "message": "a required row cannot default to skip"
+    }
+   ]
+  },
+  {
+   "name": "id \"identity/\"",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "ok": {
+    "rung": "identity",
+    "id": "identity/",
+    "label": "l",
+    "paths": [
+     "~/a"
+    ],
+    "bytes": 1,
+    "default": "bring"
+   },
+   "text": "{\"rung\":\"identity\",\"id\":\"identity/\",\"label\":\"l\",\"paths\":[\"~/a\"],\"bytes\":1,\"default\":\"bring\"}"
+  },
+  {
+   "name": "id \"identity//x\"",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity//x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "ok": {
+    "rung": "identity",
+    "id": "identity//x",
+    "label": "l",
+    "paths": [
+     "~/a"
+    ],
+    "bytes": 1,
+    "default": "bring"
+   },
+   "text": "{\"rung\":\"identity\",\"id\":\"identity//x\",\"label\":\"l\",\"paths\":[\"~/a\"],\"bytes\":1,\"default\":\"bring\"}"
+  },
+  {
+   "name": "id \"identity\"",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "id \"Identity/x\"",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "Identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "id \" identity/x\"",
+   "args": [
+    {
+     "rung": "identity",
+     "id": " identity/x",
+     "label": "l",
+     "paths": [
+      "~/a"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "shape issues come in schema order, not input order",
+   "args": [
+    {
+     "default": "no",
+     "bytes": -1,
+     "paths": 1,
+     "label": 1,
+     "id": 1,
+     "rung": 1
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "rung"
+     ],
+     "message": "Expected 'identity' | 'shell' | 'toolchains' | 'tools' | 'agents' | 'logins', received number"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "Expected string, received number"
+    },
+    {
+     "path": [
+      "label"
+     ],
+     "message": "Expected string, received number"
+    },
+    {
+     "path": [
+      "paths"
+     ],
+     "message": "Expected array, received number"
+    },
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Number must be greater than or equal to 0"
+    },
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Invalid enum value. Expected 'bring' | 'skip', received 'no'"
+    }
+   ]
+  },
+  {
+   "name": "every key missing",
+   "args": [
+    {}
+   ],
+   "issues": [
+    {
+     "path": [
+      "rung"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "label"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "paths"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Required"
+    }
+   ]
+  },
+  {
+   "name": "only the rung",
+   "args": [
+    {
+     "rung": "identity"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "label"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "paths"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Required"
+    }
+   ]
+  },
+  {
+   "name": "rung and an unprefixed id only",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "x"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "label"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "paths"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Required"
+    }
+   ]
+  },
+  {
+   "name": "rung and a good id only",
+   "args": [
+    {
+     "rung": "identity",
+     "id": "identity/x"
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "label"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "paths"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Required"
+    },
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Required"
+    }
+   ]
+  },
+  {
+   "name": "a row that is a string",
+   "args": [
+    "x"
+   ],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received string"
+    }
+   ]
+  },
+  {
+   "name": "a row that is a number",
+   "args": [
+    3
+   ],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received number"
+    }
+   ]
+  },
+  {
+   "name": "a row that is true",
+   "args": [
+    true
+   ],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received boolean"
+    }
+   ]
+  },
+  {
+   "name": "a row that is null",
+   "args": [
+    null
+   ],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received null"
+    }
+   ]
+  },
+  {
+   "name": "a row that is an array",
+   "args": [
+    []
+   ],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received array"
+    }
+   ]
+  },
+  {
+   "name": "a row that is an array of a row",
+   "args": [
+    [
+     {
+      "rung": "identity",
+      "id": "identity/x",
+      "label": "l",
+      "paths": [
+       "~/a"
+      ],
+      "bytes": 1,
+      "default": "bring"
+     }
+    ]
+   ],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received array"
+    }
+   ]
+  }
+ ],
+ "safe_parse_manifest": [
+  {
+   "name": "an envelope that is an array",
+   "args": [
+    []
+   ],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received array"
+    }
+   ]
+  },
+  {
+   "name": "an envelope that is a string",
+   "args": [
+    "x"
+   ],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received string"
+    }
+   ]
+  },
+  {
+   "name": "an envelope that is a number",
+   "args": [
+    3
+   ],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received number"
+    }
+   ]
+  },
+  {
+   "name": "an envelope that is true",
+   "args": [
+    true
+   ],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received boolean"
+    }
+   ]
+  },
+  {
+   "name": "an envelope that is null",
+   "args": [
+    null
+   ],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received null"
+    }
+   ]
+  },
+  {
+   "name": "entries null",
+   "args": [
+    {
+     "entries": null
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries"
+     ],
+     "message": "Expected array, received null"
+    }
+   ]
+  },
+  {
+   "name": "entries an object",
+   "args": [
+    {
+     "entries": {}
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries"
+     ],
+     "message": "Expected array, received object"
+    }
+   ]
+  },
+  {
+   "name": "entries missing",
+   "args": [
+    {}
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries"
+     ],
+     "message": "Required"
+    }
+   ]
+  },
+  {
+   "name": "entries holding null",
+   "args": [
+    {
+     "entries": [
+      null
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries",
+      0
+     ],
+     "message": "Expected object, received null"
+    }
+   ]
+  },
+  {
+   "name": "entries holding an array",
+   "args": [
+    {
+     "entries": [
+      []
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries",
+      0
+     ],
+     "message": "Expected object, received array"
+    }
+   ]
+  },
+  {
+   "name": "a string row between two good ones",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      "x",
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      }
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries",
+      1
+     ],
+     "message": "Expected object, received string"
+    }
+   ]
+  },
+  {
+   "name": "extra envelope keys are dropped",
+   "args": [
+    {
+     "entries": [],
+     "x": 1
+    }
+   ],
+   "ok": {
+    "entries": []
+   },
+   "text": "{\"entries\":[]}"
+  },
+  {
+   "name": "every later duplicate is reported",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/y",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/y",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      }
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries",
+      1,
+      "id"
+     ],
+     "message": "duplicate id identity/x"
+    },
+    {
+     "path": [
+      "entries",
+      3,
+      "id"
+     ],
+     "message": "duplicate id identity/y"
+    },
+    {
+     "path": [
+      "entries",
+      4,
+      "id"
+     ],
+     "message": "duplicate id identity/x"
+    }
+   ]
+  },
+  {
+   "name": "ids are case sensitive",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "IDENTITY/X",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      }
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries",
+      1,
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "the same id under another rung",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "shell",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      }
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries",
+      1,
+      "id"
+     ],
+     "message": "id must start with shell/"
+    },
+    {
+     "path": [
+      "entries",
+      1,
+      "id"
+     ],
+     "message": "duplicate id identity/x"
+    }
+   ]
+  },
+  {
+   "name": "a duplicate after a too-small number still runs the check, after the row issues",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/z",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": -1,
+       "default": "bring"
+      }
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries",
+      2,
+      "bytes"
+     ],
+     "message": "Number must be greater than or equal to 0"
+    },
+    {
+     "path": [
+      "entries",
+      1,
+      "id"
+     ],
+     "message": "duplicate id identity/x"
+    }
+   ]
+  },
+  {
+   "name": "a duplicate after a type error is not checked",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/z",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": "1",
+       "default": "bring"
+      }
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries",
+      2,
+      "bytes"
+     ],
+     "message": "Expected number, received string"
+    }
+   ]
+  },
+  {
+   "name": "a duplicate after an id outside its rung",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "tools",
+       "id": "identity/z",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      }
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries",
+      2,
+      "id"
+     ],
+     "message": "id must start with tools/"
+    },
+    {
+     "path": [
+      "entries",
+      1,
+      "id"
+     ],
+     "message": "duplicate id identity/x"
+    }
+   ]
+  },
+  {
+   "name": "an item type error inside a row",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        1
+       ],
+       "bytes": 1,
+       "default": "bring"
+      }
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "path": [
+      "entries",
+      0,
+      "paths",
+      0
+     ],
+     "message": "Expected string, received number"
+    }
+   ]
+  }
+ ],
+ "parse_manifest": [
+  {
+   "name": "an array",
+   "args": [
+    []
+   ],
+   "out": {
+    "error": "invalid manifest: : Expected object, received array"
+   }
+  },
+  {
+   "name": "one duplicate",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      }
+     ]
+    }
+   ],
+   "out": {
+    "error": "invalid manifest: entries.1.id: duplicate id identity/x"
+   }
+  },
+  {
+   "name": "an empty id",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      }
+     ]
+    }
+   ],
+   "out": {
+    "error": "invalid manifest: entries.0.id: String must contain at least 1 character(s); entries.0.id: id must start with identity/"
+   }
+  },
+  {
+   "name": "an empty row",
+   "args": [
+    {
+     "entries": [
+      {}
+     ]
+    }
+   ],
+   "out": {
+    "error": "invalid manifest: entries.0.rung: Required; entries.0.id: Required; entries.0.label: Required; entries.0.paths: Required; entries.0.bytes: Required; entries.0.default: Required"
+   }
+  },
+  {
+   "name": "two item errors",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        1,
+        2
+       ],
+       "bytes": 1,
+       "default": "bring"
+      }
+     ]
+    }
+   ],
+   "out": {
+    "error": "invalid manifest: entries.0.paths.0: Expected string, received number; entries.0.paths.1: Expected string, received number"
+   }
+  },
+  {
+   "name": "six shape issues joined",
+   "args": [
+    {
+     "entries": [
+      {
+       "default": "no",
+       "bytes": -1,
+       "paths": 1,
+       "label": 1,
+       "id": 1,
+       "rung": 1
+      }
+     ]
+    }
+   ],
+   "out": {
+    "error": "invalid manifest: entries.0.rung: Expected 'identity' | 'shell' | 'toolchains' | 'tools' | 'agents' | 'logins', received number; entries.0.id: Expected string, received number; entries.0.label: Expected string, received number; entries.0.paths: Expected array, received number; entries.0.bytes: Number must be greater than or equal to 0; entries.0.default: Invalid enum value. Expected 'bring' | 'skip', received 'no'"
+   }
+  },
+  {
+   "name": "an empty list",
+   "args": [
+    {
+     "entries": []
+    }
+   ],
+   "out": {
+    "ok": {
+     "entries": []
+    },
+    "text": "{\"entries\":[]}"
+   }
+  },
+  {
+   "name": "extra envelope keys",
+   "args": [
+    {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      }
+     ],
+     "x": 1
+    }
+   ],
+   "out": {
+    "ok": {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/x",
+       "label": "l",
+       "paths": [
+        "~/a"
+       ],
+       "bytes": 1,
+       "default": "bring"
+      }
+     ]
+    },
+    "text": "{\"entries\":[{\"rung\":\"identity\",\"id\":\"identity/x\",\"label\":\"l\",\"paths\":[\"~/a\"],\"bytes\":1,\"default\":\"bring\"}]}"
+   }
+  }
+ ],
+ "collect": [
+  {
+   "name": "the fixture laptop: rows, counts and the whole call sequence",
+   "laptop": {
+    "files": {
+     "~/.gitconfig": 512,
+     "~/.ssh/config": 1200,
+     "~/.ssh/id_ed25519": 400,
+     "~/.ssh/id_ed25519.pub": 100,
+     "~/.ssh/known_hosts": 3000,
+     "~/.zshrc": 3000,
+     "~/.zshenv": 200,
+     "~/.config/starship.toml": 900,
+     "~/.tmux.conf": 600,
+     "~/.zsh_history": 800000,
+     "~/.config/nvim/init.lua": 120000,
+     "~/Library/Application Support/Code/User/settings.json": 2000,
+     "~/.config/mise/config.toml": 300,
+     "~/.claude/settings.json": 400,
+     "~/.claude/CLAUDE.md": 900,
+     "~/.claude/.credentials.json": 800,
+     "~/.codex/config.toml": 50,
+     "~/.codex/auth.json": 900,
+     "~/.config/gh/hosts.yml": 200,
+     "~/.aws/config": 300,
+     "~/go/bin/gopls": 1
+    },
+    "which": [
+     "git",
+     "brew",
+     "mise",
+     "npm",
+     "claude",
+     "codex",
+     "go"
+    ],
+    "exec": {
+     "git config --global --get user.name": "Dev Person\n",
+     "git config --global --get user.email": "dev@example.com\n",
+     "git config --global --get gpg.format": "ssh\n",
+     "HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart": "tap \"homebrew/bundle\"\nbrew \"gh\"\nbrew \"jq\"\n",
+     "npm ls -g --depth=0 --json": "{\"dependencies\":{\"npm\":{\"version\":\"10\"},\"pnpm\":{\"version\":\"9.12.0\"}}}",
+     "go version": "go version go1.23.1 darwin/arm64\n",
+     "go version -m /Users/dev/go/bin/gopls": "x\n\tpath\tgolang.org/x/tools/gopls\n\tmod\tgolang.org/x/tools/gopls\tv0.16.2\th1:abc=\n",
+     "security find-generic-password -s Claude Code-credentials": "found\n"
+    }
+   },
+   "args": [],
+   "out": {
+    "ok": {
+     "entries": [
+      {
+       "rung": "identity",
+       "id": "identity/git-user",
+       "label": "git name and email",
+       "paths": [
+        "~/.gitconfig"
+       ],
+       "bytes": 512,
+       "default": "bring",
+       "required": true
+      },
+      {
+       "rung": "identity",
+       "id": "identity/git-signing",
+       "label": "git signing (ssh); the signing key itself stays on this computer",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/ssh-config",
+       "label": "~/.ssh/config",
+       "paths": [
+        "~/.ssh/config"
+       ],
+       "bytes": 1200,
+       "default": "bring",
+       "detail": "copied with IgnoreUnknown at the top, since ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/ssh-public-keys",
+       "label": "SSH public keys (1)",
+       "paths": [
+        "~/.ssh/id_ed25519.pub"
+       ],
+       "bytes": 100,
+       "default": "bring",
+       "required": true
+      },
+      {
+       "rung": "identity",
+       "id": "identity/ssh-key/id_ed25519",
+       "label": "~/.ssh/id_ed25519",
+       "paths": [
+        "~/.ssh/id_ed25519"
+       ],
+       "bytes": 400,
+       "default": "skip",
+       "reason": "private key, never copied; the machine gets its own key"
+      },
+      {
+       "rung": "identity",
+       "id": "identity/ssh-known-hosts",
+       "label": "~/.ssh/known_hosts",
+       "paths": [
+        "~/.ssh/known_hosts"
+       ],
+       "bytes": 3000,
+       "default": "skip",
+       "reason": "host entries are rebuilt on first connect"
+      },
+      {
+       "rung": "shell",
+       "id": "shell/zshrc",
+       "label": "~/.zshrc",
+       "paths": [
+        "~/.zshrc"
+       ],
+       "bytes": 3000,
+       "default": "bring"
+      },
+      {
+       "rung": "shell",
+       "id": "shell/zshenv",
+       "label": "~/.zshenv",
+       "paths": [
+        "~/.zshenv"
+       ],
+       "bytes": 200,
+       "default": "bring"
+      },
+      {
+       "rung": "shell",
+       "id": "shell/starship",
+       "label": "starship prompt",
+       "paths": [
+        "~/.config/starship.toml"
+       ],
+       "bytes": 900,
+       "default": "bring"
+      },
+      {
+       "rung": "shell",
+       "id": "shell/tmux",
+       "label": "tmux config",
+       "paths": [
+        "~/.tmux.conf"
+       ],
+       "bytes": 600,
+       "default": "bring"
+      },
+      {
+       "rung": "shell",
+       "id": "shell/history",
+       "label": "shell history",
+       "paths": [
+        "~/.zsh_history"
+       ],
+       "bytes": 800000,
+       "default": "skip"
+      },
+      {
+       "rung": "toolchains",
+       "id": "toolchains/mise",
+       "label": "mise pins",
+       "paths": [
+        "~/.config/mise/config.toml"
+       ],
+       "bytes": 300,
+       "default": "bring"
+      },
+      {
+       "rung": "toolchains",
+       "id": "toolchains/go",
+       "label": "go 1.23.1",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring"
+      },
+      {
+       "rung": "tools",
+       "id": "tools/brew-tap/homebrew/bundle",
+       "label": "homebrew/bundle",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "group": "Homebrew taps",
+       "linux": "yes"
+      },
+      {
+       "rung": "tools",
+       "id": "tools/brew/gh",
+       "label": "gh",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "group": "Homebrew",
+       "linux": "yes"
+      },
+      {
+       "rung": "tools",
+       "id": "tools/brew/jq",
+       "label": "jq",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "group": "Homebrew",
+       "linux": "yes"
+      },
+      {
+       "rung": "tools",
+       "id": "tools/npm/pnpm",
+       "label": "pnpm@9.12.0",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "group": "npm globals",
+       "linux": "yes",
+       "version": "9.12.0"
+      },
+      {
+       "rung": "tools",
+       "id": "tools/go/gopls",
+       "label": "gopls",
+       "paths": [
+        "golang.org/x/tools/gopls@v0.16.2"
+       ],
+       "bytes": 0,
+       "default": "bring",
+       "group": "Go binaries",
+       "linux": "yes",
+       "version": "v0.16.2"
+      },
+      {
+       "rung": "agents",
+       "id": "agents/claude",
+       "label": "Claude Code",
+       "paths": [
+        "~/.claude/settings.json",
+        "~/.claude/CLAUDE.md"
+       ],
+       "bytes": 1300,
+       "default": "bring"
+      },
+      {
+       "rung": "agents",
+       "id": "agents/codex",
+       "label": "Codex",
+       "paths": [
+        "~/.codex/config.toml"
+       ],
+       "bytes": 50,
+       "default": "bring"
+      },
+      {
+       "rung": "logins",
+       "id": "logins/gh",
+       "label": "GitHub CLI login",
+       "paths": [
+        "~/.config/gh/hosts.yml"
+       ],
+       "bytes": 200,
+       "default": "skip",
+       "group": "CLI logins"
+      },
+      {
+       "rung": "logins",
+       "id": "logins/aws",
+       "label": "AWS keys and profiles",
+       "paths": [
+        "~/.aws/config"
+       ],
+       "bytes": 300,
+       "default": "skip",
+       "group": "CLI logins"
+      },
+      {
+       "rung": "logins",
+       "id": "logins/codex",
+       "label": "Codex login",
+       "paths": [],
+       "bytes": 0,
+       "default": "skip",
+       "group": "Agent logins",
+       "detail": "it signs in once on the computer that runs your workspaces; nothing of it travels"
+      },
+      {
+       "rung": "logins",
+       "id": "logins/claude",
+       "label": "Claude Code login",
+       "paths": [],
+       "bytes": 0,
+       "default": "skip",
+       "group": "Agent logins",
+       "detail": "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels"
+      }
+     ]
+    },
+    "text": "{\"entries\":[{\"rung\":\"identity\",\"id\":\"identity/git-user\",\"label\":\"git name and email\",\"paths\":[\"~/.gitconfig\"],\"bytes\":512,\"default\":\"bring\",\"required\":true},{\"rung\":\"identity\",\"id\":\"identity/git-signing\",\"label\":\"git signing (ssh); the signing key itself stays on this computer\",\"paths\":[],\"bytes\":0,\"default\":\"bring\"},{\"rung\":\"identity\",\"id\":\"identity/ssh-config\",\"label\":\"~/.ssh/config\",\"paths\":[\"~/.ssh/config\"],\"bytes\":1200,\"default\":\"bring\",\"detail\":\"copied with IgnoreUnknown at the top, since ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file\"},{\"rung\":\"identity\",\"id\":\"identity/ssh-public-keys\",\"label\":\"SSH public keys (1)\",\"paths\":[\"~/.ssh/id_ed25519.pub\"],\"bytes\":100,\"default\":\"bring\",\"required\":true},{\"rung\":\"identity\",\"id\":\"identity/ssh-key/id_ed25519\",\"label\":\"~/.ssh/id_ed25519\",\"paths\":[\"~/.ssh/id_ed25519\"],\"bytes\":400,\"default\":\"skip\",\"reason\":\"private key, never copied; the machine gets its own key\"},{\"rung\":\"identity\",\"id\":\"identity/ssh-known-hosts\",\"label\":\"~/.ssh/known_hosts\",\"paths\":[\"~/.ssh/known_hosts\"],\"bytes\":3000,\"default\":\"skip\",\"reason\":\"host entries are rebuilt on first connect\"},{\"rung\":\"shell\",\"id\":\"shell/zshrc\",\"label\":\"~/.zshrc\",\"paths\":[\"~/.zshrc\"],\"bytes\":3000,\"default\":\"bring\"},{\"rung\":\"shell\",\"id\":\"shell/zshenv\",\"label\":\"~/.zshenv\",\"paths\":[\"~/.zshenv\"],\"bytes\":200,\"default\":\"bring\"},{\"rung\":\"shell\",\"id\":\"shell/starship\",\"label\":\"starship prompt\",\"paths\":[\"~/.config/starship.toml\"],\"bytes\":900,\"default\":\"bring\"},{\"rung\":\"shell\",\"id\":\"shell/tmux\",\"label\":\"tmux config\",\"paths\":[\"~/.tmux.conf\"],\"bytes\":600,\"default\":\"bring\"},{\"rung\":\"shell\",\"id\":\"shell/history\",\"label\":\"shell history\",\"paths\":[\"~/.zsh_history\"],\"bytes\":800000,\"default\":\"skip\"},{\"rung\":\"toolchains\",\"id\":\"toolchains/mise\",\"label\":\"mise pins\",\"paths\":[\"~/.config/mise/config.toml\"],\"bytes\":300,\"default\":\"bring\"},{\"rung\":\"toolchains\",\"id\":\"toolchains/go\",\"label\":\"go 1.23.1\",\"paths\":[],\"bytes\":0,\"default\":\"bring\"},{\"rung\":\"tools\",\"id\":\"tools/brew-tap/homebrew/bundle\",\"label\":\"homebrew/bundle\",\"paths\":[],\"bytes\":0,\"default\":\"bring\",\"group\":\"Homebrew taps\",\"linux\":\"yes\"},{\"rung\":\"tools\",\"id\":\"tools/brew/gh\",\"label\":\"gh\",\"paths\":[],\"bytes\":0,\"default\":\"bring\",\"group\":\"Homebrew\",\"linux\":\"yes\"},{\"rung\":\"tools\",\"id\":\"tools/brew/jq\",\"label\":\"jq\",\"paths\":[],\"bytes\":0,\"default\":\"bring\",\"group\":\"Homebrew\",\"linux\":\"yes\"},{\"rung\":\"tools\",\"id\":\"tools/npm/pnpm\",\"label\":\"pnpm@9.12.0\",\"paths\":[],\"bytes\":0,\"default\":\"bring\",\"group\":\"npm globals\",\"linux\":\"yes\",\"version\":\"9.12.0\"},{\"rung\":\"tools\",\"id\":\"tools/go/gopls\",\"label\":\"gopls\",\"paths\":[\"golang.org/x/tools/gopls@v0.16.2\"],\"bytes\":0,\"default\":\"bring\",\"group\":\"Go binaries\",\"linux\":\"yes\",\"version\":\"v0.16.2\"},{\"rung\":\"agents\",\"id\":\"agents/claude\",\"label\":\"Claude Code\",\"paths\":[\"~/.claude/settings.json\",\"~/.claude/CLAUDE.md\"],\"bytes\":1300,\"default\":\"bring\"},{\"rung\":\"agents\",\"id\":\"agents/codex\",\"label\":\"Codex\",\"paths\":[\"~/.codex/config.toml\"],\"bytes\":50,\"default\":\"bring\"},{\"rung\":\"logins\",\"id\":\"logins/gh\",\"label\":\"GitHub CLI login\",\"paths\":[\"~/.config/gh/hosts.yml\"],\"bytes\":200,\"default\":\"skip\",\"group\":\"CLI logins\"},{\"rung\":\"logins\",\"id\":\"logins/aws\",\"label\":\"AWS keys and profiles\",\"paths\":[\"~/.aws/config\"],\"bytes\":300,\"default\":\"skip\",\"group\":\"CLI logins\"},{\"rung\":\"logins\",\"id\":\"logins/codex\",\"label\":\"Codex login\",\"paths\":[],\"bytes\":0,\"default\":\"skip\",\"group\":\"Agent logins\",\"detail\":\"it signs in once on the computer that runs your workspaces; nothing of it travels\"},{\"rung\":\"logins\",\"id\":\"logins/claude\",\"label\":\"Claude Code login\",\"paths\":[],\"bytes\":0,\"default\":\"skip\",\"group\":\"Agent logins\",\"detail\":\"Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels\"}]}"
+   },
+   "on_rung": [
+    [
+     "identity",
+     6
+    ],
+    [
+     "shell",
+     5
+    ],
+    [
+     "toolchains",
+     2
+    ],
+    [
+     "tools",
+     5
+    ],
+    [
+     "agents",
+     2
+    ],
+    [
+     "logins",
+     4
+    ]
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey",
+    "run git config --global --get gpg.ssh.allowedSignersFile",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml",
+    "run go version",
+    "run HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart",
+    "run npm prefix -g",
+    "run npm ls -g --depth=0 --json",
+    "run go version -m /Users/dev/go/bin/gopls",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc",
+    "run security find-generic-password -s gh:github.com",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "duplicate brew formulae: the parse fails after every rung ran",
+   "laptop": {
+    "which": [
+     "brew"
+    ],
+    "exec": {
+     "HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart": "brew \"gh\"\nbrew \"gh\"\nbrew \"jq\"\n"
+    }
+   },
+   "args": [],
+   "out": {
+    "error": "invalid manifest: entries.1.id: duplicate id tools/brew/gh"
+   },
+   "on_rung": [
+    [
+     "identity",
+     0
+    ],
+    [
+     "shell",
+     0
+    ],
+    [
+     "toolchains",
+     0
+    ],
+    [
+     "tools",
+     3
+    ],
+    [
+     "agents",
+     0
+    ],
+    [
+     "logins",
+     0
+    ]
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml",
+    "run HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "the shell rung: rows, sources, then the font row, counted together",
+   "laptop": {
+    "terminal": "ghostty",
+    "shell": "/bin/zsh",
+    "files": {
+     "~/.zshrc": "source ~/.cargo/env\nexport A=1\n",
+     "~/.cargo/env": 10,
+     "~/.config/ghostty/config": "font-family = Hack\n"
+    }
+   },
+   "args": [],
+   "out": {
+    "ok": {
+     "entries": [
+      {
+       "rung": "shell",
+       "id": "shell/zshrc",
+       "label": "~/.zshrc",
+       "paths": [
+        "~/.zshrc"
+       ],
+       "bytes": 31,
+       "default": "bring",
+       "sources": [
+        "~/.cargo/env"
+       ]
+      },
+      {
+       "rung": "shell",
+       "id": "shell/terminal-font",
+       "label": "terminal font: Hack (Ghostty)",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "font": "Hack"
+      }
+     ]
+    },
+    "text": "{\"entries\":[{\"rung\":\"shell\",\"id\":\"shell/zshrc\",\"label\":\"~/.zshrc\",\"paths\":[\"~/.zshrc\"],\"bytes\":31,\"default\":\"bring\",\"sources\":[\"~/.cargo/env\"]},{\"rung\":\"shell\",\"id\":\"shell/terminal-font\",\"label\":\"terminal font: Hack (Ghostty)\",\"paths\":[],\"bytes\":0,\"default\":\"bring\",\"font\":\"Hack\"}]}"
+   },
+   "on_rung": [
+    [
+     "identity",
+     0
+    ],
+    [
+     "shell",
+     2
+    ],
+    [
+     "toolchains",
+     0
+    ],
+    [
+     "tools",
+     0
+    ],
+    [
+     "agents",
+     0
+    ],
+    [
+     "logins",
+     0
+    ]
+   ],
+   "calls": [
+    "read /etc/shells",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "the agents rung: agent rows, then mcp rows",
+   "laptop": {
+    "terminal": "ghostty",
+    "shell": "/bin/zsh",
+    "which": [
+     "claude",
+     "codex"
+    ],
+    "files": {
+     "~/.zshrc": 300,
+     "~/.config/ghostty/config": "font-family = Hack\n",
+     "~/.claude/settings.json": 10,
+     "~/.claude.json": "{\"mcpServers\":{\"s1\":{\"command\":\"npx\",\"args\":[\"x\"]}}}",
+     "~/.codex/config.toml": 5
+    }
+   },
+   "args": [],
+   "out": {
+    "ok": {
+     "entries": [
+      {
+       "rung": "shell",
+       "id": "shell/zshrc",
+       "label": "~/.zshrc",
+       "paths": [
+        "~/.zshrc"
+       ],
+       "bytes": 300,
+       "default": "bring"
+      },
+      {
+       "rung": "shell",
+       "id": "shell/terminal-font",
+       "label": "terminal font: Hack (Ghostty)",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "font": "Hack"
+      },
+      {
+       "rung": "agents",
+       "id": "agents/claude",
+       "label": "Claude Code",
+       "paths": [
+        "~/.claude/settings.json",
+        "~/.claude.json"
+       ],
+       "volatile": [
+        "~/.claude.json"
+       ],
+       "bytes": 62,
+       "default": "bring"
+      },
+      {
+       "rung": "agents",
+       "id": "agents/codex",
+       "label": "Codex",
+       "paths": [
+        "~/.codex/config.toml"
+       ],
+       "bytes": 5,
+       "default": "bring"
+      },
+      {
+       "rung": "agents",
+       "id": "agents/mcp/claude/s1",
+       "label": "s1",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "group": "Claude Code MCP servers",
+       "detail": "stdio: npx x; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     ]
+    },
+    "text": "{\"entries\":[{\"rung\":\"shell\",\"id\":\"shell/zshrc\",\"label\":\"~/.zshrc\",\"paths\":[\"~/.zshrc\"],\"bytes\":300,\"default\":\"bring\"},{\"rung\":\"shell\",\"id\":\"shell/terminal-font\",\"label\":\"terminal font: Hack (Ghostty)\",\"paths\":[],\"bytes\":0,\"default\":\"bring\",\"font\":\"Hack\"},{\"rung\":\"agents\",\"id\":\"agents/claude\",\"label\":\"Claude Code\",\"paths\":[\"~/.claude/settings.json\",\"~/.claude.json\"],\"volatile\":[\"~/.claude.json\"],\"bytes\":62,\"default\":\"bring\"},{\"rung\":\"agents\",\"id\":\"agents/codex\",\"label\":\"Codex\",\"paths\":[\"~/.codex/config.toml\"],\"bytes\":5,\"default\":\"bring\"},{\"rung\":\"agents\",\"id\":\"agents/mcp/claude/s1\",\"label\":\"s1\",\"paths\":[],\"bytes\":0,\"default\":\"bring\",\"group\":\"Claude Code MCP servers\",\"detail\":\"stdio: npx x; runs via npx; carries no secret\",\"signIn\":\"none\"}]}"
+   },
+   "on_rung": [
+    [
+     "identity",
+     0
+    ],
+    [
+     "shell",
+     2
+    ],
+    [
+     "toolchains",
+     0
+    ],
+    [
+     "tools",
+     0
+    ],
+    [
+     "agents",
+     3
+    ],
+    [
+     "logins",
+     0
+    ]
+   ],
+   "calls": [
+    "read /etc/shells",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "an empty linux host",
+   "laptop": {
+    "platform": "linux"
+   },
+   "args": [],
+   "out": {
+    "ok": {
+     "entries": []
+    },
+    "text": "{\"entries\":[]}"
+   },
+   "on_rung": [
+    [
+     "identity",
+     0
+    ],
+    [
+     "shell",
+     0
+    ],
+    [
+     "toolchains",
+     0
+    ],
+    [
+     "tools",
+     0
+    ],
+    [
+     "agents",
+     0
+    ],
+    [
+     "logins",
+     0
+    ]
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "an empty darwin host",
+   "laptop": {},
+   "args": [],
+   "out": {
+    "ok": {
+     "entries": []
+    },
+    "text": "{\"entries\":[]}"
+   },
+   "on_rung": [
+    [
+     "identity",
+     0
+    ],
+    [
+     "shell",
+     0
+    ],
+    [
+     "toolchains",
+     0
+    ],
+    [
+     "tools",
+     0
+    ],
+    [
+     "agents",
+     0
+    ],
+    [
+     "logins",
+     0
+    ]
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,11395 @@
+{
+ "without_heredocs": [
+  {
+   "name": "\"cat <<< foo\\nls\\npwd\"",
+   "args": [
+    "cat <<< foo\nls\npwd"
+   ],
+   "out": "cat <<< foo"
+  },
+  {
+   "name": "\"echo $((1<<2))\\nls\"",
+   "args": [
+    "echo $((1<<2))\nls"
+   ],
+   "out": "echo $((1<<2))"
+  },
+  {
+   "name": "\"echo '<<EOF'\\nls\\nEOF\\npwd\"",
+   "args": [
+    "echo '<<EOF'\nls\nEOF\npwd"
+   ],
+   "out": "echo '<<EOF'\npwd"
+  },
+  {
+   "name": "\"cat <<EOF\\n  EOF\\nls\"",
+   "args": [
+    "cat <<EOF\n  EOF\nls"
+   ],
+   "out": "cat <<EOF\nls"
+  },
+  {
+   "name": "\"cat <<EOF\\r\\nbody\\r\\nEOF\\r\\nls\"",
+   "args": [
+    "cat <<EOF\r\nbody\r\nEOF\r\nls"
+   ],
+   "out": "cat <<EOF\r\nls"
+  },
+  {
+   "name": "\"cat <<A <<B\\nx\\nA\\ny\\nB\\nls\"",
+   "args": [
+    "cat <<A <<B\nx\nA\ny\nB\nls"
+   ],
+   "out": "cat <<A <<B\ny\nB\nls"
+  },
+  {
+   "name": "\"cat <<'A B'\\nx\\nA B\\nls\"",
+   "args": [
+    "cat <<'A B'\nx\nA B\nls"
+   ],
+   "out": "cat <<'A B'\nls"
+  },
+  {
+   "name": "\"cat <<EOF\"",
+   "args": [
+    "cat <<EOF"
+   ],
+   "out": "cat <<EOF"
+  },
+  {
+   "name": "\"cat <<\\\"\\\"\\nls\"",
+   "args": [
+    "cat <<\"\"\nls"
+   ],
+   "out": "cat <<\"\"\nls"
+  },
+  {
+   "name": "\"cat <<- EOF\\nx\\nEOF\\nls\"",
+   "args": [
+    "cat <<- EOF\nx\nEOF\nls"
+   ],
+   "out": "cat <<- EOF\nls"
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF \\nls\"",
+   "args": [
+    "cat <<EOF\nEOF \nls"
+   ],
+   "out": "cat <<EOF\nls"
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF\\nEOF\\nls\"",
+   "args": [
+    "cat <<EOF\nEOF\nEOF\nls"
+   ],
+   "out": "cat <<EOF\nEOF\nls"
+  },
+  {
+   "name": "\"cat <<EOF1\\nx\\nEOF\\nls\\nEOF1\\npwd\"",
+   "args": [
+    "cat <<EOF1\nx\nEOF\nls\nEOF1\npwd"
+   ],
+   "out": "cat <<EOF1\npwd"
+  },
+  {
+   "name": "\"cat << EOF-x\\nbody\\nEOF-x\\nls\"",
+   "args": [
+    "cat << EOF-x\nbody\nEOF-x\nls"
+   ],
+   "out": "cat << EOF-x"
+  },
+  {
+   "name": "\"cat <<e\\nx\\nE\\nls\"",
+   "args": [
+    "cat <<e\nx\nE\nls"
+   ],
+   "out": "cat <<e"
+  },
+  {
+   "name": "\"ls \\\\\\nfoo\"",
+   "args": [
+    "ls \\\nfoo"
+   ],
+   "out": "ls \\\nfoo"
+  },
+  {
+   "name": "\"ls \\\\\"",
+   "args": [
+    "ls \\"
+   ],
+   "out": "ls \\"
+  },
+  {
+   "name": "\"ls {a,b}\"",
+   "args": [
+    "ls {a,b}"
+   ],
+   "out": "ls {a,b}"
+  },
+  {
+   "name": "\"find . -name x -exec rm {} \\\\;\"",
+   "args": [
+    "find . -name x -exec rm {} \\;"
+   ],
+   "out": "find . -name x -exec rm {} \\;"
+  },
+  {
+   "name": "\"find . -exec rm {} +\"",
+   "args": [
+    "find . -exec rm {} +"
+   ],
+   "out": "find . -exec rm {} +"
+  },
+  {
+   "name": "\"echo ${a b\"",
+   "args": [
+    "echo ${a b"
+   ],
+   "out": "echo ${a b"
+  },
+  {
+   "name": "\"echo ${a:-\\\"}\\\"} x | wc\"",
+   "args": [
+    "echo ${a:-\"}\"} x | wc"
+   ],
+   "out": "echo ${a:-\"}\"} x | wc"
+  },
+  {
+   "name": "\"echo ${a} | wc\"",
+   "args": [
+    "echo ${a} | wc"
+   ],
+   "out": "echo ${a} | wc"
+  },
+  {
+   "name": "\"echo $((1+2)) | wc\"",
+   "args": [
+    "echo $((1+2)) | wc"
+   ],
+   "out": "echo $((1+2)) | wc"
+  },
+  {
+   "name": "\"a ) b\"",
+   "args": [
+    "a ) b"
+   ],
+   "out": "a ) b"
+  },
+  {
+   "name": "\"a ( b\"",
+   "args": [
+    "a ( b"
+   ],
+   "out": "a ( b"
+  },
+  {
+   "name": "\"echo \\\"$(a) b\\\" | c\"",
+   "args": [
+    "echo \"$(a) b\" | c"
+   ],
+   "out": "echo \"$(a) b\" | c"
+  },
+  {
+   "name": "\"echo \\\"$(a \\\"b\\\" ) c\\\" | d\"",
+   "args": [
+    "echo \"$(a \"b\" ) c\" | d"
+   ],
+   "out": "echo \"$(a \"b\" ) c\" | d"
+  },
+  {
+   "name": "\"echo \\\"a\\\\\\\"b\\\" | c\"",
+   "args": [
+    "echo \"a\\\"b\" | c"
+   ],
+   "out": "echo \"a\\\"b\" | c"
+  },
+  {
+   "name": "\"echo 'a\\\\'b' | c\"",
+   "args": [
+    "echo 'a\\'b' | c"
+   ],
+   "out": "echo 'a\\'b' | c"
+  },
+  {
+   "name": "\"echo >&\"",
+   "args": [
+    "echo >&"
+   ],
+   "out": "echo >&"
+  },
+  {
+   "name": "\"echo 2>&\"",
+   "args": [
+    "echo 2>&"
+   ],
+   "out": "echo 2>&"
+  },
+  {
+   "name": "\"echo a &\"",
+   "args": [
+    "echo a &"
+   ],
+   "out": "echo a &"
+  },
+  {
+   "name": "\"echo a&&b\"",
+   "args": [
+    "echo a&&b"
+   ],
+   "out": "echo a&&b"
+  },
+  {
+   "name": "\"echo a||b\"",
+   "args": [
+    "echo a||b"
+   ],
+   "out": "echo a||b"
+  },
+  {
+   "name": "\"echo a|&b\"",
+   "args": [
+    "echo a|&b"
+   ],
+   "out": "echo a|&b"
+  },
+  {
+   "name": "\"a;;b\"",
+   "args": [
+    "a;;b"
+   ],
+   "out": "a;;b"
+  },
+  {
+   "name": "\"echo a\\\\\\nb | c\"",
+   "args": [
+    "echo a\\\nb | c"
+   ],
+   "out": "echo a\\\nb | c"
+  },
+  {
+   "name": "\"echo `a b` | c\"",
+   "args": [
+    "echo `a b` | c"
+   ],
+   "out": "echo `a b` | c"
+  },
+  {
+   "name": "\"echo \\\"`a b`\\\" | c\"",
+   "args": [
+    "echo \"`a b`\" | c"
+   ],
+   "out": "echo \"`a b`\" | c"
+  },
+  {
+   "name": "\"x=$(ls | wc) y\"",
+   "args": [
+    "x=$(ls | wc) y"
+   ],
+   "out": "x=$(ls | wc) y"
+  },
+  {
+   "name": "\"echo $#\"",
+   "args": [
+    "echo $#"
+   ],
+   "out": "echo $#"
+  },
+  {
+   "name": "\"echo ${#a} | wc\"",
+   "args": [
+    "echo ${#a} | wc"
+   ],
+   "out": "echo ${#a} | wc"
+  },
+  {
+   "name": "\"echo a;#c\\nb\"",
+   "args": [
+    "echo a;#c\nb"
+   ],
+   "out": "echo a;#c\nb"
+  },
+  {
+   "name": "\"echo a #c\"",
+   "args": [
+    "echo a #c"
+   ],
+   "out": "echo a #c"
+  },
+  {
+   "name": "\"echo '#c' ; ls\"",
+   "args": [
+    "echo '#c' ; ls"
+   ],
+   "out": "echo '#c' ; ls"
+  },
+  {
+   "name": "\"echo a'#c' b\"",
+   "args": [
+    "echo a'#c' b"
+   ],
+   "out": "echo a'#c' b"
+  },
+  {
+   "name": "\"FOO=\\\"a b\\\" ls\"",
+   "args": [
+    "FOO=\"a b\" ls"
+   ],
+   "out": "FOO=\"a b\" ls"
+  },
+  {
+   "name": "\"env FOO='x y' node a.js\"",
+   "args": [
+    "env FOO='x y' node a.js"
+   ],
+   "out": "env FOO='x y' node a.js"
+  },
+  {
+   "name": "\"\\\"git\\\" status\"",
+   "args": [
+    "\"git\" status"
+   ],
+   "out": "\"git\" status"
+  },
+  {
+   "name": "\"g\\\"i\\\"t status\"",
+   "args": [
+    "g\"i\"t status"
+   ],
+   "out": "g\"i\"t status"
+  },
+  {
+   "name": "\"ls x\"",
+   "args": [
+    "ls x"
+   ],
+   "out": "ls x"
+  },
+  {
+   "name": "\"﻿ls -l\"",
+   "args": [
+    "﻿ls -l"
+   ],
+   "out": "﻿ls -l"
+  },
+  {
+   "name": "\" ls -l\"",
+   "args": [
+    " ls -l"
+   ],
+   "out": " ls -l"
+  },
+  {
+   "name": "\"ls -l | wc\"",
+   "args": [
+    "ls -l | wc"
+   ],
+   "out": "ls -l | wc"
+  },
+  {
+   "name": "\"a b\"",
+   "args": [
+    "a b"
+   ],
+   "out": "a b"
+  },
+  {
+   "name": "\"echo 😀x | y\"",
+   "args": [
+    "echo 😀x | y"
+   ],
+   "out": "echo 😀x | y"
+  },
+  {
+   "name": "\"((a+b)); ls\"",
+   "args": [
+    "((a+b)); ls"
+   ],
+   "out": "((a+b)); ls"
+  },
+  {
+   "name": "\"{ ls; } | wc\"",
+   "args": [
+    "{ ls; } | wc"
+   ],
+   "out": "{ ls; } | wc"
+  },
+  {
+   "name": "\"echo a<(b c) | d\"",
+   "args": [
+    "echo a<(b c) | d"
+   ],
+   "out": "echo a<(b c) | d"
+  },
+  {
+   "name": "\"echo a>(b c) | d\"",
+   "args": [
+    "echo a>(b c) | d"
+   ],
+   "out": "echo a>(b c) | d"
+  },
+  {
+   "name": "\"a <b | c\"",
+   "args": [
+    "a <b | c"
+   ],
+   "out": "a <b | c"
+  },
+  {
+   "name": "\"cd x;\\nls\"",
+   "args": [
+    "cd x;\nls"
+   ],
+   "out": "cd x;\nls"
+  },
+  {
+   "name": "\"a\\n\\n  \\nb\"",
+   "args": [
+    "a\n\n  \nb"
+   ],
+   "out": "a\n\n  \nb"
+  },
+  {
+   "name": "\"!ls\"",
+   "args": [
+    "!ls"
+   ],
+   "out": "!ls"
+  },
+  {
+   "name": "\"! ls\"",
+   "args": [
+    "! ls"
+   ],
+   "out": "! ls"
+  },
+  {
+   "name": "\"echo \\\"unterminated $(ls | wc\"",
+   "args": [
+    "echo \"unterminated $(ls | wc"
+   ],
+   "out": "echo \"unterminated $(ls | wc"
+  },
+  {
+   "name": "\"./\"",
+   "args": [
+    "./"
+   ],
+   "out": "./"
+  },
+  {
+   "name": "\"/\"",
+   "args": [
+    "/"
+   ],
+   "out": "/"
+  },
+  {
+   "name": "\"ls; /usr/bin/\"",
+   "args": [
+    "ls; /usr/bin/"
+   ],
+   "out": "ls; /usr/bin/"
+  },
+  {
+   "name": "\"/bin/echo hi; /usr/bin/true; ./source x; /bin/cd x; /usr/bin/which node\"",
+   "args": [
+    "/bin/echo hi; /usr/bin/true; ./source x; /bin/cd x; /usr/bin/which node"
+   ],
+   "out": "/bin/echo hi; /usr/bin/true; ./source x; /bin/cd x; /usr/bin/which node"
+  },
+  {
+   "name": "\"node --version 2>&1\"",
+   "args": [
+    "node --version 2>&1"
+   ],
+   "out": "node --version 2>&1"
+  },
+  {
+   "name": "\"gh --version >/dev/null\"",
+   "args": [
+    "gh --version >/dev/null"
+   ],
+   "out": "gh --version >/dev/null"
+  },
+  {
+   "name": "\"gh --version | head -1\"",
+   "args": [
+    "gh --version | head -1"
+   ],
+   "out": "gh --version | head -1"
+  },
+  {
+   "name": "\"ls -v; sort -V; tar -V; jq --version; go version; git -v x\"",
+   "args": [
+    "ls -v; sort -V; tar -V; jq --version; go version; git -v x"
+   ],
+   "out": "ls -v; sort -V; tar -V; jq --version; go version; git -v x"
+  },
+  {
+   "name": "\"grep -v\"",
+   "args": [
+    "grep -v"
+   ],
+   "out": "grep -v"
+  },
+  {
+   "name": "\"python3 -V -V\"",
+   "args": [
+    "python3 -V -V"
+   ],
+   "out": "python3 -V -V"
+  },
+  {
+   "name": "\"env -u FOO ls\"",
+   "args": [
+    "env -u FOO ls"
+   ],
+   "out": "env -u FOO ls"
+  },
+  {
+   "name": "\"sudo -- ls\"",
+   "args": [
+    "sudo -- ls"
+   ],
+   "out": "sudo -- ls"
+  },
+  {
+   "name": "\"sudo -E -u me ls\"",
+   "args": [
+    "sudo -E -u me ls"
+   ],
+   "out": "sudo -E -u me ls"
+  },
+  {
+   "name": "\"sudo -uroot ls\"",
+   "args": [
+    "sudo -uroot ls"
+   ],
+   "out": "sudo -uroot ls"
+  },
+  {
+   "name": "\"sudo -u\"",
+   "args": [
+    "sudo -u"
+   ],
+   "out": "sudo -u"
+  },
+  {
+   "name": "\"sudo\"",
+   "args": [
+    "sudo"
+   ],
+   "out": "sudo"
+  },
+  {
+   "name": "\"env\"",
+   "args": [
+    "env"
+   ],
+   "out": "env"
+  },
+  {
+   "name": "\"command\"",
+   "args": [
+    "command"
+   ],
+   "out": "command"
+  },
+  {
+   "name": "\"command -v\"",
+   "args": [
+    "command -v"
+   ],
+   "out": "command -v"
+  },
+  {
+   "name": "\"command -vx ls\"",
+   "args": [
+    "command -vx ls"
+   ],
+   "out": "command -vx ls"
+  },
+  {
+   "name": "\"command -p ls\"",
+   "args": [
+    "command -p ls"
+   ],
+   "out": "command -p ls"
+  },
+  {
+   "name": "\"command -V ls\"",
+   "args": [
+    "command -V ls"
+   ],
+   "out": "command -V ls"
+  },
+  {
+   "name": "\"sudo command -v foo\"",
+   "args": [
+    "sudo command -v foo"
+   ],
+   "out": "sudo command -v foo"
+  },
+  {
+   "name": "\"xargs -I{} rm {}\"",
+   "args": [
+    "xargs -I{} rm {}"
+   ],
+   "out": "xargs -I{} rm {}"
+  },
+  {
+   "name": "\"ls | xargs -n1 rm\"",
+   "args": [
+    "ls | xargs -n1 rm"
+   ],
+   "out": "ls | xargs -n1 rm"
+  },
+  {
+   "name": "\"ls | xargs\"",
+   "args": [
+    "ls | xargs"
+   ],
+   "out": "ls | xargs"
+  },
+  {
+   "name": "\"nice -n10 make\"",
+   "args": [
+    "nice -n10 make"
+   ],
+   "out": "nice -n10 make"
+  },
+  {
+   "name": "\"nice -n 10 make\"",
+   "args": [
+    "nice -n 10 make"
+   ],
+   "out": "nice -n 10 make"
+  },
+  {
+   "name": "\"time -p ls\"",
+   "args": [
+    "time -p ls"
+   ],
+   "out": "time -p ls"
+  },
+  {
+   "name": "\"if grep x y; then echo a; elif cat z; then ls; else pwd; fi\"",
+   "args": [
+    "if grep x y; then echo a; elif cat z; then ls; else pwd; fi"
+   ],
+   "out": "if grep x y; then echo a; elif cat z; then ls; else pwd; fi"
+  },
+  {
+   "name": "\"while true; do sleep 1; done\"",
+   "args": [
+    "while true; do sleep 1; done"
+   ],
+   "out": "while true; do sleep 1; done"
+  },
+  {
+   "name": "\"until ls; do :; done\"",
+   "args": [
+    "until ls; do :; done"
+   ],
+   "out": "until ls; do :; done"
+  },
+  {
+   "name": "\"for i in 1; do ls; done\"",
+   "args": [
+    "for i in 1; do ls; done"
+   ],
+   "out": "for i in 1; do ls; done"
+  },
+  {
+   "name": "\"A=1 B=2 ls\"",
+   "args": [
+    "A=1 B=2 ls"
+   ],
+   "out": "A=1 B=2 ls"
+  },
+  {
+   "name": "\"A=1 > out ls\"",
+   "args": [
+    "A=1 > out ls"
+   ],
+   "out": "A=1 > out ls"
+  },
+  {
+   "name": "\"> out\"",
+   "args": [
+    "> out"
+   ],
+   "out": "> out"
+  },
+  {
+   "name": "\">out ls\"",
+   "args": [
+    ">out ls"
+   ],
+   "out": ">out ls"
+  },
+  {
+   "name": "\"2> err ls x\"",
+   "args": [
+    "2> err ls x"
+   ],
+   "out": "2> err ls x"
+  },
+  {
+   "name": "\"< in cat\"",
+   "args": [
+    "< in cat"
+   ],
+   "out": "< in cat"
+  },
+  {
+   "name": "\"<in cat\"",
+   "args": [
+    "<in cat"
+   ],
+   "out": "<in cat"
+  },
+  {
+   "name": "\"2>&1\"",
+   "args": [
+    "2>&1"
+   ],
+   "out": "2>&1"
+  },
+  {
+   "name": "\"&> out ls\"",
+   "args": [
+    "&> out ls"
+   ],
+   "out": "&> out ls"
+  },
+  {
+   "name": "\"&>out ls\"",
+   "args": [
+    "&>out ls"
+   ],
+   "out": "&>out ls"
+  },
+  {
+   "name": "\"1>&2 ls\"",
+   "args": [
+    "1>&2 ls"
+   ],
+   "out": "1>&2 ls"
+  },
+  {
+   "name": "\"12>x ls\"",
+   "args": [
+    "12>x ls"
+   ],
+   "out": "12>x ls"
+  },
+  {
+   "name": "\"a=b\"",
+   "args": [
+    "a=b"
+   ],
+   "out": "a=b"
+  },
+  {
+   "name": "\"=b ls\"",
+   "args": [
+    "=b ls"
+   ],
+   "out": "=b ls"
+  },
+  {
+   "name": "\"1a=b ls\"",
+   "args": [
+    "1a=b ls"
+   ],
+   "out": "1a=b ls"
+  },
+  {
+   "name": "\"A= ls\"",
+   "args": [
+    "A= ls"
+   ],
+   "out": "A= ls"
+  },
+  {
+   "name": "\"sudo A=1 ls\"",
+   "args": [
+    "sudo A=1 ls"
+   ],
+   "out": "sudo A=1 ls"
+  },
+  {
+   "name": "\"env A=1 B=2 -i ls\"",
+   "args": [
+    "env A=1 B=2 -i ls"
+   ],
+   "out": "env A=1 B=2 -i ls"
+  },
+  {
+   "name": "\"exec 3>&1\"",
+   "args": [
+    "exec 3>&1"
+   ],
+   "out": "exec 3>&1"
+  },
+  {
+   "name": "\"exec ls\"",
+   "args": [
+    "exec ls"
+   ],
+   "out": "exec ls"
+  },
+  {
+   "name": "\"nohup ls &\"",
+   "args": [
+    "nohup ls &"
+   ],
+   "out": "nohup ls &"
+  },
+  {
+   "name": "\"Sudo ls\"",
+   "args": [
+    "Sudo ls"
+   ],
+   "out": "Sudo ls"
+  },
+  {
+   "name": "\"SUDO ls\"",
+   "args": [
+    "SUDO ls"
+   ],
+   "out": "SUDO ls"
+  },
+  {
+   "name": "\"caffeinate -d -i make\"",
+   "args": [
+    "caffeinate -d -i make"
+   ],
+   "out": "caffeinate -d -i make"
+  },
+  {
+   "name": "\"doas -u me -s ls\"",
+   "args": [
+    "doas -u me -s ls"
+   ],
+   "out": "doas -u me -s ls"
+  },
+  {
+   "name": "\"doas ls\"",
+   "args": [
+    "doas ls"
+   ],
+   "out": "doas ls"
+  },
+  {
+   "name": "\"ls -v -v\"",
+   "args": [
+    "ls -v -v"
+   ],
+   "out": "ls -v -v"
+  },
+  {
+   "name": "\"which\"",
+   "args": [
+    "which"
+   ],
+   "out": "which"
+  },
+  {
+   "name": "\"which -a node && ls\"",
+   "args": [
+    "which -a node && ls"
+   ],
+   "out": "which -a node && ls"
+  },
+  {
+   "name": "\"export A=1\"",
+   "args": [
+    "export A=1"
+   ],
+   "out": "export A=1"
+  },
+  {
+   "name": "\"alias x=y\"",
+   "args": [
+    "alias x=y"
+   ],
+   "out": "alias x=y"
+  },
+  {
+   "name": "\"eval ls\"",
+   "args": [
+    "eval ls"
+   ],
+   "out": "eval ls"
+  },
+  {
+   "name": "\"type ls\"",
+   "args": [
+    "type ls"
+   ],
+   "out": "type ls"
+  },
+  {
+   "name": "\"[ -f x ]\"",
+   "args": [
+    "[ -f x ]"
+   ],
+   "out": "[ -f x ]"
+  },
+  {
+   "name": "\"test -f x && ls\"",
+   "args": [
+    "test -f x && ls"
+   ],
+   "out": "test -f x && ls"
+  },
+  {
+   "name": "\"echo; ls\"",
+   "args": [
+    "echo; ls"
+   ],
+   "out": "echo; ls"
+  },
+  {
+   "name": "\"builtin ls\"",
+   "args": [
+    "builtin ls"
+   ],
+   "out": "builtin ls"
+  },
+  {
+   "name": "\"then ls\"",
+   "args": [
+    "then ls"
+   ],
+   "out": "then ls"
+  },
+  {
+   "name": "\"do ls\"",
+   "args": [
+    "do ls"
+   ],
+   "out": "do ls"
+  },
+  {
+   "name": "\"else ls\"",
+   "args": [
+    "else ls"
+   ],
+   "out": "else ls"
+  },
+  {
+   "name": "\"! ! ls\"",
+   "args": [
+    "! ! ls"
+   ],
+   "out": "! ! ls"
+  },
+  {
+   "name": "\"sudo sudo ls\"",
+   "args": [
+    "sudo sudo ls"
+   ],
+   "out": "sudo sudo ls"
+  },
+  {
+   "name": "\"env sudo -u x ls\"",
+   "args": [
+    "env sudo -u x ls"
+   ],
+   "out": "env sudo -u x ls"
+  },
+  {
+   "name": "\"ls\\tx\"",
+   "args": [
+    "ls\tx"
+   ],
+   "out": "ls\tx"
+  },
+  {
+   "name": "\"npm i -g typescript --prefix /usr/local\"",
+   "args": [
+    "npm i -g typescript --prefix /usr/local"
+   ],
+   "out": "npm i -g typescript --prefix /usr/local"
+  },
+  {
+   "name": "\"npm -g i x\"",
+   "args": [
+    "npm -g i x"
+   ],
+   "out": "npm -g i x"
+  },
+  {
+   "name": "\"npm i --global=true x\"",
+   "args": [
+    "npm i --global=true x"
+   ],
+   "out": "npm i --global=true x"
+  },
+  {
+   "name": "\"npm install --global x\"",
+   "args": [
+    "npm install --global x"
+   ],
+   "out": "npm install --global x"
+  },
+  {
+   "name": "\"npm i -g\"",
+   "args": [
+    "npm i -g"
+   ],
+   "out": "npm i -g"
+  },
+  {
+   "name": "\"npm i x -g\"",
+   "args": [
+    "npm i x -g"
+   ],
+   "out": "npm i x -g"
+  },
+  {
+   "name": "\"npm i -g x -g y\"",
+   "args": [
+    "npm i -g x -g y"
+   ],
+   "out": "npm i -g x -g y"
+  },
+  {
+   "name": "\"npm add -g x\"",
+   "args": [
+    "npm add -g x"
+   ],
+   "out": "npm add -g x"
+  },
+  {
+   "name": "\"npm install -gD x\"",
+   "args": [
+    "npm install -gD x"
+   ],
+   "out": "npm install -gD x"
+  },
+  {
+   "name": "\"npm uninstall -g x\"",
+   "args": [
+    "npm uninstall -g x"
+   ],
+   "out": "npm uninstall -g x"
+  },
+  {
+   "name": "\"pnpm i -g x y\"",
+   "args": [
+    "pnpm i -g x y"
+   ],
+   "out": "pnpm i -g x y"
+  },
+  {
+   "name": "\"pnpm add -g x@1\"",
+   "args": [
+    "pnpm add -g x@1"
+   ],
+   "out": "pnpm add -g x@1"
+  },
+  {
+   "name": "\"pnpm install --global x\"",
+   "args": [
+    "pnpm install --global x"
+   ],
+   "out": "pnpm install --global x"
+  },
+  {
+   "name": "\"bun add -g x\"",
+   "args": [
+    "bun add -g x"
+   ],
+   "out": "bun add -g x"
+  },
+  {
+   "name": "\"bun i -g x\"",
+   "args": [
+    "bun i -g x"
+   ],
+   "out": "bun i -g x"
+  },
+  {
+   "name": "\"yarn global add x\"",
+   "args": [
+    "yarn global add x"
+   ],
+   "out": "yarn global add x"
+  },
+  {
+   "name": "\"uv pip install x\"",
+   "args": [
+    "uv pip install x"
+   ],
+   "out": "uv pip install x"
+  },
+  {
+   "name": "\"uv tool install --with y ruff\"",
+   "args": [
+    "uv tool install --with y ruff"
+   ],
+   "out": "uv tool install --with y ruff"
+  },
+  {
+   "name": "\"uv tool install 'ruff>=0.5' black[jupyter] pkg~=1.0 a!=2 b<3\"",
+   "args": [
+    "uv tool install 'ruff>=0.5' black[jupyter] pkg~=1.0 a!=2 b<3"
+   ],
+   "out": "uv tool install 'ruff>=0.5' black[jupyter] pkg~=1.0 a!=2 b<3"
+  },
+  {
+   "name": "\"uv tool install git+https://github.com/x/y\"",
+   "args": [
+    "uv tool install git+https://github.com/x/y"
+   ],
+   "out": "uv tool install git+https://github.com/x/y"
+  },
+  {
+   "name": "\"uv tool install ==1\"",
+   "args": [
+    "uv tool install ==1"
+   ],
+   "out": "uv tool install ==1"
+  },
+  {
+   "name": "\"uv tool install\"",
+   "args": [
+    "uv tool install"
+   ],
+   "out": "uv tool install"
+  },
+  {
+   "name": "\"uv tool run ruff\"",
+   "args": [
+    "uv tool run ruff"
+   ],
+   "out": "uv tool run ruff"
+  },
+  {
+   "name": "\"uvx =x ruff\"",
+   "args": [
+    "uvx =x ruff"
+   ],
+   "out": "uvx =x ruff"
+  },
+  {
+   "name": "\"uvx --from y ruff\"",
+   "args": [
+    "uvx --from y ruff"
+   ],
+   "out": "uvx --from y ruff"
+  },
+  {
+   "name": "\"uvx ruff@latest\"",
+   "args": [
+    "uvx ruff@latest"
+   ],
+   "out": "uvx ruff@latest"
+  },
+  {
+   "name": "\"uvx ruff==1.0 x\"",
+   "args": [
+    "uvx ruff==1.0 x"
+   ],
+   "out": "uvx ruff==1.0 x"
+  },
+  {
+   "name": "\"pipx install a b==1 c[x]\"",
+   "args": [
+    "pipx install a b==1 c[x]"
+   ],
+   "out": "pipx install a b==1 c[x]"
+  },
+  {
+   "name": "\"pipx run cowsay hello\"",
+   "args": [
+    "pipx run cowsay hello"
+   ],
+   "out": "pipx run cowsay hello"
+  },
+  {
+   "name": "\"pipx run --spec foo bar\"",
+   "args": [
+    "pipx run --spec foo bar"
+   ],
+   "out": "pipx run --spec foo bar"
+  },
+  {
+   "name": "\"pipx run\"",
+   "args": [
+    "pipx run"
+   ],
+   "out": "pipx run"
+  },
+  {
+   "name": "\"pipx install\"",
+   "args": [
+    "pipx install"
+   ],
+   "out": "pipx install"
+  },
+  {
+   "name": "\"pipx upgrade x\"",
+   "args": [
+    "pipx upgrade x"
+   ],
+   "out": "pipx upgrade x"
+  },
+  {
+   "name": "\"brew install gcc@12 homebrew/cask/foo ./local.rb\"",
+   "args": [
+    "brew install gcc@12 homebrew/cask/foo ./local.rb"
+   ],
+   "out": "brew install gcc@12 homebrew/cask/foo ./local.rb"
+  },
+  {
+   "name": "\"brew install --cask iterm2 --verbose\"",
+   "args": [
+    "brew install --cask iterm2 --verbose"
+   ],
+   "out": "brew install --cask iterm2 --verbose"
+  },
+  {
+   "name": "\"brew install \\\"foo bar\\\"\"",
+   "args": [
+    "brew install \"foo bar\""
+   ],
+   "out": "brew install \"foo bar\""
+  },
+  {
+   "name": "\"brew install ''\"",
+   "args": [
+    "brew install ''"
+   ],
+   "out": "brew install ''"
+  },
+  {
+   "name": "\"brew install\"",
+   "args": [
+    "brew install"
+   ],
+   "out": "brew install"
+  },
+  {
+   "name": "\"brew install -\"",
+   "args": [
+    "brew install -"
+   ],
+   "out": "brew install -"
+  },
+  {
+   "name": "\"brew -v install foo\"",
+   "args": [
+    "brew -v install foo"
+   ],
+   "out": "brew -v install foo"
+  },
+  {
+   "name": "\"brew install foo@\"",
+   "args": [
+    "brew install foo@"
+   ],
+   "out": "brew install foo@"
+  },
+  {
+   "name": "\"brew install @foo\"",
+   "args": [
+    "brew install @foo"
+   ],
+   "out": "brew install @foo"
+  },
+  {
+   "name": "\"brew install @foo/bar@1.2\"",
+   "args": [
+    "brew install @foo/bar@1.2"
+   ],
+   "out": "brew install @foo/bar@1.2"
+  },
+  {
+   "name": "\"brew install @@\"",
+   "args": [
+    "brew install @@"
+   ],
+   "out": "brew install @@"
+  },
+  {
+   "name": "\"brew reinstall a b\"",
+   "args": [
+    "brew reinstall a b"
+   ],
+   "out": "brew reinstall a b"
+  },
+  {
+   "name": "\"brew tap a/b\"",
+   "args": [
+    "brew tap a/b"
+   ],
+   "out": "brew tap a/b"
+  },
+  {
+   "name": "\"go install ./cmd/foo\"",
+   "args": [
+    "go install ./cmd/foo"
+   ],
+   "out": "go install ./cmd/foo"
+  },
+  {
+   "name": "\"go install ./...\"",
+   "args": [
+    "go install ./..."
+   ],
+   "out": "go install ./..."
+  },
+  {
+   "name": "\"go install .\"",
+   "args": [
+    "go install ."
+   ],
+   "out": "go install ."
+  },
+  {
+   "name": "\"go install github.com/a/b/\"",
+   "args": [
+    "go install github.com/a/b/"
+   ],
+   "out": "go install github.com/a/b/"
+  },
+  {
+   "name": "\"go install github.com/a/b\"",
+   "args": [
+    "go install github.com/a/b"
+   ],
+   "out": "go install github.com/a/b"
+  },
+  {
+   "name": "\"go install mod@latest\"",
+   "args": [
+    "go install mod@latest"
+   ],
+   "out": "go install mod@latest"
+  },
+  {
+   "name": "\"go install x/v2\"",
+   "args": [
+    "go install x/v2"
+   ],
+   "out": "go install x/v2"
+  },
+  {
+   "name": "\"go install example.com/v2@latest\"",
+   "args": [
+    "go install example.com/v2@latest"
+   ],
+   "out": "go install example.com/v2@latest"
+  },
+  {
+   "name": "\"go install a@b@c\"",
+   "args": [
+    "go install a@b@c"
+   ],
+   "out": "go install a@b@c"
+  },
+  {
+   "name": "\"go install github.com/x/y/v10@v10.0.0\"",
+   "args": [
+    "go install github.com/x/y/v10@v10.0.0"
+   ],
+   "out": "go install github.com/x/y/v10@v10.0.0"
+  },
+  {
+   "name": "\"go install github.com/x/y/v1x\"",
+   "args": [
+    "go install github.com/x/y/v1x"
+   ],
+   "out": "go install github.com/x/y/v1x"
+  },
+  {
+   "name": "\"go install github.com/x/y/V2\"",
+   "args": [
+    "go install github.com/x/y/V2"
+   ],
+   "out": "go install github.com/x/y/V2"
+  },
+  {
+   "name": "\"go get x\"",
+   "args": [
+    "go get x"
+   ],
+   "out": "go get x"
+  },
+  {
+   "name": "\"cargo install --git https://github.com/a/b cargo-x\"",
+   "args": [
+    "cargo install --git https://github.com/a/b cargo-x"
+   ],
+   "out": "cargo install --git https://github.com/a/b cargo-x"
+  },
+  {
+   "name": "\"cargo install --version 1.0 foo\"",
+   "args": [
+    "cargo install --version 1.0 foo"
+   ],
+   "out": "cargo install --version 1.0 foo"
+  },
+  {
+   "name": "\"cargo install ripgrep@14\"",
+   "args": [
+    "cargo install ripgrep@14"
+   ],
+   "out": "cargo install ripgrep@14"
+  },
+  {
+   "name": "\"cargo install\"",
+   "args": [
+    "cargo install"
+   ],
+   "out": "cargo install"
+  },
+  {
+   "name": "\"apt-get install curl=1.0 vim\"",
+   "args": [
+    "apt-get install curl=1.0 vim"
+   ],
+   "out": "apt-get install curl=1.0 vim"
+  },
+  {
+   "name": "\"apt-get -y install foo\"",
+   "args": [
+    "apt-get -y install foo"
+   ],
+   "out": "apt-get -y install foo"
+  },
+  {
+   "name": "\"apt install ./x.deb\"",
+   "args": [
+    "apt install ./x.deb"
+   ],
+   "out": "apt install ./x.deb"
+  },
+  {
+   "name": "\"sudo apt install -y a b\"",
+   "args": [
+    "sudo apt install -y a b"
+   ],
+   "out": "sudo apt install -y a b"
+  },
+  {
+   "name": "\"apt-get update && apt-get install -y x\"",
+   "args": [
+    "apt-get update && apt-get install -y x"
+   ],
+   "out": "apt-get update && apt-get install -y x"
+  },
+  {
+   "name": "\"apt-get remove x\"",
+   "args": [
+    "apt-get remove x"
+   ],
+   "out": "apt-get remove x"
+  },
+  {
+   "name": "\"npx -y @anthropic-ai/claude-code@1.0 --version\"",
+   "args": [
+    "npx -y @anthropic-ai/claude-code@1.0 --version"
+   ],
+   "out": "npx -y @anthropic-ai/claude-code@1.0 --version"
+  },
+  {
+   "name": "\"npx -p pkg cmd\"",
+   "args": [
+    "npx -p pkg cmd"
+   ],
+   "out": "npx -p pkg cmd"
+  },
+  {
+   "name": "\"npx --yes\"",
+   "args": [
+    "npx --yes"
+   ],
+   "out": "npx --yes"
+  },
+  {
+   "name": "\"npx\"",
+   "args": [
+    "npx"
+   ],
+   "out": "npx"
+  },
+  {
+   "name": "\"bunx -y y z\"",
+   "args": [
+    "bunx -y y z"
+   ],
+   "out": "bunx -y y z"
+  },
+  {
+   "name": "\"bunx x@1.0.0\"",
+   "args": [
+    "bunx x@1.0.0"
+   ],
+   "out": "bunx x@1.0.0"
+  },
+  {
+   "name": "\"npx @scope/pkg@latest\"",
+   "args": [
+    "npx @scope/pkg@latest"
+   ],
+   "out": "npx @scope/pkg@latest"
+  },
+  {
+   "name": "\"npx a@\"",
+   "args": [
+    "npx a@"
+   ],
+   "out": "npx a@"
+  },
+  {
+   "name": "\"npx x > out foo\"",
+   "args": [
+    "npx x > out foo"
+   ],
+   "out": "npx x > out foo"
+  },
+  {
+   "name": "\"npx @@\"",
+   "args": [
+    "npx @@"
+   ],
+   "out": "npx @@"
+  },
+  {
+   "name": "\"/opt/homebrew/bin/brew install x\"",
+   "args": [
+    "/opt/homebrew/bin/brew install x"
+   ],
+   "out": "/opt/homebrew/bin/brew install x"
+  },
+  {
+   "name": "\"FOO=1 brew install x\"",
+   "args": [
+    "FOO=1 brew install x"
+   ],
+   "out": "FOO=1 brew install x"
+  },
+  {
+   "name": "\"> o brew install x\"",
+   "args": [
+    "> o brew install x"
+   ],
+   "out": "> o brew install x"
+  },
+  {
+   "name": "\"brew install x > o y\"",
+   "args": [
+    "brew install x > o y"
+   ],
+   "out": "brew install x > o y"
+  },
+  {
+   "name": "\"brew install x 2>/dev/null y\"",
+   "args": [
+    "brew install x 2>/dev/null y"
+   ],
+   "out": "brew install x 2>/dev/null y"
+  },
+  {
+   "name": "\"brew install x 2> e y\"",
+   "args": [
+    "brew install x 2> e y"
+   ],
+   "out": "brew install x 2> e y"
+  },
+  {
+   "name": "\"brew install x <in y\"",
+   "args": [
+    "brew install x <in y"
+   ],
+   "out": "brew install x <in y"
+  },
+  {
+   "name": "\"brew install x < in y\"",
+   "args": [
+    "brew install x < in y"
+   ],
+   "out": "brew install x < in y"
+  },
+  {
+   "name": "\"brew install x &>o y\"",
+   "args": [
+    "brew install x &>o y"
+   ],
+   "out": "brew install x &>o y"
+  },
+  {
+   "name": "\"brew install x &> o y\"",
+   "args": [
+    "brew install x &> o y"
+   ],
+   "out": "brew install x &> o y"
+  },
+  {
+   "name": "\"brew install x >& o y\"",
+   "args": [
+    "brew install x >& o y"
+   ],
+   "out": "brew install x >& o y"
+  },
+  {
+   "name": "\"brew install x >&2 y\"",
+   "args": [
+    "brew install x >&2 y"
+   ],
+   "out": "brew install x >&2 y"
+  },
+  {
+   "name": "\"brew install x >> o y\"",
+   "args": [
+    "brew install x >> o y"
+   ],
+   "out": "brew install x >> o y"
+  },
+  {
+   "name": "\"brew install x 2>>o y\"",
+   "args": [
+    "brew install x 2>>o y"
+   ],
+   "out": "brew install x 2>>o y"
+  },
+  {
+   "name": "\"brew install 3 4\"",
+   "args": [
+    "brew install 3 4"
+   ],
+   "out": "brew install 3 4"
+  },
+  {
+   "name": "\"brew install 1>x y\"",
+   "args": [
+    "brew install 1>x y"
+   ],
+   "out": "brew install 1>x y"
+  },
+  {
+   "name": "\"brew install -v\"",
+   "args": [
+    "brew install -v"
+   ],
+   "out": "brew install -v"
+  },
+  {
+   "name": "\"brew install a; brew install b\"",
+   "args": [
+    "brew install a; brew install b"
+   ],
+   "out": "brew install a; brew install b"
+  },
+  {
+   "name": "\"brew install a | brew install b\"",
+   "args": [
+    "brew install a | brew install b"
+   ],
+   "out": "brew install a | brew install b"
+  },
+  {
+   "name": "\"brew install a && sudo npm i -g b\"",
+   "args": [
+    "brew install a && sudo npm i -g b"
+   ],
+   "out": "brew install a && sudo npm i -g b"
+  },
+  {
+   "name": "\"BREW=1 brew install a\"",
+   "args": [
+    "BREW=1 brew install a"
+   ],
+   "out": "BREW=1 brew install a"
+  },
+  {
+   "name": "\"brew install a\\nbrew install b\"",
+   "args": [
+    "brew install a\nbrew install b"
+   ],
+   "out": "brew install a\nbrew install b"
+  },
+  {
+   "name": "\"brew install $(cat list)\"",
+   "args": [
+    "brew install $(cat list)"
+   ],
+   "out": "brew install $(cat list)"
+  },
+  {
+   "name": "\"brew install ${X}\"",
+   "args": [
+    "brew install ${X}"
+   ],
+   "out": "brew install ${X}"
+  },
+  {
+   "name": "\"brew install `x`\"",
+   "args": [
+    "brew install `x`"
+   ],
+   "out": "brew install `x`"
+  },
+  {
+   "name": "\"echo >& x\"",
+   "args": [
+    "echo >& x"
+   ],
+   "out": "echo >& x"
+  },
+  {
+   "name": "\"ls >&\"",
+   "args": [
+    "ls >&"
+   ],
+   "out": "ls >&"
+  },
+  {
+   "name": "\"a 2>&\"",
+   "args": [
+    "a 2>&"
+   ],
+   "out": "a 2>&"
+  },
+  {
+   "name": "\"git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no\"",
+   "args": [
+    "git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no"
+   ],
+   "out": "git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no"
+  }
+ ],
+ "split_commands": [
+  {
+   "name": "\"cat <<< foo\\nls\\npwd\"",
+   "args": [
+    "cat <<< foo\nls\npwd"
+   ],
+   "out": [
+    "cat <<< foo",
+    "ls",
+    "pwd"
+   ]
+  },
+  {
+   "name": "\"echo $((1<<2))\\nls\"",
+   "args": [
+    "echo $((1<<2))\nls"
+   ],
+   "out": [
+    "echo",
+    "1<<2",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"echo '<<EOF'\\nls\\nEOF\\npwd\"",
+   "args": [
+    "echo '<<EOF'\nls\nEOF\npwd"
+   ],
+   "out": [
+    "echo <<EOF",
+    "ls",
+    "EOF",
+    "pwd"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\n  EOF\\nls\"",
+   "args": [
+    "cat <<EOF\n  EOF\nls"
+   ],
+   "out": [
+    "cat <<EOF",
+    "EOF",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\r\\nbody\\r\\nEOF\\r\\nls\"",
+   "args": [
+    "cat <<EOF\r\nbody\r\nEOF\r\nls"
+   ],
+   "out": [
+    "cat <<EOF",
+    "body",
+    "EOF",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<A <<B\\nx\\nA\\ny\\nB\\nls\"",
+   "args": [
+    "cat <<A <<B\nx\nA\ny\nB\nls"
+   ],
+   "out": [
+    "cat <<A <<B",
+    "x",
+    "A",
+    "y",
+    "B",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<'A B'\\nx\\nA B\\nls\"",
+   "args": [
+    "cat <<'A B'\nx\nA B\nls"
+   ],
+   "out": [
+    "cat <<A B",
+    "x",
+    "A B",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\"",
+   "args": [
+    "cat <<EOF"
+   ],
+   "out": [
+    "cat <<EOF"
+   ]
+  },
+  {
+   "name": "\"cat <<\\\"\\\"\\nls\"",
+   "args": [
+    "cat <<\"\"\nls"
+   ],
+   "out": [
+    "cat <<",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<- EOF\\nx\\nEOF\\nls\"",
+   "args": [
+    "cat <<- EOF\nx\nEOF\nls"
+   ],
+   "out": [
+    "cat <<- EOF",
+    "x",
+    "EOF",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF \\nls\"",
+   "args": [
+    "cat <<EOF\nEOF \nls"
+   ],
+   "out": [
+    "cat <<EOF",
+    "EOF",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF\\nEOF\\nls\"",
+   "args": [
+    "cat <<EOF\nEOF\nEOF\nls"
+   ],
+   "out": [
+    "cat <<EOF",
+    "EOF",
+    "EOF",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF1\\nx\\nEOF\\nls\\nEOF1\\npwd\"",
+   "args": [
+    "cat <<EOF1\nx\nEOF\nls\nEOF1\npwd"
+   ],
+   "out": [
+    "cat <<EOF1",
+    "x",
+    "EOF",
+    "ls",
+    "EOF1",
+    "pwd"
+   ]
+  },
+  {
+   "name": "\"cat << EOF-x\\nbody\\nEOF-x\\nls\"",
+   "args": [
+    "cat << EOF-x\nbody\nEOF-x\nls"
+   ],
+   "out": [
+    "cat << EOF-x",
+    "body",
+    "EOF-x",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<e\\nx\\nE\\nls\"",
+   "args": [
+    "cat <<e\nx\nE\nls"
+   ],
+   "out": [
+    "cat <<e",
+    "x",
+    "E",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"ls \\\\\\nfoo\"",
+   "args": [
+    "ls \\\nfoo"
+   ],
+   "out": [
+    "ls \nfoo"
+   ]
+  },
+  {
+   "name": "\"ls \\\\\"",
+   "args": [
+    "ls \\"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"ls {a,b}\"",
+   "args": [
+    "ls {a,b}"
+   ],
+   "out": [
+    "ls",
+    "a,b"
+   ]
+  },
+  {
+   "name": "\"find . -name x -exec rm {} \\\\;\"",
+   "args": [
+    "find . -name x -exec rm {} \\;"
+   ],
+   "out": [
+    "find . -name x -exec rm",
+    ";"
+   ]
+  },
+  {
+   "name": "\"find . -exec rm {} +\"",
+   "args": [
+    "find . -exec rm {} +"
+   ],
+   "out": [
+    "find . -exec rm",
+    "+"
+   ]
+  },
+  {
+   "name": "\"echo ${a b\"",
+   "args": [
+    "echo ${a b"
+   ],
+   "out": [
+    "echo ${a b"
+   ]
+  },
+  {
+   "name": "\"echo ${a:-\\\"}\\\"} x | wc\"",
+   "args": [
+    "echo ${a:-\"}\"} x | wc"
+   ],
+   "out": [
+    "echo ${a:-\"}} x | wc"
+   ]
+  },
+  {
+   "name": "\"echo ${a} | wc\"",
+   "args": [
+    "echo ${a} | wc"
+   ],
+   "out": [
+    "echo ${a}",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"echo $((1+2)) | wc\"",
+   "args": [
+    "echo $((1+2)) | wc"
+   ],
+   "out": [
+    "echo",
+    "1+2",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"a ) b\"",
+   "args": [
+    "a ) b"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"a ( b\"",
+   "args": [
+    "a ( b"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo \\\"$(a) b\\\" | c\"",
+   "args": [
+    "echo \"$(a) b\" | c"
+   ],
+   "out": [
+    "echo",
+    "a",
+    "b",
+    "c"
+   ]
+  },
+  {
+   "name": "\"echo \\\"$(a \\\"b\\\" ) c\\\" | d\"",
+   "args": [
+    "echo \"$(a \"b\" ) c\" | d"
+   ],
+   "out": [
+    "echo",
+    "a b",
+    "c",
+    "d"
+   ]
+  },
+  {
+   "name": "\"echo \\\"a\\\\\\\"b\\\" | c\"",
+   "args": [
+    "echo \"a\\\"b\" | c"
+   ],
+   "out": [
+    "echo a\\\"b",
+    "c"
+   ]
+  },
+  {
+   "name": "\"echo 'a\\\\'b' | c\"",
+   "args": [
+    "echo 'a\\'b' | c"
+   ],
+   "out": [
+    "echo a\\b | c"
+   ]
+  },
+  {
+   "name": "\"echo >&\"",
+   "args": [
+    "echo >&"
+   ],
+   "out": [
+    "echo >"
+   ]
+  },
+  {
+   "name": "\"echo 2>&\"",
+   "args": [
+    "echo 2>&"
+   ],
+   "out": [
+    "echo 2>"
+   ]
+  },
+  {
+   "name": "\"echo a &\"",
+   "args": [
+    "echo a &"
+   ],
+   "out": [
+    "echo a"
+   ]
+  },
+  {
+   "name": "\"echo a&&b\"",
+   "args": [
+    "echo a&&b"
+   ],
+   "out": [
+    "echo a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo a||b\"",
+   "args": [
+    "echo a||b"
+   ],
+   "out": [
+    "echo a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo a|&b\"",
+   "args": [
+    "echo a|&b"
+   ],
+   "out": [
+    "echo a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"a;;b\"",
+   "args": [
+    "a;;b"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo a\\\\\\nb | c\"",
+   "args": [
+    "echo a\\\nb | c"
+   ],
+   "out": [
+    "echo a\nb",
+    "c"
+   ]
+  },
+  {
+   "name": "\"echo `a b` | c\"",
+   "args": [
+    "echo `a b` | c"
+   ],
+   "out": [
+    "echo",
+    "a b",
+    "c"
+   ]
+  },
+  {
+   "name": "\"echo \\\"`a b`\\\" | c\"",
+   "args": [
+    "echo \"`a b`\" | c"
+   ],
+   "out": [
+    "echo `a b`",
+    "c"
+   ]
+  },
+  {
+   "name": "\"x=$(ls | wc) y\"",
+   "args": [
+    "x=$(ls | wc) y"
+   ],
+   "out": [
+    "x=",
+    "ls",
+    "wc",
+    "y"
+   ]
+  },
+  {
+   "name": "\"echo $#\"",
+   "args": [
+    "echo $#"
+   ],
+   "out": [
+    "echo $#"
+   ]
+  },
+  {
+   "name": "\"echo ${#a} | wc\"",
+   "args": [
+    "echo ${#a} | wc"
+   ],
+   "out": [
+    "echo ${#a}",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"echo a;#c\\nb\"",
+   "args": [
+    "echo a;#c\nb"
+   ],
+   "out": [
+    "echo a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo a #c\"",
+   "args": [
+    "echo a #c"
+   ],
+   "out": [
+    "echo a"
+   ]
+  },
+  {
+   "name": "\"echo '#c' ; ls\"",
+   "args": [
+    "echo '#c' ; ls"
+   ],
+   "out": [
+    "echo #c",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"echo a'#c' b\"",
+   "args": [
+    "echo a'#c' b"
+   ],
+   "out": [
+    "echo a#c b"
+   ]
+  },
+  {
+   "name": "\"FOO=\\\"a b\\\" ls\"",
+   "args": [
+    "FOO=\"a b\" ls"
+   ],
+   "out": [
+    "FOO=a b ls"
+   ]
+  },
+  {
+   "name": "\"env FOO='x y' node a.js\"",
+   "args": [
+    "env FOO='x y' node a.js"
+   ],
+   "out": [
+    "env FOO=x y node a.js"
+   ]
+  },
+  {
+   "name": "\"\\\"git\\\" status\"",
+   "args": [
+    "\"git\" status"
+   ],
+   "out": [
+    "git status"
+   ]
+  },
+  {
+   "name": "\"g\\\"i\\\"t status\"",
+   "args": [
+    "g\"i\"t status"
+   ],
+   "out": [
+    "git status"
+   ]
+  },
+  {
+   "name": "\"ls x\"",
+   "args": [
+    "ls x"
+   ],
+   "out": [
+    "ls x"
+   ]
+  },
+  {
+   "name": "\"﻿ls -l\"",
+   "args": [
+    "﻿ls -l"
+   ],
+   "out": [
+    "ls -l"
+   ]
+  },
+  {
+   "name": "\" ls -l\"",
+   "args": [
+    " ls -l"
+   ],
+   "out": [
+    "ls -l"
+   ]
+  },
+  {
+   "name": "\"ls -l | wc\"",
+   "args": [
+    "ls -l | wc"
+   ],
+   "out": [
+    "ls -l",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"a b\"",
+   "args": [
+    "a b"
+   ],
+   "out": [
+    "a b"
+   ]
+  },
+  {
+   "name": "\"echo 😀x | y\"",
+   "args": [
+    "echo 😀x | y"
+   ],
+   "out": [
+    "echo 😀x",
+    "y"
+   ]
+  },
+  {
+   "name": "\"((a+b)); ls\"",
+   "args": [
+    "((a+b)); ls"
+   ],
+   "out": [
+    "a+b",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"{ ls; } | wc\"",
+   "args": [
+    "{ ls; } | wc"
+   ],
+   "out": [
+    "ls",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"echo a<(b c) | d\"",
+   "args": [
+    "echo a<(b c) | d"
+   ],
+   "out": [
+    "echo a<",
+    "b c",
+    "d"
+   ]
+  },
+  {
+   "name": "\"echo a>(b c) | d\"",
+   "args": [
+    "echo a>(b c) | d"
+   ],
+   "out": [
+    "echo a>",
+    "b c",
+    "d"
+   ]
+  },
+  {
+   "name": "\"a <b | c\"",
+   "args": [
+    "a <b | c"
+   ],
+   "out": [
+    "a <b",
+    "c"
+   ]
+  },
+  {
+   "name": "\"cd x;\\nls\"",
+   "args": [
+    "cd x;\nls"
+   ],
+   "out": [
+    "cd x",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"a\\n\\n  \\nb\"",
+   "args": [
+    "a\n\n  \nb"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"!ls\"",
+   "args": [
+    "!ls"
+   ],
+   "out": [
+    "!ls"
+   ]
+  },
+  {
+   "name": "\"! ls\"",
+   "args": [
+    "! ls"
+   ],
+   "out": [
+    "! ls"
+   ]
+  },
+  {
+   "name": "\"echo \\\"unterminated $(ls | wc\"",
+   "args": [
+    "echo \"unterminated $(ls | wc"
+   ],
+   "out": [
+    "echo unterminated",
+    "ls",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"./\"",
+   "args": [
+    "./"
+   ],
+   "out": [
+    "./"
+   ]
+  },
+  {
+   "name": "\"/\"",
+   "args": [
+    "/"
+   ],
+   "out": [
+    "/"
+   ]
+  },
+  {
+   "name": "\"ls; /usr/bin/\"",
+   "args": [
+    "ls; /usr/bin/"
+   ],
+   "out": [
+    "ls",
+    "/usr/bin/"
+   ]
+  },
+  {
+   "name": "\"/bin/echo hi; /usr/bin/true; ./source x; /bin/cd x; /usr/bin/which node\"",
+   "args": [
+    "/bin/echo hi; /usr/bin/true; ./source x; /bin/cd x; /usr/bin/which node"
+   ],
+   "out": [
+    "/bin/echo hi",
+    "/usr/bin/true",
+    "./source x",
+    "/bin/cd x",
+    "/usr/bin/which node"
+   ]
+  },
+  {
+   "name": "\"node --version 2>&1\"",
+   "args": [
+    "node --version 2>&1"
+   ],
+   "out": [
+    "node --version 2>&1"
+   ]
+  },
+  {
+   "name": "\"gh --version >/dev/null\"",
+   "args": [
+    "gh --version >/dev/null"
+   ],
+   "out": [
+    "gh --version >/dev/null"
+   ]
+  },
+  {
+   "name": "\"gh --version | head -1\"",
+   "args": [
+    "gh --version | head -1"
+   ],
+   "out": [
+    "gh --version",
+    "head -1"
+   ]
+  },
+  {
+   "name": "\"ls -v; sort -V; tar -V; jq --version; go version; git -v x\"",
+   "args": [
+    "ls -v; sort -V; tar -V; jq --version; go version; git -v x"
+   ],
+   "out": [
+    "ls -v",
+    "sort -V",
+    "tar -V",
+    "jq --version",
+    "go version",
+    "git -v x"
+   ]
+  },
+  {
+   "name": "\"grep -v\"",
+   "args": [
+    "grep -v"
+   ],
+   "out": [
+    "grep -v"
+   ]
+  },
+  {
+   "name": "\"python3 -V -V\"",
+   "args": [
+    "python3 -V -V"
+   ],
+   "out": [
+    "python3 -V -V"
+   ]
+  },
+  {
+   "name": "\"env -u FOO ls\"",
+   "args": [
+    "env -u FOO ls"
+   ],
+   "out": [
+    "env -u FOO ls"
+   ]
+  },
+  {
+   "name": "\"sudo -- ls\"",
+   "args": [
+    "sudo -- ls"
+   ],
+   "out": [
+    "sudo -- ls"
+   ]
+  },
+  {
+   "name": "\"sudo -E -u me ls\"",
+   "args": [
+    "sudo -E -u me ls"
+   ],
+   "out": [
+    "sudo -E -u me ls"
+   ]
+  },
+  {
+   "name": "\"sudo -uroot ls\"",
+   "args": [
+    "sudo -uroot ls"
+   ],
+   "out": [
+    "sudo -uroot ls"
+   ]
+  },
+  {
+   "name": "\"sudo -u\"",
+   "args": [
+    "sudo -u"
+   ],
+   "out": [
+    "sudo -u"
+   ]
+  },
+  {
+   "name": "\"sudo\"",
+   "args": [
+    "sudo"
+   ],
+   "out": [
+    "sudo"
+   ]
+  },
+  {
+   "name": "\"env\"",
+   "args": [
+    "env"
+   ],
+   "out": [
+    "env"
+   ]
+  },
+  {
+   "name": "\"command\"",
+   "args": [
+    "command"
+   ],
+   "out": [
+    "command"
+   ]
+  },
+  {
+   "name": "\"command -v\"",
+   "args": [
+    "command -v"
+   ],
+   "out": [
+    "command -v"
+   ]
+  },
+  {
+   "name": "\"command -vx ls\"",
+   "args": [
+    "command -vx ls"
+   ],
+   "out": [
+    "command -vx ls"
+   ]
+  },
+  {
+   "name": "\"command -p ls\"",
+   "args": [
+    "command -p ls"
+   ],
+   "out": [
+    "command -p ls"
+   ]
+  },
+  {
+   "name": "\"command -V ls\"",
+   "args": [
+    "command -V ls"
+   ],
+   "out": [
+    "command -V ls"
+   ]
+  },
+  {
+   "name": "\"sudo command -v foo\"",
+   "args": [
+    "sudo command -v foo"
+   ],
+   "out": [
+    "sudo command -v foo"
+   ]
+  },
+  {
+   "name": "\"xargs -I{} rm {}\"",
+   "args": [
+    "xargs -I{} rm {}"
+   ],
+   "out": [
+    "xargs -I",
+    "rm"
+   ]
+  },
+  {
+   "name": "\"ls | xargs -n1 rm\"",
+   "args": [
+    "ls | xargs -n1 rm"
+   ],
+   "out": [
+    "ls",
+    "xargs -n1 rm"
+   ]
+  },
+  {
+   "name": "\"ls | xargs\"",
+   "args": [
+    "ls | xargs"
+   ],
+   "out": [
+    "ls",
+    "xargs"
+   ]
+  },
+  {
+   "name": "\"nice -n10 make\"",
+   "args": [
+    "nice -n10 make"
+   ],
+   "out": [
+    "nice -n10 make"
+   ]
+  },
+  {
+   "name": "\"nice -n 10 make\"",
+   "args": [
+    "nice -n 10 make"
+   ],
+   "out": [
+    "nice -n 10 make"
+   ]
+  },
+  {
+   "name": "\"time -p ls\"",
+   "args": [
+    "time -p ls"
+   ],
+   "out": [
+    "time -p ls"
+   ]
+  },
+  {
+   "name": "\"if grep x y; then echo a; elif cat z; then ls; else pwd; fi\"",
+   "args": [
+    "if grep x y; then echo a; elif cat z; then ls; else pwd; fi"
+   ],
+   "out": [
+    "if grep x y",
+    "then echo a",
+    "elif cat z",
+    "then ls",
+    "else pwd",
+    "fi"
+   ]
+  },
+  {
+   "name": "\"while true; do sleep 1; done\"",
+   "args": [
+    "while true; do sleep 1; done"
+   ],
+   "out": [
+    "while true",
+    "do sleep 1",
+    "done"
+   ]
+  },
+  {
+   "name": "\"until ls; do :; done\"",
+   "args": [
+    "until ls; do :; done"
+   ],
+   "out": [
+    "until ls",
+    "do :",
+    "done"
+   ]
+  },
+  {
+   "name": "\"for i in 1; do ls; done\"",
+   "args": [
+    "for i in 1; do ls; done"
+   ],
+   "out": [
+    "for i in 1",
+    "do ls",
+    "done"
+   ]
+  },
+  {
+   "name": "\"A=1 B=2 ls\"",
+   "args": [
+    "A=1 B=2 ls"
+   ],
+   "out": [
+    "A=1 B=2 ls"
+   ]
+  },
+  {
+   "name": "\"A=1 > out ls\"",
+   "args": [
+    "A=1 > out ls"
+   ],
+   "out": [
+    "A=1 > out ls"
+   ]
+  },
+  {
+   "name": "\"> out\"",
+   "args": [
+    "> out"
+   ],
+   "out": [
+    "> out"
+   ]
+  },
+  {
+   "name": "\">out ls\"",
+   "args": [
+    ">out ls"
+   ],
+   "out": [
+    ">out ls"
+   ]
+  },
+  {
+   "name": "\"2> err ls x\"",
+   "args": [
+    "2> err ls x"
+   ],
+   "out": [
+    "2> err ls x"
+   ]
+  },
+  {
+   "name": "\"< in cat\"",
+   "args": [
+    "< in cat"
+   ],
+   "out": [
+    "< in cat"
+   ]
+  },
+  {
+   "name": "\"<in cat\"",
+   "args": [
+    "<in cat"
+   ],
+   "out": [
+    "<in cat"
+   ]
+  },
+  {
+   "name": "\"2>&1\"",
+   "args": [
+    "2>&1"
+   ],
+   "out": [
+    "2>&1"
+   ]
+  },
+  {
+   "name": "\"&> out ls\"",
+   "args": [
+    "&> out ls"
+   ],
+   "out": [
+    "&> out ls"
+   ]
+  },
+  {
+   "name": "\"&>out ls\"",
+   "args": [
+    "&>out ls"
+   ],
+   "out": [
+    "&>out ls"
+   ]
+  },
+  {
+   "name": "\"1>&2 ls\"",
+   "args": [
+    "1>&2 ls"
+   ],
+   "out": [
+    "1>&2 ls"
+   ]
+  },
+  {
+   "name": "\"12>x ls\"",
+   "args": [
+    "12>x ls"
+   ],
+   "out": [
+    "12>x ls"
+   ]
+  },
+  {
+   "name": "\"a=b\"",
+   "args": [
+    "a=b"
+   ],
+   "out": [
+    "a=b"
+   ]
+  },
+  {
+   "name": "\"=b ls\"",
+   "args": [
+    "=b ls"
+   ],
+   "out": [
+    "=b ls"
+   ]
+  },
+  {
+   "name": "\"1a=b ls\"",
+   "args": [
+    "1a=b ls"
+   ],
+   "out": [
+    "1a=b ls"
+   ]
+  },
+  {
+   "name": "\"A= ls\"",
+   "args": [
+    "A= ls"
+   ],
+   "out": [
+    "A= ls"
+   ]
+  },
+  {
+   "name": "\"sudo A=1 ls\"",
+   "args": [
+    "sudo A=1 ls"
+   ],
+   "out": [
+    "sudo A=1 ls"
+   ]
+  },
+  {
+   "name": "\"env A=1 B=2 -i ls\"",
+   "args": [
+    "env A=1 B=2 -i ls"
+   ],
+   "out": [
+    "env A=1 B=2 -i ls"
+   ]
+  },
+  {
+   "name": "\"exec 3>&1\"",
+   "args": [
+    "exec 3>&1"
+   ],
+   "out": [
+    "exec 3>&1"
+   ]
+  },
+  {
+   "name": "\"exec ls\"",
+   "args": [
+    "exec ls"
+   ],
+   "out": [
+    "exec ls"
+   ]
+  },
+  {
+   "name": "\"nohup ls &\"",
+   "args": [
+    "nohup ls &"
+   ],
+   "out": [
+    "nohup ls"
+   ]
+  },
+  {
+   "name": "\"Sudo ls\"",
+   "args": [
+    "Sudo ls"
+   ],
+   "out": [
+    "Sudo ls"
+   ]
+  },
+  {
+   "name": "\"SUDO ls\"",
+   "args": [
+    "SUDO ls"
+   ],
+   "out": [
+    "SUDO ls"
+   ]
+  },
+  {
+   "name": "\"caffeinate -d -i make\"",
+   "args": [
+    "caffeinate -d -i make"
+   ],
+   "out": [
+    "caffeinate -d -i make"
+   ]
+  },
+  {
+   "name": "\"doas -u me -s ls\"",
+   "args": [
+    "doas -u me -s ls"
+   ],
+   "out": [
+    "doas -u me -s ls"
+   ]
+  },
+  {
+   "name": "\"doas ls\"",
+   "args": [
+    "doas ls"
+   ],
+   "out": [
+    "doas ls"
+   ]
+  },
+  {
+   "name": "\"ls -v -v\"",
+   "args": [
+    "ls -v -v"
+   ],
+   "out": [
+    "ls -v -v"
+   ]
+  },
+  {
+   "name": "\"which\"",
+   "args": [
+    "which"
+   ],
+   "out": [
+    "which"
+   ]
+  },
+  {
+   "name": "\"which -a node && ls\"",
+   "args": [
+    "which -a node && ls"
+   ],
+   "out": [
+    "which -a node",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"export A=1\"",
+   "args": [
+    "export A=1"
+   ],
+   "out": [
+    "export A=1"
+   ]
+  },
+  {
+   "name": "\"alias x=y\"",
+   "args": [
+    "alias x=y"
+   ],
+   "out": [
+    "alias x=y"
+   ]
+  },
+  {
+   "name": "\"eval ls\"",
+   "args": [
+    "eval ls"
+   ],
+   "out": [
+    "eval ls"
+   ]
+  },
+  {
+   "name": "\"type ls\"",
+   "args": [
+    "type ls"
+   ],
+   "out": [
+    "type ls"
+   ]
+  },
+  {
+   "name": "\"[ -f x ]\"",
+   "args": [
+    "[ -f x ]"
+   ],
+   "out": [
+    "[ -f x ]"
+   ]
+  },
+  {
+   "name": "\"test -f x && ls\"",
+   "args": [
+    "test -f x && ls"
+   ],
+   "out": [
+    "test -f x",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"echo; ls\"",
+   "args": [
+    "echo; ls"
+   ],
+   "out": [
+    "echo",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"builtin ls\"",
+   "args": [
+    "builtin ls"
+   ],
+   "out": [
+    "builtin ls"
+   ]
+  },
+  {
+   "name": "\"then ls\"",
+   "args": [
+    "then ls"
+   ],
+   "out": [
+    "then ls"
+   ]
+  },
+  {
+   "name": "\"do ls\"",
+   "args": [
+    "do ls"
+   ],
+   "out": [
+    "do ls"
+   ]
+  },
+  {
+   "name": "\"else ls\"",
+   "args": [
+    "else ls"
+   ],
+   "out": [
+    "else ls"
+   ]
+  },
+  {
+   "name": "\"! ! ls\"",
+   "args": [
+    "! ! ls"
+   ],
+   "out": [
+    "! ! ls"
+   ]
+  },
+  {
+   "name": "\"sudo sudo ls\"",
+   "args": [
+    "sudo sudo ls"
+   ],
+   "out": [
+    "sudo sudo ls"
+   ]
+  },
+  {
+   "name": "\"env sudo -u x ls\"",
+   "args": [
+    "env sudo -u x ls"
+   ],
+   "out": [
+    "env sudo -u x ls"
+   ]
+  },
+  {
+   "name": "\"ls\\tx\"",
+   "args": [
+    "ls\tx"
+   ],
+   "out": [
+    "ls\tx"
+   ]
+  },
+  {
+   "name": "\"npm i -g typescript --prefix /usr/local\"",
+   "args": [
+    "npm i -g typescript --prefix /usr/local"
+   ],
+   "out": [
+    "npm i -g typescript --prefix /usr/local"
+   ]
+  },
+  {
+   "name": "\"npm -g i x\"",
+   "args": [
+    "npm -g i x"
+   ],
+   "out": [
+    "npm -g i x"
+   ]
+  },
+  {
+   "name": "\"npm i --global=true x\"",
+   "args": [
+    "npm i --global=true x"
+   ],
+   "out": [
+    "npm i --global=true x"
+   ]
+  },
+  {
+   "name": "\"npm install --global x\"",
+   "args": [
+    "npm install --global x"
+   ],
+   "out": [
+    "npm install --global x"
+   ]
+  },
+  {
+   "name": "\"npm i -g\"",
+   "args": [
+    "npm i -g"
+   ],
+   "out": [
+    "npm i -g"
+   ]
+  },
+  {
+   "name": "\"npm i x -g\"",
+   "args": [
+    "npm i x -g"
+   ],
+   "out": [
+    "npm i x -g"
+   ]
+  },
+  {
+   "name": "\"npm i -g x -g y\"",
+   "args": [
+    "npm i -g x -g y"
+   ],
+   "out": [
+    "npm i -g x -g y"
+   ]
+  },
+  {
+   "name": "\"npm add -g x\"",
+   "args": [
+    "npm add -g x"
+   ],
+   "out": [
+    "npm add -g x"
+   ]
+  },
+  {
+   "name": "\"npm install -gD x\"",
+   "args": [
+    "npm install -gD x"
+   ],
+   "out": [
+    "npm install -gD x"
+   ]
+  },
+  {
+   "name": "\"npm uninstall -g x\"",
+   "args": [
+    "npm uninstall -g x"
+   ],
+   "out": [
+    "npm uninstall -g x"
+   ]
+  },
+  {
+   "name": "\"pnpm i -g x y\"",
+   "args": [
+    "pnpm i -g x y"
+   ],
+   "out": [
+    "pnpm i -g x y"
+   ]
+  },
+  {
+   "name": "\"pnpm add -g x@1\"",
+   "args": [
+    "pnpm add -g x@1"
+   ],
+   "out": [
+    "pnpm add -g x@1"
+   ]
+  },
+  {
+   "name": "\"pnpm install --global x\"",
+   "args": [
+    "pnpm install --global x"
+   ],
+   "out": [
+    "pnpm install --global x"
+   ]
+  },
+  {
+   "name": "\"bun add -g x\"",
+   "args": [
+    "bun add -g x"
+   ],
+   "out": [
+    "bun add -g x"
+   ]
+  },
+  {
+   "name": "\"bun i -g x\"",
+   "args": [
+    "bun i -g x"
+   ],
+   "out": [
+    "bun i -g x"
+   ]
+  },
+  {
+   "name": "\"yarn global add x\"",
+   "args": [
+    "yarn global add x"
+   ],
+   "out": [
+    "yarn global add x"
+   ]
+  },
+  {
+   "name": "\"uv pip install x\"",
+   "args": [
+    "uv pip install x"
+   ],
+   "out": [
+    "uv pip install x"
+   ]
+  },
+  {
+   "name": "\"uv tool install --with y ruff\"",
+   "args": [
+    "uv tool install --with y ruff"
+   ],
+   "out": [
+    "uv tool install --with y ruff"
+   ]
+  },
+  {
+   "name": "\"uv tool install 'ruff>=0.5' black[jupyter] pkg~=1.0 a!=2 b<3\"",
+   "args": [
+    "uv tool install 'ruff>=0.5' black[jupyter] pkg~=1.0 a!=2 b<3"
+   ],
+   "out": [
+    "uv tool install ruff>=0.5 black[jupyter] pkg~=1.0 a!=2 b<3"
+   ]
+  },
+  {
+   "name": "\"uv tool install git+https://github.com/x/y\"",
+   "args": [
+    "uv tool install git+https://github.com/x/y"
+   ],
+   "out": [
+    "uv tool install git+https://github.com/x/y"
+   ]
+  },
+  {
+   "name": "\"uv tool install ==1\"",
+   "args": [
+    "uv tool install ==1"
+   ],
+   "out": [
+    "uv tool install ==1"
+   ]
+  },
+  {
+   "name": "\"uv tool install\"",
+   "args": [
+    "uv tool install"
+   ],
+   "out": [
+    "uv tool install"
+   ]
+  },
+  {
+   "name": "\"uv tool run ruff\"",
+   "args": [
+    "uv tool run ruff"
+   ],
+   "out": [
+    "uv tool run ruff"
+   ]
+  },
+  {
+   "name": "\"uvx =x ruff\"",
+   "args": [
+    "uvx =x ruff"
+   ],
+   "out": [
+    "uvx =x ruff"
+   ]
+  },
+  {
+   "name": "\"uvx --from y ruff\"",
+   "args": [
+    "uvx --from y ruff"
+   ],
+   "out": [
+    "uvx --from y ruff"
+   ]
+  },
+  {
+   "name": "\"uvx ruff@latest\"",
+   "args": [
+    "uvx ruff@latest"
+   ],
+   "out": [
+    "uvx ruff@latest"
+   ]
+  },
+  {
+   "name": "\"uvx ruff==1.0 x\"",
+   "args": [
+    "uvx ruff==1.0 x"
+   ],
+   "out": [
+    "uvx ruff==1.0 x"
+   ]
+  },
+  {
+   "name": "\"pipx install a b==1 c[x]\"",
+   "args": [
+    "pipx install a b==1 c[x]"
+   ],
+   "out": [
+    "pipx install a b==1 c[x]"
+   ]
+  },
+  {
+   "name": "\"pipx run cowsay hello\"",
+   "args": [
+    "pipx run cowsay hello"
+   ],
+   "out": [
+    "pipx run cowsay hello"
+   ]
+  },
+  {
+   "name": "\"pipx run --spec foo bar\"",
+   "args": [
+    "pipx run --spec foo bar"
+   ],
+   "out": [
+    "pipx run --spec foo bar"
+   ]
+  },
+  {
+   "name": "\"pipx run\"",
+   "args": [
+    "pipx run"
+   ],
+   "out": [
+    "pipx run"
+   ]
+  },
+  {
+   "name": "\"pipx install\"",
+   "args": [
+    "pipx install"
+   ],
+   "out": [
+    "pipx install"
+   ]
+  },
+  {
+   "name": "\"pipx upgrade x\"",
+   "args": [
+    "pipx upgrade x"
+   ],
+   "out": [
+    "pipx upgrade x"
+   ]
+  },
+  {
+   "name": "\"brew install gcc@12 homebrew/cask/foo ./local.rb\"",
+   "args": [
+    "brew install gcc@12 homebrew/cask/foo ./local.rb"
+   ],
+   "out": [
+    "brew install gcc@12 homebrew/cask/foo ./local.rb"
+   ]
+  },
+  {
+   "name": "\"brew install --cask iterm2 --verbose\"",
+   "args": [
+    "brew install --cask iterm2 --verbose"
+   ],
+   "out": [
+    "brew install --cask iterm2 --verbose"
+   ]
+  },
+  {
+   "name": "\"brew install \\\"foo bar\\\"\"",
+   "args": [
+    "brew install \"foo bar\""
+   ],
+   "out": [
+    "brew install foo bar"
+   ]
+  },
+  {
+   "name": "\"brew install ''\"",
+   "args": [
+    "brew install ''"
+   ],
+   "out": [
+    "brew install"
+   ]
+  },
+  {
+   "name": "\"brew install\"",
+   "args": [
+    "brew install"
+   ],
+   "out": [
+    "brew install"
+   ]
+  },
+  {
+   "name": "\"brew install -\"",
+   "args": [
+    "brew install -"
+   ],
+   "out": [
+    "brew install -"
+   ]
+  },
+  {
+   "name": "\"brew -v install foo\"",
+   "args": [
+    "brew -v install foo"
+   ],
+   "out": [
+    "brew -v install foo"
+   ]
+  },
+  {
+   "name": "\"brew install foo@\"",
+   "args": [
+    "brew install foo@"
+   ],
+   "out": [
+    "brew install foo@"
+   ]
+  },
+  {
+   "name": "\"brew install @foo\"",
+   "args": [
+    "brew install @foo"
+   ],
+   "out": [
+    "brew install @foo"
+   ]
+  },
+  {
+   "name": "\"brew install @foo/bar@1.2\"",
+   "args": [
+    "brew install @foo/bar@1.2"
+   ],
+   "out": [
+    "brew install @foo/bar@1.2"
+   ]
+  },
+  {
+   "name": "\"brew install @@\"",
+   "args": [
+    "brew install @@"
+   ],
+   "out": [
+    "brew install @@"
+   ]
+  },
+  {
+   "name": "\"brew reinstall a b\"",
+   "args": [
+    "brew reinstall a b"
+   ],
+   "out": [
+    "brew reinstall a b"
+   ]
+  },
+  {
+   "name": "\"brew tap a/b\"",
+   "args": [
+    "brew tap a/b"
+   ],
+   "out": [
+    "brew tap a/b"
+   ]
+  },
+  {
+   "name": "\"go install ./cmd/foo\"",
+   "args": [
+    "go install ./cmd/foo"
+   ],
+   "out": [
+    "go install ./cmd/foo"
+   ]
+  },
+  {
+   "name": "\"go install ./...\"",
+   "args": [
+    "go install ./..."
+   ],
+   "out": [
+    "go install ./..."
+   ]
+  },
+  {
+   "name": "\"go install .\"",
+   "args": [
+    "go install ."
+   ],
+   "out": [
+    "go install ."
+   ]
+  },
+  {
+   "name": "\"go install github.com/a/b/\"",
+   "args": [
+    "go install github.com/a/b/"
+   ],
+   "out": [
+    "go install github.com/a/b/"
+   ]
+  },
+  {
+   "name": "\"go install github.com/a/b\"",
+   "args": [
+    "go install github.com/a/b"
+   ],
+   "out": [
+    "go install github.com/a/b"
+   ]
+  },
+  {
+   "name": "\"go install mod@latest\"",
+   "args": [
+    "go install mod@latest"
+   ],
+   "out": [
+    "go install mod@latest"
+   ]
+  },
+  {
+   "name": "\"go install x/v2\"",
+   "args": [
+    "go install x/v2"
+   ],
+   "out": [
+    "go install x/v2"
+   ]
+  },
+  {
+   "name": "\"go install example.com/v2@latest\"",
+   "args": [
+    "go install example.com/v2@latest"
+   ],
+   "out": [
+    "go install example.com/v2@latest"
+   ]
+  },
+  {
+   "name": "\"go install a@b@c\"",
+   "args": [
+    "go install a@b@c"
+   ],
+   "out": [
+    "go install a@b@c"
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/v10@v10.0.0\"",
+   "args": [
+    "go install github.com/x/y/v10@v10.0.0"
+   ],
+   "out": [
+    "go install github.com/x/y/v10@v10.0.0"
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/v1x\"",
+   "args": [
+    "go install github.com/x/y/v1x"
+   ],
+   "out": [
+    "go install github.com/x/y/v1x"
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/V2\"",
+   "args": [
+    "go install github.com/x/y/V2"
+   ],
+   "out": [
+    "go install github.com/x/y/V2"
+   ]
+  },
+  {
+   "name": "\"go get x\"",
+   "args": [
+    "go get x"
+   ],
+   "out": [
+    "go get x"
+   ]
+  },
+  {
+   "name": "\"cargo install --git https://github.com/a/b cargo-x\"",
+   "args": [
+    "cargo install --git https://github.com/a/b cargo-x"
+   ],
+   "out": [
+    "cargo install --git https://github.com/a/b cargo-x"
+   ]
+  },
+  {
+   "name": "\"cargo install --version 1.0 foo\"",
+   "args": [
+    "cargo install --version 1.0 foo"
+   ],
+   "out": [
+    "cargo install --version 1.0 foo"
+   ]
+  },
+  {
+   "name": "\"cargo install ripgrep@14\"",
+   "args": [
+    "cargo install ripgrep@14"
+   ],
+   "out": [
+    "cargo install ripgrep@14"
+   ]
+  },
+  {
+   "name": "\"cargo install\"",
+   "args": [
+    "cargo install"
+   ],
+   "out": [
+    "cargo install"
+   ]
+  },
+  {
+   "name": "\"apt-get install curl=1.0 vim\"",
+   "args": [
+    "apt-get install curl=1.0 vim"
+   ],
+   "out": [
+    "apt-get install curl=1.0 vim"
+   ]
+  },
+  {
+   "name": "\"apt-get -y install foo\"",
+   "args": [
+    "apt-get -y install foo"
+   ],
+   "out": [
+    "apt-get -y install foo"
+   ]
+  },
+  {
+   "name": "\"apt install ./x.deb\"",
+   "args": [
+    "apt install ./x.deb"
+   ],
+   "out": [
+    "apt install ./x.deb"
+   ]
+  },
+  {
+   "name": "\"sudo apt install -y a b\"",
+   "args": [
+    "sudo apt install -y a b"
+   ],
+   "out": [
+    "sudo apt install -y a b"
+   ]
+  },
+  {
+   "name": "\"apt-get update && apt-get install -y x\"",
+   "args": [
+    "apt-get update && apt-get install -y x"
+   ],
+   "out": [
+    "apt-get update",
+    "apt-get install -y x"
+   ]
+  },
+  {
+   "name": "\"apt-get remove x\"",
+   "args": [
+    "apt-get remove x"
+   ],
+   "out": [
+    "apt-get remove x"
+   ]
+  },
+  {
+   "name": "\"npx -y @anthropic-ai/claude-code@1.0 --version\"",
+   "args": [
+    "npx -y @anthropic-ai/claude-code@1.0 --version"
+   ],
+   "out": [
+    "npx -y @anthropic-ai/claude-code@1.0 --version"
+   ]
+  },
+  {
+   "name": "\"npx -p pkg cmd\"",
+   "args": [
+    "npx -p pkg cmd"
+   ],
+   "out": [
+    "npx -p pkg cmd"
+   ]
+  },
+  {
+   "name": "\"npx --yes\"",
+   "args": [
+    "npx --yes"
+   ],
+   "out": [
+    "npx --yes"
+   ]
+  },
+  {
+   "name": "\"npx\"",
+   "args": [
+    "npx"
+   ],
+   "out": [
+    "npx"
+   ]
+  },
+  {
+   "name": "\"bunx -y y z\"",
+   "args": [
+    "bunx -y y z"
+   ],
+   "out": [
+    "bunx -y y z"
+   ]
+  },
+  {
+   "name": "\"bunx x@1.0.0\"",
+   "args": [
+    "bunx x@1.0.0"
+   ],
+   "out": [
+    "bunx x@1.0.0"
+   ]
+  },
+  {
+   "name": "\"npx @scope/pkg@latest\"",
+   "args": [
+    "npx @scope/pkg@latest"
+   ],
+   "out": [
+    "npx @scope/pkg@latest"
+   ]
+  },
+  {
+   "name": "\"npx a@\"",
+   "args": [
+    "npx a@"
+   ],
+   "out": [
+    "npx a@"
+   ]
+  },
+  {
+   "name": "\"npx x > out foo\"",
+   "args": [
+    "npx x > out foo"
+   ],
+   "out": [
+    "npx x > out foo"
+   ]
+  },
+  {
+   "name": "\"npx @@\"",
+   "args": [
+    "npx @@"
+   ],
+   "out": [
+    "npx @@"
+   ]
+  },
+  {
+   "name": "\"/opt/homebrew/bin/brew install x\"",
+   "args": [
+    "/opt/homebrew/bin/brew install x"
+   ],
+   "out": [
+    "/opt/homebrew/bin/brew install x"
+   ]
+  },
+  {
+   "name": "\"FOO=1 brew install x\"",
+   "args": [
+    "FOO=1 brew install x"
+   ],
+   "out": [
+    "FOO=1 brew install x"
+   ]
+  },
+  {
+   "name": "\"> o brew install x\"",
+   "args": [
+    "> o brew install x"
+   ],
+   "out": [
+    "> o brew install x"
+   ]
+  },
+  {
+   "name": "\"brew install x > o y\"",
+   "args": [
+    "brew install x > o y"
+   ],
+   "out": [
+    "brew install x > o y"
+   ]
+  },
+  {
+   "name": "\"brew install x 2>/dev/null y\"",
+   "args": [
+    "brew install x 2>/dev/null y"
+   ],
+   "out": [
+    "brew install x 2>/dev/null y"
+   ]
+  },
+  {
+   "name": "\"brew install x 2> e y\"",
+   "args": [
+    "brew install x 2> e y"
+   ],
+   "out": [
+    "brew install x 2> e y"
+   ]
+  },
+  {
+   "name": "\"brew install x <in y\"",
+   "args": [
+    "brew install x <in y"
+   ],
+   "out": [
+    "brew install x <in y"
+   ]
+  },
+  {
+   "name": "\"brew install x < in y\"",
+   "args": [
+    "brew install x < in y"
+   ],
+   "out": [
+    "brew install x < in y"
+   ]
+  },
+  {
+   "name": "\"brew install x &>o y\"",
+   "args": [
+    "brew install x &>o y"
+   ],
+   "out": [
+    "brew install x &>o y"
+   ]
+  },
+  {
+   "name": "\"brew install x &> o y\"",
+   "args": [
+    "brew install x &> o y"
+   ],
+   "out": [
+    "brew install x &> o y"
+   ]
+  },
+  {
+   "name": "\"brew install x >& o y\"",
+   "args": [
+    "brew install x >& o y"
+   ],
+   "out": [
+    "brew install x >& o y"
+   ]
+  },
+  {
+   "name": "\"brew install x >&2 y\"",
+   "args": [
+    "brew install x >&2 y"
+   ],
+   "out": [
+    "brew install x >&2 y"
+   ]
+  },
+  {
+   "name": "\"brew install x >> o y\"",
+   "args": [
+    "brew install x >> o y"
+   ],
+   "out": [
+    "brew install x >> o y"
+   ]
+  },
+  {
+   "name": "\"brew install x 2>>o y\"",
+   "args": [
+    "brew install x 2>>o y"
+   ],
+   "out": [
+    "brew install x 2>>o y"
+   ]
+  },
+  {
+   "name": "\"brew install 3 4\"",
+   "args": [
+    "brew install 3 4"
+   ],
+   "out": [
+    "brew install 3 4"
+   ]
+  },
+  {
+   "name": "\"brew install 1>x y\"",
+   "args": [
+    "brew install 1>x y"
+   ],
+   "out": [
+    "brew install 1>x y"
+   ]
+  },
+  {
+   "name": "\"brew install -v\"",
+   "args": [
+    "brew install -v"
+   ],
+   "out": [
+    "brew install -v"
+   ]
+  },
+  {
+   "name": "\"brew install a; brew install b\"",
+   "args": [
+    "brew install a; brew install b"
+   ],
+   "out": [
+    "brew install a",
+    "brew install b"
+   ]
+  },
+  {
+   "name": "\"brew install a | brew install b\"",
+   "args": [
+    "brew install a | brew install b"
+   ],
+   "out": [
+    "brew install a",
+    "brew install b"
+   ]
+  },
+  {
+   "name": "\"brew install a && sudo npm i -g b\"",
+   "args": [
+    "brew install a && sudo npm i -g b"
+   ],
+   "out": [
+    "brew install a",
+    "sudo npm i -g b"
+   ]
+  },
+  {
+   "name": "\"BREW=1 brew install a\"",
+   "args": [
+    "BREW=1 brew install a"
+   ],
+   "out": [
+    "BREW=1 brew install a"
+   ]
+  },
+  {
+   "name": "\"brew install a\\nbrew install b\"",
+   "args": [
+    "brew install a\nbrew install b"
+   ],
+   "out": [
+    "brew install a",
+    "brew install b"
+   ]
+  },
+  {
+   "name": "\"brew install $(cat list)\"",
+   "args": [
+    "brew install $(cat list)"
+   ],
+   "out": [
+    "brew install",
+    "cat list"
+   ]
+  },
+  {
+   "name": "\"brew install ${X}\"",
+   "args": [
+    "brew install ${X}"
+   ],
+   "out": [
+    "brew install ${X}"
+   ]
+  },
+  {
+   "name": "\"brew install `x`\"",
+   "args": [
+    "brew install `x`"
+   ],
+   "out": [
+    "brew install",
+    "x"
+   ]
+  },
+  {
+   "name": "\"echo >& x\"",
+   "args": [
+    "echo >& x"
+   ],
+   "out": [
+    "echo >& x"
+   ]
+  },
+  {
+   "name": "\"ls >&\"",
+   "args": [
+    "ls >&"
+   ],
+   "out": [
+    "ls >"
+   ]
+  },
+  {
+   "name": "\"a 2>&\"",
+   "args": [
+    "a 2>&"
+   ],
+   "out": [
+    "a 2>"
+   ]
+  },
+  {
+   "name": "\"git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no\"",
+   "args": [
+    "git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no"
+   ],
+   "out": [
+    "git log --oneline",
+    "head -5",
+    "gh pr view",
+    "cd x",
+    "pnpm test",
+    "echo no"
+   ]
+  }
+ ],
+ "command_words": [
+  {
+   "name": "\"cat <<< foo\\nls\\npwd\"",
+   "args": [
+    "cat <<< foo\nls\npwd"
+   ],
+   "out": [
+    "cat",
+    "<<<",
+    "foo",
+    "ls",
+    "pwd"
+   ]
+  },
+  {
+   "name": "\"echo $((1<<2))\\nls\"",
+   "args": [
+    "echo $((1<<2))\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo '<<EOF'\\nls\\nEOF\\npwd\"",
+   "args": [
+    "echo '<<EOF'\nls\nEOF\npwd"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<EOF\\n  EOF\\nls\"",
+   "args": [
+    "cat <<EOF\n  EOF\nls"
+   ],
+   "out": [
+    "cat",
+    "<<EOF",
+    "EOF",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\r\\nbody\\r\\nEOF\\r\\nls\"",
+   "args": [
+    "cat <<EOF\r\nbody\r\nEOF\r\nls"
+   ],
+   "out": [
+    "cat",
+    "<<EOF",
+    "body",
+    "EOF",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<A <<B\\nx\\nA\\ny\\nB\\nls\"",
+   "args": [
+    "cat <<A <<B\nx\nA\ny\nB\nls"
+   ],
+   "out": [
+    "cat",
+    "<<A",
+    "<<B",
+    "x",
+    "A",
+    "y",
+    "B",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<'A B'\\nx\\nA B\\nls\"",
+   "args": [
+    "cat <<'A B'\nx\nA B\nls"
+   ],
+   "out": [
+    "cat",
+    "<<'A",
+    "B'",
+    "x",
+    "A",
+    "B",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\"",
+   "args": [
+    "cat <<EOF"
+   ],
+   "out": [
+    "cat",
+    "<<EOF"
+   ]
+  },
+  {
+   "name": "\"cat <<\\\"\\\"\\nls\"",
+   "args": [
+    "cat <<\"\"\nls"
+   ],
+   "out": [
+    "cat",
+    "<<\"\"",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<- EOF\\nx\\nEOF\\nls\"",
+   "args": [
+    "cat <<- EOF\nx\nEOF\nls"
+   ],
+   "out": [
+    "cat",
+    "<<-",
+    "EOF",
+    "x",
+    "EOF",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF \\nls\"",
+   "args": [
+    "cat <<EOF\nEOF \nls"
+   ],
+   "out": [
+    "cat",
+    "<<EOF",
+    "EOF",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF\\nEOF\\nls\"",
+   "args": [
+    "cat <<EOF\nEOF\nEOF\nls"
+   ],
+   "out": [
+    "cat",
+    "<<EOF",
+    "EOF",
+    "EOF",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF1\\nx\\nEOF\\nls\\nEOF1\\npwd\"",
+   "args": [
+    "cat <<EOF1\nx\nEOF\nls\nEOF1\npwd"
+   ],
+   "out": [
+    "cat",
+    "<<EOF1",
+    "x",
+    "EOF",
+    "ls",
+    "EOF1",
+    "pwd"
+   ]
+  },
+  {
+   "name": "\"cat << EOF-x\\nbody\\nEOF-x\\nls\"",
+   "args": [
+    "cat << EOF-x\nbody\nEOF-x\nls"
+   ],
+   "out": [
+    "cat",
+    "<<",
+    "EOF-x",
+    "body",
+    "EOF-x",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<e\\nx\\nE\\nls\"",
+   "args": [
+    "cat <<e\nx\nE\nls"
+   ],
+   "out": [
+    "cat",
+    "<<e",
+    "x",
+    "E",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"ls \\\\\\nfoo\"",
+   "args": [
+    "ls \\\nfoo"
+   ],
+   "out": [
+    "ls",
+    "\\",
+    "foo"
+   ]
+  },
+  {
+   "name": "\"ls \\\\\"",
+   "args": [
+    "ls \\"
+   ],
+   "out": [
+    "ls",
+    "\\"
+   ]
+  },
+  {
+   "name": "\"ls {a,b}\"",
+   "args": [
+    "ls {a,b}"
+   ],
+   "out": [
+    "ls",
+    "{a,b}"
+   ]
+  },
+  {
+   "name": "\"find . -name x -exec rm {} \\\\;\"",
+   "args": [
+    "find . -name x -exec rm {} \\;"
+   ],
+   "out": [
+    "find",
+    ".",
+    "-name",
+    "x",
+    "-exec",
+    "rm",
+    "{}",
+    "\\;"
+   ]
+  },
+  {
+   "name": "\"find . -exec rm {} +\"",
+   "args": [
+    "find . -exec rm {} +"
+   ],
+   "out": [
+    "find",
+    ".",
+    "-exec",
+    "rm",
+    "{}",
+    "+"
+   ]
+  },
+  {
+   "name": "\"echo ${a b\"",
+   "args": [
+    "echo ${a b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo ${a:-\\\"}\\\"} x | wc\"",
+   "args": [
+    "echo ${a:-\"}\"} x | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo ${a} | wc\"",
+   "args": [
+    "echo ${a} | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo $((1+2)) | wc\"",
+   "args": [
+    "echo $((1+2)) | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a ) b\"",
+   "args": [
+    "a ) b"
+   ],
+   "out": [
+    "a",
+    ")",
+    "b"
+   ]
+  },
+  {
+   "name": "\"a ( b\"",
+   "args": [
+    "a ( b"
+   ],
+   "out": [
+    "a",
+    "(",
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo \\\"$(a) b\\\" | c\"",
+   "args": [
+    "echo \"$(a) b\" | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo \\\"$(a \\\"b\\\" ) c\\\" | d\"",
+   "args": [
+    "echo \"$(a \"b\" ) c\" | d"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo \\\"a\\\\\\\"b\\\" | c\"",
+   "args": [
+    "echo \"a\\\"b\" | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo 'a\\\\'b' | c\"",
+   "args": [
+    "echo 'a\\'b' | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo >&\"",
+   "args": [
+    "echo >&"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo 2>&\"",
+   "args": [
+    "echo 2>&"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a &\"",
+   "args": [
+    "echo a &"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a&&b\"",
+   "args": [
+    "echo a&&b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a||b\"",
+   "args": [
+    "echo a||b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a|&b\"",
+   "args": [
+    "echo a|&b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a;;b\"",
+   "args": [
+    "a;;b"
+   ],
+   "out": [
+    "a;;b"
+   ]
+  },
+  {
+   "name": "\"echo a\\\\\\nb | c\"",
+   "args": [
+    "echo a\\\nb | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo `a b` | c\"",
+   "args": [
+    "echo `a b` | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo \\\"`a b`\\\" | c\"",
+   "args": [
+    "echo \"`a b`\" | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"x=$(ls | wc) y\"",
+   "args": [
+    "x=$(ls | wc) y"
+   ],
+   "out": [
+    "|",
+    "wc)",
+    "y"
+   ]
+  },
+  {
+   "name": "\"echo $#\"",
+   "args": [
+    "echo $#"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo ${#a} | wc\"",
+   "args": [
+    "echo ${#a} | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a;#c\\nb\"",
+   "args": [
+    "echo a;#c\nb"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a #c\"",
+   "args": [
+    "echo a #c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo '#c' ; ls\"",
+   "args": [
+    "echo '#c' ; ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a'#c' b\"",
+   "args": [
+    "echo a'#c' b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"FOO=\\\"a b\\\" ls\"",
+   "args": [
+    "FOO=\"a b\" ls"
+   ],
+   "out": [
+    "b\"",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"env FOO='x y' node a.js\"",
+   "args": [
+    "env FOO='x y' node a.js"
+   ],
+   "out": [
+    "y'",
+    "node",
+    "a.js"
+   ]
+  },
+  {
+   "name": "\"\\\"git\\\" status\"",
+   "args": [
+    "\"git\" status"
+   ],
+   "out": [
+    "\"git\"",
+    "status"
+   ]
+  },
+  {
+   "name": "\"g\\\"i\\\"t status\"",
+   "args": [
+    "g\"i\"t status"
+   ],
+   "out": [
+    "g\"i\"t",
+    "status"
+   ]
+  },
+  {
+   "name": "\"ls x\"",
+   "args": [
+    "ls x"
+   ],
+   "out": [
+    "ls",
+    "x"
+   ]
+  },
+  {
+   "name": "\"﻿ls -l\"",
+   "args": [
+    "﻿ls -l"
+   ],
+   "out": [
+    "ls",
+    "-l"
+   ]
+  },
+  {
+   "name": "\" ls -l\"",
+   "args": [
+    " ls -l"
+   ],
+   "out": [
+    "ls",
+    "-l"
+   ]
+  },
+  {
+   "name": "\"ls -l | wc\"",
+   "args": [
+    "ls -l | wc"
+   ],
+   "out": [
+    "ls",
+    "-l",
+    "|",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"a b\"",
+   "args": [
+    "a b"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo 😀x | y\"",
+   "args": [
+    "echo 😀x | y"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"((a+b)); ls\"",
+   "args": [
+    "((a+b)); ls"
+   ],
+   "out": [
+    "((a+b));",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"{ ls; } | wc\"",
+   "args": [
+    "{ ls; } | wc"
+   ],
+   "out": [
+    "{",
+    "ls;",
+    "}",
+    "|",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"echo a<(b c) | d\"",
+   "args": [
+    "echo a<(b c) | d"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a>(b c) | d\"",
+   "args": [
+    "echo a>(b c) | d"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a <b | c\"",
+   "args": [
+    "a <b | c"
+   ],
+   "out": [
+    "a",
+    "<b",
+    "|",
+    "c"
+   ]
+  },
+  {
+   "name": "\"cd x;\\nls\"",
+   "args": [
+    "cd x;\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a\\n\\n  \\nb\"",
+   "args": [
+    "a\n\n  \nb"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"!ls\"",
+   "args": [
+    "!ls"
+   ],
+   "out": [
+    "!ls"
+   ]
+  },
+  {
+   "name": "\"! ls\"",
+   "args": [
+    "! ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"echo \\\"unterminated $(ls | wc\"",
+   "args": [
+    "echo \"unterminated $(ls | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"./\"",
+   "args": [
+    "./"
+   ],
+   "out": [
+    ""
+   ]
+  },
+  {
+   "name": "\"/\"",
+   "args": [
+    "/"
+   ],
+   "out": [
+    ""
+   ]
+  },
+  {
+   "name": "\"ls; /usr/bin/\"",
+   "args": [
+    "ls; /usr/bin/"
+   ],
+   "out": [
+    "ls;",
+    "/usr/bin/"
+   ]
+  },
+  {
+   "name": "\"/bin/echo hi; /usr/bin/true; ./source x; /bin/cd x; /usr/bin/which node\"",
+   "args": [
+    "/bin/echo hi; /usr/bin/true; ./source x; /bin/cd x; /usr/bin/which node"
+   ],
+   "out": [
+    "echo",
+    "hi;",
+    "/usr/bin/true;",
+    "./source",
+    "x;",
+    "/bin/cd",
+    "x;",
+    "/usr/bin/which",
+    "node"
+   ]
+  },
+  {
+   "name": "\"node --version 2>&1\"",
+   "args": [
+    "node --version 2>&1"
+   ],
+   "out": [
+    "node",
+    "--version",
+    "2>&1"
+   ]
+  },
+  {
+   "name": "\"gh --version >/dev/null\"",
+   "args": [
+    "gh --version >/dev/null"
+   ],
+   "out": [
+    "gh",
+    "--version",
+    ">/dev/null"
+   ]
+  },
+  {
+   "name": "\"gh --version | head -1\"",
+   "args": [
+    "gh --version | head -1"
+   ],
+   "out": [
+    "gh",
+    "--version",
+    "|",
+    "head",
+    "-1"
+   ]
+  },
+  {
+   "name": "\"ls -v; sort -V; tar -V; jq --version; go version; git -v x\"",
+   "args": [
+    "ls -v; sort -V; tar -V; jq --version; go version; git -v x"
+   ],
+   "out": [
+    "ls",
+    "-v;",
+    "sort",
+    "-V;",
+    "tar",
+    "-V;",
+    "jq",
+    "--version;",
+    "go",
+    "version;",
+    "git",
+    "-v",
+    "x"
+   ]
+  },
+  {
+   "name": "\"grep -v\"",
+   "args": [
+    "grep -v"
+   ],
+   "out": [
+    "grep",
+    "-v"
+   ]
+  },
+  {
+   "name": "\"python3 -V -V\"",
+   "args": [
+    "python3 -V -V"
+   ],
+   "out": [
+    "python3",
+    "-V",
+    "-V"
+   ]
+  },
+  {
+   "name": "\"env -u FOO ls\"",
+   "args": [
+    "env -u FOO ls"
+   ],
+   "out": [
+    "FOO",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo -- ls\"",
+   "args": [
+    "sudo -- ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo -E -u me ls\"",
+   "args": [
+    "sudo -E -u me ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo -uroot ls\"",
+   "args": [
+    "sudo -uroot ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo -u\"",
+   "args": [
+    "sudo -u"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sudo\"",
+   "args": [
+    "sudo"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"env\"",
+   "args": [
+    "env"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command\"",
+   "args": [
+    "command"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command -v\"",
+   "args": [
+    "command -v"
+   ],
+   "out": [
+    "command",
+    "-v"
+   ]
+  },
+  {
+   "name": "\"command -vx ls\"",
+   "args": [
+    "command -vx ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"command -p ls\"",
+   "args": [
+    "command -p ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"command -V ls\"",
+   "args": [
+    "command -V ls"
+   ],
+   "out": [
+    "command",
+    "-V",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo command -v foo\"",
+   "args": [
+    "sudo command -v foo"
+   ],
+   "out": [
+    "command",
+    "-v",
+    "foo"
+   ]
+  },
+  {
+   "name": "\"xargs -I{} rm {}\"",
+   "args": [
+    "xargs -I{} rm {}"
+   ],
+   "out": [
+    "rm",
+    "{}"
+   ]
+  },
+  {
+   "name": "\"ls | xargs -n1 rm\"",
+   "args": [
+    "ls | xargs -n1 rm"
+   ],
+   "out": [
+    "ls",
+    "|",
+    "xargs",
+    "-n1",
+    "rm"
+   ]
+  },
+  {
+   "name": "\"ls | xargs\"",
+   "args": [
+    "ls | xargs"
+   ],
+   "out": [
+    "ls",
+    "|",
+    "xargs"
+   ]
+  },
+  {
+   "name": "\"nice -n10 make\"",
+   "args": [
+    "nice -n10 make"
+   ],
+   "out": [
+    "make"
+   ]
+  },
+  {
+   "name": "\"nice -n 10 make\"",
+   "args": [
+    "nice -n 10 make"
+   ],
+   "out": [
+    "make"
+   ]
+  },
+  {
+   "name": "\"time -p ls\"",
+   "args": [
+    "time -p ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"if grep x y; then echo a; elif cat z; then ls; else pwd; fi\"",
+   "args": [
+    "if grep x y; then echo a; elif cat z; then ls; else pwd; fi"
+   ],
+   "out": [
+    "grep",
+    "x",
+    "y;",
+    "then",
+    "echo",
+    "a;",
+    "elif",
+    "cat",
+    "z;",
+    "then",
+    "ls;",
+    "else",
+    "pwd;",
+    "fi"
+   ]
+  },
+  {
+   "name": "\"while true; do sleep 1; done\"",
+   "args": [
+    "while true; do sleep 1; done"
+   ],
+   "out": [
+    "true;",
+    "do",
+    "sleep",
+    "1;",
+    "done"
+   ]
+  },
+  {
+   "name": "\"until ls; do :; done\"",
+   "args": [
+    "until ls; do :; done"
+   ],
+   "out": [
+    "ls;",
+    "do",
+    ":;",
+    "done"
+   ]
+  },
+  {
+   "name": "\"for i in 1; do ls; done\"",
+   "args": [
+    "for i in 1; do ls; done"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"A=1 B=2 ls\"",
+   "args": [
+    "A=1 B=2 ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"A=1 > out ls\"",
+   "args": [
+    "A=1 > out ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"> out\"",
+   "args": [
+    "> out"
+   ],
+   "out": []
+  },
+  {
+   "name": "\">out ls\"",
+   "args": [
+    ">out ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"2> err ls x\"",
+   "args": [
+    "2> err ls x"
+   ],
+   "out": [
+    "ls",
+    "x"
+   ]
+  },
+  {
+   "name": "\"< in cat\"",
+   "args": [
+    "< in cat"
+   ],
+   "out": [
+    "cat"
+   ]
+  },
+  {
+   "name": "\"<in cat\"",
+   "args": [
+    "<in cat"
+   ],
+   "out": [
+    "cat"
+   ]
+  },
+  {
+   "name": "\"2>&1\"",
+   "args": [
+    "2>&1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"&> out ls\"",
+   "args": [
+    "&> out ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"&>out ls\"",
+   "args": [
+    "&>out ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"1>&2 ls\"",
+   "args": [
+    "1>&2 ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"12>x ls\"",
+   "args": [
+    "12>x ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"a=b\"",
+   "args": [
+    "a=b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"=b ls\"",
+   "args": [
+    "=b ls"
+   ],
+   "out": [
+    "=b",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"1a=b ls\"",
+   "args": [
+    "1a=b ls"
+   ],
+   "out": [
+    "1a=b",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"A= ls\"",
+   "args": [
+    "A= ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo A=1 ls\"",
+   "args": [
+    "sudo A=1 ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"env A=1 B=2 -i ls\"",
+   "args": [
+    "env A=1 B=2 -i ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"exec 3>&1\"",
+   "args": [
+    "exec 3>&1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"exec ls\"",
+   "args": [
+    "exec ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"nohup ls &\"",
+   "args": [
+    "nohup ls &"
+   ],
+   "out": [
+    "ls",
+    "&"
+   ]
+  },
+  {
+   "name": "\"Sudo ls\"",
+   "args": [
+    "Sudo ls"
+   ],
+   "out": [
+    "Sudo",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"SUDO ls\"",
+   "args": [
+    "SUDO ls"
+   ],
+   "out": [
+    "SUDO",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"caffeinate -d -i make\"",
+   "args": [
+    "caffeinate -d -i make"
+   ],
+   "out": [
+    "make"
+   ]
+  },
+  {
+   "name": "\"doas -u me -s ls\"",
+   "args": [
+    "doas -u me -s ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"doas ls\"",
+   "args": [
+    "doas ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"ls -v -v\"",
+   "args": [
+    "ls -v -v"
+   ],
+   "out": [
+    "ls",
+    "-v",
+    "-v"
+   ]
+  },
+  {
+   "name": "\"which\"",
+   "args": [
+    "which"
+   ],
+   "out": [
+    "which"
+   ]
+  },
+  {
+   "name": "\"which -a node && ls\"",
+   "args": [
+    "which -a node && ls"
+   ],
+   "out": [
+    "which",
+    "-a",
+    "node",
+    "&&",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"export A=1\"",
+   "args": [
+    "export A=1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias x=y\"",
+   "args": [
+    "alias x=y"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"eval ls\"",
+   "args": [
+    "eval ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"type ls\"",
+   "args": [
+    "type ls"
+   ],
+   "out": [
+    "type",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"[ -f x ]\"",
+   "args": [
+    "[ -f x ]"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"test -f x && ls\"",
+   "args": [
+    "test -f x && ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo; ls\"",
+   "args": [
+    "echo; ls"
+   ],
+   "out": [
+    "echo;",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"builtin ls\"",
+   "args": [
+    "builtin ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"then ls\"",
+   "args": [
+    "then ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"do ls\"",
+   "args": [
+    "do ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"else ls\"",
+   "args": [
+    "else ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"! ! ls\"",
+   "args": [
+    "! ! ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo sudo ls\"",
+   "args": [
+    "sudo sudo ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"env sudo -u x ls\"",
+   "args": [
+    "env sudo -u x ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"ls\\tx\"",
+   "args": [
+    "ls\tx"
+   ],
+   "out": [
+    "ls",
+    "x"
+   ]
+  },
+  {
+   "name": "\"npm i -g typescript --prefix /usr/local\"",
+   "args": [
+    "npm i -g typescript --prefix /usr/local"
+   ],
+   "out": [
+    "npm",
+    "i",
+    "-g",
+    "typescript",
+    "--prefix",
+    "/usr/local"
+   ]
+  },
+  {
+   "name": "\"npm -g i x\"",
+   "args": [
+    "npm -g i x"
+   ],
+   "out": [
+    "npm",
+    "-g",
+    "i",
+    "x"
+   ]
+  },
+  {
+   "name": "\"npm i --global=true x\"",
+   "args": [
+    "npm i --global=true x"
+   ],
+   "out": [
+    "npm",
+    "i",
+    "--global=true",
+    "x"
+   ]
+  },
+  {
+   "name": "\"npm install --global x\"",
+   "args": [
+    "npm install --global x"
+   ],
+   "out": [
+    "npm",
+    "install",
+    "--global",
+    "x"
+   ]
+  },
+  {
+   "name": "\"npm i -g\"",
+   "args": [
+    "npm i -g"
+   ],
+   "out": [
+    "npm",
+    "i",
+    "-g"
+   ]
+  },
+  {
+   "name": "\"npm i x -g\"",
+   "args": [
+    "npm i x -g"
+   ],
+   "out": [
+    "npm",
+    "i",
+    "x",
+    "-g"
+   ]
+  },
+  {
+   "name": "\"npm i -g x -g y\"",
+   "args": [
+    "npm i -g x -g y"
+   ],
+   "out": [
+    "npm",
+    "i",
+    "-g",
+    "x",
+    "-g",
+    "y"
+   ]
+  },
+  {
+   "name": "\"npm add -g x\"",
+   "args": [
+    "npm add -g x"
+   ],
+   "out": [
+    "npm",
+    "add",
+    "-g",
+    "x"
+   ]
+  },
+  {
+   "name": "\"npm install -gD x\"",
+   "args": [
+    "npm install -gD x"
+   ],
+   "out": [
+    "npm",
+    "install",
+    "-gD",
+    "x"
+   ]
+  },
+  {
+   "name": "\"npm uninstall -g x\"",
+   "args": [
+    "npm uninstall -g x"
+   ],
+   "out": [
+    "npm",
+    "uninstall",
+    "-g",
+    "x"
+   ]
+  },
+  {
+   "name": "\"pnpm i -g x y\"",
+   "args": [
+    "pnpm i -g x y"
+   ],
+   "out": [
+    "pnpm",
+    "i",
+    "-g",
+    "x",
+    "y"
+   ]
+  },
+  {
+   "name": "\"pnpm add -g x@1\"",
+   "args": [
+    "pnpm add -g x@1"
+   ],
+   "out": [
+    "pnpm",
+    "add",
+    "-g",
+    "x@1"
+   ]
+  },
+  {
+   "name": "\"pnpm install --global x\"",
+   "args": [
+    "pnpm install --global x"
+   ],
+   "out": [
+    "pnpm",
+    "install",
+    "--global",
+    "x"
+   ]
+  },
+  {
+   "name": "\"bun add -g x\"",
+   "args": [
+    "bun add -g x"
+   ],
+   "out": [
+    "bun",
+    "add",
+    "-g",
+    "x"
+   ]
+  },
+  {
+   "name": "\"bun i -g x\"",
+   "args": [
+    "bun i -g x"
+   ],
+   "out": [
+    "bun",
+    "i",
+    "-g",
+    "x"
+   ]
+  },
+  {
+   "name": "\"yarn global add x\"",
+   "args": [
+    "yarn global add x"
+   ],
+   "out": [
+    "yarn",
+    "global",
+    "add",
+    "x"
+   ]
+  },
+  {
+   "name": "\"uv pip install x\"",
+   "args": [
+    "uv pip install x"
+   ],
+   "out": [
+    "uv",
+    "pip",
+    "install",
+    "x"
+   ]
+  },
+  {
+   "name": "\"uv tool install --with y ruff\"",
+   "args": [
+    "uv tool install --with y ruff"
+   ],
+   "out": [
+    "uv",
+    "tool",
+    "install",
+    "--with",
+    "y",
+    "ruff"
+   ]
+  },
+  {
+   "name": "\"uv tool install 'ruff>=0.5' black[jupyter] pkg~=1.0 a!=2 b<3\"",
+   "args": [
+    "uv tool install 'ruff>=0.5' black[jupyter] pkg~=1.0 a!=2 b<3"
+   ],
+   "out": [
+    "uv",
+    "tool",
+    "install",
+    "'ruff>=0.5'",
+    "black[jupyter]",
+    "pkg~=1.0",
+    "a!=2",
+    "b<3"
+   ]
+  },
+  {
+   "name": "\"uv tool install git+https://github.com/x/y\"",
+   "args": [
+    "uv tool install git+https://github.com/x/y"
+   ],
+   "out": [
+    "uv",
+    "tool",
+    "install",
+    "git+https://github.com/x/y"
+   ]
+  },
+  {
+   "name": "\"uv tool install ==1\"",
+   "args": [
+    "uv tool install ==1"
+   ],
+   "out": [
+    "uv",
+    "tool",
+    "install",
+    "==1"
+   ]
+  },
+  {
+   "name": "\"uv tool install\"",
+   "args": [
+    "uv tool install"
+   ],
+   "out": [
+    "uv",
+    "tool",
+    "install"
+   ]
+  },
+  {
+   "name": "\"uv tool run ruff\"",
+   "args": [
+    "uv tool run ruff"
+   ],
+   "out": [
+    "uv",
+    "tool",
+    "run",
+    "ruff"
+   ]
+  },
+  {
+   "name": "\"uvx =x ruff\"",
+   "args": [
+    "uvx =x ruff"
+   ],
+   "out": [
+    "uvx",
+    "=x",
+    "ruff"
+   ]
+  },
+  {
+   "name": "\"uvx --from y ruff\"",
+   "args": [
+    "uvx --from y ruff"
+   ],
+   "out": [
+    "uvx",
+    "--from",
+    "y",
+    "ruff"
+   ]
+  },
+  {
+   "name": "\"uvx ruff@latest\"",
+   "args": [
+    "uvx ruff@latest"
+   ],
+   "out": [
+    "uvx",
+    "ruff@latest"
+   ]
+  },
+  {
+   "name": "\"uvx ruff==1.0 x\"",
+   "args": [
+    "uvx ruff==1.0 x"
+   ],
+   "out": [
+    "uvx",
+    "ruff==1.0",
+    "x"
+   ]
+  },
+  {
+   "name": "\"pipx install a b==1 c[x]\"",
+   "args": [
+    "pipx install a b==1 c[x]"
+   ],
+   "out": [
+    "pipx",
+    "install",
+    "a",
+    "b==1",
+    "c[x]"
+   ]
+  },
+  {
+   "name": "\"pipx run cowsay hello\"",
+   "args": [
+    "pipx run cowsay hello"
+   ],
+   "out": [
+    "pipx",
+    "run",
+    "cowsay",
+    "hello"
+   ]
+  },
+  {
+   "name": "\"pipx run --spec foo bar\"",
+   "args": [
+    "pipx run --spec foo bar"
+   ],
+   "out": [
+    "pipx",
+    "run",
+    "--spec",
+    "foo",
+    "bar"
+   ]
+  },
+  {
+   "name": "\"pipx run\"",
+   "args": [
+    "pipx run"
+   ],
+   "out": [
+    "pipx",
+    "run"
+   ]
+  },
+  {
+   "name": "\"pipx install\"",
+   "args": [
+    "pipx install"
+   ],
+   "out": [
+    "pipx",
+    "install"
+   ]
+  },
+  {
+   "name": "\"pipx upgrade x\"",
+   "args": [
+    "pipx upgrade x"
+   ],
+   "out": [
+    "pipx",
+    "upgrade",
+    "x"
+   ]
+  },
+  {
+   "name": "\"brew install gcc@12 homebrew/cask/foo ./local.rb\"",
+   "args": [
+    "brew install gcc@12 homebrew/cask/foo ./local.rb"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "gcc@12",
+    "homebrew/cask/foo",
+    "./local.rb"
+   ]
+  },
+  {
+   "name": "\"brew install --cask iterm2 --verbose\"",
+   "args": [
+    "brew install --cask iterm2 --verbose"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "--cask",
+    "iterm2",
+    "--verbose"
+   ]
+  },
+  {
+   "name": "\"brew install \\\"foo bar\\\"\"",
+   "args": [
+    "brew install \"foo bar\""
+   ],
+   "out": [
+    "brew",
+    "install",
+    "\"foo",
+    "bar\""
+   ]
+  },
+  {
+   "name": "\"brew install ''\"",
+   "args": [
+    "brew install ''"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "''"
+   ]
+  },
+  {
+   "name": "\"brew install\"",
+   "args": [
+    "brew install"
+   ],
+   "out": [
+    "brew",
+    "install"
+   ]
+  },
+  {
+   "name": "\"brew install -\"",
+   "args": [
+    "brew install -"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "-"
+   ]
+  },
+  {
+   "name": "\"brew -v install foo\"",
+   "args": [
+    "brew -v install foo"
+   ],
+   "out": [
+    "brew",
+    "-v",
+    "install",
+    "foo"
+   ]
+  },
+  {
+   "name": "\"brew install foo@\"",
+   "args": [
+    "brew install foo@"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "foo@"
+   ]
+  },
+  {
+   "name": "\"brew install @foo\"",
+   "args": [
+    "brew install @foo"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "@foo"
+   ]
+  },
+  {
+   "name": "\"brew install @foo/bar@1.2\"",
+   "args": [
+    "brew install @foo/bar@1.2"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "@foo/bar@1.2"
+   ]
+  },
+  {
+   "name": "\"brew install @@\"",
+   "args": [
+    "brew install @@"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "@@"
+   ]
+  },
+  {
+   "name": "\"brew reinstall a b\"",
+   "args": [
+    "brew reinstall a b"
+   ],
+   "out": [
+    "brew",
+    "reinstall",
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"brew tap a/b\"",
+   "args": [
+    "brew tap a/b"
+   ],
+   "out": [
+    "brew",
+    "tap",
+    "a/b"
+   ]
+  },
+  {
+   "name": "\"go install ./cmd/foo\"",
+   "args": [
+    "go install ./cmd/foo"
+   ],
+   "out": [
+    "go",
+    "install",
+    "./cmd/foo"
+   ]
+  },
+  {
+   "name": "\"go install ./...\"",
+   "args": [
+    "go install ./..."
+   ],
+   "out": [
+    "go",
+    "install",
+    "./..."
+   ]
+  },
+  {
+   "name": "\"go install .\"",
+   "args": [
+    "go install ."
+   ],
+   "out": [
+    "go",
+    "install",
+    "."
+   ]
+  },
+  {
+   "name": "\"go install github.com/a/b/\"",
+   "args": [
+    "go install github.com/a/b/"
+   ],
+   "out": [
+    "go",
+    "install",
+    "github.com/a/b/"
+   ]
+  },
+  {
+   "name": "\"go install github.com/a/b\"",
+   "args": [
+    "go install github.com/a/b"
+   ],
+   "out": [
+    "go",
+    "install",
+    "github.com/a/b"
+   ]
+  },
+  {
+   "name": "\"go install mod@latest\"",
+   "args": [
+    "go install mod@latest"
+   ],
+   "out": [
+    "go",
+    "install",
+    "mod@latest"
+   ]
+  },
+  {
+   "name": "\"go install x/v2\"",
+   "args": [
+    "go install x/v2"
+   ],
+   "out": [
+    "go",
+    "install",
+    "x/v2"
+   ]
+  },
+  {
+   "name": "\"go install example.com/v2@latest\"",
+   "args": [
+    "go install example.com/v2@latest"
+   ],
+   "out": [
+    "go",
+    "install",
+    "example.com/v2@latest"
+   ]
+  },
+  {
+   "name": "\"go install a@b@c\"",
+   "args": [
+    "go install a@b@c"
+   ],
+   "out": [
+    "go",
+    "install",
+    "a@b@c"
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/v10@v10.0.0\"",
+   "args": [
+    "go install github.com/x/y/v10@v10.0.0"
+   ],
+   "out": [
+    "go",
+    "install",
+    "github.com/x/y/v10@v10.0.0"
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/v1x\"",
+   "args": [
+    "go install github.com/x/y/v1x"
+   ],
+   "out": [
+    "go",
+    "install",
+    "github.com/x/y/v1x"
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/V2\"",
+   "args": [
+    "go install github.com/x/y/V2"
+   ],
+   "out": [
+    "go",
+    "install",
+    "github.com/x/y/V2"
+   ]
+  },
+  {
+   "name": "\"go get x\"",
+   "args": [
+    "go get x"
+   ],
+   "out": [
+    "go",
+    "get",
+    "x"
+   ]
+  },
+  {
+   "name": "\"cargo install --git https://github.com/a/b cargo-x\"",
+   "args": [
+    "cargo install --git https://github.com/a/b cargo-x"
+   ],
+   "out": [
+    "cargo",
+    "install",
+    "--git",
+    "https://github.com/a/b",
+    "cargo-x"
+   ]
+  },
+  {
+   "name": "\"cargo install --version 1.0 foo\"",
+   "args": [
+    "cargo install --version 1.0 foo"
+   ],
+   "out": [
+    "cargo",
+    "install",
+    "--version",
+    "1.0",
+    "foo"
+   ]
+  },
+  {
+   "name": "\"cargo install ripgrep@14\"",
+   "args": [
+    "cargo install ripgrep@14"
+   ],
+   "out": [
+    "cargo",
+    "install",
+    "ripgrep@14"
+   ]
+  },
+  {
+   "name": "\"cargo install\"",
+   "args": [
+    "cargo install"
+   ],
+   "out": [
+    "cargo",
+    "install"
+   ]
+  },
+  {
+   "name": "\"apt-get install curl=1.0 vim\"",
+   "args": [
+    "apt-get install curl=1.0 vim"
+   ],
+   "out": [
+    "apt-get",
+    "install",
+    "curl=1.0",
+    "vim"
+   ]
+  },
+  {
+   "name": "\"apt-get -y install foo\"",
+   "args": [
+    "apt-get -y install foo"
+   ],
+   "out": [
+    "apt-get",
+    "-y",
+    "install",
+    "foo"
+   ]
+  },
+  {
+   "name": "\"apt install ./x.deb\"",
+   "args": [
+    "apt install ./x.deb"
+   ],
+   "out": [
+    "apt",
+    "install",
+    "./x.deb"
+   ]
+  },
+  {
+   "name": "\"sudo apt install -y a b\"",
+   "args": [
+    "sudo apt install -y a b"
+   ],
+   "out": [
+    "apt",
+    "install",
+    "-y",
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"apt-get update && apt-get install -y x\"",
+   "args": [
+    "apt-get update && apt-get install -y x"
+   ],
+   "out": [
+    "apt-get",
+    "update",
+    "&&",
+    "apt-get",
+    "install",
+    "-y",
+    "x"
+   ]
+  },
+  {
+   "name": "\"apt-get remove x\"",
+   "args": [
+    "apt-get remove x"
+   ],
+   "out": [
+    "apt-get",
+    "remove",
+    "x"
+   ]
+  },
+  {
+   "name": "\"npx -y @anthropic-ai/claude-code@1.0 --version\"",
+   "args": [
+    "npx -y @anthropic-ai/claude-code@1.0 --version"
+   ],
+   "out": [
+    "npx",
+    "-y",
+    "@anthropic-ai/claude-code@1.0",
+    "--version"
+   ]
+  },
+  {
+   "name": "\"npx -p pkg cmd\"",
+   "args": [
+    "npx -p pkg cmd"
+   ],
+   "out": [
+    "npx",
+    "-p",
+    "pkg",
+    "cmd"
+   ]
+  },
+  {
+   "name": "\"npx --yes\"",
+   "args": [
+    "npx --yes"
+   ],
+   "out": [
+    "npx",
+    "--yes"
+   ]
+  },
+  {
+   "name": "\"npx\"",
+   "args": [
+    "npx"
+   ],
+   "out": [
+    "npx"
+   ]
+  },
+  {
+   "name": "\"bunx -y y z\"",
+   "args": [
+    "bunx -y y z"
+   ],
+   "out": [
+    "bunx",
+    "-y",
+    "y",
+    "z"
+   ]
+  },
+  {
+   "name": "\"bunx x@1.0.0\"",
+   "args": [
+    "bunx x@1.0.0"
+   ],
+   "out": [
+    "bunx",
+    "x@1.0.0"
+   ]
+  },
+  {
+   "name": "\"npx @scope/pkg@latest\"",
+   "args": [
+    "npx @scope/pkg@latest"
+   ],
+   "out": [
+    "npx",
+    "@scope/pkg@latest"
+   ]
+  },
+  {
+   "name": "\"npx a@\"",
+   "args": [
+    "npx a@"
+   ],
+   "out": [
+    "npx",
+    "a@"
+   ]
+  },
+  {
+   "name": "\"npx x > out foo\"",
+   "args": [
+    "npx x > out foo"
+   ],
+   "out": [
+    "npx",
+    "x",
+    ">",
+    "out",
+    "foo"
+   ]
+  },
+  {
+   "name": "\"npx @@\"",
+   "args": [
+    "npx @@"
+   ],
+   "out": [
+    "npx",
+    "@@"
+   ]
+  },
+  {
+   "name": "\"/opt/homebrew/bin/brew install x\"",
+   "args": [
+    "/opt/homebrew/bin/brew install x"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x"
+   ]
+  },
+  {
+   "name": "\"FOO=1 brew install x\"",
+   "args": [
+    "FOO=1 brew install x"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x"
+   ]
+  },
+  {
+   "name": "\"> o brew install x\"",
+   "args": [
+    "> o brew install x"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x"
+   ]
+  },
+  {
+   "name": "\"brew install x > o y\"",
+   "args": [
+    "brew install x > o y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x",
+    ">",
+    "o",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install x 2>/dev/null y\"",
+   "args": [
+    "brew install x 2>/dev/null y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x",
+    "2>/dev/null",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install x 2> e y\"",
+   "args": [
+    "brew install x 2> e y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x",
+    "2>",
+    "e",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install x <in y\"",
+   "args": [
+    "brew install x <in y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x",
+    "<in",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install x < in y\"",
+   "args": [
+    "brew install x < in y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x",
+    "<",
+    "in",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install x &>o y\"",
+   "args": [
+    "brew install x &>o y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x",
+    "&>o",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install x &> o y\"",
+   "args": [
+    "brew install x &> o y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x",
+    "&>",
+    "o",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install x >& o y\"",
+   "args": [
+    "brew install x >& o y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x",
+    ">&",
+    "o",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install x >&2 y\"",
+   "args": [
+    "brew install x >&2 y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x",
+    ">&2",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install x >> o y\"",
+   "args": [
+    "brew install x >> o y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x",
+    ">>",
+    "o",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install x 2>>o y\"",
+   "args": [
+    "brew install x 2>>o y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "x",
+    "2>>o",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install 3 4\"",
+   "args": [
+    "brew install 3 4"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "3",
+    "4"
+   ]
+  },
+  {
+   "name": "\"brew install 1>x y\"",
+   "args": [
+    "brew install 1>x y"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "1>x",
+    "y"
+   ]
+  },
+  {
+   "name": "\"brew install -v\"",
+   "args": [
+    "brew install -v"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "-v"
+   ]
+  },
+  {
+   "name": "\"brew install a; brew install b\"",
+   "args": [
+    "brew install a; brew install b"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "a;",
+    "brew",
+    "install",
+    "b"
+   ]
+  },
+  {
+   "name": "\"brew install a | brew install b\"",
+   "args": [
+    "brew install a | brew install b"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "a",
+    "|",
+    "brew",
+    "install",
+    "b"
+   ]
+  },
+  {
+   "name": "\"brew install a && sudo npm i -g b\"",
+   "args": [
+    "brew install a && sudo npm i -g b"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "a",
+    "&&",
+    "sudo",
+    "npm",
+    "i",
+    "-g",
+    "b"
+   ]
+  },
+  {
+   "name": "\"BREW=1 brew install a\"",
+   "args": [
+    "BREW=1 brew install a"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "a"
+   ]
+  },
+  {
+   "name": "\"brew install a\\nbrew install b\"",
+   "args": [
+    "brew install a\nbrew install b"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "a",
+    "brew",
+    "install",
+    "b"
+   ]
+  },
+  {
+   "name": "\"brew install $(cat list)\"",
+   "args": [
+    "brew install $(cat list)"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "$(cat",
+    "list)"
+   ]
+  },
+  {
+   "name": "\"brew install ${X}\"",
+   "args": [
+    "brew install ${X}"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "${X}"
+   ]
+  },
+  {
+   "name": "\"brew install `x`\"",
+   "args": [
+    "brew install `x`"
+   ],
+   "out": [
+    "brew",
+    "install",
+    "`x`"
+   ]
+  },
+  {
+   "name": "\"echo >& x\"",
+   "args": [
+    "echo >& x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls >&\"",
+   "args": [
+    "ls >&"
+   ],
+   "out": [
+    "ls",
+    ">&"
+   ]
+  },
+  {
+   "name": "\"a 2>&\"",
+   "args": [
+    "a 2>&"
+   ],
+   "out": [
+    "a",
+    "2>&"
+   ]
+  },
+  {
+   "name": "\"git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no\"",
+   "args": [
+    "git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no"
+   ],
+   "out": [
+    "git",
+    "log",
+    "--oneline",
+    "|",
+    "head",
+    "-5",
+    "&&",
+    "gh",
+    "pr",
+    "view;",
+    "(cd",
+    "x",
+    "&&",
+    "pnpm",
+    "test)",
+    "||",
+    "echo",
+    "no"
+   ]
+  }
+ ],
+ "command_names": [
+  {
+   "name": "\"cat <<< foo\\nls\\npwd\"",
+   "args": [
+    "cat <<< foo\nls\npwd"
+   ],
+   "out": [
+    "cat"
+   ]
+  },
+  {
+   "name": "\"echo $((1<<2))\\nls\"",
+   "args": [
+    "echo $((1<<2))\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo '<<EOF'\\nls\\nEOF\\npwd\"",
+   "args": [
+    "echo '<<EOF'\nls\nEOF\npwd"
+   ],
+   "out": [
+    "pwd"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\n  EOF\\nls\"",
+   "args": [
+    "cat <<EOF\n  EOF\nls"
+   ],
+   "out": [
+    "cat",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\r\\nbody\\r\\nEOF\\r\\nls\"",
+   "args": [
+    "cat <<EOF\r\nbody\r\nEOF\r\nls"
+   ],
+   "out": [
+    "cat",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<A <<B\\nx\\nA\\ny\\nB\\nls\"",
+   "args": [
+    "cat <<A <<B\nx\nA\ny\nB\nls"
+   ],
+   "out": [
+    "cat",
+    "y",
+    "B",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<'A B'\\nx\\nA B\\nls\"",
+   "args": [
+    "cat <<'A B'\nx\nA B\nls"
+   ],
+   "out": [
+    "cat",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\"",
+   "args": [
+    "cat <<EOF"
+   ],
+   "out": [
+    "cat"
+   ]
+  },
+  {
+   "name": "\"cat <<\\\"\\\"\\nls\"",
+   "args": [
+    "cat <<\"\"\nls"
+   ],
+   "out": [
+    "cat",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<- EOF\\nx\\nEOF\\nls\"",
+   "args": [
+    "cat <<- EOF\nx\nEOF\nls"
+   ],
+   "out": [
+    "cat",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF \\nls\"",
+   "args": [
+    "cat <<EOF\nEOF \nls"
+   ],
+   "out": [
+    "cat",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF\\nEOF\\nls\"",
+   "args": [
+    "cat <<EOF\nEOF\nEOF\nls"
+   ],
+   "out": [
+    "cat",
+    "EOF",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF1\\nx\\nEOF\\nls\\nEOF1\\npwd\"",
+   "args": [
+    "cat <<EOF1\nx\nEOF\nls\nEOF1\npwd"
+   ],
+   "out": [
+    "cat",
+    "pwd"
+   ]
+  },
+  {
+   "name": "\"cat << EOF-x\\nbody\\nEOF-x\\nls\"",
+   "args": [
+    "cat << EOF-x\nbody\nEOF-x\nls"
+   ],
+   "out": [
+    "cat"
+   ]
+  },
+  {
+   "name": "\"cat <<e\\nx\\nE\\nls\"",
+   "args": [
+    "cat <<e\nx\nE\nls"
+   ],
+   "out": [
+    "cat"
+   ]
+  },
+  {
+   "name": "\"ls \\\\\\nfoo\"",
+   "args": [
+    "ls \\\nfoo"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"ls \\\\\"",
+   "args": [
+    "ls \\"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"ls {a,b}\"",
+   "args": [
+    "ls {a,b}"
+   ],
+   "out": [
+    "ls",
+    "a,b"
+   ]
+  },
+  {
+   "name": "\"find . -name x -exec rm {} \\\\;\"",
+   "args": [
+    "find . -name x -exec rm {} \\;"
+   ],
+   "out": [
+    "find",
+    ";"
+   ]
+  },
+  {
+   "name": "\"find . -exec rm {} +\"",
+   "args": [
+    "find . -exec rm {} +"
+   ],
+   "out": [
+    "find",
+    "+"
+   ]
+  },
+  {
+   "name": "\"echo ${a b\"",
+   "args": [
+    "echo ${a b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo ${a:-\\\"}\\\"} x | wc\"",
+   "args": [
+    "echo ${a:-\"}\"} x | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo ${a} | wc\"",
+   "args": [
+    "echo ${a} | wc"
+   ],
+   "out": [
+    "wc"
+   ]
+  },
+  {
+   "name": "\"echo $((1+2)) | wc\"",
+   "args": [
+    "echo $((1+2)) | wc"
+   ],
+   "out": [
+    "1+2",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"a ) b\"",
+   "args": [
+    "a ) b"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"a ( b\"",
+   "args": [
+    "a ( b"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo \\\"$(a) b\\\" | c\"",
+   "args": [
+    "echo \"$(a) b\" | c"
+   ],
+   "out": [
+    "a",
+    "b",
+    "c"
+   ]
+  },
+  {
+   "name": "\"echo \\\"$(a \\\"b\\\" ) c\\\" | d\"",
+   "args": [
+    "echo \"$(a \"b\" ) c\" | d"
+   ],
+   "out": [
+    "a",
+    "c",
+    "d"
+   ]
+  },
+  {
+   "name": "\"echo \\\"a\\\\\\\"b\\\" | c\"",
+   "args": [
+    "echo \"a\\\"b\" | c"
+   ],
+   "out": [
+    "c"
+   ]
+  },
+  {
+   "name": "\"echo 'a\\\\'b' | c\"",
+   "args": [
+    "echo 'a\\'b' | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo >&\"",
+   "args": [
+    "echo >&"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo 2>&\"",
+   "args": [
+    "echo 2>&"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a &\"",
+   "args": [
+    "echo a &"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a&&b\"",
+   "args": [
+    "echo a&&b"
+   ],
+   "out": [
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo a||b\"",
+   "args": [
+    "echo a||b"
+   ],
+   "out": [
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo a|&b\"",
+   "args": [
+    "echo a|&b"
+   ],
+   "out": [
+    "b"
+   ]
+  },
+  {
+   "name": "\"a;;b\"",
+   "args": [
+    "a;;b"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo a\\\\\\nb | c\"",
+   "args": [
+    "echo a\\\nb | c"
+   ],
+   "out": [
+    "c"
+   ]
+  },
+  {
+   "name": "\"echo `a b` | c\"",
+   "args": [
+    "echo `a b` | c"
+   ],
+   "out": [
+    "a",
+    "c"
+   ]
+  },
+  {
+   "name": "\"echo \\\"`a b`\\\" | c\"",
+   "args": [
+    "echo \"`a b`\" | c"
+   ],
+   "out": [
+    "c"
+   ]
+  },
+  {
+   "name": "\"x=$(ls | wc) y\"",
+   "args": [
+    "x=$(ls | wc) y"
+   ],
+   "out": [
+    "ls",
+    "wc",
+    "y"
+   ]
+  },
+  {
+   "name": "\"echo $#\"",
+   "args": [
+    "echo $#"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo ${#a} | wc\"",
+   "args": [
+    "echo ${#a} | wc"
+   ],
+   "out": [
+    "wc"
+   ]
+  },
+  {
+   "name": "\"echo a;#c\\nb\"",
+   "args": [
+    "echo a;#c\nb"
+   ],
+   "out": [
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo a #c\"",
+   "args": [
+    "echo a #c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo '#c' ; ls\"",
+   "args": [
+    "echo '#c' ; ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"echo a'#c' b\"",
+   "args": [
+    "echo a'#c' b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"FOO=\\\"a b\\\" ls\"",
+   "args": [
+    "FOO=\"a b\" ls"
+   ],
+   "out": [
+    "b"
+   ]
+  },
+  {
+   "name": "\"env FOO='x y' node a.js\"",
+   "args": [
+    "env FOO='x y' node a.js"
+   ],
+   "out": [
+    "y"
+   ]
+  },
+  {
+   "name": "\"\\\"git\\\" status\"",
+   "args": [
+    "\"git\" status"
+   ],
+   "out": [
+    "git"
+   ]
+  },
+  {
+   "name": "\"g\\\"i\\\"t status\"",
+   "args": [
+    "g\"i\"t status"
+   ],
+   "out": [
+    "git"
+   ]
+  },
+  {
+   "name": "\"ls x\"",
+   "args": [
+    "ls x"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"﻿ls -l\"",
+   "args": [
+    "﻿ls -l"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\" ls -l\"",
+   "args": [
+    " ls -l"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"ls -l | wc\"",
+   "args": [
+    "ls -l | wc"
+   ],
+   "out": [
+    "ls",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"a b\"",
+   "args": [
+    "a b"
+   ],
+   "out": [
+    "a"
+   ]
+  },
+  {
+   "name": "\"echo 😀x | y\"",
+   "args": [
+    "echo 😀x | y"
+   ],
+   "out": [
+    "y"
+   ]
+  },
+  {
+   "name": "\"((a+b)); ls\"",
+   "args": [
+    "((a+b)); ls"
+   ],
+   "out": [
+    "a+b",
+    "ls"
+   ]
+  },
+  {
+   "name": "\"{ ls; } | wc\"",
+   "args": [
+    "{ ls; } | wc"
+   ],
+   "out": [
+    "ls",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"echo a<(b c) | d\"",
+   "args": [
+    "echo a<(b c) | d"
+   ],
+   "out": [
+    "b",
+    "d"
+   ]
+  },
+  {
+   "name": "\"echo a>(b c) | d\"",
+   "args": [
+    "echo a>(b c) | d"
+   ],
+   "out": [
+    "b",
+    "d"
+   ]
+  },
+  {
+   "name": "\"a <b | c\"",
+   "args": [
+    "a <b | c"
+   ],
+   "out": [
+    "a",
+    "c"
+   ]
+  },
+  {
+   "name": "\"cd x;\\nls\"",
+   "args": [
+    "cd x;\nls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"a\\n\\n  \\nb\"",
+   "args": [
+    "a\n\n  \nb"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"!ls\"",
+   "args": [
+    "!ls"
+   ],
+   "out": [
+    "!ls"
+   ]
+  },
+  {
+   "name": "\"! ls\"",
+   "args": [
+    "! ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"echo \\\"unterminated $(ls | wc\"",
+   "args": [
+    "echo \"unterminated $(ls | wc"
+   ],
+   "out": [
+    "ls",
+    "wc"
+   ]
+  },
+  {
+   "name": "\"./\"",
+   "args": [
+    "./"
+   ],
+   "out": [
+    ""
+   ]
+  },
+  {
+   "name": "\"/\"",
+   "args": [
+    "/"
+   ],
+   "out": [
+    ""
+   ]
+  },
+  {
+   "name": "\"ls; /usr/bin/\"",
+   "args": [
+    "ls; /usr/bin/"
+   ],
+   "out": [
+    "ls",
+    ""
+   ]
+  },
+  {
+   "name": "\"/bin/echo hi; /usr/bin/true; ./source x; /bin/cd x; /usr/bin/which node\"",
+   "args": [
+    "/bin/echo hi; /usr/bin/true; ./source x; /bin/cd x; /usr/bin/which node"
+   ],
+   "out": [
+    "echo",
+    "true",
+    "source",
+    "cd"
+   ]
+  },
+  {
+   "name": "\"node --version 2>&1\"",
+   "args": [
+    "node --version 2>&1"
+   ],
+   "out": [
+    "node"
+   ]
+  },
+  {
+   "name": "\"gh --version >/dev/null\"",
+   "args": [
+    "gh --version >/dev/null"
+   ],
+   "out": [
+    "gh"
+   ]
+  },
+  {
+   "name": "\"gh --version | head -1\"",
+   "args": [
+    "gh --version | head -1"
+   ],
+   "out": [
+    "head"
+   ]
+  },
+  {
+   "name": "\"ls -v; sort -V; tar -V; jq --version; go version; git -v x\"",
+   "args": [
+    "ls -v; sort -V; tar -V; jq --version; go version; git -v x"
+   ],
+   "out": [
+    "go",
+    "git"
+   ]
+  },
+  {
+   "name": "\"grep -v\"",
+   "args": [
+    "grep -v"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"python3 -V -V\"",
+   "args": [
+    "python3 -V -V"
+   ],
+   "out": [
+    "python3"
+   ]
+  },
+  {
+   "name": "\"env -u FOO ls\"",
+   "args": [
+    "env -u FOO ls"
+   ],
+   "out": [
+    "FOO"
+   ]
+  },
+  {
+   "name": "\"sudo -- ls\"",
+   "args": [
+    "sudo -- ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo -E -u me ls\"",
+   "args": [
+    "sudo -E -u me ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo -uroot ls\"",
+   "args": [
+    "sudo -uroot ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo -u\"",
+   "args": [
+    "sudo -u"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sudo\"",
+   "args": [
+    "sudo"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"env\"",
+   "args": [
+    "env"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command\"",
+   "args": [
+    "command"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command -v\"",
+   "args": [
+    "command -v"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command -vx ls\"",
+   "args": [
+    "command -vx ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"command -p ls\"",
+   "args": [
+    "command -p ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"command -V ls\"",
+   "args": [
+    "command -V ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sudo command -v foo\"",
+   "args": [
+    "sudo command -v foo"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"xargs -I{} rm {}\"",
+   "args": [
+    "xargs -I{} rm {}"
+   ],
+   "out": [
+    "rm"
+   ]
+  },
+  {
+   "name": "\"ls | xargs -n1 rm\"",
+   "args": [
+    "ls | xargs -n1 rm"
+   ],
+   "out": [
+    "ls",
+    "rm"
+   ]
+  },
+  {
+   "name": "\"ls | xargs\"",
+   "args": [
+    "ls | xargs"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"nice -n10 make\"",
+   "args": [
+    "nice -n10 make"
+   ],
+   "out": [
+    "make"
+   ]
+  },
+  {
+   "name": "\"nice -n 10 make\"",
+   "args": [
+    "nice -n 10 make"
+   ],
+   "out": [
+    "make"
+   ]
+  },
+  {
+   "name": "\"time -p ls\"",
+   "args": [
+    "time -p ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"if grep x y; then echo a; elif cat z; then ls; else pwd; fi\"",
+   "args": [
+    "if grep x y; then echo a; elif cat z; then ls; else pwd; fi"
+   ],
+   "out": [
+    "grep",
+    "cat",
+    "ls",
+    "pwd"
+   ]
+  },
+  {
+   "name": "\"while true; do sleep 1; done\"",
+   "args": [
+    "while true; do sleep 1; done"
+   ],
+   "out": [
+    "sleep"
+   ]
+  },
+  {
+   "name": "\"until ls; do :; done\"",
+   "args": [
+    "until ls; do :; done"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"for i in 1; do ls; done\"",
+   "args": [
+    "for i in 1; do ls; done"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"A=1 B=2 ls\"",
+   "args": [
+    "A=1 B=2 ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"A=1 > out ls\"",
+   "args": [
+    "A=1 > out ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"> out\"",
+   "args": [
+    "> out"
+   ],
+   "out": []
+  },
+  {
+   "name": "\">out ls\"",
+   "args": [
+    ">out ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"2> err ls x\"",
+   "args": [
+    "2> err ls x"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"< in cat\"",
+   "args": [
+    "< in cat"
+   ],
+   "out": [
+    "cat"
+   ]
+  },
+  {
+   "name": "\"<in cat\"",
+   "args": [
+    "<in cat"
+   ],
+   "out": [
+    "cat"
+   ]
+  },
+  {
+   "name": "\"2>&1\"",
+   "args": [
+    "2>&1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"&> out ls\"",
+   "args": [
+    "&> out ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"&>out ls\"",
+   "args": [
+    "&>out ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"1>&2 ls\"",
+   "args": [
+    "1>&2 ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"12>x ls\"",
+   "args": [
+    "12>x ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"a=b\"",
+   "args": [
+    "a=b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"=b ls\"",
+   "args": [
+    "=b ls"
+   ],
+   "out": [
+    "=b"
+   ]
+  },
+  {
+   "name": "\"1a=b ls\"",
+   "args": [
+    "1a=b ls"
+   ],
+   "out": [
+    "1a=b"
+   ]
+  },
+  {
+   "name": "\"A= ls\"",
+   "args": [
+    "A= ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo A=1 ls\"",
+   "args": [
+    "sudo A=1 ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"env A=1 B=2 -i ls\"",
+   "args": [
+    "env A=1 B=2 -i ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"exec 3>&1\"",
+   "args": [
+    "exec 3>&1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"exec ls\"",
+   "args": [
+    "exec ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"nohup ls &\"",
+   "args": [
+    "nohup ls &"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"Sudo ls\"",
+   "args": [
+    "Sudo ls"
+   ],
+   "out": [
+    "Sudo"
+   ]
+  },
+  {
+   "name": "\"SUDO ls\"",
+   "args": [
+    "SUDO ls"
+   ],
+   "out": [
+    "SUDO"
+   ]
+  },
+  {
+   "name": "\"caffeinate -d -i make\"",
+   "args": [
+    "caffeinate -d -i make"
+   ],
+   "out": [
+    "make"
+   ]
+  },
+  {
+   "name": "\"doas -u me -s ls\"",
+   "args": [
+    "doas -u me -s ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"doas ls\"",
+   "args": [
+    "doas ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"ls -v -v\"",
+   "args": [
+    "ls -v -v"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"which\"",
+   "args": [
+    "which"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"which -a node && ls\"",
+   "args": [
+    "which -a node && ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"export A=1\"",
+   "args": [
+    "export A=1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias x=y\"",
+   "args": [
+    "alias x=y"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"eval ls\"",
+   "args": [
+    "eval ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"type ls\"",
+   "args": [
+    "type ls"
+   ],
+   "out": [
+    "type"
+   ]
+  },
+  {
+   "name": "\"[ -f x ]\"",
+   "args": [
+    "[ -f x ]"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"test -f x && ls\"",
+   "args": [
+    "test -f x && ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"echo; ls\"",
+   "args": [
+    "echo; ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"builtin ls\"",
+   "args": [
+    "builtin ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"then ls\"",
+   "args": [
+    "then ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"do ls\"",
+   "args": [
+    "do ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"else ls\"",
+   "args": [
+    "else ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"! ! ls\"",
+   "args": [
+    "! ! ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"sudo sudo ls\"",
+   "args": [
+    "sudo sudo ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"env sudo -u x ls\"",
+   "args": [
+    "env sudo -u x ls"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"ls\\tx\"",
+   "args": [
+    "ls\tx"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"npm i -g typescript --prefix /usr/local\"",
+   "args": [
+    "npm i -g typescript --prefix /usr/local"
+   ],
+   "out": [
+    "npm"
+   ]
+  },
+  {
+   "name": "\"npm -g i x\"",
+   "args": [
+    "npm -g i x"
+   ],
+   "out": [
+    "npm"
+   ]
+  },
+  {
+   "name": "\"npm i --global=true x\"",
+   "args": [
+    "npm i --global=true x"
+   ],
+   "out": [
+    "npm"
+   ]
+  },
+  {
+   "name": "\"npm install --global x\"",
+   "args": [
+    "npm install --global x"
+   ],
+   "out": [
+    "npm"
+   ]
+  },
+  {
+   "name": "\"npm i -g\"",
+   "args": [
+    "npm i -g"
+   ],
+   "out": [
+    "npm"
+   ]
+  },
+  {
+   "name": "\"npm i x -g\"",
+   "args": [
+    "npm i x -g"
+   ],
+   "out": [
+    "npm"
+   ]
+  },
+  {
+   "name": "\"npm i -g x -g y\"",
+   "args": [
+    "npm i -g x -g y"
+   ],
+   "out": [
+    "npm"
+   ]
+  },
+  {
+   "name": "\"npm add -g x\"",
+   "args": [
+    "npm add -g x"
+   ],
+   "out": [
+    "npm"
+   ]
+  },
+  {
+   "name": "\"npm install -gD x\"",
+   "args": [
+    "npm install -gD x"
+   ],
+   "out": [
+    "npm"
+   ]
+  },
+  {
+   "name": "\"npm uninstall -g x\"",
+   "args": [
+    "npm uninstall -g x"
+   ],
+   "out": [
+    "npm"
+   ]
+  },
+  {
+   "name": "\"pnpm i -g x y\"",
+   "args": [
+    "pnpm i -g x y"
+   ],
+   "out": [
+    "pnpm"
+   ]
+  },
+  {
+   "name": "\"pnpm add -g x@1\"",
+   "args": [
+    "pnpm add -g x@1"
+   ],
+   "out": [
+    "pnpm"
+   ]
+  },
+  {
+   "name": "\"pnpm install --global x\"",
+   "args": [
+    "pnpm install --global x"
+   ],
+   "out": [
+    "pnpm"
+   ]
+  },
+  {
+   "name": "\"bun add -g x\"",
+   "args": [
+    "bun add -g x"
+   ],
+   "out": [
+    "bun"
+   ]
+  },
+  {
+   "name": "\"bun i -g x\"",
+   "args": [
+    "bun i -g x"
+   ],
+   "out": [
+    "bun"
+   ]
+  },
+  {
+   "name": "\"yarn global add x\"",
+   "args": [
+    "yarn global add x"
+   ],
+   "out": [
+    "yarn"
+   ]
+  },
+  {
+   "name": "\"uv pip install x\"",
+   "args": [
+    "uv pip install x"
+   ],
+   "out": [
+    "uv"
+   ]
+  },
+  {
+   "name": "\"uv tool install --with y ruff\"",
+   "args": [
+    "uv tool install --with y ruff"
+   ],
+   "out": [
+    "uv"
+   ]
+  },
+  {
+   "name": "\"uv tool install 'ruff>=0.5' black[jupyter] pkg~=1.0 a!=2 b<3\"",
+   "args": [
+    "uv tool install 'ruff>=0.5' black[jupyter] pkg~=1.0 a!=2 b<3"
+   ],
+   "out": [
+    "uv"
+   ]
+  },
+  {
+   "name": "\"uv tool install git+https://github.com/x/y\"",
+   "args": [
+    "uv tool install git+https://github.com/x/y"
+   ],
+   "out": [
+    "uv"
+   ]
+  },
+  {
+   "name": "\"uv tool install ==1\"",
+   "args": [
+    "uv tool install ==1"
+   ],
+   "out": [
+    "uv"
+   ]
+  },
+  {
+   "name": "\"uv tool install\"",
+   "args": [
+    "uv tool install"
+   ],
+   "out": [
+    "uv"
+   ]
+  },
+  {
+   "name": "\"uv tool run ruff\"",
+   "args": [
+    "uv tool run ruff"
+   ],
+   "out": [
+    "uv"
+   ]
+  },
+  {
+   "name": "\"uvx =x ruff\"",
+   "args": [
+    "uvx =x ruff"
+   ],
+   "out": [
+    "uvx"
+   ]
+  },
+  {
+   "name": "\"uvx --from y ruff\"",
+   "args": [
+    "uvx --from y ruff"
+   ],
+   "out": [
+    "uvx"
+   ]
+  },
+  {
+   "name": "\"uvx ruff@latest\"",
+   "args": [
+    "uvx ruff@latest"
+   ],
+   "out": [
+    "uvx"
+   ]
+  },
+  {
+   "name": "\"uvx ruff==1.0 x\"",
+   "args": [
+    "uvx ruff==1.0 x"
+   ],
+   "out": [
+    "uvx"
+   ]
+  },
+  {
+   "name": "\"pipx install a b==1 c[x]\"",
+   "args": [
+    "pipx install a b==1 c[x]"
+   ],
+   "out": [
+    "pipx"
+   ]
+  },
+  {
+   "name": "\"pipx run cowsay hello\"",
+   "args": [
+    "pipx run cowsay hello"
+   ],
+   "out": [
+    "pipx"
+   ]
+  },
+  {
+   "name": "\"pipx run --spec foo bar\"",
+   "args": [
+    "pipx run --spec foo bar"
+   ],
+   "out": [
+    "pipx"
+   ]
+  },
+  {
+   "name": "\"pipx run\"",
+   "args": [
+    "pipx run"
+   ],
+   "out": [
+    "pipx"
+   ]
+  },
+  {
+   "name": "\"pipx install\"",
+   "args": [
+    "pipx install"
+   ],
+   "out": [
+    "pipx"
+   ]
+  },
+  {
+   "name": "\"pipx upgrade x\"",
+   "args": [
+    "pipx upgrade x"
+   ],
+   "out": [
+    "pipx"
+   ]
+  },
+  {
+   "name": "\"brew install gcc@12 homebrew/cask/foo ./local.rb\"",
+   "args": [
+    "brew install gcc@12 homebrew/cask/foo ./local.rb"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install --cask iterm2 --verbose\"",
+   "args": [
+    "brew install --cask iterm2 --verbose"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install \\\"foo bar\\\"\"",
+   "args": [
+    "brew install \"foo bar\""
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install ''\"",
+   "args": [
+    "brew install ''"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install\"",
+   "args": [
+    "brew install"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install -\"",
+   "args": [
+    "brew install -"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew -v install foo\"",
+   "args": [
+    "brew -v install foo"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install foo@\"",
+   "args": [
+    "brew install foo@"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install @foo\"",
+   "args": [
+    "brew install @foo"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install @foo/bar@1.2\"",
+   "args": [
+    "brew install @foo/bar@1.2"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install @@\"",
+   "args": [
+    "brew install @@"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew reinstall a b\"",
+   "args": [
+    "brew reinstall a b"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew tap a/b\"",
+   "args": [
+    "brew tap a/b"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"go install ./cmd/foo\"",
+   "args": [
+    "go install ./cmd/foo"
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go install ./...\"",
+   "args": [
+    "go install ./..."
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go install .\"",
+   "args": [
+    "go install ."
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go install github.com/a/b/\"",
+   "args": [
+    "go install github.com/a/b/"
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go install github.com/a/b\"",
+   "args": [
+    "go install github.com/a/b"
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go install mod@latest\"",
+   "args": [
+    "go install mod@latest"
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go install x/v2\"",
+   "args": [
+    "go install x/v2"
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go install example.com/v2@latest\"",
+   "args": [
+    "go install example.com/v2@latest"
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go install a@b@c\"",
+   "args": [
+    "go install a@b@c"
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/v10@v10.0.0\"",
+   "args": [
+    "go install github.com/x/y/v10@v10.0.0"
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/v1x\"",
+   "args": [
+    "go install github.com/x/y/v1x"
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/V2\"",
+   "args": [
+    "go install github.com/x/y/V2"
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"go get x\"",
+   "args": [
+    "go get x"
+   ],
+   "out": [
+    "go"
+   ]
+  },
+  {
+   "name": "\"cargo install --git https://github.com/a/b cargo-x\"",
+   "args": [
+    "cargo install --git https://github.com/a/b cargo-x"
+   ],
+   "out": [
+    "cargo"
+   ]
+  },
+  {
+   "name": "\"cargo install --version 1.0 foo\"",
+   "args": [
+    "cargo install --version 1.0 foo"
+   ],
+   "out": [
+    "cargo"
+   ]
+  },
+  {
+   "name": "\"cargo install ripgrep@14\"",
+   "args": [
+    "cargo install ripgrep@14"
+   ],
+   "out": [
+    "cargo"
+   ]
+  },
+  {
+   "name": "\"cargo install\"",
+   "args": [
+    "cargo install"
+   ],
+   "out": [
+    "cargo"
+   ]
+  },
+  {
+   "name": "\"apt-get install curl=1.0 vim\"",
+   "args": [
+    "apt-get install curl=1.0 vim"
+   ],
+   "out": [
+    "apt-get"
+   ]
+  },
+  {
+   "name": "\"apt-get -y install foo\"",
+   "args": [
+    "apt-get -y install foo"
+   ],
+   "out": [
+    "apt-get"
+   ]
+  },
+  {
+   "name": "\"apt install ./x.deb\"",
+   "args": [
+    "apt install ./x.deb"
+   ],
+   "out": [
+    "apt"
+   ]
+  },
+  {
+   "name": "\"sudo apt install -y a b\"",
+   "args": [
+    "sudo apt install -y a b"
+   ],
+   "out": [
+    "apt"
+   ]
+  },
+  {
+   "name": "\"apt-get update && apt-get install -y x\"",
+   "args": [
+    "apt-get update && apt-get install -y x"
+   ],
+   "out": [
+    "apt-get",
+    "apt-get"
+   ]
+  },
+  {
+   "name": "\"apt-get remove x\"",
+   "args": [
+    "apt-get remove x"
+   ],
+   "out": [
+    "apt-get"
+   ]
+  },
+  {
+   "name": "\"npx -y @anthropic-ai/claude-code@1.0 --version\"",
+   "args": [
+    "npx -y @anthropic-ai/claude-code@1.0 --version"
+   ],
+   "out": [
+    "npx"
+   ]
+  },
+  {
+   "name": "\"npx -p pkg cmd\"",
+   "args": [
+    "npx -p pkg cmd"
+   ],
+   "out": [
+    "npx"
+   ]
+  },
+  {
+   "name": "\"npx --yes\"",
+   "args": [
+    "npx --yes"
+   ],
+   "out": [
+    "npx"
+   ]
+  },
+  {
+   "name": "\"npx\"",
+   "args": [
+    "npx"
+   ],
+   "out": [
+    "npx"
+   ]
+  },
+  {
+   "name": "\"bunx -y y z\"",
+   "args": [
+    "bunx -y y z"
+   ],
+   "out": [
+    "bunx"
+   ]
+  },
+  {
+   "name": "\"bunx x@1.0.0\"",
+   "args": [
+    "bunx x@1.0.0"
+   ],
+   "out": [
+    "bunx"
+   ]
+  },
+  {
+   "name": "\"npx @scope/pkg@latest\"",
+   "args": [
+    "npx @scope/pkg@latest"
+   ],
+   "out": [
+    "npx"
+   ]
+  },
+  {
+   "name": "\"npx a@\"",
+   "args": [
+    "npx a@"
+   ],
+   "out": [
+    "npx"
+   ]
+  },
+  {
+   "name": "\"npx x > out foo\"",
+   "args": [
+    "npx x > out foo"
+   ],
+   "out": [
+    "npx"
+   ]
+  },
+  {
+   "name": "\"npx @@\"",
+   "args": [
+    "npx @@"
+   ],
+   "out": [
+    "npx"
+   ]
+  },
+  {
+   "name": "\"/opt/homebrew/bin/brew install x\"",
+   "args": [
+    "/opt/homebrew/bin/brew install x"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"FOO=1 brew install x\"",
+   "args": [
+    "FOO=1 brew install x"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"> o brew install x\"",
+   "args": [
+    "> o brew install x"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install x > o y\"",
+   "args": [
+    "brew install x > o y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install x 2>/dev/null y\"",
+   "args": [
+    "brew install x 2>/dev/null y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install x 2> e y\"",
+   "args": [
+    "brew install x 2> e y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install x <in y\"",
+   "args": [
+    "brew install x <in y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install x < in y\"",
+   "args": [
+    "brew install x < in y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install x &>o y\"",
+   "args": [
+    "brew install x &>o y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install x &> o y\"",
+   "args": [
+    "brew install x &> o y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install x >& o y\"",
+   "args": [
+    "brew install x >& o y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install x >&2 y\"",
+   "args": [
+    "brew install x >&2 y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install x >> o y\"",
+   "args": [
+    "brew install x >> o y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install x 2>>o y\"",
+   "args": [
+    "brew install x 2>>o y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install 3 4\"",
+   "args": [
+    "brew install 3 4"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install 1>x y\"",
+   "args": [
+    "brew install 1>x y"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install -v\"",
+   "args": [
+    "brew install -v"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install a; brew install b\"",
+   "args": [
+    "brew install a; brew install b"
+   ],
+   "out": [
+    "brew",
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install a | brew install b\"",
+   "args": [
+    "brew install a | brew install b"
+   ],
+   "out": [
+    "brew",
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install a && sudo npm i -g b\"",
+   "args": [
+    "brew install a && sudo npm i -g b"
+   ],
+   "out": [
+    "brew",
+    "npm"
+   ]
+  },
+  {
+   "name": "\"BREW=1 brew install a\"",
+   "args": [
+    "BREW=1 brew install a"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install a\\nbrew install b\"",
+   "args": [
+    "brew install a\nbrew install b"
+   ],
+   "out": [
+    "brew",
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install $(cat list)\"",
+   "args": [
+    "brew install $(cat list)"
+   ],
+   "out": [
+    "brew",
+    "cat"
+   ]
+  },
+  {
+   "name": "\"brew install ${X}\"",
+   "args": [
+    "brew install ${X}"
+   ],
+   "out": [
+    "brew"
+   ]
+  },
+  {
+   "name": "\"brew install `x`\"",
+   "args": [
+    "brew install `x`"
+   ],
+   "out": [
+    "brew",
+    "x"
+   ]
+  },
+  {
+   "name": "\"echo >& x\"",
+   "args": [
+    "echo >& x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls >&\"",
+   "args": [
+    "ls >&"
+   ],
+   "out": [
+    "ls"
+   ]
+  },
+  {
+   "name": "\"a 2>&\"",
+   "args": [
+    "a 2>&"
+   ],
+   "out": [
+    "a"
+   ]
+  },
+  {
+   "name": "\"git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no\"",
+   "args": [
+    "git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no"
+   ],
+   "out": [
+    "git",
+    "head",
+    "gh",
+    "pnpm"
+   ]
+  }
+ ],
+ "install_names": [
+  {
+   "name": "\"cat <<< foo\\nls\\npwd\"",
+   "args": [
+    "cat <<< foo\nls\npwd"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo $((1<<2))\\nls\"",
+   "args": [
+    "echo $((1<<2))\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo '<<EOF'\\nls\\nEOF\\npwd\"",
+   "args": [
+    "echo '<<EOF'\nls\nEOF\npwd"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<EOF\\n  EOF\\nls\"",
+   "args": [
+    "cat <<EOF\n  EOF\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<EOF\\r\\nbody\\r\\nEOF\\r\\nls\"",
+   "args": [
+    "cat <<EOF\r\nbody\r\nEOF\r\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<A <<B\\nx\\nA\\ny\\nB\\nls\"",
+   "args": [
+    "cat <<A <<B\nx\nA\ny\nB\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<'A B'\\nx\\nA B\\nls\"",
+   "args": [
+    "cat <<'A B'\nx\nA B\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<EOF\"",
+   "args": [
+    "cat <<EOF"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<\\\"\\\"\\nls\"",
+   "args": [
+    "cat <<\"\"\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<- EOF\\nx\\nEOF\\nls\"",
+   "args": [
+    "cat <<- EOF\nx\nEOF\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF \\nls\"",
+   "args": [
+    "cat <<EOF\nEOF \nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF\\nEOF\\nls\"",
+   "args": [
+    "cat <<EOF\nEOF\nEOF\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<EOF1\\nx\\nEOF\\nls\\nEOF1\\npwd\"",
+   "args": [
+    "cat <<EOF1\nx\nEOF\nls\nEOF1\npwd"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat << EOF-x\\nbody\\nEOF-x\\nls\"",
+   "args": [
+    "cat << EOF-x\nbody\nEOF-x\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat <<e\\nx\\nE\\nls\"",
+   "args": [
+    "cat <<e\nx\nE\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls \\\\\\nfoo\"",
+   "args": [
+    "ls \\\nfoo"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls \\\\\"",
+   "args": [
+    "ls \\"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls {a,b}\"",
+   "args": [
+    "ls {a,b}"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"find . -name x -exec rm {} \\\\;\"",
+   "args": [
+    "find . -name x -exec rm {} \\;"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"find . -exec rm {} +\"",
+   "args": [
+    "find . -exec rm {} +"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo ${a b\"",
+   "args": [
+    "echo ${a b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo ${a:-\\\"}\\\"} x | wc\"",
+   "args": [
+    "echo ${a:-\"}\"} x | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo ${a} | wc\"",
+   "args": [
+    "echo ${a} | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo $((1+2)) | wc\"",
+   "args": [
+    "echo $((1+2)) | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a ) b\"",
+   "args": [
+    "a ) b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a ( b\"",
+   "args": [
+    "a ( b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo \\\"$(a) b\\\" | c\"",
+   "args": [
+    "echo \"$(a) b\" | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo \\\"$(a \\\"b\\\" ) c\\\" | d\"",
+   "args": [
+    "echo \"$(a \"b\" ) c\" | d"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo \\\"a\\\\\\\"b\\\" | c\"",
+   "args": [
+    "echo \"a\\\"b\" | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo 'a\\\\'b' | c\"",
+   "args": [
+    "echo 'a\\'b' | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo >&\"",
+   "args": [
+    "echo >&"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo 2>&\"",
+   "args": [
+    "echo 2>&"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a &\"",
+   "args": [
+    "echo a &"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a&&b\"",
+   "args": [
+    "echo a&&b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a||b\"",
+   "args": [
+    "echo a||b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a|&b\"",
+   "args": [
+    "echo a|&b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a;;b\"",
+   "args": [
+    "a;;b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a\\\\\\nb | c\"",
+   "args": [
+    "echo a\\\nb | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo `a b` | c\"",
+   "args": [
+    "echo `a b` | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo \\\"`a b`\\\" | c\"",
+   "args": [
+    "echo \"`a b`\" | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"x=$(ls | wc) y\"",
+   "args": [
+    "x=$(ls | wc) y"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo $#\"",
+   "args": [
+    "echo $#"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo ${#a} | wc\"",
+   "args": [
+    "echo ${#a} | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a;#c\\nb\"",
+   "args": [
+    "echo a;#c\nb"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a #c\"",
+   "args": [
+    "echo a #c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo '#c' ; ls\"",
+   "args": [
+    "echo '#c' ; ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a'#c' b\"",
+   "args": [
+    "echo a'#c' b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"FOO=\\\"a b\\\" ls\"",
+   "args": [
+    "FOO=\"a b\" ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"env FOO='x y' node a.js\"",
+   "args": [
+    "env FOO='x y' node a.js"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"\\\"git\\\" status\"",
+   "args": [
+    "\"git\" status"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"g\\\"i\\\"t status\"",
+   "args": [
+    "g\"i\"t status"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls x\"",
+   "args": [
+    "ls x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"﻿ls -l\"",
+   "args": [
+    "﻿ls -l"
+   ],
+   "out": []
+  },
+  {
+   "name": "\" ls -l\"",
+   "args": [
+    " ls -l"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls -l | wc\"",
+   "args": [
+    "ls -l | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a b\"",
+   "args": [
+    "a b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo 😀x | y\"",
+   "args": [
+    "echo 😀x | y"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"((a+b)); ls\"",
+   "args": [
+    "((a+b)); ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"{ ls; } | wc\"",
+   "args": [
+    "{ ls; } | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a<(b c) | d\"",
+   "args": [
+    "echo a<(b c) | d"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo a>(b c) | d\"",
+   "args": [
+    "echo a>(b c) | d"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a <b | c\"",
+   "args": [
+    "a <b | c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cd x;\\nls\"",
+   "args": [
+    "cd x;\nls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a\\n\\n  \\nb\"",
+   "args": [
+    "a\n\n  \nb"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"!ls\"",
+   "args": [
+    "!ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"! ls\"",
+   "args": [
+    "! ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo \\\"unterminated $(ls | wc\"",
+   "args": [
+    "echo \"unterminated $(ls | wc"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"./\"",
+   "args": [
+    "./"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"/\"",
+   "args": [
+    "/"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls; /usr/bin/\"",
+   "args": [
+    "ls; /usr/bin/"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"/bin/echo hi; /usr/bin/true; ./source x; /bin/cd x; /usr/bin/which node\"",
+   "args": [
+    "/bin/echo hi; /usr/bin/true; ./source x; /bin/cd x; /usr/bin/which node"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"node --version 2>&1\"",
+   "args": [
+    "node --version 2>&1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"gh --version >/dev/null\"",
+   "args": [
+    "gh --version >/dev/null"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"gh --version | head -1\"",
+   "args": [
+    "gh --version | head -1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls -v; sort -V; tar -V; jq --version; go version; git -v x\"",
+   "args": [
+    "ls -v; sort -V; tar -V; jq --version; go version; git -v x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"grep -v\"",
+   "args": [
+    "grep -v"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"python3 -V -V\"",
+   "args": [
+    "python3 -V -V"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"env -u FOO ls\"",
+   "args": [
+    "env -u FOO ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sudo -- ls\"",
+   "args": [
+    "sudo -- ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sudo -E -u me ls\"",
+   "args": [
+    "sudo -E -u me ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sudo -uroot ls\"",
+   "args": [
+    "sudo -uroot ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sudo -u\"",
+   "args": [
+    "sudo -u"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sudo\"",
+   "args": [
+    "sudo"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"env\"",
+   "args": [
+    "env"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command\"",
+   "args": [
+    "command"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command -v\"",
+   "args": [
+    "command -v"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command -vx ls\"",
+   "args": [
+    "command -vx ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command -p ls\"",
+   "args": [
+    "command -p ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command -V ls\"",
+   "args": [
+    "command -V ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sudo command -v foo\"",
+   "args": [
+    "sudo command -v foo"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"xargs -I{} rm {}\"",
+   "args": [
+    "xargs -I{} rm {}"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls | xargs -n1 rm\"",
+   "args": [
+    "ls | xargs -n1 rm"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls | xargs\"",
+   "args": [
+    "ls | xargs"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"nice -n10 make\"",
+   "args": [
+    "nice -n10 make"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"nice -n 10 make\"",
+   "args": [
+    "nice -n 10 make"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"time -p ls\"",
+   "args": [
+    "time -p ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"if grep x y; then echo a; elif cat z; then ls; else pwd; fi\"",
+   "args": [
+    "if grep x y; then echo a; elif cat z; then ls; else pwd; fi"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"while true; do sleep 1; done\"",
+   "args": [
+    "while true; do sleep 1; done"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"until ls; do :; done\"",
+   "args": [
+    "until ls; do :; done"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"for i in 1; do ls; done\"",
+   "args": [
+    "for i in 1; do ls; done"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"A=1 B=2 ls\"",
+   "args": [
+    "A=1 B=2 ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"A=1 > out ls\"",
+   "args": [
+    "A=1 > out ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"> out\"",
+   "args": [
+    "> out"
+   ],
+   "out": []
+  },
+  {
+   "name": "\">out ls\"",
+   "args": [
+    ">out ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"2> err ls x\"",
+   "args": [
+    "2> err ls x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"< in cat\"",
+   "args": [
+    "< in cat"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"<in cat\"",
+   "args": [
+    "<in cat"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"2>&1\"",
+   "args": [
+    "2>&1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"&> out ls\"",
+   "args": [
+    "&> out ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"&>out ls\"",
+   "args": [
+    "&>out ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"1>&2 ls\"",
+   "args": [
+    "1>&2 ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"12>x ls\"",
+   "args": [
+    "12>x ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a=b\"",
+   "args": [
+    "a=b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"=b ls\"",
+   "args": [
+    "=b ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"1a=b ls\"",
+   "args": [
+    "1a=b ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"A= ls\"",
+   "args": [
+    "A= ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sudo A=1 ls\"",
+   "args": [
+    "sudo A=1 ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"env A=1 B=2 -i ls\"",
+   "args": [
+    "env A=1 B=2 -i ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"exec 3>&1\"",
+   "args": [
+    "exec 3>&1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"exec ls\"",
+   "args": [
+    "exec ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"nohup ls &\"",
+   "args": [
+    "nohup ls &"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"Sudo ls\"",
+   "args": [
+    "Sudo ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"SUDO ls\"",
+   "args": [
+    "SUDO ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"caffeinate -d -i make\"",
+   "args": [
+    "caffeinate -d -i make"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"doas -u me -s ls\"",
+   "args": [
+    "doas -u me -s ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"doas ls\"",
+   "args": [
+    "doas ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls -v -v\"",
+   "args": [
+    "ls -v -v"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"which\"",
+   "args": [
+    "which"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"which -a node && ls\"",
+   "args": [
+    "which -a node && ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"export A=1\"",
+   "args": [
+    "export A=1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias x=y\"",
+   "args": [
+    "alias x=y"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"eval ls\"",
+   "args": [
+    "eval ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"type ls\"",
+   "args": [
+    "type ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"[ -f x ]\"",
+   "args": [
+    "[ -f x ]"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"test -f x && ls\"",
+   "args": [
+    "test -f x && ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo; ls\"",
+   "args": [
+    "echo; ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"builtin ls\"",
+   "args": [
+    "builtin ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"then ls\"",
+   "args": [
+    "then ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"do ls\"",
+   "args": [
+    "do ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"else ls\"",
+   "args": [
+    "else ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"! ! ls\"",
+   "args": [
+    "! ! ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sudo sudo ls\"",
+   "args": [
+    "sudo sudo ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"env sudo -u x ls\"",
+   "args": [
+    "env sudo -u x ls"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls\\tx\"",
+   "args": [
+    "ls\tx"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"npm i -g typescript --prefix /usr/local\"",
+   "args": [
+    "npm i -g typescript --prefix /usr/local"
+   ],
+   "out": [
+    {
+     "via": "npm",
+     "name": "typescript"
+    },
+    {
+     "via": "npm",
+     "name": "/usr/local"
+    }
+   ]
+  },
+  {
+   "name": "\"npm -g i x\"",
+   "args": [
+    "npm -g i x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"npm i --global=true x\"",
+   "args": [
+    "npm i --global=true x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"npm install --global x\"",
+   "args": [
+    "npm install --global x"
+   ],
+   "out": [
+    {
+     "via": "npm",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"npm i -g\"",
+   "args": [
+    "npm i -g"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"npm i x -g\"",
+   "args": [
+    "npm i x -g"
+   ],
+   "out": [
+    {
+     "via": "npm",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"npm i -g x -g y\"",
+   "args": [
+    "npm i -g x -g y"
+   ],
+   "out": [
+    {
+     "via": "npm",
+     "name": "x"
+    },
+    {
+     "via": "npm",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"npm add -g x\"",
+   "args": [
+    "npm add -g x"
+   ],
+   "out": [
+    {
+     "via": "npm",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"npm install -gD x\"",
+   "args": [
+    "npm install -gD x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"npm uninstall -g x\"",
+   "args": [
+    "npm uninstall -g x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"pnpm i -g x y\"",
+   "args": [
+    "pnpm i -g x y"
+   ],
+   "out": [
+    {
+     "via": "pnpm",
+     "name": "x"
+    },
+    {
+     "via": "pnpm",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"pnpm add -g x@1\"",
+   "args": [
+    "pnpm add -g x@1"
+   ],
+   "out": [
+    {
+     "via": "pnpm",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"pnpm install --global x\"",
+   "args": [
+    "pnpm install --global x"
+   ],
+   "out": [
+    {
+     "via": "pnpm",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"bun add -g x\"",
+   "args": [
+    "bun add -g x"
+   ],
+   "out": [
+    {
+     "via": "bun",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"bun i -g x\"",
+   "args": [
+    "bun i -g x"
+   ],
+   "out": [
+    {
+     "via": "bun",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"yarn global add x\"",
+   "args": [
+    "yarn global add x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"uv pip install x\"",
+   "args": [
+    "uv pip install x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"uv tool install --with y ruff\"",
+   "args": [
+    "uv tool install --with y ruff"
+   ],
+   "out": [
+    {
+     "via": "uv",
+     "name": "y"
+    },
+    {
+     "via": "uv",
+     "name": "ruff"
+    }
+   ]
+  },
+  {
+   "name": "\"uv tool install 'ruff>=0.5' black[jupyter] pkg~=1.0 a!=2 b<3\"",
+   "args": [
+    "uv tool install 'ruff>=0.5' black[jupyter] pkg~=1.0 a!=2 b<3"
+   ],
+   "out": [
+    {
+     "via": "uv",
+     "name": "ruff"
+    },
+    {
+     "via": "uv",
+     "name": "black"
+    },
+    {
+     "via": "uv",
+     "name": "pkg"
+    },
+    {
+     "via": "uv",
+     "name": "a"
+    },
+    {
+     "via": "uv",
+     "name": "b"
+    }
+   ]
+  },
+  {
+   "name": "\"uv tool install git+https://github.com/x/y\"",
+   "args": [
+    "uv tool install git+https://github.com/x/y"
+   ],
+   "out": [
+    {
+     "via": "uv",
+     "name": "git+https://github.com/x/y"
+    }
+   ]
+  },
+  {
+   "name": "\"uv tool install ==1\"",
+   "args": [
+    "uv tool install ==1"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"uv tool install\"",
+   "args": [
+    "uv tool install"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"uv tool run ruff\"",
+   "args": [
+    "uv tool run ruff"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"uvx =x ruff\"",
+   "args": [
+    "uvx =x ruff"
+   ],
+   "out": [
+    {
+     "via": "uvx",
+     "name": "ruff"
+    }
+   ]
+  },
+  {
+   "name": "\"uvx --from y ruff\"",
+   "args": [
+    "uvx --from y ruff"
+   ],
+   "out": [
+    {
+     "via": "uvx",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"uvx ruff@latest\"",
+   "args": [
+    "uvx ruff@latest"
+   ],
+   "out": [
+    {
+     "via": "uvx",
+     "name": "ruff@latest"
+    }
+   ]
+  },
+  {
+   "name": "\"uvx ruff==1.0 x\"",
+   "args": [
+    "uvx ruff==1.0 x"
+   ],
+   "out": [
+    {
+     "via": "uvx",
+     "name": "ruff"
+    }
+   ]
+  },
+  {
+   "name": "\"pipx install a b==1 c[x]\"",
+   "args": [
+    "pipx install a b==1 c[x]"
+   ],
+   "out": [
+    {
+     "via": "pipx",
+     "name": "a"
+    },
+    {
+     "via": "pipx",
+     "name": "b"
+    },
+    {
+     "via": "pipx",
+     "name": "c"
+    }
+   ]
+  },
+  {
+   "name": "\"pipx run cowsay hello\"",
+   "args": [
+    "pipx run cowsay hello"
+   ],
+   "out": [
+    {
+     "via": "pipx-run",
+     "name": "cowsay"
+    }
+   ]
+  },
+  {
+   "name": "\"pipx run --spec foo bar\"",
+   "args": [
+    "pipx run --spec foo bar"
+   ],
+   "out": [
+    {
+     "via": "pipx-run",
+     "name": "foo"
+    }
+   ]
+  },
+  {
+   "name": "\"pipx run\"",
+   "args": [
+    "pipx run"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"pipx install\"",
+   "args": [
+    "pipx install"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"pipx upgrade x\"",
+   "args": [
+    "pipx upgrade x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"brew install gcc@12 homebrew/cask/foo ./local.rb\"",
+   "args": [
+    "brew install gcc@12 homebrew/cask/foo ./local.rb"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "gcc"
+    },
+    {
+     "via": "brew",
+     "name": "homebrew/cask/foo"
+    },
+    {
+     "via": "brew",
+     "name": "./local.rb"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install --cask iterm2 --verbose\"",
+   "args": [
+    "brew install --cask iterm2 --verbose"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "iterm2"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install \\\"foo bar\\\"\"",
+   "args": [
+    "brew install \"foo bar\""
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "foo"
+    },
+    {
+     "via": "brew",
+     "name": "bar"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install ''\"",
+   "args": [
+    "brew install ''"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"brew install\"",
+   "args": [
+    "brew install"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"brew install -\"",
+   "args": [
+    "brew install -"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"brew -v install foo\"",
+   "args": [
+    "brew -v install foo"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"brew install foo@\"",
+   "args": [
+    "brew install foo@"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "foo"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install @foo\"",
+   "args": [
+    "brew install @foo"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "@foo"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install @foo/bar@1.2\"",
+   "args": [
+    "brew install @foo/bar@1.2"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "@foo/bar"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install @@\"",
+   "args": [
+    "brew install @@"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "@"
+    }
+   ]
+  },
+  {
+   "name": "\"brew reinstall a b\"",
+   "args": [
+    "brew reinstall a b"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "a"
+    },
+    {
+     "via": "brew",
+     "name": "b"
+    }
+   ]
+  },
+  {
+   "name": "\"brew tap a/b\"",
+   "args": [
+    "brew tap a/b"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"go install ./cmd/foo\"",
+   "args": [
+    "go install ./cmd/foo"
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "foo"
+    }
+   ]
+  },
+  {
+   "name": "\"go install ./...\"",
+   "args": [
+    "go install ./..."
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "..."
+    }
+   ]
+  },
+  {
+   "name": "\"go install .\"",
+   "args": [
+    "go install ."
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "."
+    }
+   ]
+  },
+  {
+   "name": "\"go install github.com/a/b/\"",
+   "args": [
+    "go install github.com/a/b/"
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "github.com/a/b/"
+    }
+   ]
+  },
+  {
+   "name": "\"go install github.com/a/b\"",
+   "args": [
+    "go install github.com/a/b"
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "b"
+    }
+   ]
+  },
+  {
+   "name": "\"go install mod@latest\"",
+   "args": [
+    "go install mod@latest"
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "mod"
+    }
+   ]
+  },
+  {
+   "name": "\"go install x/v2\"",
+   "args": [
+    "go install x/v2"
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "x/v2"
+    }
+   ]
+  },
+  {
+   "name": "\"go install example.com/v2@latest\"",
+   "args": [
+    "go install example.com/v2@latest"
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "example.com/v2"
+    }
+   ]
+  },
+  {
+   "name": "\"go install a@b@c\"",
+   "args": [
+    "go install a@b@c"
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "a"
+    }
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/v10@v10.0.0\"",
+   "args": [
+    "go install github.com/x/y/v10@v10.0.0"
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "github.com/x/y/v10"
+    }
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/v1x\"",
+   "args": [
+    "go install github.com/x/y/v1x"
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "v1x"
+    }
+   ]
+  },
+  {
+   "name": "\"go install github.com/x/y/V2\"",
+   "args": [
+    "go install github.com/x/y/V2"
+   ],
+   "out": [
+    {
+     "via": "go",
+     "name": "V2"
+    }
+   ]
+  },
+  {
+   "name": "\"go get x\"",
+   "args": [
+    "go get x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cargo install --git https://github.com/a/b cargo-x\"",
+   "args": [
+    "cargo install --git https://github.com/a/b cargo-x"
+   ],
+   "out": [
+    {
+     "via": "cargo",
+     "name": "https://github.com/a/b"
+    },
+    {
+     "via": "cargo",
+     "name": "cargo-x"
+    }
+   ]
+  },
+  {
+   "name": "\"cargo install --version 1.0 foo\"",
+   "args": [
+    "cargo install --version 1.0 foo"
+   ],
+   "out": [
+    {
+     "via": "cargo",
+     "name": "1.0"
+    },
+    {
+     "via": "cargo",
+     "name": "foo"
+    }
+   ]
+  },
+  {
+   "name": "\"cargo install ripgrep@14\"",
+   "args": [
+    "cargo install ripgrep@14"
+   ],
+   "out": [
+    {
+     "via": "cargo",
+     "name": "ripgrep"
+    }
+   ]
+  },
+  {
+   "name": "\"cargo install\"",
+   "args": [
+    "cargo install"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"apt-get install curl=1.0 vim\"",
+   "args": [
+    "apt-get install curl=1.0 vim"
+   ],
+   "out": [
+    {
+     "via": "apt",
+     "name": "curl=1.0"
+    },
+    {
+     "via": "apt",
+     "name": "vim"
+    }
+   ]
+  },
+  {
+   "name": "\"apt-get -y install foo\"",
+   "args": [
+    "apt-get -y install foo"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"apt install ./x.deb\"",
+   "args": [
+    "apt install ./x.deb"
+   ],
+   "out": [
+    {
+     "via": "apt",
+     "name": "./x.deb"
+    }
+   ]
+  },
+  {
+   "name": "\"sudo apt install -y a b\"",
+   "args": [
+    "sudo apt install -y a b"
+   ],
+   "out": [
+    {
+     "via": "apt",
+     "name": "a"
+    },
+    {
+     "via": "apt",
+     "name": "b"
+    }
+   ]
+  },
+  {
+   "name": "\"apt-get update && apt-get install -y x\"",
+   "args": [
+    "apt-get update && apt-get install -y x"
+   ],
+   "out": [
+    {
+     "via": "apt",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"apt-get remove x\"",
+   "args": [
+    "apt-get remove x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"npx -y @anthropic-ai/claude-code@1.0 --version\"",
+   "args": [
+    "npx -y @anthropic-ai/claude-code@1.0 --version"
+   ],
+   "out": [
+    {
+     "via": "npx",
+     "name": "@anthropic-ai/claude-code"
+    }
+   ]
+  },
+  {
+   "name": "\"npx -p pkg cmd\"",
+   "args": [
+    "npx -p pkg cmd"
+   ],
+   "out": [
+    {
+     "via": "npx",
+     "name": "pkg"
+    }
+   ]
+  },
+  {
+   "name": "\"npx --yes\"",
+   "args": [
+    "npx --yes"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"npx\"",
+   "args": [
+    "npx"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"bunx -y y z\"",
+   "args": [
+    "bunx -y y z"
+   ],
+   "out": [
+    {
+     "via": "bunx",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"bunx x@1.0.0\"",
+   "args": [
+    "bunx x@1.0.0"
+   ],
+   "out": [
+    {
+     "via": "bunx",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"npx @scope/pkg@latest\"",
+   "args": [
+    "npx @scope/pkg@latest"
+   ],
+   "out": [
+    {
+     "via": "npx",
+     "name": "@scope/pkg"
+    }
+   ]
+  },
+  {
+   "name": "\"npx a@\"",
+   "args": [
+    "npx a@"
+   ],
+   "out": [
+    {
+     "via": "npx",
+     "name": "a"
+    }
+   ]
+  },
+  {
+   "name": "\"npx x > out foo\"",
+   "args": [
+    "npx x > out foo"
+   ],
+   "out": [
+    {
+     "via": "npx",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"npx @@\"",
+   "args": [
+    "npx @@"
+   ],
+   "out": [
+    {
+     "via": "npx",
+     "name": "@"
+    }
+   ]
+  },
+  {
+   "name": "\"/opt/homebrew/bin/brew install x\"",
+   "args": [
+    "/opt/homebrew/bin/brew install x"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"FOO=1 brew install x\"",
+   "args": [
+    "FOO=1 brew install x"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"> o brew install x\"",
+   "args": [
+    "> o brew install x"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install x > o y\"",
+   "args": [
+    "brew install x > o y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    },
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install x 2>/dev/null y\"",
+   "args": [
+    "brew install x 2>/dev/null y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    },
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install x 2> e y\"",
+   "args": [
+    "brew install x 2> e y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    },
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install x <in y\"",
+   "args": [
+    "brew install x <in y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    },
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install x < in y\"",
+   "args": [
+    "brew install x < in y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    },
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install x &>o y\"",
+   "args": [
+    "brew install x &>o y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    },
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install x &> o y\"",
+   "args": [
+    "brew install x &> o y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    },
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install x >& o y\"",
+   "args": [
+    "brew install x >& o y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    },
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install x >&2 y\"",
+   "args": [
+    "brew install x >&2 y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    },
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install x >> o y\"",
+   "args": [
+    "brew install x >> o y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    },
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install x 2>>o y\"",
+   "args": [
+    "brew install x 2>>o y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "x"
+    },
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install 3 4\"",
+   "args": [
+    "brew install 3 4"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "3"
+    },
+    {
+     "via": "brew",
+     "name": "4"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install 1>x y\"",
+   "args": [
+    "brew install 1>x y"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "y"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install -v\"",
+   "args": [
+    "brew install -v"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"brew install a; brew install b\"",
+   "args": [
+    "brew install a; brew install b"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "a"
+    },
+    {
+     "via": "brew",
+     "name": "b"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install a | brew install b\"",
+   "args": [
+    "brew install a | brew install b"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "a"
+    },
+    {
+     "via": "brew",
+     "name": "b"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install a && sudo npm i -g b\"",
+   "args": [
+    "brew install a && sudo npm i -g b"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "a"
+    },
+    {
+     "via": "npm",
+     "name": "b"
+    }
+   ]
+  },
+  {
+   "name": "\"BREW=1 brew install a\"",
+   "args": [
+    "BREW=1 brew install a"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "a"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install a\\nbrew install b\"",
+   "args": [
+    "brew install a\nbrew install b"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "a"
+    },
+    {
+     "via": "brew",
+     "name": "b"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install $(cat list)\"",
+   "args": [
+    "brew install $(cat list)"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"brew install ${X}\"",
+   "args": [
+    "brew install ${X}"
+   ],
+   "out": [
+    {
+     "via": "brew",
+     "name": "${X}"
+    }
+   ]
+  },
+  {
+   "name": "\"brew install `x`\"",
+   "args": [
+    "brew install `x`"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo >& x\"",
+   "args": [
+    "echo >& x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls >&\"",
+   "args": [
+    "ls >&"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a 2>&\"",
+   "args": [
+    "a 2>&"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no\"",
+   "args": [
+    "git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no"
+   ],
+   "out": []
+  }
+ ]
+}

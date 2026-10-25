@@ -1,0 +1,432 @@
+{
+ "expand": [
+  {
+   "name": "home \"/Users/dev\", path \"~\"",
+   "args": [
+    "/Users/dev",
+    "~"
+   ],
+   "out": "/Users/dev"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"~/\"",
+   "args": [
+    "/Users/dev",
+    "~/"
+   ],
+   "out": "/Users/dev/"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"~/x\"",
+   "args": [
+    "/Users/dev",
+    "~/x"
+   ],
+   "out": "/Users/dev/x"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"~/~/x\"",
+   "args": [
+    "/Users/dev",
+    "~/~/x"
+   ],
+   "out": "/Users/dev/~/x"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"~x\"",
+   "args": [
+    "/Users/dev",
+    "~x"
+   ],
+   "out": "~x"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"~/../x\"",
+   "args": [
+    "/Users/dev",
+    "~/../x"
+   ],
+   "out": "/Users/dev/../x"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"x/~\"",
+   "args": [
+    "/Users/dev",
+    "x/~"
+   ],
+   "out": "x/~"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"\"",
+   "args": [
+    "/Users/dev",
+    ""
+   ],
+   "out": ""
+  },
+  {
+   "name": "home \"/Users/dev\", path \"/\"",
+   "args": [
+    "/Users/dev",
+    "/"
+   ],
+   "out": "/"
+  },
+  {
+   "name": "home \"/Users/dev\", path \" ~\"",
+   "args": [
+    "/Users/dev",
+    " ~"
+   ],
+   "out": " ~"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"~\\\\\"",
+   "args": [
+    "/Users/dev",
+    "~\\"
+   ],
+   "out": "~\\"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"~//x\"",
+   "args": [
+    "/Users/dev",
+    "~//x"
+   ],
+   "out": "/Users/dev//x"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"~/ \"",
+   "args": [
+    "/Users/dev",
+    "~/ "
+   ],
+   "out": "/Users/dev/ "
+  },
+  {
+   "name": "home \"/Users/dev/\", path \"~/x\"",
+   "args": [
+    "/Users/dev/",
+    "~/x"
+   ],
+   "out": "/Users/dev//x"
+  },
+  {
+   "name": "home \"\", path \"~/x\"",
+   "args": [
+    "",
+    "~/x"
+   ],
+   "out": "/x"
+  },
+  {
+   "name": "home \"\", path \"~\"",
+   "args": [
+    "",
+    "~"
+   ],
+   "out": ""
+  },
+  {
+   "name": "home \"/\", path \"~/x\"",
+   "args": [
+    "/",
+    "~/x"
+   ],
+   "out": "//x"
+  }
+ ],
+ "tilde": [
+  {
+   "name": "home \"/Users/dev\", path \"/Users/dev\"",
+   "args": [
+    "/Users/dev",
+    "/Users/dev"
+   ],
+   "out": "~"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"/Users/dev/\"",
+   "args": [
+    "/Users/dev",
+    "/Users/dev/"
+   ],
+   "out": "~/"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"/Users/dev//x\"",
+   "args": [
+    "/Users/dev",
+    "/Users/dev//x"
+   ],
+   "out": "~//x"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"/Users/dev/x/\"",
+   "args": [
+    "/Users/dev",
+    "/Users/dev/x/"
+   ],
+   "out": "~/x/"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"/Users/DEV/x\"",
+   "args": [
+    "/Users/dev",
+    "/Users/DEV/x"
+   ],
+   "out": "/Users/DEV/x"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"/a/Users/dev/x\"",
+   "args": [
+    "/Users/dev",
+    "/a/Users/dev/x"
+   ],
+   "out": "/a/Users/dev/x"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"Users/dev/x\"",
+   "args": [
+    "/Users/dev",
+    "Users/dev/x"
+   ],
+   "out": "Users/dev/x"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"\"",
+   "args": [
+    "/Users/dev",
+    ""
+   ],
+   "out": ""
+  },
+  {
+   "name": "home \"/Users/dev\", path \"~\"",
+   "args": [
+    "/Users/dev",
+    "~"
+   ],
+   "out": "~"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"/Users/dev/~/x\"",
+   "args": [
+    "/Users/dev",
+    "/Users/dev/~/x"
+   ],
+   "out": "~/~/x"
+  },
+  {
+   "name": "home \"/Users/dev\", path \"/Users/dev/.\"",
+   "args": [
+    "/Users/dev",
+    "/Users/dev/."
+   ],
+   "out": "~/."
+  },
+  {
+   "name": "home \"/Users/dev\", path \"/Users/dev/..\"",
+   "args": [
+    "/Users/dev",
+    "/Users/dev/.."
+   ],
+   "out": "~/.."
+  },
+  {
+   "name": "home \"\", path \"\"",
+   "args": [
+    "",
+    ""
+   ],
+   "out": "~"
+  },
+  {
+   "name": "home \"\", path \"/x\"",
+   "args": [
+    "",
+    "/x"
+   ],
+   "out": "~/x"
+  },
+  {
+   "name": "home \"/\", path \"/x\"",
+   "args": [
+    "/",
+    "/x"
+   ],
+   "out": "/x"
+  },
+  {
+   "name": "home \"/\", path \"/\"",
+   "args": [
+    "/",
+    "/"
+   ],
+   "out": "~"
+  },
+  {
+   "name": "home \"/Users/dev/\", path \"/Users/dev/x\"",
+   "args": [
+    "/Users/dev/",
+    "/Users/dev/x"
+   ],
+   "out": "/Users/dev/x"
+  },
+  {
+   "name": "home \"/Users/dev/\", path \"/Users/dev/\"",
+   "args": [
+    "/Users/dev/",
+    "/Users/dev/"
+   ],
+   "out": "~"
+  },
+  {
+   "name": "home \"/Users/dev/\", path \"/Users/dev\"",
+   "args": [
+    "/Users/dev/",
+    "/Users/dev"
+   ],
+   "out": "/Users/dev"
+  }
+ ],
+ "with_ignore_unknown": [
+  {
+   "name": "the prelude alone",
+   "args": [
+    "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n"
+  },
+  {
+   "name": "the prelude then text",
+   "args": [
+    "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\nHost x\n"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\nHost x\n"
+  },
+  {
+   "name": "the prelude twice",
+   "args": [
+    "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n"
+  },
+  {
+   "name": "the prelude without its final newline",
+   "args": [
+    "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *"
+  },
+  {
+   "name": "a blank line before the prelude",
+   "args": [
+    "\n# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n\n# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n"
+  },
+  {
+   "name": "a BOM before the prelude",
+   "args": [
+    "﻿# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n﻿# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n"
+  },
+  {
+   "name": "the prelude with CRLF line ends",
+   "args": [
+    "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\r\nIgnoreUnknown *\r\n"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\r\nIgnoreUnknown *\r\n"
+  },
+  {
+   "name": "a BOM before text",
+   "args": [
+    "﻿Host x\n"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n﻿Host x\n"
+  },
+  {
+   "name": "CRLF text",
+   "args": [
+    "Host x\r\n  User me\r\n"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\nHost x\r\n  User me\r\n"
+  },
+  {
+   "name": "text with no final newline",
+   "args": [
+    "Host x"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\nHost x"
+  },
+  {
+   "name": "unicode text",
+   "args": [
+    "Host é😀\n"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\nHost é😀\n"
+  },
+  {
+   "name": "the prelude's comment line alone",
+   "args": [
+    "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\n"
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\n"
+  },
+  {
+   "name": "empty text",
+   "args": [
+    ""
+   ],
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n"
+  }
+ ],
+ "constants": [
+  {
+   "name": "SSH_CONFIG_PATH",
+   "out": "~/.ssh/config"
+  },
+  {
+   "name": "SSH_IGNORE_UNKNOWN_DETAIL",
+   "out": "copied with IgnoreUnknown at the top, since ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file"
+  },
+  {
+   "name": "PRELUDE",
+   "out": "# wsp: ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file.\nIgnoreUnknown *\n"
+  },
+  {
+   "name": "FINDER_METADATA",
+   "out": ".DS_Store"
+  },
+  {
+   "name": "CACHE_DIRS in order",
+   "out": [
+    "node_modules",
+    ".pnpm-store",
+    "venv",
+    ".venv",
+    "virtenv",
+    "site-packages",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    "dist",
+    "build",
+    "out",
+    "target",
+    "coverage",
+    ".cache",
+    ".parcel-cache",
+    ".next",
+    ".nuxt",
+    ".turbo",
+    ".gradle"
+   ]
+  }
+ ]
+}

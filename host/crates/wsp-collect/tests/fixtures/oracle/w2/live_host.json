@@ -1,0 +1,1723 @@
+{
+ "node_fs_stat": [
+  {
+   "name": "a file",
+   "tree": {
+    "f": "hello"
+   },
+   "op": "stat",
+   "path": "f",
+   "out": {
+    "kind": "file",
+    "bytes": 5
+   }
+  },
+  {
+   "name": "a missing path",
+   "tree": {},
+   "op": "stat",
+   "path": "nope",
+   "out": null
+  },
+  {
+   "name": "git and node_modules folders and links are not sized",
+   "tree": {
+    "tree/a.txt": "abc",
+    "tree/sub/b.txt": "defg",
+    "tree/.git/c": {
+     "bytes": 100
+    },
+    "tree/node_modules/d": {
+     "bytes": 100
+    },
+    "tree/deep/x/.git/y": {
+     "bytes": 50
+    },
+    "tree/link": {
+     "link": "<dir>/tree/a.txt"
+    }
+   },
+   "op": "stat",
+   "path": "tree",
+   "out": {
+    "kind": "dir",
+    "bytes": 7
+   }
+  },
+  {
+   "name": "a file named .git or node_modules is sized; an empty .git2 folder is not a problem",
+   "tree": {
+    "t/.git": "0123456789",
+    "t/sub/node_modules": "abc",
+    "t/a": "12",
+    "t/.git2/": {
+     "dir": true
+    }
+   },
+   "op": "stat",
+   "path": "t",
+   "out": {
+    "kind": "dir",
+    "bytes": 15
+   }
+  },
+  {
+   "name": "the root may be named node_modules",
+   "tree": {
+    "node_modules/x/f": {
+     "bytes": 5
+    }
+   },
+   "op": "stat",
+   "path": "node_modules",
+   "out": {
+    "kind": "dir",
+    "bytes": 5
+   }
+  },
+  {
+   "name": "an empty folder",
+   "tree": {
+    "empty": {
+     "dir": true
+    }
+   },
+   "op": "stat",
+   "path": "empty",
+   "out": {
+    "kind": "dir",
+    "bytes": 0
+   }
+  },
+  {
+   "name": "a hard link is counted twice",
+   "tree": {
+    "real/f": {
+     "bytes": 7
+    },
+    "real/hard": {
+     "hardlink": "real/f"
+    }
+   },
+   "op": "stat",
+   "path": "real",
+   "out": {
+    "kind": "dir",
+    "bytes": 14
+   }
+  },
+  {
+   "name": "a fifo has no stat",
+   "tree": {
+    "ff": {
+     "fifo": true
+    }
+   },
+   "op": "stat",
+   "path": "ff",
+   "out": null
+  },
+  {
+   "name": "a fifo in a folder is not counted",
+   "tree": {
+    "d/ff": {
+     "fifo": true
+    },
+    "d/f": {
+     "bytes": 3
+    }
+   },
+   "op": "stat",
+   "path": "d",
+   "out": {
+    "kind": "dir",
+    "bytes": 3
+   }
+  },
+  {
+   "name": "a link to a folder is followed",
+   "tree": {
+    "real/f": {
+     "bytes": 7
+    },
+    "linkdir": {
+     "link": "<dir>/real"
+    },
+    "linkfile": {
+     "link": "<dir>/real/f"
+    },
+    "broken": {
+     "link": "<dir>/nope"
+    }
+   },
+   "op": "stat",
+   "path": "linkdir",
+   "out": {
+    "kind": "dir",
+    "bytes": 7
+   }
+  },
+  {
+   "name": "a link to a file is followed",
+   "tree": {
+    "real/f": {
+     "bytes": 7
+    },
+    "linkdir": {
+     "link": "<dir>/real"
+    },
+    "linkfile": {
+     "link": "<dir>/real/f"
+    },
+    "broken": {
+     "link": "<dir>/nope"
+    }
+   },
+   "op": "stat",
+   "path": "linkfile",
+   "out": {
+    "kind": "file",
+    "bytes": 7
+   }
+  },
+  {
+   "name": "a broken link has no stat",
+   "tree": {
+    "real/f": {
+     "bytes": 7
+    },
+    "linkdir": {
+     "link": "<dir>/real"
+    },
+    "linkfile": {
+     "link": "<dir>/real/f"
+    },
+    "broken": {
+     "link": "<dir>/nope"
+    }
+   },
+   "op": "stat",
+   "path": "broken",
+   "out": null
+  },
+  {
+   "name": "a path under a file has no stat",
+   "tree": {
+    "f": "x"
+   },
+   "op": "stat",
+   "path": "f/g",
+   "out": null
+  }
+ ],
+ "node_fs_list": [
+  {
+   "name": "names sort by UTF-16 units, dots and links included",
+   "tree": {
+    "w/a/x": "",
+    "w/a-b/x": "",
+    "w/a.b/x": "",
+    "w/a0": "",
+    "w/B": "",
+    "w/b": "",
+    "w/é": "",
+    "w/Ａ": "",
+    "w/😀": "",
+    "w/a/B": "",
+    "w/a/a": "",
+    "w/.hidden": "",
+    "w/link": {
+     "link": "<dir>/w/a0"
+    }
+   },
+   "op": "list",
+   "path": "w",
+   "out": [
+    ".hidden",
+    "B",
+    "a",
+    "a-b",
+    "a.b",
+    "a0",
+    "b",
+    "link",
+    "é",
+    "😀",
+    "Ａ"
+   ]
+  },
+  {
+   "name": "a link to a folder as the root",
+   "tree": {
+    "real/f": {
+     "bytes": 7
+    },
+    "linkdir": {
+     "link": "<dir>/real"
+    },
+    "linkfile": {
+     "link": "<dir>/real/f"
+    },
+    "broken": {
+     "link": "<dir>/nope"
+    }
+   },
+   "op": "list",
+   "path": "linkdir",
+   "out": [
+    "f"
+   ]
+  },
+  {
+   "name": "a file has no names",
+   "tree": {
+    "real/f": {
+     "bytes": 7
+    },
+    "linkdir": {
+     "link": "<dir>/real"
+    },
+    "linkfile": {
+     "link": "<dir>/real/f"
+    },
+    "broken": {
+     "link": "<dir>/nope"
+    }
+   },
+   "op": "list",
+   "path": "real/f",
+   "out": []
+  },
+  {
+   "name": "a missing folder",
+   "tree": {},
+   "op": "list",
+   "path": "nope",
+   "out": []
+  },
+  {
+   "name": "an empty folder",
+   "tree": {
+    "e": {
+     "dir": true
+    }
+   },
+   "op": "list",
+   "path": "e",
+   "out": []
+  },
+  {
+   "name": "git and node_modules are listed by name",
+   "tree": {
+    "tree/a.txt": "abc",
+    "tree/sub/b.txt": "defg",
+    "tree/.git/c": {
+     "bytes": 100
+    },
+    "tree/node_modules/d": {
+     "bytes": 100
+    },
+    "tree/deep/x/.git/y": {
+     "bytes": 50
+    },
+    "tree/link": {
+     "link": "<dir>/tree/a.txt"
+    }
+   },
+   "op": "list",
+   "path": "tree",
+   "out": [
+    ".git",
+    "a.txt",
+    "deep",
+    "link",
+    "node_modules",
+    "sub"
+   ]
+  }
+ ],
+ "node_fs_walk": [
+  {
+   "name": "whole paths sort by UTF-16 units: a-b/x before a/B, an astral name before U+FF21",
+   "tree": {
+    "w/a/x": "",
+    "w/a-b/x": "",
+    "w/a.b/x": "",
+    "w/a0": "",
+    "w/B": "",
+    "w/b": "",
+    "w/é": "",
+    "w/Ａ": "",
+    "w/😀": "",
+    "w/a/B": "",
+    "w/a/a": ""
+   },
+   "op": "walk",
+   "path": "w",
+   "out": [
+    "<dir>/w/B",
+    "<dir>/w/a-b/x",
+    "<dir>/w/a.b/x",
+    "<dir>/w/a/B",
+    "<dir>/w/a/a",
+    "<dir>/w/a/x",
+    "<dir>/w/a0",
+    "<dir>/w/b",
+    "<dir>/w/é",
+    "<dir>/w/😀",
+    "<dir>/w/Ａ"
+   ]
+  },
+  {
+   "name": "a trailing slash is normalised away",
+   "tree": {
+    "w/a/x": "",
+    "w/a-b/x": "",
+    "w/a.b/x": "",
+    "w/a0": "",
+    "w/B": "",
+    "w/b": "",
+    "w/é": "",
+    "w/Ａ": "",
+    "w/😀": "",
+    "w/a/B": "",
+    "w/a/a": ""
+   },
+   "op": "walk",
+   "path": "w/",
+   "out": [
+    "<dir>/w/B",
+    "<dir>/w/a-b/x",
+    "<dir>/w/a.b/x",
+    "<dir>/w/a/B",
+    "<dir>/w/a/a",
+    "<dir>/w/a/x",
+    "<dir>/w/a0",
+    "<dir>/w/b",
+    "<dir>/w/é",
+    "<dir>/w/😀",
+    "<dir>/w/Ａ"
+   ]
+  },
+  {
+   "name": "a double trailing slash is normalised away",
+   "tree": {
+    "w/a/x": "",
+    "w/a-b/x": "",
+    "w/a.b/x": "",
+    "w/a0": "",
+    "w/B": "",
+    "w/b": "",
+    "w/é": "",
+    "w/Ａ": "",
+    "w/😀": "",
+    "w/a/B": "",
+    "w/a/a": ""
+   },
+   "op": "walk",
+   "path": "w//",
+   "out": [
+    "<dir>/w/B",
+    "<dir>/w/a-b/x",
+    "<dir>/w/a.b/x",
+    "<dir>/w/a/B",
+    "<dir>/w/a/a",
+    "<dir>/w/a/x",
+    "<dir>/w/a0",
+    "<dir>/w/b",
+    "<dir>/w/é",
+    "<dir>/w/😀",
+    "<dir>/w/Ａ"
+   ]
+  },
+  {
+   "name": "dot-dot segments are normalised",
+   "tree": {
+    "w/a/x": "",
+    "w/a-b/x": "",
+    "w/a.b/x": "",
+    "w/a0": "",
+    "w/B": "",
+    "w/b": "",
+    "w/é": "",
+    "w/Ａ": "",
+    "w/😀": "",
+    "w/a/B": "",
+    "w/a/a": ""
+   },
+   "op": "walk",
+   "path": "w/a/../a-b",
+   "out": [
+    "<dir>/w/a-b/x"
+   ]
+  },
+  {
+   "name": "dot segments are normalised",
+   "tree": {
+    "w/a/x": "",
+    "w/a-b/x": "",
+    "w/a.b/x": "",
+    "w/a0": "",
+    "w/B": "",
+    "w/b": "",
+    "w/é": "",
+    "w/Ａ": "",
+    "w/😀": "",
+    "w/a/B": "",
+    "w/a/a": ""
+   },
+   "op": "walk",
+   "path": "w/./a-b",
+   "out": [
+    "<dir>/w/a-b/x"
+   ]
+  },
+  {
+   "name": "git and node_modules folders and links are not entered",
+   "tree": {
+    "tree/a.txt": "abc",
+    "tree/sub/b.txt": "defg",
+    "tree/.git/c": {
+     "bytes": 100
+    },
+    "tree/node_modules/d": {
+     "bytes": 100
+    },
+    "tree/deep/x/.git/y": {
+     "bytes": 50
+    },
+    "tree/link": {
+     "link": "<dir>/tree/a.txt"
+    }
+   },
+   "op": "walk",
+   "path": "tree",
+   "out": [
+    "<dir>/tree/a.txt",
+    "<dir>/tree/sub/b.txt"
+   ]
+  },
+  {
+   "name": "a file named .git or node_modules is listed",
+   "tree": {
+    "t/.git": "0123456789",
+    "t/sub/node_modules": "abc",
+    "t/a": "12",
+    "t/.git2/": {
+     "dir": true
+    }
+   },
+   "op": "walk",
+   "path": "t",
+   "out": [
+    "<dir>/t/.git",
+    "<dir>/t/a",
+    "<dir>/t/sub/node_modules"
+   ]
+  },
+  {
+   "name": "the root may be named node_modules",
+   "tree": {
+    "node_modules/x/f": {
+     "bytes": 5
+    }
+   },
+   "op": "walk",
+   "path": "node_modules",
+   "out": [
+    "<dir>/node_modules/x/f"
+   ]
+  },
+  {
+   "name": "a hard link is a file; a fifo is not listed",
+   "tree": {
+    "real/f": {
+     "bytes": 7
+    },
+    "real/hard": {
+     "hardlink": "real/f"
+    },
+    "real/ff": {
+     "fifo": true
+    }
+   },
+   "op": "walk",
+   "path": "real",
+   "out": [
+    "<dir>/real/f",
+    "<dir>/real/hard"
+   ]
+  },
+  {
+   "name": "a link to a folder as the root keeps the link's name",
+   "tree": {
+    "real/f": {
+     "bytes": 7
+    },
+    "linkdir": {
+     "link": "<dir>/real"
+    },
+    "linkfile": {
+     "link": "<dir>/real/f"
+    },
+    "broken": {
+     "link": "<dir>/nope"
+    }
+   },
+   "op": "walk",
+   "path": "linkdir",
+   "out": [
+    "<dir>/linkdir/f"
+   ]
+  },
+  {
+   "name": "a file has no walk",
+   "tree": {
+    "real/f": {
+     "bytes": 7
+    },
+    "linkdir": {
+     "link": "<dir>/real"
+    },
+    "linkfile": {
+     "link": "<dir>/real/f"
+    },
+    "broken": {
+     "link": "<dir>/nope"
+    }
+   },
+   "op": "walk",
+   "path": "real/f",
+   "out": []
+  },
+  {
+   "name": "a missing folder",
+   "tree": {},
+   "op": "walk",
+   "path": "nope",
+   "out": []
+  }
+ ],
+ "node_fs_read_text": [
+  {
+   "name": "a BOM is kept",
+   "tree": {
+    "f": {
+     "hex": "ef bb bf 61"
+    }
+   },
+   "op": "read_text",
+   "path": "f",
+   "out": "﻿a"
+  },
+  {
+   "name": "invalid byte runs become one replacement per maximal subpart",
+   "tree": {
+    "f": {
+     "hex": "61 e2 82 62 f0 9f 98 63 ed a0 80 64 c0 af 65 ff"
+    }
+   },
+   "op": "read_text",
+   "path": "f",
+   "out": "a�b�c���d��e�"
+  },
+  {
+   "name": "a folder has no text",
+   "tree": {
+    "d": {
+     "dir": true
+    }
+   },
+   "op": "read_text",
+   "path": "d",
+   "out": null
+  },
+  {
+   "name": "a missing file",
+   "tree": {},
+   "op": "read_text",
+   "path": "nope",
+   "out": null
+  },
+  {
+   "name": "an empty file is empty text",
+   "tree": {
+    "f": ""
+   },
+   "op": "read_text",
+   "path": "f",
+   "out": ""
+  },
+  {
+   "name": "a NUL is kept",
+   "tree": {
+    "f": {
+     "hex": "61 00 62"
+    }
+   },
+   "op": "read_text",
+   "path": "f",
+   "out": "a\u0000b"
+  }
+ ],
+ "node_fs_lines": [
+  {
+   "name": "an empty file has no lines",
+   "tree": {
+    "f": ""
+   },
+   "op": "lines",
+   "path": "f",
+   "out": []
+  },
+  {
+   "name": "a lone LF is one empty line",
+   "tree": {
+    "f": "\n"
+   },
+   "op": "lines",
+   "path": "f",
+   "out": [
+    ""
+   ]
+  },
+  {
+   "name": "a lone CR is one empty line",
+   "tree": {
+    "f": "\r"
+   },
+   "op": "lines",
+   "path": "f",
+   "out": [
+    ""
+   ]
+  },
+  {
+   "name": "two LF are two empty lines",
+   "tree": {
+    "f": "\n\n"
+   },
+   "op": "lines",
+   "path": "f",
+   "out": [
+    "",
+    ""
+   ]
+  },
+  {
+   "name": "a trailing LF gives no last empty line",
+   "tree": {
+    "f": "a\nb\n"
+   },
+   "op": "lines",
+   "path": "f",
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "a BOM is kept",
+   "tree": {
+    "f": {
+     "hex": "ef bb bf 61 0a 62"
+    }
+   },
+   "op": "lines",
+   "path": "f",
+   "out": [
+    "﻿a",
+    "b"
+   ]
+  },
+  {
+   "name": "a NUL is kept",
+   "tree": {
+    "f": {
+     "hex": "61 00 62 0a"
+    }
+   },
+   "op": "lines",
+   "path": "f",
+   "out": [
+    "a\u0000b"
+   ]
+  },
+  {
+   "name": "an empty needle holds every line",
+   "tree": {
+    "f": "a\n\nb"
+   },
+   "op": "lines",
+   "path": "f",
+   "holding": "",
+   "out": [
+    "a",
+    "",
+    "b"
+   ]
+  },
+  {
+   "name": "a needle holding a CR matches before the CR is dropped",
+   "tree": {
+    "f": "ab\r\ncd\n"
+   },
+   "op": "lines",
+   "path": "f",
+   "holding": "b\r",
+   "out": [
+    "ab"
+   ]
+  },
+  {
+   "name": "a needle without the CR matches the same line",
+   "tree": {
+    "f": "ab\r\ncd\n"
+   },
+   "op": "lines",
+   "path": "f",
+   "holding": "b",
+   "out": [
+    "ab"
+   ]
+  },
+  {
+   "name": "a needle of LF matches nothing",
+   "tree": {
+    "f": "ab\ncd\n"
+   },
+   "op": "lines",
+   "path": "f",
+   "holding": "\n",
+   "out": []
+  },
+  {
+   "name": "the needle is case sensitive",
+   "tree": {
+    "f": "Ab\nab\n"
+   },
+   "op": "lines",
+   "path": "f",
+   "holding": "ab",
+   "out": [
+    "ab"
+   ]
+  },
+  {
+   "name": "the needle is matched as UTF-8 bytes",
+   "tree": {
+    "f": "café\ncafe\n"
+   },
+   "op": "lines",
+   "path": "f",
+   "holding": "é",
+   "out": [
+    "café"
+   ]
+  },
+  {
+   "name": "a last line without LF is matched and loses its CR",
+   "tree": {
+    "f": "x\ny\r"
+   },
+   "op": "lines",
+   "path": "f",
+   "holding": "y",
+   "out": [
+    "y"
+   ]
+  },
+  {
+   "name": "CR at the last byte of a read, LF first of the next",
+   "tree": {
+    "f": {
+     "cat": [
+      [
+       "x",
+       1048575
+      ],
+      [
+       "\r\n",
+       1
+      ],
+      [
+       "tail\n",
+       1
+      ]
+     ]
+    }
+   },
+   "op": "lines",
+   "path": "f",
+   "lens": true,
+   "out_lens": [
+    1048575,
+    4
+   ]
+  },
+  {
+   "name": "a line exactly one read long, then its LF",
+   "tree": {
+    "f": {
+     "cat": [
+      [
+       "x",
+       1048576
+      ],
+      [
+       "\n",
+       1
+      ],
+      [
+       "y\n",
+       1
+      ]
+     ]
+    }
+   },
+   "op": "lines",
+   "path": "f",
+   "lens": true,
+   "out_lens": [
+    1048576,
+    1
+   ]
+  },
+  {
+   "name": "a needle straddling the read boundary",
+   "tree": {
+    "f": {
+     "cat": [
+      [
+       "a\n",
+       1
+      ],
+      [
+       "y",
+       1048570
+      ],
+      [
+       "TOOL",
+       1
+      ],
+      [
+       "z",
+       10
+      ],
+      [
+       "\nq\n",
+       1
+      ]
+     ]
+    }
+   },
+   "op": "lines",
+   "path": "f",
+   "holding": "TOOL",
+   "lens": true,
+   "out_lens": [
+    1048584
+   ]
+  },
+  {
+   "name": "lines ending exactly at the read end",
+   "tree": {
+    "f": {
+     "cat": [
+      [
+       "x",
+       1048575
+      ],
+      [
+       "\n",
+       1
+      ],
+      [
+       "w",
+       1048575
+      ],
+      [
+       "\n",
+       1
+      ]
+     ]
+    }
+   },
+   "op": "lines",
+   "path": "f",
+   "lens": true,
+   "out_lens": [
+    1048575,
+    1048575
+   ]
+  },
+  {
+   "name": "a CR as the last byte of the file at the read end",
+   "tree": {
+    "f": {
+     "cat": [
+      [
+       "x",
+       1048575
+      ],
+      [
+       "\r",
+       1
+      ]
+     ]
+    }
+   },
+   "op": "lines",
+   "path": "f",
+   "lens": true,
+   "out_lens": [
+    1048575
+   ]
+  },
+  {
+   "name": "a multi-byte character across the read boundary",
+   "tree": {
+    "f": {
+     "cat": [
+      [
+       "a",
+       1048575
+      ],
+      [
+       "é",
+       1
+      ],
+      [
+       "\nz",
+       1
+      ]
+     ]
+    }
+   },
+   "op": "lines",
+   "path": "f",
+   "lens": true,
+   "out_lens": [
+    1048576,
+    1
+   ]
+  },
+  {
+   "name": "a folder gives no lines",
+   "tree": {
+    "d": {
+     "dir": true
+    }
+   },
+   "op": "lines",
+   "path": "d",
+   "out": []
+  },
+  {
+   "name": "a missing file gives no lines",
+   "tree": {},
+   "op": "lines",
+   "path": "nope",
+   "out": []
+  }
+ ],
+ "on_path": [
+  {
+   "name": "a folder named like the bin counts",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "adir",
+   "path": "<dir>/bin1",
+   "out": true
+  },
+  {
+   "name": "an empty bin counts when a PATH folder exists",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "",
+   "path": "<dir>/bin1",
+   "out": true
+  },
+  {
+   "name": "only empty entries",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "",
+   "path": "::",
+   "out": false
+  },
+  {
+   "name": "a file without an executable bit",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "tool",
+   "path": "<dir>/bin2",
+   "out": false
+  },
+  {
+   "name": "an executable file",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "exe",
+   "path": "<dir>/bin2",
+   "out": true
+  },
+  {
+   "name": "a later folder wins when the earlier one has a non-executable file of the name",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "exe",
+   "path": "<dir>/bin1:<dir>/bin2",
+   "out": true
+  },
+  {
+   "name": "a bin with a slash is joined under the folder",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "sub/exe2",
+   "path": "<dir>/bin2",
+   "out": true
+  },
+  {
+   "name": "an absolute bin is joined under the folder, not used as it is",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "<dir>/bin2/exe",
+   "path": "<dir>/bin2",
+   "out": false
+  },
+  {
+   "name": "a bin with dot-dot",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "../bin2/exe",
+   "path": "<dir>/bin1",
+   "out": true
+  },
+  {
+   "name": "a link to an executable",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "linkexe",
+   "path": "<dir>/bin1",
+   "out": true
+  },
+  {
+   "name": "a broken link",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "dead",
+   "path": "<dir>/bin1",
+   "out": false
+  },
+  {
+   "name": "PATH unset",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "exe",
+   "path": null,
+   "out": false
+  },
+  {
+   "name": "PATH empty",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "exe",
+   "path": "",
+   "out": false
+  },
+  {
+   "name": "a PATH entry with a leading space is not trimmed",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "exe",
+   "path": " <dir>/bin2",
+   "out": false
+  },
+  {
+   "name": "a PATH entry with a trailing slash",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "exe",
+   "path": "<dir>/bin2/",
+   "out": true
+  },
+  {
+   "name": "a missing folder first, then the real one",
+   "tree": {
+    "bin1/adir/": {
+     "dir": true
+    },
+    "bin1/exe": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin1/linkexe": {
+     "link": "<dir>/bin2/exe"
+    },
+    "bin1/dead": {
+     "link": "<dir>/nowhere"
+    },
+    "bin2/tool": {
+     "text": "x",
+     "mode": "0644"
+    },
+    "bin2/exe": {
+     "text": "x",
+     "mode": "0755"
+    },
+    "bin2/sub/exe2": {
+     "text": "x",
+     "mode": "0755"
+    }
+   },
+   "bin": "exe",
+   "path": "<dir>/nope:<dir>/bin2",
+   "out": true
+  }
+ ],
+ "children_of": [
+  {
+   "name": "the listing of the ported test",
+   "args": [
+    "  1     0\n 20 1\nx y\n 21 1\n\n 30 20\n"
+   ],
+   "out": {
+    "0": [
+     1
+    ],
+    "1": [
+     20,
+     21
+    ],
+    "20": [
+     30
+    ]
+   }
+  },
+  {
+   "name": "a third column is ignored",
+   "args": [
+    "5 1 extra\n6 1\n"
+   ],
+   "out": {
+    "1": [
+     5,
+     6
+    ]
+   }
+  },
+  {
+   "name": "a duplicate line is kept twice",
+   "args": [
+    "5 1\n5 1\n"
+   ],
+   "out": {
+    "1": [
+     5,
+     5
+    ]
+   }
+  },
+  {
+   "name": "a one column line is skipped",
+   "args": [
+    "5\n6 1\n"
+   ],
+   "out": {
+    "1": [
+     6
+    ]
+   }
+  },
+  {
+   "name": "tabs, CR and padding",
+   "args": [
+    "\t5\t1\r\n 6   1 \n"
+   ],
+   "out": {
+    "1": [
+     5,
+     6
+    ]
+   }
+  },
+  {
+   "name": "a plus sign parses",
+   "args": [
+    "+5 1\n"
+   ],
+   "out": {
+    "1": [
+     5
+    ]
+   }
+  },
+  {
+   "name": "a hex pid parses as its value",
+   "args": [
+    "0x10 5\n"
+   ],
+   "out": {
+    "5": [
+     16
+    ]
+   }
+  },
+  {
+   "name": "an exponent pid parses as its value",
+   "args": [
+    "1e2 7\n"
+   ],
+   "out": {
+    "7": [
+     100
+    ]
+   }
+  },
+  {
+   "name": "a pid that is its own parent",
+   "args": [
+    "1 1\n"
+   ],
+   "out": {
+    "1": [
+     1
+    ]
+   }
+  },
+  {
+   "name": "an empty listing",
+   "args": [
+    ""
+   ],
+   "out": {}
+  }
+ ],
+ "platform_of": [
+  {
+   "name": "node platform \"darwin\"",
+   "args": [
+    "darwin"
+   ],
+   "out": "darwin"
+  },
+  {
+   "name": "node platform \"linux\"",
+   "args": [
+    "linux"
+   ],
+   "out": "linux"
+  },
+  {
+   "name": "node platform \"macos\"",
+   "args": [
+    "macos"
+   ],
+   "out": null
+  },
+  {
+   "name": "node platform \"win32\"",
+   "args": [
+    "win32"
+   ],
+   "out": null
+  },
+  {
+   "name": "node platform \"windows\"",
+   "args": [
+    "windows"
+   ],
+   "out": null
+  },
+  {
+   "name": "node platform \"freebsd\"",
+   "args": [
+    "freebsd"
+   ],
+   "out": null
+  },
+  {
+   "name": "node platform \"\"",
+   "args": [
+    ""
+   ],
+   "out": null
+  }
+ ]
+}

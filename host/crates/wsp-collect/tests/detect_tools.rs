@@ -472,3 +472,142 @@ mod pins {
         );
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/apt_tools.json (oracle/w2-apt_tools.oracle.ts): the TS's own answers on the
+/// edges spec apt_tools's wave-2 rules name (W1 to W16). Each case names what it pins.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, strs, w2};
+    use serde_json::Value;
+    use wsp_collect::detect::apt::{apt_packages, apt_sizes, parse_apt_manual, parse_dpkg_fields};
+    use wsp_collect::detect::tools::{js_global_folders, package_commands};
+
+    fn fixture() -> Value {
+        w2("apt_tools")
+    }
+
+    fn arg(case: &Value, i: usize) -> &str {
+        case["args"][i].as_str().unwrap()
+    }
+
+    fn pkg_json(p: &Pkg) -> Value {
+        let mut o = serde_json::Map::new();
+        o.insert("name".into(), json!(p.name));
+        if let Some(v) = &p.version {
+            o.insert("version".into(), json!(v));
+        }
+        if let Some(v) = &p.path {
+            o.insert("path".into(), json!(v));
+        }
+        Value::Object(o)
+    }
+
+    fn pkgs_json(p: &[Pkg]) -> Value {
+        Value::Array(p.iter().map(pkg_json).collect())
+    }
+
+    fn pairs(m: &indexmap::IndexMap<String, String>) -> Value {
+        Value::Array(m.iter().map(|(k, v)| json!([k, v])).collect())
+    }
+
+    #[test]
+    fn dpkg_fields_and_the_manual_list_read_as_the_ts_read_them() {
+        let f = fixture();
+        for case in cases(&f, "parse_dpkg_fields") {
+            assert_eq!(pairs(&parse_dpkg_fields(arg(case, 0))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "parse_apt_manual") {
+            assert_eq!(json!(parse_apt_manual(arg(case, 0))), case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn apt_packages_keeps_runs_and_reads_what_the_ts_did() {
+        for case in cases(&fixture(), "apt_packages") {
+            let h = host(&case["laptop"]);
+            match block_on(apt_packages(&h)) {
+                Ok(got) => assert_eq!(pkgs_json(&got), case["out"], "{}", case["name"]),
+                Err(e) => assert_eq!(json!(e.message), case["error"], "{}", case["name"]),
+            }
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn apt_sizes_reads_each_field_as_javascript_s_number_in_the_order_asked() {
+        for case in cases(&fixture(), "apt_sizes") {
+            let h = host(&case["laptop"]);
+            let names = strs(&case["args"][0]);
+            let got: Vec<(String, f64)> = block_on(apt_sizes(&h, &names)).into_iter().collect();
+            let want: Vec<(String, f64)> =
+                case["out"].as_array().unwrap().iter().map(|p| (p[0].as_str().unwrap().to_string(), p[1].as_f64().unwrap())).collect();
+            assert_eq!(got, want, "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn every_listing_parser_answers_what_the_ts_answered() {
+        let f = fixture();
+        for case in cases(&f, "parse_brewfile") {
+            let got: Vec<Value> = parse_brewfile(arg(case, 0))
+                .iter()
+                .map(|l| json!({ "kind": if l.kind == BrewKind::Tap { "tap" } else { "brew" }, "name": l.name }))
+                .collect();
+            assert_eq!(Value::Array(got), case["out"], "{}", case["name"]);
+        }
+        let parsers: [(&str, fn(&str) -> Vec<Pkg>); 6] = [
+            ("parse_npm_globals", parse_npm_globals),
+            ("parse_pnpm_globals", parse_pnpm_globals),
+            ("parse_pipx_list", parse_pipx_list),
+            ("parse_uv_tool_list", parse_uv_tool_list),
+            ("parse_cargo_installs", parse_cargo_installs),
+            ("parse_bun_globals", parse_bun_globals),
+        ];
+        for (key, parse) in parsers {
+            for case in cases(&f, key) {
+                assert_eq!(pkgs_json(&parse(arg(case, 0))), case["out"], "{key}: {}", case["name"]);
+            }
+        }
+        for case in cases(&f, "parse_go_version_m") {
+            let got = parse_go_version_m(arg(case, 0)).map(|m| json!({ "path": m.path, "version": m.version })).unwrap_or(Value::Null);
+            assert_eq!(got, case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn global_folders_and_package_commands_answer_and_read_what_the_ts_did() {
+        let f = fixture();
+        for case in cases(&f, "js_global_folders") {
+            let h = host(&case["laptop"]);
+            let folders = block_on(js_global_folders(&h));
+            assert_eq!(json!(folders(arg(case, 0))), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+        for case in cases(&f, "package_commands") {
+            let h = host(&case["laptop"]);
+            let got = block_on(package_commands(&h, arg(case, 0), &strs(&case["args"][1])));
+            assert_eq!(json!(got), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+
+    /// Rows compare whole; calls compare in order only where one manager ran (the TS interleaves managers, so a case
+    /// with several has no `calls`).
+    #[test]
+    fn detect_tools_writes_the_rows_the_ts_wrote() {
+        for case in cases(&fixture(), "detect_tools") {
+            let h = host(&case["laptop"]);
+            match block_on(detect_tools(&h)) {
+                Ok(rows) => {
+                    let got: Vec<Value> = rows.iter().map(|r| serde_json::to_value(r).unwrap()).collect();
+                    assert_eq!(Value::Array(got), case["out"], "{}", case["name"]);
+                }
+                Err(e) => assert_eq!(json!(e.message), case["error"], "{}", case["name"]),
+            }
+            if !case["calls"].is_null() {
+                assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+            }
+        }
+    }
+}

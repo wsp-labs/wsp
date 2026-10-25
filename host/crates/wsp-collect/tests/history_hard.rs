@@ -369,3 +369,527 @@ mod store {
         assert!(out.is_err());
     }
 }
+
+/// Which error a store answers when more than one of its reads fails, and what the reads still open do after the
+/// first failure (spec history_store rule 7). The TS traces were printed by a gated reader in the TS, 2026-10-25:
+/// file 3 failing before file 1 throws file 1's error; file 2 failing before file 4 (which worker 0 took after file 0)
+/// throws file 4's error.
+mod workers {
+    use super::*;
+    use futures::channel::oneshot;
+    use futures::future::{BoxFuture, LocalBoxFuture};
+    use futures::stream::LocalBoxStream;
+    use futures::FutureExt;
+    use std::cell::Cell;
+    use wsp_collect::history::reader::{Call, HistoryFile};
+    use wsp_collect::host::Host;
+    use wsp_words::exit::HostError;
+
+    fn error(message: &str) -> HostError {
+        HostError { message: message.to_string(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }
+    }
+
+    /// Each file's read waits on its own gate; the gate's message, when there is one, is the read's error.
+    struct Gated {
+        gates: RefCell<Vec<Option<oneshot::Receiver<Option<String>>>>>,
+        stamps: Vec<String>,
+        started: RefCell<Vec<usize>>,
+    }
+
+    impl HistoryReader for Gated {
+        fn files<'a>(&'a self, _host: &'a Host, _root: &'a str) -> LocalBoxFuture<'a, Vec<HistoryFile>> {
+            async move { self.stamps.iter().enumerate().map(|(i, stamp)| HistoryFile { path: format!("/f{i}"), stamp: stamp.clone() }).collect() }
+                .boxed_local()
+        }
+
+        fn read<'a>(&'a self, _host: &'a Host, _root: &'a str, file: &'a str) -> LocalBoxStream<'a, Result<Call, HostError>> {
+            let i: usize = file[2..].parse().unwrap();
+            self.started.borrow_mut().push(i);
+            let gate = self.gates.borrow_mut()[i].take().unwrap();
+            futures::stream::once(async move {
+                match gate.await.unwrap() {
+                    Some(message) => Err(error(&message)),
+                    None => Ok(Call { session: format!("s{i}"), folder: None, at: None, kind: CallKind::Other { name: "Read".into() } }),
+                }
+            })
+            .boxed_local()
+        }
+
+        fn holder(&self, _root: &str, file: &str) -> String {
+            file.to_string()
+        }
+    }
+
+    /// Lets every ready future run before the next gate opens.
+    fn settle() -> BoxFuture<'static, ()> {
+        async {
+            for _ in 0..50 {
+                let mut once = false;
+                futures::future::poll_fn(|cx| {
+                    if once {
+                        std::task::Poll::Ready(())
+                    } else {
+                        once = true;
+                        cx.waker().wake_by_ref();
+                        std::task::Poll::Pending
+                    }
+                })
+                .await;
+            }
+        }
+        .boxed()
+    }
+
+    /// Opens the gates in `order`, each with its outcome, and answers the store's result, the files started in order,
+    /// and every `on_file` count told.
+    fn run(files: usize, order: &[(usize, Option<&str>)]) -> (Result<u64, String>, Vec<usize>, Vec<(usize, usize)>) {
+        run_with(&vec!["1:1".to_string(); files], None, order)
+    }
+
+    /// `run` with each file's stamp given and a cache passed to the store.
+    fn run_with(
+        stamps: &[String],
+        cache: Option<&dyn HistoryCache>,
+        order: &[(usize, Option<&str>)],
+    ) -> (Result<u64, String>, Vec<usize>, Vec<(usize, usize)>) {
+        let files = stamps.len();
+        let mut senders = Vec::new();
+        let mut gates = Vec::new();
+        for _ in 0..files {
+            let (tx, rx) = oneshot::channel();
+            senders.push(Some(tx));
+            gates.push(Some(rx));
+        }
+        let reader = Gated { gates: RefCell::new(gates), stamps: stamps.to_vec(), started: RefCell::new(vec![]) };
+        let told = RefCell::new(Vec::new());
+        let on_file = |read: usize, total: usize| told.borrow_mut().push((read, total));
+        let host = empty_host();
+        let done = Cell::new(false);
+        let store = async {
+            let r = read_store(&host, &reader, "/root", StoreOptions { on_file: Some(&on_file), cache, ..Default::default() }).await;
+            done.set(true);
+            r
+        };
+        let driver = async {
+            settle().await;
+            for (i, outcome) in order {
+                let _ = senders[*i].take().unwrap().send(outcome.map(str::to_string));
+                settle().await;
+            }
+        };
+        let (result, ()) = block_on(futures::future::join(store, driver));
+        assert!(done.get());
+        (result.map(|u| u.calls).map_err(|e| e.message), reader.started.into_inner(), told.into_inner())
+    }
+
+    #[test]
+    fn the_lowest_numbered_worker_s_failure_is_the_error_not_the_first_in_time() {
+        let (result, started, told) = run(9, &[(3, Some("E3")), (1, Some("E1")), (0, None), (2, None)]);
+        assert_eq!(result, Err("E1".to_string()));
+        // Four reads start at once; after file 3 fails no file is started, and the two still open finish and are told.
+        assert_eq!(started, vec![0, 1, 2, 3]);
+        assert_eq!(told, vec![(1, 9), (2, 9)]);
+    }
+
+    #[test]
+    fn a_later_file_on_worker_0_beats_an_earlier_file_on_worker_2() {
+        let (result, started, told) = run(9, &[(0, None), (2, Some("E2")), (4, Some("E4")), (1, None), (3, None)]);
+        assert_eq!(result, Err("E4".to_string()));
+        assert_eq!(started, vec![0, 1, 2, 3, 4]);
+        assert_eq!(told, vec![(1, 9), (2, 9), (3, 9)]);
+    }
+
+    #[test]
+    fn with_no_failure_every_file_is_read_four_at_a_time_in_file_order() {
+        let order: Vec<(usize, Option<&str>)> = vec![(1, None), (0, None), (3, None), (2, None), (4, None), (5, None)];
+        let (result, started, told) = run(6, &order);
+        assert_eq!(result, Ok(6));
+        // Worker 1 finishes first and takes file 4, worker 0 next takes file 5.
+        assert_eq!(started, vec![0, 1, 2, 3, 4, 5]);
+        assert_eq!(told, (1..=6).map(|n| (n, 6)).collect::<Vec<_>>());
+    }
+
+    fn cache_keys(path: &std::path::Path) -> Vec<String> {
+        let file: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        file["files"].as_object().unwrap().keys().cloned().collect()
+    }
+
+    /// The cache's `files` map is in the order entries were kept: a hit when it is asked, a read when it lands
+    /// (spec history_store rule 12). TS trace: releasing 3, 1, 0, 2, 4, 5 keeps f3, f1, f0, f2, f4, f5; a second run
+    /// with f3's stamp moved keeps the hits f0, f1, f2, f4, f5 as asked, then f3 when its read lands.
+    #[test]
+    fn the_cache_keeps_files_in_the_order_they_were_kept_across_a_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("history-cache.json");
+        let stamps: Vec<String> = (0..6).map(|i| format!("s{i}")).collect();
+        let cache = file_history_cache(&path);
+        let order: Vec<(usize, Option<&str>)> = [3, 1, 0, 2, 4, 5].iter().map(|i| (*i, None)).collect();
+        let (result, _, _) = run_with(&stamps, Some(&cache), &order);
+        assert_eq!(result, Ok(6));
+        cache.save().unwrap();
+        assert_eq!(cache_keys(&path), vec!["/f3", "/f1", "/f0", "/f2", "/f4", "/f5"]);
+
+        let mut moved = stamps.clone();
+        moved[3] = "changed".to_string();
+        let again = file_history_cache(&path);
+        let (result, started, told) = run_with(&moved, Some(&again), &[(3, None)]);
+        assert_eq!(result, Ok(6));
+        assert_eq!(started, vec![3]);
+        assert_eq!(told, (1..=6).map(|n| (n, 6)).collect::<Vec<_>>());
+        again.save().unwrap();
+        assert_eq!(cache_keys(&path), vec!["/f0", "/f1", "/f2", "/f4", "/f5", "/f3"]);
+    }
+
+    /// A store that fails still leaves what its open reads set in the cache, and the save drops every file the run
+    /// never reached. TS trace: release 2 (file 4 starts), fail 1, release 4, 0, 3: the store throws E1 and the saved
+    /// keys are f2, f4, f0, f3.
+    #[test]
+    fn a_failed_store_keeps_the_reads_that_landed_and_drops_the_files_never_started() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("history-cache.json");
+        let stamps: Vec<String> = (0..9).map(|i| format!("s{i}")).collect();
+        let cache = file_history_cache(&path);
+        let (result, started, _) = run_with(&stamps, Some(&cache), &[(2, None), (1, Some("E1")), (4, None), (0, None), (3, None)]);
+        assert_eq!(result, Err("E1".to_string()));
+        assert_eq!(started, vec![0, 1, 2, 3, 4]);
+        cache.save().unwrap();
+        assert_eq!(cache_keys(&path), vec!["/f2", "/f4", "/f0", "/f3"]);
+    }
+}
+
+/// Every case of tests/fixtures/oracle/w2/history_{commands,readers,store}.json (oracle/w2-history_*.oracle.ts): the
+/// TS's own answers on the edges the three specs' wave-2 rules name.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, strs, w2};
+    use wsp_catalog::catalog::HistoryFormat;
+    use wsp_collect::history::cache::FileHistoryCache;
+    use wsp_collect::history::claude::claude_call;
+    use wsp_collect::history::codex::codex_call;
+    use wsp_collect::history::commands::command_words;
+    use wsp_collect::history::hermes::hermes_calls;
+    use wsp_collect::history::history_reader;
+    use wsp_collect::history::reader::Call;
+    use wsp_collect::history::tally::{in_folders, install_key, installed_name, is_heavy, meets_used_floor, Usage};
+
+    fn s(v: &Value) -> &str {
+        v.as_str().unwrap()
+    }
+
+    fn opt_s(v: Option<&Value>) -> Option<&str> {
+        v.and_then(Value::as_str)
+    }
+
+    fn arg_opt(case: &Value, i: usize) -> Option<&Value> {
+        case["args"].get(i).filter(|v| !v.is_null())
+    }
+
+    fn call_json(c: &Call) -> Value {
+        let mut o = serde_json::Map::new();
+        o.insert("session".into(), json!(c.session));
+        if let Some(f) = &c.folder {
+            o.insert("folder".into(), json!(f));
+        }
+        if let Some(at) = c.at {
+            o.insert("at".into(), json!(at));
+        }
+        match &c.kind {
+            CallKind::Shell { line } => {
+                o.insert("kind".into(), json!("shell"));
+                o.insert("line".into(), json!(line));
+            }
+            CallKind::Other { name } => {
+                o.insert("kind".into(), json!("other"));
+                o.insert("name".into(), json!(name));
+            }
+        }
+        Value::Object(o)
+    }
+
+    fn call_of(v: &Value) -> Call {
+        let kind = if v["kind"] == "shell" { CallKind::Shell { line: s(&v["line"]).into() } } else { CallKind::Other { name: s(&v["name"]).into() } };
+        Call { session: s(&v["session"]).into(), folder: v["folder"].as_str().map(str::to_string), at: v["at"].as_f64(), kind }
+    }
+
+    /// Numbers compare as numbers: the TS writes `5`, serde_json may hold `5.0`.
+    fn same(a: &Value, b: &Value) -> bool {
+        match (a, b) {
+            (Value::Number(x), Value::Number(y)) => x.as_f64() == y.as_f64(),
+            (Value::Array(x), Value::Array(y)) => x.len() == y.len() && x.iter().zip(y).all(|(p, q)| same(p, q)),
+            (Value::Object(x), Value::Object(y)) => x.len() == y.len() && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| same(v, w))),
+            _ => a == b,
+        }
+    }
+
+    fn assert_same(got: &Value, want: &Value, what: &str) {
+        assert!(same(got, want), "{what}\n got: {got}\nwant: {want}");
+    }
+
+    fn bucket_of(v: &Value) -> HistoryBucket {
+        serde_json::from_value(v.clone()).unwrap()
+    }
+
+    fn buckets_json(b: &[HistoryBucket]) -> Value {
+        Value::Array(b.iter().map(|b| serde_json::to_value(b).unwrap()).collect())
+    }
+
+    fn usage_json(u: &Usage) -> Value {
+        let m = |m: &IndexMap<String, Count>| Value::Array(m.iter().map(|(k, c)| json!([k, { "sessions": c.sessions, "calls": c.calls }])).collect());
+        json!({ "sessions": u.sessions, "calls": u.calls, "commands": m(&u.commands), "installs": m(&u.installs), "tools": m(&u.tools) })
+    }
+
+    fn format_of(name: &str) -> HistoryFormat {
+        match name {
+            "claude" => HistoryFormat::ClaudeJsonl,
+            "codex" => HistoryFormat::CodexRollout,
+            _ => HistoryFormat::HermesSqlite,
+        }
+    }
+
+    #[test]
+    fn every_line_splits_names_and_installs_as_the_ts_did() {
+        let f = w2("history_commands");
+        for case in cases(&f, "without_heredocs") {
+            assert_eq!(json!(without_heredocs(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "split_commands") {
+            assert_eq!(json!(split_commands(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "command_words") {
+            assert_eq!(json!(command_words(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "command_names") {
+            assert_eq!(json!(command_names(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "install_names") {
+            let got: Vec<Value> = install_names(s(&case["args"][0])).iter().map(|i| json!({ "via": i.via, "name": i.name })).collect();
+            assert_eq!(Value::Array(got), case["out"], "{}", case["name"]);
+        }
+    }
+
+    /// Local-time cases (named `[local time, ...]`) ran at UTC in the oracle; they are checked only when this process
+    /// runs at UTC too.
+    #[test]
+    fn readers_pure_functions_answer_what_the_ts_answered() {
+        let f = w2("history_readers");
+        let utc = std::env::var("TZ").map(|tz| tz == "UTC" || tz.is_empty()).unwrap_or(true);
+        for case in cases(&f, "time_of") {
+            if s(&case["name"]).starts_with("[local time") && !utc {
+                continue;
+            }
+            let got = time_of(arg_opt(case, 0)).map(|n| json!(n)).unwrap_or(Value::Null);
+            assert_same(&got, &case["out"], s(&case["name"]));
+        }
+        for case in cases(&f, "stem") {
+            assert_eq!(json!(stem(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "claude_session") {
+            assert_eq!(json!(claude_session(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "claude_call") {
+            let got = claude_call(s(&case["args"][0]), s(&case["args"][1]), arg_opt(case, 2), opt_s(arg_opt(case, 3)), arg_opt(case, 4).and_then(Value::as_f64));
+            assert_same(&call_json(&got), &case["out"], s(&case["name"]));
+        }
+        for case in cases(&f, "codex_call") {
+            let got = codex_call(s(&case["args"][0]), s(&case["args"][1]), arg_opt(case, 2), opt_s(arg_opt(case, 3)), arg_opt(case, 4).and_then(Value::as_f64));
+            assert_same(&call_json(&got), &case["out"], s(&case["name"]));
+        }
+        for case in cases(&f, "hermes_calls") {
+            let got: Vec<Value> = hermes_calls(s(&case["args"][0]), arg_opt(case, 1), opt_s(arg_opt(case, 2))).iter().map(call_json).collect();
+            assert_same(&Value::Array(got), &case["out"], s(&case["name"]));
+        }
+        for case in cases(&f, "holder") {
+            let reader = history_reader(format_of(s(&case["args"][0])));
+            assert_eq!(json!(reader.holder(s(&case["args"][1]), s(&case["args"][2]))), case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn readers_list_stamp_and_read_files_as_the_ts_did() {
+        let f = w2("history_readers");
+        for case in cases(&f, "stamp_of") {
+            let h = host(&case["laptop"]);
+            let got = block_on(stamp_of(&h, s(&case["args"][0]))).map(|f| json!({ "path": f.path, "stamp": f.stamp })).unwrap_or(Value::Null);
+            assert_eq!(got, case["out"], "{}", case["name"]);
+        }
+        for (key, format) in [("claude_reader_files", "claude"), ("codex_reader_files", "codex"), ("hermes_reader_files", "hermes")] {
+            for case in cases(&f, key) {
+                let h = host(&case["laptop"]);
+                let files = block_on(history_reader(format_of(format)).files(&h, s(&case["args"][0])));
+                let got: Vec<Value> = files.iter().map(|f| json!({ "path": f.path, "stamp": f.stamp })).collect();
+                assert_eq!(Value::Array(got), case["out"], "{key}: {}", case["name"]);
+            }
+        }
+        for (key, format) in [("claude_reader_read", "claude"), ("codex_reader_read", "codex"), ("hermes_reader_read", "hermes")] {
+            for case in cases(&f, key) {
+                let h = host(&case["laptop"]);
+                let reader = history_reader(format_of(format));
+                let items: Vec<Result<Call, wsp_words::exit::HostError>> =
+                    block_on(reader.read(&h, s(&case["args"][0]), s(&case["args"][1])).collect());
+                let mut got = Vec::new();
+                let mut error = None;
+                for item in items {
+                    match item {
+                        Ok(c) => got.push(call_json(&c)),
+                        Err(e) => {
+                            error = Some(e.message);
+                            break;
+                        }
+                    }
+                }
+                match case.get("error") {
+                    Some(want) => assert_eq!(json!(error), *want, "{key}: {}", case["name"]),
+                    None => {
+                        assert_eq!(error, None, "{key}: {}", case["name"]);
+                        assert_same(&Value::Array(got), &case["out"], &format!("{key}: {}", case["name"]));
+                    }
+                }
+                assert_eq!(json!(h.calls()), case["calls"], "calls of {key}: {}", case["name"]);
+            }
+        }
+    }
+
+    #[test]
+    fn tally_functions_answer_what_the_ts_answered() {
+        let f = w2("history_store");
+        for case in cases(&f, "reduce_calls") {
+            let calls: Vec<Result<Call, wsp_words::exit::HostError>> = case["args"][0].as_array().unwrap().iter().map(|c| Ok(call_of(c))).collect();
+            let got = block_on(reduce_calls(futures::stream::iter(calls).boxed_local())).map_err(|e| e.message).unwrap();
+            assert_same(&buckets_json(&got), &case["out"], s(&case["name"]));
+        }
+        for case in cases(&f, "one_holder") {
+            let held: Vec<Held> = case["args"][0]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|h| Held { holder: s(&h["holder"]).into(), buckets: h["buckets"].as_array().unwrap().iter().map(bucket_of).collect() })
+                .collect();
+            assert_same(&buckets_json(&one_holder(&held)), &case["out"], s(&case["name"]));
+        }
+        for case in cases(&f, "usage_of") {
+            let buckets: Vec<HistoryBucket> = case["args"][0].as_array().unwrap().iter().map(bucket_of).collect();
+            let folders = arg_opt(case, 1).map(strs);
+            assert_eq!(usage_json(&usage_of(&buckets, folders.as_deref())), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "in_folders") {
+            assert_eq!(json!(in_folders(case["args"][0]["folder"].as_str(), &strs(&case["args"][1]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "installed_name") {
+            assert_eq!(json!(installed_name(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "install_key") {
+            let i = Install { via: s(&case["args"][0]["via"]).into(), name: s(&case["args"][0]["name"]).into() };
+            assert_eq!(json!(install_key(&i)), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "meets_used_floor") {
+            let c = Count { sessions: case["args"][0]["sessions"].as_u64().unwrap(), calls: case["args"][0]["calls"].as_u64().unwrap() };
+            assert_eq!(json!(meets_used_floor(c, arg_opt(case, 1).and_then(Value::as_u64))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "is_heavy") {
+            assert_eq!(json!(is_heavy(arg_opt(case, 0).and_then(Value::as_u64))), case["out"], "{}", case["name"]);
+        }
+    }
+
+    /// The cache file before and after, with `<dir>` this test's own folder. Text is compared parsed: the key order of
+    /// a bucket the TS kept from the cache is an accepted difference (spec history_store Decisions 1).
+    struct CacheCase {
+        _dir: tempfile::TempDir,
+        root: String,
+        path: std::path::PathBuf,
+    }
+
+    impl CacheCase {
+        fn new(c: &Value) -> CacheCase {
+            let dir = tempfile::tempdir().unwrap();
+            let root = dir.path().to_str().unwrap().to_string();
+            let path = std::path::PathBuf::from(s(&c["path"]).replace("<dir>", &root));
+            if let Some(before) = c["before"].as_str() {
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(&path, before).unwrap();
+            }
+            CacheCase { _dir: dir, root, path }
+        }
+
+        fn check(&self, c: &Value, what: &str) {
+            let after = std::fs::read_to_string(&self.path).ok();
+            match c["after"].as_str() {
+                None => assert_eq!(after, None, "{what}: no cache file"),
+                Some(want) => {
+                    let got = after.unwrap_or_else(|| panic!("{what}: a cache file"));
+                    assert!(got.ends_with('\n') == want.ends_with('\n'), "{what}: the trailing newline");
+                    match (serde_json::from_str::<Value>(&got), serde_json::from_str::<Value>(want)) {
+                        (Ok(g), Ok(w)) => assert_same(&g, &w, what),
+                        _ => assert_eq!(got, want, "{what}"),
+                    }
+                }
+            }
+            for (dir, exists) in c["dirs_after"].as_object().into_iter().flatten() {
+                let p = dir.replace("<dir>", &self.root);
+                assert_eq!(std::path::Path::new(&p).is_dir(), exists.as_bool().unwrap(), "{what}: folder {p}");
+            }
+            let tmp: Vec<_> = std::fs::read_dir(&self.root).unwrap().flatten().filter(|e| e.file_name().to_string_lossy().ends_with(".tmp")).collect();
+            assert!(tmp.is_empty(), "{what}: a temp file left behind");
+        }
+    }
+
+    #[test]
+    fn the_cache_reads_answers_and_writes_what_the_ts_did() {
+        for case in cases(&w2("history_store"), "file_history_cache") {
+            let what = s(&case["name"]);
+            let cc = CacheCase::new(&case["cache"]);
+            let cache: FileHistoryCache = file_history_cache(&cc.path);
+            for (op, want) in case["ops"].as_array().unwrap().iter().zip(case["outs"].as_array().unwrap()) {
+                let a = &op["args"];
+                match s(&op["op"]) {
+                    "get" => {
+                        let got = cache.get(s(&a[0]), s(&a[1])).map(|b| buckets_json(&b)).unwrap_or(Value::Null);
+                        assert_same(&got, want, &format!("{what}: get {a}"));
+                    }
+                    "set" => cache.set(s(&a[0]), s(&a[1]), &a[2].as_array().unwrap().iter().map(bucket_of).collect::<Vec<_>>()),
+                    _ => cache.save().unwrap(),
+                }
+            }
+            cc.check(&case["cache"], what);
+        }
+    }
+
+    #[test]
+    fn read_histories_says_counts_tells_and_caches_what_the_ts_did() {
+        let all = catalog_agents();
+        for case in cases(&w2("history_store"), "read_histories") {
+            let what = s(&case["name"]);
+            let h = host(&case["laptop"]);
+            let ids = strs(&case["args"][0]);
+            let agents: Vec<&wsp_catalog::catalog::AgentEntry> = ids.iter().map(|id| *all.iter().find(|a| a.id == *id).unwrap()).collect();
+            let folders = case["args"][1].get("folders").map(strs);
+            let told = RefCell::new(Vec::new());
+            let progress = RefCell::new(Vec::new());
+            let on_agent = |a: &wsp_collect::history::AgentHistory| {
+                told.borrow_mut().push(format!("{} {}", a.agent, serde_json::to_value(a.state).unwrap().as_str().unwrap()))
+            };
+            let on_progress = |p: wsp_collect::history::HistoryProgress| progress.borrow_mut().push(format!("{} {}/{}", p.agent, p.read, p.files));
+            let cc = case.get("cache").map(CacheCase::new);
+            let cache = cc.as_ref().map(|c| file_history_cache(&c.path));
+            let opts = HistoryOptions {
+                on_agent: Some(&on_agent),
+                folders: folders.as_deref(),
+                cache: cache.as_ref().map(|c| c as &dyn HistoryCache),
+                on_progress: Some(&on_progress),
+            };
+            let got = block_on(read_histories(&h, &agents, opts)).unwrap();
+            let got: Vec<Value> = got
+                .iter()
+                .map(|a| json!({ "agent": a.agent, "state": a.state, "sessions": a.sessions, "calls": a.calls, "usage": usage_json(&a.usage) }))
+                .collect();
+            assert_eq!(Value::Array(got), case["out"], "{what}");
+            assert_eq!(json!(told.into_inner()), case["told"], "told of {what}");
+            assert_eq!(json!(progress.into_inner()), case["progress"], "progress of {what}");
+            if !case["calls"].is_null() {
+                assert_eq!(json!(h.calls()), case["calls"], "calls of {what}");
+            }
+            if let Some(cc) = &cc {
+                cc.check(&case["cache"], what);
+            }
+        }
+    }
+}

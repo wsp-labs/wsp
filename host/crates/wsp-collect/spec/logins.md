@@ -10,36 +10,41 @@ Code's `.credentials.json` (for whether it holds a login), the rc files and Clau
 
 ## Behaviour
 1. `login_default(id)`: `skip` when `login_row(id)` exists and its sign-in `signs_in_by_default` or `mints_token`;
-   else `bring`, an unknown id included (logins.ts:213-216).
-2. `detect_logins` row order (logins.ts:340-368): gh; then the LOGINS table in its order (gcloud, wrangler,
+   else `bring`, an unknown id included (logins.ts:28-31).
+2. `detect_logins` row order (logins.ts:155-183): gh; then the LOGINS table in its order (gcloud, wrangler,
    cloudflared, vercel, aws, kube, codex, gemini, opencode, pi, hermes); then key-file rows in `login_rows()` order;
    then `logins/op`; then Claude. Absent rows dropped.
-3. gh (logins.ts:255-260): `found(["~/.config/gh/hosts.yml"])`; none, no row. On darwin, `security
+3. gh (logins.ts:70-75): `found(["~/.config/gh/hosts.yml"])`; none, no row. On darwin, `security
    ["find-generic-password","-s","gh:github.com"]` answering anything adds the path `Keychain: gh:github.com` after
-   the file; never on linux (no run). Label GITHUB_LOGIN_NAME, group `CLI logins`, default `login_default("gh")`.
+   the file (an answer of `""` counts: test `Option::is_some`, never emptiness; the Keychain is asked only when the
+   file was found); never on linux (no run). Label GITHUB_LOGIN_NAME, group `CLI logins`, default `login_default("gh")`.
 4. A LOGINS row's candidates are `paths[platform]` then `paths.all`, except codex with `codex_home` set, whose one
-   candidate is `<codex_home>/auth.json` (logins.ts:344). Found paths keep candidate order. A login whose catalog
+   candidate is `<codex_home>/auth.json` (logins.ts:159). Found paths keep candidate order. A login whose catalog
    sign-in `lives_on_computer` gets `paths: []`, `bytes: 0`, `skip` and detail LIVES_ON_COMPUTER_DETAIL; else the found
    paths and bytes, default `login_default(id)`, and no detail (no table row sets `default` or `detail`).
-5. Key-file rows (logins.ts:237-246): each login row with `keys`, its `keys.paths` found; label `<entry.name> API keys`,
+5. Key-file rows (logins.ts:52-61): each login row with `keys`, its `keys.paths` found; label `<entry.name> API keys`,
    group `Agent logins` for an agent entry else `CLI logins`, default `login_default(row.id)`, detail `keys.note`.
 6. `which("op")` true adds an item `logins/op`, label `1Password CLI`, group `CLI logins`, skip, reason
-   `needs the 1Password desktop app; the machine uses a service account token` (logins.ts:363-365).
-7. `claude_bills` (logins.ts:299-304): `api_key_helper_of(read_text(expand(home, CLAUDE_SETTINGS_FILE)))`; a helper or
+   `needs the 1Password desktop app; the machine uses a service account token` (logins.ts:178-180).
+7. `claude_bills` (logins.ts:114-119): `api_key_helper_of(read_text(expand(home, CLAUDE_SETTINGS_FILE)))`; a helper or
    CLAUDE_KEY_ENV exported in an rc file is `key`. Else on darwin, the Keychain answers for
    `claude_keychain_service(claude_config_dir)`; on linux, `holds_claude_login(read_text(expand(home,
-   "<claude_config_dir or ~/.claude>/.credentials.json")))`. Either true is `login`, else `None`.
+   "<claude_config_dir or ~/.claude>/.credentials.json")))`. Either true is `login`, else `None`. The settings file is always `~/.claude/settings.json`, whatever
+   `claude_config_dir` says; `claude_config_dir` of `Some("")` is not unset (linux reads `/.credentials.json`, darwin
+   hashes `""`), and `~/` in it is expanded for the read but hashed raw for the service name. A Keychain answer of
+   `""` is a login. Reads and runs happen in this order and stop at the first answer: settings, then the rc files of
+   rule 8, then the Keychain (darwin) or the credentials file (linux).
 8. Exported means: for each RC_PATHS entry in order, `read_text("<home>/<rel>")` and `strip_exports(text, None, &mut
-   vec![], false).names` holding the name; the first such file answers (logins.ts:282-288). Reads stop at that file.
+   vec![], false).names` holding the name; the first such file answers (logins.ts:97-103). Reads stop at that file.
 9. `claude_keychain_service(None)` is `Claude Code-credentials`; `Some(dir)` adds `-` and the first 8 hex digits of
-   sha256 of `dir` in Unicode NFC (logins.ts:266-267).
+   sha256 of `dir` in Unicode NFC (logins.ts:81-82).
 10. `api_key_helper_of`: JSON object whose `apiKeyHelper` is a string not blank after `js_trim`; the string is returned
-    untrimmed. `None`, bad JSON, `null`, an array or a non-string helper are `None` (logins.ts:270-279).
-11. `holds_claude_login`: JSON whose `claudeAiOauth.accessToken` is a non-empty string (logins.ts:308-316); `null`
+    untrimmed. `None`, bad JSON, `null`, an array or a non-string helper are `None` (logins.ts:85-94).
+11. `holds_claude_login`: JSON whose `claudeAiOauth.accessToken` is a non-empty string (logins.ts:123-131); `null`
     parses to no login.
-12. `billed_here` is `{claude: bills}` or empty (logins.ts:319-322).
+12. `billed_here` is `{claude: bills}` or empty (logins.ts:134-137).
 13. Claude's row when `claude_bills` is not `None`: entry `logins/claude`, label `Claude Code login`, group
-    `Agent logins`, `paths: []`, `bytes: 0`, skip, detail `claude_token_detail()` (logins.ts:326-338), which is
+    `Agent logins`, `paths: []`, `bytes: 0`, skip, detail `claude_token_detail()` (logins.ts:141-153), which is
     `Claude Code signs in with the token <SIGN_IN_ROWS.claude.mint> prints on this computer; nothing of its login here
     travels`.
 14. No run carries `-w`, and no run has a timeout or env.
