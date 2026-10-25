@@ -86,6 +86,14 @@ describe("raw output and a same-status column", () => {
     expect(codes(`<slate><value name="note" start="" /><column><text>{$note}</text></column></slate>`, { note: "Rounding fails on refunds; the fix is in review." })).not.toContain("W034");
   });
 
+  it.each(["✗ failed (2)", "✗ 2 failed", "FAILED", "ERROR", "1) Pick a plan", "Last error: the token expired"])(
+    "W034 stays silent on a status a person reads: %s",
+    status => {
+      const table = `<slate><value name="r" start={[]} /><column><table items={$r}><col title="Package" value={item.n} /><col title="Result" value={item.v} /></table></column></slate>`;
+      expect(codes(table, { r: [{ n: "api", v: "✓ passed (42)" }, { n: "web", v: "passed (311)" }, { n: "cli", v: status }] })).not.toContain("W034");
+    },
+  );
+
   it("W036 fires on a status column whose rows all say passed, whatever their counts and marks, and asks for a <progress>", () => {
     const pkgs = [{ n: "api", r: "✓ passed (42)" }, { n: "web", r: "passed (311)" }, { n: "cli", r: "Passed in 3s" }];
     const table = `<slate><value name="pkgs" start={[]} /><column><table items={$pkgs}><col title="Package" value={item.n} /><col title="Result" value={item.r} /></table></column></slate>`;
@@ -130,6 +138,16 @@ describe("the cold test's task 3 slate, as the thread wrote it, with its runs", 
     expect(codesOf(task3({ suite }))).toContain("W034");
   });
 
+  it("W034 fires on each of its error cells alone", () => {
+    expect(runs.suite.json.failures).toHaveLength(11);
+    const table = `<slate><value name="r" start={[]} /><column><table items={$r}><col title="Package" value={item.n} /><col title="Error" value={item.e} /></table></column></slate>`;
+    const doc = parseSlate(table).document!;
+    for (const f of runs.suite.json.failures) {
+      const sketch = sketchSlate(doc, { ...slateStartValues(doc), r: [{ n: f.package, e: f.error }] }, { version: 1, now: 0 });
+      expect(codesOf(sketch), f.error).toContain("W034");
+    }
+  });
+
   it("W036 on a column red on every row of a list of failures asks to drop the tone, not to swap the table for a <progress>", () => {
     const line = task3(runs).split("\n").find(l => l.startsWith("  W036 ") && l.includes("Error is bad"));
     expect(line).toBeDefined();
@@ -151,5 +169,23 @@ describe("the glance checks over a long table", () => {
     const glance = slateGlanceProblems(doc, { resolve: path => (path === "$rows" ? (counted as unknown as SlateJson) : undefined), now: data.now }, 0);
     expect(glance.map(p => p.code)).toContain("W036");
     expect(furthest).toBeLessThan(SLATE_LIMITS.rowsDrawn);
+  });
+
+  it("W036 on a table longer than it draws says how many rows it read and how many there are", () => {
+    const rows = Array.from({ length: 5000 }, (_, i) => ({ n: `row ${i}`, v: i < SLATE_LIMITS.rowsDrawn ? "passed" : "failed" }));
+    const table = `<slate><value name="r" start={[]} /><column><table items={$r}><col title="Package" value={item.n} /><col title="Result" value={item.v} /></table></column></slate>`;
+    const doc = parseSlate(table).document!;
+    const line = sketchSlate(doc, { ...slateStartValues(doc), r: rows }, { version: 1, now: 0 }).split("\n").find(l => l.startsWith("  W036 "));
+    expect(line).toContain("on all 200 rows of ");
+    expect(line).toContain("that draw, of 5000");
+  });
+
+  it("a checklist draws every row, so its done check reads to the first row not done", () => {
+    const steps = Array.from({ length: 300 }, (_, i) => ({ t: `Step ${i}`, d: i < SLATE_LIMITS.rowsDrawn }));
+    const list = `<slate><value name="s" start={[]} /><column><checklist id="todo" items={$s} key={item.t} title={item.t} done={item.d} /></column></slate>`;
+    const doc = parseSlate(list).document!;
+    const sketch = (s: SlateJson): string => sketchSlate(doc, { ...slateStartValues(doc), s }, { version: 1, now: 0 });
+    expect(sketch(steps)).not.toContain("W036");
+    expect(sketch(steps.map(s => ({ ...s, d: true })))).toContain("every row of todo is done, all 300");
   });
 });
