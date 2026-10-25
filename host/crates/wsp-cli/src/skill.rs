@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The wsp skill, inlined at build time from `skills/wsp/SKILL.md`, and the MCP server's instructions. Port of
 //! `packages/host/src/skill.ts` at 65f6b89c7; the spec is `spec/skill.md`.
-pub use crate::cloud_text::{cloud_text, skill_for, BOAT_MARK, BOAT_SPAN_END, CLOUD_MARK, CLOUD_SPAN_END, NO_CLOUD_MARK, NO_CLOUD_SPAN_END};
+pub use crate::cloud_text::{
+    cloud_text, skill_for, BOAT_MARK, BOAT_SPAN_END, CLOUD_MARK, CLOUD_SPAN_END, NO_CLOUD_MARK, NO_CLOUD_SPAN_END,
+};
 
 /// The repo's skill file as written, marks and all (skill.ts:6).
 pub const SKILL_TEXT: &str = include_str!("../../../../skills/wsp/SKILL.md");
