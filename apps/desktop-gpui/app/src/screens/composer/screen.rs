@@ -30,6 +30,8 @@ pub struct ComposerScreen {
     note: Option<String>,
     /// The workspace a new thread is written on, which names the headline's project.
     workspace: Option<String>,
+    /// A project with no workspace yet, whose page this is (`ProjectHome`): its first send makes the workspace.
+    project: Option<String>,
     /// The page is a project's home (`ProjectHome.tsx`), not a workspace's New thread here (ChatView's fresh thread).
     home: bool,
     hero: Entity<HeroField>,
@@ -83,6 +85,7 @@ impl Screen for ComposerScreen {
             link: None,
             note: None,
             workspace: None,
+            project: None,
             home: false,
             hero,
             _branch: Task::ready(()),
@@ -106,6 +109,9 @@ impl Screen for ComposerScreen {
     }
 }
 
+/// What a page's route names a project with no workspace by, as `composer:project:<id>`.
+pub const PROJECT_ARG: &str = "project:";
+
 /// The page of a machine deleted with its sub-thread, reached by a link or a kept selection: nothing to start there.
 const SUB_THREAD_DELETED: &str = "This sub-thread was deleted, and its machine with it.";
 
@@ -121,12 +127,18 @@ impl ComposerScreen {
         self.composer.update(cx, |c, cx| c.set_hold(Some(Hold::Connecting), cx));
         let host = self.host.clone();
         let wanted = opened.thread_id;
-        let new_on = opened.arg.map(String::from);
+        let arg = opened.arg.map(String::from);
+        let project = arg.as_deref().and_then(|a| a.strip_prefix(PROJECT_ARG)).map(str::to_owned);
+        let new_on = arg.filter(|_| project.is_none());
         self.workspace = new_on.clone();
+        self.project = project.clone();
         let (hero, composer) = (self.hero.clone(), self.composer.clone());
-        hero.update(cx, |h, cx| h.follow(new_on.is_some().then_some(composer), cx));
+        let fresh = new_on.is_some() || project.is_some();
+        hero.update(cx, |h, cx| h.follow(fresh.then_some(composer), cx));
         if let Some(workspace_id) = &new_on {
             crate::screens::terminal::page_starts_over(workspace_id, cx);
+        }
+        if fresh {
             // ChatComposer's `if (thread.fresh) editorRef.current?.focus()`: a new thread's box takes the keys.
             give_keys(&self.composer, window, cx);
         }
@@ -135,8 +147,13 @@ impl ComposerScreen {
         let reading = host.clone();
         self._connect = cx.spawn_in(window, async move |this, cx| {
             let read = async {
+                if let Some(project) = project {
+                    let target = Target { project: Some(project), ..Target::default() };
+                    let opened = Link::read(&reading, &target).await?;
+                    return Ok::<_, Failure>((target, opened));
+                }
                 if let Some(workspace_id) = new_on {
-                    let target = Target { workspace_id, thread_id: None };
+                    let target = Target { workspace_id, thread_id: None, project: None };
                     let opened = Link::read(&reading, &target).await?;
                     return Ok::<_, Failure>((target, opened));
                 }
@@ -147,7 +164,7 @@ impl ComposerScreen {
                     None => threads.into_iter().max_by(|a, b| a.started_at.unwrap_or(0.).total_cmp(&b.started_at.unwrap_or(0.))),
                 };
                 let row = row.ok_or_else(|| Failure::new("the host lists no such thread"))?;
-                let target = Target { workspace_id: row.workspace_id.clone(), thread_id: row.thread_id.clone() };
+                let target = Target { workspace_id: row.workspace_id.clone(), thread_id: row.thread_id.clone(), project: None };
                 let opened = Link::read(&reading, &target).await?;
                 Ok::<_, Failure>((target, opened))
             }
@@ -237,13 +254,21 @@ impl ComposerScreen {
     /// The headline over a new thread: the workspace's project by its mark and name, the name the workspace's id where
     /// its record has not come (`workspace?.project.name ?? workspaceId`).
     fn heading(&self, window: &Window, cx: &App) -> Option<gpui_kit::AnyElement> {
-        let workspace = self.workspace.as_deref()?;
         let p = cx.palette();
         let sidebar = crate::screens::terminal::workspaces_sidebar(cx);
         let sidebar = sidebar.as_ref().map(|s| s.read(cx));
-        let record = sidebar.and_then(|s| s.workspace(workspace).0);
-        let project = record.and_then(|w| w.pointer("/project/id")).and_then(Value::as_str);
-        let name = record.and_then(|w| w.pointer("/project/name")).and_then(Value::as_str).unwrap_or(workspace);
+        let (project, name) = match (self.workspace.as_deref(), self.project.as_deref()) {
+            (Some(workspace), _) => {
+                let record = sidebar.and_then(|s| s.workspace(workspace).0);
+                let project = record.and_then(|w| w.pointer("/project/id")).and_then(Value::as_str);
+                (project, record.and_then(|w| w.pointer("/project/name")).and_then(Value::as_str).unwrap_or(workspace))
+            }
+            (None, Some(project)) => {
+                let named = sidebar.and_then(|s| s.around().projects.iter().find(|(id, _)| id == project).map(|(_, n)| n.as_str()));
+                (Some(project), named.unwrap_or(project))
+            }
+            (None, None) => return None,
+        };
         let ink = p.foreground.opacity(0.7);
         let mark = match sidebar {
             Some(s) => {
@@ -367,5 +392,92 @@ impl Render for ComposerScreen {
                 self.note.clone().map(|note| div().absolute().top_0().left_0().p_4().text_sm().text_color(p.muted_foreground).child(note)),
             );
         super::drop::chat(chat, &self.composer, window, cx).into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, Instant};
+
+    use gpui_kit::component::Root;
+    use gpui_kit::{prelude::*, TestAppContext, VisualTestContext};
+    use serde_json::json;
+
+    use super::*;
+    use crate::screens::palette::items::Project;
+    use crate::screens::palette::palette::home_of_pick;
+    use crate::screens::settings::door::{self, Door};
+    use crate::screens::sidebar::host::{Change, Snapshot};
+    use crate::screens::sidebar::Sidebar;
+    use crate::screens::{Host, Screen};
+
+    fn waits(cx: &mut VisualTestContext, what: &str, mut done: impl FnMut(&mut VisualTestContext) -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            cx.run_until_parked();
+            if done(cx) {
+                return;
+            }
+            assert!(Instant::now() < deadline, "never came to: {what}");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    /// Catches: a project on a box nobody has run a thread on picked on the New thread page and nothing opening, as
+    /// its page was found only through a workspace the sidebar held, where today's opens the project's page and its
+    /// first send makes the workspace.
+    #[gpui_kit::test]
+    fn a_project_with_no_workspace_opens_its_page_and_its_first_send_names_the_project(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(crate::ui::Side::Light, cx);
+            super::super::init(cx);
+        });
+        let picked = [Project {
+            id: "p1".into(),
+            name: "wsp-vm".into(),
+            path: "/home/me/wsp-vm".into(),
+            computer: Some("box1".into()),
+            here: false,
+            workspace: None,
+        }];
+        assert_eq!(home_of_pick(&picked, "p1"), "project:p1", "the pick opens the project's page");
+
+        let agent = json!({ "harness": "claude", "label": "Claude Code", "source": "table", "version": null, "efforts": [],
+            "models": [{ "value": "opus", "label": "Opus" }], "contextWindows": [], "permissionModes": [],
+            "steers": false, "renames": false, "images": false });
+        let door = Door::start(json!({
+            "harnesses.list": { "reply": { "harnesses": [agent] } },
+            "sessions.start": { "error": "held by the test" },
+        }));
+        let runtime = door::runtime();
+        let host = Host::new(door.client(&runtime), runtime);
+        let snapshot = Snapshot {
+            projects: vec![json!({ "id": "p1", "name": "wsp-vm", "path": "/home/me/wsp-vm", "computer": "box1" })],
+            places: vec![json!({ "id": "box1", "kind": "computer", "name": "aws-mumbai-2" })],
+            ..Snapshot::default()
+        };
+        let mut views = None;
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            let sidebar = cx.new(Sidebar::new);
+            sidebar.update(cx, |s, cx| s.apply(Change::Whole(Box::new(snapshot)), cx));
+            crate::screens::terminal::read_workspaces_from(&sidebar, cx);
+            let opened = Opened { arg: Some("project:p1".into()), ..Opened::default() };
+            let page = cx.new(|cx| <ComposerScreen as Screen>::new(host, opened, window, cx));
+            views = Some((sidebar, page.clone()));
+            Root::new(page, window, cx)
+        });
+        let (sidebar, page) = views.unwrap();
+        assert_eq!(sidebar.read_with(cx, |s, _| s.home_of("p1")), None, "the host holds no workspace for the project");
+        waits(cx, "the page's link", |cx| page.read_with(cx, |p, _| p.link.is_some()));
+        assert!(cx.debug_bounds("hero-question:What should we build in wsp-vm?").is_some(), "the page names the project");
+        assert_eq!(door.asked_of("harnesses.list")[0]["project"], "p1", "the agents are read off the project");
+        let composer = page.read_with(cx, |p, _| p.composer().clone());
+        cx.update(|window, cx| composer.update(cx, |c, cx| c.set_text("hello", window, cx)));
+        cx.update(|window, cx| composer.update(cx, |c, cx| c.submit(window, cx)));
+        waits(cx, "the send", |_| !door.asked_of("sessions.start").is_empty());
+        let start = &door.asked_of("sessions.start")[0];
+        assert_eq!((start["project"].as_str(), start.get("workspaceId")), (Some("p1"), None), "the send names the project: {start}");
     }
 }

@@ -167,7 +167,7 @@ impl ThreadScreen {
             c.set_thread_key(thread_id.clone(), window, cx);
         });
         self.link = None;
-        self.link_to(Target { workspace_id, thread_id: Some(thread_id) }, 0, window, cx);
+        self.link_to(Target { workspace_id, thread_id: Some(thread_id), project: None }, 0, window, cx);
     }
 
     /// Ties the composer to `target` once the host has said what it needs, trying again after a refusal with the
