@@ -157,10 +157,12 @@ async fn thread() {
         client.call(ask::<WorkspacesReviewRequest>(json!({ "workspaceId": first.workspace_id }))).await,
         "a review needs a pull request's link",
     );
+    // A path outside the workspace is refused before any editor is looked for, so no machine's editor ever opens.
+    let outside = shared().folder.parent().unwrap().to_owned();
     refused(
         "editor.open",
-        client.call(ask::<EditorOpenRequest>(json!({ "workspaceId": first.workspace_id, "path": shared().folder }))).await,
-        "No editor wsp knows is installed",
+        client.call(ask::<EditorOpenRequest>(json!({ "workspaceId": first.workspace_id, "path": outside }))).await,
+        "is not in this workspace's folder",
     );
 }
 
