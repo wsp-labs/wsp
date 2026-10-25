@@ -34,7 +34,7 @@ export const progress: PieceView = {
         <div className={cn("flex min-w-0 flex-col gap-2.5 py-3.5", inset)}>
           <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
             <span className="font-mono text-sm leading-6 font-medium tabular-nums text-foreground">{items.length === 0 ? "None yet" : open.length === 0 ? `All ${read.length}` : `${done} of ${read.length}`}</span>
-            <span className="text-sm leading-5 text-muted-foreground">{label}</span>
+            {items.length === 0 ? null : <span className="text-sm leading-5 text-muted-foreground">{label}</span>}
           </span>
           <span aria-hidden className="block h-1 overflow-hidden rounded-full bg-foreground/10">
             <span data-slate-fill className={cn("block h-full rounded-full transition-[width] duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none", open.length === 0 ? "bg-success" : "bg-foreground/55")} style={{ width: `${Math.round(share * 1000) / 10}%` }} />

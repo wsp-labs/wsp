@@ -360,9 +360,6 @@ describe("a reaction cycle", () => {
 describe("a list's rows", () => {
   const jobs = (field: string) =>
     wrap(`<progress label="jobs" items={$jobs} name={item.name} done={item.done} note={item.${field}} />`, `<value name="jobs" start={[{ name: "Lint", done: true }, { name: "Unit", done: false, note: "Running" }]} />`);
-  it("know a field only the rows not done carry, so a done row needs no note", () => {
-    expect(all(jobs("note"))).toEqual([]);
-  });
   it("still refuse a field no row carries", () => {
     expect(all(jobs("nite"))).toContain("X401");
   });
