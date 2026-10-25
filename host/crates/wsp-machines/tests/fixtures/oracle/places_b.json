@@ -28,8 +28,7 @@
           "outcome": "installed",
           "step": "folders",
           "project": {
-            "id": "pr_00000001",
-            "name": "site"
+            "id": "pr_00000001"
           }
         },
         {
@@ -202,8 +201,7 @@
               "outcome": "installed",
               "step": "folders",
               "project": {
-                "id": "pr_00000001",
-                "name": "site"
+                "id": "pr_00000001"
               }
             },
             {
@@ -368,8 +366,7 @@
               "outcome": "installed",
               "step": "folders",
               "project": {
-                "id": "pr_00000001",
-                "name": "site"
+                "id": "pr_00000001"
               }
             },
             {
@@ -545,8 +542,7 @@
               "outcome": "installed",
               "step": "folders",
               "project": {
-                "id": "pr_00000001",
-                "name": "site"
+                "id": "pr_00000001"
               }
             },
             {
@@ -713,8 +709,7 @@
               "outcome": "installed",
               "step": "folders",
               "project": {
-                "id": "pr_00000001",
-                "name": "site"
+                "id": "pr_00000001"
               }
             },
             {
@@ -879,8 +874,7 @@
               "outcome": "installed",
               "step": "folders",
               "project": {
-                "id": "pr_00000001",
-                "name": "site"
+                "id": "pr_00000001"
               }
             },
             {
@@ -1015,8 +1009,7 @@
                 "outcome": "installed",
                 "step": "folders",
                 "project": {
-                  "id": "pr_00000001",
-                  "name": "site"
+                  "id": "pr_00000001"
                 }
               },
               {
@@ -1135,8 +1128,7 @@
                 "outcome": "installed",
                 "step": "folders",
                 "project": {
-                  "id": "pr_00000001",
-                  "name": "site"
+                  "id": "pr_00000001"
                 }
               },
               {
@@ -1241,8 +1233,7 @@
                 "outcome": "installed",
                 "step": "folders",
                 "project": {
-                  "id": "pr_00000001",
-                  "name": "site"
+                  "id": "pr_00000001"
                 }
               },
               {
@@ -1372,8 +1363,7 @@
                 "outcome": "installed",
                 "step": "folders",
                 "project": {
-                  "id": "pr_00000001",
-                  "name": "site"
+                  "id": "pr_00000001"
                 }
               },
               {
@@ -1491,11 +1481,11 @@
             "outcome": "installed",
             "step": "folders",
             "project": {
-              "id": "pr_00000001",
-              "name": "site"
+              "id": "pr_00000001"
             },
             "pick": {
-              "from": "/home/dev/site"
+              "from": "/home/dev/site",
+              "keep": []
             },
             "createdAt": "2026-10-01T00:00:00.000Z"
           },
@@ -1591,8 +1581,7 @@
                 "outcome": "installed",
                 "step": "folders",
                 "project": {
-                  "id": "pr_00000001",
-                  "name": "site"
+                  "id": "pr_00000001"
                 }
               },
               {
@@ -1712,8 +1701,7 @@
                 "outcome": "installed",
                 "step": "folders",
                 "project": {
-                  "id": "pr_00000001",
-                  "name": "site"
+                  "id": "pr_00000001"
                 }
               },
               {
@@ -1828,11 +1816,11 @@
             "outcome": "installed",
             "step": "folders",
             "project": {
-              "id": "pr_00000001",
-              "name": "site"
+              "id": "pr_00000001"
             },
             "pick": {
-              "from": "/home/dev/site"
+              "from": "/home/dev/site",
+              "keep": []
             },
             "createdAt": "2026-10-01T00:00:00.000Z"
           },
@@ -1932,8 +1920,7 @@
                 "outcome": "installed",
                 "step": "folders",
                 "project": {
-                  "id": "pr_00000001",
-                  "name": "site"
+                  "id": "pr_00000001"
                 }
               },
               {
@@ -2156,8 +2143,7 @@
               "outcome": "installed",
               "step": "folders",
               "project": {
-                "id": "pr_00000001",
-                "name": "site"
+                "id": "pr_00000001"
               }
             },
             {
@@ -2252,11 +2238,11 @@
             "outcome": "installed",
             "step": "folders",
             "project": {
-              "id": "pr_00000001",
-              "name": "site"
+              "id": "pr_00000001"
             },
             "pick": {
-              "from": "/home/dev/site"
+              "from": "/home/dev/site",
+              "keep": []
             },
             "createdAt": "2026-10-01T00:00:00.000Z"
           },
@@ -2566,8 +2552,7 @@
               "outcome": "installed",
               "step": "folders",
               "project": {
-                "id": "pr_00000001",
-                "name": "site"
+                "id": "pr_00000001"
               }
             },
             {
@@ -2662,11 +2647,11 @@
             "outcome": "installed",
             "step": "folders",
             "project": {
-              "id": "pr_00000001",
-              "name": "site"
+              "id": "pr_00000001"
             },
             "pick": {
-              "from": "/home/dev/site"
+              "from": "/home/dev/site",
+              "keep": []
             },
             "createdAt": "2026-10-01T00:00:00.000Z"
           },
@@ -2802,11 +2787,11 @@
           "outcome": "installed",
           "step": "folders",
           "project": {
-            "id": "pr_00000001",
-            "name": "site"
+            "id": "pr_00000001"
           },
           "pick": {
-            "from": "/home/dev/site"
+            "from": "/home/dev/site",
+            "keep": []
           },
           "createdAt": "2026-10-01T00:00:00.000Z"
         },
