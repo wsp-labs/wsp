@@ -1,0 +1,19 @@
+<slate title="Empty data">
+  <value name="none" start={[]} />
+  <column>
+    <text value="" placeholder="Waiting for the first line" />
+    <number label="Spent" value={null} format="usd" />
+    <meter label="Weekly" value={null} />
+    <sparkline label="Load" values={[]} />
+    <bars label="Busiest" items={[]} name={item.n} value={item.v} />
+    <chart label="Gold, no points" items={[]} x={item.at} value={item.v} />
+    <chart label="Gold, one point" items={[{ at: "2026-10-18T10:00:00Z", v: 2410 }]} x={item.at} value={item.v} format="usd" />
+    <chart label="Gold, steady" items={[{ at: "2026-10-18T10:00:00Z", v: 5 }, { at: "2026-10-18T10:01:00Z", v: 5 }, { at: "2026-10-18T10:02:00Z", v: 5 }]} x={item.at} value={item.v} />
+    <donut label="By country" items={[]} name={item.name} value={item.n} />
+    <timeline label="CI run" items={[]} name={item.name} start={item.s} />
+    <treemap label="Bundle" items={[]} name={item.name} value={item.b} />
+    <images items={[]} src={item.p} />
+    <table items={[]} empty="No checks yet"><col title="Check" value={item.name} /><col title="Took" value={item.took} /></table>
+    <checklist items={$none} title={item.t} done={item.d} />
+  </column>
+</slate>

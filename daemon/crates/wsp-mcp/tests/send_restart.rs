@@ -4,6 +4,8 @@
 //! host is the one that knows whether it took the message. A host that stops under the reads before the start took no
 //! message, and the send says so in the recorded words.
 
+mod common;
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -40,6 +42,7 @@ async fn host(cut: &'static str) -> (u16, Arc<Seen>) {
     let turn_id = started["turnId"].as_str().unwrap().to_owned();
     tokio::spawn(async move {
         while let Ok((tcp, _)) = listener.accept().await {
+            let Some(tcp) = common::upgrade_or_page(tcp, &common::wsp_page(TOKEN)).await else { continue };
             let first = counted.sockets.fetch_add(1, Ordering::SeqCst) == 0;
             let (seen, replies, turn_id) = (counted.clone(), replies.clone(), turn_id.clone());
             tokio::spawn(async move {
