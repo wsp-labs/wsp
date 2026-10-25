@@ -91,9 +91,11 @@ fn exec_opts(timeout_ms: u64) -> ExecOptions {
 #[tokio::test]
 async fn a_box_that_reads_ready_but_refuses_commands_while_its_disk_streams_in_is_asked_again_inside_the_restore_budget() {
     let restoring = || refuse(409, "sandbox_restoring", "Box is restoring.");
-    let api = FakeBox::new()
-        .on("POST", COMMANDS, vec![restoring(), refuse(409, "sandbox_starting", "Box is starting."), cmd("up\n")])
-        .on("PUT", "/sandboxes/bx_tumrjngm/files", vec![restoring(), reply(200, json!({ "ok": true }))]);
+    let api = FakeBox::new().on("POST", COMMANDS, vec![restoring(), refuse(409, "sandbox_starting", "Box is starting."), cmd("up\n")]).on(
+        "PUT",
+        "/sandboxes/bx_tumrjngm/files",
+        vec![restoring(), reply(200, json!({ "ok": true }))],
+    );
     let (on, machine) = machine_on(&api, BX);
     let before = on.clock.now_ms();
     assert_eq!(machine.exec("echo up", ExecOptions::default()).await.unwrap(), done("up\n"));
@@ -125,9 +127,11 @@ async fn a_proof_still_refused_as_restoring_at_the_deadline_ends_typed_with_the_
 #[tokio::test]
 async fn a_box_answering_502_to_its_first_commands_is_asked_again_at_the_poll_pace_and_past_the_budget_the_502_is_the_callers() {
     let gateway = || refuse(502, "bad_gateway", "Bad Gateway");
-    let api = FakeBox::new()
-        .on("POST", COMMANDS, vec![gateway(), gateway(), gateway(), gateway(), gateway(), cmd("up\n")])
-        .on("PUT", "/sandboxes/bx_tumrjngm/files", vec![gateway(), gateway(), gateway(), gateway(), gateway(), reply(200, json!({ "ok": true }))]);
+    let api = FakeBox::new().on("POST", COMMANDS, vec![gateway(), gateway(), gateway(), gateway(), gateway(), cmd("up\n")]).on(
+        "PUT",
+        "/sandboxes/bx_tumrjngm/files",
+        vec![gateway(), gateway(), gateway(), gateway(), gateway(), reply(200, json!({ "ok": true }))],
+    );
     let (_, machine, clock) = machine_with(&api, BoxBudgetsAsk { restore_ms: Some(10_000), ..Default::default() });
     let before = clock.now_ms();
     assert_eq!(machine.exec("echo up", ExecOptions::default()).await.unwrap(), done("up\n"));
@@ -165,7 +169,11 @@ async fn runs_every_command_as_root_through_sudo_under_the_exec_environment_with
     let api = FakeBox::new().on(
         "POST",
         COMMANDS,
-        vec![cmd("hi\n"), command("", None, json!({ "timedOut": true, "signal": "SIGTERM" })), refuse(409, "machine_not_running", "Box machine is not running.")],
+        vec![
+            cmd("hi\n"),
+            command("", None, json!({ "timedOut": true, "signal": "SIGTERM" })),
+            refuse(409, "machine_not_running", "Box machine is not running."),
+        ],
     );
     let machine = machine_for(&api);
     assert_eq!(machine.exec("echo hi", ExecOptions::default()).await.unwrap(), done("hi\n"));
@@ -214,7 +222,8 @@ async fn an_exec_asked_for_longer_than_the_edge_allows_goes_the_detached_road_an
     );
     let machine = machine_for(&api);
     assert_eq!(machine.exec("sleep 100; echo late", exec_opts(300_000)).await.unwrap(), done("late\n"));
-    let asked: Vec<f64> = api.seen().iter().filter(|s| s.path.ends_with("/commands")).map(|s| s.body["timeoutSeconds"].as_f64().unwrap()).collect();
+    let asked: Vec<f64> =
+        api.seen().iter().filter(|s| s.path.ends_with("/commands")).map(|s| s.body["timeoutSeconds"].as_f64().unwrap()).collect();
     assert!(asked.len() > 1);
     assert!(asked.iter().cloned().fold(f64::MIN, f64::max) <= (BOX_INLINE_MAX_MS / 1000) as f64);
     // The script the caller asked for travelled as the launched file's text, not as one long request.
@@ -234,20 +243,29 @@ async fn a_command_road_whose_shell_dies_on_the_open_file_limit_is_the_providers
     assert!(e.to_string().contains("libtinfo.so.6"), "{e}");
     assert_eq!(*status, 200);
     // A command of its own that fails, even with a loader error of its own kind, is still a command's exit code.
-    let ordinary = FakeBox::new().on("POST", COMMANDS, vec![command("", Some(127), json!({ "stderr": "bash: nosuchthing: command not found\n" }))]);
+    let ordinary =
+        FakeBox::new().on("POST", COMMANDS, vec![command("", Some(127), json!({ "stderr": "bash: nosuchthing: command not found\n" }))]);
     assert_eq!(machine_for(&ordinary).exec("nosuchthing", ExecOptions::default()).await.unwrap().exit_code, 127);
     // So is a child of the command that hits the same limit: the line is the box's only when what wsp starts died.
     let child = FakeBox::new().on(
         "POST",
         COMMANDS,
-        vec![command("", Some(127), json!({ "stderr": "gh: error while loading shared libraries: libssl.so.3: cannot open shared object file: Error 24\n" }))],
+        vec![command(
+            "",
+            Some(127),
+            json!({ "stderr": "gh: error while loading shared libraries: libssl.so.3: cannot open shared object file: Error 24\n" }),
+        )],
     );
     assert_eq!(machine_for(&child).exec("gh auth status", ExecOptions::default()).await.unwrap().exit_code, 127);
     // The sudo that wraps every command is wsp's own and runs under the same limit, so it is the box's fault too.
     let wrapper = FakeBox::new().on(
         "POST",
         COMMANDS,
-        vec![command("", Some(127), json!({ "stderr": "sudo: error while loading shared libraries: libaudit.so.1: cannot open shared object file: Error 24\n" }))],
+        vec![command(
+            "",
+            Some(127),
+            json!({ "stderr": "sudo: error while loading shared libraries: libaudit.so.1: cannot open shared object file: Error 24\n" }),
+        )],
     );
     let e = failed(machine_for(&wrapper).exec("true", ExecOptions::default()).await);
     assert!(matches!(e, EngineError::GuestUnusable { .. }), "{e:?}");
@@ -256,10 +274,14 @@ async fn a_command_road_whose_shell_dies_on_the_open_file_limit_is_the_providers
 /// box-backend.test.ts:590
 #[tokio::test]
 async fn a_commands_endpoint_answering_500_because_its_agent_could_not_spawn_the_shell_is_the_same_fault() {
-    let api = FakeBox::new().on("POST", COMMANDS, vec![refuse(500, "internal_error", "undefined is not an object (evaluating 'D.stdout.on')")]);
+    let api =
+        FakeBox::new().on("POST", COMMANDS, vec![refuse(500, "internal_error", "undefined is not an object (evaluating 'D.stdout.on')")]);
     let e = failed(machine_for(&api).exec("true", ExecOptions::default()).await);
     let EngineError::GuestUnusable { status, .. } = &e else { panic!("expected GuestUnusable, got {e:?}") };
-    assert_eq!(e.to_string(), "Boat left bx_tumrjngm running but nothing on it can run: undefined is not an object (evaluating 'D.stdout.on')");
+    assert_eq!(
+        e.to_string(),
+        "Boat left bx_tumrjngm running but nothing on it can run: undefined is not an object (evaluating 'D.stdout.on')"
+    );
     // The status the provider answered with rides along: a caller that keys its creates spends the key on it.
     assert_eq!(*status, 500);
     // Every other refusal of the endpoint keeps its own kind.
@@ -290,7 +312,14 @@ async fn a_box_whose_work_folder_is_gone_names_the_folder_and_the_machine_and_sa
 #[tokio::test]
 async fn a_resume_whose_box_reads_ready_and_then_cannot_run_a_command_ends_the_same_way_so_the_wake_reads_it_as_a_fault() {
     let api = FakeBox::new()
-        .on("POST", "/sandboxes/bx_tumrjngm/resume", vec![reply(202, json!({ "ok": true, "status": "resuming", "sandbox": common::fake_box::box_view(BX, "provisioned", json!({})) }))])
+        .on(
+            "POST",
+            "/sandboxes/bx_tumrjngm/resume",
+            vec![reply(
+                202,
+                json!({ "ok": true, "status": "resuming", "sandbox": common::fake_box::box_view(BX, "provisioned", json!({})) }),
+            )],
+        )
         .on("GET", "/sandboxes/bx_tumrjngm", vec![common::fake_box::info(BX, "ready", json!({}))])
         .on("POST", COMMANDS, vec![command("", Some(127), json!({ "stderr": LOADER_ERROR }))]);
     let e = failed(machine_for(&api).resume(None).await);

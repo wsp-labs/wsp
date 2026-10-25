@@ -90,7 +90,15 @@ fn check_failing(log: &Log, failing: u32, fault: &'static str) -> WakeCheckHook 
 }
 
 fn missing(message: &str) -> EngineError {
-    EngineError::Provider(WspError { kind: ErrorKind::Missing, status: 404, code: None, message: message.into(), request_id: None, window: None, said: None })
+    EngineError::Provider(WspError {
+        kind: ErrorKind::Missing,
+        status: 404,
+        code: None,
+        message: message.into(),
+        request_id: None,
+        window: None,
+        said: None,
+    })
 }
 
 /// lifecycle.test.ts:30
@@ -189,7 +197,8 @@ async fn holds_the_phase_until_the_check_passes_then_stays_on_the_same_machine()
 #[tokio::test]
 async fn a_check_that_fails_once_is_paused_and_resumed_again_and_a_passing_second_try_keeps_the_machine() {
     let m = FakeMachine::new("m1");
-    let hooks = WorkspaceHooks { resurrect: Some(resurrect_m2()), wake_check: Some(check_failing(&log(), 1, "daemon did not answer")), ..base(2) };
+    let hooks =
+        WorkspaceHooks { resurrect: Some(resurrect_m2()), wake_check: Some(check_failing(&log(), 1, "daemon did not answer")), ..base(2) };
     let mut ws = Workspace::new(machine_ref(&m), hooks, running());
     ws.nap().await.unwrap();
     let result = ws.wake(false).await.unwrap();
@@ -216,7 +225,12 @@ async fn two_failed_checks_fail_the_wake_with_both_faults_and_the_machine_stays(
         })
     };
     let wake_check: WakeCheckHook = Arc::new(|m| async move { Ok(Some(format!("memMb 2048 != 4096 on {}", m.id()))) }.boxed());
-    let hooks = WorkspaceHooks { resurrect: Some(resurrect_into(&order)), restore_vault: Some(restore_vault), wake_check: Some(wake_check), ..base(2) };
+    let hooks = WorkspaceHooks {
+        resurrect: Some(resurrect_into(&order)),
+        restore_vault: Some(restore_vault),
+        wake_check: Some(wake_check),
+        ..base(2)
+    };
     let mut ws = Workspace::new(machine_ref(&m), hooks, running());
     ws.nap().await.unwrap();
     let e = ws.wake(false).await.unwrap_err();
@@ -235,7 +249,8 @@ async fn two_failed_checks_fail_the_wake_with_both_faults_and_the_machine_stays(
 #[tokio::test]
 async fn a_workspace_given_wake_attempts_1_never_re_pauses() {
     let m = FakeMachine::new("m1");
-    let hooks = WorkspaceHooks { resurrect: Some(resurrect_m2()), wake_check: Some(check_failing(&log(), 99, "daemon did not answer")), ..base(1) };
+    let hooks =
+        WorkspaceHooks { resurrect: Some(resurrect_m2()), wake_check: Some(check_failing(&log(), 99, "daemon did not answer")), ..base(1) };
     let mut ws = Workspace::new(machine_ref(&m), hooks, running());
     ws.nap().await.unwrap();
     let e = ws.wake(false).await.unwrap_err();

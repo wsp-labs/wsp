@@ -16,20 +16,24 @@ use wsp_engine::fetch::{Fetch, FetchRequest, FetchResponse};
 use wsp_engine::golden_seam::{ImportResult, ImportRow, EXEC_ENV};
 use wsp_engine::machine::{ExecOptions, ExecResult, Machine, MachineKind, MachineLife, MachineState, RunOptions, SnapshotOptions};
 use wsp_engine::machine_context::{
-    agent_files, apply_machine_context, context_agents, context_line, context_path, render_machine_context,
-    render_short_context, render_skill, skill_path, Alias, AliasesUnread, ApplyContextOptions, BuildFacts,
-    ContextInput, ContextOutcomeKind, ContextProbe, ContextResult, Disk, FileNote, GoldenPick, GuestRoots,
-    MissingItem, WorkspaceName, CONTEXT_MARKER, SERVERS_OFF_LINE, SKILL_DESCRIPTION, SKILL_NAME,
+    agent_files, apply_machine_context, context_agents, context_line, context_path, render_machine_context, render_short_context,
+    render_skill, skill_path, Alias, AliasesUnread, ApplyContextOptions, BuildFacts, ContextInput, ContextOutcomeKind, ContextProbe,
+    ContextResult, Disk, FileNote, GoldenPick, GuestRoots, MissingItem, WorkspaceName, CONTEXT_MARKER, SERVERS_OFF_LINE, SKILL_DESCRIPTION,
+    SKILL_NAME,
 };
+use wsp_wire::types::run_block::RUN_BLOCK_WORDS;
 use wsp_words::words::thread::{background_work_words, ANOTHER_AGENT_WORDS, BACKGROUND_WORK_WORDS, TURN_END_WORDS};
 use wsp_words::words::units::fmt_bytes;
-use wsp_wire::types::run_block::RUN_BLOCK_WORDS;
 
 type Agent = &'static AgentEntry;
 
 fn facts() -> BuildFacts {
     BuildFacts {
-        tools: vec![MissingItem { id: "tools/brew-cask/raycast".into(), label: "raycast".into(), note: "macOS app, no Linux build".into() }],
+        tools: vec![MissingItem {
+            id: "tools/brew-cask/raycast".into(),
+            label: "raycast".into(),
+            note: "macOS app, no Linux build".into(),
+        }],
         agents: vec![MissingItem { id: "agents/zed".into(), label: "Zed".into(), note: "no installer known".into() }],
         files: vec![FileNote { path: "~/.ssh/id_ed25519".into(), note: "private key, never copied".into() }],
     }
@@ -39,10 +43,33 @@ fn probe_out() -> String {
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(serde_json::to_string(&facts()).unwrap());
     [
-        "some rc noise", "WSP_CTX", "KERNEL 6.6.30", "DISK 20466256 11720704", "OVERLAY no", "HAS tmux", "HAS fish", "HAS brew",
-        "HAS golden-path", "HAS wsp-open", "VERSION python3: Python 3.12.13", "VERSION uv: uv 0.12.9", "VERSION cc: ",
-        "AGENT claude", "AGENT codex", "AGENT gemini", "AGENT opencode", "AGENT pi", "AGENT hermes", "SECRET OPENAI_API_KEY",
-        "SECRET GH_TOKEN", "SHELL zsh", "ALIAS o open", "ALIAS rc code", &format!("FACTS {b64}"), "WSP_CTX_END", "",
+        "some rc noise",
+        "WSP_CTX",
+        "KERNEL 6.6.30",
+        "DISK 20466256 11720704",
+        "OVERLAY no",
+        "HAS tmux",
+        "HAS fish",
+        "HAS brew",
+        "HAS golden-path",
+        "HAS wsp-open",
+        "VERSION python3: Python 3.12.13",
+        "VERSION uv: uv 0.12.9",
+        "VERSION cc: ",
+        "AGENT claude",
+        "AGENT codex",
+        "AGENT gemini",
+        "AGENT opencode",
+        "AGENT pi",
+        "AGENT hermes",
+        "SECRET OPENAI_API_KEY",
+        "SECRET GH_TOKEN",
+        "SHELL zsh",
+        "ALIAS o open",
+        "ALIAS rc code",
+        &format!("FACTS {b64}"),
+        "WSP_CTX_END",
+        "",
     ]
     .join("\n")
 }
@@ -79,15 +106,34 @@ fn ctx(id: &str) -> Agent {
 }
 
 fn golden() -> GoldenPick {
-    GoldenPick { version: 3, created_at: "2026-09-05T14:02:11.000Z".into(), setup_sha: "9f2a7c1d4e5b6a7f8091a2b3c4d5e6f7".into(), npm_bin: None }
+    GoldenPick {
+        version: 3,
+        created_at: "2026-09-05T14:02:11.000Z".into(),
+        setup_sha: "9f2a7c1d4e5b6a7f8091a2b3c4d5e6f7".into(),
+        npm_bin: None,
+    }
 }
 
 fn task_input(agent: Option<Agent>) -> ContextInput {
-    ContextInput { workspace: Some(WorkspaceName { name: "task-1".into() }), golden: Some(golden()), probe: probe_of(|_| {}), facts: facts(), agent, at_provider: false }
+    ContextInput {
+        workspace: Some(WorkspaceName { name: "task-1".into() }),
+        golden: Some(golden()),
+        probe: probe_of(|_| {}),
+        facts: facts(),
+        agent,
+        at_provider: false,
+    }
 }
 
 fn bare_input(workspace: Option<&str>, probe: ContextProbe, facts: BuildFacts) -> ContextInput {
-    ContextInput { workspace: workspace.map(|name| WorkspaceName { name: name.into() }), golden: None, probe, facts, agent: None, at_provider: false }
+    ContextInput {
+        workspace: workspace.map(|name| WorkspaceName { name: name.into() }),
+        golden: None,
+        probe,
+        facts,
+        agent: None,
+        at_provider: false,
+    }
 }
 
 fn empty_facts() -> BuildFacts {
@@ -138,7 +184,9 @@ fn says_the_aliases_were_not_read_where_no_shell_was_opened_rather_than_none() {
         p.aliases_unread = Some(AliasesUnread::Shared);
     });
     let doc = render_machine_context(&bare_input(Some("box-1"), probe, facts()));
-    assert!(doc.contains("- Aliases: not read here. This computer's home is shared with every workspace on it, so wsp opens no login shell on it."));
+    assert!(doc.contains(
+        "- Aliases: not read here. This computer's home is shared with every workspace on it, so wsp opens no login shell on it."
+    ));
     assert!(!doc.contains("- Aliases whose command is not here:"));
 }
 
@@ -178,7 +226,9 @@ fn the_short_always_loaded_text_carries_the_facts_an_agent_must_not_get_wrong_an
     let short = render_short_context(&task_input(None));
     assert!(short.starts_with(&format!("{CONTEXT_MARKER}\n")), "{short}");
     assert!(short.contains("The wsp-machine skill has the full picture"));
-    assert!(short.contains("- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &, or tmux new -d -s <name> '<cmd>'."));
+    assert!(
+        short.contains("- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &, or tmux new -d -s <name> '<cmd>'.")
+    );
     assert!(!short.contains("dies when that tool call ends"));
     let claude = render_short_context(&task_input(Some(ctx("claude"))));
     assert!(claude.contains(&background_work_words(Some("run_in_background on the Bash tool"))));
@@ -195,7 +245,8 @@ fn the_short_always_loaded_text_carries_the_facts_an_agent_must_not_get_wrong_an
     assert!(short.contains("bind 0.0.0.0, not 127.0.0.1"));
     assert!(short.contains("- Containers do not run here: the kernel has no overlayfs, and Docker and Podman are not installed."));
     assert!(short.contains("- Disk: 19.5 GB root disk, 11.2 GB free when this file was written. wsp keeps 2 GB free."));
-    assert!(short.contains("- Secrets are exported by /etc/profile.d/wsp-secrets.sh. Use them by name ($NAME); never print, log or commit a value"));
+    assert!(short
+        .contains("- Secrets are exported by /etc/profile.d/wsp-secrets.sh. Use them by name ($NAME); never print, log or commit a value"));
     assert!(!short.contains("OPENAI_API_KEY"));
     assert!(!short.contains("raycast"));
     assert!(short.split('\n').count() < 16, "{short}");
@@ -233,7 +284,10 @@ fn the_skill_is_the_full_document_under_a_name_and_a_one_line_description_every_
     assert_eq!(skill, format!("---\nname: wsp-machine\ndescription: {SKILL_DESCRIPTION}\n---\n\n{doc}"));
     assert!(SKILL_DESCRIPTION.chars().count() < 1024);
     assert!(!SKILL_DESCRIPTION.chars().any(|c| matches!(c, '\n' | ':' | '"' | '#' | '\u{2014}')), "{SKILL_DESCRIPTION}");
-    assert!((1..=64).contains(&SKILL_NAME.len()) && SKILL_NAME.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'), "{SKILL_NAME}");
+    assert!(
+        (1..=64).contains(&SKILL_NAME.len()) && SKILL_NAME.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'),
+        "{SKILL_NAME}"
+    );
 }
 
 /// machine-context.test.ts:316
@@ -285,10 +339,16 @@ fn writes_the_short_text_through_each_hook_and_the_skill_into_each_global_skills
     }
     assert_eq!(paths(of("claude")), ["/etc/claude-code/CLAUDE.md", "/etc/claude-code/.claude/skills/wsp-machine/SKILL.md"]);
     assert_eq!(paths(of("codex")), ["/etc/codex/requirements.toml", "/etc/codex/skills/wsp-machine/SKILL.md"]);
-    assert_eq!(paths(of("gemini")), ["/etc/gemini-cli/system-defaults.json", "/root/.gemini/WSP-MACHINE.md", "/root/.gemini/skills/wsp-machine/SKILL.md"]);
+    assert_eq!(
+        paths(of("gemini")),
+        ["/etc/gemini-cli/system-defaults.json", "/root/.gemini/WSP-MACHINE.md", "/root/.gemini/skills/wsp-machine/SKILL.md"]
+    );
     assert_eq!(paths(of("opencode")), ["/etc/opencode/opencode.json", "/root/.config/opencode/skills/wsp-machine/SKILL.md"]);
     assert_eq!(paths(of("pi")), ["/root/.pi/agent/APPEND_SYSTEM.md", "/root/.pi/agent/skills/wsp-machine/SKILL.md"]);
-    assert_eq!(paths(of("hermes")), ["/etc/profile.d/wsp-machine.sh", "/etc/fish/conf.d/wsp-machine.fish", "/root/.hermes/skills/wsp-machine/SKILL.md"]);
+    assert_eq!(
+        paths(of("hermes")),
+        ["/etc/profile.d/wsp-machine.sh", "/etc/fish/conf.d/wsp-machine.fish", "/root/.hermes/skills/wsp-machine/SKILL.md"]
+    );
     for (a, o) in &out {
         for f in &o.files {
             assert_eq!(f.mode, 0o644, "{} {}", a.id, f.path);
@@ -351,7 +411,11 @@ fn gemini_and_opencode_get_json_that_names_ours_and_nothing_of_the_persons() {
 fn hermes_reads_the_short_text_into_its_hint_through_fish_too_only_when_fish_is_there() {
     let out = hooks(ctx("hermes"), &short_for(None), &skill_for(None), &probe_of(|p| p.has = IndexSet::new()));
     assert_eq!(paths(&out), ["/etc/profile.d/wsp-machine.sh", "/root/.hermes/skills/wsp-machine/SKILL.md"]);
-    assert!(out.files[0].content.contains(r#"export HERMES_ENVIRONMENT_HINT="$(cat /etc/wsp/machine-context.md)""#), "{}", out.files[0].content);
+    assert!(
+        out.files[0].content.contains(r#"export HERMES_ENVIRONMENT_HINT="$(cat /etc/wsp/machine-context.md)""#),
+        "{}",
+        out.files[0].content
+    );
 }
 
 /// machine-context.test.ts:377
@@ -371,9 +435,14 @@ fn falls_back_when_the_persons_own_file_sets_the_key_codex_is_additive_and_never
     assert_eq!(gemini.note.as_deref(), Some("~/.gemini/settings.json sets context.fileName"));
     assert_eq!(
         paths(&gemini),
-        ["/root/.gemini/extensions/wsp-machine/gemini-extension.json", "/root/.gemini/extensions/wsp-machine/WSP-MACHINE.md", "/root/.gemini/skills/wsp-machine/SKILL.md"]
+        [
+            "/root/.gemini/extensions/wsp-machine/gemini-extension.json",
+            "/root/.gemini/extensions/wsp-machine/WSP-MACHINE.md",
+            "/root/.gemini/skills/wsp-machine/SKILL.md"
+        ]
     );
-    let ext: serde_json::Value = serde_json::from_str(content(&gemini, "/root/.gemini/extensions/wsp-machine/gemini-extension.json")).unwrap();
+    let ext: serde_json::Value =
+        serde_json::from_str(content(&gemini, "/root/.gemini/extensions/wsp-machine/gemini-extension.json")).unwrap();
     assert_eq!(ext, json!({ "name": "wsp-machine", "version": "1.0.0", "contextFileName": "WSP-MACHINE.md" }));
     assert_eq!(content(&gemini, "/root/.gemini/extensions/wsp-machine/WSP-MACHINE.md"), short);
     assert!(!paths(&gemini).contains(&"/etc/gemini-cli/system-defaults.json"));
@@ -430,7 +499,12 @@ fn never_names_the_two_paths_that_would_replace_a_file_of_the_persons() {
     for a in context_agents() {
         for probe in [probe_of(|_| {}), probe_of(|p| p.conflicts = all_ids())] {
             for f in hooks(a, &short, &skill, &probe).files {
-                assert!(!f.path.ends_with(".codex/AGENTS.override.md") && !f.path.ends_with(".config/opencode/AGENTS.md"), "{}: {}", a.id, f.path);
+                assert!(
+                    !f.path.ends_with(".codex/AGENTS.override.md") && !f.path.ends_with(".config/opencode/AGENTS.md"),
+                    "{}: {}",
+                    a.id,
+                    f.path
+                );
             }
         }
     }
@@ -472,7 +546,11 @@ impl Fetch for UploadRoad {
         self.puts.lock().unwrap().push(Put { path: path.clone(), bytes: body.len() });
         if body.len() > self.cap {
             let said = json!({ "error": "Payload Too Large", "limit": self.cap }).to_string();
-            return Ok(FetchResponse { status: 413, headers: vec![("content-type".into(), "application/json".into())], body: said.into_bytes() });
+            return Ok(FetchResponse {
+                status: 413,
+                headers: vec![("content-type".into(), "application/json".into())],
+                body: said.into_bytes(),
+            });
         }
         std::fs::write(&path, body).expect("the upload lands");
         Ok(FetchResponse { status: 200, headers: vec![], body: vec![] })
@@ -646,7 +724,10 @@ async fn probes_renders_with_facts_folded_in_lands_every_hook_and_skill_through_
     }
     let puts = g.puts();
     assert_eq!(puts.len(), 1);
-    assert_eq!(out.summary, format!("{} written for Claude Code, Codex, Gemini CLI, OpenCode, Pi, Hermes Agent", fmt_bytes(puts[0].1 as f64)));
+    assert_eq!(
+        out.summary,
+        format!("{} written for Claude Code, Codex, Gemini CLI, OpenCode, Pi, Hermes Agent", fmt_bytes(puts[0].1 as f64))
+    );
     let execs = g.execs();
     assert_eq!(execs.len(), 2, "{execs:?}");
     assert!(!execs.iter().any(|c| c.contains("base64 --decode")));
@@ -720,7 +801,11 @@ async fn takes_the_fallback_for_a_claimed_hook_the_skill_alone_for_hermes_and_sk
     );
     let rest = out.summary.strip_suffix(" KB written for Claude Code; Gemini CLI by its fallback (~/.gemini/settings.json sets context.fileName); Hermes Agent not loaded (~/.hermes/config.yaml sets agent.environment_hint), skill only");
     let figure = rest.unwrap_or_else(|| panic!("{}", out.summary));
-    assert!(!figure.is_empty() && figure.chars().all(|c| c.is_ascii_digit() || c == '.') && figure.matches('.').count() <= 1, "{}", out.summary);
+    assert!(
+        !figure.is_empty() && figure.chars().all(|c| c.is_ascii_digit() || c == '.') && figure.matches('.').count() <= 1,
+        "{}",
+        out.summary
+    );
     assert!(!g.at("etc/gemini-cli/system-defaults.json").exists());
     assert!(g.at("home/.gemini/extensions/wsp-machine/gemini-extension.json").exists());
     assert!(!g.at("etc/profile.d/wsp-machine.sh").exists());
@@ -754,7 +839,10 @@ async fn a_refused_upload_is_a_failure_that_names_the_cap_and_nothing_lands() {
     let g = guest_with(Some("WSP_CTX\nAGENT claude\nWSP_CTX_END\n".into()), 1024);
     let out = g.apply(ApplyContextOptions::default()).await;
     assert!(out.context.is_empty());
-    assert_eq!(out.failure.as_deref(), Some("write failed: vault import upload failed: HTTP 413 Payload Too Large; the upload takes at most 1024 bytes per PUT"));
+    assert_eq!(
+        out.failure.as_deref(),
+        Some("write failed: vault import upload failed: HTTP 413 Payload Too Large; the upload takes at most 1024 bytes per PUT")
+    );
     assert_eq!(out.summary, format!("not written ({})", out.failure.clone().unwrap_or_default()));
     assert_eq!(g.puts().len(), 1);
     assert!(!Path::new(&context_path(Some(&g.roots))).exists());
@@ -768,7 +856,10 @@ async fn an_untar_that_fails_is_a_failure_with_the_guests_last_line() {
     *g.m.untar.lock().unwrap() =
         Some(ExecResult { exit_code: 2, stdout: String::new(), stderr: "tar: etc/wsp: Cannot mkdir: Read-only file system\n".into() });
     let out = g.apply(ApplyContextOptions::default()).await;
-    assert_eq!(out.failure.as_deref(), Some("write failed: vault import untar failed (exit 2): tar: etc/wsp: Cannot mkdir: Read-only file system"));
+    assert_eq!(
+        out.failure.as_deref(),
+        Some("write failed: vault import untar failed (exit 2): tar: etc/wsp: Cannot mkdir: Read-only file system")
+    );
     assert!(out.context.is_empty());
 }
 

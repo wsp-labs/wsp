@@ -10,8 +10,8 @@ use super::plan::BoxClassType;
 use super::request::BoxBackend;
 use crate::errors::Result;
 use crate::machine::{
-    BytesLanded, DaemonSupervisor, ExecOptions, ExecResult, Machine, MachineKind, MachineLife, MachineOffers, MachineShape,
-    MachineState, PreviewReach, RunOptions, Seen, SnapshotOptions,
+    BytesLanded, DaemonSupervisor, ExecOptions, ExecResult, Machine, MachineKind, MachineLife, MachineOffers, MachineShape, MachineState,
+    PreviewReach, RunOptions, Seen, SnapshotOptions,
 };
 
 /// box-backend.ts:1054. The script that writes the daemon's environment file under /etc, mode 0600.
@@ -61,7 +61,14 @@ pub struct BoxMachine {
 
 impl BoxMachine {
     /// box-backend.ts:1115.
-    pub fn new(backend: BoxBackend, id: &str, kind: MachineKind, labels: Option<IndexMap<String, String>>, seen: Option<Seen>, replayed: bool) -> Self {
+    pub fn new(
+        backend: BoxBackend,
+        id: &str,
+        kind: MachineKind,
+        labels: Option<IndexMap<String, String>>,
+        seen: Option<Seen>,
+        replayed: bool,
+    ) -> Self {
         todo!()
     }
 

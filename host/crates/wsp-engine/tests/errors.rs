@@ -6,9 +6,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 use common::fake_clock::FakeClock;
-use wsp_engine::errors::{
-    classify, is_network_error, should_retry, until_reached, EngineError, ErrorKind, RoadCause, RoadError, WspError,
-};
+use wsp_engine::errors::{classify, is_network_error, should_retry, until_reached, EngineError, ErrorKind, RoadCause, RoadError, WspError};
 use wsp_words::words::thread::{exec_failed_line, machine_unreachable_line, machine_unreached_line};
 
 /// A TypeError "fetch failed" whose cause carries `code`, as node's fetch rejects.
@@ -96,7 +94,9 @@ fn unreachable_keeps_the_sentence_it_was_handed_and_is_no_exec_failed() {
     };
     assert_eq!(e.to_string(), machine_unreachable_line(said));
     assert_eq!(e.name(), "MachineUnreachableError");
-    assert!(matches!(&e, EngineError::MachineUnreachable { machine_id, said: s, status: 502, exec_failed: false, .. } if machine_id == "m1" && s == said));
+    assert!(
+        matches!(&e, EngineError::MachineUnreachable { machine_id, said: s, status: 502, exec_failed: false, .. } if machine_id == "m1" && s == said)
+    );
 }
 
 /// errors.test.ts:53

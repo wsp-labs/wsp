@@ -46,7 +46,9 @@ fn stub_runner() -> &'static Path {
         for attempt in 0..50 {
             match Command::new(&path).output() {
                 Ok(_) => break,
-                Err(e) if attempt < 49 && e.raw_os_error() == Some(libc::ETXTBSY) => std::thread::sleep(std::time::Duration::from_millis(20)),
+                Err(e) if attempt < 49 && e.raw_os_error() == Some(libc::ETXTBSY) => {
+                    std::thread::sleep(std::time::Duration::from_millis(20))
+                }
                 Err(e) => panic!("the stub runner would not start: {e}"),
             }
         }
@@ -182,7 +184,8 @@ fn says_the_signal_that_killed_a_daemon_that_printed_nothing() {
 /// daemon-exits.test.ts:84
 #[test]
 fn names_no_status_once_the_next_copy_runs_since_the_unit_then_reads_success_and_0() {
-    let (stdout, _) = look(Look { counts: ["4", "6"], sub: Some("running"), result: Some("success"), status: Some("0"), ..Default::default() });
+    let (stdout, _) =
+        look(Look { counts: ["4", "6"], sub: Some("running"), result: Some("success"), status: Some("0"), ..Default::default() });
     assert_eq!(daemon_exits_of(&stdout).as_deref(), Some("it printed nothing"));
 }
 
