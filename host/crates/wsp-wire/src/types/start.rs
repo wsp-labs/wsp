@@ -200,14 +200,22 @@ impl Check for IssueReadCommentsItem {
 }
 
 /// TS: packages/protocol/src/start.ts:76 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::IssueRead;
+/// An issue as a start's task reads it: its number, link, title, body, state and comments.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueRead {
+    pub number: i64,
+    pub url: String,
+    pub title: String,
+    pub body: String,
+    pub state: String,
+    pub comments: Vec<IssueReadCommentsItem>,
+}
 
 impl Check for IssueRead {
-    /// Rules: number: >= 0.
-    /// Nested checks: comments.
     fn check(&self) -> Result<(), SchemaError> {
         crate::types::check::num_at_least(self.number as f64, 0.0).map_err(|e| e.under("number"))?;
+        self.comments.check().map_err(|e| e.under("comments"))?;
         Ok(())
     }
 
@@ -215,12 +223,12 @@ impl Check for IssueRead {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
-                "number" => <u64 as Check>::describe(rest),
+                "number" => <i64 as Check>::describe(rest),
                 "url" => <String as Check>::describe(rest),
                 "title" => <String as Check>::describe(rest),
                 "body" => <String as Check>::describe(rest),
                 "state" => <String as Check>::describe(rest),
-                "comments" => None,
+                "comments" => <Vec<IssueReadCommentsItem> as Check>::describe(rest),
                 _ => None,
             },
         }
@@ -228,11 +236,14 @@ impl Check for IssueRead {
 }
 
 /// TS: packages/protocol/src/start.ts:87 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitIssueReadReply;
+/// A git.issueRead's answer.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitIssueReadReply {
+    pub issue: IssueRead,
+}
 
 impl Check for GitIssueReadReply {
-    /// Nested checks: issue.
     fn check(&self) -> Result<(), SchemaError> {
         self.issue.check().map_err(|e| e.under("issue"))?;
         Ok(())

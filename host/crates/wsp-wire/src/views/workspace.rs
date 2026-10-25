@@ -16,7 +16,7 @@ use crate::types::workspace_look::WorkspaceTheme;
 use crate::views::workspace_kind::WorkspaceKind;
 use wsp_frames::PauseMode;
 use wsp_frames::True;
-use wsp_frames::WorkspaceSize;
+use crate::wire::capabilities::WorkspaceSize;
 
 literal!(ThreadLit, "thread");
 

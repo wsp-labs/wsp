@@ -42,7 +42,21 @@ pub const AUTH_DEADLINE_CLOSE: i64 = 4408;
 pub const FORWARD_MAX_PER_TARGET: i64 = 16;
 
 /// A callback port the laptop binds without root, 1024 to 65535; wsp-frames reads it with the same bounds.
-pub use wsp_frames::RelayPort;
+/// A callback port the laptop binds without root, 1024 to 65535 (limits.ts:153): a JSON integer in those bounds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RelayPort(pub i64);
+
+impl Check for RelayPort {
+    fn check(&self) -> Result<(), SchemaError> {
+        crate::types::check::num_at_least(self.0 as f64, 1024.0)?;
+        crate::types::check::num_at_most(self.0 as f64, 65535.0)
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Int)
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PortForwardKind {
     #[serde(rename = "url")]

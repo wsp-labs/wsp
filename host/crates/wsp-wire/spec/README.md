@@ -69,3 +69,4 @@ What survives a host restart:
 - Every stand-in now names the real type: `src/wire/pending.rs` and the views writer's `src/types/pending_wire.rs` are gone; `crate::wire` re-exports `parse`, `Check`, `SchemaError` from `crate::types::check`.
 - The slate shapes the op and event unions name (`SlateWireValues`, `SlateCause`, `SlateBy`, `SessionSlateEvent`, `SlateValuesEvent`, `SlateRunEvent`) sit in `crate::types::slate_wire`, since wsp-slate depends on wsp-wire.
 - Fifteen test assertions that compared a stand-in field to `json!(...)` compare the field's written value (`serde_json::to_value`) instead; what each asserts is unchanged.
+- The check bodies in `src/types` and `src/views` are hand-maintained now. `spec/gen/run.sh` must not be rerun over them: it writes every check back to `todo!()`.

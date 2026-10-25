@@ -722,8 +722,16 @@ impl Check for UsageKey {
 }
 
 /// TS: packages/protocol/src/usage.ts:209 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::UsageTokens;
+/// Tokens by kind. zod reads each as a plain number, so the fields are JsNumber.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageTokens {
+    pub input: JsNumber,
+    pub output: JsNumber,
+    pub cached: JsNumber,
+    pub cache_write: JsNumber,
+    pub reasoning: JsNumber,
+}
 
 impl Check for UsageTokens {
     fn check(&self) -> Result<(), SchemaError> {
@@ -734,11 +742,11 @@ impl Check for UsageTokens {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
-                "input" => <u64 as Check>::describe(rest),
-                "output" => <u64 as Check>::describe(rest),
-                "cached" => <u64 as Check>::describe(rest),
-                "cacheWrite" => <u64 as Check>::describe(rest),
-                "reasoning" => <u64 as Check>::describe(rest),
+                "input" => <JsNumber as Check>::describe(rest),
+                "output" => <JsNumber as Check>::describe(rest),
+                "cached" => <JsNumber as Check>::describe(rest),
+                "cacheWrite" => <JsNumber as Check>::describe(rest),
+                "reasoning" => <JsNumber as Check>::describe(rest),
                 _ => None,
             },
         }

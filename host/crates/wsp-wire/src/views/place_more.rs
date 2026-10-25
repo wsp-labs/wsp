@@ -17,9 +17,9 @@ use crate::views::workspace::WorkspaceAgents;
 use crate::wire::capabilities::MachineSizeOffer;
 use crate::wire::limits::PortForward;
 use indexmap::IndexMap;
-use wsp_frames::RelayPort;
+use crate::wire::limits::RelayPort;
 use wsp_frames::True;
-use wsp_frames::WorkspaceSize;
+use crate::wire::capabilities::WorkspaceSize;
 
 /// TS: packages/protocol/src/views/place.ts:432 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
