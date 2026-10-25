@@ -25,14 +25,22 @@ pub const NO_RECIPE: &str = "none";
 pub struct ProviderWords {
     pub id: &'static str,
     pub name: &'static str,
+    pub key_name: &'static str,
     pub key_console: Option<&'static str>,
     /// A person meets this cloud through a lead's sub-threads alone.
     pub sub_threads: bool,
 }
 
-pub const PROVIDERS: [ProviderWords; 2] = [
-    ProviderWords { id: "box", name: "Boat", key_console: Some("boat.dev/dashboard"), sub_threads: true },
-    ProviderWords { id: "solari", name: "Solari", key_console: Some("console.getsolari.com"), sub_threads: false },
+pub const PROVIDERS: &[ProviderWords] = &[
+    ProviderWords { id: "box", name: "Boat", key_name: "Boat API key", key_console: Some("boat.dev/dashboard"), sub_threads: true },
+    #[cfg(feature = "cloud")]
+    ProviderWords {
+        id: "solari",
+        name: "Solari",
+        key_name: "Solari API key",
+        key_console: Some("console.getsolari.com"),
+        sub_threads: false,
+    },
 ];
 
 pub fn provider_words(id: &str) -> Option<&'static ProviderWords> {
@@ -1109,9 +1117,10 @@ mod tests {
         }
         let theirs = read["providerKeyWords"].as_object().unwrap();
         assert_eq!(PROVIDERS.iter().map(|p| p.id).collect::<Vec<_>>(), theirs.keys().map(String::as_str).collect::<Vec<_>>());
-        for p in &PROVIDERS {
+        for p in PROVIDERS {
             let words = &theirs[p.id];
             assert_eq!(words["name"].as_str(), Some(p.name), "{}", p.id);
+            assert_eq!(words["keyName"].as_str(), Some(p.key_name), "{}", p.id);
             assert_eq!(words["keyConsole"].as_str(), p.key_console, "{}", p.id);
             assert_eq!(words["subThreads"].as_bool().unwrap_or(false), p.sub_threads, "{}", p.id);
         }
