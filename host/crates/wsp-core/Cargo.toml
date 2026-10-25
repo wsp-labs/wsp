@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-core"
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The host's core: the context and the types the runtime's areas share, the clock, status, the daemon channel, reach and the exec roads"
+
+[dependencies]
+async-trait = "0.1"
+futures = "0.3"
+indexmap = { version = "2", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+tokio = { version = "1", features = ["process", "time", "io-util", "fs", "net", "rt", "rt-multi-thread", "macros", "sync"] }
+tokio-util = "0.7"
+tokio-tungstenite = "0.30"
+sha2 = "0.10"
+base64 = "0.22"
+hex = "0.4"
+url = "2"
+jiff = "0.2"
+wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
+wsp-wire = { path = "../wsp-wire" }
+wsp-words = { path = "../wsp-words" }
+wsp-store = { path = "../wsp-store" }
+wsp-catalog = { path = "../wsp-catalog" }
+wsp-collect = { path = "../wsp-collect" }
+wsp-engine = { path = "../wsp-engine" }
+wsp-adapters = { path = "../wsp-adapters" }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "test-util"] }
