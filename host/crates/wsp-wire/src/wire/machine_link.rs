@@ -74,33 +74,33 @@ pub enum MachineSpecOnIdle {
 #[serde(rename_all = "camelCase")]
 pub struct MachineSpec {
     pub kind: MachineKind,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub template: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub from_snapshot: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cpu: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub mem_mb: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub disk_gb: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub envs: Option<IndexMap<String, String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub labels: Option<IndexMap<String, String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub on_idle: Option<MachineSpecOnIdle>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub idle_timeout_ms: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub idempotency_key: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub engine: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub copy: Option<WorkspaceCopy>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub shares: Option<Vec<MachineShare>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub binds: Option<Vec<MachineBind>>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -113,15 +113,15 @@ pub struct ExecResult {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MachineShape {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cpu: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub mem_mb: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub disk_gb: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub created_at: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub used_bytes: Option<i64>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -140,12 +140,12 @@ pub struct PreviewReach {
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotRow {
     pub id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub name: Option<String>,
     pub size_bytes: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub restored_bytes: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub created_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
     pub parent: Option<Option<String>>,
@@ -165,9 +165,9 @@ pub struct TemplateRow {
     pub id: String,
     pub name: String,
     pub status: TemplateRowStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub error: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub created_at: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -188,7 +188,7 @@ pub struct LifecycleBudgetsResumeAsks {
 pub struct LifecycleBudgets {
     pub wake_attempts: i64,
     pub daemon_answers_ms: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub resume_asks: Option<LifecycleBudgetsResumeAsks>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -196,8 +196,9 @@ pub struct LifecycleBudgets {
 pub struct MachineListRow {
     pub id: String,
     pub state: MachineState,
+    #[serde(serialize_with = "crate::types::check::js_record")]
     pub labels: IndexMap<String, String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub size: Option<WorkspaceSize>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -226,7 +227,7 @@ pub enum MachineErrorKind {
 pub struct BackendFactsPricing {
     pub default_size: WorkspaceSize,
     pub snapshot_storage: SnapshotStoragePricing,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub builder_disk_gb: Option<JsNumber>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -246,20 +247,20 @@ pub struct BackendFacts {
     pub offer: String,
     pub capabilities: Capabilities,
     pub pricing: BackendFactsPricing,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub lifecycle: Option<BackendFactsLifecycle>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub base_templates: Option<BackendFactsBaseTemplates>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub logins: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub projects: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MachineHandleSeen {
     pub state: MachineState,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub created_at: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -277,17 +278,17 @@ pub struct MachineHandleRoads {
 pub struct MachineHandle {
     pub id: String,
     pub kind: MachineKind,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub stream_url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub labels: Option<IndexMap<String, String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub seen: Option<MachineHandleSeen>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub replayed: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub daemon_supervisor: Option<DaemonSupervisor>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub notice: Option<String>,
     pub roads: MachineHandleRoads,
 }
@@ -307,7 +308,7 @@ pub enum MachineLinkRequest {
     #[serde(rename = "machine.list", rename_all = "camelCase")]
     MachineList {
         id: ReqId,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         labels: Option<IndexMap<String, String>>,
     },
     #[serde(rename = "machine.exec", rename_all = "camelCase")]
@@ -315,9 +316,9 @@ pub enum MachineLinkRequest {
         id: ReqId,
         machine_id: String,
         cmd: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         timeout_ms: Option<i64>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         stdin: Option<String>,
     },
     #[serde(rename = "machine.pause", rename_all = "camelCase")]
@@ -338,7 +339,7 @@ pub enum MachineLinkRequest {
     MachineDaemonAnswers {
         id: ReqId,
         machine_id: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         timeout_ms: Option<i64>,
     },
     #[serde(rename = "machine.previewUrl", rename_all = "camelCase")]
@@ -356,7 +357,7 @@ pub enum MachineLinkRequest {
         seq: i64,
         last: bool,
         data: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         timeout_ms: Option<i64>,
     },
 }
@@ -389,21 +390,21 @@ pub struct MachineShapeReply {
 #[serde(rename_all = "camelCase")]
 pub struct MachineReading {
     pub state: MachineState,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cpu: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub mem_mb: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub mem_bytes: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cpu_usage_usec: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub uptime_ms: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub procs: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub quiet_for_ms: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub address: Option<String>,
     pub cgroup: String,
     pub upper: String,
@@ -466,7 +467,7 @@ pub struct DaemonOkResponse {
     pub id: Option<ReqId>,
     pub ok: True,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten)]
+    #[serde(flatten, serialize_with = "crate::types::check::js_record")]
     pub rest: IndexMap<String, Value>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -475,11 +476,11 @@ pub struct DaemonErrorResponse {
     pub id: Option<ReqId>,
     pub ok: False,
     pub error: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub code: Option<DaemonErrorCode>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub kind: Option<MachineErrorKind>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub status: Option<i64>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -557,19 +558,19 @@ pub struct ProcContainer {
     pub name: String,
     pub image: String,
     pub state: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub started_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub thread: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::wire::helpers::or_none")]
     pub placed_by: Option<ContainerPlacedBy>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub folder: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub project: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub memory: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cpu: Option<JsNumber>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -579,13 +580,13 @@ pub struct ProcSnapshot {
     pub daemon: i64,
     pub total: i64,
     pub procs: Vec<ProcEntry>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub seq: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cost: Option<ProcCost>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub containers: Option<Vec<ProcContainer>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cgroups: Option<Vec<CgroupMemory>>,
 }
 
@@ -603,11 +604,11 @@ pub struct ProcChanges {
     pub gone: Vec<i64>,
     pub seq: i64,
     pub base: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cost: Option<ProcCost>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub containers: Option<Vec<ProcContainer>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cgroups: Option<Vec<CgroupMemory>>,
 }
 

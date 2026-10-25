@@ -42,7 +42,7 @@ pub use wsp_frames::PullRequestState;
 
 impl Check for PullRequestState {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Open", "Merged", "Closed"]))
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["open", "merged", "closed"]))
     }
 }
 
@@ -52,7 +52,7 @@ pub use wsp_frames::Mergeable;
 
 impl Check for Mergeable {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Mergeable", "Conflicting", "Unknown"]))
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["mergeable", "conflicting", "unknown"]))
     }
 }
 
@@ -62,7 +62,7 @@ pub use wsp_frames::ReviewState;
 
 impl Check for ReviewState {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["None", "Approved", "ChangesAsked", "Required"]))
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["none", "approved", "changes_asked", "required"]))
     }
 }
 
@@ -72,7 +72,7 @@ pub use wsp_frames::CheckState;
 
 impl Check for CheckState {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Pass", "Fail", "Pending", "Skipped", "Cancelled"]))
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["pass", "fail", "pending", "skipped", "cancelled"]))
     }
 }
 
@@ -82,7 +82,7 @@ pub use wsp_frames::MergeMethod;
 
 impl Check for MergeMethod {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Merge", "Squash", "Rebase"]))
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["merge", "squash", "rebase"]))
     }
 }
 
@@ -118,18 +118,18 @@ impl Check for PullRequestCheckRun {
 #[serde(rename_all = "camelCase")]
 pub struct PullRequestCheck {
     pub name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub workflow: Option<String>,
     pub state: CheckState,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub run: Option<PullRequestCheckRun>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub link: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub description: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub started_at: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub completed_at: Option<String>,
 }
 
@@ -187,7 +187,7 @@ impl Check for PullRequestFork {
 #[serde(rename_all = "camelCase")]
 pub struct PullRequestAutoMerge {
     pub method: MergeMethod,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub by: Option<String>,
 }
 
@@ -231,13 +231,13 @@ pub struct PullRequest {
     pub deletions: i64,
     pub changed_files: i64,
     pub commits: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub behind_base: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub author: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub fork: Option<PullRequestFork>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub auto_merge: Option<PullRequestAutoMerge>,
 }
 
@@ -314,13 +314,13 @@ pub struct PullRequestFact {
     pub deletions: i64,
     pub changed_files: i64,
     pub commits: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub behind_base: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub author: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub fork: Option<PullRequestFork>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub auto_merge: Option<PullRequestAutoMerge>,
     pub read_at: JsNumber,
 }
@@ -411,13 +411,13 @@ pub struct PullRequestRecord {
     pub url: String,
     pub state: PullRequestState,
     pub base: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub branch: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub merged_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub closed_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub checks: Option<Vec<PullRequestCheck>>,
 }
 
@@ -457,13 +457,13 @@ pub struct PullRequestKept {
     pub url: String,
     pub state: PullRequestState,
     pub base: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub branch: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub merged_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub closed_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub checks: Option<Vec<PullRequestCheck>>,
     pub read_at: JsNumber,
 }
@@ -566,13 +566,13 @@ impl Check for FixResultV0Outcome {
 pub struct FixResultV0 {
     pub outcome: FixResultV0Outcome,
     pub thread_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub check: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub child: Option<String>,
     pub base: String,
     pub agent: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub capped: Option<ThreadCapWait>,
 }
 
@@ -683,8 +683,15 @@ impl Check for MergeResult {
 }
 
 /// TS: packages/protocol/src/pull-request.ts:386 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::PullRequestLabel;
+/// A label on a pull request.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullRequestLabel {
+    pub name: String,
+    pub color: String,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub description: Option<String>,
+}
 
 impl Check for PullRequestLabel {
     fn check(&self) -> Result<(), SchemaError> {
@@ -774,13 +781,13 @@ pub struct PullRequestCommit {
     pub body: String,
     pub at: String,
     pub author: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub parents: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub additions: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub deletions: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub check: Option<CheckState>,
 }
 
@@ -815,17 +822,17 @@ impl Check for PullRequestCommit {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PullRequestReview {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub id: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub node_id: Option<String>,
     pub author: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub association: Option<String>,
     pub state: String,
     pub body: String,
     pub at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub reactions: Option<Vec<PullRequestReaction>>,
 }
 
@@ -863,18 +870,18 @@ impl Check for PullRequestReview {
 #[serde(rename_all = "camelCase")]
 pub struct PullRequestComment {
     pub id: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub node_id: Option<String>,
     pub author: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub association: Option<String>,
     pub bot: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub avatar: Option<String>,
     pub body: String,
     pub url: String,
     pub at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub reactions: Option<Vec<PullRequestReaction>>,
 }
 
@@ -912,33 +919,33 @@ impl Check for PullRequestComment {
 #[serde(rename_all = "camelCase")]
 pub struct PullRequestReviewComment {
     pub id: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub node_id: Option<String>,
     pub path: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub line: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub side: Option<String>,
     pub author: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub association: Option<String>,
     pub bot: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub avatar: Option<String>,
     pub body: String,
     pub url: String,
     pub at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub hunk: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub reply_to: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub review_id: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub resolved: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub thread_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub reactions: Option<Vec<PullRequestReaction>>,
 }
 
@@ -1046,13 +1053,13 @@ impl Check for GitPrViewReplyFilesItem {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitPrViewReplyCut {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub commits: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub reviews: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub threads: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub comments: Option<bool>,
 }
 
@@ -1084,13 +1091,13 @@ pub struct GitPrViewReply {
     pub author: String,
     pub created_at: String,
     pub updated_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub closed_at: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub merged_at: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub merged_by: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub merge_commit: Option<String>,
     pub labels: Vec<PullRequestLabel>,
     pub review_requests: Vec<PullRequestReviewRequest>,
@@ -1101,7 +1108,7 @@ pub struct GitPrViewReply {
     pub comments: Vec<PullRequestComment>,
     pub review_comments: Vec<PullRequestReviewComment>,
     pub files: Vec<GitPrViewReplyFilesItem>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cut: Option<GitPrViewReplyCut>,
 }
 
@@ -1154,11 +1161,11 @@ impl Check for GitPrViewReply {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitPrReadReply {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub pr: Option<PullRequest>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub seen: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub unchanged: Option<bool>,
 }
 
@@ -1362,13 +1369,13 @@ pub struct PullRequestPage {
     pub author: String,
     pub created_at: String,
     pub updated_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub closed_at: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub merged_at: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub merged_by: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub merge_commit: Option<String>,
     pub labels: Vec<PullRequestLabel>,
     pub review_requests: Vec<PullRequestReviewRequest>,
@@ -1379,12 +1386,12 @@ pub struct PullRequestPage {
     pub comments: Vec<PullRequestComment>,
     pub review_comments: Vec<PullRequestReviewComment>,
     pub files: Vec<GitPrViewReplyFilesItem>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cut: Option<GitPrViewReplyCut>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub merge: Option<GitRepoReadReply>,
     pub sent: Vec<PullRequestSent>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub posts_as_you: Option<bool>,
 }
 
@@ -1462,7 +1469,7 @@ pub struct PullRequestSendResult {
     pub outcome: PullRequestSendResultOutcome,
     pub thread_id: String,
     pub agent: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub capped: Option<ThreadCapWait>,
     pub sent: Vec<PullRequestSent>,
 }
@@ -1496,9 +1503,9 @@ impl Check for PullRequestSendResult {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitPrReplyReply {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub comment: Option<PullRequestComment>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub review_comment: Option<PullRequestReviewComment>,
 }
 

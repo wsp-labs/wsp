@@ -38,7 +38,7 @@ pub struct Sequenced<E> {
     #[serde(flatten)]
     pub event: E,
     /// A positive integer, counted from 1 per runtime process (zod: int, positive).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub seq: Option<i64>,
 }
 
@@ -209,9 +209,9 @@ pub enum EventUnion {
 pub struct EventsSubscribeReply {
     /// zod: int, nonnegative; a negative one is too_small at ["seq"], so it reads as i64 and Check refuses it.
     pub seq: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub stream: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub gap: Option<wsp_frames::True>,
 }
 

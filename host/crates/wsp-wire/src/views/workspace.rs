@@ -51,7 +51,7 @@ pub use wsp_frames::MachineState;
 
 impl Check for MachineState {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Starting", "Running", "Paused", "Gone"]))
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["starting", "running", "paused", "gone"]))
     }
 }
 
@@ -87,11 +87,11 @@ impl Check for ReachState {
 #[serde(rename_all = "camelCase")]
 pub struct ReachStatus {
     pub state: ReachState,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub expires_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub offline: Option<bool>,
 }
 
@@ -121,7 +121,7 @@ impl Check for ReachStatus {
 #[serde(rename_all = "camelCase")]
 pub struct ReachView {
     pub state: ReachState,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub offline: Option<bool>,
 }
 
@@ -150,7 +150,7 @@ impl Check for ReachView {
 pub struct DaemonReachView {
     pub url: String,
     pub expires_at: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub daemon_token: Option<String>,
 }
 
@@ -229,7 +229,7 @@ pub struct WorkspaceProject {
     pub name: String,
     pub dest: String,
     pub imported_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub size: Option<i64>,
 }
 
@@ -311,7 +311,7 @@ pub struct SeedFile {
     pub dir: bool,
     pub bytes: i64,
     pub kind: SeedKind,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub row: Option<SeedFileRow>,
     pub ticked: bool,
 }
@@ -409,7 +409,7 @@ pub struct SeedPlan {
     pub memory: Option<SeedPlanMemory>,
     pub files: Vec<SeedFile>,
     pub remembered: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub provider: Option<bool>,
 }
 
@@ -451,7 +451,7 @@ pub struct SeedChoice {
     pub files: Vec<String>,
     pub memory: bool,
     pub commits: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub remember: Option<bool>,
 }
 
@@ -756,7 +756,7 @@ pub struct ProjectViewSeeded {
     pub files: i64,
     pub bytes: i64,
     pub memory: ProjectViewSeededMemory,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub memory_files: Option<i64>,
     pub commits: i64,
     pub at: String,
@@ -817,7 +817,7 @@ impl Check for ProjectViewInstalled {
 pub struct ProjectViewImage {
     pub snapshot_id: String,
     pub built_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub lockfile_sha: Option<String>,
 }
 
@@ -874,17 +874,17 @@ pub struct ProjectView {
     pub default_branch: String,
     pub memory_key: String,
     pub memory_dir: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub checkout: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub seeded: Option<ProjectViewSeeded>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub installed: Option<ProjectViewInstalled>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub image: Option<ProjectViewImage>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub base: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub git: Option<ProjectViewGit>,
     pub created_at: String,
 }
@@ -934,9 +934,9 @@ pub struct BranchOfRecord {
     pub owner: String,
     pub name: String,
     pub branch: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub start_sha: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub public: Option<True>,
 }
 

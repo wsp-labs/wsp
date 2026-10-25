@@ -710,7 +710,7 @@ pub enum RuntimeOp {
 pub struct RuntimeRequest {
     #[serde(flatten)]
     pub op: RuntimeOp,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub origin: Option<WorkspaceOrigin>,
 }
 

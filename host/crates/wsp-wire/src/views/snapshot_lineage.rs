@@ -51,12 +51,12 @@ pub struct ProjectGolden {
     pub snapshot_id: String,
     pub projects: Vec<WorkspaceProject>,
     pub golden: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub version: Option<i64>,
     pub workspace_id: String,
     pub workspace_name: String,
     pub created_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub place: Option<String>,
 }
 
@@ -119,14 +119,14 @@ pub struct SealedProjectImage {
     pub snapshot_id: String,
     pub projects: Vec<WorkspaceProject>,
     pub golden: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub version: Option<i64>,
     pub workspace_id: String,
     pub workspace_name: String,
     pub created_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub place: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub size_bytes: Option<JsNumber>,
 }
 
@@ -247,7 +247,7 @@ pub struct SnapshotStorage {
     pub usd_per_gb_month: JsNumber,
     pub billed_from: String,
     pub monthly_usd: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub named: Option<SnapshotStorageNamed>,
     pub kept: SnapshotGroup,
     pub orphans: SnapshotGroup,
@@ -317,7 +317,7 @@ impl Check for SnapshotRollbackResult {
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceCreateResult {
     pub workspace: WorkspaceView,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub notice: Option<String>,
 }
 

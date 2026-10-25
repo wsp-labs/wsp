@@ -30,9 +30,9 @@ pub struct PlaceFile {
     pub host_urls: Vec<String>,
     pub host_public_key: String,
     pub key_path: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub joined_at: Option<Value>,
-    #[serde(flatten)]
+    #[serde(flatten, serialize_with = "crate::types::check::js_record")]
     pub rest: IndexMap<String, Value>,
 }
 
@@ -118,39 +118,40 @@ pub struct PlaceReport {
     pub arch: String,
     pub os: String,
     pub shape: WorkspaceSize,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub disk_free_bytes: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub disk_size_bytes: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub model: Option<String>,
+    #[serde(serialize_with = "crate::types::check::js_record")]
     pub login: IndexMap<String, String>,
     pub runs_workspaces: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub workspaces_blocked: Option<String>,
     pub engine: PlaceReportEngine,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub copies: Option<CopyWord>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub uptime_ms: Option<i64>,
     pub daemon_version: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub daemon_port: Option<i64>,
     pub wsp: Vec<String>,
     pub agents: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub agent_versions: Option<IndexMap<String, String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub logins: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub wsp_door: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub wsp_door_blocked: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub daemon_unit: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub takes_runtime: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub wsp_daemon_version: Option<i64>,
     pub dialed: String,
 }
@@ -160,7 +161,7 @@ pub struct PlaceJoinRequest {
     pub id: ReqId,
     pub public_key: PlacePublicKey,
     pub nonce: PlaceNonce,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub ephemeral: Option<PlaceEphemeral>,
 }
 
@@ -190,7 +191,7 @@ pub struct PlaceAuthRequest {
     pub id: ReqId,
     pub place_id: String,
     pub nonce: PlaceNonce,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub ephemeral: Option<PlaceEphemeral>,
 }
 
@@ -223,9 +224,9 @@ pub struct PlaceProveRequest {
     pub id: ReqId,
     pub signature: PlaceSignature,
     pub report: PlaceReport,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub code: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub client: Option<PlaceProveRequestClient>,
 }
 
@@ -272,7 +273,7 @@ pub struct PlaceDoorView {
     pub port: i64,
     pub addresses: Vec<String>,
     pub host_key: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub relay: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -280,7 +281,7 @@ pub struct PlaceDoorView {
 pub struct JoinRoad {
     pub url: String,
     pub line: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub note: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -300,11 +301,11 @@ pub enum SshHostSuggestionFrom {
 #[serde(rename_all = "camelCase")]
 pub struct SshHostSuggestion {
     pub alias: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub host_name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub user: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub port: Option<i64>,
     pub from: SshHostSuggestionFrom,
 }

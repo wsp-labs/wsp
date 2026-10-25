@@ -9,6 +9,6 @@ pub use wsp_frames::WorkspaceKind;
 
 impl Check for WorkspaceKind {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Cloud", "Local", "Place"]))
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["cloud", "local", "place"]))
     }
 }

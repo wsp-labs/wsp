@@ -91,7 +91,7 @@ impl Check for ServerSignIn {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecipeFileAgentsValue {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub signin: Option<RecipeSignIn>,
 }
 
@@ -144,7 +144,7 @@ impl Check for RecipeFileMcpValue {
 #[serde(rename_all = "camelCase")]
 pub struct RecipeFileClisValue {
     pub via: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub needs: Option<Vec<String>>,
 }
 
@@ -214,13 +214,13 @@ impl Check for RecipeFilePluginsValue {
 #[serde(rename_all = "camelCase")]
 pub struct RecipeFileFoldersValue {
     pub from: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub icon: Option<ProjectIcon>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub hue: Option<ProjectHue>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub image: Option<ProjectIconHash>,
     #[serde(default = "default_recipe_file_folders_value_keep")]
     pub keep: Vec<String>,
@@ -294,7 +294,7 @@ impl Check for RecipeFileConfigsShell {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecipeFileConfigsGithub {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub signin: Option<GitHubSignIn>,
 }
 
@@ -319,11 +319,11 @@ impl Check for RecipeFileConfigsGithub {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecipeFileConfigs {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub git: Option<RecipeFileConfigsGit>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub shell: Option<RecipeFileConfigsShell>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub github: Option<RecipeFileConfigsGithub>,
 }
 
@@ -370,19 +370,19 @@ impl Check for RecipeName {
 pub struct RecipeFile {
     #[serde(deserialize_with = "crate::types::check::trimmed")]
     pub name: String,
-    #[serde(default = "default_recipe_file_agents")]
+    #[serde(default = "default_recipe_file_agents", serialize_with = "crate::types::check::js_record")]
     pub agents: IndexMap<RecipeName, RecipeFileAgentsValue>,
-    #[serde(default = "default_recipe_file_mcp")]
+    #[serde(default = "default_recipe_file_mcp", serialize_with = "crate::types::check::js_record")]
     pub mcp: IndexMap<RecipeName, RecipeFileMcpValue>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub copy_keys: Option<True>,
-    #[serde(default = "default_recipe_file_clis")]
+    #[serde(default = "default_recipe_file_clis", serialize_with = "crate::types::check::js_record")]
     pub clis: IndexMap<RecipeName, RecipeFileClisValue>,
-    #[serde(default = "default_recipe_file_skills")]
+    #[serde(default = "default_recipe_file_skills", serialize_with = "crate::types::check::js_record")]
     pub skills: IndexMap<RecipeName, RecipeFileSkillsValue>,
-    #[serde(default = "default_recipe_file_plugins")]
+    #[serde(default = "default_recipe_file_plugins", serialize_with = "crate::types::check::js_record")]
     pub plugins: IndexMap<RecipeName, RecipeFilePluginsValue>,
-    #[serde(default = "default_recipe_file_folders")]
+    #[serde(default = "default_recipe_file_folders", serialize_with = "crate::types::check::js_record")]
     pub folders: IndexMap<RecipeName, RecipeFileFoldersValue>,
     #[serde(default = "default_recipe_file_configs")]
     pub configs: RecipeFileConfigs,
@@ -460,7 +460,7 @@ pub struct RecipeView {
     pub slug: String,
     pub summary: String,
     pub machines: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub saved_at: Option<String>,
     pub file: RecipeFile,
 }

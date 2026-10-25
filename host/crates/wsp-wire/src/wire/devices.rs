@@ -73,18 +73,18 @@ pub struct DeviceView {
     pub name: String,
     pub created_at: String,
     pub last_seen_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub scope: Option<ThreadScope>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub here: Option<True>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub via: Option<DeviceVia>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountView {
     pub signed_in: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub login: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -120,7 +120,7 @@ pub struct AccountDevices {
 pub struct DaemonFrame {
     pub op: String,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten)]
+    #[serde(flatten, serialize_with = "crate::types::check::js_record")]
     pub rest: IndexMap<String, Value>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -138,7 +138,7 @@ pub struct DaemonSendReply {
 pub struct DaemonEventEvent {
     pub r#type: String,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten)]
+    #[serde(flatten, serialize_with = "crate::types::check::js_record")]
     pub rest: IndexMap<String, Value>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

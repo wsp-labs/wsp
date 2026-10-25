@@ -57,9 +57,9 @@ impl Check for AppProcKind {
 pub struct AppProc {
     pub pid: i64,
     pub kind: AppProcKind,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub origins: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub contents: Option<Vec<i64>>,
 }
 
