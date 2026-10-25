@@ -104,6 +104,16 @@ impl Composer {
         cx.notify();
     }
 
+    /// Whether Cmd or Ctrl and Enter sends and Enter alone breaks the line (the person's `sendWith`).
+    pub fn send_with_mod(&self) -> bool {
+        self.send_with_mod
+    }
+
+    pub fn set_send_with_mod(&mut self, mod_enter: bool, cx: &mut Context<Self>) {
+        self.send_with_mod = mod_enter;
+        cx.notify();
+    }
+
     /// A steer the host has answered: taken by the turn, or left to wait for its end.
     pub fn steered(&mut self, taken: bool, cx: &mut Context<Self>) {
         if let Some(id) = self.steering.take() {

@@ -174,3 +174,58 @@ fn names_sort_as_locale_compare_sorts_them() {
     names.sort_by(|a, b| by_name(a, b));
     assert_eq!(names, ["a_b", "a-b", "ab", "Ábaco", "alpha", "Alpha", "beta", "émile", "Eve", "Zeta"]);
 }
+
+/// A server on loopback that counts the requests it is sent and answers each with a 404.
+fn image_server() -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+    use std::io::{Read as _, Write as _};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let at = format!("http://{}", listener.local_addr().unwrap());
+    let asked = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = asked.clone();
+    std::thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let mut head = [0u8; 2048];
+            _ = stream.read(&mut head);
+            _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        }
+    });
+    (at, asked)
+}
+
+#[gpui_kit::test]
+fn a_skill_files_images_and_raw_html_fetch_nothing_and_draw_as_words(cx: &mut gpui_kit::TestAppContext) {
+    use gpui_kit::http_client::{AsyncBody, FakeHttpClient, Response};
+    use std::io::{Read as _, Write as _};
+    let (server, asked) = image_server();
+    let page = page(cx);
+    // The app's road to the web, carried to the server for real, so a fetch the preview made would reach its count.
+    cx.update(|cx| {
+        cx.set_http_client(FakeHttpClient::create(|request| async move {
+            let uri = request.uri().clone();
+            let host = uri.authority().map(|a| a.to_string()).unwrap_or_default();
+            if let Ok(mut stream) = std::net::TcpStream::connect(&host) {
+                _ = write!(stream, "GET {} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n", uri.path());
+                _ = stream.read_to_end(&mut Vec::new());
+            }
+            Ok(Response::builder().status(404).body(AsyncBody::default()).unwrap())
+        }));
+    });
+    let text = format!(
+        "# Logo\n\n![logo]({server}/logo.png)\n\nInline ![]({server}/bare.png) and ![local](./icon.png).\n\n<img src=\"{server}/raw.png\">\n\n<div><b>raw</b> markup</div>\n\nText with <img src=\"{server}/inline.png\"> inline.\n\n| Image |\n| --- |\n| ![cell]({server}/cell.png) |\n"
+    );
+    let doc = Doc { size: text.len() as u64, text: Some(text), error: None };
+    let cx = open(&page, cx, move |_, window, cx| skill_preview("images", &doc, window, cx));
+    for _ in 0..4 {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    cx.run_until_parked();
+    assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 0, "a skill file's image is never fetched");
+    assert!(cx.debug_bounds("skill-image-fact").is_some(), "an image off the web is its alt and address as words");
+    assert!(cx.debug_bounds("skill-raw-html").is_some(), "raw HTML is its own source text");
+    let link = cx.debug_bounds("skill-image-link").expect("a web image is a link to its address");
+    cx.simulate_click(link.center(), gpui_kit::Modifiers::none());
+    assert_eq!(cx.opened_url(), Some(format!("{server}/cell.png")), "the last one drawn, the table's, opens its address");
+}
