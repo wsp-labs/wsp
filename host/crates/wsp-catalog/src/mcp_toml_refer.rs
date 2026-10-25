@@ -14,7 +14,7 @@ use crate::mcp_refs::{
     arg_strings, codex_headers, known_hits, known_stands, oauth_secret_keys, readable, shape_refusal, still_stands, unread_line,
 };
 use crate::mcp_toml::{
-    codex_owners, read_codex, toml_header, toml_inline, toml_open_array, toml_string, toml_strings, toml_value, uncomment_toml,
+    codex_owners, read_codex, toml_header, try_read_codex, toml_inline, toml_open_array, toml_string, toml_strings, toml_value, uncomment_toml,
     unquote_key, TomlValue,
 };
 use wsp_words::exit::HostError;
@@ -43,7 +43,7 @@ pub fn refer_codex_lines(text: &str, only: Option<&str>) -> String {
 
 fn refer_lines(text: &str, only: Option<&str>) -> Result<String, HostError> {
     let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
-    for s in read_codex(text) {
+    for s in try_read_codex(text)? {
         if only.is_some_and(|o| s.name != o) {
             continue;
         }
@@ -120,7 +120,7 @@ fn edit_server(
         let table_at = (0..n)
             .find(|&i| mine(i) && subs[i].as_deref() == Some("env_http_headers") && js_trim(&uncomment_toml(refs[i])).starts_with('['));
         if let Some(inline) = inline {
-            let mut merged: IndexMap<String, String> = match toml_value(&rhs(refs[inline])) {
+            let mut merged: IndexMap<String, String> = match toml_value(&rhs(refs[inline]))? {
                 Some(TomlValue::Table(t)) => t,
                 _ => IndexMap::new(),
             };
@@ -153,7 +153,7 @@ fn edit_server(
                 end += 1;
                 value.push_str(js_trim(&uncomment_toml(refs[end])));
             }
-            let had = toml_strings(&value);
+            let had = toml_strings(&value)?;
             let mut all = had.clone();
             all.extend(env_names.iter().filter(|k| !had.contains(k)).cloned());
             let listed: Vec<String> = all.iter().map(|k| toml_string(k)).collect();

@@ -20,6 +20,11 @@ pub(crate) fn lone_surrogate(c: char) -> Option<u16> {
     (LONE_BASE..LONE_BASE + 0x800).contains(&n).then(|| (0xD800 + (n - LONE_BASE)) as u16)
 }
 
+/// A JavaScript string's UTF-16 units as text: a lone surrogate is the char it is held as.
+pub(crate) fn string_of_units(units: &[u16]) -> String {
+    char::decode_utf16(units.iter().copied()).map(|c| c.unwrap_or_else(|e| lone_char(e.unpaired_surrogate()))).collect()
+}
+
 fn lone_char(unit: u16) -> char {
     char::from_u32(LONE_BASE + (unit as u32 - 0xD800)).expect("a char in the private use area")
 }
