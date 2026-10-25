@@ -10,6 +10,7 @@ mod support;
 use serde_json::{json, Value};
 use support::{answer_json, flag, moments_json, reach, session_event, spawn, status, World};
 use wsp_core::types::internal::MachineMoment;
+use wsp_wire::types::js_number::JsNumber;
 use wsp_machines::machines::machines::Unreached;
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::views::workspace_more::WorkspaceOrigin;
@@ -381,7 +382,7 @@ fn read_again_after_the_window_reachable_and_running_same_machine() {
         let (sc, w) = start("read again: after the window, reachable and running, same machine");
         let entry = w.entry("a");
         let unread = w.area.unread_at();
-        let moment = |machine: &str| MachineMoment { machine_id: machine.to_string(), at: T0 as f64 };
+        let moment = |machine: &str| MachineMoment { machine_id: machine.to_string(), at: JsNumber(T0 as f64) };
         w.area.read_version_again(&entry, &status("running", "reachable", false));
         unread.borrow_mut().insert("a".to_string(), moment("m-old"));
         w.area.read_version_again(&entry, &status("running", "reachable", false));

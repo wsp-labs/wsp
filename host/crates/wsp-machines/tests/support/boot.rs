@@ -8,7 +8,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::{Rc, Weak};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::{LocalBoxFuture, Shared};
@@ -16,11 +16,13 @@ use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
 
+use wsp_core::ids::Ids;
 use wsp_core::types::internal::{BuilderLife, BuilderRecord, EndThread, FolderAdmit, KindModule, PortRoute, Reopened, ServerValuesRoad, ThreadRecord, TreeTalk};
 use wsp_core::types::internal::{ImportLanded, ImportReport};
 use wsp_core::types::pending::{Clock, MachineExecOptions, ScopedRoad, Store, TurnWaiting};
 use wsp_core::types::wiring::{GoneOutcome, LiveWorkspace, Local, PlaceBackends, ProjectImportOptions, StageReport, WorkspaceRecord};
 use wsp_adapters::port::{ExecStreamFactory};
+use wsp_engine::Cancel;
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
 use wsp_engine::lifecycle::{Workspace, WorkspaceHooks, WorkspaceInitial};
 use wsp_engine::machine::{
@@ -30,7 +32,7 @@ use wsp_engine::machine::{
 use wsp_machines::machines::boot::entries::{EntryAsk, RowAt};
 use wsp_machines::machines::boot::rows::Stamped;
 use wsp_machines::machines::boot::{BootArea, BootConfig, BootRuntime, CardAsk, ComputerRow, HeldBuilder, HeldEnd, LimitRow, ScopedDevice};
-use wsp_machines::machines::machines::{Entry, Ids, Row, ThreadOn};
+use wsp_machines::machines::machines::{Entry, Row, ThreadOn};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::harness::McpServerSpec;
 use wsp_wire::views::place_kind::PlaceKind;
@@ -320,7 +322,7 @@ pub fn kind_word(e: &HostError) -> Value {
 }
 
 pub fn entry_id(e: &Entry) -> String {
-    e.borrow().record.id.clone()
+    e.borrow().record.borrow().id.clone()
 }
 
 /// A live workspace on `machine` with nothing in flight.
@@ -339,7 +341,7 @@ pub fn live_workspace(record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Ent
     };
     let ws = Workspace::new(machine.clone(), hooks, WorkspaceInitial::default());
     Rc::new(RefCell::new(LiveWorkspace {
-        record,
+        record: Rc::new(RefCell::new(record)),
         opens_thread: None,
         of_record_held: false,
         ws: Rc::new(ws),
@@ -415,7 +417,7 @@ pub fn kind_json(m: &Arc<dyn Machine>) -> Value {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for FakeMachine {
     fn id(&self) -> &str {
         &self.id
@@ -444,7 +446,7 @@ impl Machine for FakeMachine {
     async fn pause(&self, _wait_ms: Option<u64>) -> wsp_engine::errors::Result<()> {
         unimplemented!()
     }
-    async fn resume(&self, _signal: Option<tokio_util::sync::CancellationToken>) -> wsp_engine::errors::Result<()> {
+    async fn resume(&self, _signal: Option<&Cancel>) -> wsp_engine::errors::Result<()> {
         unimplemented!()
     }
     async fn kill(&self) -> wsp_engine::errors::Result<()> {
@@ -536,7 +538,7 @@ pub struct BackendShared {
 
 pub struct FakeBackend {
     pub place: String,
-    pub shared: Arc<Mutex<BackendShared>>,
+    pub shared: Rc<RefCell<BackendShared>>,
 }
 
 struct Pricing;
@@ -572,10 +574,10 @@ fn machine_for(shared: &BackendShared, id: &str, a: &Answer) -> Arc<dyn Machine>
     })
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for FakeBackend {
     fn capabilities(&self) -> Capabilities {
-        let any = self.shared.lock().unwrap().snapshots_any_life;
+        let any = self.shared.borrow_mut().snapshots_any_life;
         serde_json::from_value(json!({
             "liveCloneForks": false, "replacesMachine": false, "previewUrls": false, "signedUrls": false, "callbackRelay": false,
             "diskSnapshots": false, "images": false, "snapshotsAnyLife": any, "snapshotListing": false, "templates": false,
@@ -598,7 +600,7 @@ impl MachineBackend for FakeBackend {
             Sight(Result<Arc<dyn Machine>, EngineError>),
         }
         let step = {
-            let mut s = self.shared.lock().unwrap();
+            let mut s = self.shared.borrow_mut();
             let n = {
                 let c = s.reads.entry(id.to_string()).or_insert(0);
                 *c += 1;
@@ -680,7 +682,7 @@ impl MachineBackend for FakeBackend {
                 if let Some(t) = &answer.throws {
                     return Err(error_of(t));
                 }
-                let s = self.shared.lock().unwrap();
+                let s = self.shared.borrow_mut();
                 Ok(machine_for(&s, id, &answer))
             }
         }
@@ -697,7 +699,7 @@ impl MachineBackend for FakeBackend {
 
 pub struct FakePlaces {
     pub wired: String,
-    pub shared: Arc<Mutex<BackendShared>>,
+    pub shared: Rc<RefCell<BackendShared>>,
     pub no_backend_at: Vec<String>,
     pub backends: bool,
 }
@@ -722,8 +724,8 @@ struct FakeModule {
 }
 
 impl KindModule for FakeModule {
-    fn backend(&self, _record: &WorkspaceRecord) -> Arc<dyn MachineBackend> {
-        self.backend.clone()
+    fn backend(&self, _record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
+        Ok(self.backend.clone())
     }
     fn exec_stream(&self, entry: &LiveWorkspace, opts: Option<MachineExecOptions>, waiting: Option<TurnWaiting>) -> Arc<dyn ExecStreamFactory> { unimplemented!() }
     fn admit_folder(&self, record: FolderAdmit) -> Option<Local<'static, ()>> { unimplemented!() }
@@ -835,7 +837,7 @@ pub struct Fake {
     pub store: Rc<dyn Store>,
     pub mem: Rc<MemStore>,
     pub places: Rc<FakePlaces>,
-    pub shared: Arc<Mutex<BackendShared>>,
+    pub shared: Rc<RefCell<BackendShared>>,
     pub owner: RefCell<String>,
     pub reads_since: Cell<f64>,
     pub closed: Cell<bool>,
@@ -916,7 +918,7 @@ impl World {
         }
         let mut sights: VecDeque<Sight> = o.gone.iter().map(|g| if *g == "gone" { Sight::Gone } else { Sight::Running }).collect();
         sights.extend(o.sights.clone());
-        let shared = Arc::new(Mutex::new(BackendShared {
+        let shared = Rc::new(RefCell::new(BackendShared {
             mode,
             answers,
             snapshots_any_life: o.snapshots_any_life,
@@ -1040,7 +1042,7 @@ impl World {
 }
 
 fn short_entry(e: &Entry) -> Value {
-    json!(format!("entry:{}", e.borrow().record.id))
+    json!(format!("entry:{}", e.borrow().record.borrow().id))
 }
 
 impl Fake {
@@ -1687,7 +1689,7 @@ pub async fn replay(scene: &Value) -> (World, Value) {
             rt.add_live("a", &json!({"name": "w-a2"}));
             let _ = tx.send(());
             let after = waited.await.unwrap().expect("the entry after the boot work");
-            said.push(json!(["after boot work", short(&after), after.borrow().record.name]));
+            said.push(json!(["after boot work", short(&after), after.borrow().record.borrow().name.clone()]));
             json!(said)
         }
         n if n.starts_with("child of") => {
