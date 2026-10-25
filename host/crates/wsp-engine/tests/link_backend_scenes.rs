@@ -28,7 +28,9 @@ fn facts() -> Value {
 fn link(preview_url: String) -> std::sync::Arc<FakeLink> {
     FakeLink::new(move |s| match s.op.as_str() {
         "machine.backend" => Ok(facts()),
-        "machine.get" => Ok(json!({ "machine": { "id": "c1", "kind": "sandbox", "roads": { "previewUrl": true, "daemonAnswers": true, "putBytes": true, "describe": true, "facts": true, "metrics": true } } })),
+        "machine.get" => Ok(
+            json!({ "machine": { "id": "c1", "kind": "sandbox", "roads": { "previewUrl": true, "daemonAnswers": true, "putBytes": true, "describe": true, "facts": true, "metrics": true } } }),
+        ),
         "machine.list" => Ok(json!({ "machines": [] })),
         "machine.exec" => Ok(json!({ "result": { "exitCode": 0, "stdout": "", "stderr": "" } })),
         "machine.state" => Ok(json!({ "state": "running" })),

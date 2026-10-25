@@ -19,8 +19,12 @@ fn pins() -> serde_json::Value {
 fn markers_split_on_single_spaces_and_an_empty_word_is_a_key() {
     for case in pins()["markers"].as_array().unwrap() {
         let got: Vec<(String, String)> = markers_of(case["in"].as_str().unwrap(), "M").into_iter().collect();
-        let want: Vec<(String, String)> =
-            case["out"].as_array().unwrap().iter().map(|p| (p[0].as_str().unwrap().to_string(), p[1].as_str().unwrap().to_string())).collect();
+        let want: Vec<(String, String)> = case["out"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| (p[0].as_str().unwrap().to_string(), p[1].as_str().unwrap().to_string()))
+            .collect();
         assert_eq!(got, want, "{}", case["in"]);
     }
 }

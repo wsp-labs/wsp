@@ -44,7 +44,11 @@ fn a_tilde_is_joined_and_normalized_as_path_join_does() {
 fn the_refusal_line_keeps_its_last_300_units_untrimmed() {
     let reach = SshReach { user: "u".into(), host: "h".into(), port: 22, key_path: None };
     for case in pins()["refusal"].as_array().unwrap() {
-        let said = ExecResult { exit_code: case["in"]["exitCode"].as_i64().unwrap(), stdout: String::new(), stderr: case["in"]["stderr"].as_str().unwrap().to_string() };
+        let said = ExecResult {
+            exit_code: case["in"]["exitCode"].as_i64().unwrap(),
+            stdout: String::new(),
+            stderr: case["in"]["stderr"].as_str().unwrap().to_string(),
+        };
         assert_eq!(ssh_refusal_line(&said, &reach), case["out"].as_str().unwrap());
     }
 }
@@ -87,7 +91,8 @@ async fn the_scan_port_is_js_number_or_22_with_no_check() {
 async fn the_word_reach_takes_a_typed_port_with_nullish_and_the_configs_with_or() {
     for case in pins()["wordReach"].as_array().unwrap() {
         let config_port = case["configPort"].as_str().unwrap().to_string();
-        let (run, _asked) = roads_common::local_run(move |_f, _a| roads_common::res(0, &format!("hostname h.example\nuser dev\nport {config_port}\n"), ""));
+        let (run, _asked) =
+            roads_common::local_run(move |_f, _a| roads_common::res(0, &format!("hostname h.example\nuser dev\nport {config_port}\n"), ""));
         let typed = case["typed"].as_u64().map(|p| p as u16);
         let got = match ssh_word_reach("alias", typed, None, &run).await {
             Ok(r) => serde_json::json!({ "ok": r }),
