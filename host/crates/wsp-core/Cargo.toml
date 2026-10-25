@@ -9,12 +9,18 @@ description = "The host's core: the context and the types the runtime's areas sh
 
 [dependencies]
 async-trait = "0.1"
+base64 = "0.22"
 futures = "0.3"
+futures-util = "0.3"
+hex = "0.4"
 indexmap = { version = "2", features = ["serde"] }
+libc = "0.2"
+rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"
 tokio = { version = "1", features = ["process", "time", "io-util", "fs", "net", "rt", "rt-multi-thread", "macros", "sync"] }
+tokio-tungstenite = "0.30"
 tokio-util = "0.7"
 wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
 wsp-wire = { path = "../wsp-wire" }
@@ -26,5 +32,7 @@ wsp-engine = { path = "../wsp-engine" }
 wsp-adapters = { path = "../wsp-adapters" }
 
 [dev-dependencies]
+regex = "1"
+sha2 = "0.10"
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread", "test-util"] }
