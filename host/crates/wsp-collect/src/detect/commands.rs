@@ -2,12 +2,16 @@
 //! The commands an rc file calls, and the guard the pack prepends for the ones the machine lacks: each such name a
 //! function that runs the real command once there is one and returns 127 until then. Port of
 //! packages/collect/src/detect/commands.ts at a3b870a6e; the spec is spec/commands.md.
+use std::collections::HashSet;
+use std::sync::LazyLock;
 
-// commands.ts:11
-// export const GUARD_BEGIN = "# >>> wsp guard: commands this machine does not have >>>";
+use fancy_regex::Regex;
+use wsp_words::js::{is_js_whitespace, js_trim};
+
+use crate::detect::shell_rc::{captures, group, is_match, js_re, split_lines};
+use crate::history::commands::{command_words, is_version_check, split_commands, without_heredocs};
+
 pub const GUARD_BEGIN: &str = "# >>> wsp guard: commands this machine does not have >>>";
-// commands.ts:12
-// export const GUARD_END = "# <<< wsp guard <<<";
 pub const GUARD_END: &str = "# <<< wsp guard <<<";
 
 /// A name a function definition or a call may carry in zsh and bash, as a JavaScript regex source (commands.ts:15).
@@ -126,175 +130,267 @@ pub struct Dropped {
     pub dropped: Vec<String>,
 }
 
-// Private helpers the port keeps (names in snake case):
-// commands.ts:30
-// const ALIAS_TOKEN = /^([\w.+-]+)=(.*)$/;
-// commands.ts:33
-// /** The text with every `name=( ... )` array literal emptied, across lines, quotes and comments respected: its words are values, not calls. */
-// function withoutArrayLiterals(text: string): string {
-//   let out = "";
-//   let quote: "" | "'" | '"' = "";
-//   let depth = 0;
-//   const commentAt = (i: number): boolean => text[i] === "#" && (i === 0 || /[\s;&|(]/.test(text[i - 1] ?? ""));
-//   for (let i = 0; i < text.length; i += 1) {
-//     const c = text[i]!;
-//     if (depth > 0) {
-//       if (c === "\\" && quote !== "'") i += 1;
-//       else if (quote !== "") quote = c === quote ? "" : quote;
-//       else if (c === "'" || c === '"') quote = c;
-//       else if (commentAt(i)) i = text.indexOf("\n", i) === -1 ? text.length : text.indexOf("\n", i) - 1;
-//       else if (c === "(") depth += 1;
-//       else if (c === ")" && (depth -= 1) === 0) out += ")";
-//       continue;
-//     }
-//     if (c === "\\" && quote !== "'") {
-//       out += c + (text[i + 1] ?? "");
-//       i += 1;
-//       continue;
-//     }
-//     if (quote !== "") {
-//       if (c === quote) quote = "";
-//     } else if (c === "'" || c === '"') {
-//       quote = c;
-//     } else if (commentAt(i)) {
-//       const end = text.indexOf("\n", i);
-//       out += end === -1 ? text.slice(i) : text.slice(i, end);
-//       i = end === -1 ? text.length : end - 1;
-//       continue;
-//     } else if (c === "(" && text[i - 1] === "=" && /[\w\]+]/.test(text[i - 2] ?? "")) {
-//       depth = 1;
-//       out += c;
-//       continue;
-//     }
-//     out += c;
-//   }
-//   return out;
-// }
-// commands.ts:74
-// /** The command a run of words calls, as the history parser reads it, when it is a plain name and no builtin. */
-// function callOf(command: string): string | undefined {
-//   const words = commandWords(command);
-//   const head = words[0];
-//   if (head === undefined || isVersionCheck(words) || !WORD.test(head) || RC_BUILTIN.has(head)) return undefined;
-//   // The parser gives a path's basename; a call by path is not one a function by that name would answer.
-//   return command.split(/\s+/).some(w => w.endsWith(`/${head}`)) ? undefined : head;
-// }
-// commands.ts:117
-// const PLUGINS_OPEN = /^\s*plugins\+?=\(/;
-// commands.ts:119
-// /** A `#` at the start of a word begins the line's comment. */
-// const COMMENT_AT = /(^|\s)#/;
-// commands.ts:159
-// /** The guard's notes: one line per plugin left out, then one naming what is guarded, so the file itself says why. */
-// function notes(missing: readonly string[], dropped: readonly string[]): string[] {
-//   return [
-//     ...dropped.map(name => `# plugin ${name} left out: ${name} is not on the image`),
-//     ...(missing.length > 0 ? [`# Guarded above: a call to one of these that is not on this machine is silent instead of an error: ${missing.join(", ")}. Tick them in wsp init to install them.`] : []),
-//   ];
-// }
-// commands.ts:171
-// /** A command that is on the machine after all (installed by hand, by an agent, unknown to the planner, or on a directory the rc
-//  * itself adds to PATH below the block) always wins: the guard looks the name up at every call and hands over to the command
-//  * once there is one. `command -v` would find the guard itself, so the lookup runs in a subshell with the guard unset; a
-//  * function that unsets and redefines itself while it runs crashes zsh 5.9 (exit 139, measured), so the guard is only ever
-//  * unset on the way to the real command. */
-// const guardLine = (name: string): string => `${name}() { if (unset -f ${name}; command -v ${name}) >/dev/null 2>&1; then unset -f ${name}; ${name} "$@"; else return 127; fi; }`;
+/// The `^` of FUNCTION_HEAD under its `m` flag: a line start, which JavaScript takes after any line terminator.
+const LINE_START: &str = r"(?<![^\n\r\x{2028}\x{2029}])";
+static WORD_RE: LazyLock<Regex> = LazyLock::new(|| js_re(WORD));
+static FUNCTION_HEAD_RE: LazyLock<Regex> = LazyLock::new(|| js_re(&FUNCTION_HEAD.replace('^', LINE_START)));
+static ALIAS_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"^([\w.+-]+)=(.*)$"));
+static PLUGINS_OPEN_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"^\s*plugins\+?=\("));
+static COMMENT_AT_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"(^|\s)#"));
+static WS_RUN_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"\s+"));
 
-// commands.ts:86
-// /** The commands an rc file calls, once each in order of first call, read with the history parser: the first word of
-//  * every command, substitutions and pipelines included, past its environment assignments and wrappers; on top of
-//  * that, the first word of every alias body. Names the file itself defines as functions or aliases or marks for
-//  * autoload are its own and never listed; array literals are values; a fish file is not shell and yields nothing. */
-// export function calledCommands(text: string, syntax: "sh" | "fish" = "sh"): string[] {
-//   if (syntax === "fish") return [];
-//   const called: string[] = [];
-//   const own = new Set<string>();
-//   const add = (name: string | undefined): void => {
-//     if (name !== undefined && !called.includes(name)) called.push(name);
-//   };
-//   for (const m of text.matchAll(FUNCTION_HEAD)) own.add(m[1] ?? m[2]!);
-//   for (const cmd of splitCommands(withoutHeredocs(withoutArrayLiterals(text)))) {
-//     const words = cmd.split(/\s+/);
-//     if (words[0] === "alias") {
-//       // The parser has taken the quotes off, so a body runs to the next `name=` token.
-//       words.slice(1).forEach((w, i) => {
-//         const m = ALIAS_TOKEN.exec(w);
-//         if (m === null) return;
-//         own.add(m[1]!);
-//         const rest = words.slice(i + 2);
-//         const next = rest.findIndex(r => ALIAS_TOKEN.test(r));
-//         add(callOf([m[2]!, ...rest.slice(0, next === -1 ? rest.length : next)].join(" ")));
-//       });
-//       continue;
-//     }
-//     if (words[0] === "autoload") {
-//       for (const w of words.slice(1)) if (!w.startsWith("-")) own.add(w);
-//       continue;
-//     }
-//     add(callOf(cmd));
-//   }
-//   return called.filter(n => !own.has(n));
-// }
+/// `text.split(/\s+/)`: the empty pieces at either end stay, as JavaScript keeps them.
+fn split_ws(text: &str) -> Vec<String> {
+    WS_RUN_RE.split(text).flatten().map(String::from).collect()
+}
+
+/// `text.split(/(\s+|[()])/).filter(p => p !== "")`: blank runs, single brackets and the runs between them, in order.
+fn split_code(code: &str) -> Vec<String> {
+    let mut parts: Vec<String> = Vec::new();
+    for c in code.chars() {
+        let bracket = matches!(c, '(' | ')');
+        let extends = match parts.last().and_then(|last| last.chars().next()) {
+            Some(l) => !bracket && !matches!(l, '(' | ')') && is_js_whitespace(l) == is_js_whitespace(c),
+            None => false,
+        };
+        match parts.last_mut() {
+            Some(last) if extends => last.push(c),
+            _ => parts.push(c.to_string()),
+        }
+    }
+    parts
+}
+
+/// A part that is only blanks (`/^\s+$/`).
+fn is_blank(part: &str) -> bool {
+    !part.is_empty() && part.chars().all(is_js_whitespace)
+}
+
+/// A character that may end an array's name before its `=(`: a word character, `]` or `+` (commands.ts:33-71).
+fn is_array_head(c: char) -> bool {
+    c.is_ascii_alphanumeric() || matches!(c, '_' | ']' | '+')
+}
+
+/// The text with every `name=( ... )` array literal emptied, across lines, quotes and comments respected: its words are values, not calls.
+fn without_array_literals(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let n = chars.len();
+    let comment_at = |i: usize| chars[i] == '#' && (i == 0 || is_js_whitespace(chars[i - 1]) || matches!(chars[i - 1], ';' | '&' | '|' | '('));
+    let mut out = String::new();
+    let mut quote: Option<char> = None;
+    let mut depth = 0usize;
+    let mut i = 0;
+    while i < n {
+        let c = chars[i];
+        if depth > 0 {
+            if c == '\\' && quote != Some('\'') {
+                i += 1;
+            } else if quote.is_some() {
+                if quote == Some(c) {
+                    quote = None;
+                }
+            } else if c == '\'' || c == '"' {
+                quote = Some(c);
+            } else if comment_at(i) {
+                i = chars[i..].iter().position(|&x| x == '\n').map_or(n, |p| i + p);
+                continue;
+            } else if c == '(' {
+                depth += 1;
+            } else if c == ')' {
+                depth -= 1;
+                if depth == 0 {
+                    out.push(')');
+                }
+            }
+            i += 1;
+            continue;
+        }
+        if c == '\\' && quote != Some('\'') {
+            out.push(c);
+            if let Some(&next) = chars.get(i + 1) {
+                out.push(next);
+            }
+            i += 2;
+            continue;
+        }
+        if let Some(q) = quote {
+            if c == q {
+                quote = None;
+            }
+        } else if c == '\'' || c == '"' {
+            quote = Some(c);
+        } else if comment_at(i) {
+            let end = chars[i..].iter().position(|&x| x == '\n').map_or(n, |p| i + p);
+            out.extend(&chars[i..end]);
+            i = end;
+            continue;
+        } else if c == '(' && i >= 2 && chars[i - 1] == '=' && is_array_head(chars[i - 2]) {
+            depth = 1;
+            out.push(c);
+            i += 1;
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
+}
+
+/// The command a run of words calls, as the history parser reads it, when it is a plain name and no builtin.
+fn call_of(command: &str) -> Option<String> {
+    let words = command_words(command);
+    let head = words.first()?;
+    if is_version_check(&words) || !is_match(&WORD_RE, head) || RC_BUILTIN.contains(&head.as_str()) {
+        return None;
+    }
+    if split_ws(command).iter().any(|w| w.ends_with(format!("/{head}").as_str())) {
+        return None;
+    }
+    Some(head.clone())
+}
+
+/// The commands an rc file calls, once each in order of first call, read with the history parser: the first word of
+/// every command, substitutions and pipelines included, past its environment assignments and wrappers; on top of
+/// that, the first word of every alias body. Names the file itself defines as functions or aliases or marks for
+/// autoload are its own and never listed; array literals are values; a fish file is not shell and yields nothing.
 pub fn called_commands(text: &str, syntax: Syntax) -> Vec<String> {
-    todo!()
+    if syntax == Syntax::Fish {
+        return Vec::new();
+    }
+    let mut called: Vec<String> = Vec::new();
+    let mut own: HashSet<String> = HashSet::new();
+    let mut push_call = |name: Option<String>| {
+        if let Some(name) = name {
+            if !called.contains(&name) {
+                called.push(name);
+            }
+        }
+    };
+    for caps in FUNCTION_HEAD_RE.captures_iter(text).flatten() {
+        if let Some(name) = caps.get(1).or(caps.get(2)) {
+            own.insert(name.as_str().to_string());
+        }
+    }
+    for cmd in split_commands(&without_heredocs(&without_array_literals(text))) {
+        let words = split_ws(&cmd);
+        if words[0] == "alias" {
+            for (idx, w) in words.iter().enumerate().skip(1) {
+                let Some(m) = captures(&ALIAS_TOKEN_RE, w) else { continue };
+                own.insert(group(&m, 1));
+                let rest = &words[idx + 1..];
+                let next = rest.iter().position(|r| is_match(&ALIAS_TOKEN_RE, r)).unwrap_or(rest.len());
+                let body = std::iter::once(group(&m, 2)).chain(rest[..next].iter().cloned()).collect::<Vec<_>>().join(" ");
+                push_call(call_of(&body));
+            }
+        } else if words[0] == "autoload" {
+            for w in &words[1..] {
+                if !w.starts_with('-') {
+                    own.insert(w.clone());
+                }
+            }
+        } else {
+            push_call(call_of(&cmd));
+        }
+    }
+    called.into_iter().filter(|n| !own.contains(n)).collect()
 }
 
-// commands.ts:125
-// /** The oh-my-zsh plugin list is a zsh array. A plugin whose tool is not on the image prints its own line at
-//  * every start and a no-op function does not satisfy its `$+commands` check, so the name leaves the list instead:
-//  * every `plugins=( )` and `plugins+=( )` region, one line or many, loses the names `drop` says, a line left with
-//  * nothing but its indent goes with them and a trailing comment stays. Every other byte is as it was. */
-// export function dropPlugins(text: string, drop: (name: string) => boolean): { text: string; dropped: string[] } {
-//   const dropped: string[] = [];
-//   const eol = text.includes("\r\n") ? "\r\n" : "\n";
-//   const out: string[] = [];
-//   let inList = false;
-//   for (const line of text.split(/\r?\n/)) {
-//     const opens = !inList && PLUGINS_OPEN.test(line);
-//     if (!opens && !inList) {
-//       out.push(line);
-//       continue;
-//     }
-//     const at = COMMENT_AT.exec(line);
-//     const code = at === null ? line : line.slice(0, at.index + at[1]!.length);
-//     const comment = at === null ? "" : line.slice(at.index + at[1]!.length);
-//     inList = !code.includes(")");
-//     const parts = code.split(/(\s+|[()])/).filter(p => p !== "");
-//     for (let i = 0; i < parts.length; i += 1) {
-//       const word = parts[i]!;
-//       if (!WORD.test(word) || !drop(word)) continue;
-//       if (!dropped.includes(word)) dropped.push(word);
-//       parts.splice(i, 1);
-//       if (/^\s+$/.test(parts[i] ?? "")) parts.splice(i, 1);
-//       else if (/^\s+$/.test(parts[i - 1] ?? "")) parts.splice(i - 1, 1);
-//       i -= 1;
-//     }
-//     const kept = parts.join("");
-//     const indent = /^\s*/.exec(line)![0];
-//     if (kept.trim() === "" && comment === "" && code.trim() !== "") continue;
-//     out.push(kept.trim() === "" && comment !== "" ? `${indent}${comment}` : `${kept}${comment}`);
-//   }
-//   return { text: out.join(eol), dropped };
-// }
+/// The oh-my-zsh plugin list is a zsh array. A plugin whose tool is not on the image prints its own line at
+/// every start and a no-op function does not satisfy its `$+commands` check, so the name leaves the list instead:
+/// every `plugins=( )` and `plugins+=( )` region, one line or many, loses the names `drop` says, a line left with
+/// nothing but its indent goes with them and a trailing comment stays. Every other byte is as it was.
 pub fn drop_plugins(text: &str, drop: &dyn Fn(&str) -> bool) -> Dropped {
-    todo!()
+    let mut dropped: Vec<String> = Vec::new();
+    let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut out: Vec<String> = Vec::new();
+    let mut in_list = false;
+    for line in split_lines(text) {
+        let opens = !in_list && is_match(&PLUGINS_OPEN_RE, line);
+        if !opens && !in_list {
+            out.push(line.to_string());
+            continue;
+        }
+        let (code, comment) = match captures(&COMMENT_AT_RE, line) {
+            None => (line, ""),
+            Some(m) => {
+                let cut = m.get(0).map_or(0, |whole| whole.start()) + group(&m, 1).len();
+                (&line[..cut], &line[cut..])
+            }
+        };
+        in_list = !code.contains(')');
+        let mut parts = split_code(code);
+        let mut i: isize = 0;
+        while i >= 0 && (i as usize) < parts.len() {
+            let word = parts[i as usize].clone();
+            if is_match(&WORD_RE, &word) && drop(word.as_str()) {
+                if !dropped.contains(&word) {
+                    dropped.push(word);
+                }
+                parts.remove(i as usize);
+                if parts.get(i as usize).is_some_and(|p| is_blank(p)) {
+                    parts.remove(i as usize);
+                } else if i >= 1 && parts.get((i - 1) as usize).is_some_and(|p| is_blank(p)) {
+                    parts.remove((i - 1) as usize);
+                }
+                i -= 1;
+            }
+            i += 1;
+        }
+        let kept: String = parts.concat();
+        let indent: String = line.chars().take_while(|&c| is_js_whitespace(c)).collect();
+        if js_trim(&kept).is_empty() && comment.is_empty() && !js_trim(code).is_empty() {
+            continue;
+        }
+        out.push(if js_trim(&kept).is_empty() && !comment.is_empty() { format!("{indent}{comment}") } else { format!("{kept}{comment}") });
+    }
+    Dropped { text: out.join(eol), dropped }
 }
 
-// commands.ts:176
-// /** The text with the guard block prepended: a conditional silent no-op for each `missing` command and the notes for
-//  * those and for the plugins `dropped`. Any guard block an earlier pack wrote is taken out first, so a re-run
-//  * replaces it; with nothing to say the text carries no block. Line endings follow the file. */
-// export function guardCommands(text: string, missing: readonly string[], dropped: readonly string[] = []): string {
-//   const eol = text.includes("\r\n") ? "\r\n" : "\n";
-//   const lines = text.split(/\r?\n/);
-//   const begin = lines.indexOf(GUARD_BEGIN);
-//   const end = lines.indexOf(GUARD_END, begin);
-//   const body = begin === -1 || end === -1 ? lines : [...lines.slice(0, begin), ...lines.slice(lines[end + 1] === "" ? end + 2 : end + 1)];
-//   if (missing.length + dropped.length === 0) return body.join(eol);
-//   const block = [GUARD_BEGIN, ...missing.map(guardLine), ...notes(missing, dropped), GUARD_END, ""];
-//   return [...block, ...body].join(eol);
-// }
+/// The guard's notes: one line per plugin left out, then one naming what is guarded, so the file itself says why.
+fn notes(missing: &[String], dropped: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = dropped.iter().map(|name| format!("# plugin {name} left out: {name} is not on the image")).collect();
+    if !missing.is_empty() {
+        out.push(format!(
+            "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: {}. Tick them in wsp init to install them.",
+            missing.join(", ")
+        ));
+    }
+    out
+}
+
+/// A command that is on the machine after all (installed by hand, by an agent, unknown to the planner, or on a directory the rc
+/// itself adds to PATH below the block) always wins: the guard looks the name up at every call and hands over to the command
+/// once there is one. `command -v` would find the guard itself, so the lookup runs in a subshell with the guard unset; a
+/// function that unsets and redefines itself while it runs crashes zsh 5.9 (exit 139, measured), so the guard is only ever
+/// unset on the way to the real command.
+fn guard_line(name: &str) -> String {
+    format!("{name}() {{ if (unset -f {name}; command -v {name}) >/dev/null 2>&1; then unset -f {name}; {name} \"$@\"; else return 127; fi; }}")
+}
+
+/// The text with the guard block prepended: a conditional silent no-op for each `missing` command and the notes for
+/// those and for the plugins `dropped`. Any guard block an earlier pack wrote is taken out first, so a re-run
+/// replaces it; with nothing to say the text carries no block. Line endings follow the file.
 /// TS `dropped` defaults to `[]`; pass `&[]`.
 pub fn guard_commands(text: &str, missing: &[String], dropped: &[String]) -> String {
-    todo!()
+    let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let lines = split_lines(text);
+    let begin = lines.iter().position(|l| *l == GUARD_BEGIN);
+    let end = begin.and_then(|b| lines[b..].iter().position(|l| *l == GUARD_END).map(|p| b + p));
+    let body: Vec<&str> = match (begin, end) {
+        (Some(b), Some(e)) => {
+            let from = if lines.get(e + 1) == Some(&"") { e + 2 } else { e + 1 };
+            lines[..b].iter().chain(lines[from.min(lines.len())..].iter()).copied().collect()
+        }
+        _ => lines.clone(),
+    };
+    if missing.len() + dropped.len() == 0 {
+        return body.join(eol);
+    }
+    let mut block: Vec<String> = vec![GUARD_BEGIN.to_string()];
+    block.extend(missing.iter().map(|name| guard_line(name)));
+    block.extend(notes(missing, dropped));
+    block.push(GUARD_END.to_string());
+    block.push(String::new());
+    block.extend(body.iter().map(|l| l.to_string()));
+    block.join(eol)
 }
