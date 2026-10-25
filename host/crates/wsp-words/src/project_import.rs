@@ -2,8 +2,8 @@
 //! What an import asks about a project's secret files and how a row says each one. Port of the functions of packages/protocol/src/project-import.ts at
 //! a3b870a6e; its shapes and flat constants are wsp_wire::types::project_import. See spec/project_import.md.
 
-use wsp_wire::views::project_bundle::ProjectAgent;
 use wsp_wire::types::project_import::ProjectImportRequest;
+use wsp_wire::views::project_bundle::ProjectAgent;
 use wsp_wire::views::project_bundle::ProjectPlan;
 use wsp_wire::views::project_bundle::ProjectSecret;
 
@@ -16,7 +16,7 @@ use serde::Serialize;
 //   return new Set(secrets.filter(s => s.rewrite !== undefined).map(s => s.path));
 // }
 pub fn default_consent(secrets: &[ProjectSecret]) -> IndexSet<String> {
-    todo!()
+    secrets.iter().filter(|s| s.rewrite.is_some()).map(|s| s.path.clone()).collect()
 }
 
 /// The request the ticks become: offered files rewrite, the rest carry; everything unticked is cut and named by the runtime.
@@ -36,14 +36,18 @@ pub struct ConsentRequest {
 }
 
 pub fn consent_request(secrets: &[ProjectSecret], ticked: &IndexSet<String>) -> ConsentRequest {
-    todo!()
+    let chosen: Vec<&ProjectSecret> = secrets.iter().filter(|s| ticked.contains(&s.path)).collect();
+    ConsentRequest {
+        carry: chosen.iter().filter(|s| s.rewrite.is_none()).map(|s| s.path.clone()).collect(),
+        rewrite: chosen.iter().filter(|s| s.rewrite.is_some()).map(|s| s.path.clone()).collect(),
+    }
 }
 
 /// Only an agent with sessions the plan could read has anything to send; the runtime never reads one it cannot.
 // project-import.ts:24
 // export const canTravel = (a: ProjectAgent): boolean => a.error === undefined && a.sessions > 0;
 pub fn can_travel(a: &ProjectAgent) -> bool {
-    todo!()
+    a.error.is_none() && a.sessions.0 > 0.0
 }
 
 /// An agent whose sessions can travel starts ticked; one with none, or whose store could not be read, does not.
@@ -52,7 +56,7 @@ pub fn can_travel(a: &ProjectAgent) -> bool {
 //   return new Set(agents.filter(canTravel).map(a => a.agent));
 // }
 pub fn default_agents(agents: &[ProjectAgent]) -> IndexSet<String> {
-    todo!()
+    agents.iter().filter(|a| can_travel(a)).map(|a| a.agent.clone()).collect()
 }
 
 /// The request the agent ticks become, in the plan's order; nothing when none is ticked, which the runtime reads the same.
@@ -62,7 +66,12 @@ pub fn default_agents(agents: &[ProjectAgent]) -> IndexSet<String> {
 //   return chosen.length === 0 ? undefined : chosen;
 // }
 pub fn agents_request(agents: &[ProjectAgent], ticked: &IndexSet<String>) -> Option<Vec<String>> {
-    todo!()
+    let chosen: Vec<String> = agents.iter().filter(|a| ticked.contains(&a.agent)).map(|a| a.agent.clone()).collect();
+    if chosen.is_empty() {
+        None
+    } else {
+        Some(chosen)
+    }
 }
 
 /// What a person answered under the plan: yes to its defaults, or a keep or cut per secret-shaped row.
@@ -85,7 +94,7 @@ pub struct ImportAnswers {
 //   return a.yes === true || a.keep.length > 0 || a.cut.length > 0;
 // }
 pub fn import_consented(a: &ImportAnswers) -> bool {
-    todo!()
+    a.yes == Some(true) || !a.keep.is_empty() || !a.cut.is_empty()
 }
 
 // What project.import is asked for: the folder here as given (events echo it), where it lands on the machine,
@@ -100,8 +109,23 @@ pub fn import_consented(a: &ImportAnswers) -> bool {
 //   const travelling = agentsRequest(plan.agents, agents);
 //   return { source, dest: plan.source, ...consentRequest(plan.secrets, ticked), ...(travelling !== undefined ? { agents: travelling } : {}), ...(replace === true ? { replace: true } : {}) };
 // }
-pub fn import_request(plan: &ProjectPlan, source: &str, ticked: &IndexSet<String>, agents: &IndexSet<String>, replace: Option<bool>) -> ProjectImportRequest {
-    todo!()
+pub fn import_request(
+    plan: &ProjectPlan,
+    source: &str,
+    ticked: &IndexSet<String>,
+    agents: &IndexSet<String>,
+    replace: Option<bool>,
+) -> ProjectImportRequest {
+    let travelling = agents_request(&plan.agents, agents);
+    let consent = consent_request(&plan.secrets, ticked);
+    ProjectImportRequest {
+        source: source.to_string(),
+        dest: plan.source.clone(),
+        carry: consent.carry,
+        rewrite: consent.rewrite,
+        agents: travelling,
+        replace: if replace == Some(true) { Some(Default::default()) } else { None },
+    }
 }
 
 /// The row's words for its tick, short for the row's end and full for its title: left out, travels as is, or rewritten
@@ -123,6 +147,14 @@ pub struct SecretOffer {
 }
 
 pub fn secret_offer(s: &ProjectSecret, ticked: bool) -> SecretOffer {
-    todo!()
+    if !ticked {
+        return SecretOffer { short: "left out".into(), full: "left out".into() };
+    }
+    let Some(rewrite) = &s.rewrite else {
+        return SecretOffer { short: "travels as is".into(), full: "travels as is".into() };
+    };
+    let short = "rewritten without keys";
+    let remote = if rewrite.urls.is_empty() { String::new() } else { format!("; the remote reads {}", rewrite.urls.join(", ")) };
+    let dropped = if rewrite.drop.is_empty() { String::new() } else { format!("; {} left out", rewrite.drop.join(", ")) };
+    SecretOffer { short: short.into(), full: format!("{short}{remote}{dropped}") }
 }
-

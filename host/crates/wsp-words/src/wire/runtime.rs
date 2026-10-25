@@ -10,5 +10,8 @@
 //   return `${op} is not a thread's to ask for; this request came in on the token of ${threadAt(threadId, on)}, and a thread's token starts work only under its own root and reads only that tree`;
 // }
 pub fn thread_op_refusal(op: &str, thread_id: &str, on: Option<&str>) -> String {
-    todo!()
+    format!(
+        "{op} is not a thread's to ask for; this request came in on the token of {}, and a thread's token starts work only under its own root and reads only that tree",
+        crate::words::computer::thread_at(thread_id, on)
+    )
 }
