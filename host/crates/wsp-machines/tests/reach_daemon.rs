@@ -9,12 +9,11 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use serde_json::{json, Value};
-use tokio_util::sync::CancellationToken;
+use wsp_engine::Cancel;
 
 use machines_b_support::reach_ctx::*;
 use machines_b_support::*;
 use wsp_engine::machine::MachineOffers;
-use wsp_core::clock::Cancel;
 use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
 use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
@@ -298,13 +297,13 @@ fn a_daemon_that_exits_as_it_starts_fails_with_its_own_words() {
 fn a_stop_pulled_during_the_wait_lets_go_at_once() {
     run(async {
         let w = world(edge());
-        let stop = CancellationToken::new();
-        *w.entry.wake_stop.borrow_mut() = Some(stop.clone());
+        let stop = Cancel::new();
+        w.entry.borrow_mut().wake_stop = Some(stop.clone());
         let t0 = w.host.clock.now();
         let task = ping(&w);
         w.host.clock.advance(10_000.0).await;
         assert!(!task.is_finished());
-        stop.cancel();
+        stop.cancel(None);
         settle().await;
         assert!(task.is_finished());
         assert_eq!(task.await.unwrap(), Some(format!("daemon on bx_1 did not answer within 900000 ms ({WAKE_STOPPED})")));
@@ -315,9 +314,9 @@ fn a_stop_pulled_during_the_wait_lets_go_at_once() {
         // A stop already pulled fails before the first ask.
         let w = world(answers_road());
         w.machine.daemon_answers.lock().unwrap().push_back(Ok(true));
-        let stop = CancellationToken::new();
-        stop.cancel();
-        *w.entry.wake_stop.borrow_mut() = Some(stop);
+        let stop = Cancel::new();
+        stop.cancel(None);
+        w.entry.borrow_mut().wake_stop = Some(stop.clone());
         assert_eq!(ping(&w).await.unwrap(), Some(format!("the daemon on bx_1 could not be asked ({WAKE_STOPPED})")));
         assert_eq!(w.machine.daemon_answers.lock().unwrap().len(), 1);
     });
@@ -418,7 +417,7 @@ fn running(offers: MachineOffers) -> W {
 }
 
 fn fact(entry: &Entry) -> Value {
-    serde_json::to_value(entry.checkout.borrow().clone()).unwrap()
+    serde_json::to_value(entry.borrow().checkout.clone()).unwrap()
 }
 
 fn asked(w: &W) -> usize {
@@ -426,7 +425,7 @@ fn asked(w: &W) -> usize {
 }
 
 fn set_phase(entry: &Entry, phase: &str) {
-    entry.record.borrow_mut().phase = serde_json::from_value(json!(phase)).unwrap();
+    entry.borrow().record.borrow_mut().phase = serde_json::from_value(json!(phase)).unwrap();
 }
 
 #[test]
@@ -520,7 +519,7 @@ fn read_checkout_writes_the_record_only_when_the_fact_moved() {
         let w = running(MachineOffers::default());
         answer_status(WS, status_reply("fix/cart", "abc", &[".M"]));
         let t0 = w.host.clock.now();
-        let record_fact = |w: &W| serde_json::to_value(w.entry.record.borrow().checkout.clone()).unwrap();
+        let record_fact = |w: &W| serde_json::to_value(w.entry.borrow().record.borrow().checkout.clone()).unwrap();
 
         // The first fact differs from the record's none: written and persisted.
         w.area.read_checkout(&w.entry, true).await.unwrap();
@@ -559,7 +558,7 @@ fn read_checkout_joins_a_read_in_flight() {
         let first = tokio::task::spawn_local(async move { a.read_checkout(&e, false).await });
         settle().await;
         assert_eq!(asked(&w), 1);
-        assert!(w.entry.checkout_reading.borrow().is_some());
+        assert!(w.entry.borrow().checkout_reading.is_some());
         // A second caller, forced, joins the one in flight rather than asking the daemon again.
         let (a, e) = (w.area.clone(), w.entry.clone());
         let second = tokio::task::spawn_local(async move { a.read_checkout(&e, true).await });
@@ -576,7 +575,7 @@ fn read_checkout_joins_a_read_in_flight() {
         assert_eq!(w.host.calls_of("persist").len(), 1);
         assert_eq!(w.host.events_of("workspace.status").len(), 1);
         // The slot is cleared when the read settles, so the next forced read asks again.
-        assert!(w.entry.checkout_reading.borrow().is_none());
+        assert!(w.entry.borrow().checkout_reading.is_none());
         w.area.read_checkout(&w.entry, true).await.unwrap();
         assert_eq!(asked(&w), 2);
     });
@@ -637,7 +636,7 @@ fn compared(t: &T) -> Vec<String> {
 }
 
 fn tree_of(lead: &Entry) -> Value {
-    serde_json::to_value(lead.tree.borrow().clone()).unwrap()
+    serde_json::to_value(lead.borrow().tree.clone()).unwrap()
 }
 
 #[test]
@@ -653,7 +652,7 @@ fn reads_each_childs_branch_against_the_leads() {
         on_branch("ws_c2", "child/two");
         // A child still being made, and one that belongs to another lead, are not this lead's children.
         let making = put_kid(host, "ws_new", "pr_kid", json!({}));
-        making.creating.set(true);
+        making.borrow_mut().creating = true;
         put_kid(host, "ws_other", "pr_kid", json!({ "parentWorkspaceId": "ws_elsewhere" }));
         // On no branch, on a project whose remote names no host, and a compare nothing could answer: no counts.
         put_kid(host, "ws_c3", "pr_kid", json!({}));
@@ -686,7 +685,7 @@ fn reads_each_childs_branch_against_the_leads() {
         });
         assert_eq!(js_text(&serde_json::to_value(&tree).unwrap()), js_text(&want));
         assert_eq!(js_text(&tree_of(&t.lead)), js_text(&want));
-        assert!(t.lead.tree_reading.borrow().is_none());
+        assert!(t.lead.borrow().tree_reading.is_none());
         // Only the lead's own children were read, once each; the compare ran for the three branches with a host.
         let mut read: Vec<String> = host.calls_of("with_daemon").into_iter().map(|a| a[0].clone()).collect();
         read.sort();
@@ -794,7 +793,7 @@ fn a_child_merged_counts_against_the_commit_the_merge_took() {
         let second = tokio::task::spawn_local(async move { a.read_tree(&l).await });
         settle().await;
         assert_eq!(t.host.calls_of("with_daemon").len(), 1);
-        assert!(t.lead.tree_reading.borrow().is_some());
+        assert!(t.lead.borrow().tree_reading.is_some());
         open(&held);
         settle().await;
         let (one, two) = (first.await.unwrap().expect("a tree"), second.await.unwrap().expect("a tree"));
@@ -802,7 +801,7 @@ fn a_child_merged_counts_against_the_commit_the_merge_took() {
         let mut read: Vec<String> = t.host.calls_of("with_daemon").into_iter().map(|a| a[0].clone()).collect();
         read.sort();
         assert_eq!(read, vec!["ws_c1".to_string(), "ws_lead".to_string()]);
-        assert!(t.lead.tree_reading.borrow().is_none());
+        assert!(t.lead.borrow().tree_reading.is_none());
     });
 }
 
@@ -810,13 +809,13 @@ fn a_child_merged_counts_against_the_commit_the_merge_took() {
 fn a_lead_whose_children_are_gone_loses_its_tree() {
     run(async {
         let t = tree_world(None);
-        *t.lead.tree.borrow_mut() = Some(serde_json::from_value(json!({ "leadBranch": "tree/lead", "children": [], "readAt": 1 })).unwrap());
+        t.lead.borrow_mut().tree = Some(serde_json::from_value(json!({ "leadBranch": "tree/lead", "children": [], "readAt": 1 })).unwrap());
         // The only child is still being made, which is no child yet.
         let making = put_kid(&t.host, "ws_c1", "pr_kid", json!({}));
-        making.creating.set(true);
+        making.borrow_mut().creating = true;
 
         assert_eq!(t.area.read_tree(&t.lead).await, None);
-        assert!(t.lead.tree.borrow().is_none());
+        assert!(t.lead.borrow().tree.is_none());
         let seen = t.host.events_of("workspace.status");
         assert_eq!(seen.len(), 1);
         assert_eq!(seen[0]["status"]["id"], json!("ws_lead"));
@@ -828,17 +827,17 @@ fn a_lead_whose_children_are_gone_loses_its_tree() {
         assert_eq!(t.host.events_of("workspace.status").len(), 1);
 
         // The child lands, is read, then goes: the tree read of it is taken off.
-        making.creating.set(false);
+        making.borrow_mut().creating = false;
         on_branch("ws_lead", "tree/lead");
         on_branch("ws_c1", "child/one");
         on_compare(|_| Ok(json!({ "pushed": false })));
         let tree = t.area.read_tree(&t.lead).await.expect("a tree");
         assert_eq!(serde_json::to_value(&tree).unwrap()["children"][0]["workspaceId"], json!("ws_c1"));
-        assert!(t.lead.tree.borrow().is_some());
+        assert!(t.lead.borrow().tree.is_some());
         let pushed = t.host.events_of("workspace.status").len();
         t.host.live.borrow_mut().shift_remove("ws_c1");
         assert_eq!(t.area.read_tree(&t.lead).await, None);
-        assert!(t.lead.tree.borrow().is_none());
+        assert!(t.lead.borrow().tree.is_none());
         let seen = t.host.events_of("workspace.status");
         assert_eq!(seen.len(), pushed + 1);
         assert!(seen.last().unwrap()["status"].get("tree").is_none());

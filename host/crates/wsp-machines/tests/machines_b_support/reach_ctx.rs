@@ -227,7 +227,7 @@ pub fn reach(host: &Rc<FakeHost>) -> Rc<ReachArea> {
 pub fn plain_record(id: &str, name: &str, phase: &str, machine_id: &str) -> Value {
     json!({
         "id": id, "name": name, "kind": "cloud", "machineId": machine_id, "phase": phase, "golden": "snap_g",
-        "createdAt": "2026-10-12T06:00:00.000Z", "project": "pr_1", "place": "box", "size": { "cpu": 2, "memMb": 4096 }
+        "createdAt": "2026-10-12T06:00:00.000Z", "project": "pr_1", "spec": {}, "firstLife": true, "place": "box", "size": { "cpu": 2, "memMb": 4096 }
     })
 }
 

@@ -15,7 +15,7 @@ use wsp_engine::disk_sync::{disk_use_of, DISK_USE_CMD};
 use wsp_engine::machine::RootDisk;
 use wsp_core::clock::Cancel;
 use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
-use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WakeAsk, WorkspaceRecord};
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::reach::{ForMachine, ReachArea, ReachCtx, DISK_CLOSE_WAIT_MS, DISK_READ_MS};
@@ -462,10 +462,13 @@ fn emit_status_carries_the_entrys_facts_in_order() {
     run(async {
         let w = world(plain_record(WS, "web", "running", "bx_1"));
         knobs().idle_at.borrow_mut().insert(WS.to_string(), 1_760_000_300_000.0);
-        *w.entry.wake_ask.borrow_mut() = Some(json!({ "until": 1_760_000_200_000u64 }));
-        *w.entry.checkout.borrow_mut() = Some(serde_json::from_value(json!({ "branch": "main", "ahead": 1, "behind": 0, "changed": 2, "readAt": 1_760_000_000_000u64 })).unwrap());
-        *w.entry.pr.borrow_mut() = Some(json!({ "number": 7 }));
-        *w.entry.tree.borrow_mut() = Some(serde_json::from_value(json!({ "leadBranch": "main", "children": [], "readAt": 1_760_000_000_001u64 })).unwrap());
+        {
+            let mut e = w.entry.borrow_mut();
+            e.wake_ask = Some(WakeAsk { ask: 1, of: 3 });
+            e.checkout = Some(serde_json::from_value(json!({ "branch": "main", "ahead": 1, "behind": 0, "changed": 2, "readAt": 1_760_000_000_000u64 })).unwrap());
+            e.pr = Some(serde_json::from_value(json!({ "why": "gh is not signed in", "readAt": 1_760_000_000_002u64 })).unwrap());
+            e.tree = Some(serde_json::from_value(json!({ "leadBranch": "main", "children": [], "readAt": 1_760_000_000_001u64 })).unwrap());
+        }
         w.area.emit_status(&w.entry, ReachState::Reachable, Some("because")).await.unwrap();
 
         let want = json!({
@@ -473,9 +476,9 @@ fn emit_status_carries_the_entrys_facts_in_order() {
             "status": {
                 "id": WS, "name": "web", "phase": "running", "machineState": "running", "reach": { "state": "reachable" },
                 "size": { "cpu": 2, "memMb": 4096 }, "rateUsdPerHour": 0.018, "reason": "because",
-                "wakeAsk": { "until": 1_760_000_200_000u64 }, "idleAt": 1_760_000_300_000u64,
+                "wakeAsk": { "ask": 1, "of": 3 }, "idleAt": 1_760_000_300_000u64,
                 "checkout": { "branch": "main", "ahead": 1, "behind": 0, "changed": 2, "readAt": 1_760_000_000_000u64 },
-                "pr": { "number": 7 },
+                "pr": { "why": "gh is not signed in", "readAt": 1_760_000_000_002u64 },
                 "tree": { "leadBranch": "main", "children": [], "readAt": 1_760_000_000_001u64 }
             }
         });
@@ -535,7 +538,7 @@ fn status_now_and_push_status_read_the_phase() {
 
         // One line about the wake in flight is kept on the entry and pushed with it.
         w.area.says_waking(&nap, "waking: 40 s in").await.unwrap();
-        assert_eq!(nap.wake_said.borrow().clone(), Some("waking: 40 s in".to_string()));
+        assert_eq!(nap.borrow().wake_said.clone(), Some("waking: 40 s in".to_string()));
         assert_eq!(w.host.events.borrow().len(), 5);
         let waking = w.host.events.borrow()[4].clone();
         assert_eq!(waking["status"]["reach"]["state"], json!("napping"));
