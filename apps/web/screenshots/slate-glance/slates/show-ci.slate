@@ -1,0 +1,29 @@
+<slate title="ci on land/gpui-default, 4bd5e2da7">
+  <value name="jobs" start={[
+    {name: "1,500-line check", group: "Linux", start: "2026-10-25T15:57:48Z", end: "2026-10-25T15:57:58Z", state: "done"},
+    {name: "Mac plan", group: "Linux", start: "2026-10-25T15:57:48Z", end: "2026-10-25T15:58:00Z", state: "done"},
+    {name: "Build", group: "Linux", start: "2026-10-25T15:57:48Z", end: "2026-10-25T15:59:04Z", state: "done"},
+    {name: "Stage app", group: "Linux", start: "2026-10-25T15:57:48Z", end: "2026-10-25T15:59:11Z", state: "done"},
+    {name: "Types", group: "Linux", start: "2026-10-25T15:59:07Z", end: "2026-10-25T16:00:58Z", state: "done"},
+    {name: "Tests 1/8", group: "Linux", start: "2026-10-25T15:59:07Z", end: "2026-10-25T16:01:55Z", state: "done"},
+    {name: "Tests 2/8", group: "Linux", start: "2026-10-25T15:59:07Z", end: "2026-10-25T16:02:07Z", state: "failed"},
+    {name: "Tests 2/8 again", group: "Linux", start: "2026-10-25T16:13:36Z", end: "2026-10-25T16:16:35Z", state: "done"},
+    {name: "Tests 3/8", group: "Linux", start: "2026-10-25T15:59:07Z", end: "2026-10-25T16:02:19Z", state: "done"},
+    {name: "Tests 4/8", group: "Linux", start: "2026-10-25T15:59:07Z", end: "2026-10-25T16:01:41Z", state: "done"},
+    {name: "Tests 5/8", group: "Linux", start: "2026-10-25T15:59:07Z", end: "2026-10-25T16:02:36Z", state: "done"},
+    {name: "Tests 6/8", group: "Linux", start: "2026-10-25T15:59:07Z", end: "2026-10-25T16:02:14Z", state: "done"},
+    {name: "Tests 7/8", group: "Linux", start: "2026-10-25T15:59:07Z", end: "2026-10-25T16:02:25Z", state: "done"},
+    {name: "Tests 8/8", group: "Linux", start: "2026-10-25T15:59:07Z", end: "2026-10-25T16:01:51Z", state: "done"},
+    {name: "Changed x5", group: "Linux", start: "2026-10-25T15:59:07Z", end: "2026-10-25T16:06:52Z", state: "done"},
+    {name: "Daemon", group: "Mac", start: "2026-10-25T15:58:04Z", end: "2026-10-25T16:04:58Z", state: "done"},
+    {name: "Mac tests 1/2", group: "Mac", start: "2026-10-25T15:58:04Z", end: "2026-10-25T16:11:38Z", state: "done"},
+    {name: "Mac tests 2/2", group: "Mac", start: "2026-10-25T15:58:05Z", end: "2026-10-25T16:10:05Z", state: "done"}
+  ]} />
+  <column>
+    <stats>
+      <stat label="Wall time" value="18m 51s" window="21:27 to 21:46" />
+      <stat label="Lost to the failed shard" value="4m 57s" window="past the other jobs" tone="warning" />
+    </stats>
+    <timeline label="Jobs by start and end" items={$jobs} name={item.name} start={item.start} end={item.end} state={item.state} group={item.group} />
+  </column>
+</slate>

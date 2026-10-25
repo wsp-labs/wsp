@@ -1,0 +1,10 @@
+<slate title="#2338 header after a Boat sub-thread finishes">
+  <value name="shots" start={[
+    {src: "shots/2338-header-before.jpg", caption: "Before: Push offered"},
+    {src: "shots/2338-header-after.jpg", caption: "After: no Push"}
+  ]} />
+  <column>
+    <images layout="compare" items={$shots} src={item.src} caption={item.caption} />
+    <text value="Drag the line: Push and the stale notice are gone after." />
+  </column>
+</slate>

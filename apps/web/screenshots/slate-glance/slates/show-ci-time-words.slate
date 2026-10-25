@@ -1,0 +1,25 @@
+<slate title="How long a ci run takes, 14 to 25 October">
+  <value name="days" start={[
+    {day: "14 Oct", runs: "33", median: "7.9 min", slowest: "31.5 min"},
+    {day: "15 Oct", runs: "38", median: "8.3 min", slowest: "37.8 min"},
+    {day: "16 Oct", runs: "71", median: "7.3 min", slowest: "32.2 min"},
+    {day: "17 Oct", runs: "9", median: "7.0 min", slowest: "22.1 min"},
+    {day: "18 Oct", runs: "1", median: "7.6 min", slowest: "7.6 min"},
+    {day: "19 Oct", runs: "1", median: "7.3 min", slowest: "7.3 min"},
+    {day: "20 Oct", runs: "6", median: "7.2 min", slowest: "7.6 min"},
+    {day: "21 Oct", runs: "13", median: "5.8 min", slowest: "8.2 min"},
+    {day: "22 Oct", runs: "1", median: "12.4 min", slowest: "12.4 min"},
+    {day: "23 Oct", runs: "1", median: "7.4 min", slowest: "7.4 min"},
+    {day: "24 Oct", runs: "5", median: "3.2 min", slowest: "6.6 min"},
+    {day: "25 Oct", runs: "9", median: "11.4 min", slowest: "36.1 min"}
+  ]} />
+  <column>
+    <table items={$days} key={item.day}>
+      <col title="Day" value={item.day} />
+      <col title="Runs" value={item.runs} mono={true} />
+      <col title="Median" value={item.median} mono={true} />
+      <col title="Slowest" value={item.slowest} mono={true} />
+    </table>
+    <text value="The median sits near 7 minutes; 25 October's slowest took 36." />
+  </column>
+</slate>

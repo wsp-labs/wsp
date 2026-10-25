@@ -1,0 +1,17 @@
+<slate title="How a slate's image reaches the window">
+  <value name="steps" start={[
+    {at: "1", step: "The window asks the host for the picture"},
+    {at: "2", step: "A path on this computer: the host reads the file"},
+    {at: "3", step: "A path on another computer: read through its daemon"},
+    {at: "4", step: "An address: fetched once the person allows its domain"},
+    {at: "5", step: "Not an image or over the cap: one muted line"},
+    {at: "6", step: "Otherwise the bytes and their version go to the window"}
+  ]} />
+  <column>
+    <table items={$steps} key={item.at}>
+      <col title="" value={item.at} mono={true} />
+      <col title="What happens" value={item.step} />
+    </table>
+    <text value="The window never fetches an image itself; the host answers unchanged for a version the window already holds." />
+  </column>
+</slate>

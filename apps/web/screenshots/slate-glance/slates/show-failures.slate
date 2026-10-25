@@ -1,0 +1,12 @@
+<slate title="App sweep: 5 checks failed">
+  <value name="failed" start={[
+    {src: "shots/fail-2140-fork-banner.jpg", caption: "#2140 Fork banner floats"},
+    {src: "shots/fail-2341-push-on-gone.jpg", caption: "#2341 Push on gone machine"},
+    {src: "shots/fail-1681-pair-code.jpg", caption: "#1681 Pair code cut short"},
+    {src: "shots/fail-2232-no-image-yet.jpg", caption: "#2232 Boat: No image yet"},
+    {src: "shots/2338-header-before.jpg", caption: "#2338 Push after it ended"}
+  ]} />
+  <column>
+    <images layout="gallery" items={$failed} src={item.src} caption={item.caption} />
+  </column>
+</slate>

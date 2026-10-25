@@ -1,0 +1,31 @@
+<slate title="ci on land/gpui-default, 4bd5e2da7">
+  <value name="jobs" start={[
+    {job: "1,500-line check", on: "Linux", ran: "21:27:48", took: "10s"},
+    {job: "Mac plan", on: "Linux", ran: "21:27:48", took: "12s"},
+    {job: "Build", on: "Linux", ran: "21:27:48", took: "1m 16s"},
+    {job: "Stage app", on: "Linux", ran: "21:27:48", took: "1m 23s"},
+    {job: "Types", on: "Linux", ran: "21:29:07", took: "1m 51s"},
+    {job: "Tests 1/8", on: "Linux", ran: "21:29:07", took: "2m 48s"},
+    {job: "Tests 2/8", on: "Linux", ran: "21:29:07", took: "3m 00s (failed)"},
+    {job: "Tests 2/8 again", on: "Linux", ran: "21:43:36", took: "2m 59s"},
+    {job: "Tests 3/8", on: "Linux", ran: "21:29:07", took: "3m 12s"},
+    {job: "Tests 4/8", on: "Linux", ran: "21:29:07", took: "2m 34s"},
+    {job: "Tests 5/8", on: "Linux", ran: "21:29:07", took: "3m 29s"},
+    {job: "Tests 6/8", on: "Linux", ran: "21:29:07", took: "3m 07s"},
+    {job: "Tests 7/8", on: "Linux", ran: "21:29:07", took: "3m 18s"},
+    {job: "Tests 8/8", on: "Linux", ran: "21:29:07", took: "2m 44s"},
+    {job: "Changed x5", on: "Linux", ran: "21:29:07", took: "7m 45s"},
+    {job: "Daemon", on: "Mac", ran: "21:28:04", took: "6m 54s"},
+    {job: "Mac tests 1/2", on: "Mac", ran: "21:28:04", took: "13m 34s"},
+    {job: "Mac tests 2/2", on: "Mac", ran: "21:28:05", took: "12m 00s"}
+  ]} />
+  <column>
+    <text value="18m 51s wall. Tests 2/8 failed at 21:32:07, was run again at 21:43:36 and passed 4m 57s after the last other job ended." />
+    <table items={$jobs} key={item.job}>
+      <col title="Job" value={item.job} />
+      <col title="On" value={item.on} />
+      <col title="Started" value={item.ran} mono={true} />
+      <col title="Took" value={item.took} mono={true} />
+    </table>
+  </column>
+</slate>
