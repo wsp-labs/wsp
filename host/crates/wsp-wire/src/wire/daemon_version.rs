@@ -45,8 +45,18 @@ pub struct StateShape {
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for StateShape {
-    fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+    fn describe(path: &[Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "shape" => <i64 as Check>::describe(rest),
+                "wsp" => <String as Check>::describe(rest),
+                "daemon" => <i64 as Check>::describe(rest),
+                "bin" => <String as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -54,7 +64,7 @@ impl Check for StateShape {
 // /** How a sentence names the build that wrote a state file. */
 // export const stateWriterWords = (wrote: StateShape): string => `${wrote.bin} (wsp ${wrote.wsp}, daemon ${wrote.daemon})`;
 pub fn state_writer_words(wrote: &StateShape) -> String {
-    todo!()
+    format!("{} (wsp {}, daemon {})", wrote.bin, wrote.wsp, wrote.daemon)
 }
 // daemon-version.ts:762
 // /** The one word a place's row says while this wsp deploys a newer daemon than that computer runs, and nothing
@@ -66,7 +76,7 @@ pub fn state_writer_words(wrote: &StateShape) -> String {
 //   return version === undefined || version >= DAEMON_VERSION ? undefined : `daemon ${version}, host ${DAEMON_VERSION}`;
 // }
 pub fn place_daemon_behind(daemon_version: Option<i64>) -> Option<String> {
-    todo!()
+    daemon_version.filter(|v| *v < DAEMON_VERSION).map(|v| format!("daemon {v}, host {DAEMON_VERSION}"))
 }
 // daemon-version.ts:791
 // /** Why a computer's daemon cannot take a pane's port watch, in placeDaemonBehind's words: one from before named
@@ -76,57 +86,63 @@ pub fn place_daemon_behind(daemon_version: Option<i64>) -> Option<String> {
 //   return daemonVersion < NAMED_WATCH_DAEMON_VERSION ? placeDaemonBehind({ daemonVersion }) : undefined;
 // }
 pub fn named_watch_gap(daemon_version: Option<i64>) -> Option<String> {
-    todo!()
+    match daemon_version {
+        None => Some(format!("daemon version unknown, host {DAEMON_VERSION}")),
+        Some(v) if v < NAMED_WATCH_DAEMON_VERSION => place_daemon_behind(Some(v)),
+        Some(_) => None,
+    }
 }
 // daemon-version.ts:809
 // /** Whether the `wsp leave` a computer runs is that build or later, read off the version its own wsp says it was built
 //  * with and never its daemon's: an update moves the daemon alone. A wsp that said none runs an older leave. */
 // export const leaveAsks = (report: { wspDaemonVersion?: number }): boolean => (report.wspDaemonVersion ?? 0) >= LEAVE_ASKS_DAEMON_VERSION;
 pub fn leave_asks(wsp_daemon_version: Option<i64>) -> bool {
-    todo!()
+    wsp_daemon_version.unwrap_or(0) >= LEAVE_ASKS_DAEMON_VERSION
 }
 // daemon-version.ts:817
 // /** Whether the `wsp leave` a computer runs takes `--takes`. */
 // export const leaveTakes = (report: { wspDaemonVersion?: number }): boolean => (report.wspDaemonVersion ?? 0) >= LEAVE_TAKES_DAEMON_VERSION;
 pub fn leave_takes(wsp_daemon_version: Option<i64>) -> bool {
-    todo!()
+    wsp_daemon_version.unwrap_or(0) >= LEAVE_TAKES_DAEMON_VERSION
 }
 // daemon-version.ts:820
 // /** The line that moves a place onto this wsp's daemon, which is the fix half of every sentence about a place that
 //  * is behind. */
 // export const placeUpdateLine = (name: string): string => `wsp add ${name} --update`;
 pub fn place_update_line(name: &str) -> String {
-    todo!()
+    format!("wsp add {name} --update")
 }
 // daemon-version.ts:824
 // /** What a process's row says where its computer's daemon is older than a kill that ends what the process started:
 //  * TERM reached the process alone, and the fix. */
 // export const killTooOldLine = (name: string): string => `TERM went to this process alone: ${name} runs a daemon too old to end what it started; ${placeUpdateLine(name)} updates it`;
 pub fn kill_too_old_line(name: &str) -> String {
-    todo!()
+    format!("TERM went to this process alone: {name} runs a daemon too old to end what it started; {} updates it", place_update_line(name))
 }
 // daemon-version.ts:828
 // /** The same said away from the rows, once for a computer, naming each process TERM reached alone. */
 // export const killTooOldOfLine = (name: string, procs: readonly { pid: number; command: string }[]): string =>
 //   `TERM went to ${procs.map(p => `${p.pid} (${p.command})`).join(" and ")} alone: ${name} runs a daemon too old to end what ${procs.length === 1 ? "it" : "they"} started; ${placeUpdateLine(name)} updates it`;
 pub fn kill_too_old_of_line(name: &str, procs: &[KilledAlone]) -> String {
-    todo!()
+    let reached = procs.iter().map(|p| format!("{} ({})", p.pid, p.command)).collect::<Vec<_>>().join(" and ");
+    let who = if procs.len() == 1 { "it" } else { "they" };
+    format!("TERM went to {reached} alone: {name} runs a daemon too old to end what {who} started; {} updates it", place_update_line(name))
 }
 // daemon-version.ts:831
 // /** Why a slate's MCP server does not start on a place whose daemon cannot hold a command open. */
 // export const slateServerBehindLine = (name: string): string => `${name} runs a daemon too old to start a slate's MCP server there; ${placeUpdateLine(name)} updates it`;
 pub fn slate_server_behind_line(name: &str) -> String {
-    todo!()
+    format!("{name} runs a daemon too old to start a slate's MCP server there; {} updates it", place_update_line(name))
 }
 // daemon-version.ts:834
 // /** What the doctor says about one place that is behind: the word above and the line that answers it. */
 // export const placeBehindLine = (name: string, word: string): string => `${name} is behind: ${word}; ${placeUpdateLine(name)} puts this wsp's daemon on it`;
 pub fn place_behind_line(name: &str, word: &str) -> String {
-    todo!()
+    format!("{name} is behind: {word}; {} puts this wsp's daemon on it", place_update_line(name))
 }
 // daemon-version.ts:837
 // /** The refusal an update gets on a place already running the daemon this wsp deploys. */
 // export const placeCurrentLine = (name: string, version: number): string => `${name} already runs daemon ${version}, which is the one this wsp deploys`;
 pub fn place_current_line(name: &str, version: i64) -> String {
-    todo!()
+    format!("{name} already runs daemon {version}, which is the one this wsp deploys")
 }

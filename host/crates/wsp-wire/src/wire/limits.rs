@@ -112,7 +112,7 @@ impl Check for PortForward {
 //   return Math.min(AGENTS_KEPT, Math.max(0, Math.floor((memMb * KEPT_MEMORY_SHARE) / KEPT_AGENT_MB)));
 // }
 pub fn agents_kept_on(mem_mb: f64) -> i64 {
-    todo!()
+    ((mem_mb * KEPT_MEMORY_SHARE / KEPT_AGENT_MB as f64).floor() as i64).clamp(0, AGENTS_KEPT)
 }
 // limits.ts:101
 // /** The wait before dial `attempt`, half a second doubling to ten, with up to a quarter second of jitter so the
@@ -121,7 +121,8 @@ pub fn agents_kept_on(mem_mb: f64) -> i64 {
 //   return Math.min(10_000, 500 * 2 ** Math.max(0, attempt - 1)) + Math.floor(Math.random() * 250);
 // }
 pub fn link_backoff_ms(attempt: i64, random: f64) -> i64 {
-    todo!()
+    let doubled = 500i64 << attempt.saturating_sub(1).clamp(0, 5);
+    doubled.min(10_000) + (random * 250.0).floor() as i64
 }
 // limits.ts:114
 // export function isHttpUrl(url: unknown): url is string {
@@ -134,7 +135,23 @@ pub fn link_backoff_ms(attempt: i64, random: f64) -> i64 {
 //   }
 // }
 pub fn is_http_url(url: &str) -> bool {
-    todo!()
+    if crate::types::check::utf16_len(url) > HTTP_URL_MAX as usize {
+        return false;
+    }
+    let lower = url.to_ascii_lowercase();
+    let rest = match (lower.strip_prefix("https://"), lower.strip_prefix("http://")) {
+        (Some(_), _) => &url[8..],
+        (None, Some(_)) => &url[7..],
+        (None, None) => return false,
+    };
+    // The url crate's IDNA table drops U+180E from a host where node refuses it, so it is refused here too.
+    let plain = !rest.is_empty() && rest.chars().all(|c| !is_js_space(c) && (c as u32) > 0x1f && c != '\x7f' && c != '\u{180e}');
+    plain && url::Url::parse(url).is_ok()
+}
+
+/// JavaScript's `\s`: the white space and line terminators its trim strips, which the regex above reads.
+fn is_js_space(c: char) -> bool {
+    crate::types::check::js_trim(c.encode_utf8(&mut [0; 4])).is_empty()
 }
 // limits.ts:124
 // /** Every folder a turn's paths are built from is held to this: absolute, made of what a path is made of, and
@@ -159,7 +176,7 @@ pub fn is_plain_path(path: &str) -> bool {
 //   return path.length > 0 && !path.startsWith("/") && !path.split("/").some(part => part === "" || part === "." || part === "..");
 // }
 pub fn is_under_path(path: &str) -> bool {
-    todo!()
+    !path.is_empty() && !path.starts_with('/') && !path.split('/').any(|part| part.is_empty() || part == "." || part == "..")
 }
 // limits.ts:143
 // /** The host of a URL that passed isHttpUrl (with its port, without userinfo), or undefined when it does not parse: never throws. */
@@ -171,7 +188,22 @@ pub fn is_under_path(path: &str) -> bool {
 //   }
 // }
 pub fn host_of(url: &str) -> Option<String> {
-    todo!()
+    let parsed = url::Url::parse(url).ok()?;
+    let host = parsed.host_str().unwrap_or_default();
+    Some(match parsed.port() {
+        Some(port) => format!("{host}:{port}"),
+        None => host.to_string(),
+    })
+}
+
+/// The URL a sign-in's redirect_uri names, when the URL carries one and both parse.
+fn redirect_of(url: &str) -> Option<url::Url> {
+    let redirect = url::Url::parse(url).ok()?.query_pairs().find(|(key, _)| key == "redirect_uri")?.1.into_owned();
+    url::Url::parse(&redirect).ok()
+}
+
+fn is_loopback(target: &url::Url) -> bool {
+    matches!(target.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))
 }
 // limits.ts:172
 // /** Whether a sign-in's page comes back to the machine that asked for it: its redirect_uri names a loopback host,
@@ -182,7 +214,7 @@ pub fn host_of(url: &str) -> Option<String> {
 //   return target !== undefined && LOOPBACK_HOSTS.has(target.hostname);
 // }
 pub fn redirects_to_machine(url: &str) -> bool {
-    todo!()
+    redirect_of(url).is_some_and(|target| is_loopback(&target))
 }
 // limits.ts:180
 // /** Which port on the machine that redirect names, for the forward to bind here: the daemon reads it to name the port
@@ -195,7 +227,11 @@ pub fn redirects_to_machine(url: &str) -> bool {
 //   return RelayPort.safeParse(port).success ? port : undefined;
 // }
 pub fn callback_port_of(url: &str) -> Option<u16> {
-    todo!()
+    let target = redirect_of(url)?;
+    if !is_loopback(&target) {
+        return None;
+    }
+    target.port().filter(|port| *port >= 1024)
 }
 
 // A word list zod reads with z.enum: serde refuses any other word, so nothing is left to check.
