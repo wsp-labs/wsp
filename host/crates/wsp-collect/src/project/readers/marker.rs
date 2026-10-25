@@ -52,18 +52,17 @@ pub const MARKER_FILES: [&str; 20] = [
 ];
 
 /// One finding `<path> needs <label>` for a path MARKERS names, else none.
-// project/readers/marker.ts:30
-// export const markerReader: ProjectReader = {
-//   id: "marker",
-//   files: Object.keys(MARKERS),
-//   reads: "presence",
-//   read(file): readonly ProjectFinding[] {
-//     const marker = MARKERS[file.path];
-//     return marker === undefined ? [] : [{ ...marker, why: `${file.path} needs ${marker.label}` }];
-//   },
-// };
 pub fn read(file: &ProjectFile) -> Vec<ProjectFinding> {
-    todo!()
+    let Some((_, name, label)) = MARKERS.iter().find(|m| m.0 == file.path) else {
+        return Vec::new();
+    };
+    vec![ProjectFinding {
+        name: name.to_string(),
+        label: label.to_string(),
+        why: format!("{} needs {label}", file.path),
+        catalog_only: false,
+        installs: None,
+    }]
 }
 
 pub const MARKER_READER: ProjectReader = ProjectReader { id: "marker", files: &MARKER_FILES, reads: Reads::Presence, read };
