@@ -65,7 +65,7 @@ export const record = (over: Record<string, unknown> = {}) => ({
     rows: [
       row("plugins/lint", "installed", { step: "plugins" }),
       row("plugins/fmt", "present", { step: "plugins" }),
-      row("folders/site", "installed", { step: "folders", project: { id: "pr_00000001", name: "site" }, pick: { from: "/home/dev/site" }, createdAt: "2026-10-01T00:00:00.000Z" }),
+      row("folders/site", "installed", { step: "folders", project: { id: "pr_00000001" }, pick: { from: "/home/dev/site", keep: [] }, createdAt: "2026-10-01T00:00:00.000Z" }),
       row("clis/gh", "failed", { step: "clis", note: "no network" }),
     ],
   },
@@ -115,7 +115,7 @@ it("writes the places b fixture", async () => {
     madeBySetupNoApplied: t.madeBySetup({ ...held, applied: undefined } as never, "plugins"),
     appliedView: t.appliedView(held.applied as never),
     projectsMade: [...t.projectsMade(held as never)],
-    projectsMadeTwice: [...t.projectsMade({ ...held, applied: { ...held.applied, rows: [...held.applied.rows, row("folders/b", "installed", { project: { id: "pr_00000002", name: "b" } }), row("folders/c", "present", { project: { id: "pr_00000001", name: "site" } })] } } as never)],
+    projectsMadeTwice: [...t.projectsMade({ ...held, applied: { ...held.applied, rows: [...held.applied.rows, row("folders/b", "installed", { project: { id: "pr_00000002" } }), row("folders/c", "present", { project: { id: "pr_00000001" } })] } } as never)],
     isPlaceRecord: [
       { v: { id: "a", publicKey: "k", name: "n" } },
       { v: { id: "", publicKey: "", name: "" } },

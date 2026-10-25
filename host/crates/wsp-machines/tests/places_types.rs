@@ -122,8 +122,8 @@ fn projects_made_in_row_order_once() {
     assert_eq!(js(&projects_made(&held).into_iter().collect::<Vec<_>>()), at("/types/projectsMade"));
     let mut doc = record_json(json!({}));
     let rows = doc["applied"]["rows"].as_array_mut().unwrap();
-    rows.push(json!({ "id": "folders/b", "label": "FOLDERS/B", "outcome": "installed", "project": { "id": "pr_00000002", "name": "b" } }));
-    rows.push(json!({ "id": "folders/c", "label": "FOLDERS/C", "outcome": "present", "project": { "id": "pr_00000001", "name": "site" } }));
+    rows.push(json!({ "id": "folders/b", "label": "FOLDERS/B", "outcome": "installed", "project": { "id": "pr_00000002" } }));
+    rows.push(json!({ "id": "folders/c", "label": "FOLDERS/C", "outcome": "present", "project": { "id": "pr_00000001" } }));
     let held: PlaceRecord = serde_json::from_value(doc).unwrap();
     assert_eq!(js(&projects_made(&held).into_iter().collect::<Vec<_>>()), at("/types/projectsMadeTwice"));
     assert!(projects_made(&record(json!({ "applied": null }))).is_empty());
