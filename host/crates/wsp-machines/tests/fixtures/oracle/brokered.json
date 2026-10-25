@@ -1,0 +1,1471 @@
+{
+ "constants": {
+  "BROKERED_GH_DIR": "/run/wsp-daemon/gh",
+  "BROKERED_BIN_DIR": "/usr/local/libexec/wsp-terminal",
+  "TERMINAL_ENV": "WSP_TERMINAL",
+  "TERMINAL_PROFILE": "/etc/profile.d/wsp-terminal.sh"
+ },
+ "terminalBinOf": [
+  {
+   "own": "claude",
+   "out": "/usr/local/libexec/wsp-terminal/claude"
+  },
+  {
+   "own": "codex",
+   "out": "/usr/local/libexec/wsp-terminal/codex"
+  },
+  {
+   "own": "",
+   "out": "/usr/local/libexec/wsp-terminal/"
+  },
+  {
+   "own": "a b",
+   "out": "/usr/local/libexec/wsp-terminal/a b"
+  }
+ ],
+ "otherAgentProgram": [
+  {
+   "other": "codex",
+   "own": "claude",
+   "out": "#!/bin/sh\nprintf '%s\\n' 'wsp: Codex cannot sign in on this machine. This terminal'\\''s thread runs Claude Code, and your computer signs in only that agent here. Start a thread on Codex to use it.' >&2\nexit 1\n"
+  },
+  {
+   "other": "claude",
+   "own": "codex",
+   "out": "#!/bin/sh\nprintf '%s\\n' 'wsp: Claude Code cannot sign in on this machine. This terminal'\\''s thread runs Codex, and your computer signs in only that agent here. Start a thread on Claude Code to use it.' >&2\nexit 1\n"
+  },
+  {
+   "other": "cursor",
+   "own": "claude",
+   "out": "#!/bin/sh\nprintf '%s\\n' 'wsp: Cursor cannot sign in on this machine. This terminal'\\''s thread runs Claude Code, and your computer signs in only that agent here. Start a thread on Cursor to use it.' >&2\nexit 1\n"
+  },
+  {
+   "other": "nobody",
+   "own": "else",
+   "out": "#!/bin/sh\nprintf '%s\\n' 'wsp: nobody cannot sign in on this machine. This terminal'\\''s thread runs else, and your computer signs in only that agent here. Start a thread on nobody to use it.' >&2\nexit 1\n"
+  },
+  {
+   "other": "it's",
+   "own": "claude",
+   "out": "#!/bin/sh\nprintf '%s\\n' 'wsp: it'\\''s cannot sign in on this machine. This terminal'\\''s thread runs Claude Code, and your computer signs in only that agent here. Start a thread on it'\\''s to use it.' >&2\nexit 1\n"
+  }
+ ],
+ "terminalLine": [
+  {
+   "own": "claude",
+   "program": null,
+   "out": "mkdir -p /usr/local/libexec/wsp-terminal/claude && rm -f /usr/local/libexec/wsp-terminal/claude/claude && printf %s '#!/bin/sh\nprintf '\\''%s\\n'\\'' '\\''wsp: Codex cannot sign in on this machine. This terminal'\\''\\'\\'''\\''s thread runs Claude Code, and your computer signs in only that agent here. Start a thread on Codex to use it.'\\'' >&2\nexit 1\n' > /usr/local/libexec/wsp-terminal/claude/codex.$$ && chmod 755 /usr/local/libexec/wsp-terminal/claude/codex.$$ && mv -f /usr/local/libexec/wsp-terminal/claude/codex.$$ /usr/local/libexec/wsp-terminal/claude/codex && printf %s '[ -z \"${WSP_TERMINAL:-}\" ] || [ ! -d /usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\" ] || PATH=/usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\":$PATH\n' > /etc/profile.d/wsp-terminal.sh.$$ && chmod 644 /etc/profile.d/wsp-terminal.sh.$$ && mv -f /etc/profile.d/wsp-terminal.sh.$$ /etc/profile.d/wsp-terminal.sh"
+  },
+  {
+   "own": "claude",
+   "program": "#!/bin/sh\nexec claude \"$@\"\n",
+   "out": "mkdir -p /usr/local/libexec/wsp-terminal/claude && printf %s '#!/bin/sh\nexec claude \"$@\"\n' > /usr/local/libexec/wsp-terminal/claude/claude.$$ && chmod 755 /usr/local/libexec/wsp-terminal/claude/claude.$$ && mv -f /usr/local/libexec/wsp-terminal/claude/claude.$$ /usr/local/libexec/wsp-terminal/claude/claude && printf %s '#!/bin/sh\nprintf '\\''%s\\n'\\'' '\\''wsp: Codex cannot sign in on this machine. This terminal'\\''\\'\\'''\\''s thread runs Claude Code, and your computer signs in only that agent here. Start a thread on Codex to use it.'\\'' >&2\nexit 1\n' > /usr/local/libexec/wsp-terminal/claude/codex.$$ && chmod 755 /usr/local/libexec/wsp-terminal/claude/codex.$$ && mv -f /usr/local/libexec/wsp-terminal/claude/codex.$$ /usr/local/libexec/wsp-terminal/claude/codex && printf %s '[ -z \"${WSP_TERMINAL:-}\" ] || [ ! -d /usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\" ] || PATH=/usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\":$PATH\n' > /etc/profile.d/wsp-terminal.sh.$$ && chmod 644 /etc/profile.d/wsp-terminal.sh.$$ && mv -f /etc/profile.d/wsp-terminal.sh.$$ /etc/profile.d/wsp-terminal.sh"
+  },
+  {
+   "own": "codex",
+   "program": "#!/bin/sh\necho 'quoted'\n",
+   "out": "mkdir -p /usr/local/libexec/wsp-terminal/codex && printf %s '#!/bin/sh\nprintf '\\''%s\\n'\\'' '\\''wsp: Claude Code cannot sign in on this machine. This terminal'\\''\\'\\'''\\''s thread runs Codex, and your computer signs in only that agent here. Start a thread on Claude Code to use it.'\\'' >&2\nexit 1\n' > /usr/local/libexec/wsp-terminal/codex/claude.$$ && chmod 755 /usr/local/libexec/wsp-terminal/codex/claude.$$ && mv -f /usr/local/libexec/wsp-terminal/codex/claude.$$ /usr/local/libexec/wsp-terminal/codex/claude && printf %s '#!/bin/sh\necho '\\''quoted'\\''\n' > /usr/local/libexec/wsp-terminal/codex/codex.$$ && chmod 755 /usr/local/libexec/wsp-terminal/codex/codex.$$ && mv -f /usr/local/libexec/wsp-terminal/codex/codex.$$ /usr/local/libexec/wsp-terminal/codex/codex && printf %s '[ -z \"${WSP_TERMINAL:-}\" ] || [ ! -d /usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\" ] || PATH=/usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\":$PATH\n' > /etc/profile.d/wsp-terminal.sh.$$ && chmod 644 /etc/profile.d/wsp-terminal.sh.$$ && mv -f /etc/profile.d/wsp-terminal.sh.$$ /etc/profile.d/wsp-terminal.sh"
+  },
+  {
+   "own": "codex",
+   "program": null,
+   "out": "mkdir -p /usr/local/libexec/wsp-terminal/codex && printf %s '#!/bin/sh\nprintf '\\''%s\\n'\\'' '\\''wsp: Claude Code cannot sign in on this machine. This terminal'\\''\\'\\'''\\''s thread runs Codex, and your computer signs in only that agent here. Start a thread on Claude Code to use it.'\\'' >&2\nexit 1\n' > /usr/local/libexec/wsp-terminal/codex/claude.$$ && chmod 755 /usr/local/libexec/wsp-terminal/codex/claude.$$ && mv -f /usr/local/libexec/wsp-terminal/codex/claude.$$ /usr/local/libexec/wsp-terminal/codex/claude && rm -f /usr/local/libexec/wsp-terminal/codex/codex && printf %s '[ -z \"${WSP_TERMINAL:-}\" ] || [ ! -d /usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\" ] || PATH=/usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\":$PATH\n' > /etc/profile.d/wsp-terminal.sh.$$ && chmod 644 /etc/profile.d/wsp-terminal.sh.$$ && mv -f /etc/profile.d/wsp-terminal.sh.$$ /etc/profile.d/wsp-terminal.sh"
+  },
+  {
+   "own": "cursor",
+   "program": null,
+   "out": "mkdir -p /usr/local/libexec/wsp-terminal/cursor && printf %s '#!/bin/sh\nprintf '\\''%s\\n'\\'' '\\''wsp: Claude Code cannot sign in on this machine. This terminal'\\''\\'\\'''\\''s thread runs Cursor, and your computer signs in only that agent here. Start a thread on Claude Code to use it.'\\'' >&2\nexit 1\n' > /usr/local/libexec/wsp-terminal/cursor/claude.$$ && chmod 755 /usr/local/libexec/wsp-terminal/cursor/claude.$$ && mv -f /usr/local/libexec/wsp-terminal/cursor/claude.$$ /usr/local/libexec/wsp-terminal/cursor/claude && printf %s '#!/bin/sh\nprintf '\\''%s\\n'\\'' '\\''wsp: Codex cannot sign in on this machine. This terminal'\\''\\'\\'''\\''s thread runs Cursor, and your computer signs in only that agent here. Start a thread on Codex to use it.'\\'' >&2\nexit 1\n' > /usr/local/libexec/wsp-terminal/cursor/codex.$$ && chmod 755 /usr/local/libexec/wsp-terminal/cursor/codex.$$ && mv -f /usr/local/libexec/wsp-terminal/cursor/codex.$$ /usr/local/libexec/wsp-terminal/cursor/codex && printf %s '[ -z \"${WSP_TERMINAL:-}\" ] || [ ! -d /usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\" ] || PATH=/usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\":$PATH\n' > /etc/profile.d/wsp-terminal.sh.$$ && chmod 644 /etc/profile.d/wsp-terminal.sh.$$ && mv -f /etc/profile.d/wsp-terminal.sh.$$ /etc/profile.d/wsp-terminal.sh"
+  },
+  {
+   "own": "nobody",
+   "program": "x",
+   "out": "mkdir -p /usr/local/libexec/wsp-terminal/nobody && printf %s '#!/bin/sh\nprintf '\\''%s\\n'\\'' '\\''wsp: Claude Code cannot sign in on this machine. This terminal'\\''\\'\\'''\\''s thread runs nobody, and your computer signs in only that agent here. Start a thread on Claude Code to use it.'\\'' >&2\nexit 1\n' > /usr/local/libexec/wsp-terminal/nobody/claude.$$ && chmod 755 /usr/local/libexec/wsp-terminal/nobody/claude.$$ && mv -f /usr/local/libexec/wsp-terminal/nobody/claude.$$ /usr/local/libexec/wsp-terminal/nobody/claude && printf %s '#!/bin/sh\nprintf '\\''%s\\n'\\'' '\\''wsp: Codex cannot sign in on this machine. This terminal'\\''\\'\\'''\\''s thread runs nobody, and your computer signs in only that agent here. Start a thread on Codex to use it.'\\'' >&2\nexit 1\n' > /usr/local/libexec/wsp-terminal/nobody/codex.$$ && chmod 755 /usr/local/libexec/wsp-terminal/nobody/codex.$$ && mv -f /usr/local/libexec/wsp-terminal/nobody/codex.$$ /usr/local/libexec/wsp-terminal/nobody/codex && printf %s '[ -z \"${WSP_TERMINAL:-}\" ] || [ ! -d /usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\" ] || PATH=/usr/local/libexec/wsp-terminal/\"$WSP_TERMINAL\":$PATH\n' > /etc/profile.d/wsp-terminal.sh.$$ && chmod 644 /etc/profile.d/wsp-terminal.sh.$$ && mv -f /etc/profile.d/wsp-terminal.sh.$$ /etc/profile.d/wsp-terminal.sh"
+  }
+ ],
+ "brokeredEnv": [
+  {
+   "token": "tok",
+   "repo": null,
+   "direct": [],
+   "out": [
+    [
+     "WSP_HOST_TOKEN",
+     "tok"
+    ],
+    [
+     "GH_CONFIG_DIR",
+     "/run/wsp-daemon/gh"
+    ],
+    [
+     "GH_TOKEN",
+     "tok"
+    ],
+    [
+     "GH_TELEMETRY",
+     "false"
+    ],
+    [
+     "GIT_CONFIG_COUNT",
+     "7"
+    ],
+    [
+     "GIT_CONFIG_KEY_0",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_0",
+     "https://github.com/"
+    ],
+    [
+     "GIT_CONFIG_KEY_1",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_1",
+     "git@github.com:"
+    ],
+    [
+     "GIT_CONFIG_KEY_2",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_2",
+     "ssh://git@github.com/"
+    ],
+    [
+     "GIT_CONFIG_KEY_3",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_3",
+     "ssh://git@ssh.github.com:443/"
+    ],
+    [
+     "GIT_CONFIG_KEY_4",
+     "http.http://github.com/.proxy"
+    ],
+    [
+     "GIT_CONFIG_VALUE_4",
+     "http://wsp:tok@127.0.0.1:7071"
+    ],
+    [
+     "GIT_CONFIG_KEY_5",
+     "http.proxyAuthMethod"
+    ],
+    [
+     "GIT_CONFIG_VALUE_5",
+     "basic"
+    ],
+    [
+     "GIT_CONFIG_KEY_6",
+     "credential.helper"
+    ],
+    [
+     "GIT_CONFIG_VALUE_6",
+     ""
+    ],
+    [
+     "GIT_TERMINAL_PROMPT",
+     "0"
+    ],
+    [
+     "CARGO_NET_GIT_FETCH_WITH_CLI",
+     "true"
+    ]
+   ]
+  },
+  {
+   "token": "tok",
+   "repo": {
+    "owner": "acme",
+    "name": "site",
+    "public": true
+   },
+   "direct": [],
+   "out": [
+    [
+     "WSP_HOST_TOKEN",
+     "tok"
+    ],
+    [
+     "GH_CONFIG_DIR",
+     "/run/wsp-daemon/gh"
+    ],
+    [
+     "GH_TOKEN",
+     "tok"
+    ],
+    [
+     "GH_TELEMETRY",
+     "false"
+    ],
+    [
+     "GIT_CONFIG_COUNT",
+     "15"
+    ],
+    [
+     "GIT_CONFIG_KEY_0",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_0",
+     "https://github.com/"
+    ],
+    [
+     "GIT_CONFIG_KEY_1",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_1",
+     "git@github.com:"
+    ],
+    [
+     "GIT_CONFIG_KEY_2",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_2",
+     "ssh://git@github.com/"
+    ],
+    [
+     "GIT_CONFIG_KEY_3",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_3",
+     "ssh://git@ssh.github.com:443/"
+    ],
+    [
+     "GIT_CONFIG_KEY_4",
+     "url.https://github.com/acme/site.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_4",
+     "https://github.com/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_5",
+     "url.http://github.com/acme/site.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_5",
+     "https://github.com/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_6",
+     "url.https://github.com/acme/site.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_6",
+     "git@github.com:acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_7",
+     "url.http://github.com/acme/site.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_7",
+     "git@github.com:acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_8",
+     "url.https://github.com/acme/site.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_8",
+     "ssh://git@github.com/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_9",
+     "url.http://github.com/acme/site.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_9",
+     "ssh://git@github.com/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_10",
+     "url.https://github.com/acme/site.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_10",
+     "ssh://git@ssh.github.com:443/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_11",
+     "url.http://github.com/acme/site.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_11",
+     "ssh://git@ssh.github.com:443/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_12",
+     "http.http://github.com/.proxy"
+    ],
+    [
+     "GIT_CONFIG_VALUE_12",
+     "http://wsp:tok@127.0.0.1:7071"
+    ],
+    [
+     "GIT_CONFIG_KEY_13",
+     "http.proxyAuthMethod"
+    ],
+    [
+     "GIT_CONFIG_VALUE_13",
+     "basic"
+    ],
+    [
+     "GIT_CONFIG_KEY_14",
+     "credential.helper"
+    ],
+    [
+     "GIT_CONFIG_VALUE_14",
+     ""
+    ],
+    [
+     "GIT_TERMINAL_PROMPT",
+     "0"
+    ],
+    [
+     "CARGO_NET_GIT_FETCH_WITH_CLI",
+     "true"
+    ]
+   ]
+  },
+  {
+   "token": "tok",
+   "repo": {
+    "owner": "acme",
+    "name": "site",
+    "public": false
+   },
+   "direct": [
+    "acme/lib"
+   ],
+   "out": [
+    [
+     "WSP_HOST_TOKEN",
+     "tok"
+    ],
+    [
+     "GH_CONFIG_DIR",
+     "/run/wsp-daemon/gh"
+    ],
+    [
+     "GH_TOKEN",
+     "tok"
+    ],
+    [
+     "GH_TELEMETRY",
+     "false"
+    ],
+    [
+     "GIT_CONFIG_COUNT",
+     "15"
+    ],
+    [
+     "GIT_CONFIG_KEY_0",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_0",
+     "https://github.com/"
+    ],
+    [
+     "GIT_CONFIG_KEY_1",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_1",
+     "git@github.com:"
+    ],
+    [
+     "GIT_CONFIG_KEY_2",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_2",
+     "ssh://git@github.com/"
+    ],
+    [
+     "GIT_CONFIG_KEY_3",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_3",
+     "ssh://git@ssh.github.com:443/"
+    ],
+    [
+     "GIT_CONFIG_KEY_4",
+     "url.https://github.com/acme/lib.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_4",
+     "https://github.com/acme/lib.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_5",
+     "url.http://github.com/acme/lib.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_5",
+     "https://github.com/acme/lib.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_6",
+     "url.https://github.com/acme/lib.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_6",
+     "git@github.com:acme/lib.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_7",
+     "url.http://github.com/acme/lib.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_7",
+     "git@github.com:acme/lib.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_8",
+     "url.https://github.com/acme/lib.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_8",
+     "ssh://git@github.com/acme/lib.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_9",
+     "url.http://github.com/acme/lib.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_9",
+     "ssh://git@github.com/acme/lib.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_10",
+     "url.https://github.com/acme/lib.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_10",
+     "ssh://git@ssh.github.com:443/acme/lib.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_11",
+     "url.http://github.com/acme/lib.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_11",
+     "ssh://git@ssh.github.com:443/acme/lib.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_12",
+     "http.http://github.com/.proxy"
+    ],
+    [
+     "GIT_CONFIG_VALUE_12",
+     "http://wsp:tok@127.0.0.1:7071"
+    ],
+    [
+     "GIT_CONFIG_KEY_13",
+     "http.proxyAuthMethod"
+    ],
+    [
+     "GIT_CONFIG_VALUE_13",
+     "basic"
+    ],
+    [
+     "GIT_CONFIG_KEY_14",
+     "credential.helper"
+    ],
+    [
+     "GIT_CONFIG_VALUE_14",
+     ""
+    ],
+    [
+     "GIT_TERMINAL_PROMPT",
+     "0"
+    ],
+    [
+     "CARGO_NET_GIT_FETCH_WITH_CLI",
+     "true"
+    ]
+   ]
+  },
+  {
+   "token": "tok",
+   "repo": {
+    "owner": "acme",
+    "name": "site",
+    "public": true
+   },
+   "direct": [
+    "acme/site",
+    "other/x"
+   ],
+   "out": [
+    [
+     "WSP_HOST_TOKEN",
+     "tok"
+    ],
+    [
+     "GH_CONFIG_DIR",
+     "/run/wsp-daemon/gh"
+    ],
+    [
+     "GH_TOKEN",
+     "tok"
+    ],
+    [
+     "GH_TELEMETRY",
+     "false"
+    ],
+    [
+     "GIT_CONFIG_COUNT",
+     "23"
+    ],
+    [
+     "GIT_CONFIG_KEY_0",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_0",
+     "https://github.com/"
+    ],
+    [
+     "GIT_CONFIG_KEY_1",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_1",
+     "git@github.com:"
+    ],
+    [
+     "GIT_CONFIG_KEY_2",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_2",
+     "ssh://git@github.com/"
+    ],
+    [
+     "GIT_CONFIG_KEY_3",
+     "url.http://github.com/.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_3",
+     "ssh://git@ssh.github.com:443/"
+    ],
+    [
+     "GIT_CONFIG_KEY_4",
+     "url.https://github.com/acme/site.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_4",
+     "https://github.com/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_5",
+     "url.http://github.com/acme/site.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_5",
+     "https://github.com/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_6",
+     "url.https://github.com/acme/site.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_6",
+     "git@github.com:acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_7",
+     "url.http://github.com/acme/site.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_7",
+     "git@github.com:acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_8",
+     "url.https://github.com/acme/site.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_8",
+     "ssh://git@github.com/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_9",
+     "url.http://github.com/acme/site.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_9",
+     "ssh://git@github.com/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_10",
+     "url.https://github.com/acme/site.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_10",
+     "ssh://git@ssh.github.com:443/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_11",
+     "url.http://github.com/acme/site.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_11",
+     "ssh://git@ssh.github.com:443/acme/site.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_12",
+     "url.https://github.com/other/x.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_12",
+     "https://github.com/other/x.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_13",
+     "url.http://github.com/other/x.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_13",
+     "https://github.com/other/x.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_14",
+     "url.https://github.com/other/x.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_14",
+     "git@github.com:other/x.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_15",
+     "url.http://github.com/other/x.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_15",
+     "git@github.com:other/x.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_16",
+     "url.https://github.com/other/x.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_16",
+     "ssh://git@github.com/other/x.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_17",
+     "url.http://github.com/other/x.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_17",
+     "ssh://git@github.com/other/x.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_18",
+     "url.https://github.com/other/x.git.insteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_18",
+     "ssh://git@ssh.github.com:443/other/x.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_19",
+     "url.http://github.com/other/x.git.pushInsteadOf"
+    ],
+    [
+     "GIT_CONFIG_VALUE_19",
+     "ssh://git@ssh.github.com:443/other/x.git"
+    ],
+    [
+     "GIT_CONFIG_KEY_20",
+     "http.http://github.com/.proxy"
+    ],
+    [
+     "GIT_CONFIG_VALUE_20",
+     "http://wsp:tok@127.0.0.1:7071"
+    ],
+    [
+     "GIT_CONFIG_KEY_21",
+     "http.proxyAuthMethod"
+    ],
+    [
+     "GIT_CONFIG_VALUE_21",
+     "basic"
+    ],
+    [
+     "GIT_CONFIG_KEY_22",
+     "credential.helper"
+    ],
+    [
+     "GIT_CONFIG_VALUE_22",
+     ""
+    ],
+    [
+     "GIT_TERMINAL_PROMPT",
+     "0"
+    ],
+    [
+     "CARGO_NET_GIT_FETCH_WITH_CLI",
+     "true"
+    ]
+   ]
+  }
+ ],
+ "placeholdersOf": [
+  {
+   "status": null,
+   "out": {
+    "claude": {
+     "token": "tok",
+     "kind": "token"
+    },
+    "vault": {}
+   }
+  },
+  {
+   "status": {},
+   "out": {
+    "claude": {
+     "token": "tok",
+     "kind": "token"
+    },
+    "vault": {}
+   }
+  },
+  {
+   "status": {
+    "claude": "token"
+   },
+   "out": {
+    "claude": {
+     "token": "tok",
+     "kind": "token"
+    },
+    "vault": {}
+   }
+  },
+  {
+   "status": {
+    "claude": "key"
+   },
+   "out": {
+    "claude": {
+     "token": "tok",
+     "kind": "key"
+    },
+    "vault": {}
+   }
+  },
+  {
+   "status": {
+    "claude": "gateway"
+   },
+   "out": {
+    "claude": {
+     "token": "tok",
+     "kind": "gateway"
+    },
+    "vault": {}
+   }
+  },
+  {
+   "status": {
+    "claude": "nonsense"
+   },
+   "out": {
+    "claude": {
+     "token": "tok",
+     "kind": "token"
+    },
+    "vault": {}
+   }
+  },
+  {
+   "status": {
+    "codex": "key"
+   },
+   "out": {
+    "claude": {
+     "token": "tok",
+     "kind": "token"
+    },
+    "vault": {
+     "OPENAI_API_KEY": "sk-wsp-tok"
+    }
+   }
+  },
+  {
+   "status": {
+    "codex": "chatgpt"
+   },
+   "out": {
+    "claude": {
+     "token": "tok",
+     "kind": "token"
+    },
+    "vault": {}
+   }
+  },
+  {
+   "status": {
+    "claude": "key",
+    "codex": "key"
+   },
+   "out": {
+    "claude": {
+     "token": "tok",
+     "kind": "key"
+    },
+    "vault": {
+     "OPENAI_API_KEY": "sk-wsp-tok"
+    }
+   }
+  }
+ ],
+ "codexBrokerOf": [
+  {
+   "status": null,
+   "claims": null,
+   "models": null,
+   "out": null
+  },
+  {
+   "status": null,
+   "claims": null,
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": null,
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": null,
+   "out": null
+  },
+  {
+   "status": null,
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {},
+   "claims": null,
+   "models": null,
+   "out": null
+  },
+  {
+   "status": {},
+   "claims": null,
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {},
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": null,
+   "out": null
+  },
+  {
+   "status": {},
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "token"
+   },
+   "claims": null,
+   "models": null,
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "token"
+   },
+   "claims": null,
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "token"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": null,
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "token"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "key"
+   },
+   "claims": null,
+   "models": null,
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "key"
+   },
+   "claims": null,
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "key"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": null,
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "key"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "gateway"
+   },
+   "claims": null,
+   "models": null,
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "gateway"
+   },
+   "claims": null,
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "gateway"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": null,
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "gateway"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "nonsense"
+   },
+   "claims": null,
+   "models": null,
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "nonsense"
+   },
+   "claims": null,
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "nonsense"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": null,
+   "out": null
+  },
+  {
+   "status": {
+    "claude": "nonsense"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {
+    "codex": "key"
+   },
+   "claims": null,
+   "models": null,
+   "out": {
+    "mode": "apikey"
+   }
+  },
+  {
+   "status": {
+    "codex": "key"
+   },
+   "claims": null,
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": {
+    "mode": "apikey"
+   }
+  },
+  {
+   "status": {
+    "codex": "key"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": null,
+   "out": {
+    "mode": "apikey"
+   }
+  },
+  {
+   "status": {
+    "codex": "key"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": {
+    "mode": "apikey"
+   }
+  },
+  {
+   "status": {
+    "codex": "chatgpt"
+   },
+   "claims": null,
+   "models": null,
+   "out": null
+  },
+  {
+   "status": {
+    "codex": "chatgpt"
+   },
+   "claims": null,
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": null
+  },
+  {
+   "status": {
+    "codex": "chatgpt"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": null,
+   "out": {
+    "mode": "chatgpt",
+    "claims": {
+     "accountId": "acct-acme"
+    }
+   }
+  },
+  {
+   "status": {
+    "codex": "chatgpt"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": {
+    "mode": "chatgpt",
+    "claims": {
+     "accountId": "acct-acme"
+    },
+    "models": {
+     "models": [
+      {
+       "slug": "gpt-5.5"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "status": {
+    "claude": "key",
+    "codex": "key"
+   },
+   "claims": null,
+   "models": null,
+   "out": {
+    "mode": "apikey"
+   }
+  },
+  {
+   "status": {
+    "claude": "key",
+    "codex": "key"
+   },
+   "claims": null,
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": {
+    "mode": "apikey"
+   }
+  },
+  {
+   "status": {
+    "claude": "key",
+    "codex": "key"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": null,
+   "out": {
+    "mode": "apikey"
+   }
+  },
+  {
+   "status": {
+    "claude": "key",
+    "codex": "key"
+   },
+   "claims": {
+    "accountId": "acct-acme"
+   },
+   "models": {
+    "models": [
+     {
+      "slug": "gpt-5.5"
+     }
+    ]
+   },
+   "out": {
+    "mode": "apikey"
+   }
+  }
+ ],
+ "unbrokeredRefusal": [
+  {
+   "harness": "claude",
+   "out": null,
+   "kind": null
+  },
+  {
+   "harness": "codex",
+   "out": null,
+   "kind": null
+  },
+  {
+   "harness": "cursor",
+   "out": "Cursor does not run on a cloud machine yet: wsp keeps no key there. Use Claude Code or Codex.",
+   "kind": "usage"
+  },
+  {
+   "harness": "opencode",
+   "out": "OpenCode does not run on a cloud machine yet: wsp keeps no key there. Use Claude Code or Codex.",
+   "kind": "usage"
+  },
+  {
+   "harness": "nobody",
+   "out": "nobody does not run on a cloud machine yet: wsp keeps no key there. Use Claude Code or Codex.",
+   "kind": "usage"
+  },
+  {
+   "harness": "",
+   "out": " does not run on a cloud machine yet: wsp keeps no key there. Use Claude Code or Codex.",
+   "kind": "usage"
+  }
+ ],
+ "terminalSignIn": [
+  {
+   "own": "claude",
+   "read": "none",
+   "out": null
+  },
+  {
+   "own": "codex",
+   "read": "none",
+   "out": null
+  },
+  {
+   "own": "cursor",
+   "read": "none",
+   "out": null
+  },
+  {
+   "own": "claude",
+   "read": "claude",
+   "out": {
+    "env": {
+     "ANTHROPIC_BASE_URL": "http://127.0.0.1:7071",
+     "CLAUDE_CODE_OAUTH_TOKEN": "tok",
+     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+     "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST": "1",
+     "DISABLE_UPDATES": "1",
+     "API_TIMEOUT_MS": "3600000",
+     "ENABLE_TOOL_SEARCH": "true"
+    }
+   }
+  },
+  {
+   "own": "codex",
+   "read": "claude",
+   "out": null
+  },
+  {
+   "own": "cursor",
+   "read": "claude",
+   "out": null
+  },
+  {
+   "own": "claude",
+   "read": "claudeKey",
+   "out": {
+    "env": {
+     "ANTHROPIC_BASE_URL": "http://127.0.0.1:7071",
+     "ANTHROPIC_API_KEY": "tok",
+     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+     "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST": "1",
+     "DISABLE_UPDATES": "1",
+     "API_TIMEOUT_MS": "3600000",
+     "ENABLE_TOOL_SEARCH": "true"
+    }
+   }
+  },
+  {
+   "own": "codex",
+   "read": "claudeKey",
+   "out": null
+  },
+  {
+   "own": "cursor",
+   "read": "claudeKey",
+   "out": null
+  },
+  {
+   "own": "claude",
+   "read": "codexChatgpt",
+   "out": null
+  },
+  {
+   "own": "codex",
+   "read": "codexChatgpt",
+   "out": {
+    "env": {
+     "CODEX_REFRESH_TOKEN_URL_OVERRIDE": "http://127.0.0.1:7071/oauth/token",
+     "CODEX_REVOKE_TOKEN_URL_OVERRIDE": "http://127.0.0.1:7071/oauth/revoke"
+    },
+    "program": "#!/bin/sh\nIFS=:; p=; for d in $PATH; do [ \"$d\" = '/usr/local/libexec/wsp-terminal/codex' ] || p=${p:+$p:}$d; done; PATH=$p; unset IFS\nexport CODEX_HOME=\"${CODEX_HOME:-$HOME/.codex}\"\ncase \"$1\" in exec|e) k=; for a; do [ \"$a\" = --skip-git-repo-check ] && k=1; done; [ -n \"$k\" ] || { s=$1; shift; set -- \"$s\" --skip-git-repo-check \"$@\"; };; esac\nexec sh -c '{ [ -z \"${WSP_HOST_TOKEN:-}\" ] || ( umask 077 && mkdir -p \"$CODEX_HOME\" && jwt=$(printf %s '\\''{\"exp\":1824482470,\"https://api.openai.com/auth\":{\"chatgpt_account_id\":\"acct-acme\",\"chatgpt_account_is_fedramp\":false},\"https://wsp.dev/turn\":\"'\\''\"$WSP_HOST_TOKEN\"'\\''\"}'\\'' | base64 | tr -d '\\''\\n='\\'' | tr '\\''+/'\\'' '\\''-_'\\'') && printf %s '\\''{\"auth_mode\":\"chatgpt\",\"OPENAI_API_KEY\":null,\"tokens\":{\"id_token\":\"eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.'\\''\"$jwt\"'\\''.wsp\",\"access_token\":\"eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.'\\''\"$jwt\"'\\''.wsp\",\"refresh_token\":\"rt_wsp_'\\''\"$WSP_HOST_TOKEN\"'\\''\",\"account_id\":\"acct-acme\"},\"last_refresh\":\"2026-10-25T16:41:10.756Z\"}'\\'' > \"$CODEX_HOME/auth.json\" ); } && exec \"$0\" \"$@\"' codex -c openai_base_url='\"http://127.0.0.1:7071/backend-api/codex\"' -c chatgpt_base_url='\"http://localhost:7071/backend-api/\"' -c cli_auth_credentials_store='\"file\"' -c analytics.enabled='false' \"$@\"\n"
+   }
+  },
+  {
+   "own": "cursor",
+   "read": "codexChatgpt",
+   "out": null
+  },
+  {
+   "own": "claude",
+   "read": "codexKey",
+   "out": null
+  },
+  {
+   "own": "codex",
+   "read": "codexKey",
+   "out": {
+    "env": {
+     "WSP_CODEX_KEY": "sk-wsp-tok",
+     "CODEX_REFRESH_TOKEN_URL_OVERRIDE": "http://127.0.0.1:7071/oauth/token",
+     "CODEX_REVOKE_TOKEN_URL_OVERRIDE": "http://127.0.0.1:7071/oauth/revoke"
+    },
+    "program": "#!/bin/sh\nIFS=:; p=; for d in $PATH; do [ \"$d\" = '/usr/local/libexec/wsp-terminal/codex' ] || p=${p:+$p:}$d; done; PATH=$p; unset IFS\nexport CODEX_HOME=\"${CODEX_HOME:-$HOME/.codex}\"\ncase \"$1\" in exec|e) k=; for a; do [ \"$a\" = --skip-git-repo-check ] && k=1; done; [ -n \"$k\" ] || { s=$1; shift; set -- \"$s\" --skip-git-repo-check \"$@\"; };; esac\nexec sh -c '{ [ -z \"${WSP_CODEX_KEY:-}\" ] || ( umask 077 && mkdir -p \"$CODEX_HOME\" && printf %s '\\''{\"auth_mode\":\"apikey\",\"OPENAI_API_KEY\":\"'\\''\"$WSP_CODEX_KEY\"'\\''\"}'\\'' > \"$CODEX_HOME/auth.json\" ); } && unset WSP_CODEX_KEY && exec \"$0\" \"$@\"' codex -c openai_base_url='\"http://127.0.0.1:7071/v1\"' -c chatgpt_base_url='\"http://localhost:7071/backend-api/\"' -c cli_auth_credentials_store='\"file\"' -c analytics.enabled='false' \"$@\"\n"
+   }
+  },
+  {
+   "own": "cursor",
+   "read": "codexKey",
+   "out": null
+  },
+  {
+   "own": "claude",
+   "read": "codexOnlyWithToken",
+   "out": null
+  },
+  {
+   "own": "codex",
+   "read": "codexOnlyWithToken",
+   "out": null
+  },
+  {
+   "own": "cursor",
+   "read": "codexOnlyWithToken",
+   "out": null
+  }
+ ],
+ "withGhDoor": {
+  "launched": [
+   {
+    "command": "mkdir -p /run/wsp-daemon/gh && printf '%s\\n' 'http_unix_socket: /run/wsp-daemon/broker.sock' > /run/wsp-daemon/gh/config.yml && echo hi",
+    "env": {
+     "GH_CONFIG_DIR": "/run/wsp-daemon/gh"
+    }
+   },
+   {
+    "command": "echo hi",
+    "env": {
+     "GH_CONFIG_DIR": "/run/wsp-daemon/gh/"
+    }
+   },
+   {
+    "command": "echo hi",
+    "env": {}
+   }
+  ],
+  "attach": "function",
+  "sweep": "function",
+  "bareAttach": false,
+  "bareSweep": false
+ }
+}
