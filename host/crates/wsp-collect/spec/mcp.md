@@ -66,6 +66,21 @@ Linux, what it carries and how it signs in; then one row for mcp-remote's sign-i
 - A secret-named env value pointing at a file outside home is noted but counted as no secret, so the row can travel
   on a bare tick while naming a credential file.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/mcp.json` (`oracle/w2-mcp.oracle.ts`, every value printed by the TS),
+replayed by `tests/detect_mcp.rs` `w2_oracle::*`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rule 3: an env value's byte count is of the value as written, not the expanded path (`~/missing` is `(9 B)`).
+- C2. Rule 3 (sign-in): `named` holds only env refs and secret-named env keys, never a secret flag's key, so a stdio server whose only secret is `--api-key v` is `token`, not `key`.
+- C3. Edge: two servers with the same mcp-remote url print the name twice in the detail (`for a, a`), across agents too.
+- C4. Rule 5: `reads <ref> from the environment` is per `server.env_refs` only; the catalog's `reads` field is never read here.
+- C5. Rows are never merged: one name under two scopes or two agents is two rows, in agent order, user scope before local; the `disabled` flag is ignored by this rung.
+
+- W1. 31 computers through `detect_mcp` with every read (`detect_mcp`); token files, token sizes and single rows (`mcp_remote_token_file`, `mcp_remote_tokens`, `mcp_server_row`).
+
 ## Tests
 | Rule | Test |
 |---|---|

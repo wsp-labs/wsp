@@ -856,12 +856,12 @@
    "name": "scripts under a config path, folders, outside home",
    "laptop": {
     "files": {
-     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/skills/x/run.sh\"},{\"type\":\"command\",\"command\":\"~/.claude/hooks\"},{\"type\":\"command\",\"command\":\"~/.claude/skillsX/run.sh\"},{\"type\":\"command\",\"command\":\"/Users/dev/.claude/agents/a.sh\"},{\"type\":\"command\",\"command\":\"/Users/devx/.claude/h\"},{\"type\":\"command\",\"command\":\"/Users/dev/other/script.sh\"},{\"type\":\"command\",\"command\":\"~/.claude.json\"}]}]}}",
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/skills/x/run.sh\"},{\"type\":\"command\",\"command\":\"~/.claude/hooks\"},{\"type\":\"command\",\"command\":\"~/.claude/skillsX/run.sh\"},{\"type\":\"command\",\"command\":\"/Users/dev/.claude/agents/a.sh\"},{\"type\":\"command\",\"command\":\"/Users/developer/.claude/h\"},{\"type\":\"command\",\"command\":\"/Users/dev/other/script.sh\"},{\"type\":\"command\",\"command\":\"~/.claude.json\"}]}]}}",
      "~/.claude/skills/x/run.sh": 5,
      "~/.claude/hooks/q": 6,
      "~/.claude/skillsX/run.sh": 7,
      "~/.claude/agents/a.sh": 8,
-     "/Users/devx/.claude/h": 9,
+     "/Users/developer/.claude/h": 9,
      "~/other/script.sh": 10,
      "~/.claude.json": 11
     },
@@ -883,7 +883,7 @@
       "~/.claude/skillsX/run.sh",
       "~/other/script.sh"
      ],
-     "bytes": 452,
+     "bytes": 457,
      "default": "bring",
      "volatile": [
       "~/.claude.json"

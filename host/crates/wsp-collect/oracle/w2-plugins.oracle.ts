@@ -101,7 +101,7 @@ it("plugins fixtures", async () => {
   ];
 
   fixture["plugin_row"] = [
-    ["a path equal to home and a lookalike prefix", FOUND("b@m", { path: "/Users/dev", setIn: "/Users/devx/y", project: { id: "p", name: "P", path: "/elsewhere" } })],
+    ["a path equal to home and a lookalike prefix", FOUND("b@m", { path: "/Users/dev", setIn: "/Users/developer/y", project: { id: "p", name: "P", path: "/elsewhere" } })],
     ["a trailing slash and a dot segment", FOUND("c@m", { path: "/Users/dev/", setIn: "/Users/dev/./x" })],
     ["a project path with a trailing slash, an undefined version, skills dropped", FOUND("a@m", { skills: { dirs: ["/s"], prefix: "a" }, path: "/Users/dev/.claude/x", setIn: "/Users/dev", project: { id: "p", name: "P", path: "/Users/dev/p/" }, version: undefined, source: "src" })],
     ["a missing plugin", FOUND("d@m", { missing: "gone" })],

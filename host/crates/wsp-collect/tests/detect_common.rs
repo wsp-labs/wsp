@@ -159,3 +159,92 @@ fn first_line_reads_only_the_first_line_trimmed_as_javascript_trims() {
     // U+0085 is not JavaScript whitespace, so it stays (rule 8.6).
     assert_eq!(first_line(Some("\u{85}v1")), Some("\u{85}v1".into()));
 }
+
+/// Every case of tests/fixtures/oracle/w2/common.json (oracle/w2-common.oracle.ts): spec common's wave-2 rules.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, strs, w2};
+    use serde_json::{json, Value};
+    use wsp_collect::detect::common::{entry, exists, first_line, found, item, present, row, EntrySpec, RowOptions, RowSpec};
+    use wsp_collect::manifest::{ManifestEntry, RUNGS};
+
+    fn opt(v: &Value) -> RowOptions {
+        RowOptions {
+            default: v.get("default").map(|x| serde_json::from_value(x.clone()).unwrap()),
+            reason: v["reason"].as_str().map(str::to_string),
+            group: v["group"].as_str().map(str::to_string),
+            required: v["required"].as_bool(),
+            linux: v.get("linux").map(|x| serde_json::from_value(x.clone()).unwrap()),
+            version: v["version"].as_str().map(str::to_string),
+            arch: v["arch"].as_str().map(str::to_string),
+            volatile: v.get("volatile").map(strs),
+            detail: v["detail"].as_str().map(str::to_string),
+            ..Default::default()
+        }
+    }
+
+    fn rung(v: &Value) -> wsp_collect::manifest::Rung {
+        *RUNGS.iter().find(|r| r.as_str() == v.as_str().unwrap()).unwrap()
+    }
+
+    fn row_json(r: Option<ManifestEntry>) -> Value {
+        r.map(|r| serde_json::to_value(r).unwrap()).unwrap_or(Value::Null)
+    }
+
+    #[test]
+    fn found_exists_and_row_answer_what_the_ts_answered() {
+        let f = w2("common");
+        for case in cases(&f, "found") {
+            let h = host(&case["laptop"]);
+            let got = block_on(found(&h, &strs(&case["args"][0])));
+            assert_eq!(json!({ "paths": got.paths, "bytes": got.bytes }), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "exists") {
+            let h = host(&case["laptop"]);
+            assert_eq!(json!(block_on(exists(&h, case["args"][0].as_str().unwrap()))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "row") {
+            let h = host(&case["laptop"]);
+            let a = &case["args"][0];
+            let spec = RowSpec {
+                rung: rung(&a["rung"]),
+                id: a["id"].as_str().unwrap().into(),
+                label: a["label"].as_str().unwrap().into(),
+                paths: strs(&a["paths"]),
+                always: a["always"] == true,
+                opt: opt(a),
+            };
+            assert_eq!(row_json(block_on(row(&h, spec))), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn entry_item_present_and_first_line_build_what_the_ts_built() {
+        let f = w2("common");
+        for case in cases(&f, "entry") {
+            let a = &case["args"][0];
+            let spec = EntrySpec {
+                rung: rung(&a["rung"]),
+                id: a["id"].as_str().unwrap().into(),
+                label: a["label"].as_str().unwrap().into(),
+                paths: strs(&a["paths"]),
+                bytes: a["bytes"].as_u64().unwrap(),
+                opt: opt(a),
+            };
+            assert_eq!(serde_json::to_value(entry(spec)).unwrap(), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "item") {
+            let a = &case["args"][0];
+            let got = item(rung(&a["rung"]), a["id"].as_str().unwrap(), a["label"].as_str().unwrap(), opt(a));
+            assert_eq!(serde_json::to_value(got).unwrap(), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "present") {
+            let rows: Vec<Option<ManifestEntry>> = serde_json::from_value(case["args"][0].clone()).unwrap();
+            assert_eq!(serde_json::to_value(present(rows)).unwrap(), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "first_line") {
+            assert_eq!(json!(first_line(case["args"].get(0).and_then(Value::as_str))), case["out"], "{}", case["name"]);
+        }
+    }
+}

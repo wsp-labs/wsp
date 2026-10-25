@@ -71,6 +71,20 @@ its count of secrets come from.
 - `keepsV1` reads `0.4.0` as v1 but `1.0.0-beta` and `^0.3.2` as not, which can point at a folder the bridge never
   wrote.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/mcp_args.json` (`oracle/w2-mcp_args.oracle.ts`, every value printed by the TS),
+replayed by `tests/detect_mcp_args.rs` `w2_oracle::*`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rule 6: the pin is `spec.split("@")[1]`, the text between the first and the second `@`; an empty pin (`mcp-remote@`) is `""`, neither absent nor `latest`, so `v1` is false; `mcp-remote@latest@0.1.0` is v1.
+- C2. Rule 5: a `--resource` or `--client-metadata-url` value that is empty or blank after trim reads `""`, which is present, so the hash text ends in `|`.
+- C3. Rule 8: only the parenthesised form goes through the url shortening, and only for an argument matching the case-sensitive `^https?://`; a flag's value `HTTPS://X.EXAMPLE/p` is shown raw.
+- C4. Rule 5 edge: a header whose trimmed key is empty but whose colon is past index 0 (`" :x"`) sets `headers[""] = "x"`.
+
+- W1. `linux_fit`, `mcp_remote_of`, `mcp_remote_hash`, `secret_named`, `hides_value`, `plain_arg`, `read_args`, `stdio_line`, `home_paths` over every edge the findings name (each key of the fixture).
+
 ## Tests
 | Rule | Test |
 |---|---|

@@ -328,3 +328,47 @@ mod key_order {
         assert_eq!(got, want);
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/ghostty_config.json (oracle/w2-ghostty_config.oracle.ts): spec
+/// ghostty_config's wave-2 rules. The config is compared as JSON text, so key order and number text count.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, w2};
+    use serde_json::{json, Value};
+
+    fn scheme(v: &Value) -> TerminalScheme {
+        if v == "light" {
+            TerminalScheme::Light
+        } else {
+            TerminalScheme::Dark
+        }
+    }
+
+    #[test]
+    fn directives_themes_and_paths_answer_what_the_ts_answered() {
+        let f = w2("ghostty_config");
+        for case in cases(&f, "parse_ghostty_directives") {
+            let got: Vec<Value> =
+                parse_ghostty_directives(case["args"][0].as_str().unwrap()).iter().map(|d| json!({ "key": d.key, "value": d.value })).collect();
+            assert_eq!(Value::Array(got), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "theme_for") {
+            let got = wsp_collect::ghostty_config::theme_for(case["args"][0].as_str().unwrap(), scheme(&case["args"][1]));
+            assert_eq!(json!(got), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "ghostty_config_paths") {
+            let h = host(&case["laptop"]);
+            assert_eq!(json!(wsp_collect::ghostty_config::ghostty_config_paths(&h)), case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn every_config_reads_to_the_ts_answer_byte_for_byte_with_the_same_reads() {
+        for case in cases(&w2("ghostty_config"), "read_ghostty_config") {
+            let h = host(&case["laptop"]);
+            let got = block_on(read_ghostty_config(&h, scheme(&case["args"][0])));
+            assert_eq!(serde_json::to_string(&got).unwrap(), case["out_text"].as_str().unwrap(), "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+}

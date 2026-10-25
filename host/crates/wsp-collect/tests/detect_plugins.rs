@@ -435,3 +435,68 @@ mod pins {
         assert_eq!(host.calls(), Vec::<String>::new());
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/plugins.json that reaches a pub function (oracle/w2-plugins.oracle.ts): spec
+/// plugins's wave-2 rules. `plugin_row` needs a `FoundPlugin` built from JSON, which wsp-catalog cannot read yet, and
+/// `plugin_io` needs the catalog's `PluginIo` calls; their cases wait on wsp-catalog.
+mod w2_oracle {
+    use super::*;
+
+    fn agent(id: &str) -> &'static wsp_catalog::catalog::AgentEntry {
+        wsp_catalog::catalog::catalog_agents().into_iter().find(|a| a.id == id).unwrap()
+    }
+    use common::fake_host::block_on;
+    use common::oracle::{cases, host, strs, w2};
+    use wsp_catalog::plugins::{Peeked, RootsFrom};
+    use wsp_collect::detect::plugins::{peek_line, peek_records};
+
+    fn group(v: &Value) -> PeekGroup {
+        PeekGroup {
+            roots: v.get("roots").map(strs),
+            roots_from: v.get("rootsFrom").map(|r| RootsFrom { files: strs(&r["files"]), key: r["key"].as_str().unwrap().into() }),
+            files: v.get("files").map(strs),
+            dirs: v.get("dirs").map(|d| {
+                d.as_array().unwrap().iter().map(|d| PeekDir { path: d["path"].as_str().unwrap().into(), depth: d["depth"].as_u64().unwrap() as u8 }).collect()
+            }),
+        }
+    }
+
+    #[test]
+    fn the_peek_line_and_its_records_are_the_ts_s() {
+        let f = w2("plugins");
+        for case in cases(&f, "peek_line") {
+            let groups: Vec<PeekGroup> = case["args"][0].as_array().unwrap().iter().map(group).collect();
+            assert_eq!(json!(peek_line(&groups)), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "peek_records") {
+            let got = match peek_records(case["args"][0].as_str()) {
+                None => Value::Null,
+                Some(r) => {
+                    let p = &case["probes"];
+                    let texts: serde_json::Map<String, Value> = strs(&p["f"]).iter().filter_map(|k| r.text(k).map(|t| (k.clone(), json!(t)))).collect();
+                    let lists: serde_json::Map<String, Value> = strs(&p["d"]).iter().filter_map(|k| r.list(k).map(|l| (k.clone(), json!(l)))).collect();
+                    let looked: serde_json::Map<String, Value> = strs(&p["r"]).iter().map(|k| (k.clone(), json!(r.looked(k)))).collect();
+                    json!({ "f": texts, "d": lists, "r": looked })
+                }
+            };
+            assert_eq!(got, case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn detect_plugins_answers_and_runs_what_the_ts_did() {
+        for case in cases(&w2("plugins"), "detect_plugins") {
+            let h = host(&case["laptop"]);
+            let agents: Vec<&'static wsp_catalog::catalog::AgentEntry> = strs(&case["args"][0]).iter().map(|id| agent(id)).collect();
+            let projects: Vec<wsp_wire::types::agents_report::AgentsProject> = serde_json::from_value(case["args"][1].clone()).unwrap();
+            let got: PluginsRead = block_on(detect_plugins(&h, Some(&agents), &projects));
+            let agents: Vec<Value> = got
+                .agents
+                .iter()
+                .map(|a| json!({ "agent": a.agent, "found": { "plugins": a.found.plugins, "refused": a.found.refused } }))
+                .collect();
+            assert_eq!(json!({ "plugins": got.plugins, "refused": got.refused, "agents": agents }), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+}

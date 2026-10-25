@@ -547,3 +547,57 @@ mod pins {
         assert!(block_on(mcp_remote_tokens(&flat)).is_empty());
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/mcp.json (oracle/w2-mcp.oracle.ts): spec mcp's wave-2 rules.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, w2};
+    use indexmap::IndexMap;
+    use wsp_catalog::mcp::McpServer;
+    use wsp_collect::detect::mcp::{mcp_remote_token_file, mcp_remote_tokens, mcp_server_row};
+
+    fn agent(id: &str) -> &'static AgentEntry {
+        catalog_agents().into_iter().find(|a| a.id == id).unwrap()
+    }
+
+    fn rows(r: &[ManifestEntry]) -> Value {
+        Value::Array(r.iter().map(|r| serde_json::to_value(r).unwrap()).collect())
+    }
+
+    #[test]
+    fn detect_mcp_writes_the_rows_the_ts_wrote_with_the_same_reads() {
+        for case in cases(&w2("mcp"), "detect_mcp") {
+            let h = host(&case["laptop"]);
+            let ids: Option<Vec<&'static AgentEntry>> = case["args"][0].as_array().map(|a| a.iter().map(|id| agent(id.as_str().unwrap())).collect());
+            assert_eq!(rows(&block_on(detect_mcp(&h, ids.as_deref()))), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn tokens_token_files_and_one_row_answer_what_the_ts_answered() {
+        let f = w2("mcp");
+        for case in cases(&f, "mcp_remote_tokens") {
+            let h = host(&case["laptop"]);
+            let got = block_on(mcp_remote_tokens(&h));
+            let got = if case["out"].is_array() { Value::Array(got.iter().map(|(k, v)| json!([k, v])).collect()) } else { json!(got) };
+            assert_eq!(got, case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+        for case in cases(&f, "mcp_remote_token_file") {
+            let h = host(&case["laptop"]);
+            let vars: IndexMap<String, String> =
+                case["args"][1].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect();
+            assert_eq!(json!(mcp_remote_token_file(&h, case["args"][0].as_str().unwrap(), &vars)), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "mcp_server_row") {
+            let h = host(&case["laptop"]);
+            let a = &case["args"];
+            let server: McpServer = serde_json::from_value(a[1].clone()).unwrap();
+            let tokens: IndexMap<String, u64> = a[2].as_object().into_iter().flatten().map(|(k, v)| (k.clone(), v.as_u64().unwrap())).collect();
+            let row = block_on(mcp_server_row(&h, agent(a[0].as_str().unwrap()), &server, &tokens));
+            assert_eq!(serde_json::to_value(&row).unwrap(), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+}

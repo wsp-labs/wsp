@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of packages/collect/test/commands.test.ts.
+mod common;
+
 use wsp_collect::detect::commands::{called_commands, drop_plugins, guard_commands, Syntax, GUARD_BEGIN, GUARD_END};
 
 fn names(list: &[&str]) -> Vec<String> {
@@ -267,5 +269,57 @@ mod pins {
         let one = drop_plugins("  plugins=(git eza) # mine\n", &|n: &str| n == "eza" || n == "git");
         assert_eq!(one.text, "  plugins=() # mine\n");
         assert_eq!(one.dropped, vec!["git", "eza"]);
+    }
+}
+
+/// Every case of tests/fixtures/oracle/w2/commands.json (oracle/w2-commands.oracle.ts): spec commands's wave-2 rules.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, strs, w2};
+    use serde_json::{json, Value};
+    use std::cell::RefCell;
+    use wsp_collect::detect::commands::{called_commands, drop_plugins, guard_commands, Syntax};
+
+    fn s(v: &Value) -> &str {
+        v.as_str().unwrap()
+    }
+
+    fn syntax(v: &Value) -> Syntax {
+        if v == "fish" {
+            Syntax::Fish
+        } else {
+            Syntax::Sh
+        }
+    }
+
+    fn dropping(case: &Value) -> (Value, Vec<String>) {
+        let names = strs(&case["args"][1]);
+        let asked = RefCell::new(Vec::new());
+        let drop = |name: &str| {
+            asked.borrow_mut().push(name.to_string());
+            names.iter().any(|n| n == name)
+        };
+        let d = drop_plugins(s(&case["args"][0]), &drop);
+        (json!({ "text": d.text, "dropped": d.dropped }), asked.into_inner())
+    }
+
+    #[test]
+    fn called_commands_dropped_plugins_and_guards_are_the_ts_s() {
+        let f = w2("commands");
+        for key in ["called_commands", "called_commands_rc_builtin"] {
+            for case in cases(&f, key) {
+                assert_eq!(json!(called_commands(s(&case["args"][0]), syntax(&case["args"][1]))), case["out"], "{key}: {}", case["name"]);
+            }
+        }
+        for case in cases(&f, "drop_plugins") {
+            assert_eq!(dropping(case).0, case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "drop_plugins_calls") {
+            assert_eq!(json!(dropping(case).1), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "guard_commands") {
+            let a = &case["args"];
+            assert_eq!(json!(guard_commands(s(&a[0]), &strs(&a[1]), &strs(&a[2]))), case["out"], "{}", case["name"]);
+        }
     }
 }

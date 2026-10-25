@@ -240,3 +240,64 @@ mod scan_project_cases {
         }
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/project.json (oracle/w2-project.oracle.ts): spec project's wave-2 rules.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, w2};
+    use serde_json::Value;
+    use wsp_collect::project::reader::{ProjectFile, ProjectFinding};
+    use wsp_collect::project::readers::{marker, package_json, toolchain_pins, workflows};
+
+    fn needs(n: &[ProjectNeed]) -> Value {
+        Value::Array(n.iter().map(|n| json!({ "id": n.id, "name": n.name, "why": n.why })).collect())
+    }
+
+    fn findings(f: &[ProjectFinding]) -> Value {
+        Value::Array(
+            f.iter()
+                .map(|f| {
+                    let mut o = serde_json::Map::new();
+                    o.insert("name".into(), json!(f.name));
+                    o.insert("label".into(), json!(f.label));
+                    o.insert("why".into(), json!(f.why));
+                    if f.catalog_only {
+                        o.insert("catalogOnly".into(), json!(true));
+                    }
+                    if let Some(r) = &f.installs {
+                        o.insert("installs".into(), serde_json::to_value(r).unwrap());
+                    }
+                    Value::Object(o)
+                })
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn every_scan_answers_and_reads_what_the_ts_did() {
+        for case in cases(&w2("project"), "scan_project") {
+            let h = host(&case["laptop"]);
+            let scan: ProjectScan = block_on(scan_project(&h, case["args"][0].as_str().unwrap()));
+            let got = json!({ "dir": scan.dir, "rows": needs(&scan.rows), "candidates": needs(&scan.candidates) });
+            assert_eq!(got, case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn every_reader_finds_what_the_ts_found_in_the_same_file() {
+        let f = w2("project");
+        let readers: [(&str, fn(&ProjectFile) -> Vec<ProjectFinding>); 4] = [
+            ("package_json_read", package_json::read),
+            ("toolchain_pins_read", toolchain_pins::read),
+            ("marker_read", marker::read),
+            ("workflows_read", workflows::read),
+        ];
+        for (key, read) in readers {
+            for case in cases(&f, key) {
+                let file = ProjectFile { path: case["args"][0]["path"].as_str().unwrap().into(), text: case["args"][0]["text"].as_str().unwrap().into() };
+                assert_eq!(findings(&read(&file)), case["out"], "{key}: {}", case["name"]);
+            }
+        }
+    }
+}

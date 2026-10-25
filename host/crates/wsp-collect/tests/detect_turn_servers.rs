@@ -116,3 +116,65 @@ fn presence_is_the_config_paths_that_exist_and_whether_the_command_is_on_path() 
     });
     let _ = json!(null);
 }
+
+/// Every case of tests/fixtures/oracle/w2/detect_turn_servers.json (oracle/w2-detect_turn_servers.oracle.ts): spec
+/// detect_turn_servers's wave-2 rules.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, strs, w2};
+    use wsp_catalog::mcp_launch::Checkout;
+
+    fn agent(id: &str) -> &'static AgentEntry {
+        catalog_agents().into_iter().find(|a| a.id == id).unwrap()
+    }
+
+    fn checkout_json(c: &Checkout) -> Value {
+        match &c.top {
+            Some(top) => json!({ "top": top, "key": c.key }),
+            None => json!({ "key": c.key }),
+        }
+    }
+
+    fn checkout_of(v: &Value) -> Checkout {
+        Checkout { top: v["top"].as_str().map(str::to_string), key: v["key"].as_str().unwrap().to_string() }
+    }
+
+    #[test]
+    fn checkouts_and_turn_servers_answer_and_read_what_the_ts_did() {
+        let f = w2("detect_turn_servers");
+        for case in cases(&f, "read_checkout") {
+            let h = host(&case["laptop"]);
+            assert_eq!(checkout_json(&block_on(read_checkout(&h, case["args"][0].as_str().unwrap()))), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+        for case in cases(&f, "read_turn_servers") {
+            let h = host(&case["laptop"]);
+            let a = &case["args"];
+            let o = TurnRead { checkout: a[2].get("checkout").map(checkout_of), own: a[2]["own"] == true };
+            let got = block_on(read_turn_servers(&h, agent(a[0].as_str().unwrap()), a[1].as_str().unwrap(), o));
+            assert_eq!(serde_json::to_value(&got).unwrap(), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+        for case in cases(&f, "outside_project_line") {
+            assert_eq!(json!(outside_project_line(&strs(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn project_mcp_answers_and_reads_what_the_ts_did() {
+        for case in cases(&w2("detect_turn_servers"), "detect_project_mcp") {
+            let h = host(&case["laptop"]);
+            let a = &case["args"];
+            let o = ProjectMcpOptions { agents: strs(&a[1]["agents"]).iter().map(|id| agent(id)).collect(), keep: strs(&a[1]["keep"]) };
+            let got = block_on(detect_project_mcp(&h, a[0].as_str().unwrap(), &o));
+            let servers: Vec<Value> = got
+                .servers
+                .iter()
+                .map(|s| json!({ "agent": s.agent.id, "turn": serde_json::to_value(&s.turn).unwrap(), "row": serde_json::to_value(&s.row).unwrap() }))
+                .collect();
+            let want = &case["out"];
+            assert_eq!(json!({ "servers": servers, "read": got.read, "checkout": checkout_json(&got.checkout) }), *want, "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+}

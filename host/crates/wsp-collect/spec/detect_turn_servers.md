@@ -24,6 +24,21 @@ The MCP servers a turn of an agent gets in a folder, read off one Host by the ca
 
 1. `read_turn_servers` and `detect_project_mcp` take `&AgentEntry` (TS `McpAgent`) so the detect writer's `mcp_server_row(&AgentEntry, ..)` and these agree.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/detect_turn_servers.json` (`oracle/w2-detect_turn_servers.oracle.ts`, every value printed by the TS),
+replayed by `tests/detect_turn_servers.rs` `w2_oracle::*`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rule 4: the server name is marked seen before the brought test, so a brought nearest definition hides a farther one of the same name.
+- C2. Rule 5: under `~/.local/bin` is `startsWith(home + "/.local/bin/")`, so the folder itself and `~/.local/bin2/x` are outside; inside the top is `startsWith(top without trailing slashes + "/")`.
+- C3. Rule 3: with no top from git, the folder as given is the top, trailing slash included, for `git -C`; only files inside the top are candidates, so a `keep` entry above the top never brings anything.
+- C4. Rule 2: with a store for the agent, the own file is `<store>/.claude.json` (Claude Code) or `<store>/config.toml` (Codex) and the home file is not read; an agent with no launch road (OpenCode, Gemini) ignores the store.
+- C5. Rule 4: a reason overwrites any reason the row had; a row that `mcp_server_row` already made `skip` without a reason gets one only for a disabled server or an outside path.
+
+- W1. Checkouts (`read_checkout`), turn servers per agent, store and checkout (`read_turn_servers`), project MCP with keep lists and several agents (`detect_project_mcp`), the outside line (`outside_project_line`), each with every read.
+
 ## Rules pinned
 
 | Rule | Test |

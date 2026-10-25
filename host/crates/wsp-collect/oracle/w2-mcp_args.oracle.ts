@@ -26,7 +26,7 @@ it("mcp_args fixtures", () => {
     ["env: the first of two", S("npx", [], { A: "/System/a", B: "/Volumes/b" })],
     ["order is args then cwd then env", S("npx", ["/Volumes/v"], { A: "/System/a" }, "/Applications/c")],
     ["command ~/Library/x", S("~/Library/x")],
-    ["another user's Library is not this home's", S("/Users/devops/Library/x")],
+    ["another user's Library is not this home's", S("/Users/developer/Library/x")],
     ["home/Library without the slash", S("npx", [`${H}/Library`])],
     ["/Library without the slash", S("npx", ["/Library"])],
     ["/private/tmp", S("npx", ["/private/tmp/x"])],

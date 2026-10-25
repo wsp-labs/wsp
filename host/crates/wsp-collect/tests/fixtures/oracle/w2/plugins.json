@@ -856,7 +856,7 @@
       "apps": []
      },
      "path": "/Users/dev",
-     "setIn": "/Users/devx/y",
+     "setIn": "/Users/developer/y",
      "project": {
       "id": "p",
       "name": "P",
@@ -886,7 +886,7 @@
      "path": "/elsewhere"
     },
     "path": "~",
-    "setIn": "/Users/devx/y"
+    "setIn": "/Users/developer/y"
    }
   },
   {

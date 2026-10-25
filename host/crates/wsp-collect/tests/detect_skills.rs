@@ -776,3 +776,133 @@ mod pins {
         );
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/skills.json (oracle/w2-skills.oracle.ts): spec skills's wave-2 rules. A case
+/// with a `tree` runs on a real folder (`<dir>`) through the live host's files and processes.
+mod w2_oracle {
+    use super::*;
+
+    fn agent(id: &str) -> &'static wsp_catalog::catalog::AgentEntry {
+        wsp_catalog::catalog::catalog_agents().into_iter().find(|a| a.id == id).unwrap()
+    }
+    use common::fake_host::block_on;
+    use common::oracle::{cases, host, w2};
+    use wsp_collect::detect::skills::SkillRootAt;
+    use wsp_wire::types::agents_report::SkillScope;
+
+    fn front(f: &SkillFront) -> Value {
+        let mut o = serde_json::Map::new();
+        if let Some(v) = &f.name {
+            o.insert("name".into(), json!(v));
+        }
+        if let Some(v) = &f.description {
+            o.insert("description".into(), json!(v));
+        }
+        if let Some(v) = f.names {
+            o.insert("names".into(), json!(v));
+        }
+        Value::Object(o)
+    }
+
+    fn root_json(r: &SkillRootAt) -> Value {
+        let mut o = serde_json::Map::new();
+        o.insert("dir".into(), json!(r.dir));
+        o.insert("scope".into(), serde_json::to_value(r.scope).unwrap());
+        if let Some(v) = &r.agent {
+            o.insert("agent".into(), json!(v));
+        }
+        if let Some(v) = &r.project {
+            o.insert("project".into(), serde_json::to_value(v).unwrap());
+        }
+        if let Some(v) = &r.skipped {
+            o.insert("skipped".into(), json!(v));
+        }
+        Value::Object(o)
+    }
+
+    fn root_of(v: &Value) -> SkillRootAt {
+        SkillRootAt {
+            dir: v["dir"].as_str().unwrap().into(),
+            scope: serde_json::from_value::<SkillScope>(v["scope"].clone()).unwrap(),
+            agent: v["agent"].as_str().map(str::to_string),
+            project: v.get("project").map(|p| serde_json::from_value(p.clone()).unwrap()),
+            skipped: v["skipped"].as_str().map(str::to_string),
+            plugin: None,
+        }
+    }
+
+    fn agents_of(v: &Value) -> Option<Vec<&'static wsp_catalog::catalog::AgentEntry>> {
+        v.as_array().map(|a| a.iter().map(|id| agent(id.as_str().unwrap())).collect())
+    }
+
+    #[test]
+    fn front_matter_reads_as_the_ts_read_it() {
+        let f = w2("skills");
+        for case in cases(&f, "skill_frontmatter") {
+            assert_eq!(front(&skill_frontmatter(case["args"][0].as_str().unwrap())), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "skill_md_frontmatter") {
+            if case["out"].get("units").is_some() {
+                continue;
+            }
+            assert_eq!(front(&skill_md_frontmatter(case["args"][0].as_str().unwrap())), case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn skill_roots_answer_and_run_what_the_ts_did() {
+        for case in cases(&w2("skills"), "skill_roots") {
+            let h = host(&case["laptop"]);
+            let a = &case["args"];
+            let agents = agents_of(&a[0]);
+            let projects: Vec<AgentsProject> = serde_json::from_value(a[1].clone()).unwrap();
+            let got: Vec<Value> = block_on(skill_roots(&h, agents.as_deref(), &projects, &[])).iter().map(root_json).collect();
+            assert_eq!(Value::Array(got), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn detect_skills_reads_what_the_ts_read() {
+        for case in cases(&w2("skills"), "detect_skills") {
+            let what = case["name"].as_str().unwrap();
+            let dir = tempfile::tempdir().unwrap();
+            let root = dir.path().to_str().unwrap().to_string();
+            let fake = if let Some(tree) = case["tree"].as_object() {
+                for (rel, v) in tree {
+                    let path = format!("{root}/{}", rel.trim_end_matches('/'));
+                    fs::create_dir_all(std::path::Path::new(&path).parent().unwrap()).unwrap();
+                    match v {
+                        Value::String(t) => fs::write(&path, t).unwrap(),
+                        Value::Object(o) if o.contains_key("link") => symlink(o["link"].as_str().unwrap().replace("<dir>", &root), &path).unwrap(),
+                        _ => fs::create_dir_all(&path).unwrap(),
+                    }
+                }
+                None
+            } else {
+                Some(host(&case["laptop"]))
+            };
+            let all: Vec<SkillRootAt> = serde_json::from_str::<Value>(&case["args"][0].to_string().replace("<dir>", &root))
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(root_of)
+                .collect();
+            let live;
+            let on: &Host = match &fake {
+                Some(f) => f,
+                None => {
+                    live = node_host().unwrap();
+                    &live
+                }
+            };
+            let got = block_on(detect_skills(on, &all));
+            let got = json!({ "skills": got.skills, "refused": got.refused }).to_string();
+            assert_eq!(got, case["out"].to_string().replace("<dir>", &root), "{what}");
+            if let (Some(f), false) = (&fake, case["calls"].is_null()) {
+                assert_eq!(json!(f.calls()), case["calls"], "calls of {what}");
+            }
+        }
+    }
+}

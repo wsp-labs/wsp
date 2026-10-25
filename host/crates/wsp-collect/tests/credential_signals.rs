@@ -214,3 +214,63 @@ mod credential_shape {
         assert_eq!(read("https://dev:ghp_fake@github.com\n"), Some(vec![Signal::Url]));
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/credential_signals.json (oracle/w2-credential_signals.oracle.ts): spec
+/// credential_signals's wave-2 rules.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, w2};
+    use serde_json::{json, Value};
+    use std::cell::Cell;
+
+    fn text(case: &Value) -> &str {
+        case["args"][0].as_str().unwrap()
+    }
+
+    #[test]
+    fn every_name_mode_and_text_rule_answers_what_the_ts_answered() {
+        let f = w2("credential_signals");
+        for case in cases(&f, "name_signal") {
+            assert_eq!(json!(name_signal(text(case))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "mode_signal") {
+            let e = FileShape { bytes: case["args"][0]["bytes"].as_u64().unwrap(), mode: case["args"][0]["mode"].as_u64().unwrap() as u32 };
+            assert_eq!(json!(mode_signal(e)), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "top_level_keys") {
+            assert_eq!(json!(top_level_keys(text(case))), case["out"], "{}", case["name"]);
+        }
+        for key in ["keys_signal", "key_name_signal"] {
+            for case in cases(&f, key) {
+                assert_eq!(json!(keys_signal(text(case))), case["out"], "{key}: {}", case["name"]);
+            }
+        }
+        for case in cases(&f, "pem_signal") {
+            assert_eq!(json!(pem_signal(text(case))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "url_signal") {
+            assert_eq!(json!(url_signal(text(case))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "bare_urls") {
+            let b = bare_urls(text(case));
+            assert_eq!(json!({ "text": b.text, "urls": b.urls }), case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn file_signals_reads_the_file_only_when_the_ts_did() {
+        for case in cases(&w2("credential_signals"), "file_signals") {
+            let a = &case["args"];
+            let e = FileShape { bytes: a[1]["bytes"].as_u64().unwrap(), mode: a[1]["mode"].as_u64().unwrap() as u32 };
+            let reads = Cell::new(0);
+            let body = a[2].as_str().map(str::to_string);
+            let read = || {
+                reads.set(reads.get() + 1);
+                let body = body.clone();
+                async move { body }
+            };
+            let got = block_on(file_signals(a[0].as_str().unwrap(), e, read, a[3].as_bool().unwrap()));
+            assert_eq!(json!({ "signals": got, "reads": reads.get() }), case["out"], "{}", case["name"]);
+        }
+    }
+}

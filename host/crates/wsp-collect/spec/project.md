@@ -27,6 +27,22 @@ What one project folder's own files say it needs: four readers turn manifests in
 
 - Rule 3.11 / 4.26: rows and candidates keep first-found order; the oracle test compares them as arrays.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/project.json` (`oracle/w2-project.oracle.ts`, every value printed by the TS),
+replayed by `tests/project.rs` `w2_oracle::*`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rule 6: any JSON object or array parses (`typeof value === "object" && value !== null`); `engines`, `scripts`, `dependencies` and `devDependencies` are read with `Object.entries` only when they are objects themselves; a root array has none of the keys.
+- C2. Rule 7: the comment cut is `replace(/#.*$/, "")` with JavaScript's `.`: on a CRLF line the `.*` stops before `\r` and `$` cannot match there, so the comment is not cut; the split is on JavaScript's `\s`.
+- C3. Rule 7 (mise): the version is the first match of `/["']([^"']+)["']/` (the two quotes need not match); the key loses one leading and one trailing quote independently (`/^["']|["']$/g`).
+- C4. Rule 8: the indent compared is the whitespace before the optional `- ` of `- run:` (regex group 1), so for `  - run: |` the limit is 2; the `RUN` regex ends in `(.*)$`, so on a CRLF file `run: cmd` and `run: |` never match (only `run:` followed by `\r` alone does).
+- C5. Rule 3: an empty file answers `""` and is handed to its text reader.
+
+- W1. `scan_project` over 44 folders: rows and candidates in first-found order, every read in order (`scan_project`, with calls).
+- W2. Each reader over its edge files: package.json shapes, `.tool-versions` and `mise.toml` pins with comments, CRLF and quotes, markers, workflow `uses:` and `run:` blocks (`package_json_read`, `toolchain_pins_read`, `marker_read`, `workflows_read`).
+
 ## Rules pinned
 
 | Rule | Test |
