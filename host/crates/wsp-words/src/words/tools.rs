@@ -3,30 +3,30 @@
 //! a call reads as, what a client shows for it, its kinds), the question tool's questions and picks, and the words a
 //! permission prompt is put to a person in. Each TS statement stands as a comment above its stub. See spec/tools.md.
 
-use crate::pending_wire::views::session::PermissionOutcome;
-use crate::pending_wire::views::session_events::{SessionEvent, SessionPermissionEvent};
-use crate::pending_wire::wire::helpers::{PermissionEffect, PermissionOption};
-use crate::pending_wire::wire::runtime::SessionAnswerOutcome;
+use wsp_wire::views::session::PermissionOutcome;
+use wsp_wire::views::session_events::{SessionEvent, SessionPermissionEvent};
+use wsp_wire::wire::helpers::{PermissionEffect, PermissionOption};
+use wsp_wire::wire::runtime::SessionAnswerOutcome;
 use serde::Serialize;
 
 /// One tool call's input, as the wire's delta carries it: the JSON object the harness reported, keys in the order
 /// it wrote them.
 pub type ToolInput = serde_json::Map<String, serde_json::Value>;
 
-/// One tool call's input, as the wire's delta carries it: the JSON the harness reported, already parsed.
+// One tool call's input, as the wire's delta carries it: the JSON the harness reported, already parsed.
 // tools.ts:8
 // private in the TS
 // type ToolInput = Readonly<Record<string, unknown>>;
 
-/// Which moment a call's line is written for: the call as the harness reported it, which is before it has run and
-/// before any prompt it waits on is answered, or the result that says it ran. A row whose words differ between the
-/// two carries both, so nothing reads as done before it is.
+// Which moment a call's line is written for: the call as the harness reported it, which is before it has run and
+// before any prompt it waits on is answered, or the result that says it ran. A row whose words differ between the
+// two carries both, so nothing reads as done before it is.
 // tools.ts:13
 // private in the TS
 // type ToolMoment = "asked" | "done";
 
-/// The line one tool name reads as at one of those moments; undefined when the call's input does not carry what
-/// the line needs.
+// The line one tool name reads as at one of those moments; undefined when the call's input does not carry what
+// the line needs.
 // tools.ts:17
 // private in the TS
 // type ToolLine = (input: ToolInput, moment: ToolMoment) => string | undefined;
@@ -75,8 +75,8 @@ impl ToolRequestKind {
     }
 }
 
-/// One tool's row: the line its call reads as, the input field a client shows for it, what kind of item the call is,
-/// the paths it changed when it changes any, and whether it looked through the code.
+// One tool's row: the line its call reads as, the input field a client shows for it, what kind of item the call is,
+// the paths it changed when it changes any, and whether it looked through the code.
 // tools.ts:27
 // private in the TS
 // interface ToolRow {
@@ -127,8 +127,8 @@ pub fn server_tool_words(tool_name: &str) -> Option<String> {
     todo!()
 }
 
-/// The fields a server's tool row shows when the call names none of the usual ones: what the call is called, then
-/// what it says.
+// The fields a server's tool row shows when the call names none of the usual ones: what the call is called, then
+// what it says.
 // tools.ts:60
 // private in the TS: port it as a private helper
 // const SERVER_SHOWN_FIELDS: readonly string[] = ["title", "message"];
@@ -176,7 +176,7 @@ pub fn server_tool_words(tool_name: &str) -> Option<String> {
 //   ...rest,
 // });
 
-/// Codex reports every path one call touched in a single change item; Claude reports one path per call.
+// Codex reports every path one call touched in a single change item; Claude reports one path per call.
 // tools.ts:98
 // private in the TS: port it as a private helper
 // function changedPaths(input: ToolInput): readonly string[] {
@@ -322,7 +322,7 @@ pub fn other_option_id(question: usize, words: &str) -> String {
     todo!()
 }
 
-/// An answer typed for a question, read back off its id; nothing for any other id.
+// An answer typed for a question, read back off its id; nothing for any other id.
 // tools.ts:199
 // private in the TS: port it as a private helper
 // function typedAnswer(id: string): { question: number; words: string } | undefined {
@@ -381,8 +381,8 @@ pub fn question_answer_input(tool_name: &str, input: &str, picked: &[impl AsRef<
     todo!()
 }
 
-/// What the call itself reads as while it waits: the question, never the tool's own name, which is no word a
-/// person knows. Registered in the tool table below by the same key the prompt's words are.
+// What the call itself reads as while it waits: the question, never the tool's own name, which is no word a
+// person knows. Registered in the tool table below by the same key the prompt's words are.
 // tools.ts:243
 // private in the TS: port it as a private helper
 // const questionRow: ToolRow = {
@@ -407,14 +407,14 @@ pub fn question_answer_input(tool_name: &str, input: &str, picked: &[impl AsRef<
 //   named: ["questions"],
 // };
 
-/// Launching a subagent, under either name the harness gives that call.
+// Launching a subagent, under either name the harness gives that call.
 // tools.ts:264
 // private in the TS: port it as a private helper
 // const agentRow: ToolRow = aboutRow({ doing: "agent:" }, "description", { itemType: "collab_agent_tool_call" });
 
-/// Every tool a harness reports, one row per name, Claude's and Codex's alike: what the command line writes for the
-/// call and what the app's transcript makes of it come from the same row, so a new tool is a row here and nothing
-/// else. A name with no row reads as itself, by the fields below.
+// Every tool a harness reports, one row per name, Claude's and Codex's alike: what the command line writes for the
+// call and what the app's transcript makes of it come from the same row, so a new tool is a row here and nothing
+// else. A name with no row reads as itself, by the fields below.
 // tools.ts:269
 // private in the TS: port it as a private helper
 // const TOOL_ROWS: ReadonlyMap<string, ToolRow> = new Map<string, ToolRow>([
@@ -437,12 +437,12 @@ pub fn question_answer_input(tool_name: &str, input: &str, picked: &[impl AsRef<
 //   [QUESTION_TOOL, questionRow],
 // ]);
 
-/// The fields a call's row shows when its own row names none, most particular first.
+// The fields a call's row shows when its own row names none, most particular first.
 // tools.ts:290
 // private in the TS: port it as a private helper
 // const SHOWN_FIELDS: readonly string[] = ["file_path", "notebook_path", "pattern", "query", "url", "description", "prompt"];
 
-/// The call's input as an object, or undefined while it is still arriving or when it is not one.
+// The call's input as an object, or undefined while it is still arriving or when it is not one.
 // tools.ts:293
 // private in the TS: port it as a private helper
 // function toolInput(input: string): ToolInput | undefined {
@@ -664,9 +664,9 @@ pub fn thread_working_line(e: &SessionEvent) -> Option<String> {
     todo!()
 }
 
-/// A prompt's lead in two parts: the words, and the call's own text where the call has some. They are apart because
-/// a command is judged by characters a sentence face blurs, two hyphens reading as one dash among them, so a client
-/// with more than one face draws the second part as code while a one-face surface joins them back into a sentence.
+// A prompt's lead in two parts: the words, and the call's own text where the call has some. They are apart because
+// a command is judged by characters a sentence face blurs, two hyphens reading as one dash among them, so a client
+// with more than one face draws the second part as code while a one-face surface joins them back into a sentence.
 // tools.ts:445
 // private in the TS
 // interface AskLead {
@@ -674,8 +674,8 @@ pub fn thread_working_line(e: &SessionEvent) -> Option<String> {
 //   readonly code?: string;
 // }
 
-/// How one kind of call is put to a person when the harness asks permission for it: the lead they judge it by,
-/// the input fields that lead already carries, and the field holding a file's body.
+// How one kind of call is put to a person when the harness asks permission for it: the lead they judge it by,
+// the input fields that lead already carries, and the field holding a file's body.
 // tools.ts:452
 // private in the TS
 // interface PermissionWords {
@@ -691,7 +691,7 @@ pub fn thread_working_line(e: &SessionEvent) -> Option<String> {
 //   readonly note?: (input: ToolInput, detail: string | undefined) => string | undefined;
 // }
 
-/// A file's name and its folder as a person says them: `health.ts in src`, or the name alone at the root.
+// A file's name and its folder as a person says them: `health.ts in src`, or the name alone at the root.
 // tools.ts:466
 // private in the TS: port it as a private helper
 // function fileInFolder(path: string): string {
@@ -714,8 +714,8 @@ pub fn thread_working_line(e: &SessionEvent) -> Option<String> {
 //   body: "content",
 // };
 
-/// Claude's Edit and MultiEdit: the file, and how many places change where there are several. The strings that
-/// go and come are the client's to draw as lines; they are never dumped under the lead.
+// Claude's Edit and MultiEdit: the file, and how many places change where there are several. The strings that
+// go and come are the client's to draw as lines; they are never dumped under the lead.
 // tools.ts:486
 // private in the TS: port it as a private helper
 // const editAsk: PermissionWords = {
@@ -739,7 +739,7 @@ pub fn thread_working_line(e: &SessionEvent) -> Option<String> {
 //   named: ["command", "description"],
 // };
 
-/// Codex's command approval: the command and the folder it runs in, with the model's own reason as the note.
+// Codex's command approval: the command and the folder it runs in, with the model's own reason as the note.
 // tools.ts:506
 // private in the TS: port it as a private helper
 // const codexCommandAsk: PermissionWords = {
@@ -751,7 +751,7 @@ pub fn thread_working_line(e: &SessionEvent) -> Option<String> {
 //   note: (_input, detail) => (detail === undefined || detail === "" ? undefined : detail),
 // };
 
-/// Codex's file-change approval: the files by name, since the wire carries their paths and kinds and no diff.
+// Codex's file-change approval: the files by name, since the wire carries their paths and kinds and no diff.
 // tools.ts:516
 // private in the TS: port it as a private helper
 // const fileChangeAsk: PermissionWords = {
@@ -765,7 +765,7 @@ pub fn thread_working_line(e: &SessionEvent) -> Option<String> {
 //   named: ["changes"],
 // };
 
-/// A page fetched from the web: the address as code, and what the agent will read it for as the note.
+// A page fetched from the web: the address as code, and what the agent will read it for as the note.
 // tools.ts:528
 // private in the TS: port it as a private helper
 // const fetchAsk: PermissionWords = {
@@ -797,14 +797,14 @@ pub fn thread_working_line(e: &SessionEvent) -> Option<String> {
 //   named: [],
 // };
 
-/// A kind with no words of its own yet: the lead falls back to the harness's own phrase under the tool's name.
+// A kind with no words of its own yet: the lead falls back to the harness's own phrase under the tool's name.
 // tools.ts:554
 // private in the TS: port it as a private helper
 // const plainAsk: PermissionWords = { lead: () => undefined, named: [] };
 
-/// Every kind of call a permission prompt is worded for, one row per kind. The chat row and the command line both
-/// read this table, so the words live here and in neither of them, and a kind worded later is a row and nothing
-/// else. A name no row matches is a server's tool where its name carries one, else the plain row.
+// Every kind of call a permission prompt is worded for, one row per kind. The chat row and the command line both
+// read this table, so the words live here and in neither of them, and a kind worded later is a row and nothing
+// else. A name no row matches is a server's tool where its name carries one, else the plain row.
 // tools.ts:559
 // private in the TS: port it as a private helper
 // const PERMISSION_ASKS: ReadonlyMap<string, PermissionWords> = new Map<string, PermissionWords>([
@@ -830,8 +830,8 @@ pub fn thread_working_line(e: &SessionEvent) -> Option<String> {
 // tools.ts:577
 const BODY_LABEL: &str = "show the file";
 
-/// The lead its kind words the call by, or the harness's own phrase under the tool's name for a call whose input
-/// carries none of what its rule needs and for a kind with no rule.
+// The lead its kind words the call by, or the harness's own phrase under the tool's name for a call whose input
+// carries none of what its rule needs and for a kind with no rule.
 // tools.ts:581
 // private in the TS: port it as a private helper
 // function askLead(toolName: string, input: string, detail?: string): AskLead {
@@ -841,7 +841,7 @@ const BODY_LABEL: &str = "show the file";
 //   return { says: detail === undefined || detail === "" ? `Permission for ${toolName}` : `Permission for ${toolName}: ${detail}` };
 // }
 
-/// The two parts joined back into one line, the one rule for it.
+// The two parts joined back into one line, the one rule for it.
 // tools.ts:589
 // private in the TS: port it as a private helper
 // const leadLine = (lead: AskLead): string => (lead.code === undefined ? lead.says : `${lead.says} ${lead.code}`);
@@ -856,8 +856,8 @@ pub fn permission_ask_line(tool_name: &str, input: &str, detail: Option<&str>) -
     todo!()
 }
 
-/// One value as the row reads it: its own whitespace collapsed, so a field holding a paragraph is one line rather
-/// than a wall, while the fields stay apart under their separator.
+// One value as the row reads it: its own whitespace collapsed, so a field holding a paragraph is one line rather
+// than a wall, while the fields stay apart under their separator.
 // tools.ts:599
 // private in the TS: port it as a private helper
 // const restValue = (value: unknown): string =>
@@ -950,8 +950,8 @@ pub fn permission_prompt_words(tool_name: &str, input: &str, detail: Option<&str
     todo!()
 }
 
-/// The strings an edit swaps, off any call that carries them: the first of several edits, else the call's own. Read
-/// raw rather than trimmed, since a blank line taken out is part of the change.
+// The strings an edit swaps, off any call that carries them: the first of several edits, else the call's own. Read
+// raw rather than trimmed, since a blank line taken out is part of the change.
 // tools.ts:655
 // private in the TS: port it as a private helper
 // function editStrings(fields: ToolInput): { old: string; next: string } | undefined {

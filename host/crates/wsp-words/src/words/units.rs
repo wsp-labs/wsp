@@ -3,8 +3,8 @@
 //! person reads them, and the size, Boat and disk lines built on them. Each TS statement stands as a comment above
 //! its stub. See spec/units.md.
 
-use crate::pending_wire::types::init_job::{InitDraft, InitJob, InitScreen, InitScreenId};
-use crate::pending_wire::wire::capabilities::{MachineSizeOffer, PlaceCapacity, WorkspaceSize};
+use wsp_wire::types::init_job::{InitDraft, InitJob, InitScreen, InitScreenId};
+use wsp_wire::wire::capabilities::{MachineSizeOffer, PlaceCapacity, WorkspaceSize};
 
 use indexmap::IndexSet;
 
@@ -19,8 +19,8 @@ pub const KIB: f64 = 1024.0;
 // private in the TS: port it as a private helper
 // const GIB = MIB * 1024;
 
-/// Bytes as a person reads them, in binary units: whole under a gigabyte, since a tenth of a megabyte is noise at that
-/// scale, and GB with one decimal unless whole.
+// Bytes as a person reads them, in binary units: whole under a gigabyte, since a tenth of a megabyte is noise at that
+// scale, and GB with one decimal unless whole.
 // units.ts:10
 // private in the TS: port it as a private helper
 // const COMPACT_UNITS = ["", "K", "M", "G", "T"];
@@ -198,8 +198,8 @@ pub fn size_tone(bytes: f64) -> SizeTone {
     todo!()
 }
 
-/// The screens where a person is choosing weight, whose size cells wear the weight tone. The agents screen's sizes
-/// are muted: the agents are what the person came for, not a place to be warned off.
+// The screens where a person is choosing weight, whose size cells wear the weight tone. The agents screen's sizes
+// are muted: the agents are what the person came for, not a place to be warned off.
 // units.ts:102
 // private in the TS: port it as a private helper
 // const WEIGHED_SCREENS: ReadonlySet<InitScreenId> = new Set<InitScreenId>(["tools", "also"]);
@@ -240,7 +240,7 @@ pub fn init_disk_over_line(over: f64) -> String {
     todo!()
 }
 
-/// Memory in GB as the size table names it: whole when whole, else one decimal; a size spec, not a byte count.
+// Memory in GB as the size table names it: whole when whole, else one decimal; a size spec, not a byte count.
 // units.ts:123
 // private in the TS: port it as a private helper
 // const memGb = (memMb: number): number => Number((memMb / 1024).toFixed(1));
@@ -469,8 +469,34 @@ pub fn size_from_word(word: &str) -> Option<WorkspaceSize> {
 // export function sizeOffer<T extends WorkspaceSize>(sizes: readonly T[], size: WorkspaceSize): T | undefined {
 //   return sizes.find(s => s.cpu === size.cpu && s.memMb === size.memMb);
 // }
-/// Generic over a row that carries a size (`T extends WorkspaceSize`): the first row whose cpu and memMb both equal.
-pub fn size_offer<'a, T: AsRef<WorkspaceSize>>(sizes: &'a [T], size: &WorkspaceSize) -> Option<&'a T> {
+/// A row that carries a machine's shape (`T extends WorkspaceSize`): a size, or an offer beside its rate.
+pub trait Shape {
+    fn cpu(&self) -> f64;
+    fn mem_mb(&self) -> f64;
+}
+
+impl Shape for WorkspaceSize {
+    fn cpu(&self) -> f64 {
+        todo!()
+    }
+
+    fn mem_mb(&self) -> f64 {
+        todo!()
+    }
+}
+
+impl Shape for MachineSizeOffer {
+    fn cpu(&self) -> f64 {
+        todo!()
+    }
+
+    fn mem_mb(&self) -> f64 {
+        todo!()
+    }
+}
+
+/// The first row whose cpu and memMb both equal the size's.
+pub fn size_offer<'a, T: Shape>(sizes: &'a [T], size: &WorkspaceSize) -> Option<&'a T> {
     todo!()
 }
 
@@ -479,7 +505,7 @@ pub fn size_offer<'a, T: AsRef<WorkspaceSize>>(sizes: &'a [T], size: &WorkspaceS
 // export function offeredSize(sizes: readonly WorkspaceSize[], size: WorkspaceSize): boolean {
 //   return sizeOffer(sizes, size) !== undefined;
 // }
-pub fn offered_size(sizes: &[WorkspaceSize], size: &WorkspaceSize) -> bool {
+pub fn offered_size<T: Shape>(sizes: &[T], size: &WorkspaceSize) -> bool {
     todo!()
 }
 
@@ -701,7 +727,7 @@ impl DurationStyle {
 // private in the TS: port it as a private helper
 // const pad2 = (n: number): string => String(n).padStart(2, "0");
 
-/// The short style under a minute: ms under a second, tenths under ten, whole seconds after; nothing sensible is "0ms".
+// The short style under a minute: ms under a second, tenths under ten, whole seconds after; nothing sensible is "0ms".
 // units.ts:368
 // private in the TS: port it as a private helper
 // function shortSeconds(ms: number): string {

@@ -4,8 +4,8 @@
 
 use std::cmp::Ordering;
 
-/// A version split the way precedence reads it: the dotted core, then the prerelease identifiers, or none. Build
-/// metadata after a + carries no precedence at all, so it is dropped here.
+// A version split the way precedence reads it: the dotted core, then the prerelease identifiers, or none. Build
+// metadata after a + carries no precedence at all, so it is dropped here.
 // semver.mjs:11
 // private in the TS: port it as a private helper
 // function parts(version) {
@@ -17,8 +17,8 @@ use std::cmp::Ordering;
 //   };
 // }
 
-/// One identifier against another: two numbers as numbers, so rc.10 is above rc.2; anything else as text, so rc1
-/// is below rc2 and alpha below beta; and a number below a word.
+// One identifier against another: two numbers as numbers, so rc.10 is above rc.2; anything else as text, so rc1
+// is below rc2 and alpha below beta; and a number below a word.
 // semver.mjs:22
 // private in the TS: port it as a private helper; NUMERIC is /^\d+$/, Number(a) an f64, `a < b` UTF-16 order
 // function compareIdentifiers(a, b) {

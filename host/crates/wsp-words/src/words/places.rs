@@ -4,11 +4,12 @@
 //! config readout, a theme's paint and a cloud's plan line. Each TS statement stands as a comment above its stub.
 //! See spec/places.md.
 
-use crate::pending_wire::types::agents_report::AgentSignInState;
-use crate::pending_wire::types::workspace_look::{Rgb, WorkspaceTheme};
-use crate::pending_wire::views::desktop_bridge::{ContextMenuItem, HostsView};
-use crate::pending_wire::views::place::{CloudPlan, CloudStarts, PlaceView};
-use crate::pending_wire::views::project_bundle::{ProjectExportEvent, ProjectImportEvent, ProjectSecret, TerminalConfig, TerminalRgb};
+use wsp_wire::types::agents_report::AgentSignInState;
+use crate::workspace_look::Rgb;
+use wsp_wire::types::workspace_look::WorkspaceTheme;
+use wsp_wire::views::desktop_bridge::{ContextMenuItem, HostsView};
+use wsp_wire::views::place::{CloudPlan, CloudStarts, PlaceView};
+use wsp_wire::views::project_bundle::{ProjectExportEvent, ProjectImportEvent, ProjectSecret, TerminalConfig, TerminalRgb};
 use serde::Serialize;
 
 /// The line under the import dialog's title: which workspace, and that the folder lands at the path it has here.
@@ -427,7 +428,7 @@ pub fn agent_version_word(raw: &str) -> String {
     todo!()
 }
 
-/// semver.org's own pattern, whole.
+// semver.org's own pattern, whole.
 // places.ts:291
 // private in the TS: port it as a private helper
 // const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;

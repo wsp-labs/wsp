@@ -37,7 +37,7 @@ Every word of wsp init's job: the Image card's steps, the sign-in answers and ou
 ## Decisions
 1. `Record<LoginState, ...>` tables are functions over the enum; `GOLDEN_STAGE_TIMED` is a two-element array.
 2. `disk_unsettled_line` takes the two kB counts as numbers; `init_failed_line`'s machine is the `MachineEnd` enum.
-3. `provider_key_name` and `provider_key_words` are declared in `pending_wire::types::place_word` until the `place_word` unit of this crate is written (the views writer leaves `PROVIDER_KEY_WORDS` to this crate).
+3. `provider_key_name` and `provider_key_words` are this crate's `place_word` unit (the views writer leaves `PROVIDER_KEY_WORDS` to this crate).
 
 ## After the port
 - `init_stopped_line` of an error made only of separators returns the separators.

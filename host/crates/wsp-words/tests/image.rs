@@ -4,7 +4,7 @@
 //! release that moved, a tools row outside the catalog) and init-job.test.ts:305 (credentialOnBuilderLine).
 
 use regex::Regex;
-use wsp_words::pending_wire::views::golden_image::ToolPin;
+use wsp_wire::views::golden_image::ToolPin;
 use wsp_words::words::image::*;
 
 fn change(count: f64, noun: &str, word: &str) -> GoldenChange {
@@ -352,7 +352,7 @@ mod pinned {
     use wsp_words::words::image::*;
 
     use serde_json::json;
-    use wsp_words::pending_wire::views::golden_image::GoldenStage;
+    use wsp_wire::views::golden_image::GoldenStage;
     use wsp_words::words::computer::Platform;
 
     fn wire<T: serde::de::DeserializeOwned>(v: serde_json::Value) -> T {
@@ -410,11 +410,11 @@ mod pinned {
 
     #[test]
     fn project_images() {
-        assert_eq!(sealed_project_line(&wire(json!({"snapshotId":"p1","projects":[{"name":"a"},{"name":"b"}],"golden":"g","workspaceId":"w","workspaceName":"ws","createdAt":"2026-10-01T00:00:00.000Z","sizeBytes":1024}))), "p1  project ws  a, b  1 KB  2026-10-01T00:00:00.000Z"); // sealedProjectLine({snapshotId:"p1",projects:[{name:"a"},{name:"b"}],golden:"g",workspaceId:"w",workspaceName:"ws",createdAt:"2026-10-01T00:00:00.000Z",sizeBytes:1024})
+        assert_eq!(sealed_project_line(&wire(json!({"snapshotId":"p1","projects":[{"name":"a","dest":"/a","importedAt":"t"},{"name":"b","dest":"/b","importedAt":"t"}],"golden":"g","workspaceId":"w","workspaceName":"ws","createdAt":"2026-10-01T00:00:00.000Z","sizeBytes":1024}))), "p1  project ws  a, b  1 KB  2026-10-01T00:00:00.000Z"); // sealedProjectLine({snapshotId:"p1",projects:[{name:"a"},{name:"b"}],golden:"g",workspaceId:"w",workspaceName:"ws",createdAt:"2026-10-01T00:00:00.000Z",sizeBytes:1024})
         assert_eq!(sealed_project_line(&wire(json!({"snapshotId":"p1","projects":[],"golden":"g","workspaceId":"w","workspaceName":"ws","createdAt":"c"}))), "p1  project ws    c"); // sealedProjectLine({snapshotId:"p1",projects:[],golden:"g",workspaceId:"w",workspaceName:"ws",createdAt:"c"})
         assert_eq!(project_image_in_use_refusal("p1", &["a"]), "project image p1 has a workspace standing on it: a; delete it first, and forget any whose machine is already gone"); // projectImageInUseRefusal("p1", ["a"])
         assert_eq!(project_image_in_use_refusal("p1", &["a", "b, c"]), "project image p1 has workspaces standing on it: a, \"b, c\"; delete them first, and forget any whose machine is already gone"); // projectImageInUseRefusal("p1", ["a", "b, c"])
-        assert_eq!(project_image_remove_notice(&wire(json!({"snapshotId":"s","projects":[],"workspaceName":"ws","createdAt":"2026-10-01T23:00:00.000Z"}))), "Its snapshot, taken from ws on 2026-10-01, is deleted at the provider, and no workspace starts from it again."); // projectImageRemoveNotice({workspaceName:"ws",createdAt:"2026-10-01T23:00:00.000Z"})
+        assert_eq!(project_image_remove_notice(&wire(json!({"snapshotId":"s","projects":[],"golden":"g","workspaceId":"w","workspaceName":"ws","createdAt":"2026-10-01T23:00:00.000Z"}))), "Its snapshot, taken from ws on 2026-10-01, is deleted at the provider, and no workspace starts from it again."); // projectImageRemoveNotice({workspaceName:"ws",createdAt:"2026-10-01T23:00:00.000Z"})
         assert_eq!(project_image_removed_line("p1", true), "project image p1 was already gone at the provider; its record is removed"); // projectImageRemovedLine("p1", true)
         assert_eq!(project_image_removed_line("p1", false), "removed project image p1: its snapshot is gone at the provider, and its record with it"); // projectImageRemovedLine("p1", false)
         assert_eq!(project_image_still_listed_line("p1", 1500.0), "project image p1 could not be read gone within 2 s of the delete answering, so its record stays; run wsp image remove p1 again"); // projectImageStillListedLine("p1", 1500)

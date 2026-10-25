@@ -10,8 +10,8 @@
 
 use regex::Regex;
 use serde_json::{json, Value};
-use wsp_words::pending_wire::types::init_job::{InitJob, InitPhase, InitRow, InitRowKind, LoginState, LOGIN_CHOICES};
-use wsp_words::pending_wire::wire::capabilities::InitSetup;
+use wsp_wire::types::init_job::{InitJob, InitPhase, InitRow, InitRowKind, LoginState, LOGIN_CHOICES};
+use wsp_wire::wire::capabilities::InitSetup;
 use wsp_words::words::computer::Platform;
 use wsp_words::words::init::*;
 use wsp_words::words::units::*;
@@ -264,12 +264,14 @@ mod the_words_the_clients_print_for_the_job {
     fn the_sign_in_answers_offer_six_words_each_with_the_words_its_row_and_its_counts_p() {
         let names: Vec<Value> = LOGIN_CHOICES.iter().map(|c| serde_json::to_value(c).unwrap()).collect();
         assert_eq!(names, vec![json!("copy"), json!("machine"), json!("later"), json!("key"), json!("skip"), json!("token")]);
-        for value in LOGIN_CHOICES {
-            assert!(!sign_in_answer_label(value, Platform::Darwin).is_empty(), "{value:?}");
+        for word in LOGIN_CHOICES {
+            let value: wsp_wire::types::init_job::LoginChoice = serde_json::from_value(json!(word)).unwrap();
+            assert!(!sign_in_answer_label(value, Platform::Darwin).is_empty(), "{word}");
         }
-        assert_eq!(sign_in_choices(Platform::Darwin).iter().map(|c| c.value).collect::<Vec<_>>(), LOGIN_CHOICES.to_vec());
-        assert_eq!(sign_in_choice(wsp_words::pending_wire::types::init_job::LoginChoice::Token, Platform::Darwin).label, "token from this computer");
-        assert_eq!(sign_in_answer_short(wsp_words::pending_wire::types::init_job::LoginChoice::Token), "token");
+        let words: Vec<Value> = sign_in_choices(Platform::Darwin).iter().map(|c| serde_json::to_value(c.value).unwrap()).collect();
+        assert_eq!(words, names);
+        assert_eq!(sign_in_choice(wsp_wire::types::init_job::LoginChoice::Token, Platform::Darwin).label, "token from this computer");
+        assert_eq!(sign_in_answer_short(wsp_wire::types::init_job::LoginChoice::Token), "token");
     }
 
     #[test]
@@ -571,9 +573,9 @@ mod pinned {
     use wsp_words::words::init::*;
 
     use serde_json::json;
-    use wsp_words::pending_wire::types::init_job::{InitPhase, InitRow, LoginChoice, LoginState};
-    use wsp_words::pending_wire::views::golden_image::GoldenStage;
-    use wsp_words::pending_wire::wire::capabilities::WorkspaceSize;
+    use wsp_wire::types::init_job::{InitPhase, InitRow, LoginChoice, LoginState};
+    use wsp_wire::views::golden_image::GoldenStage;
+    use wsp_wire::wire::capabilities::WorkspaceSize;
     use wsp_words::words::computer::Platform;
 
     fn wire<T: serde::de::DeserializeOwned>(v: serde_json::Value) -> T {
@@ -786,7 +788,7 @@ mod pinned {
     fn keys_cost_and_the_agent_road() {
         assert_eq!(provider_said_line(401.0, ""), "401"); // providerSaidLine(401, "")
         assert_eq!(provider_said_line(401.0, "invalid key"), "401 invalid key"); // providerSaidLine(401, "invalid key")
-        assert_eq!(init_cost_line(&WorkspaceSize { cpu: 2.0, mem_mb: 4096.0 }, 0.125), "A 2\u{a0}vCPU,\u{a0}4\u{a0}GB workspace costs about $0.13 an hour while it runs and naps when idle"); // initCostLine({cpu:2,memMb:4096}, 0.125)
+        assert_eq!(init_cost_line(&serde_json::from_value::<WorkspaceSize>(serde_json::json!({ "cpu": 2.0, "memMb": 4096.0 })).unwrap(), 0.125), "A 2\u{a0}vCPU,\u{a0}4\u{a0}GB workspace costs about $0.13 an hour while it runs and naps when idle"); // initCostLine({cpu:2,memMb:4096}, 0.125)
         assert_eq!(init_agent_no_recipe_line("/r.json", None), "the thread ended without writing /r.json"); // initAgentNoRecipeLine("/r.json")
         assert_eq!(init_agent_no_recipe_line("/r.json", Some("")), "the thread ended without writing /r.json"); // initAgentNoRecipeLine("/r.json", "")
         assert_eq!(init_agent_no_recipe_line("/r.json", Some("it stopped")), "the thread ended without writing /r.json: it stopped"); // initAgentNoRecipeLine("/r.json", "it stopped")

@@ -34,7 +34,7 @@ The words of a side question, a rewind and a fork; the codex sign-in and model-c
 
 ## Decisions
 1. `vault_kept_line` and `vault_stale_line` take the view's two fields.
-2. `names_place` and `place_said` are declared in `pending_wire::types::place_word` until the `place_word` unit of this crate is written.
+2. `names_place` and `place_said` come from this crate's `place_word` unit.
 
 ## After the port
 - `fork_where_line(Some(""))` says "on " with nothing after it.

@@ -67,8 +67,8 @@ pub fn cut_line(text: &str, room: usize) -> String {
     todo!()
 }
 
-/// The text's first units up to room, with a pair the edge would split left out whole: half of one is no character,
-/// and a JSON reader such as the Rust tool server's refuses the escape it is written as.
+// The text's first units up to room, with a pair the edge would split left out whole: half of one is no character,
+// and a JSON reader such as the Rust tool server's refuses the escape it is written as.
 // base.ts:41
 // private in the TS: port it as a private helper
 // function wholeCharacters(text: string, room: number): string {
@@ -76,7 +76,7 @@ pub fn cut_line(text: &str, room: usize) -> String {
 //   return /[\uD800-\uDBFF]$/.test(head) ? head.slice(0, -1) : head;
 // }
 
-/// What a cut leaves dangling at its edge: the space it broke on and the punctuation that hung off the word before.
+// What a cut leaves dangling at its edge: the space it broke on and the punctuation that hung off the word before.
 // base.ts:47
 // private in the TS: `\s` is JavaScript's whitespace set (rule 8.6)
 // const SEPARATOR_TAIL = /[\s,;:]+$/;
@@ -147,7 +147,7 @@ pub struct BoatLimitsRead {
     pub credit_balance_hours: Option<f64>,
 }
 
-/// A count of hours as the plan line says it: whole where it is whole, else to one decimal.
+// A count of hours as the plan line says it: whole where it is whole, else to one decimal.
 // boat.ts:16
 // private in the TS: port it as a private helper
 // const hoursWord = (hours: number): string => `${Number.isInteger(hours) ? hours : hours.toFixed(1)} h`;

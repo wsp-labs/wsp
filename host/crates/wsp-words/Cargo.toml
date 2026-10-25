@@ -8,7 +8,10 @@ publish = false
 description = "The host's words: every sentence a person reads, the refusal and exit contract, and JavaScript's text and number rules"
 
 [dependencies]
+wsp-wire = { path = "../wsp-wire" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 indexmap = { version = "2", features = ["serde"] }
 regex = "1"
+jiff = "0.2"
+icu_collator = "2"

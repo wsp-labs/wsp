@@ -7,11 +7,13 @@
 //! Skipped: workspace-state.test.ts:195 (kindWords, workspace words), :358 and :374 (screenCommandLine, signInRoad,
 //! workspace words), :401 (whereWord, workspace words); THIS_COMPUTER is incidental in all four.
 
-use wsp_words::pending_wire::wire::capabilities::Capabilities;
+mod support;
+
+use wsp_wire::wire::capabilities::Capabilities;
 use wsp_words::words::computer::*;
 
 fn caps(v: serde_json::Value) -> Capabilities {
-    serde_json::from_value(v).unwrap()
+    serde_json::from_value(support::over(support::capabilities(), v)).unwrap()
 }
 
 mod what_a_row_says_about_a_copys_network {
@@ -209,10 +211,10 @@ mod pinned {
     use wsp_words::words::computer::*;
 
     use serde_json::json;
-    use wsp_words::pending_wire::wire::capabilities::Capabilities;
+    use wsp_wire::wire::capabilities::Capabilities;
 
     fn caps(copies: bool, own_network: bool) -> Capabilities {
-        Capabilities { copies, own_network }
+        super::caps(json!({ "copies": copies, "ownNetwork": own_network }))
     }
 
     #[test]
