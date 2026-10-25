@@ -195,7 +195,7 @@ pub fn is_figure(v: Option<&Value>) -> bool {
             if !num.starts_with(|c: char| c.is_ascii_digit()) || num.matches('.').count() > 1 || num.ends_with('.') {
                 return false;
             }
-            if num.contains('.') && num.split('.').next().is_some_and(|i| i.contains(',') && false) {
+            if num.split_once('.').is_some_and(|(_, fraction)| fraction.contains(',')) {
                 return false;
             }
             let rest = rest.strip_prefix(' ').unwrap_or(rest);
@@ -309,6 +309,15 @@ mod tests {
         for (ms, want) in cases {
             assert_eq!(fmt_duration(ms), want, "{ms} ms");
         }
+    }
+
+    /// Catches: a comma after the point read as part of a figure, where today's `FIGURE` takes commas before the point
+    /// and digits alone after it.
+    #[test]
+    fn a_comma_after_the_point_is_no_figure() {
+        assert!(is_figure(Some(&json!("1,234.5"))));
+        assert!(!is_figure(Some(&json!("1.2,3"))));
+        assert!(!is_figure(Some(&json!("1.,5"))));
     }
 
     #[test]
