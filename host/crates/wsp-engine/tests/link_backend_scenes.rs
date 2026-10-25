@@ -164,7 +164,9 @@ async fn a_failing_upload_asks_whether_the_link_dials_back_twice_and_sends_three
     let l = FakeLink::dialling(
         |s| match s.op.as_str() {
             "machine.backend" => Ok(facts()),
-            "machine.get" => Ok(json!({ "machine": { "id": "c1", "kind": "sandbox", "roads": { "previewUrl": false, "daemonAnswers": false, "putBytes": true, "describe": false, "facts": false, "metrics": false } } })),
+            "machine.get" => Ok(
+                json!({ "machine": { "id": "c1", "kind": "sandbox", "roads": { "previewUrl": false, "daemonAnswers": false, "putBytes": true, "describe": false, "facts": false, "metrics": false } } }),
+            ),
             _ => Err(EngineError::Other { message: "link dropped".into(), code: None }),
         },
         move || {
