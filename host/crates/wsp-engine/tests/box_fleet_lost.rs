@@ -32,7 +32,7 @@ struct Losing {
     left: Mutex<i64>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Fetch for Losing {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError> {
         let creates = req.method == "POST" && url::Url::parse(&req.url).unwrap().path().ends_with("/sandboxes");
@@ -198,7 +198,7 @@ struct Silent {
     silent: Mutex<Vec<String>>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Fetch for Silent {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError> {
         let creates = req.method == "POST" && req.url.ends_with("/sandboxes");

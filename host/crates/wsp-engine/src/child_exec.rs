@@ -33,7 +33,7 @@ pub const DRAIN_MS: u64 = 200;
 pub const DRAIN_CAP_MS: u64 = 1_000;
 
 /// child-exec.ts:44. A stream's chunks as lines, the last partial one held until its newline or the flush; past `keep`
-/// UTF-16 units only its tail is held. `None` keeps everything (the TS `Infinity`). Lines return to the caller rather
+/// UTF-16 units only its tail is held, a half character at the cut written as U+FFFD. `None` keeps everything (the TS `Infinity`). Lines return to the caller rather
 /// than going to a callback.
 pub struct LineFeed {
     pending: String,

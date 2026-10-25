@@ -1,0 +1,1240 @@
+{
+ "standingScript": {
+  "/root": "set -u\nhome='/root'; ledger='/root/.wsp/provision/landed'; list='/root/.wsp/provision/asked'\nmkdir -p \"$(dirname \"$list\")\" || exit 1\ncat > \"$list\" || exit 1\n[ -s \"$list\" ] || exit 0\ncd \"$home\" || exit 1\nxargs -0 sha256sum -z -- < \"$list\" 2>/dev/null | while IFS= read -r -d \"\" rec; do\n  p=${rec#* }\n  printf 'wsp-stand\\t%s\\t%s\\0' \"${rec%% *}\" \"${p#[ *]}\"\ndone\n[ -f \"$ledger\" ] || ledger=/dev/null\nxargs -0 printf '%s\\n' < \"$list\" | awk -F\"\\t\" 'NR==FNR { want[$0]=1; next } want[$1] && !seen[$1]++ { printf \"wsp-ledger\\t%s\\t%s\\n\", $1, $3 }' - \"$ledger\" | tr '\\n' '\\0'\nrm -f \"$list\"\nexit 0",
+  "/home/dev o'q": "set -u\nhome='/home/dev o'\\''q'; ledger='/home/dev o'\\''q/.wsp/provision/landed'; list='/home/dev o'\\''q/.wsp/provision/asked'\nmkdir -p \"$(dirname \"$list\")\" || exit 1\ncat > \"$list\" || exit 1\n[ -s \"$list\" ] || exit 0\ncd \"$home\" || exit 1\nxargs -0 sha256sum -z -- < \"$list\" 2>/dev/null | while IFS= read -r -d \"\" rec; do\n  p=${rec#* }\n  printf 'wsp-stand\\t%s\\t%s\\0' \"${rec%% *}\" \"${p#[ *]}\"\ndone\n[ -f \"$ledger\" ] || ledger=/dev/null\nxargs -0 printf '%s\\n' < \"$list\" | awk -F\"\\t\" 'NR==FNR { want[$0]=1; next } want[$1] && !seen[$1]++ { printf \"wsp-ledger\\t%s\\t%s\\n\", $1, $3 }' - \"$ledger\" | tr '\\n' '\\0'\nrm -f \"$list\"\nexit 0"
+ },
+ "landFilesScript": {
+  "plain": "set -u\nwsp_once() {\n  return 1\n}\nwsp_dest() {\n  case \"$1\" in\n    (*) root=$home; sub=$1; top=$home ;;\n  esac\n  dest=\"$root/$sub\"\n}\nhome='/root'; stage='/root/.wsp/provision/files'; ledger='/root/.wsp/provision/landed'; landing='/root/.wsp/provision/landing'\ncanon=$(readlink -f -- \"$home\") || exit 1\nmkdir -p \"$(dirname \"$landing\")\" || exit 1\n: > \"$landing\" || exit 1\ncd \"$stage\" || exit 1\nfind . -type f -print | while IFS= read -r p; do\n  rel=${p#./}\n  src=\"$stage/$rel\"; wsp_dest \"$rel\"\n  s=$(sha256sum \"$src\" | cut -d\" \" -f1)\n  if [ ! -e \"$dest\" ] || { [ -f \"$dest\" ] && [ ! -s \"$dest\" ]; }; then act=installed\n  elif wsp_once \"$rel\"; then act=present\n  else\n    d=$(sha256sum \"$dest\" 2>/dev/null | cut -d\" \" -f1)\n    known=$(wsp_rel=\"$rel\" awk -F\"\\t\" '$1==ENVIRON[\"wsp_rel\"] { print $2\" \"$3; exit }' \"$ledger\" 2>/dev/null)\n    if [ \"$d\" = \"$s\" ]; then act=present\n    elif [ -n \"$known\" ] && [ \"$d\" = \"${known##* }\" ]; then\n      if [ \"$s\" = \"${known%% *}\" ]; then act=present; else act=installed; fi\n    else act=kept; fi\n  fi\n  if [ \"$act\" = installed ]; then\n    mkdir -p \"$(dirname \"$dest\")\" && cp -p \"$src\" \"$dest\" || act=failed\n  fi\n  old=\"$home/$rel\"\n  if [ \"$dest\" != \"$old\" ] && [ \"$act\" != failed ] && [ -f \"$old\" ] && [ \"$(readlink -f -- \"$old\")\" = \"$canon/$rel\" ]; then\n    was=$(wsp_rel=\"$rel\" awk -F\"\\t\" '$1==ENVIRON[\"wsp_rel\"] { print $3; exit }' \"$ledger\" 2>/dev/null)\n    if [ -n \"$was\" ] && [ \"$(sha256sum \"$old\" | cut -d\" \" -f1)\" = \"$was\" ] && rm -f -- \"$old\"; then\n      d=$(dirname \"$old\"); while [ \"$d\" != \"$top\" ] && rmdir -- \"$d\" 2>/dev/null; do d=$(dirname \"$d\"); done\n    fi\n  fi\n  printf 'wsp-land\\t%s\\t%s\\t%s\\n' \"$act\" \"$s\" \"$rel\"\n  if [ \"$act\" != kept ] && [ \"$act\" != failed ] && ! wsp_once \"$rel\"; then printf \"%s\\t%s\\n\" \"$rel\" \"$s\" >> \"$landing\"; fi\ndone\nexit 0",
+  "onceAndRoots": "set -u\nwsp_once() {\n  case \"$1\" in ('.claude-cfg/.claude.json'|'.claude-cfg/.claude.json'/*|'.codex/config.toml'|'.codex/config.toml'/*|'odd*glob\\path'|'odd*glob\\path'/*) return 0 ;; esac\n  return 1\n}\nwsp_dest() {\n  case \"$1\" in\n    ('.codex'/*) root='/var/lib/wsp/logins/codex'; sub=${1#'.codex'/}; top=\"$home\"/'.codex' ;;\n    ('.odd'\\''dir'/*) root='/srv/store with space'; sub=${1#'.odd'\\''dir'/}; top=\"$home\"/'.odd'\\''dir' ;;\n    (*) root=$home; sub=$1; top=$home ;;\n  esac\n  dest=\"$root/$sub\"\n}\nhome='/root'; stage='/root/.wsp/provision/files'; ledger='/root/.wsp/provision/landed'; landing='/root/.wsp/provision/landing'\ncanon=$(readlink -f -- \"$home\") || exit 1\nmkdir -p \"$(dirname \"$landing\")\" || exit 1\n: > \"$landing\" || exit 1\ncd \"$stage\" || exit 1\nfind . -type f -print | while IFS= read -r p; do\n  rel=${p#./}\n  src=\"$stage/$rel\"; wsp_dest \"$rel\"\n  s=$(sha256sum \"$src\" | cut -d\" \" -f1)\n  if [ ! -e \"$dest\" ] || { [ -f \"$dest\" ] && [ ! -s \"$dest\" ]; }; then act=installed\n  elif wsp_once \"$rel\"; then act=present\n  else\n    d=$(sha256sum \"$dest\" 2>/dev/null | cut -d\" \" -f1)\n    known=$(wsp_rel=\"$rel\" awk -F\"\\t\" '$1==ENVIRON[\"wsp_rel\"] { print $2\" \"$3; exit }' \"$ledger\" 2>/dev/null)\n    if [ \"$d\" = \"$s\" ]; then act=present\n    elif [ -n \"$known\" ] && [ \"$d\" = \"${known##* }\" ]; then\n      if [ \"$s\" = \"${known%% *}\" ]; then act=present; else act=installed; fi\n    else act=kept; fi\n  fi\n  if [ \"$act\" = installed ]; then\n    mkdir -p \"$(dirname \"$dest\")\" && cp -p \"$src\" \"$dest\" || act=failed\n  fi\n  old=\"$home/$rel\"\n  if [ \"$dest\" != \"$old\" ] && [ \"$act\" != failed ] && [ -f \"$old\" ] && [ \"$(readlink -f -- \"$old\")\" = \"$canon/$rel\" ]; then\n    was=$(wsp_rel=\"$rel\" awk -F\"\\t\" '$1==ENVIRON[\"wsp_rel\"] { print $3; exit }' \"$ledger\" 2>/dev/null)\n    if [ -n \"$was\" ] && [ \"$(sha256sum \"$old\" | cut -d\" \" -f1)\" = \"$was\" ] && rm -f -- \"$old\"; then\n      d=$(dirname \"$old\"); while [ \"$d\" != \"$top\" ] && rmdir -- \"$d\" 2>/dev/null; do d=$(dirname \"$d\"); done\n    fi\n  fi\n  printf 'wsp-land\\t%s\\t%s\\t%s\\n' \"$act\" \"$s\" \"$rel\"\n  if [ \"$act\" != kept ] && [ \"$act\" != failed ] && ! wsp_once \"$rel\"; then printf \"%s\\t%s\\n\" \"$rel\" \"$s\" >> \"$landing\"; fi\ndone\nexit 0"
+ },
+ "landedServersScript": "set -u\nwsp_key() {\n  case \"$1\" in ('agents/mcp/'*) return 0 ;; esac\n  return 1\n}\nledger='/root/.wsp/provision/landed'\n[ -f \"$ledger\" ] || exit 0\ntab=$(printf \"\\t\")\nwhile IFS=\"$tab\" read -r id from at; do\n  wsp_key \"$id\" && printf 'wsp-server\\t%s\\t%s\\n' \"$at\" \"$id\"\ndone < \"$ledger\"\nexit 0",
+ "landedFilesScript": {
+  "/root": "set -u\nhome='/root'; ledger='/root/.wsp/provision/landed'\n[ -f \"$ledger\" ] || exit 0\ntab=$(printf \"\\t\")\nwhile IFS=\"$tab\" read -r rel from at; do\n  dest=\"$home/$rel\"\n  [ -f \"$dest\" ] || continue\n  d=$(sha256sum \"$dest\" | cut -d\" \" -f1)\n  [ \"$d\" = \"$at\" ] && printf 'wsp-own\\t%s\\n' \"$rel\"\ndone < \"$ledger\"\nexit 0",
+  "{home}": "set -u\nhome='{home}'; ledger='{home}/.wsp/provision/landed'\n[ -f \"$ledger\" ] || exit 0\ntab=$(printf \"\\t\")\nwhile IFS=\"$tab\" read -r rel from at; do\n  dest=\"$home/$rel\"\n  [ -f \"$dest\" ] || continue\n  d=$(sha256sum \"$dest\" | cut -d\" \" -f1)\n  [ \"$d\" = \"$at\" ] && printf 'wsp-own\\t%s\\n' \"$rel\"\ndone < \"$ledger\"\nexit 0"
+ },
+ "closeFilesScript": {
+  "plain": "set -u\nwsp_once() {\n  return 1\n}\nwsp_key() {\n  case \"$1\" in ('agents/mcp/'*) return 0 ;; esac\n  return 1\n}\nwsp_dest() {\n  case \"$1\" in\n    (*) root=$home; sub=$1; top=$home ;;\n  esac\n  dest=\"$root/$sub\"\n}\nhome='/root'; stage='/root/.wsp/provision/files'; ledger='/root/.wsp/provision/landed'; landing='/root/.wsp/provision/landing'; log='/root/.wsp/provision/log'\nrm -f \"$log\".a[0-9a-f]*\n[ -f \"$landing\" ] || exit 0\ntab=$(printf \"\\t\")\n: > \"$ledger.new\" || exit 1\nwhile IFS=\"$tab\" read -r rel from at; do\n  if wsp_key \"$rel\"; then printf \"%s\\t%s\\t%s\\n\" \"$rel\" \"$from\" \"$at\" >> \"$ledger.new\"; continue; fi\n  wsp_dest \"$rel\"\n  [ -f \"$dest\" ] || continue\n  printf \"%s\\t%s\\t%s\\n\" \"$rel\" \"$from\" \"$(sha256sum \"$dest\" | cut -d\" \" -f1)\" >> \"$ledger.new\"\ndone < \"$landing\"\n[ ! -f \"$ledger\" ] || while IFS=\"$tab\" read -r rel from at; do\n  wsp_once \"$rel\" || printf \"%s\\t%s\\t%s\\n\" \"$rel\" \"$from\" \"$at\" >> \"$ledger.new\"\ndone < \"$ledger\"\nawk -F\"\\t\" '!seen[$1]++ && $3 != \"-\"' \"$ledger.new\" > \"$ledger.keep\" || exit 1\nmv \"$ledger.keep\" \"$ledger\"\nrm -f \"$ledger.new\"\nrm -rf \"$stage\" \"$landing\"\nexit 0",
+  "onceAndRoots": "set -u\nwsp_once() {\n  case \"$1\" in ('.claude-cfg/.claude.json'|'.claude-cfg/.claude.json'/*|'.codex/config.toml'|'.codex/config.toml'/*|'odd*glob\\path'|'odd*glob\\path'/*) return 0 ;; esac\n  return 1\n}\nwsp_key() {\n  case \"$1\" in ('agents/mcp/'*) return 0 ;; esac\n  return 1\n}\nwsp_dest() {\n  case \"$1\" in\n    ('.codex'/*) root='/var/lib/wsp/logins/codex'; sub=${1#'.codex'/}; top=\"$home\"/'.codex' ;;\n    ('.odd'\\''dir'/*) root='/srv/store with space'; sub=${1#'.odd'\\''dir'/}; top=\"$home\"/'.odd'\\''dir' ;;\n    (*) root=$home; sub=$1; top=$home ;;\n  esac\n  dest=\"$root/$sub\"\n}\nhome='/root'; stage='/root/.wsp/provision/files'; ledger='/root/.wsp/provision/landed'; landing='/root/.wsp/provision/landing'; log='/root/.wsp/provision/log'\nrm -f \"$log\".a[0-9a-f]*\n[ -f \"$landing\" ] || exit 0\ntab=$(printf \"\\t\")\n: > \"$ledger.new\" || exit 1\nwhile IFS=\"$tab\" read -r rel from at; do\n  if wsp_key \"$rel\"; then printf \"%s\\t%s\\t%s\\n\" \"$rel\" \"$from\" \"$at\" >> \"$ledger.new\"; continue; fi\n  wsp_dest \"$rel\"\n  [ -f \"$dest\" ] || continue\n  printf \"%s\\t%s\\t%s\\n\" \"$rel\" \"$from\" \"$(sha256sum \"$dest\" | cut -d\" \" -f1)\" >> \"$ledger.new\"\ndone < \"$landing\"\n[ ! -f \"$ledger\" ] || while IFS=\"$tab\" read -r rel from at; do\n  wsp_once \"$rel\" || printf \"%s\\t%s\\t%s\\n\" \"$rel\" \"$from\" \"$at\" >> \"$ledger.new\"\ndone < \"$ledger\"\nawk -F\"\\t\" '!seen[$1]++ && $3 != \"-\"' \"$ledger.new\" > \"$ledger.keep\" || exit 1\nmv \"$ledger.keep\" \"$ledger\"\nrm -f \"$ledger.new\"\nrm -rf \"$stage\" \"$landing\"\nexit 0"
+ },
+ "unlandScript": {
+  "oneDest": "set -u\nwsp_dest() {\n  case \"$1\" in\n    (*) root=$home; sub=$1; top=$home ;;\n  esac\n  dest=\"$root/$sub\"\n}\nhome='/root'; ledger='/root/.wsp/provision/landed'\n[ -f \"$ledger\" ] || exit 0\ntab=$(printf \"\\t\")\n: > \"$ledger.new\" || exit 1\nwhile IFS=\"$tab\" read -r rel from at; do\n  case \"$rel\" in ('.claude/skills/a'|'.claude/skills/a'/*) ;; (*) printf \"%s\\t%s\\t%s\\n\" \"$rel\" \"$from\" \"$at\" >> \"$ledger.new\"; continue ;; esac\n  case \"/$rel/\" in (*/../*) continue ;; esac\n  wsp_dest \"$rel\"\n  if [ ! -e \"$dest\" ] && [ \"$dest\" != \"$home/$rel\" ]; then root=$home; sub=$rel; dest=\"$home/$rel\"; fi\n  [ -e \"$dest\" ] || continue\n  if [ \"$(readlink -f -- \"$dest\")\" = \"$(readlink -f -- \"$root\")/$sub\" ] && [ -f \"$dest\" ] && [ \"$(sha256sum \"$dest\" | cut -d\" \" -f1)\" = \"$at\" ]; then\n    rm -f -- \"$dest\" && printf 'wsp-unland\\tgone\\t%s\\n' \"$rel\"\n  else\n    printf 'wsp-unland\\tkept\\t%s\\n' \"$rel\"\n  fi\ndone < \"$ledger\"\nmv \"$ledger.new\" \"$ledger\" || exit 1\n[ \"$(readlink -f -- '/root/.claude/skills/a' 2>/dev/null)\" = \"$(readlink -f -- '/root')/\"'.claude/skills/a' ] && find '/root/.claude/skills/a' -depth -type d -empty -delete 2>/dev/null\nexit 0",
+  "withRoots": "set -u\nwsp_dest() {\n  case \"$1\" in\n    ('.codex'/*) root='/var/lib/wsp/logins/codex'; sub=${1#'.codex'/}; top=\"$home\"/'.codex' ;;\n    ('.odd'\\''dir'/*) root='/srv/store with space'; sub=${1#'.odd'\\''dir'/}; top=\"$home\"/'.odd'\\''dir' ;;\n    (*) root=$home; sub=$1; top=$home ;;\n  esac\n  dest=\"$root/$sub\"\n}\nhome='/root'; ledger='/root/.wsp/provision/landed'\n[ -f \"$ledger\" ] || exit 0\ntab=$(printf \"\\t\")\n: > \"$ledger.new\" || exit 1\nwhile IFS=\"$tab\" read -r rel from at; do\n  case \"$rel\" in ('.claude/skills/a'|'.claude/skills/a'/*|'.codex/prompts'|'.codex/prompts'/*|'.codex'|'.codex'/*|'.odd'\\''dir/x y'|'.odd'\\''dir/x y'/*) ;; (*) printf \"%s\\t%s\\t%s\\n\" \"$rel\" \"$from\" \"$at\" >> \"$ledger.new\"; continue ;; esac\n  case \"/$rel/\" in (*/../*) continue ;; esac\n  wsp_dest \"$rel\"\n  if [ ! -e \"$dest\" ] && [ \"$dest\" != \"$home/$rel\" ]; then root=$home; sub=$rel; dest=\"$home/$rel\"; fi\n  [ -e \"$dest\" ] || continue\n  if [ \"$(readlink -f -- \"$dest\")\" = \"$(readlink -f -- \"$root\")/$sub\" ] && [ -f \"$dest\" ] && [ \"$(sha256sum \"$dest\" | cut -d\" \" -f1)\" = \"$at\" ]; then\n    rm -f -- \"$dest\" && printf 'wsp-unland\\tgone\\t%s\\n' \"$rel\"\n  else\n    printf 'wsp-unland\\tkept\\t%s\\n' \"$rel\"\n  fi\ndone < \"$ledger\"\nmv \"$ledger.new\" \"$ledger\" || exit 1\n[ \"$(readlink -f -- '/root/.claude/skills/a' 2>/dev/null)\" = \"$(readlink -f -- '/root')/\"'.claude/skills/a' ] && find '/root/.claude/skills/a' -depth -type d -empty -delete 2>/dev/null\n[ \"$(readlink -f -- '/var/lib/wsp/logins/codex/prompts' 2>/dev/null)\" = \"$(readlink -f -- '/var/lib/wsp/logins/codex')/\"'prompts' ] && find '/var/lib/wsp/logins/codex/prompts' -depth -type d -empty -delete 2>/dev/null\n[ \"$(readlink -f -- '/root/.codex/prompts' 2>/dev/null)\" = \"$(readlink -f -- '/root')/\"'.codex/prompts' ] && find '/root/.codex/prompts' -depth -type d -empty -delete 2>/dev/null\n[ \"$(readlink -f -- '/srv/store with space/x y' 2>/dev/null)\" = \"$(readlink -f -- '/srv/store with space')/\"'x y' ] && find '/srv/store with space/x y' -depth -type d -empty -delete 2>/dev/null\n[ \"$(readlink -f -- '/root/.odd'\\''dir/x y' 2>/dev/null)\" = \"$(readlink -f -- '/root')/\"'.odd'\\''dir/x y' ] && find '/root/.odd'\\''dir/x y' -depth -type d -empty -delete 2>/dev/null\nexit 0"
+ },
+ "outside": {
+  "before": "set -u\nroot=''; prefix=\"$root/opt/wsp\"; ledger=\"$prefix/landed\"\nnl=$(printf '\\nx'); nl=${nl%x}\ntab=$(printf \"\\t\")\nat=\"$prefix/.landing-clis\"\n[ ! -L \"$prefix\" ] && mkdir -p \"$prefix\" 2>/dev/null || exit 0\nrm -f \"$at\".*\nstates() {\n  : > \"$1.files\"\n  while IFS= read -r p; do\n    if [ -L \"$p\" ]; then printf 'link:%s\\t%s\\n' \"$(readlink \"$p\" | sha256sum | cut -c1-64)\" \"$p\"\n    elif [ -d \"$p\" ]; then printf 'dir\\t%s\\n' \"$p\"\n    elif [ -f \"$p\" ]; then printf '%s\\000' \"$p\" >> \"$1.files\"\n    fi\n  done\n  [ ! -s \"$1.files\" ] || xargs -0 sha256sum -z -- < \"$1.files\" | tr '\\000' '\\n' | awk '{ print substr($0, 1, 64) \"\\t\" substr($0, 67) }'\n  rm -f \"$1.files\"\n}\nstill() {\n  find \"$root/usr/local\" \"$root/opt\" \\( -path \"$prefix\" -o -path \"*$nl*\" \\) -prune -o -type d -print > \"$1.dirs\" 2>/dev/null\n  wsp_root=\"$root\" wsp_prefix=\"$prefix\" awk -F\"\\t\" 'NR == FNR { d[$0] = 1; next } { s[substr($0, length($1) + 2)] = $1 } END {\n    r = ENVIRON[\"wsp_root\"]; px = ENVIRON[\"wsp_prefix\"]\n    for (p in s) {\n      q = p; sub(/\\/[^\\/]*$/, \"\", q)\n      if (index(p, r \"/usr/local/\") != 1 && index(p, r \"/opt/\") != 1) continue\n      if (p == px || index(p, px \"/\") == 1 || index(p \"/\", \"/./\") || index(p \"/\", \"/../\") || index(p, \"//\") || !(q in d)) continue\n      print s[p] \"\\t\" p\n    }\n  }' \"$1.dirs\" \"$ledger\" > \"$1.latest\"\n  cut -f2- \"$1.latest\" | states \"$1\" > \"$1.now\"\n  awk -F\"\\t\" 'NR == FNR { s[substr($0, length($1) + 2)] = $1; next } { p = substr($0, length($1) + 2); if ((p in s) && s[p] == $1) print }' \"$1.latest\" \"$1.now\"\n  rm -f \"$1.dirs\" \"$1.latest\" \"$1.now\"\n}\n: > \"$at.mark\" || exit 0\nfind \"$root\"'/usr/local/bin' \"$root\"'/opt' \"$root\"'/usr/local/lib/node_modules' \\( -path \"$prefix\" -o -path \"*$nl*\" \\) -prune -o -print > \"$at.before.found\" 2>/dev/null\n[ $? -lt 128 ] && LC_ALL=C sort \"$at.before.found\" > \"$at.before.part\" && echo wsp-listed >> \"$at.before.part\" && mv \"$at.before.part\" \"$at.before\" || { rm -f \"$at\".*; exit 0; }\nif [ -f \"$ledger\" ] && [ ! -L \"$ledger\" ]; then\n  still \"$at.s\" | cut -f2- | LC_ALL=C sort -u > \"$at.ours.part\" && mv \"$at.ours.part\" \"$at.ours\"\nfi\nexit 0",
+  "beforeRooted": "set -u\nroot='/tmp/scratch root'; prefix=\"$root/opt/wsp\"; ledger=\"$prefix/landed\"\nnl=$(printf '\\nx'); nl=${nl%x}\ntab=$(printf \"\\t\")\nat=\"$prefix/.landing-floor\"\n[ ! -L \"$prefix\" ] && mkdir -p \"$prefix\" 2>/dev/null || exit 0\nrm -f \"$at\".*\nstates() {\n  : > \"$1.files\"\n  while IFS= read -r p; do\n    if [ -L \"$p\" ]; then printf 'link:%s\\t%s\\n' \"$(readlink \"$p\" | sha256sum | cut -c1-64)\" \"$p\"\n    elif [ -d \"$p\" ]; then printf 'dir\\t%s\\n' \"$p\"\n    elif [ -f \"$p\" ]; then printf '%s\\000' \"$p\" >> \"$1.files\"\n    fi\n  done\n  [ ! -s \"$1.files\" ] || xargs -0 sha256sum -z -- < \"$1.files\" | tr '\\000' '\\n' | awk '{ print substr($0, 1, 64) \"\\t\" substr($0, 67) }'\n  rm -f \"$1.files\"\n}\nstill() {\n  find \"$root/usr/local\" \"$root/opt\" \\( -path \"$prefix\" -o -path \"*$nl*\" \\) -prune -o -type d -print > \"$1.dirs\" 2>/dev/null\n  wsp_root=\"$root\" wsp_prefix=\"$prefix\" awk -F\"\\t\" 'NR == FNR { d[$0] = 1; next } { s[substr($0, length($1) + 2)] = $1 } END {\n    r = ENVIRON[\"wsp_root\"]; px = ENVIRON[\"wsp_prefix\"]\n    for (p in s) {\n      q = p; sub(/\\/[^\\/]*$/, \"\", q)\n      if (index(p, r \"/usr/local/\") != 1 && index(p, r \"/opt/\") != 1) continue\n      if (p == px || index(p, px \"/\") == 1 || index(p \"/\", \"/./\") || index(p \"/\", \"/../\") || index(p, \"//\") || !(q in d)) continue\n      print s[p] \"\\t\" p\n    }\n  }' \"$1.dirs\" \"$ledger\" > \"$1.latest\"\n  cut -f2- \"$1.latest\" | states \"$1\" > \"$1.now\"\n  awk -F\"\\t\" 'NR == FNR { s[substr($0, length($1) + 2)] = $1; next } { p = substr($0, length($1) + 2); if ((p in s) && s[p] == $1) print }' \"$1.latest\" \"$1.now\"\n  rm -f \"$1.dirs\" \"$1.latest\" \"$1.now\"\n}\n: > \"$at.mark\" || exit 0\nfind \"$root\"'/usr/local/bin' \"$root\"'/opt' \"$root\"'/usr/local/lib/node_modules' \\( -path \"$prefix\" -o -path \"*$nl*\" \\) -prune -o -print > \"$at.before.found\" 2>/dev/null\n[ $? -lt 128 ] && LC_ALL=C sort \"$at.before.found\" > \"$at.before.part\" && echo wsp-listed >> \"$at.before.part\" && mv \"$at.before.part\" \"$at.before\" || { rm -f \"$at\".*; exit 0; }\nif [ -f \"$ledger\" ] && [ ! -L \"$ledger\" ]; then\n  still \"$at.s\" | cut -f2- | LC_ALL=C sort -u > \"$at.ours.part\" && mv \"$at.ours.part\" \"$at.ours\"\nfi\nexit 0",
+  "beforeNone": "exit 0",
+  "after": "set -u\nroot=''; prefix=\"$root/opt/wsp\"; ledger=\"$prefix/landed\"\nnl=$(printf '\\nx'); nl=${nl%x}\ntab=$(printf \"\\t\")\nat=\"$prefix/.landing-clis\"\n[ -f \"$at.mark\" ] && [ ! -L \"$ledger\" ] && [ \"$(tail -n 1 \"$at.before\" 2>/dev/null)\" = wsp-listed ] || { rm -f \"$at\".*; exit 0; }\nstates() {\n  : > \"$1.files\"\n  while IFS= read -r p; do\n    if [ -L \"$p\" ]; then printf 'link:%s\\t%s\\n' \"$(readlink \"$p\" | sha256sum | cut -c1-64)\" \"$p\"\n    elif [ -d \"$p\" ]; then printf 'dir\\t%s\\n' \"$p\"\n    elif [ -f \"$p\" ]; then printf '%s\\000' \"$p\" >> \"$1.files\"\n    fi\n  done\n  [ ! -s \"$1.files\" ] || xargs -0 sha256sum -z -- < \"$1.files\" | tr '\\000' '\\n' | awk '{ print substr($0, 1, 64) \"\\t\" substr($0, 67) }'\n  rm -f \"$1.files\"\n}\nfind \"$root\"'/usr/local/bin' \"$root\"'/opt' \"$root\"'/usr/local/lib/node_modules' \\( -path \"$prefix\" -o -path \"*$nl*\" \\) -prune -o -print > \"$at.after.found\" 2>/dev/null\n[ $? -lt 128 ] && LC_ALL=C sort \"$at.after.found\" > \"$at.after.part\" && echo wsp-listed >> \"$at.after.part\" && mv \"$at.after.part\" \"$at.after\" || { rm -f \"$at\".*; exit 0; }\nfind \"$root\"'/usr/local/bin' \"$root\"'/opt' \"$root\"'/usr/local/lib/node_modules' \\( -path \"$prefix\" -o -path \"*$nl*\" \\) -prune -o -cnewer \"$at.mark\" -print > \"$at.changed.found\" 2>/dev/null\n[ $? -lt 128 ] && LC_ALL=C sort \"$at.changed.found\" > \"$at.changed.part\" && echo wsp-listed >> \"$at.changed.part\" && mv \"$at.changed.part\" \"$at.changed\" || { rm -f \"$at\".*; exit 0; }\n[ -f \"$at.ours\" ] || : > \"$at.ours\"\ncat \"$root\"/var/lib/dpkg/info/*.list 2>/dev/null | wsp_root=\"$root\" awk '{ print ENVIRON[\"wsp_root\"] $0 }' | LC_ALL=C sort -u > \"$at.dpkg\"\n{ LC_ALL=C comm -13 \"$at.before\" \"$at.after\"; LC_ALL=C comm -12 \"$at.changed\" \"$at.ours\"; } | LC_ALL=C sort -u | LC_ALL=C comm -23 - \"$at.dpkg\" | states \"$at\" | while IFS= read -r line; do\n  printf '%s\\n' \"$line\" >> \"$ledger\"\ndone\nrm -f \"$at\".*\nexit 0",
+  "afterRooted": "set -u\nroot='/tmp/scratch root'; prefix=\"$root/opt/wsp\"; ledger=\"$prefix/landed\"\nnl=$(printf '\\nx'); nl=${nl%x}\ntab=$(printf \"\\t\")\nat=\"$prefix/.landing-floor\"\n[ -f \"$at.mark\" ] && [ ! -L \"$ledger\" ] && [ \"$(tail -n 1 \"$at.before\" 2>/dev/null)\" = wsp-listed ] || { rm -f \"$at\".*; exit 0; }\nstates() {\n  : > \"$1.files\"\n  while IFS= read -r p; do\n    if [ -L \"$p\" ]; then printf 'link:%s\\t%s\\n' \"$(readlink \"$p\" | sha256sum | cut -c1-64)\" \"$p\"\n    elif [ -d \"$p\" ]; then printf 'dir\\t%s\\n' \"$p\"\n    elif [ -f \"$p\" ]; then printf '%s\\000' \"$p\" >> \"$1.files\"\n    fi\n  done\n  [ ! -s \"$1.files\" ] || xargs -0 sha256sum -z -- < \"$1.files\" | tr '\\000' '\\n' | awk '{ print substr($0, 1, 64) \"\\t\" substr($0, 67) }'\n  rm -f \"$1.files\"\n}\nfind \"$root\"'/usr/local/bin' \"$root\"'/opt' \"$root\"'/usr/local/lib/node_modules' \\( -path \"$prefix\" -o -path \"*$nl*\" \\) -prune -o -print > \"$at.after.found\" 2>/dev/null\n[ $? -lt 128 ] && LC_ALL=C sort \"$at.after.found\" > \"$at.after.part\" && echo wsp-listed >> \"$at.after.part\" && mv \"$at.after.part\" \"$at.after\" || { rm -f \"$at\".*; exit 0; }\nfind \"$root\"'/usr/local/bin' \"$root\"'/opt' \"$root\"'/usr/local/lib/node_modules' \\( -path \"$prefix\" -o -path \"*$nl*\" \\) -prune -o -cnewer \"$at.mark\" -print > \"$at.changed.found\" 2>/dev/null\n[ $? -lt 128 ] && LC_ALL=C sort \"$at.changed.found\" > \"$at.changed.part\" && echo wsp-listed >> \"$at.changed.part\" && mv \"$at.changed.part\" \"$at.changed\" || { rm -f \"$at\".*; exit 0; }\n[ -f \"$at.ours\" ] || : > \"$at.ours\"\ncat \"$root\"/var/lib/dpkg/info/*.list 2>/dev/null | wsp_root=\"$root\" awk '{ print ENVIRON[\"wsp_root\"] $0 }' | LC_ALL=C sort -u > \"$at.dpkg\"\n{ LC_ALL=C comm -13 \"$at.before\" \"$at.after\"; LC_ALL=C comm -12 \"$at.changed\" \"$at.ours\"; } | LC_ALL=C sort -u | LC_ALL=C comm -23 - \"$at.dpkg\" | states \"$at\" | while IFS= read -r line; do\n  printf '%s\\n' \"$line\" >> \"$ledger\"\ndone\nrm -f \"$at\".*\nexit 0",
+  "afterNone": "exit 0",
+  "sweep": "set -u\nroot=''; prefix=\"$root/opt/wsp\"; ledger=\"$prefix/landed\"\nnl=$(printf '\\nx'); nl=${nl%x}\ntab=$(printf \"\\t\")\n[ -d \"$prefix\" ] && [ ! -L \"$prefix\" ] && [ -f \"$ledger\" ] && [ ! -L \"$ledger\" ] || exit 0\nat=\"$prefix/.leaving\"\nstates() {\n  : > \"$1.files\"\n  while IFS= read -r p; do\n    if [ -L \"$p\" ]; then printf 'link:%s\\t%s\\n' \"$(readlink \"$p\" | sha256sum | cut -c1-64)\" \"$p\"\n    elif [ -d \"$p\" ]; then printf 'dir\\t%s\\n' \"$p\"\n    elif [ -f \"$p\" ]; then printf '%s\\000' \"$p\" >> \"$1.files\"\n    fi\n  done\n  [ ! -s \"$1.files\" ] || xargs -0 sha256sum -z -- < \"$1.files\" | tr '\\000' '\\n' | awk '{ print substr($0, 1, 64) \"\\t\" substr($0, 67) }'\n  rm -f \"$1.files\"\n}\nstill() {\n  find \"$root/usr/local\" \"$root/opt\" \\( -path \"$prefix\" -o -path \"*$nl*\" \\) -prune -o -type d -print > \"$1.dirs\" 2>/dev/null\n  wsp_root=\"$root\" wsp_prefix=\"$prefix\" awk -F\"\\t\" 'NR == FNR { d[$0] = 1; next } { s[substr($0, length($1) + 2)] = $1 } END {\n    r = ENVIRON[\"wsp_root\"]; px = ENVIRON[\"wsp_prefix\"]\n    for (p in s) {\n      q = p; sub(/\\/[^\\/]*$/, \"\", q)\n      if (index(p, r \"/usr/local/\") != 1 && index(p, r \"/opt/\") != 1) continue\n      if (p == px || index(p, px \"/\") == 1 || index(p \"/\", \"/./\") || index(p \"/\", \"/../\") || index(p, \"//\") || !(q in d)) continue\n      print s[p] \"\\t\" p\n    }\n  }' \"$1.dirs\" \"$ledger\" > \"$1.latest\"\n  cut -f2- \"$1.latest\" | states \"$1\" > \"$1.now\"\n  awk -F\"\\t\" 'NR == FNR { s[substr($0, length($1) + 2)] = $1; next } { p = substr($0, length($1) + 2); if ((p in s) && s[p] == $1) print }' \"$1.latest\" \"$1.now\"\n  rm -f \"$1.dirs\" \"$1.latest\" \"$1.now\"\n}\nrm -f \"$at\".*\nstill \"$at.s\" | LC_ALL=C sort -t\"$tab\" -k2 -r > \"$at.take\"\n: > \"$at.files\"; : > \"$at.dirs\"\nwhile IFS=\"$tab\" read -r was p; do\n  if [ \"$was\" = dir ]; then printf '%s\\000' \"$p\" >> \"$at.dirs\"; else printf '%s\\000' \"$p\" >> \"$at.files\"; fi\ndone < \"$at.take\"\nxargs -0 rm -f -- < \"$at.files\"\nxargs -0 rmdir -- < \"$at.dirs\" 2>/dev/null\nwhile IFS=\"$tab\" read -r was p; do\n  [ -e \"$p\" ] || [ -L \"$p\" ] || printf 'wsp-outside\\t%s\\n' \"$p\"\ndone < \"$at.take\"\nrm -f \"$ledger\" \"$at\".*\nexit 0",
+  "sweepTemplate": "set -u\nroot='{root}'; prefix=\"$root/opt/wsp\"; ledger=\"$prefix/landed\"\nnl=$(printf '\\nx'); nl=${nl%x}\ntab=$(printf \"\\t\")\n[ -d \"$prefix\" ] && [ ! -L \"$prefix\" ] && [ -f \"$ledger\" ] && [ ! -L \"$ledger\" ] || exit 0\nat=\"$prefix/.leaving\"\nstates() {\n  : > \"$1.files\"\n  while IFS= read -r p; do\n    if [ -L \"$p\" ]; then printf 'link:%s\\t%s\\n' \"$(readlink \"$p\" | sha256sum | cut -c1-64)\" \"$p\"\n    elif [ -d \"$p\" ]; then printf 'dir\\t%s\\n' \"$p\"\n    elif [ -f \"$p\" ]; then printf '%s\\000' \"$p\" >> \"$1.files\"\n    fi\n  done\n  [ ! -s \"$1.files\" ] || xargs -0 sha256sum -z -- < \"$1.files\" | tr '\\000' '\\n' | awk '{ print substr($0, 1, 64) \"\\t\" substr($0, 67) }'\n  rm -f \"$1.files\"\n}\nstill() {\n  find \"$root/usr/local\" \"$root/opt\" \\( -path \"$prefix\" -o -path \"*$nl*\" \\) -prune -o -type d -print > \"$1.dirs\" 2>/dev/null\n  wsp_root=\"$root\" wsp_prefix=\"$prefix\" awk -F\"\\t\" 'NR == FNR { d[$0] = 1; next } { s[substr($0, length($1) + 2)] = $1 } END {\n    r = ENVIRON[\"wsp_root\"]; px = ENVIRON[\"wsp_prefix\"]\n    for (p in s) {\n      q = p; sub(/\\/[^\\/]*$/, \"\", q)\n      if (index(p, r \"/usr/local/\") != 1 && index(p, r \"/opt/\") != 1) continue\n      if (p == px || index(p, px \"/\") == 1 || index(p \"/\", \"/./\") || index(p \"/\", \"/../\") || index(p, \"//\") || !(q in d)) continue\n      print s[p] \"\\t\" p\n    }\n  }' \"$1.dirs\" \"$ledger\" > \"$1.latest\"\n  cut -f2- \"$1.latest\" | states \"$1\" > \"$1.now\"\n  awk -F\"\\t\" 'NR == FNR { s[substr($0, length($1) + 2)] = $1; next } { p = substr($0, length($1) + 2); if ((p in s) && s[p] == $1) print }' \"$1.latest\" \"$1.now\"\n  rm -f \"$1.dirs\" \"$1.latest\" \"$1.now\"\n}\nrm -f \"$at\".*\nstill \"$at.s\" | LC_ALL=C sort -t\"$tab\" -k2 -r > \"$at.take\"\n: > \"$at.files\"; : > \"$at.dirs\"\nwhile IFS=\"$tab\" read -r was p; do\n  if [ \"$was\" = dir ]; then printf '%s\\000' \"$p\" >> \"$at.dirs\"; else printf '%s\\000' \"$p\" >> \"$at.files\"; fi\ndone < \"$at.take\"\nxargs -0 rm -f -- < \"$at.files\"\nxargs -0 rmdir -- < \"$at.dirs\" 2>/dev/null\nwhile IFS=\"$tab\" read -r was p; do\n  [ -e \"$p\" ] || [ -L \"$p\" ] || printf 'wsp-outside\\t%s\\n' \"$p\"\ndone < \"$at.take\"\nrm -f \"$ledger\" \"$at\".*\nexit 0"
+ },
+ "parseStanding": {
+  "input": "wsp-stand\td1\t.a/b\u0000wsp-ledger\t.a/b\td2\u0000wsp-stand\td3\tpath\twith\ttabs\u0000wsp-stand\tonly-two\u0000junk\u0000wsp-ledger\tx\ty\tz\u0000wsp-stand\td4\t.a/b\u0000\u0000",
+  "at": [
+   [
+    ".a/b",
+    "d4"
+   ],
+   [
+    "path\twith\ttabs",
+    "d3"
+   ]
+  ],
+  "listed": [
+   [
+    ".a/b",
+    "d2"
+   ],
+   [
+    "x",
+    "y"
+   ]
+  ]
+ },
+ "parseLanded": {
+  "input": "wsp-land\tinstalled\td\ta/b\nwsp-land\tbogus\td\tx\nwsp-land\tkept\td\nwsp-land\tpresent\td\tp\tq\nxwsp-land\tfailed\td\tz\nwsp-land\tfailed\td\t\n",
+  "out": [
+   {
+    "outcome": "installed",
+    "rel": "a/b"
+   },
+   {
+    "outcome": "present",
+    "rel": "p\tq"
+   },
+   {
+    "outcome": "failed",
+    "rel": ""
+   }
+  ]
+ },
+ "parseLandedServers": {
+  "input": "wsp-server\td1\tagents/mcp/claude/a\nwsp-server\td2\nwsp-server\td3\tagents/mcp/x\ty\nwsp-server\td4\tagents/mcp/claude/a\nother\td\tid",
+  "out": [
+   [
+    "agents/mcp/claude/a",
+    "d4"
+   ],
+   [
+    "agents/mcp/x\ty",
+    "d3"
+   ]
+  ]
+ },
+ "ownMarks": {
+  "input": "wsp-own\t.a/b\nwsp-own\t\nwsp-own\t/abs\nwsp-own\ta/../b\nwsp-own\ta/..b\nwsp-own\tt\tab\nnope\tx\nwsp-own\t..",
+  "out": [
+   ".a/b",
+   "a/..b",
+   "t\tab"
+  ]
+ },
+ "outsideMarks": {
+  "input": "wsp-outside\t/usr/local/bin/claude\nsomething else\nwsp-outside\trelative\nwsp-outside\t\nwsp-outside\t/opt/a\tb\n",
+  "out": [
+   "/usr/local/bin/claude",
+   "/opt/a\tb"
+  ]
+ },
+ "serverDigest": {
+  "": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "{\"command\":\"npx\"}": "084a7d16667072b79aaf40cda4063e5e5471278ca8f765d6b897a6ef9883c11b",
+  "é": "4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c"
+ },
+ "mergedIntoLine": {
+  "none": "none of this computer's servers merged into it",
+  "two": "this computer's a, b merged into it"
+ },
+ "serversOutLines": {
+  "took": [
+   "a, b (out of /root/.claude.json)"
+  ],
+  "unread": [
+   "wsp's MCP servers were not looked for in /root/.claude.json: it is a link"
+  ]
+ },
+ "storeRoots": {
+  "stores": {
+   "codex": "/var/lib/wsp/logins/codex",
+   "claude": "/root/.claude-cfg",
+   "gemini": "/root/.gemini"
+  },
+  "roots": [
+   [
+    ".codex",
+    "/var/lib/wsp/logins/codex"
+   ]
+  ],
+  "landedAt": [
+   [
+    ".codex",
+    "/var/lib/wsp/logins/codex"
+   ],
+   [
+    ".codex/AGENTS.md",
+    "/var/lib/wsp/logins/codex/AGENTS.md"
+   ],
+   [
+    ".codexx/a",
+    "/root/.codexx/a"
+   ],
+   [
+    ".claude-cfg/CLAUDE.md",
+    "/root/.claude-cfg/CLAUDE.md"
+   ],
+   [
+    ".gemini/GEMINI.md",
+    "/root/.gemini/GEMINI.md"
+   ]
+  ]
+ },
+ "agentStateFile": [
+  [
+   "agents/claude",
+   "/root/.claude/skills/x/SKILL.md",
+   true
+  ],
+  [
+   "agents/claude",
+   "/root/.claude",
+   true
+  ],
+  [
+   "agents/claude",
+   "/root/.claudex/a",
+   false
+  ],
+  [
+   "agents/mcp/claude/github",
+   "/root/.claude.json",
+   true
+  ],
+  [
+   "agents/mcp/claude/@%2Froot%2Frepo/github",
+   "/root/.claude.json",
+   true
+  ],
+  [
+   "agents/mcp/mcp-remote",
+   "/root/.mcp-auth/x",
+   false
+  ],
+  [
+   "agents/codex",
+   "/root/.codex/config.toml",
+   true
+  ],
+  [
+   "agents/opencode",
+   "/root/.config/opencode/opencode.json",
+   true
+  ],
+  [
+   "agents/nobody",
+   "/root/.nobody/x",
+   false
+  ]
+ ],
+ "filesRows": {
+  "lands": [
+   {
+    "id": "agents/claude",
+    "label": "Claude Code",
+    "dest": ".claude-cfg/skills"
+   },
+   {
+    "id": "agents/claude",
+    "label": "Claude Code",
+    "dest": ".claude-cfg/skills/why"
+   },
+   {
+    "id": "agents/codex",
+    "label": "Codex",
+    "dest": ".codex/AGENTS.md"
+   },
+   {
+    "id": "agents/codex",
+    "label": "Codex",
+    "dest": ".codex/config.toml",
+    "once": true
+   },
+   {
+    "id": "agents/gemini",
+    "label": "Gemini CLI",
+    "dest": ".gemini/GEMINI.md"
+   },
+   {
+    "id": "agents/claude",
+    "label": "Claude Code",
+    "dest": ".claude-cfg/CLAUDE.md"
+   }
+  ],
+  "landed": [
+   {
+    "outcome": "installed",
+    "rel": ".claude-cfg/skills/a/SKILL.md"
+   },
+   {
+    "outcome": "kept",
+    "rel": ".claude-cfg/skills/b/SKILL.md"
+   },
+   {
+    "outcome": "kept",
+    "rel": ".claude-cfg/skills/c/SKILL.md"
+   },
+   {
+    "outcome": "kept",
+    "rel": ".claude-cfg/skills/d/SKILL.md"
+   },
+   {
+    "outcome": "kept",
+    "rel": ".claude-cfg/skills/e/SKILL.md"
+   },
+   {
+    "outcome": "present",
+    "rel": ".claude-cfg/skills/why/SKILL.md"
+   },
+   {
+    "outcome": "failed",
+    "rel": ".claude-cfg/skills/why/refs.md"
+   },
+   {
+    "outcome": "present",
+    "rel": ".codex/config.toml"
+   },
+   {
+    "outcome": "kept",
+    "rel": ".gemini/GEMINI.md"
+   },
+   {
+    "outcome": "installed",
+    "rel": ".loose/hook.sh"
+   },
+   {
+    "outcome": "present",
+    "rel": ".loose/two.sh"
+   }
+  ],
+  "rows": [
+   {
+    "id": "files/.claude-cfg/skills",
+    "label": "Claude Code /root/.claude-cfg/skills",
+    "outcome": "installed",
+    "kind": "file",
+    "note": "1 of 5 files; 4 already there with other content: .claude-cfg/skills/b/SKILL.md, .claude-cfg/skills/c/SKILL.md, .claude-cfg/skills/d/SKILL.md and 1 more"
+   },
+   {
+    "id": "files/.claude-cfg/skills/why",
+    "label": "Claude Code /root/.claude-cfg/skills/why",
+    "outcome": "failed",
+    "kind": "file",
+    "note": "could not be written: .claude-cfg/skills/why/refs.md"
+   },
+   {
+    "id": "files/.codex/AGENTS.md",
+    "label": "Codex /var/lib/wsp/logins/codex/AGENTS.md",
+    "outcome": "skipped",
+    "kind": "file",
+    "note": "nothing of it travelled"
+   },
+   {
+    "id": "files/.codex/config.toml",
+    "label": "Codex /var/lib/wsp/logins/codex/config.toml",
+    "outcome": "present",
+    "kind": "file",
+    "note": "already there before this run, so it stands as it was"
+   },
+   {
+    "id": "files/.gemini/GEMINI.md",
+    "label": "Gemini CLI /root/.gemini/GEMINI.md",
+    "outcome": "skipped",
+    "kind": "file",
+    "note": "already there with other content: .gemini/GEMINI.md"
+   },
+   {
+    "id": "files/.claude-cfg/CLAUDE.md",
+    "label": "Claude Code /root/.claude-cfg/CLAUDE.md",
+    "outcome": "skipped",
+    "kind": "file",
+    "note": "nothing of it travelled"
+   },
+   {
+    "id": "files/.loose/hook.sh",
+    "label": "/root/.loose/hook.sh",
+    "outcome": "installed",
+    "kind": "file"
+   },
+   {
+    "id": "files/.loose/two.sh",
+    "label": "/root/.loose/two.sh",
+    "outcome": "present",
+    "kind": "file"
+   }
+  ]
+ },
+ "mcpLines": {
+  "their": "gsc in /root/.claude.json is Claude Code's own under that name; wsp does not write over it",
+  "unreached": "its key in GITHUB_TOKEN, API_KEY does not reach Codex's threads on that computer yet",
+  "untrusted": "Codex reads them only in a folder it trusts, and /root/repo could not be marked trusted (the file is a link)",
+  "noCopy": "nothing of this computer's copy of /root/.claude.json arrived this run"
+ },
+ "atHome": {
+  "same": true,
+  "rewrites": [
+   [
+    "/Users/dev/",
+    "/home/dev/"
+   ],
+   [
+    "/Users/dev/bin",
+    "/home/dev/bin"
+   ],
+   [
+    "/opt/x/",
+    "/opt/y/"
+   ],
+   [
+    "/Users/dev",
+    "/home/dev"
+   ]
+  ],
+  "guestHome": "/home/dev",
+  "binDirs": [
+   "/Users/dev/.local/bin/"
+  ],
+  "scopes": [
+   [
+    {
+     "files": [
+      "/home/dev/.claude-cfg/.claude.json",
+      "/rootx/a",
+      "/home/dev"
+     ],
+     "project": {
+      "from": "/Users/dev/repo",
+      "to": "/home/dev/repo"
+     }
+    },
+    {
+     "files": [
+      "/elsewhere/c.json"
+     ],
+     "project": null
+    }
+   ],
+   [
+    {
+     "files": [
+      "/home/dev/.codex/config.toml"
+     ],
+     "project": null
+    }
+   ]
+  ]
+ },
+ "presenceTests": [
+  {
+   "name": "nothing",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true"
+   },
+   "asked": [],
+   "any": []
+  },
+  {
+   "name": "check",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "check": "x --version"
+   },
+   "asked": [
+    "( x --version ) >/dev/null 2>&1"
+   ],
+   "any": [
+    "( x --version ) >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "present over check",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "check": "brew list --versions x",
+    "present": "test -e /home/linuxbrew/.linuxbrew/opt/x"
+   },
+   "asked": [
+    "( test -e /home/linuxbrew/.linuxbrew/opt/x ) >/dev/null 2>&1"
+   ],
+   "any": [
+    "( test -e /home/linuxbrew/.linuxbrew/opt/x ) >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "bin",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x"
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "check and bin",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "check": "x --help",
+    "bin": "it's"
+   },
+   "asked": [
+    "( x --help ) >/dev/null 2>&1",
+    "command -v 'it'\\''s' >/dev/null 2>&1"
+   ],
+   "any": [
+    "( x --help ) >/dev/null 2>&1",
+    "command -v 'it'\\''s' >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "pin read alone",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "pin": {
+     "read": "x --version",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "[ -n \"$( ( x --version ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ],
+   "any": [
+    "[ -n \"$( ( x --version ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "pin read with asks",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1.2.3",
+    "pin": {
+     "read": "x --version",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ \"$( ( x --version ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1.2.3' ]"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ -n \"$( ( x --version ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "agent pin read with asks",
+   "step": {
+    "id": "agents/claude",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "claude",
+    "asks": "2.1.0",
+    "pin": {
+     "read": "claude --version | cut -d' ' -f1",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'claude' >/dev/null 2>&1",
+    "printf '%s\\n' '2.1.0' \"$( ( claude --version | cut -d' ' -f1 ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" | sort -V -C"
+   ],
+   "any": [
+    "command -v 'claude' >/dev/null 2>&1",
+    "[ -n \"$( ( claude --version | cut -d' ' -f1 ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "below",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1.2.3",
+    "below": {
+     "node": "20.0.0",
+     "asks": "1.0.0"
+    },
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1",
+    "if node --version 2>/dev/null | awk -F. -v a=20 -v b=0 'NR==1{sub(/^v/,\"\",$1); ok=($1+0>a||($1+0==a&&$2+0>=b))} END{exit !ok}'; then [ \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1.2.3' ]; else [ \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1.0.0' ]; fi"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "below no asks",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1.2.3",
+    "below": {
+     "node": "20.0.0"
+    },
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1",
+    "if node --version 2>/dev/null | awk -F. -v a=20 -v b=0 'NR==1{sub(/^v/,\"\",$1); ok=($1+0>a||($1+0==a&&$2+0>=b))} END{exit !ok}'; then [ \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1.2.3' ]; else [ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]; fi"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "pin read but check",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "check": "c",
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "( c ) >/dev/null 2>&1"
+   ],
+   "any": [
+    "( c ) >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "below, step asks nothing",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "below": {
+     "node": "20.0.0",
+     "asks": "1.0.0"
+    },
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "if node --version 2>/dev/null | awk -F. -v a=20 -v b=0 'NR==1{sub(/^v/,\"\",$1); ok=($1+0>a||($1+0==a&&$2+0>=b))} END{exit !ok}'; then [ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]; else [ \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1.0.0' ]; fi"
+   ],
+   "any": [
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "agent below with asks",
+   "step": {
+    "id": "agents/claude",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "claude",
+    "asks": "2.1.0",
+    "below": {
+     "node": "22.1.0",
+     "asks": "1.0.0"
+    },
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'claude' >/dev/null 2>&1",
+    "if node --version 2>/dev/null | awk -F. -v a=22 -v b=1 'NR==1{sub(/^v/,\"\",$1); ok=($1+0>a||($1+0==a&&$2+0>=b))} END{exit !ok}'; then printf '%s\\n' '2.1.0' \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" | sort -V -C; else printf '%s\\n' '1.0.0' \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" | sort -V -C; fi"
+   ],
+   "any": [
+    "command -v 'claude' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "agent below no asks",
+   "step": {
+    "id": "agents/claude",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "claude",
+    "asks": "2.1.0",
+    "below": {
+     "node": "22.1.0"
+    },
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'claude' >/dev/null 2>&1",
+    "if node --version 2>/dev/null | awk -F. -v a=22 -v b=1 'NR==1{sub(/^v/,\"\",$1); ok=($1+0>a||($1+0==a&&$2+0>=b))} END{exit !ok}'; then printf '%s\\n' '2.1.0' \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" | sort -V -C; else [ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]; fi"
+   ],
+   "any": [
+    "command -v 'claude' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "agents/node is an agent row",
+   "step": {
+    "id": "agents/node",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "node",
+    "asks": "22.0.0",
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'node' >/dev/null 2>&1",
+    "printf '%s\\n' '22.0.0' \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" | sort -V -C"
+   ],
+   "any": [
+    "command -v 'node' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "agents/codex/bubblewrap is an agent row",
+   "step": {
+    "id": "agents/codex/bubblewrap",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "bwrap",
+    "asks": "1.0.0",
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'bwrap' >/dev/null 2>&1",
+    "printf '%s\\n' '1.0.0' \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" | sort -V -C"
+   ],
+   "any": [
+    "command -v 'bwrap' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "agents/mcp/claude/x is not",
+   "step": {
+    "id": "agents/mcp/claude/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1.0.0",
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1.0.0' ]"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "empty check",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "check": ""
+   },
+   "asked": [
+    "(  ) >/dev/null 2>&1"
+   ],
+   "any": [
+    "(  ) >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "empty bin",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": ""
+   },
+   "asked": [
+    "command -v '' >/dev/null 2>&1"
+   ],
+   "any": [
+    "command -v '' >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "empty asks",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "",
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '' ]"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "asks with a quote",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1'2",
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1'\\''2' ]"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "asks, pin without read",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1.0.0",
+    "pin": {
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "asks, no pin",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1.0.0"
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "pin read with a newline",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1",
+    "pin": {
+     "read": "a\nb",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ \"$( ( a\nb ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1' ]"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ -n \"$( ( a\nb ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  }
+ ],
+ "presentByWhatWaits": {
+  "all": [
+   "apt-index"
+  ],
+  "one": []
+ },
+ "presentElsewhere": [
+  "rg answers from /usr/bin/rg, outside where Homebrew puts it (/home/linuxbrew/.linuxbrew/bin)",
+  null,
+  "rg answers from /home/linuxbrew/.linuxbrew/binx/rg, outside where Homebrew puts it (/home/linuxbrew/.linuxbrew/bin)",
+  null,
+  null,
+  null
+ ],
+ "outsideRoots": {
+  "each": [
+   [
+    "apt",
+    [
+     "/usr/local"
+    ]
+   ],
+   [
+    "brew",
+    [
+     "/usr/local/bin"
+    ]
+   ],
+   [
+    "npm",
+    [
+     "/usr/local/bin",
+     "/usr/local/lib/node_modules"
+    ]
+   ],
+   [
+    "pnpm",
+    []
+   ],
+   [
+    "bun",
+    []
+   ],
+   [
+    "uv",
+    []
+   ],
+   [
+    "pipx",
+    []
+   ],
+   [
+    "cargo",
+    []
+   ],
+   [
+    "go",
+    []
+   ],
+   [
+    "release",
+    [
+     "/usr/local/bin"
+    ]
+   ],
+   [
+    "vendor",
+    [
+     "/opt",
+     "/usr/local/bin"
+    ]
+   ],
+   [
+    "script",
+    [
+     "/opt",
+     "/usr/local"
+    ]
+   ]
+  ],
+  "mixed": [
+   "/opt",
+   "/usr/local/bin",
+   "/usr/local/go/bin",
+   "/usr/local/lib/node_modules"
+  ],
+  "agentsOnly": [
+   "/usr/local/bin",
+   "/usr/local/lib/node_modules"
+  ],
+  "clisAfterAgents": [
+   "/usr/local/bin"
+  ]
+ },
+ "provisionCountsOf": {
+  "tool": 2,
+  "file": 3,
+  "server": 4
+ },
+ "folderExportScript": {
+  "plain": "set -eo pipefail\ncd '/root/repo'\nfind '.' -mindepth 1 -path '*/.git' -prune -o \\( \\( -type d \\( -name 'node_modules' -o -name '.next' -o -name 'it'\\''s' \\) \\) -o \\( -type f \\( -name 'dist' \\) \\) -o \\( -type d -exec test -f '{}/CACHEDIR.TAG' \\; \\) -o \\( -type d -exec test -f '{}/.wsp-cache' \\; \\) \\) -prune -print > '/tmp/wsp-out-1.tgz.list'\nprintf '%s\\0' '.' > '/tmp/wsp-out-1.tgz.keep'\nfind '.' -mindepth 1 \\( -path '*/.git' -o -path '*/.git/*' \\) -print0 -o \\( \\( -type d \\( -name 'node_modules' -o -name '.next' -o -name 'it'\\''s' \\) \\) -o \\( -type f \\( -name 'dist' \\) \\) -o \\( -type d -exec test -f '{}/CACHEDIR.TAG' \\; \\) -o \\( -type d -exec test -f '{}/.wsp-cache' \\; \\) \\) -prune -o -print0 >> '/tmp/wsp-out-1.tgz.keep'\ntar czf '/tmp/wsp-out-1.tgz' --no-recursion --null -T '/tmp/wsp-out-1.tgz.keep'\nsed 's|^\\./||' '/tmp/wsp-out-1.tgz.list'\nrm -f '/tmp/wsp-out-1.tgz.list' '/tmp/wsp-out-1.tgz.keep'",
+  "emptyRule": "set -eo pipefail\ncd '/srv/a b'\nfind '.' -mindepth 1 -path '*/.git' -prune -o \\( -false \\) -prune -print > '/tmp/o.tgz.list'\nprintf '%s\\0' '.' > '/tmp/o.tgz.keep'\nfind '.' -mindepth 1 \\( -path '*/.git' -o -path '*/.git/*' \\) -print0 -o \\( -false \\) -prune -o -print0 >> '/tmp/o.tgz.keep'\ntar czf '/tmp/o.tgz' --no-recursion --null -T '/tmp/o.tgz.keep'\nsed 's|^\\./||' '/tmp/o.tgz.list'\nrm -f '/tmp/o.tgz.list' '/tmp/o.tgz.keep'"
+ },
+ "exportPaths": {
+  "none": {
+   "runs": [
+    "tar czf '/tmp/wsp-vault-1760000000123-i.tgz' --no-recursion --null -T /dev/null"
+   ],
+   "execs": [
+    "rm -f '/tmp/wsp-vault-1760000000123-i.tgz' '/tmp/wsp-vault-1760000000123-i.tgz.list' '/tmp/wsp-vault-1760000000123-i.tgz.keep'"
+   ]
+  },
+  "plain": {
+   "runs": [
+    "tar czf '/tmp/wsp-vault-1760000000123-i.tgz' -C '/' 'root/.claude' 'relative/dir' 'root/it'\\''s'"
+   ],
+   "execs": [
+    "rm -f '/tmp/wsp-vault-1760000000123-i.tgz' '/tmp/wsp-vault-1760000000123-i.tgz.list' '/tmp/wsp-vault-1760000000123-i.tgz.keep'"
+   ]
+  },
+  "leave": {
+   "runs": [
+    "tar czf '/tmp/wsp-vault-1760000000123-i.tgz' --exclude='root/.claude/projects' --exclude='root/it'\\''s here' -C '/' 'root/.claude'"
+   ],
+   "execs": [
+    "rm -f '/tmp/wsp-vault-1760000000123-i.tgz' '/tmp/wsp-vault-1760000000123-i.tgz.list' '/tmp/wsp-vault-1760000000123-i.tgz.keep'"
+   ]
+  },
+  "rule": {
+   "runs": [
+    "set -eo pipefail\ncd '/'\nfind 'root/repo' -mindepth 1 -path '*/.git' -prune -o \\( \\( -type d \\( -name 'node_modules' -o -name '.next' -o -name 'it'\\''s' \\) \\) -o \\( -type f \\( -name 'dist' \\) \\) -o \\( -type d -exec test -f '{}/CACHEDIR.TAG' \\; \\) -o \\( -type d -exec test -f '{}/.wsp-cache' \\; \\) \\) -prune -print > '/tmp/wsp-vault-1760000000123-i.tgz.list'\nprintf '%s\\0' 'root/repo' > '/tmp/wsp-vault-1760000000123-i.tgz.keep'\nfind 'root/repo' -mindepth 1 \\( -path '*/.git' -o -path '*/.git/*' \\) -print0 -o \\( \\( -type d \\( -name 'node_modules' -o -name '.next' -o -name 'it'\\''s' \\) \\) -o \\( -type f \\( -name 'dist' \\) \\) -o \\( -type d -exec test -f '{}/CACHEDIR.TAG' \\; \\) -o \\( -type d -exec test -f '{}/.wsp-cache' \\; \\) \\) -prune -o -print0 >> '/tmp/wsp-vault-1760000000123-i.tgz.keep'\ntar czf '/tmp/wsp-vault-1760000000123-i.tgz' --exclude='root/repo/.env' --no-recursion --null -T '/tmp/wsp-vault-1760000000123-i.tgz.keep'\nsed 's|^\\./||' '/tmp/wsp-vault-1760000000123-i.tgz.list'\nrm -f '/tmp/wsp-vault-1760000000123-i.tgz.list' '/tmp/wsp-vault-1760000000123-i.tgz.keep'"
+   ],
+   "execs": [
+    "rm -f '/tmp/wsp-vault-1760000000123-i.tgz' '/tmp/wsp-vault-1760000000123-i.tgz.list' '/tmp/wsp-vault-1760000000123-i.tgz.keep'"
+   ]
+  },
+  "allCaches": {
+   "runs": [],
+   "execs": [],
+   "error": "vault export: every path named is a cache under the rule (/root/node_modules, /root/dist/), so there is nothing to archive"
+  },
+  "capped": {
+   "runs": [
+    "tar czf '/tmp/wsp-vault-1760000000123-i.tgz' -C '/' 'root/a'"
+   ],
+   "execs": [
+    "wc -c < '/tmp/wsp-vault-1760000000123-i.tgz'",
+    "rm -f '/tmp/wsp-vault-1760000000123-i.tgz' '/tmp/wsp-vault-1760000000123-i.tgz.list' '/tmp/wsp-vault-1760000000123-i.tgz.keep'"
+   ],
+   "error": "the export was 12 B, over the 11 B cap"
+  }
+ },
+ "importInto": {
+  "sha256": "847968c222abfd4f4071e145de76aa2ee8566c863f8cb560f1f2dcaca04202bd",
+  "replace": {
+   "runs": [
+    "set -eo pipefail\ntrap \"rm -f '/tmp/wsp-vault-in-1760000000123-i.tgz'\" EXIT\nsum=$(cat '/tmp/wsp-vault-in-1760000000123-i.tgz' | sha256sum | cut -d' ' -f1)\ntest \"$sum\" = 847968c222abfd4f4071e145de76aa2ee8566c863f8cb560f1f2dcaca04202bd || exit 65\nmkdir -p '/root'\ncat '/tmp/wsp-vault-in-1760000000123-i.tgz' | tar xzf - -C '/root' --recursive-unlink"
+   ],
+   "execs": [],
+   "parts": 1
+  },
+  "overlay": {
+   "runs": [
+    "set -eo pipefail\ntrap \"rm -f '/root/.wsp/provision/wsp-vault-in-1760000000123-i.tgz'\" EXIT\nsum=$(cat '/root/.wsp/provision/wsp-vault-in-1760000000123-i.tgz' | sha256sum | cut -d' ' -f1)\ntest \"$sum\" = 847968c222abfd4f4071e145de76aa2ee8566c863f8cb560f1f2dcaca04202bd || exit 65\nmkdir -p '/root/dest dir'\ncat '/root/.wsp/provision/wsp-vault-in-1760000000123-i.tgz' | tar xzf - -C '/root/dest dir' --no-same-owner"
+   ],
+   "execs": [],
+   "parts": 1
+  },
+  "leave": {
+   "runs": [
+    "set -eo pipefail\nd='/root'; k='/tmp/wsp-vault-keep-1760000000123-i'\nback() { for r in '.claude/projects' 'it'\\''s'; do if { [ -e \"$k/$r\" ] || [ -L \"$k/$r\" ]; }; then mkdir -p \"$d/$(dirname \"$r\")\" && rm -rf \"$d/$r\" && mv \"$k/$r\" \"$d/$r\"; fi; done; rm -rf \"$k\"; rm -f '/tmp/wsp-vault-in-1760000000123-i.tgz'; }\ntrap back EXIT\nsum=$(cat '/tmp/wsp-vault-in-1760000000123-i.tgz' | sha256sum | cut -d' ' -f1)\ntest \"$sum\" = 847968c222abfd4f4071e145de76aa2ee8566c863f8cb560f1f2dcaca04202bd || exit 65\nmkdir -p '/root'\nfor r in '.claude/projects' 'it'\\''s'; do if { [ -e \"$d/$r\" ] || [ -L \"$d/$r\" ]; }; then mkdir -p \"$k/$(dirname \"$r\")\" && mv \"$d/$r\" \"$k/$r\"; fi; done\ncat '/tmp/wsp-vault-in-1760000000123-i.tgz' | tar xzf - --exclude='.claude/projects' --exclude='it'\\''s' -C '/root' --recursive-unlink"
+   ],
+   "execs": [],
+   "parts": 1
+  },
+  "empty": {
+   "runs": [],
+   "execs": [],
+   "error": "vault import: empty archive, nothing to import"
+  }
+ },
+ "landBundle": {
+  "fresh": {
+   "runs": [
+    "set -eo pipefail\ntrap \"rm -f '/tmp/wsp-vault-in-1760000000123-i.tgz'\" EXIT\nsum=$(cat '/tmp/wsp-vault-in-1760000000123-i.tgz' | sha256sum | cut -d' ' -f1)\ntest \"$sum\" = 847968c222abfd4f4071e145de76aa2ee8566c863f8cb560f1f2dcaca04202bd || exit 65\nmkdir -p '/srv/app.wsp-in-1760000000123-i'\ncat '/tmp/wsp-vault-in-1760000000123-i.tgz' | tar xzf - -C '/srv/app.wsp-in-1760000000123-i' --no-same-owner",
+    "set -e\ntrap \"rm -rf '/srv/app.wsp-in-1760000000123-i'\" EXIT\nmkdir -p '/srv'\ntest ! -e '/srv/app' || exit 66\nmv '/srv/app.wsp-in-1760000000123-i' '/srv/app'"
+   ],
+   "execs": [
+    "test -e '/srv/app' && echo yes || echo no"
+   ]
+  },
+  "replace": {
+   "runs": [
+    "set -eo pipefail\ntrap \"rm -f '/tmp/wsp-vault-in-1760000000123-i.tgz'\" EXIT\nsum=$(cat '/tmp/wsp-vault-in-1760000000123-i.tgz' | sha256sum | cut -d' ' -f1)\ntest \"$sum\" = 847968c222abfd4f4071e145de76aa2ee8566c863f8cb560f1f2dcaca04202bd || exit 65\nmkdir -p '/srv/app.wsp-in-1760000000123-i'\ncat '/tmp/wsp-vault-in-1760000000123-i.tgz' | tar xzf - -C '/srv/app.wsp-in-1760000000123-i' --no-same-owner",
+    "set -e\ntrap \"rm -rf '/srv/app.wsp-in-1760000000123-i'\" EXIT\nmkdir -p '/srv'\nrm -rf '/srv/app'\nmv '/srv/app.wsp-in-1760000000123-i' '/srv/app'"
+   ],
+   "execs": [
+    "test -e '/srv/app' && echo yes || echo no"
+   ]
+  },
+  "relative": {
+   "runs": [],
+   "execs": [],
+   "error": "destination must be an absolute path below /, got srv/app"
+  },
+  "root": {
+   "runs": [],
+   "execs": [],
+   "error": "destination must be an absolute path below /, got /"
+  },
+  "top": {
+   "runs": [
+    "set -eo pipefail\ntrap \"rm -f '/tmp/wsp-vault-in-1760000000123-i.tgz'\" EXIT\nsum=$(cat '/tmp/wsp-vault-in-1760000000123-i.tgz' | sha256sum | cut -d' ' -f1)\ntest \"$sum\" = 847968c222abfd4f4071e145de76aa2ee8566c863f8cb560f1f2dcaca04202bd || exit 65\nmkdir -p '/app.wsp-in-1760000000123-i'\ncat '/tmp/wsp-vault-in-1760000000123-i.tgz' | tar xzf - -C '/app.wsp-in-1760000000123-i' --no-same-owner",
+    "set -e\ntrap \"rm -rf '/app.wsp-in-1760000000123-i'\" EXIT\nmkdir -p '/'\ntest ! -e '/app' || exit 66\nmv '/app.wsp-in-1760000000123-i' '/app'"
+   ],
+   "execs": [
+    "test -e '/app' && echo yes || echo no"
+   ]
+  }
+ },
+ "tarOf": {
+  "mtimeSecs": 1760000000,
+  "entries": [
+   {
+    "path": "/root/.claude/CLAUDE.md",
+    "mode": 420,
+    "content": "aGlzIHN0YW5kaW5nIHJ1bGVzCg=="
+   },
+   {
+    "path": "root/bin/run",
+    "mode": 493,
+    "content": "AAEC/w=="
+   },
+   {
+    "path": "/root/empty",
+    "mode": 448,
+    "dir": true
+   },
+   {
+    "path": "/root/link",
+    "target": "../elsewhere/target"
+   },
+   {
+    "path": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff/name.txt",
+    "mode": 384,
+    "content": "eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4"
+   },
+   {
+    "path": "/root/é.txt",
+    "mode": 420,
+    "content": ""
+   }
+  ],
+  "tarBase64": "cm9vdC8uY2xhdWRlL0NMQVVERS5tZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAwMDA2NDQAMDAwMDAwMAAwMDAwMDAwADAwMDAwMDAwMDIzADE1MDcxNjc0MDAwADAxMzM2NAAgMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB1c3RhcgAwMHJvb3QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcm9vdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABoaXMgc3RhbmRpbmcgcnVsZXMKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHJvb3QvYmluL3J1bgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwMDAwNzU1ADAwMDAwMDAAMDAwMDAwMAAwMDAwMDAwMDAwNAAxNTA3MTY3NDAwMAAwMTIwNzMAIDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAdXN0YXIAMDByb290AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHJvb3QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEC/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAByb290L2VtcHR5AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDAwMDcwMAAwMDAwMDAwADAwMDAwMDAAMDAwMDAwMDAwMDAAMTUwNzE2NzQwMDAAMDExNjQ0ACA1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHVzdGFyADAwcm9vdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAByb290AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHJvb3QvbGluawAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwMDAwNzc3ADAwMDAwMDAAMDAwMDAwMAAwMDAwMDAwMDAwMAAxNTA3MTY3NDAwMAAwMTUwNjMAIDIuLi9lbHNld2hlcmUvdGFyZ2V0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAdXN0YXIAMDByb290AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHJvb3QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmL25hbWUudHh0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAwMDA2MDAAMDAwMDAwMAAwMDAwMDAwADAwMDAwMDAxMDAxADE1MDcxNjc0MDAwADA1NTAxNwAgMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB1c3RhcgAwMHJvb3QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcm9vdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkL2VlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcm9vdC/DqS50eHQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAwMDA2NDQAMDAwMDAwMAAwMDAwMDAwADAwMDAwMDAwMDAwADE1MDcxNjc0MDAwADAxMjE2MQAgMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB1c3RhcgAwMHJvb3QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcm9vdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+ },
+ "fitsTar": {
+  "paths": [
+   [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    true
+   ],
+   [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    false
+   ],
+   [
+    "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+    true
+   ],
+   [
+    "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+    false
+   ],
+   [
+    "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    true
+   ],
+   [
+    "//aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    true
+   ],
+   [
+    "éééééééééééééééééééééééééééééééééééééééééééééééééé",
+    true
+   ],
+   [
+    "ééééééééééééééééééééééééééééééééééééééééééééééééééa",
+    false
+   ],
+   [
+    "x/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    false
+   ],
+   [
+    "pppppppppp/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+    false
+   ]
+  ],
+  "targets": [
+   [
+    "l",
+    "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+    true
+   ],
+   [
+    "l",
+    "ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+    false
+   ],
+   [
+    "l",
+    "éééééééééééééééééééééééééééééééééééééééééééééééééé",
+    true
+   ],
+   [
+    "l",
+    "éééééééééééééééééééééééééééééééééééééééééééééééééét",
+    false
+   ]
+  ]
+ },
+ "tarRefusals": {
+  "tooLong": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa does not fit a ustar header",
+  "linkTooLong": "l links to a target too long for a ustar header"
+ }
+}

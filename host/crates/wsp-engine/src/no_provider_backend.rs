@@ -48,7 +48,7 @@ impl NoProviderBackend {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for NoProviderBackend {
     fn capabilities(&self) -> Capabilities {
         self.capabilities.clone()

@@ -3,18 +3,18 @@
 //! the listings) and spec/solari_machine.md (a machine's exec, pause, resume and reads).
 use std::sync::Arc;
 
+use crate::cancel::Cancel;
 use async_trait::async_trait;
 use indexmap::IndexMap;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use tokio_util::sync::CancellationToken;
 
 use crate::errors::{Result, RetryClock};
 use crate::fetch::Fetch;
 use crate::machine::{
-    BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend, MachineKind,
-    MachineLife, MachineListRow, MachineOffers, MachineShape, MachineSpec, MachineState, OnLine, PreviewReach, RunOptions, Seen, Size,
-    SnapshotOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow, Waiting,
+    BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend,
+    MachineKind, MachineLife, MachineListRow, MachineOffers, MachineShape, MachineSpec, MachineState, OnLine, PreviewReach, RunOptions,
+    Seen, Size, SnapshotOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow, Waiting,
 };
 
 /// solari-backend.ts:22. The budgets a pause and a resume run on, in milliseconds.
@@ -117,7 +117,7 @@ pub fn solari_lifecycle_budgets() -> LifecycleBudgets {
 /// quiet read.
 pub struct SolariLifecycle;
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Lifecycle for SolariLifecycle {
     fn budgets(&self) -> LifecycleBudgets {
         todo!()
@@ -175,13 +175,13 @@ impl SolariBackend {
         path: &str,
         body: Option<Value>,
         cap_ms: Option<f64>,
-        signal: Option<CancellationToken>,
+        signal: Option<&Cancel>,
     ) -> Result<T> {
         todo!()
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for SolariBackend {
     /// solari-backend.ts:162. Every field in spec/solari_call.md; sizes are `[DEFAULT_SIZE]` with its rate.
     fn capabilities(&self) -> Capabilities {
@@ -252,7 +252,7 @@ pub struct SolariMachine {
     replayed: bool,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for SolariMachine {
     fn id(&self) -> &str {
         todo!()
@@ -293,7 +293,7 @@ impl Machine for SolariMachine {
         todo!()
     }
     /// solari-backend.ts:467.
-    async fn resume(&self, signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, signal: Option<&Cancel>) -> Result<()> {
         todo!()
     }
     /// solari-backend.ts:490.

@@ -6,10 +6,10 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use futures::FutureExt;
 use serde_json::{Map, Value};
-use tokio_util::sync::CancellationToken;
+use wsp_engine::cancel::Cancel;
 
 use wsp_engine::errors::{EngineError, Result};
 use wsp_engine::link_backend::{LinkAsk, MachineLink};
@@ -17,7 +17,7 @@ use wsp_engine::machine::{ExecOptions, ExecResult, Framing, Machine, MachineKind
 use wsp_engine::ssh_backend::{SshLocalRun, SshReach, SshTransport, SshTransportOptions};
 
 pub fn res(exit_code: i64, stdout: &str, stderr: &str) -> ExecResult {
-    ExecResult { exit_code, stdout: stdout.to_string(), stderr: stderr.to_string() }
+    ExecResult { exit_code: exit_code.into(), stdout: stdout.to_string(), stderr: stderr.to_string() }
 }
 
 /// An error the way a TS test throws a plain `new Error(message)`.
@@ -42,7 +42,7 @@ pub struct Carried {
 /// A transport that never leaves this process: each call is recorded, then answered by `answer`.
 pub fn transport<F>(answer: F) -> (SshTransport, Arc<Mutex<Vec<Carried>>>)
 where
-    F: Fn(&SshReach, &str, &SshTransportOptions) -> ExecResult + Send + Sync + 'static,
+    F: Fn(&SshReach, &str, &SshTransportOptions) -> ExecResult + 'static,
 {
     let carried = Arc::new(Mutex::new(Vec::new()));
     let log = carried.clone();
@@ -50,7 +50,7 @@ where
     let t: SshTransport = Arc::new(move |reach: SshReach, script: String, opts: SshTransportOptions| {
         log.lock().unwrap().push(Carried { reach: reach.clone(), script: script.clone(), opts: opts.clone() });
         let out = answer(&reach, &script, &opts);
-        async move { out }.boxed()
+        async move { out }.boxed_local()
     });
     (t, carried)
 }
@@ -63,7 +63,7 @@ pub fn scripts(carried: &Arc<Mutex<Vec<Carried>>>) -> Vec<String> {
 /// A local run that never starts a child: each call (file, args) is recorded, then answered by `answer`.
 pub fn local_run<F>(answer: F) -> (SshLocalRun, Arc<Mutex<Vec<Vec<String>>>>)
 where
-    F: Fn(&str, &[String]) -> ExecResult + Send + Sync + 'static,
+    F: Fn(&str, &[String]) -> ExecResult + 'static,
 {
     let asked = Arc::new(Mutex::new(Vec::new()));
     let log = asked.clone();
@@ -72,7 +72,7 @@ where
         line.extend(args.iter().cloned());
         log.lock().unwrap().push(line);
         let out = answer(&file, &args);
-        async move { out }.boxed()
+        async move { out }.boxed_local()
     });
     (run, asked)
 }
@@ -85,26 +85,26 @@ pub struct Sent {
     pub ask: LinkAsk,
 }
 
-type Answer = Arc<dyn Fn(&Sent) -> BoxFuture<'static, Result<Map<String, Value>>> + Send + Sync>;
+type Answer = Arc<dyn Fn(&Sent) -> LocalBoxFuture<'static, Result<Map<String, Value>>>>;
 
 /// A link that records every frame and answers through a closure; `dials_back` and `forward` as a test sets them.
 pub struct FakeLink {
     pub sent: Mutex<Vec<Sent>>,
     pub forwarded: Mutex<Vec<u16>>,
     answer: Answer,
-    dials_back: Option<Arc<dyn Fn() -> bool + Send + Sync>>,
+    dials_back: Option<Arc<dyn Fn() -> bool>>,
 }
 
 impl FakeLink {
     /// Answers each frame with what `answer` gives at once.
     pub fn new<F>(answer: F) -> Arc<Self>
     where
-        F: Fn(&Sent) -> Result<Value> + Send + Sync + 'static,
+        F: Fn(&Sent) -> Result<Value> + 'static,
     {
         Self::build(
             Arc::new(move |s: &Sent| {
                 let out = answer(s).map(|v| v.as_object().cloned().unwrap_or_default());
-                async move { out }.boxed()
+                async move { out }.boxed_local()
             }),
             None,
         )
@@ -118,19 +118,19 @@ impl FakeLink {
     /// As `new`, on a link that redials and answers `dials_back` with the closure.
     pub fn dialling<F, D>(answer: F, dials_back: D) -> Arc<Self>
     where
-        F: Fn(&Sent) -> Result<Value> + Send + Sync + 'static,
-        D: Fn() -> bool + Send + Sync + 'static,
+        F: Fn(&Sent) -> Result<Value> + 'static,
+        D: Fn() -> bool + 'static,
     {
         Self::build(
             Arc::new(move |s: &Sent| {
                 let out = answer(s).map(|v| v.as_object().cloned().unwrap_or_default());
-                async move { out }.boxed()
+                async move { out }.boxed_local()
             }),
             Some(Arc::new(dials_back)),
         )
     }
 
-    fn build(answer: Answer, dials_back: Option<Arc<dyn Fn() -> bool + Send + Sync>>) -> Arc<Self> {
+    fn build(answer: Answer, dials_back: Option<Arc<dyn Fn() -> bool>>) -> Arc<Self> {
         Arc::new(Self { sent: Mutex::new(Vec::new()), forwarded: Mutex::new(Vec::new()), answer, dials_back })
     }
 
@@ -143,7 +143,7 @@ impl FakeLink {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineLink for FakeLink {
     async fn request(&self, op: &str, params: Map<String, Value>, ask: LinkAsk) -> Result<Map<String, Value>> {
         let sent = Sent { op: op.to_string(), params, ask };
@@ -170,7 +170,7 @@ pub struct ExecCall {
     pub opts: ExecOptions,
 }
 
-type ExecFn = Arc<dyn Fn(&str, &ExecOptions) -> BoxFuture<'static, Result<ExecResult>> + Send + Sync>;
+type ExecFn = Arc<dyn Fn(&str, &ExecOptions) -> LocalBoxFuture<'static, Result<ExecResult>>>;
 
 /// A machine whose exec is a closure and whose every other call fails: what the TS tests build with
 /// `{ id, exec } as unknown as Machine`. `framing` stands in for `framed()` where a test gives one.
@@ -184,13 +184,13 @@ pub struct ScriptedMachine {
 impl ScriptedMachine {
     pub fn new<F>(id: &str, exec: F) -> Arc<Self>
     where
-        F: Fn(&str, &ExecOptions) -> Result<ExecResult> + Send + Sync + 'static,
+        F: Fn(&str, &ExecOptions) -> Result<ExecResult> + 'static,
     {
         Self::with_future(
             id,
             Arc::new(move |cmd: &str, o: &ExecOptions| {
                 let out = exec(cmd, o);
-                async move { out }.boxed()
+                async move { out }.boxed_local()
             }),
         )
     }
@@ -199,18 +199,14 @@ impl ScriptedMachine {
         Arc::new(Self { id: id.to_string(), calls: Mutex::new(Vec::new()), exec, framing: None })
     }
 
-    pub fn framed_by(
-        id: &str,
-        framing: Arc<dyn Framing>,
-        exec: impl Fn(&str, &ExecOptions) -> Result<ExecResult> + Send + Sync + 'static,
-    ) -> Arc<Self> {
+    pub fn framed_by(id: &str, framing: Arc<dyn Framing>, exec: impl Fn(&str, &ExecOptions) -> Result<ExecResult> + 'static) -> Arc<Self> {
         let exec = Arc::new(exec);
         Arc::new(Self {
             id: id.to_string(),
             calls: Mutex::new(Vec::new()),
             exec: Arc::new(move |cmd: &str, o: &ExecOptions| {
                 let out = exec(cmd, o);
-                async move { out }.boxed()
+                async move { out }.boxed_local()
             }),
             framing: Some(framing),
         })
@@ -225,7 +221,7 @@ fn not_here<T>() -> Result<T> {
     Err(plain("not in this test"))
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for ScriptedMachine {
     fn id(&self) -> &str {
         &self.id
@@ -249,7 +245,7 @@ impl Machine for ScriptedMachine {
     async fn pause(&self, _wait_ms: Option<u64>) -> Result<()> {
         not_here()
     }
-    async fn resume(&self, _signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, _signal: Option<&Cancel>) -> Result<()> {
         not_here()
     }
     async fn kill(&self) -> Result<()> {

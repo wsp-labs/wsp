@@ -11,7 +11,7 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
 use futures::FutureExt;
 use serde_json::{json, Map, Value};
-use tokio_util::sync::CancellationToken;
+use wsp_engine::cancel::Cancel;
 
 use roads_common::*;
 use wsp_catalog::signin_rows::shares_in;
@@ -132,7 +132,7 @@ fn missing(message: &str) -> EngineError {
 
 fn opened<F>(answers: F) -> Arc<FakeLink>
 where
-    F: Fn(&Sent) -> Result<Value> + Send + Sync + 'static,
+    F: Fn(&Sent) -> Result<Value> + 'static,
 {
     FakeLink::new(move |s| if s.op == "machine.backend" { Ok(facts_json()) } else { answers(s) })
 }
@@ -143,7 +143,7 @@ fn made(s: &Sent) -> Option<Result<Value>> {
 
 async fn with_machine<F>(answers: F) -> (Arc<FakeLink>, LinkBackend)
 where
-    F: Fn(&Sent) -> Result<Value> + Send + Sync + 'static,
+    F: Fn(&Sent) -> Result<Value> + 'static,
 {
     let l = opened(move |s| made(s).unwrap_or_else(|| answers(s)));
     let backend = LinkBackend::open(l.clone()).await.unwrap();
@@ -161,7 +161,7 @@ async fn asks_once_and_answers_with_what_the_far_side_said() {
     no_frame_but_the_backend(&l);
     assert_frame(&l.sent()[0], "machine.backend", json!({}), LinkAsk::default());
     assert_eq!(backend.capabilities(), capabilities());
-    assert_eq!(backend.lifecycle().unwrap().budgets().wake_attempts, 1);
+    assert_eq!(backend.lifecycle().unwrap().budgets().wake_attempts, 1.into());
     let templates = backend.base_templates().unwrap();
     assert_eq!((templates.sandbox.as_str(), templates.desktop.as_str()), ("ubuntu:24.04", "ubuntu:24.04"));
     assert!(backend.names_workspace());
@@ -520,22 +520,21 @@ async fn stops_waiting_on_a_resume_the_caller_gave_up_on() {
                 _ => Ok(Map::new()),
             }
         }
-        .boxed()
+        .boxed_local()
     }));
     let backend = LinkBackend::open(l.clone()).await.unwrap();
     let machine = backend.create(spec(json!({ "kind": "sandbox" })), None, None).await.unwrap();
-    let stop = CancellationToken::new();
+    let stop = Cancel::new();
     let canceller = stop.clone();
     let (resumed, ()) = tokio::time::timeout(Duration::from_secs(5), async {
-        tokio::join!(machine.resume(Some(stop)), async move {
+        tokio::join!(machine.resume(Some(&stop)), async move {
             tokio::task::yield_now().await;
-            canceller.cancel();
+            canceller.cancel(None);
         })
     })
     .await
     .expect("the resume kept waiting after its caller gave up");
-    // Adapted: the TS token carries the reason the caller aborted with; this one carries none, so the error is the
-    // engine's own abort.
+    // The TS caller aborted with no reason here, so the error is the engine's own abort.
     assert_eq!(err(resumed).to_string(), aborted().to_string());
     let sent = frames(&l, "machine.resume");
     assert_eq!(sent.len(), 1);

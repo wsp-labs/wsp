@@ -275,9 +275,9 @@ async fn abort_gives_a_fresh_cap_each_call_and_says_which_fired() {
     assert!(first.token.is_cancelled());
     assert!(first.timed_out.load(std::sync::atomic::Ordering::SeqCst));
     assert!(!second.token.is_cancelled(), "the second call got the whole cap again");
-    let caller = tokio_util::sync::CancellationToken::new();
+    let caller = wsp_engine::cancel::Cancel::new();
     let both = abort(Some(1000.0), Some(&caller)).unwrap();
-    caller.cancel();
+    caller.cancel(None);
     tokio::task::yield_now().await;
     assert!(both.token.is_cancelled());
     assert!(!both.timed_out.load(std::sync::atomic::Ordering::SeqCst), "the caller's cancel is no timeout");

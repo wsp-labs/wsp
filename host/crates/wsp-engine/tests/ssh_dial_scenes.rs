@@ -56,7 +56,7 @@ fn fake_child() -> (HeldChild, Fake) {
         stdout: Box::new(stdout_r),
         stderr: Box::new(stderr_r),
         kill: Box::new(|_: &str| true),
-        exit: async move { end_rx.await.unwrap_or_else(|_| ChildEnd::Failed("dropped".into())) }.boxed(),
+        exit: async move { end_rx.await.unwrap_or_else(|_| ChildEnd::Failed("dropped".into())) }.boxed_local(),
     };
     (child, Fake { stdout: Some(stdout_w), stderr: Some(stderr_w), _stdin: stdin_r, end: Some(end_tx) })
 }

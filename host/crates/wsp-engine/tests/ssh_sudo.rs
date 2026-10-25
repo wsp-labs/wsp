@@ -140,7 +140,7 @@ async fn as_it_is_on_a_root_login_with_sudo_never_asked() {
     let env = Stubbed::new();
     env.stubs(0, Sudo::Runs);
     let said = client("echo \"it's $((1 + 1))\"", SshTransportOptions::default()).await;
-    assert_eq!((said.exit_code, said.stdout.as_str()), (0, "it's 2\n"));
+    assert_eq!((said.exit_code, said.stdout.as_str()), (0.into(), "it's 2\n"));
     assert!(!env.exists("sudo-args"));
 }
 
@@ -151,7 +151,7 @@ async fn under_sudo_n_on_a_login_that_is_not_root() {
     std::env::set_var("SUDO_USER", "maya");
     let said = client("echo \"[$SUDO_USER] it's $((1 + 1))\"", SshTransportOptions::default()).await;
     std::env::remove_var("SUDO_USER");
-    assert_eq!((said.exit_code, said.stdout.as_str()), (0, "[] it's 2\n"));
+    assert_eq!((said.exit_code, said.stdout.as_str()), (0.into(), "[] it's 2\n"));
     assert!(env.read_text("sudo-args").starts_with("-n bash -c "), "{}", env.read_text("sudo-args"));
 }
 
@@ -166,7 +166,7 @@ async fn with_a_password_sudo_reads_the_one_line_ahead_of_the_scripts_input() {
         ..Default::default()
     };
     let said = client(&format!("cat > {}/landed; echo done", env.dir().display()), opts).await;
-    assert_eq!((said.exit_code, said.stdout.as_str()), (0, "done\n"));
+    assert_eq!((said.exit_code, said.stdout.as_str()), (0.into(), "done\n"));
     assert_eq!(env.read_text("sudo-read"), "Tq not-a-real pw!");
     assert_eq!(env.read_file("landed"), bytes);
     // Told to read the password off its input, to say nothing as it asks, and to ask again whatever it cached, so
@@ -186,7 +186,7 @@ async fn as_the_login_itself_for_the_reads_that_ask_about_the_login() {
     let env = Stubbed::new();
     env.stubs(1000, Sudo::Refuses);
     let said = client("id -u", ride(SshRide::Login)).await;
-    assert_eq!((said.exit_code, said.stdout.as_str()), (0, "1000\n"));
+    assert_eq!((said.exit_code, said.stdout.as_str()), (0.into(), "1000\n"));
     ssh_dial(&reach(), &ssh_client()).await.unwrap();
     assert!(!env.exists("sudo-args"));
     let args = ssh_args(&reach(), "id -u", &SshArgsOptions { as_: SshAs::Login, ..Default::default() });
@@ -198,7 +198,7 @@ async fn stops_with_sudos_own_line_on_a_login_whose_sudo_asks() {
     let env = Stubbed::new();
     env.stubs(1000, Sudo::Refuses);
     let said = client("echo ran", SshTransportOptions::default()).await;
-    assert_eq!(said.exit_code, 1);
+    assert_eq!(said.exit_code, 1.into());
     assert_eq!(said.stdout, "");
     assert!(said.stderr.contains("a password is required"), "{}", said.stderr);
 }
@@ -280,7 +280,8 @@ async fn says_sshs_own_line_where_the_login_does_not_stand() {
 #[tokio::test]
 async fn a_backend_riding_a_password_hands_it_to_every_script() {
     let (transport, carried) = transport(|_, _, _| res(0, "home /root\n", ""));
-    let opts = SshBackendOptions { transport: Some(transport), host_key: Some(Arc::new(|_| async { None }.boxed())), ..Default::default() };
+    let opts =
+        SshBackendOptions { transport: Some(transport), host_key: Some(Arc::new(|_| async { None }.boxed_local())), ..Default::default() };
     let base = SshBackend::new(opts);
     let rides = || -> Vec<SshRide> { carried.lock().unwrap().iter().map(|c| c.opts.ride.clone()).collect() };
     let pw = SshRiding::SudoPassword("pw".to_string());
@@ -303,7 +304,7 @@ async fn puts_the_password_ahead_of_the_scripts_input_only_on_the_road_that_runs
     env.stubs(1000, Sudo::Refuses);
     let opts = SshTransportOptions { ride: SshRide::Login, stdin: Some(b"own\n".to_vec()), ..Default::default() };
     let said = client("cat; echo end", opts).await;
-    assert_eq!((said.exit_code, said.stdout.as_str()), (0, "own\nend\n"));
+    assert_eq!((said.exit_code, said.stdout.as_str()), (0.into(), "own\nend\n"));
     assert!(!said.stdout.contains("Tq-pw") && !said.stderr.contains("Tq-pw"));
     assert!(!env.exists("sudo-read"));
 }

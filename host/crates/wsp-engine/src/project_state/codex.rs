@@ -21,7 +21,7 @@ pub fn rollout_under(home: &str, recorded: &str) -> Option<String> {
 /// codex.ts:36. carry transcript-only; states thread index, rollout transcript; roots state_5.sqlite, sessions; shared store the index filtered to threads under cwd.
 pub struct CodexResolver;
 
-#[async_trait]
+#[async_trait(?Send)]
 impl ProjectStateResolver for CodexResolver {
     fn agent(&self) -> &'static str {
         todo!()

@@ -13,7 +13,7 @@ pub const DB: &str = "state.db";
 /// hermes.ts:17. carry transcript-only; states sessions; roots state.db; shared store sessions and their messages; entries always empty.
 pub struct HermesResolver;
 
-#[async_trait]
+#[async_trait(?Send)]
 impl ProjectStateResolver for HermesResolver {
     fn agent(&self) -> &'static str {
         todo!()

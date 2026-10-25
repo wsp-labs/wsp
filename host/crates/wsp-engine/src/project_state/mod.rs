@@ -16,7 +16,7 @@ pub mod resolver;
 pub mod sqlite;
 
 use std::collections::HashSet;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use indexmap::IndexMap;
 
@@ -30,8 +30,11 @@ pub use merge::{parse_merge_output, MergeOutput};
 pub use resolver::{files_under, inside_folder, resolve_project_path, under_home, MovedState, ProjectStateResolver, SharedStore};
 pub use wsp_words::project_path::under_project;
 
-/// index.ts:27. claude, codex, gemini, hermes, opencode, pi, in that order, keyed by `agent()`.
-pub static PROJECT_STATE_RESOLVERS: LazyLock<IndexMap<&'static str, Arc<dyn ProjectStateResolver>>> = LazyLock::new(|| todo!());
+/// index.ts:27. claude, codex, gemini, hermes, opencode, pi, in that order, keyed by `agent()`; the same map on every
+/// call (built once).
+pub fn project_state_resolvers() -> &'static IndexMap<&'static str, Arc<dyn ProjectStateResolver>> {
+    todo!()
+}
 
 /// index.ts:38. The agent's module's key for `resolve_project_path(path)`; `None` for an agent with no module or no key.
 pub fn project_state_key(agent: &str, path: &str) -> Option<String> {

@@ -6,9 +6,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::cancel::Cancel;
 use async_trait::async_trait;
 use indexmap::IndexMap;
-use tokio_util::sync::CancellationToken;
 
 use crate::errors::Result;
 use crate::machine::{
@@ -29,8 +29,8 @@ pub struct GuestShell {
 }
 
 /// fake-backend.ts:83. A folder on the caller's own computer standing in for a machine's disk.
-#[async_trait]
-pub trait FakeGuest: Send + Sync {
+#[async_trait(?Send)]
+pub trait FakeGuest {
     /// Where this machine's commands run and its daemon is rooted.
     fn folder(&self, machine_id: &str) -> PathBuf;
     /// The file this machine's daemon reads its token from.
@@ -79,7 +79,7 @@ pub struct FakeMachine {
     token_path: Option<String>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for FakeMachine {
     fn id(&self) -> &str {
         todo!()
@@ -111,7 +111,7 @@ impl Machine for FakeMachine {
     async fn pause(&self, wait_ms: Option<u64>) -> Result<()> {
         todo!()
     }
-    async fn resume(&self, signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, signal: Option<&Cancel>) -> Result<()> {
         todo!()
     }
     async fn kill(&self) -> Result<()> {
@@ -159,7 +159,7 @@ impl FakeBackend {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for FakeBackend {
     fn capabilities(&self) -> Capabilities {
         todo!()

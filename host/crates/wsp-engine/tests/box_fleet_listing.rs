@@ -489,7 +489,7 @@ struct Gated {
     gate: tokio::sync::watch::Receiver<bool>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Fetch for Gated {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError> {
         if req.method == "PATCH" {
@@ -504,27 +504,32 @@ impl Fetch for Gated {
 /// box-backend.test.ts:1313
 #[tokio::test]
 async fn a_second_backstop_never_starts_while_one_is_in_flight() {
-    let api = FakeBox::new().on("PATCH", &path(""), vec![idle(ID, "idle")]).on("GET", "/limits", vec![common::fake_box::limits("trial")]);
-    let (open, gate) = tokio::sync::watch::channel(false);
-    let fetch = Arc::new(Gated { inner: api.clone(), sent: AtomicUsize::new(0), gate });
-    let on = backend_with(fetch.clone() as Arc<dyn Fetch>, BoxBudgetsAsk::default());
-    let mut calls = Vec::new();
-    for _ in 0..50 {
-        let (backend, until) = (on.backend.clone(), on.clock.now_ms() + mins(40));
-        calls.push(tokio::spawn(async move { backend.box_backstop(ID, until, false).await }));
-        // Past the slack every time, so only the call in flight can hold the next one back.
-        on.clock.advance(BACKSTOP_SLACK_MS as i64 + 1_000);
-        for _ in 0..20 {
-            tokio::task::yield_now().await;
-        }
-    }
-    assert_eq!(fetch.sent.load(Ordering::SeqCst), 1);
-    open.send(true).unwrap();
-    for call in calls {
-        call.await.unwrap().unwrap();
-    }
-    on.backend.box_backstop(ID, on.clock.now_ms() + mins(40), false).await.unwrap();
-    assert_eq!(fetch.sent.load(Ordering::SeqCst), 2);
+    tokio::task::LocalSet::new()
+        .run_until(async move {
+            let api =
+                FakeBox::new().on("PATCH", &path(""), vec![idle(ID, "idle")]).on("GET", "/limits", vec![common::fake_box::limits("trial")]);
+            let (open, gate) = tokio::sync::watch::channel(false);
+            let fetch = Arc::new(Gated { inner: api.clone(), sent: AtomicUsize::new(0), gate });
+            let on = backend_with(fetch.clone() as Arc<dyn Fetch>, BoxBudgetsAsk::default());
+            let mut calls = Vec::new();
+            for _ in 0..50 {
+                let (backend, until) = (on.backend.clone(), on.clock.now_ms() + mins(40));
+                calls.push(tokio::task::spawn_local(async move { backend.box_backstop(ID, until, false).await }));
+                // Past the slack every time, so only the call in flight can hold the next one back.
+                on.clock.advance(BACKSTOP_SLACK_MS as i64 + 1_000);
+                for _ in 0..20 {
+                    tokio::task::yield_now().await;
+                }
+            }
+            assert_eq!(fetch.sent.load(Ordering::SeqCst), 1);
+            open.send(true).unwrap();
+            for call in calls {
+                call.await.unwrap().unwrap();
+            }
+            on.backend.box_backstop(ID, on.clock.now_ms() + mins(40), false).await.unwrap();
+            assert_eq!(fetch.sent.load(Ordering::SeqCst), 2);
+        })
+        .await;
 }
 
 /// box-backend.test.ts:1346

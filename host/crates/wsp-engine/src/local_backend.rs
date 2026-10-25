@@ -6,10 +6,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::cancel::Cancel;
 use async_trait::async_trait;
 use indexmap::IndexMap;
 use tokio::sync::OnceCell;
-use tokio_util::sync::CancellationToken;
 
 use crate::errors::Result;
 use crate::machine::{
@@ -60,7 +60,7 @@ pub struct LocalMachine {
     os: OnceCell<String>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for LocalMachine {
     fn id(&self) -> &str {
         todo!()
@@ -86,7 +86,7 @@ impl Machine for LocalMachine {
     async fn pause(&self, wait_ms: Option<u64>) -> Result<()> {
         todo!()
     }
-    async fn resume(&self, signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, signal: Option<&Cancel>) -> Result<()> {
         todo!()
     }
     async fn kill(&self) -> Result<()> {
@@ -140,7 +140,7 @@ impl LocalBackend {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for LocalBackend {
     fn capabilities(&self) -> Capabilities {
         todo!()

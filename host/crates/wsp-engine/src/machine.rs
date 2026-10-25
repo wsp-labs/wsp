@@ -9,10 +9,10 @@
 //! A default body answers [`EngineError::Other`] with `NOT_ON_THIS_ROAD`; a backend that offers a method overrides it.
 use std::sync::Arc;
 
+use crate::cancel::Cancel;
 use async_trait::async_trait;
 use indexmap::IndexMap;
 use serde_json::{Map, Value};
-use tokio_util::sync::CancellationToken;
 
 pub use wsp_wire::views::golden_image::MachineKind;
 pub use wsp_wire::views::place_more::CloudLimits;
@@ -36,7 +36,7 @@ pub struct SnapshotStoragePricing {
 }
 
 /// A line callback (`onLine`, `waiting`'s line half).
-pub type OnLine = Arc<dyn Fn(&str) + Send + Sync>;
+pub type OnLine = Arc<dyn Fn(&str)>;
 
 /// machine.ts:44.
 #[derive(Clone, Default)]
@@ -50,7 +50,7 @@ pub struct RunOptions {
     /// What the command prints is the person's own: a watcher records that it ran and its exit, never its output.
     pub unlogged: bool,
     /// The caller's cancel: the session is killed as at the deadline and the result is exit 130 with the output so far.
-    pub signal: Option<CancellationToken>,
+    pub signal: Option<Cancel>,
     /// The machine the launch goes through where it is not the one polls, kill and cleanup go through.
     pub launch_on: Option<Arc<dyn Machine>>,
 }
@@ -65,7 +65,7 @@ pub struct SnapshotProgress {
 /// machine.ts:84.
 #[derive(Clone, Default)]
 pub struct SnapshotOptions {
-    pub on_progress: Option<Arc<dyn Fn(SnapshotProgress) + Send + Sync>>,
+    pub on_progress: Option<Arc<dyn Fn(SnapshotProgress)>>,
 }
 
 /// machine.ts:90. What a road that cuts bytes up says about the trip: the pieces it sent.
@@ -76,7 +76,7 @@ pub struct BytesLanded {
 
 /// machine.ts:96. The command a machine's exec sends for the one it is handed, and what an upload is refused with
 /// when the wrapper leaves no room under the exec body cap.
-pub trait Framing: Send + Sync {
+pub trait Framing {
     fn wrap(&self, cmd: &str) -> String;
     fn no_room(&self) -> Option<String>;
 }
@@ -120,8 +120,8 @@ pub(crate) fn not_on_this_road<T>() -> Result<T> {
 }
 
 /// machine.ts:101.
-#[async_trait]
-pub trait Machine: Send + Sync {
+#[async_trait(?Send)]
+pub trait Machine {
     fn id(&self) -> &str;
     fn kind(&self) -> MachineKind;
     fn stream_url(&self) -> Option<&str> {
@@ -163,7 +163,7 @@ pub trait Machine: Send + Sync {
     async fn run(&self, script: &str, opts: RunOptions) -> Result<ExecResult>;
     async fn snapshot(&self, name: &str, life: MachineLife, opts: SnapshotOptions) -> Result<String>;
     async fn pause(&self, wait_ms: Option<u64>) -> Result<()>;
-    async fn resume(&self, signal: Option<CancellationToken>) -> Result<()>;
+    async fn resume(&self, signal: Option<&Cancel>) -> Result<()>;
     async fn kill(&self) -> Result<()>;
     async fn state(&self) -> Result<MachineState>;
     async fn download_url(&self, path: &str) -> Result<String>;
@@ -172,7 +172,7 @@ pub trait Machine: Send + Sync {
     async fn framed(&self) -> Result<Arc<dyn Framing>> {
         not_on_this_road()
     }
-    async fn resume_at(&self, _cpu: f64, _mem_mb: u64, _signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume_at(&self, _cpu: f64, _mem_mb: u64, _signal: Option<&Cancel>) -> Result<()> {
         not_on_this_road()
     }
     async fn preview_url(&self, _port: u16) -> Result<PreviewReach> {
@@ -181,7 +181,7 @@ pub trait Machine: Send + Sync {
     async fn daemon_answers(&self, _timeout_ms: Option<u64>) -> Result<bool> {
         not_on_this_road()
     }
-    async fn prove_road(&self, _signal: Option<CancellationToken>) -> Result<()> {
+    async fn prove_road(&self, _signal: Option<&Cancel>) -> Result<()> {
         not_on_this_road()
     }
     async fn start_daemon(&self) -> Result<ExecResult> {
@@ -220,7 +220,7 @@ pub struct Size {
 }
 
 /// machine.ts:206. What a size costs on this provider, and the shape a spec gets when it names none.
-pub trait BackendPricing: Send + Sync {
+pub trait BackendPricing {
     fn rate_usd_per_hour(&self, size: Size) -> f64;
     fn default_size(&self) -> Size;
     fn snapshot_storage(&self) -> SnapshotStoragePricing;
@@ -230,8 +230,8 @@ pub trait BackendPricing: Send + Sync {
 }
 
 /// machine.ts:218. What the runtime reads to drive a machine through naps and wakes on this provider.
-#[async_trait]
-pub trait Lifecycle: Send + Sync {
+#[async_trait(?Send)]
+pub trait Lifecycle {
     fn budgets(&self) -> LifecycleBudgets;
     fn has_backstop(&self) -> bool {
         false
@@ -267,7 +267,7 @@ pub struct ProviderBoxState {
 }
 
 /// `create`'s `waiting`: each wait the provider puts the create through, with the provider's box where it says one.
-pub type Waiting = Arc<dyn Fn(&str, Option<&ProviderBoxState>) + Send + Sync>;
+pub type Waiting = Arc<dyn Fn(&str, Option<&ProviderBoxState>)>;
 
 /// A backend's optional methods: true where the backend has the TS's optional method.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -293,8 +293,8 @@ pub struct RootDisk {
 }
 
 /// machine.ts:252.
-#[async_trait]
-pub trait MachineBackend: Send + Sync {
+#[async_trait(?Send)]
+pub trait MachineBackend {
     /// Owned: a backend may compute it per read (Box's sizes follow its last read of /limits), and a slot that swaps
     /// backends under its callers holds none it could lend from.
     fn capabilities(&self) -> Capabilities;

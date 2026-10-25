@@ -281,7 +281,7 @@ async fn run(script: &str, home: &Path) -> ExecResult {
         .await
         .expect("bash runs");
     ExecResult {
-        exit_code: out.status.code().unwrap_or(1) as i64,
+        exit_code: (out.status.code().unwrap_or(1) as i64).into(),
         stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
     }

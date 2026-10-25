@@ -5,7 +5,7 @@
 //! is the TS's `undefined`, and the fallback the TS takes for a missing hook is the spec's.
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 
 use crate::errors::Result;
@@ -33,14 +33,14 @@ pub enum WorkspacePhase {
 /// resurrect hook's own.
 pub type SpecOverride = Option<MachineSpec>;
 
-pub type ResurrectHook = Arc<dyn Fn(SpecOverride) -> BoxFuture<'static, Result<MachineRef>> + Send + Sync>;
+pub type ResurrectHook = Arc<dyn Fn(SpecOverride) -> LocalBoxFuture<'static, Result<MachineRef>>>;
 /// `Ok(None)` is an export over the cap: the replacement goes on with no backup.
-pub type VaultExportHook = Arc<dyn Fn(MachineRef) -> BoxFuture<'static, Result<Option<Vec<u8>>>> + Send + Sync>;
-pub type VaultImportHook = Arc<dyn Fn(MachineRef, Vec<u8>) -> BoxFuture<'static, Result<()>> + Send + Sync>;
-pub type MachineHook = Arc<dyn Fn(MachineRef) -> BoxFuture<'static, Result<()>> + Send + Sync>;
+pub type VaultExportHook = Arc<dyn Fn(MachineRef) -> LocalBoxFuture<'static, Result<Option<Vec<u8>>>>>;
+pub type VaultImportHook = Arc<dyn Fn(MachineRef, Vec<u8>) -> LocalBoxFuture<'static, Result<()>>>;
+pub type MachineHook = Arc<dyn Fn(MachineRef) -> LocalBoxFuture<'static, Result<()>>>;
 /// `Ok(None)` is healthy; `Ok(Some(fault))` names the fault.
-pub type WakeCheckHook = Arc<dyn Fn(MachineRef) -> BoxFuture<'static, Result<Option<String>>> + Send + Sync>;
-pub type MoveHook = Arc<dyn Fn(MachineRef, ProviderMove) -> BoxFuture<'static, Result<()>> + Send + Sync>;
+pub type WakeCheckHook = Arc<dyn Fn(MachineRef) -> LocalBoxFuture<'static, Result<Option<String>>>>;
+pub type MoveHook = Arc<dyn Fn(MachineRef, ProviderMove) -> LocalBoxFuture<'static, Result<()>>>;
 
 /// lifecycle.ts:6.
 #[derive(Clone)]

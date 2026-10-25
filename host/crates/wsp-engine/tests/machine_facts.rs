@@ -3,7 +3,7 @@
 //! taken off real machines: an Ubuntu box, a Mac, and one that answers with neither.
 use std::sync::{Arc, Mutex};
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use futures::FutureExt;
 use indexmap::IndexMap;
 use wsp_engine::errors::{EngineError, Result};
@@ -26,16 +26,16 @@ fn now_ms() -> i64 {
 }
 
 /// machine-facts.test.ts:49 `exec`: answers `out` and records the command it was asked.
-fn exec(asked: &Arc<Mutex<Vec<String>>>, out: ExecResult) -> impl FnOnce(String) -> BoxFuture<'static, Result<ExecResult>> {
+fn exec(asked: &Arc<Mutex<Vec<String>>>, out: ExecResult) -> impl FnOnce(String) -> LocalBoxFuture<'static, Result<ExecResult>> {
     let asked = asked.clone();
     move |cmd: String| {
         asked.lock().unwrap().push(cmd);
-        async move { Ok(out) }.boxed()
+        async move { Ok(out) }.boxed_local()
     }
 }
 
 fn answer(exit_code: i64, stdout: &str) -> ExecResult {
-    ExecResult { exit_code, stdout: stdout.to_string(), stderr: String::new() }
+    ExecResult { exit_code: exit_code.into(), stdout: stdout.to_string(), stderr: String::new() }
 }
 
 /// machine-facts.test.ts:14
