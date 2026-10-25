@@ -89,6 +89,13 @@ where
 /// target-line.ts:120. Stages as above (`what` is `dest`), then as the login either
 /// `mkdir -p <q dest> && tar -xzf <q file> -C <q dest>` (unpack) or `mkdir -p <q dirname(dest)> && cat <q file> > <q dest>`;
 /// non-zero is `<dest> was not written as <user>: <first>`.
-pub async fn land_as_login(machine: &dyn Machine, t: &TargetLogin, dest: &str, bytes: &[u8], unpack: bool, timeout_ms: Option<u64>) -> Result<()> {
+pub async fn land_as_login(
+    machine: &dyn Machine,
+    t: &TargetLogin,
+    dest: &str,
+    bytes: &[u8],
+    unpack: bool,
+    timeout_ms: Option<u64>,
+) -> Result<()> {
     todo!()
 }

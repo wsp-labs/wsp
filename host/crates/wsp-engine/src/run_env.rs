@@ -29,7 +29,12 @@ pub fn env_input(vars: &IndexMap<String, String>) -> Vec<u8> {
 /// ride a pipe: an empty map runs `{\n<command>\n} </dev/null`, any other runs
 /// `printf '%s\0' <shell_quote("NAME=value")...> | {\n<command>\n}` (pairs space-separated, map order). Never sends
 /// `stdin` on the pipe road.
-pub async fn env_exec(machine: &dyn Machine, command: &str, vars: &IndexMap<String, String>, timeout_ms: Option<u64>) -> Result<ExecResult> {
+pub async fn env_exec(
+    machine: &dyn Machine,
+    command: &str,
+    vars: &IndexMap<String, String>,
+    timeout_ms: Option<u64>,
+) -> Result<ExecResult> {
     todo!()
 }
 

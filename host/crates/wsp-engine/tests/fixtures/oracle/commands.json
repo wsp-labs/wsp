@@ -1,0 +1,8 @@
+{
+ "missingCommands": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nfor b in 'claude' 'codex' 'it'\\''s'; do command -v \"$b\" >/dev/null 2>&1 || echo \"missing $b\"; done",
+ "envExec": [
+  "printf '%s\\0' 'A=1' 'B=x'\\''y\nz' | {\necho $A\n}",
+  "{\ntrue\n} </dev/null"
+ ],
+ "envInput": "QT0xAEI9eCd5CnoAPQA="
+}
