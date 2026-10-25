@@ -32,7 +32,7 @@ V7. `read_store` (`:125-142`): the list and the live ids run together (`live` is
 read). A failed list: a daemon too old answers no rows with that held line; else warn `the <label> conversations on
 <computer> were not read: <why>`; a lasting store error (`isLastingStoreError`) answers no rows and no line; any other
 answers no rows, `{agent, said: conversationsFailedLine(label, why), fix: CONVERSATIONS_AGAIN_FIX, why}` and is
-passing. A failed live read fails the read.
+passing. A failed live read fails the read in the TS; the Rust store's `live` cannot fail, so it answers none.
 
 V8. `kept_read` (`:147-166`): first every kept read 60 s or older (clock) goes, any project's. The stamp is the
 store's `stamp(cwds, road)`, `""` for a store with none or a failed stamp. A kept read under the same folders (joined
@@ -47,7 +47,8 @@ line goes on `held` as each read settles; each row: a script's conversation that
 thread only where the caller reaches its latest row (ctx.reaches_row), letsGo: the store's when it has one}`. Rows
 sorted by `lastAt` newest first, then `id` (`localeCompare`). Answers `{rows, held}`.
 
-V10. `earlier_rows(lines, left, harness)` (`:203-209`): when `left > 0`, first a `note` row `earlierLine(left, label)`
+V10. `earlier_rows(lines, left, label)` (`:203-209`, the harness's label passed in): when `left > 0`, first a `note`
+row `earlierLine(left, label)`
 at the first line's `at`; then each line, a tool line as `toolDoneLine(tool, text) ?? toolActivityLine(tool, text)`
 with `who: tool`, any other as `{who, text}`; `at` only where the line has one.
 

@@ -34,7 +34,7 @@ use wsp_words::exit::HostError;
 
 /// A plain error, as `new Error(message)` builds one.
 pub fn err(message: &str) -> HostError {
-    HostError { message: message.to_string(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }
+    HostError::new(message)
 }
 
 /// An error carrying one of the marks `computer_silent` reads.
