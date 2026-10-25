@@ -669,3 +669,76 @@ fn refused_launch(standing: bool, joined: bool) {
     let moved = format!("which its host refused as in use, so it moves to {next}");
     assert!(said.lock().unwrap().iter().any(|line| line.contains(&moved)), "{:?}", said.lock().unwrap());
 }
+
+/// What the host on `port` answers a page read with, whole.
+fn page(port: u16) -> Vec<u8> {
+    use std::io::{Read, Write};
+    let mut tcp = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+    tcp.write_all(format!("GET / HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n").as_bytes()).unwrap();
+    let mut said = Vec::new();
+    tcp.read_to_end(&mut said).unwrap();
+    said
+}
+
+/// Answers every request on `port` with `said`, the socket's upgrade too, until `stop` is set.
+fn page_only(port: u16, said: Vec<u8>, stop: Arc<std::sync::atomic::AtomicBool>) -> std::thread::JoinHandle<()> {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind(("127.0.0.1", port)).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    std::thread::spawn(move || {
+        while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+            let Ok((mut tcp, _)) = listener.accept() else {
+                std::thread::sleep(Duration::from_millis(10));
+                continue;
+            };
+            tcp.set_nonblocking(false).unwrap();
+            tcp.set_read_timeout(Some(Duration::from_millis(500))).unwrap();
+            let mut head = [0u8; 4096];
+            _ = tcp.read(&mut head);
+            _ = tcp.write_all(&said);
+        }
+    })
+}
+
+/// Catches: an open that meets this state's page on the lock's port while the socket there answers with a page and no
+/// upgrade ("HTTP error: 200 OK"), as a host closing for a restart onto another port does, read as a host that is up
+/// and refused this app and given up at once, where it waits for this state's host and attaches once it serves.
+#[test]
+fn an_open_that_meets_a_page_where_the_socket_should_be_waits_for_the_host() {
+    let stubbed = Stubbed::new(Runs::Host);
+    let road = stubbed.start(Manager::Launchd, start::SERVICE_WAIT);
+    let runner = System::new(&road.env);
+    let open = || block(start::ready(&road, &runner, |_| async { Ok(()) })).map(|_| ());
+    open().unwrap_or_else(|f| panic!("{}", f.failure.message));
+    let lock_file = stubbed.state().with_file_name("host.lock");
+    let mut lock: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&lock_file).unwrap()).unwrap();
+    let port = lock["port"].as_u64().unwrap() as u16;
+    let said = page(port);
+    let host = stubbed.pid().unwrap();
+    // SAFETY: a signal to the host the stub started, by the pid it wrote.
+    unsafe { libc::kill(host, libc::SIGTERM) };
+    let until = Instant::now() + Duration::from_secs(10);
+    while lock_file.exists() && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(!lock_file.exists(), "the host let the lock go");
+    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stand_in = page_only(port, said, stop.clone());
+    lock["pid"] = serde_json::json!(std::process::id());
+    std::fs::write(&lock_file, lock.to_string()).unwrap();
+    let gone = {
+        let (stop, lock_file) = (stop.clone(), lock_file.clone());
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(2));
+            stop.store(true, std::sync::atomic::Ordering::SeqCst);
+            std::fs::remove_file(&lock_file).unwrap();
+        })
+    };
+    let from = Instant::now();
+    let opened = open();
+    gone.join().unwrap();
+    stand_in.join().unwrap();
+    opened.unwrap_or_else(|f| panic!("{}\nran: {:?}", f.failure.message, stubbed.ran()));
+    assert!(from.elapsed() >= Duration::from_secs(2), "attached before the stand-in went");
+    assert_eq!(stubbed.lock_pid(), stubbed.pid().map(i64::from), "the host the stub started again holds the lock");
+}
