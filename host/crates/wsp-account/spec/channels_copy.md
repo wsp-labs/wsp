@@ -89,7 +89,9 @@ child starts (`leadStart`, `startChildOn`) and whether two projects are one repo
   `sameRepository(a, b, caller)`: b's repository is known and equals a's, or a's origin's. `originNow(p, caller)`: `""`
   unless the project is a folder source on a computer whose kind copies a folder; else `git -C <path> remote get-url
   origin` (2,000 ms bound), its trimmed stdout on exit 0, `""` otherwise. The TS memoises the read per caller object
-  for that project (a `WeakMap`); the port keys it per caller handle (README A9; open point 1 in the report). Tests
+  for that project (a `WeakMap`, so a listing asks git once per request); the port reads on every call, since a
+  borrowed `Caller` has no identity that safely outlives its request. Only the count of git reads differs, never an
+  answer; open point 1 in the report. Tests
   `c15_same_repository_table`, `c15_origin_read_only_for_a_folder_here`.
 
 ## What survives a restart
