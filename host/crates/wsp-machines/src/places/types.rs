@@ -36,11 +36,7 @@ use wsp_wire::wire::place_link::{
 };
 use wsp_words::exit::HostError;
 
-use wsp_core::clock::Clock;
-use wsp_core::daemon_channel::DaemonChannel;
-use wsp_core::devices::DeviceDoor;
-use wsp_core::reach::DaemonReach;
-use wsp_store::store::Store;
+use wsp_core::types::pending::{Clock, DaemonChannel, DaemonReach, DeviceDoor, Store};
 use wsp_core::types::wiring::{HereDaemon, PlaceBackends};
 
 use super::helpers::LinkSocket;
@@ -591,7 +587,7 @@ pub enum PlaceEvent {
 #[derive(Clone)]
 pub struct PlaceDoorOptions {
     pub store: Rc<dyn Store>,
-    pub devices: Rc<DeviceDoor>,
+    pub devices: Rc<dyn DeviceDoor>,
     pub wiring: PlaceWiring,
     pub recording: Rc<dyn PlaceRecording>,
     pub providers: Option<Rc<dyn Fn() -> Rc<dyn PlaceBackends>>>,
