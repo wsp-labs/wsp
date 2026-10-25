@@ -62,11 +62,11 @@ fork's copy only through `drop`).
 | Rule | Test |
 |---|---|
 | walk before and after a compaction, live branch, refusal of a missing anchor or link | `claude_copy` walk cases (ported, chain.test.ts:68-106) |
-| live end before a call with no result, naming it | `claude_copy::ends_a_copy_of_a_running_session_before...` (ported) |
-| ranges text | `claude_copy::writes_line_numbers_as_ranges` (ported) |
-| byte-for-byte write under a dot name, source untouched | `claude_copy::writes_exactly_the_anchor_s_chain_beside_the_source...` (ported, real sh) |
-| long strings blanked on the read | `claude_copy::reads_a_long_session_as_kilobytes...` (ported, real sh) |
-| no copy and no part file after a short write | `claude_copy::leaves_no_copy_and_no_part_file...` (ported, real sh) |
-| cleanup removes only the copy | `claude_copy::removes_only_the_copy` (ported, real sh) |
+| live end before a call with no result, naming it | `claude_copy::walk_ends_a_live_copy_before_the_message_whose_call_has_no_result` (ported) |
+| ranges text | `claude_copy::walk_writes_line_numbers_as_ranges` (ported) |
+| byte-for-byte write under a dot name, source untouched | `claude_copy::shell_writes_exactly_the_anchors_chain_beside_the_source` (ported, real sh) |
+| long strings blanked on the read | `claude_copy::shell_reads_a_long_session_as_kilobytes_and_walks_it_as_the_whole_file_would` (ported, real sh) |
+| no copy and no part file after a short write | `claude_copy::shell_leaves_no_copy_and_no_part_file_where_the_write_comes_out_short` (ported, real sh) |
+| cleanup removes only the copy | `claude_copy::shell_removes_only_the_copy` (ported, real sh) |
 | aside launch line, hooks before the question, every call refused | `claude_copy` aside cases (ported, aside.test.ts) |
 | the copy is removed on every road out, a wall included | `claude_copy` aside cases on the wall and the transport throw (ported) |

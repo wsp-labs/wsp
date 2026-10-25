@@ -111,9 +111,9 @@ state survives anything but the books the caller holds for one turn.
 | limit_of None on empty and on no utilization | `claude_reading::limit_of_reads_nothing_from_no_window` |
 | note_rejected sets, keeps place, clears on overage | `claude_reading::note_rejected_moves_the_stop_by_each_reading` |
 | with_limit on failed only, `{}` where a reset is unknown | `claude_reading::with_limit_stamps_only_a_failed_turn` |
-| result_facts exit code rule | `claude_lines::carries_a_failing_command_s_exit_code...` (ported) |
-| result_facts two blocks give nothing | `claude_lines::reads_no_tool_use_result_for_a_line_that_answers_two_calls` (ported) |
-| result_facts create as whole-file hunk | `claude_lines::carries_a_new_file...` (ported) |
+| result_facts exit code rule | `claude_lines::a_failing_commands_exit_code_is_read_off_the_exit_code_line_its_error_opens_with` (ported) |
+| result_facts two blocks give nothing | `claude_lines::a_line_that_answers_two_calls_reads_no_tool_use_result` (ported) |
+| result_facts create as whole-file hunk | `claude_lines::a_new_file_with_an_empty_structured_patch_is_one_hunk_of_every_line_added` (ported) |
 | shell_cwd regex and Write rule | `claude_lines::shell_cwd_*` (ported, 5 cases) |
 | TaskUpdate deleted, unknown id Nothing | `claude_reading::task_update_moves_deletes_and_ignores_unknown_ids` |
 | TodoWrite empty list is Steps([]) | `claude_reading::todo_write_reads_its_list_whole` |

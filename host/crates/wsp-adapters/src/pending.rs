@@ -188,6 +188,22 @@ pub fn question_options(tool_name: &str, input: &str) -> Vec<PermissionOption> {
     todo!()
 }
 
+/// PENDING(wsp-words): words/tools.ts:196. `q<question>:other:<encodeURIComponent(words)>`.
+pub fn other_option_id(question: usize, words: &str) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-words): words/tools.ts:222. The ids joined by `|`.
+pub fn picked_option_id(ids: &[String]) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-words): workspace-state.ts:600 (`signInRefusalLine`) for the two kinds this crate's tests name: the
+/// person's own computer (`local`), else a cloud's machine (CLOUD_SIGN_IN_ROAD).
+pub fn sign_in_refusal_line(local: bool) -> String {
+    todo!()
+}
+
 /// PENDING(wsp-words): words/tools.ts:212.
 pub fn picked_options(options: &[PermissionOption], picked: &str) -> Option<Vec<PermissionOption>> {
     todo!()

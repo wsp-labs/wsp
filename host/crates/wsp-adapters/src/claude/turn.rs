@@ -46,6 +46,10 @@ pub fn follow(core: &Arc<AdapterCore>, o: FollowOptions) -> ClaudeSession {
 }
 
 impl ClaudeSession {
+    /// Whether both handles are the same turn (the TS `toBe`).
+    pub fn same(&self, other: &ClaudeSession) -> bool {
+        todo!()
+    }
     /// The registry key, fixed before spawn. adapter.ts:78.
     pub fn local_id(&self) -> String {
         todo!()
@@ -121,6 +125,67 @@ impl ClaudeKept {
     }
     /// The session's file; `None` on a process warmed ahead of any turn.
     pub fn session_file(&self) -> Option<SessionFile> {
+        todo!()
+    }
+}
+
+impl crate::port::Finishes for ClaudeSession {
+    fn finished(&self) -> SharedFuture<TurnResult> {
+        todo!()
+    }
+}
+
+/// The runtime's view of a Claude turn: every optional TS member present.
+impl crate::port::HarnessSession for ClaudeSession {
+    fn local_id(&self) -> String {
+        todo!()
+    }
+    fn finished(&self) -> SharedFuture<TurnResult> {
+        todo!()
+    }
+    fn run(&self) -> Option<String> {
+        todo!()
+    }
+    fn pid(&self) -> Option<u32> {
+        todo!()
+    }
+    fn from(&self) -> Option<u64> {
+        todo!()
+    }
+    fn interrupt(&self) -> futures::future::BoxFuture<'static, ()> {
+        todo!()
+    }
+    fn kept(&self) -> Option<Option<Box<dyn crate::port::KeptAgent>>> {
+        todo!()
+    }
+    fn steer(&self, prompt: String, id: Option<String>, images: Vec<TurnImage>) -> Option<futures::future::BoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
+        todo!()
+    }
+    fn tells_unread(&self) -> Option<bool> {
+        todo!()
+    }
+    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<futures::future::BoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
+        todo!()
+    }
+    fn set_access(&self, mode: String) -> Option<futures::future::BoxFuture<'static, Result<AccessOutcome, ExecFailure>>> {
+        todo!()
+    }
+    fn stop_task(&self, task: String) -> Option<futures::future::BoxFuture<'static, Result<TaskStop, ExecFailure>>> {
+        todo!()
+    }
+}
+
+impl crate::port::KeptAgent for ClaudeKept {
+    fn next(&self, turn: KeptTurn) -> Result<Arc<dyn crate::port::HarnessSession>, crate::port::AdapterError> {
+        todo!()
+    }
+    fn close(&self, now: bool) -> futures::future::BoxFuture<'static, ()> {
+        todo!()
+    }
+    fn exited(&self) -> SharedFuture<()> {
+        todo!()
+    }
+    fn session_file(&self) -> Option<SessionFile> {
         todo!()
     }
 }

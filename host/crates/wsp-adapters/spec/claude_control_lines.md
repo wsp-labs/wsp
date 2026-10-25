@@ -81,15 +81,15 @@ as is. serde_json with `preserve_order` writes the same for these shapes. Lines 
 
 | Rule | Test |
 |---|---|
-| answer line bytes for allow, deny, mode | `claude_lines::allows_the_call_with_the_input_the_prompt_carried_unchanged` and the two after it (ported) |
-| question answer written into input | `claude_lines::writes_an_answer_typed_in_other...` (ported) |
-| unknown option refused | `claude_lines::refuses_an_option_the_prompt_never_offered` (ported) |
+| answer line bytes for allow, deny, mode | `claude_lines::answer_allows_the_call_with_the_input_the_prompt_carried_unchanged` and the two after it (ported) |
+| question answer written into input | `claude_lines::an_answer_typed_in_other_is_written_into_the_input_and_a_question_with_no_choice_asks_no_consent` (ported) |
+| unknown option refused | `claude_lines::answer_refuses_an_option_the_prompt_never_offered` (ported) |
 | options order, mode dedupe, null input | `claude_control_lines::ask_options_are_allow_deny_then_each_mode_once` |
 | interrupt line bytes with and without cancel_queued | `claude_control_lines::interrupt_line_carries_cancel_queued_only_when_asked` |
 | steers from taken then kept, once each | `claude_control_lines::steers_start_from_the_channel_then_the_kept_ids` |
 | settle fixes once; tell_unread once | `claude_control_lines::unread_is_fixed_at_the_reply_and_told_once` |
 | a CLI that never reports tells nothing | `claude_control_lines::a_cli_that_reports_nothing_tells_nothing_unread` |
-| steered_ids reset at a uuid-less user line | `claude_lines::a_run_s_channel_read_back_names_the_steers_of_its_last_turn_alone` (ported) |
+| steered_ids reset at a uuid-less user line | `claude_lines::a_runs_channel_read_back_names_the_steers_of_its_last_turn_alone` (ported) |
 | framed report unframed; refused hand-back drawn | `claude_control_lines::a_framed_report_is_unframed_and_a_refused_handback_drawn` |
 | task_ended word map and empty summary | `claude_control_lines::task_ended_maps_every_word_and_drops_an_empty_summary` |
 | end_answer once per report, note with no report | `claude_control_lines::end_answer_says_a_report_once_and_none_in_words` |
