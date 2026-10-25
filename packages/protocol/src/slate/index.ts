@@ -25,3 +25,4 @@ export { slateResultShape, sketchSlateResult, slateFieldWords, SLATE_RESULT_ROWS
 export { slateCatalog, slateTokens, SLATE_CHAPTERS, SLATE_RULES } from "./catalog.js";
 export { SLATE_EXAMPLES } from "./examples.js";
 export { slateAddressRefused, slateImageMissing, slateImageNotAFile, slateImageSource, slateImageTooBig, slateLooksSvg, slateListTooLong, slateNotAnImage, SLATE_IMAGE_LAYOUTS, SLATE_IMAGE_MAX_BYTES, type SlateImageSource } from "./image.js";
+export { slateFrameSource, slateNotAPage, slatePageTooBig, SLATE_FRAME_POLICY, SLATE_PAGE_MAX_BYTES, type SlateFrameSource } from "./frame.js";
