@@ -5,6 +5,7 @@
 pub mod adapters;
 pub mod agent_setup;
 pub mod clock;
+pub mod console;
 pub mod context;
 pub mod daemon_channel;
 pub mod daemon_roots;
@@ -14,6 +15,7 @@ pub mod forwards;
 pub mod github_cache;
 pub mod harness_catalog;
 pub mod host_id;
+pub mod ids;
 pub mod idle;
 pub mod local_exec;
 pub mod machine_exec;
