@@ -45,8 +45,6 @@ export type Tool = {
   name: string;
   /** Its page, at /compare/<slug>. */
   slug: string;
-  /** The one picture of wsp its page shows: adding a computer, or a lead and its sub-threads. */
-  shot: "computer" | "subthreads";
   /** The card's line on /compare. */
   line: string;
   /** The sentence under the page's heading, which is also its description. */
@@ -110,7 +108,6 @@ export const KINDS: Kind[] = [
       {
         name: "Conductor",
         slug: "conductor",
-        shot: "computer",
         line: "A Mac app for agents side by side, with cloud sandboxes on Pro.",
         differs: "Conductor runs agents on your Mac or in its own cloud. wsp runs them on your computer and on Linux computers you own, each set up from yours.",
         stronger: [
@@ -160,7 +157,6 @@ export const KINDS: Kind[] = [
       {
         name: "Superset",
         slug: "superset",
-        shot: "computer",
         line: "A desktop app that reaches your other computers through its relay.",
         differs: "Superset reaches your other computers and leaves each one for you to set up. wsp sets each computer up from yours when you add it.",
         stronger: [
@@ -204,7 +200,6 @@ export const KINDS: Kind[] = [
       {
         name: "Orca",
         slug: "orca",
-        shot: "computer",
         line: "An open source app for 41 agents, on every desktop and phone.",
         differs: "Orca runs agents on ssh hosts and Orca servers you set up by hand. wsp sets each computer up from yours when you add it.",
         stronger: [
@@ -246,7 +241,6 @@ export const KINDS: Kind[] = [
       {
         name: "Emdash",
         slug: "emdash",
-        shot: "subthreads",
         line: "An open source app for 35 agents, with remote projects over ssh.",
         differs: "Emdash opens projects on ssh hosts you set up yourself. wsp sets each computer up from yours when you add it.",
         stronger: [
@@ -290,7 +284,6 @@ export const KINDS: Kind[] = [
       {
         name: "T3 Code",
         slug: "t3-code",
-        shot: "computer",
         line: "An open source app that spreads threads across your computers.",
         differs: "T3 Code reaches your other computers and leaves each one's setup to you. wsp sets each computer up from yours when you add it.",
         stronger: [
@@ -338,7 +331,6 @@ export const KINDS: Kind[] = [
       {
         name: "Solo",
         slug: "solo",
-        shot: "computer",
         line: "An app for the agents and dev processes on one computer.",
         differs: "Solo runs agents on the computer you sit at and no other. wsp runs them there and on Linux computers you own.",
         stronger: [
@@ -387,7 +379,6 @@ export const KINDS: Kind[] = [
       {
         name: "herdr",
         slug: "herdr",
-        shot: "computer",
         line: "An open source terminal runtime for agents, on your computer and over ssh.",
         differs: "herdr runs agents on ssh machines and copies nothing of yours onto them. wsp copies your setup onto each computer you add.",
         stronger: [
@@ -434,7 +425,6 @@ export const KINDS: Kind[] = [
       {
         name: "Claude Code on the web",
         slug: "claude-code-web",
-        shot: "computer",
         line: "Claude Code on Anthropic's VM, from the web, desktop or phone.",
         differs: "Claude Code on the web runs on Anthropic's VM with your repo. wsp runs it on computers you own, with your setup on them.",
         stronger: [
@@ -478,7 +468,6 @@ export const KINDS: Kind[] = [
       {
         name: "Codex cloud",
         slug: "codex-cloud",
-        shot: "subthreads",
         line: "Codex on OpenAI's VM, from the web, desktop, IDE or iOS.",
         differs: "Codex cloud runs on OpenAI's VM with your repo. wsp runs Codex on computers you own, with your setup on them.",
         stronger: [
@@ -522,7 +511,6 @@ export const KINDS: Kind[] = [
       {
         name: "Cursor cloud agents",
         slug: "cursor-cloud-agents",
-        shot: "computer",
         line: "Cursor's agent on its VM, or on your own machine with My Machines.",
         differs: "Cursor cloud agents run on Cursor's VM, set up from its dashboard. wsp runs agents on computers you own, set up from yours.",
         stronger: [

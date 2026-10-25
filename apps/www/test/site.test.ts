@@ -134,8 +134,7 @@ describe("every route, as raw HTML", () => {
       const linked = [...others.matchAll(/href="\/compare\/([^"]+)"/g)].map(m => m[1]);
       expect(linked).toEqual(TOOLS.filter(t => t.slug !== tool.slug).map(t => t.slug));
       for (const slug of linked) expect(others).toContain(`src="/logos/${slug}.png"`);
-      const shot = /<section id="shot"[\s\S]*?<\/section>/.exec(html)![0];
-      expect(shot).toContain(tool.shot === "computer" ? "setup-poster" : "w-hero");
+      expect(html).not.toContain('<section id="shot"');
       expect(html).toMatch(/<details class="[^"]*">/);
       const details = /<details[\s\S]*<\/details>/.exec(html)![0];
       for (const url of sources(tool)) expect(details).toContain(`href="${url}"`);
