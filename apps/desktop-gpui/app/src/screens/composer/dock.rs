@@ -5,7 +5,7 @@
 //! Esc leaves the field and then folds the dock to the drawer's first row. The dock closes on the event the host
 //! records, never on the reply; a reply that refuses the pick is said under the options.
 
-use gpui_kit::component::input::{Enter, Escape, InputState};
+use gpui_kit::component::input::{Enter, Escape, InputState, MoveDown, MoveUp};
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _};
 use gpui_kit::{div, img, prelude::*, px, AnyElement, Context, Focusable as _, FontWeight, KeyDownEvent, SharedString, Window};
 use serde_json::{Map, Value};
@@ -669,6 +669,24 @@ impl Composer {
         cx.notify();
     }
 
+    /// Up or Down in the dock's field, taken before the field's own: from the field's start going up, or its end going
+    /// down, the pick moves as the arrows move it on the dock and the dock takes the keys back, the words left for a
+    /// return to the row.
+    fn dock_field_arrow(&mut self, by: isize, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.dock_field.focus_handle(cx).is_focused(window) {
+            return;
+        }
+        let field = self.dock_field.read(cx);
+        let (len, at) = (field.value().len(), field.selected_range());
+        let edge = if by < 0 { at == (0..0) } else { at == (len..len) };
+        if let Some(dock) = self.dock.as_mut().filter(|d| edge && !d.text_only()) {
+            dock.arrow(by);
+            self.dock_focus.focus(window, cx);
+            cx.stop_propagation();
+            cx.notify();
+        }
+    }
+
     /// A field a pick opens takes the keys as it opens, as PromptDock.tsx focuses it once `fieldOpen` turns true.
     fn focus_opened_field(&mut self, was_open: bool, window: &mut Window, cx: &mut Context<Self>) {
         if !was_open && self.dock.as_ref().is_some_and(Dock::field_open) {
@@ -969,7 +987,9 @@ pub(super) fn view(c: &Composer, dock: &Dock, cx: &mut Context<Composer>) -> Any
         .min_w_0()
         .on_key_down(cx.listener(|c, event: &KeyDownEvent, window, cx| c.dock_key(event, window, cx)))
         .capture_action(cx.listener(Composer::on_dock_escape))
-        .capture_action(cx.listener(Composer::on_dock_enter));
+        .capture_action(cx.listener(Composer::on_dock_enter))
+        .capture_action(cx.listener(|c, _: &MoveUp, window, cx| c.dock_field_arrow(-1, window, cx)))
+        .capture_action(cx.listener(|c, _: &MoveDown, window, cx| c.dock_field_arrow(1, window, cx)));
     let framed = super::parts::dock_frame(
         c,
         super::parts::DockParts {

@@ -1162,3 +1162,88 @@ fn a_forks_first_send_names_its_source_turn_and_the_branch_picked() {
     assert_eq!(on_branch["branch"], "main-fork", "New branch goes with the send");
     assert!(fork_params(&fork(None), &out).get("branch").is_none(), "This folder names no branch");
 }
+
+/// A card of two questions, the first with Red and Blue over Other.
+fn two_questions() -> desktop_gpui::screens::composer::dock::Prompt {
+    use desktop_gpui::screens::composer::dock::{Pick, Prompt, Question};
+    let pick = |id: &str, label: &str| Pick {
+        id: id.into(),
+        label: label.into(),
+        description: String::new(),
+        effect: "answer".into(),
+        mode: None,
+    };
+    let question = |index: usize, options: Vec<Pick>| Question {
+        index,
+        header: String::new(),
+        question: format!("Question {index}?"),
+        options,
+        multiple: false,
+    };
+    Prompt {
+        ask: "ask-2".into(),
+        options: Vec::new(),
+        questions: Some(vec![question(0, vec![pick("q0:o0", "Red"), pick("q0:o1", "Blue")]), question(1, vec![pick("q1:o0", "Yes")])]),
+        ..states::asked()
+    }
+}
+
+fn on_question(cx: &mut TestAppContext) -> (gpui_kit::Entity<desktop_gpui::screens::composer::Composer>, &mut gpui_kit::VisualTestContext) {
+    let cx = open("prompt-dock", cx);
+    let composer = composer_of(cx);
+    composer.update_in(cx, |c, window, cx| c.set_prompt(Some(two_questions()), window, cx));
+    cx.run_until_parked();
+    (composer, cx)
+}
+
+/// The picked row, whether Other's field has the keys, and the words in it.
+fn question_state(
+    composer: &gpui_kit::Entity<desktop_gpui::screens::composer::Composer>,
+    cx: &mut gpui_kit::VisualTestContext,
+) -> (String, bool, String) {
+    cx.update(|window, cx| {
+        let c = composer.read(cx);
+        (c.dock().unwrap().picked.clone(), c.dock_field().focus_handle(cx).is_focused(window), c.dock_field().read(cx).value().to_string())
+    })
+}
+
+/// Up in Other's empty field moves the pick to the row above and gives the card the keys.
+#[gpui_kit::test]
+fn up_in_others_empty_field_picks_the_row_above_and_leaves_the_field(cx: &mut TestAppContext) {
+    let (composer, cx) = on_question(cx);
+    cx.simulate_keystrokes("down down");
+    cx.run_until_parked();
+    assert_eq!(question_state(&composer, cx), ("other".into(), true, String::new()), "Other opens its field with the keys");
+    cx.simulate_keystrokes("up");
+    cx.run_until_parked();
+    assert_eq!(question_state(&composer, cx), ("q0:o1".into(), false, String::new()), "Blue, above Other, is picked");
+    assert!(cx.update(|window, cx| composer.read(cx).dock_focused(window, cx)), "the card has the keys");
+    cx.simulate_keystrokes("up");
+    cx.run_until_parked();
+    assert_eq!(question_state(&composer, cx).0, "q0:o0", "the arrows go on moving the pick");
+}
+
+/// With words in Other's field Up leaves it only from the caret at the start, and Down only from the end; the words
+/// stay for a return to Other.
+#[gpui_kit::test]
+fn others_words_stay_and_the_arrows_leave_the_field_only_from_its_edges(cx: &mut TestAppContext) {
+    let (composer, cx) = on_question(cx);
+    cx.simulate_keystrokes("down down");
+    cx.simulate_input("green");
+    cx.simulate_keystrokes("up");
+    cx.run_until_parked();
+    assert_eq!(question_state(&composer, cx), ("other".into(), true, "green".into()), "the caret after the words keeps Up");
+    cx.simulate_keystrokes("home up");
+    cx.run_until_parked();
+    assert_eq!(question_state(&composer, cx), ("q0:o1".into(), false, "green".into()), "from the start Up picks Blue");
+    cx.simulate_keystrokes("down");
+    cx.run_until_parked();
+    assert_eq!(question_state(&composer, cx), ("other".into(), true, "green".into()), "back on Other the words are there");
+    assert_eq!(composer.read_with(cx, |c, _| c.dock().map(|d| d.held())), Some(false), "and the answer can go");
+    cx.simulate_keystrokes("home down");
+    cx.run_until_parked();
+    assert_eq!(question_state(&composer, cx).0, "other", "Down from the start stays in the field");
+    cx.simulate_keystrokes("end down");
+    cx.run_until_parked();
+    assert_eq!(question_state(&composer, cx), ("q0:o0".into(), false, "green".into()), "Down past the last row goes round to Red");
+}
