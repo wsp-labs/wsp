@@ -9,6 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 use super::helpers::ReqId;
+use super::runtime_ops::{dbl_rule, env_key, env_name_issue, opt_rule};
 use crate::types::agents_report::{AgentsTarget, McpScope};
 use crate::types::attachments::Attachment;
 use crate::types::check::{
@@ -491,7 +492,8 @@ pub enum SlatesEventEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SlatesEventScope {
-    pub item: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
+    pub item: Option<Option<Value>>,
     pub index: JsInt,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -729,12 +731,7 @@ pub struct SessionWarmResult {
 fn env_names(env: &IndexMap<String, Option<String>>) -> Result<(), SchemaError> {
     match env.keys().find(|key| !env_name(key)) {
         None => Ok(()),
-        Some(key) => Err(SchemaError {
-            code: "invalid_string".into(),
-            path: vec![Value::from(key.as_str())],
-            message: "a variable's name is letters, digits and _, not starting with a digit".into(),
-            detail: IndexMap::from([("validation".to_string(), Value::from("regex"))]),
-        }),
+        Some(key) => Err(env_name_issue(key)),
     }
 }
 
@@ -1397,37 +1394,25 @@ impl Check for RuntimeOp {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "token", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("ticket.issue") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<TicketPurpose>(obj, "purpose", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("pair.issue") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<True>(obj, "here", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("pair.redeem") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "code", &mut out);
-                crate::types::keys::req_key::<String>(obj, "name", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<String>(obj, "code", &mut out, |x| text_at_most(x, 64));
+                crate::types::keys::req_key_with::<String>(obj, "name", &mut out, |x| text_at_most(x, 200));
                 Some(out)
             }
             Some("seal.open") => {
@@ -1443,26 +1428,17 @@ impl Check for RuntimeOp {
             Some("account.get") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("devices.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("devices.revoke") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "deviceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("place.join") => {
@@ -1483,9 +1459,6 @@ impl Check for RuntimeOp {
             Some("places.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.update") => {
@@ -1493,18 +1466,12 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
                 crate::types::keys::opt_key::<SudoPassword>(obj, "sudoPassword", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.holds") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.remove") => {
@@ -1514,29 +1481,20 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<SudoPassword>(obj, "sudoPassword", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "force", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "forget", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.doctor") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
-                crate::types::keys::req_key::<String>(obj, "doctorId", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "project", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<String>(obj, "doctorId", &mut out, |x| text_at_most(x, 64));
+                crate::types::keys::opt_key_with::<String>(obj, "project", &mut out, |x| opt_rule(x, |v| text_at_most(v, 200)));
                 Some(out)
             }
             Some("places.dial") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.set") => {
@@ -1544,40 +1502,43 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
                 crate::types::keys::opt_key::<Vec<PlaceSettingWord>>(obj, "reset", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "name", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "ssh", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "recipe", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "threads", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "machines", &mut out);
-                crate::types::keys::opt_key::<JsNumber>(obj, "spendPerDayUsd", &mut out);
-                crate::types::keys::dbl_key::<JsInt>(obj, "napMs", &mut out);
-                crate::types::keys::dbl_key::<JsInt>(obj, "turnLimitMs", &mut out);
+                crate::types::keys::opt_key_with::<String>(obj, "name", &mut out, |x| opt_rule(x, |v| text_at_most(v, 200)));
+                crate::types::keys::opt_key_with::<String>(obj, "ssh", &mut out, |x| opt_rule(x, |v| text_at_most(v, 300)));
+                crate::types::keys::opt_key_with::<String>(obj, "recipe", &mut out, |x| {
+                    opt_rule(x, |v| text_at_least(v, 1).and_then(|()| text_at_most(v, 200)))
+                });
+                crate::types::keys::opt_key_with::<JsInt>(obj, "threads", &mut out, |x| opt_rule(x, |v| num_at_least(v.as_f64(), 1.0)));
+                crate::types::keys::opt_key_with::<JsInt>(obj, "machines", &mut out, |x| opt_rule(x, |v| num_at_least(v.as_f64(), 1.0)));
+                crate::types::keys::opt_key_with::<JsNumber>(obj, "spendPerDayUsd", &mut out, |x| opt_rule(x, |v| num_at_least(v.0, 0.0)));
+                crate::types::keys::dbl_key_with::<JsInt>(obj, "napMs", &mut out, |x| {
+                    dbl_rule(x, |v| num_at_least(v.as_f64(), 60000.0).and_then(|()| num_at_most(v.as_f64(), 10800000.0)))
+                });
+                crate::types::keys::dbl_key_with::<JsInt>(obj, "turnLimitMs", &mut out, |x| {
+                    dbl_rule(x, |v| num_at_least(v.as_f64(), 3600000.0).and_then(|()| num_at_most(v.as_f64(), 86400000.0)))
+                });
                 crate::types::keys::opt_key::<PlacesSetSpawn>(obj, "spawn", &mut out);
                 crate::types::keys::opt_key::<PlacesSetSize>(obj, "size", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "deleteAfterMs", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::opt_key_with::<JsInt>(obj, "deleteAfterMs", &mut out, |x| {
+                    opt_rule(x, |v| num_at_least(v.as_f64(), 0.0).and_then(|()| num_at_most(v.as_f64(), 86400000.0)))
+                });
                 Some(out)
             }
             Some("places.follow") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
-                crate::types::keys::req_key::<String>(obj, "recipe", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<String>(obj, "recipe", &mut out, |x| {
+                    text_at_least(x, 1).and_then(|()| text_at_most(x, 200))
+                });
                 Some(out)
             }
             Some("places.skip") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
-                crate::types::keys::req_key::<String>(obj, "row", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<String>(obj, "row", &mut out, |x| {
+                    text_at_least(x, 1).and_then(|()| text_at_most(x, 300))
+                });
                 Some(out)
             }
             Some("places.setupLog") => {
@@ -1585,19 +1546,13 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
                 crate::types::keys::opt_key::<PlaceSetupStep>(obj, "step", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.estimate") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "ref", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "ref", &mut out, |x| text_at_most(x, 200));
                 crate::types::keys::req_key::<RecipeFile>(obj, "choices", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.loginLanded") => {
@@ -1605,146 +1560,103 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "agent", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.door") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.mint") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.sshHosts") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.add") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "addId", &mut out);
-                crate::types::keys::req_key::<String>(obj, "address", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "name", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "sshPort", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "keyPath", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "hostKey", &mut out);
+                crate::types::keys::opt_key_with::<String>(obj, "addId", &mut out, |x| opt_rule(x, |v| text_at_most(v, 64)));
+                crate::types::keys::req_key_with::<String>(obj, "address", &mut out, |x| text_at_most(x, 200));
+                crate::types::keys::opt_key_with::<String>(obj, "name", &mut out, |x| opt_rule(x, |v| text_at_most(v, 200)));
+                crate::types::keys::opt_key_with::<JsInt>(obj, "sshPort", &mut out, |x| {
+                    opt_rule(x, |v| num_at_least(v.as_f64(), 1.0).and_then(|()| num_at_most(v.as_f64(), 65535.0)))
+                });
+                crate::types::keys::opt_key_with::<String>(obj, "keyPath", &mut out, |x| opt_rule(x, |v| text_at_most(v, 1024)));
+                crate::types::keys::opt_key_with::<String>(obj, "hostKey", &mut out, |x| opt_rule(x, |v| text_at_most(v, 200)));
                 crate::types::keys::opt_key::<SudoPassword>(obj, "sudoPassword", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "recipe", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::opt_key_with::<String>(obj, "recipe", &mut out, |x| opt_rule(x, |v| text_at_most(v, 200)));
                 Some(out)
             }
             Some("places.setup") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "ref", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "recipe", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "ref", &mut out, |x| text_at_most(x, 200));
+                crate::types::keys::opt_key_with::<String>(obj, "recipe", &mut out, |x| opt_rule(x, |v| text_at_most(v, 200)));
                 crate::types::keys::opt_key::<RecipeFile>(obj, "choices", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "addId", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "row", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::opt_key_with::<String>(obj, "addId", &mut out, |x| opt_rule(x, |v| text_at_most(v, 64)));
+                crate::types::keys::opt_key_with::<String>(obj, "row", &mut out, |x| opt_rule(x, |v| text_at_most(v, 400)));
                 Some(out)
             }
             Some("places.choose") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "ref", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "ref", &mut out, |x| text_at_most(x, 200));
                 crate::types::keys::req_key::<RecipeFile>(obj, "choices", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "recipe", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::opt_key_with::<String>(obj, "recipe", &mut out, |x| opt_rule(x, |v| text_at_most(v, 200)));
                 Some(out)
             }
             Some("recipes.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("recipes.get") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "name", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<String>(obj, "name", &mut out, |x| text_at_most(x, 200));
                 Some(out)
             }
             Some("recipes.save") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "name", &mut out);
-                crate::types::keys::opt_key::<Value>(obj, "file", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "from", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<String>(obj, "name", &mut out, |x| text_at_most(x, 200));
+                crate::types::keys::any_key::<Value>(obj, "file", &mut out);
+                crate::types::keys::opt_key_with::<String>(obj, "from", &mut out, |x| opt_rule(x, |v| text_at_most(v, 200)));
                 Some(out)
             }
             Some("recipes.remove") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "name", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "name", &mut out, |x| text_at_most(x, 200));
                 crate::types::keys::opt_key::<bool>(obj, "check", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("recipes.options") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("events.subscribe") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "after", &mut out);
+                crate::types::keys::opt_key_with::<JsInt>(obj, "after", &mut out, |x| opt_rule(x, |v| num_at_least(v.as_f64(), 0.0)));
                 crate::types::keys::opt_key::<String>(obj, "stream", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "creates", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("status.subscribe") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("status.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.create") => {
@@ -1762,9 +1674,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<String>(obj, "parent", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "engine", &mut out);
                 crate::types::keys::opt_key::<WorkspacesCreateSub>(obj, "sub", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.landing") => {
@@ -1772,26 +1681,17 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "project", &mut out);
                 crate::types::keys::opt_key::<True>(obj, "sized", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.resolve") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "ref", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.get") => {
@@ -1799,18 +1699,12 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.nap") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.resize") => {
@@ -1818,45 +1712,30 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::req_key::<WorkspacesResizeSize>(obj, "size", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.wake") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.restartDaemon") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.stopWake") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.upgrade") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.rename") => {
@@ -1864,9 +1743,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "name", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.look") => {
@@ -1875,9 +1751,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::dbl_key::<WorkspaceTheme>(obj, "theme", &mut out);
                 crate::types::keys::dbl_key::<WorkspaceGlyph>(obj, "glyph", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.bringBack") => {
@@ -1886,9 +1759,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "title", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "body", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("worktree.make") => {
@@ -1896,18 +1766,12 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "project", &mut out);
                 crate::types::keys::req_key::<String>(obj, "branch", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("folder.make") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "project", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("worktree.remove") => {
@@ -1917,9 +1781,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "branch", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "force", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "check", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.checkout") => {
@@ -1927,9 +1788,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "fresh", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.discard") => {
@@ -1939,9 +1797,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "path", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "check", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.commit") => {
@@ -1951,9 +1806,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "message", &mut out);
                 crate::types::keys::opt_key::<Vec<String>>(obj, "paths", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.commitDraft") => {
@@ -1962,9 +1814,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<Vec<String>>(obj, "paths", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.viewed") => {
@@ -1973,9 +1822,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "path", &mut out);
                 crate::types::keys::dbl_key::<String>(obj, "blob", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.pullRequestView") => {
@@ -1983,41 +1829,29 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "fresh", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.pullRequestDiff") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.pullRequestSend") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                crate::types::keys::req_key::<Vec<PullRequestItem>>(obj, "items", &mut out);
+                crate::types::keys::req_key_with::<Vec<PullRequestItem>>(obj, "items", &mut out, |x| items_at_least(x.len(), 1));
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.pullRequestReply") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "replyTo", &mut out);
+                crate::types::keys::opt_key_with::<JsInt>(obj, "replyTo", &mut out, |x| opt_rule(x, |v| num_at_least(v.as_f64(), 0.0)));
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
-                crate::types::keys::req_key::<String>(obj, "body", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<String>(obj, "body", &mut out, |x| text_at_most(x, 65536));
                 Some(out)
             }
             Some("workspaces.pullRequestResolve") => {
@@ -2026,9 +1860,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::req_key::<bool>(obj, "resolved", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.pullRequestReact") => {
@@ -2038,9 +1869,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "subject", &mut out);
                 crate::types::keys::req_key::<ReactionContent>(obj, "content", &mut out);
                 crate::types::keys::req_key::<bool>(obj, "on", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.fix") => {
@@ -2051,9 +1879,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<String>(obj, "child", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "childThreadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.merge") => {
@@ -2062,11 +1887,8 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<MergeMethod>(obj, "method", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "whenChecksPass", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "head", &mut out);
+                crate::types::keys::opt_key_with::<String>(obj, "head", &mut out, |x| opt_rule(x, |v| text_at_least(v, 1)));
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.start") => {
@@ -2078,9 +1900,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<String>(obj, "model", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "effort", &mut out);
                 crate::types::keys::opt_key::<AccessChoice>(obj, "access", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.review") => {
@@ -2091,9 +1910,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<String>(obj, "agent", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "model", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "effort", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.reviewDraft") => {
@@ -2103,9 +1919,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<String>(obj, "summary", &mut out);
                 crate::types::keys::opt_key::<WorkspacesReviewDraftVerdict>(obj, "verdict", &mut out);
                 crate::types::keys::opt_key::<Vec<WorkspacesReviewDraftOnItem>>(obj, "on", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.reviewPost") => {
@@ -2113,9 +1926,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.update") => {
@@ -2123,9 +1933,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.mergeIn") => {
@@ -2135,62 +1942,41 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "child", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "childThreadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.delete") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.forget") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.snapshot") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("projectGoldens.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("projectGoldens.remove") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "snapshotId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.touch") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("daemon.open") => {
@@ -2198,9 +1984,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "placeId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sys.subscribe") => {
@@ -2208,9 +1991,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "placeId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sys.unsubscribe") => {
@@ -2218,42 +1998,27 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "placeId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("appProcs.watch") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("appProcs.unwatch") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("appProcs.offer") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("appProcs.set") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<AppProcList>(obj, "procs", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("activity.read") => {
@@ -2261,20 +2026,14 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "computer", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "thread", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("activity.end") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "computer", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "pid", &mut out);
+                crate::types::keys::req_key_with::<JsInt>(obj, "pid", &mut out, |x| num_above(x.as_f64(), 0.0));
                 crate::types::keys::req_key::<JsNumber>(obj, "startedAt", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("daemon.send") => {
@@ -2282,18 +2041,12 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "channel", &mut out);
                 crate::types::keys::req_key::<DaemonFrame>(obj, "frame", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("daemon.close") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "channel", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.start") => {
@@ -2317,16 +2070,13 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<bool>(obj, "answerHeld", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "followed", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "attempt", &mut out);
-                crate::types::keys::opt_key::<Vec<String>>(obj, "notify", &mut out);
+                crate::types::keys::opt_key_with::<Vec<String>>(obj, "notify", &mut out, |x| opt_rule(x, |v| items_at_least(v.len(), 1)));
                 crate::types::keys::opt_key::<String>(obj, "turnToken", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "title", &mut out);
                 crate::types::keys::opt_key::<ResumeAsk>(obj, "resume", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "replaces", &mut out);
                 crate::types::keys::opt_key::<ForkSource>(obj, "fork", &mut out);
                 crate::types::keys::opt_key::<Vec<Attachment>>(obj, "attachments", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("harnesses.list") => {
@@ -2335,18 +2085,12 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "project", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "computer", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.history") => {
@@ -2354,12 +2098,11 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "before", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "limit", &mut out);
+                crate::types::keys::opt_key_with::<JsInt>(obj, "before", &mut out, |x| opt_rule(x, |v| num_above(v.as_f64(), 0.0)));
+                crate::types::keys::opt_key_with::<JsInt>(obj, "limit", &mut out, |x| {
+                    opt_rule(x, |v| num_above(v.as_f64(), 0.0).and_then(|()| num_at_most(v.as_f64(), 1000.0)))
+                });
                 crate::types::keys::opt_key::<True>(obj, "whole", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.head") => {
@@ -2367,9 +2110,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::opt_key::<True>(obj, "afterRead", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.attachment") => {
@@ -2378,10 +2118,7 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "requestId", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "index", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<JsInt>(obj, "index", &mut out, |x| num_at_least(x.as_f64(), 0.0));
                 Some(out)
             }
             Some("sessions.interrupt") => {
@@ -2389,9 +2126,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "sessionId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "task", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.steer") => {
@@ -2401,9 +2135,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "prompt", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "requestId", &mut out);
                 crate::types::keys::opt_key::<Vec<Attachment>>(obj, "attachments", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.answer") => {
@@ -2413,9 +2144,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "askId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "optionId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "reason", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.access") => {
@@ -2423,9 +2151,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "sessionId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "permissionMode", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.rename") => {
@@ -2433,9 +2158,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "sessionId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "title", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.forget") => {
@@ -2443,9 +2165,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "check", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.delete") => {
@@ -2454,27 +2173,18 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::opt_key::<ProcessesAsk>(obj, "processes", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "check", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.read") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.replaceable") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.warm") => {
@@ -2490,48 +2200,33 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<AccessChoice>(obj, "access", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "contextWindow", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "fast", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.settle") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<Vec<String>>(obj, "threadIds", &mut out);
+                crate::types::keys::req_key_with::<Vec<String>>(obj, "threadIds", &mut out, |x| items_at_least(x.len(), 1));
                 crate::types::keys::opt_key::<bool>(obj, "finished", &mut out);
                 crate::types::keys::opt_key::<ProcessesAsk>(obj, "processes", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.mark") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<Vec<String>>(obj, "threadIds", &mut out);
+                crate::types::keys::req_key_with::<Vec<String>>(obj, "threadIds", &mut out, |x| items_at_least(x.len(), 1));
                 crate::types::keys::req_key::<ThreadMarks>(obj, "marks", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.restore") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<Vec<String>>(obj, "threadIds", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<Vec<String>>(obj, "threadIds", &mut out, |x| items_at_least(x.len(), 1));
                 Some(out)
             }
             Some("sessions.search") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "query", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.aside") => {
@@ -2540,9 +2235,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "sessionId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "question", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "askId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.run") => {
@@ -2558,9 +2250,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<String>(obj, "output", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "turnId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("sessions.rewind") => {
@@ -2570,26 +2259,17 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<String>(obj, "turnId", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "files", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "undo", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("golden.get") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "name", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("capabilities.get") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("golden.prepare") => {
@@ -2597,52 +2277,34 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "name", &mut out);
                 crate::types::keys::opt_key::<MachineKind>(obj, "kind", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("golden.seal") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "builderId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("snapshots.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "name", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("snapshots.storage") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("cost.history") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("cost.spend") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("usage.used") => {
@@ -2651,18 +2313,12 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<UsageRange>(obj, "range", &mut out);
                 crate::types::keys::req_key::<UsageSplit>(obj, "split", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "outside", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("usage.accounts") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "fresh", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("usage.reset") => {
@@ -2671,9 +2327,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "account", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "creditId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "on", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("places.readings") => {
@@ -2682,9 +2335,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<String>(obj, "placeId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::req_key::<ReadingsRange>(obj, "range", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("snapshots.rollback") => {
@@ -2692,46 +2342,35 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<JsNumber>(obj, "version", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "name", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.portReach") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "port", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<JsInt>(obj, "port", &mut out, |x| {
+                    num_at_least(x.as_f64(), 1.0).and_then(|()| num_at_most(x.as_f64(), 65535.0))
+                });
                 Some(out)
             }
             Some("workspaces.portProbe") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "port", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<JsInt>(obj, "port", &mut out, |x| {
+                    num_at_least(x.as_f64(), 1.0).and_then(|()| num_at_most(x.as_f64(), 65535.0))
+                });
                 Some(out)
             }
             Some("workspaces.rebuild") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("forwards.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("forwards.stop") => {
@@ -2739,20 +2378,14 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::req_key::<RelayPort>(obj, "port", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("workspaces.exec") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                crate::types::keys::req_key::<Vec<String>>(obj, "argv", &mut out);
+                crate::types::keys::req_key_with::<Vec<String>>(obj, "argv", &mut out, |x| items_at_least(x.len(), 1));
                 crate::types::keys::opt_key::<String>(obj, "cwd", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("host.folders") => {
@@ -2762,26 +2395,17 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<bool>(obj, "hidden", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "repos", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "on", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("host.terminalConfig") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<TerminalScheme>(obj, "scheme", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("editor.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("editor.open") => {
@@ -2789,38 +2413,26 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "path", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "line", &mut out);
+                crate::types::keys::opt_key_with::<JsInt>(obj, "line", &mut out, |x| opt_rule(x, |v| num_above(v.as_f64(), 0.0)));
                 crate::types::keys::opt_key::<EditorId>(obj, "editor", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("ssh.port") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("ssh.include") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "on", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("agents.read") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<AgentsTarget>(obj, "target", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("servers.tools") => {
@@ -2830,19 +2442,15 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "agent", &mut out);
                 crate::types::keys::req_key::<String>(obj, "name", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "refresh", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("servers.icon") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "host", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "host", &mut out, |x| {
+                    text_at_least(x, 1).and_then(|()| text_at_most(x, 260))
+                });
                 crate::types::keys::opt_key::<bool>(obj, "refresh", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("agents.signIn") => {
@@ -2851,9 +2459,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<AgentsTarget>(obj, "target", &mut out);
                 crate::types::keys::req_key::<String>(obj, "agent", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "terminal", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("servers.signIn") => {
@@ -2864,36 +2469,24 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "name", &mut out);
                 crate::types::keys::opt_key::<McpScope>(obj, "scope", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "project", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("agents.signInCode") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "signInId", &mut out);
-                crate::types::keys::req_key::<String>(obj, "code", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<String>(obj, "code", &mut out, |x| text_at_least(x, 1));
                 Some(out)
             }
             Some("agents.signIns") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("agents.signInStop") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "signInId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("agents.signInLine") => {
@@ -2902,47 +2495,32 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<AgentsTarget>(obj, "target", &mut out);
                 crate::types::keys::req_key::<String>(obj, "agent", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "name", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("agents.key") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "agent", &mut out);
-                crate::types::keys::req_key::<String>(obj, "key", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "key", &mut out, |x| text_at_least(x, 1));
                 crate::types::keys::opt_key::<AgentsKeyWay>(obj, "way", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("agents.cloudSignIn") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<AgentsCloudSignInAgent>(obj, "agent", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("providers.checkKey") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "provider", &mut out);
-                crate::types::keys::req_key::<String>(obj, "key", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<String>(obj, "provider", &mut out, |x| text_at_most(x, 64));
+                crate::types::keys::req_key_with::<String>(obj, "key", &mut out, |x| text_at_least(x, 1));
                 Some(out)
             }
             Some("broker.status") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("agents.addTools") => {
@@ -2950,9 +2528,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<AgentsTarget>(obj, "target", &mut out);
                 crate::types::keys::req_key::<String>(obj, "agent", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("agents.setup") => {
@@ -2961,32 +2536,25 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "agent", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "on", &mut out);
-                crate::types::keys::dbl_key::<String>(obj, "program", &mut out);
-                crate::types::keys::dbl_key::<String>(obj, "configDir", &mut out);
+                crate::types::keys::dbl_key_with::<String>(obj, "program", &mut out, |x| dbl_rule(x, |v| text_at_least(v, 1)));
+                crate::types::keys::dbl_key_with::<String>(obj, "configDir", &mut out, |x| dbl_rule(x, |v| text_at_least(v, 1)));
                 crate::types::keys::dbl_key::<Vec<String>>(obj, "args", &mut out);
-                crate::types::keys::opt_key::<IndexMap<String, Option<String>>>(obj, "env", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                env_key(obj, &mut out);
                 Some(out)
             }
             Some("skills.search") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "q", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "limit", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::opt_key_with::<JsInt>(obj, "limit", &mut out, |x| {
+                    opt_rule(x, |v| num_at_least(v.as_f64(), 1.0).and_then(|()| num_at_most(v.as_f64(), 50.0)))
+                });
                 Some(out)
             }
             Some("skills.get") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "skill", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("skills.preview") => {
@@ -2995,9 +2563,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<AgentsTarget>(obj, "target", &mut out);
                 crate::types::keys::req_key::<String>(obj, "name", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "project", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("skills.add") => {
@@ -3007,9 +2572,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "skill", &mut out);
                 crate::types::keys::opt_key::<Vec<String>>(obj, "agents", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "project", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("skills.remove") => {
@@ -3018,9 +2580,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<AgentsTarget>(obj, "target", &mut out);
                 crate::types::keys::req_key::<String>(obj, "name", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "project", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("skills.toggle") => {
@@ -3030,9 +2589,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "name", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "project", &mut out);
                 crate::types::keys::req_key::<bool>(obj, "on", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("servers.add") => {
@@ -3047,9 +2603,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<IndexMap<String, String>>(obj, "env", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "url", &mut out);
                 crate::types::keys::opt_key::<IndexMap<String, String>>(obj, "headers", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("servers.remove") => {
@@ -3059,9 +2612,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "agent", &mut out);
                 crate::types::keys::req_key::<String>(obj, "name", &mut out);
                 crate::types::keys::opt_key::<McpScope>(obj, "scope", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("servers.toggle") => {
@@ -3072,9 +2622,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "name", &mut out);
                 crate::types::keys::opt_key::<McpScope>(obj, "scope", &mut out);
                 crate::types::keys::req_key::<bool>(obj, "on", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("plugins.toggle") => {
@@ -3084,29 +2631,20 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "agent", &mut out);
                 crate::types::keys::req_key::<String>(obj, "plugin", &mut out);
                 crate::types::keys::req_key::<bool>(obj, "on", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("init.get") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "on", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("init.keys") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "provider", &mut out);
+                crate::types::keys::opt_key_with::<String>(obj, "provider", &mut out, |x| opt_rule(x, |v| text_at_most(v, 64)));
                 crate::types::keys::opt_key::<String>(obj, "key", &mut out);
                 crate::types::keys::opt_key::<IndexMap<String, String>>(obj, "rows", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("init.start") => {
@@ -3115,9 +2653,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<InitRoad>(obj, "road", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "harness", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "on", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("init.answer") => {
@@ -3126,38 +2661,26 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<InitScreenId>(obj, "screen", &mut out);
                 crate::types::keys::opt_key::<Vec<String>>(obj, "ticks", &mut out);
                 crate::types::keys::opt_key::<IndexMap<String, String>>(obj, "answers", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("init.step") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "at", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<JsInt>(obj, "at", &mut out, |x| num_at_least(x.as_f64(), 0.0));
                 Some(out)
             }
             Some("init.draft") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "at", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "at", &mut out, |x| text_at_least(x, 1).and_then(|()| text_at_most(x, 64)));
                 crate::types::keys::opt_key::<Vec<String>>(obj, "ticks", &mut out);
                 crate::types::keys::opt_key::<IndexMap<String, String>>(obj, "answers", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("init.retry") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "tool", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("init.build") => {
@@ -3168,69 +2691,47 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<bool>(obj, "yes", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "on", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "rebuild", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("init.signInCode") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "tool", &mut out);
-                crate::types::keys::req_key::<String>(obj, "code", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<String>(obj, "code", &mut out, |x| {
+                    text_at_least(x, 1).and_then(|()| text_at_most(x, 256))
+                });
                 Some(out)
             }
             Some("init.cancel") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("preferences.get") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("preferences.set") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<PreferencesPatch>(obj, "patch", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("release.get") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("release.check") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "force", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("host.restart") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("projects.add") => {
@@ -3242,9 +2743,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<String>(obj, "base", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "into", &mut out);
                 crate::types::keys::opt_key::<SeedChoice>(obj, "seed", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("project.seed.plan") => {
@@ -3252,9 +2750,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "source", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "on", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("projects.seed") => {
@@ -3265,17 +2760,11 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<Vec<String>>(obj, "cut", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "none", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "save", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("projects.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("conversations.list") => {
@@ -3283,47 +2772,34 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "project", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "agent", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("conversations.read") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "project", &mut out);
-                crate::types::keys::req_key::<String>(obj, "agent", &mut out);
-                crate::types::keys::req_key::<String>(obj, "conversation", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "agent", &mut out, |x| text_at_least(x, 1));
+                crate::types::keys::req_key_with::<String>(obj, "conversation", &mut out, |x| {
+                    text_at_least(x, 1).and_then(|()| text_at_most(x, 200))
+                });
                 crate::types::keys::opt_key::<bool>(obj, "preview", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("projects.defaults") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("projects.resolve") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "ref", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("projects.branch") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "projectId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("projects.remove") => {
@@ -3332,37 +2808,25 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "projectId", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "force", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "check", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("projects.icon") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "projectId", &mut out);
-                crate::types::keys::req_key::<Option<String>>(obj, "png", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<Option<String>>(obj, "png", &mut out, |x| opt_rule(x, |v| text_at_most(v, 327680)));
                 Some(out)
             }
             Some("projects.icons") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<Vec<ProjectIconHash>>(obj, "hashes", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<Vec<ProjectIconHash>>(obj, "hashes", &mut out, |x| items_at_most(x.len(), 1000));
                 Some(out)
             }
             Some("project.plan") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "source", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("project.import") => {
@@ -3375,9 +2839,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<Vec<String>>(obj, "carry", &mut out);
                 crate::types::keys::opt_key::<Vec<String>>(obj, "rewrite", &mut out);
                 crate::types::keys::opt_key::<Vec<String>>(obj, "agents", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("project.export") => {
@@ -3388,49 +2849,36 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "dest", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "replace", &mut out);
                 crate::types::keys::opt_key::<Vec<String>>(obj, "agents", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("image.get") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "name", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("image.build") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "place", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "place", &mut out, |x| text_at_least(x, 1));
                 crate::types::keys::opt_key::<String>(obj, "name", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "force", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("image.export") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "dest", &mut out);
-                crate::types::keys::req_key::<String>(obj, "passphrase", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "dest", &mut out, |x| text_at_least(x, 1));
+                crate::types::keys::req_key_with::<String>(obj, "passphrase", &mut out, |x| {
+                    text_at_least(x, 12).and_then(|()| text_at_most(x, 256))
+                });
                 crate::types::keys::opt_key::<String>(obj, "name", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.get") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.write") => {
@@ -3444,9 +2892,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<JsInt>(obj, "ifVersion", &mut out);
                 crate::types::keys::opt_key::<SlateWireValues>(obj, "values", &mut out);
                 crate::types::keys::opt_key::<SlatesWritePress>(obj, "press", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.state") => {
@@ -3457,9 +2902,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<SlateWireValues>(obj, "values", &mut out);
                 crate::types::keys::opt_key::<Vec<String>>(obj, "start", &mut out);
                 crate::types::keys::opt_key::<JsInt>(obj, "ifVersion", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.read") => {
@@ -3471,9 +2913,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<bool>(obj, "text", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "sketch", &mut out);
                 crate::types::keys::opt_key::<bool>(obj, "document", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.catalog") => {
@@ -3482,9 +2921,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::opt_key::<String>(obj, "name", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "turnToken", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.event") => {
@@ -3494,12 +2930,11 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<JsInt>(obj, "version", &mut out);
                 crate::types::keys::req_key::<String>(obj, "piece", &mut out);
                 crate::types::keys::req_key::<SlatesEventEvent>(obj, "event", &mut out);
-                crate::types::keys::req_key::<String>(obj, "requestId", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "requestId", &mut out, |x| {
+                    text_at_least(x, 1).and_then(|()| text_at_most(x, 200))
+                });
                 crate::types::keys::opt_key::<SlatesEventScope>(obj, "scope", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "rowAction", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::opt_key_with::<JsInt>(obj, "rowAction", &mut out, |x| opt_rule(x, |v| num_at_least(v.as_f64(), 0.0)));
                 Some(out)
             }
             Some("slates.approve") => {
@@ -3508,9 +2943,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "key", &mut out);
                 crate::types::keys::req_key::<SlatesApproveScope>(obj, "scope", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.cancel") => {
@@ -3518,9 +2950,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "run", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.revoke") => {
@@ -3528,18 +2957,12 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "key", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.shown") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.subscribe") => {
@@ -3547,9 +2970,6 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::req_key::<Vec<String>>(obj, "sources", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.unsubscribe") => {
@@ -3557,30 +2977,21 @@ impl Check for RuntimeOp {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::req_key::<Vec<String>>(obj, "sources", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("slates.resolve") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
-                crate::types::keys::req_key::<Vec<String>>(obj, "paths", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<Vec<String>>(obj, "paths", &mut out, |x| items_at_most(x.len(), 200));
                 Some(out)
             }
             Some("slates.image") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
-                crate::types::keys::req_key::<String>(obj, "src", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "have", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key_with::<String>(obj, "src", &mut out, |x| text_at_most(x, 4096));
+                crate::types::keys::opt_key_with::<String>(obj, "have", &mut out, |x| opt_rule(x, |v| text_at_most(v, 200)));
                 Some(out)
             }
             _ => Some(vec![crate::types::check::unknown_tag::<Self>("op", tag)]),
@@ -3798,7 +3209,7 @@ impl Check for SlatesEventScope {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::req_key::<Value>(obj, "item", &mut out);
+        crate::types::keys::any_key::<Value>(obj, "item", &mut out);
         crate::types::keys::req_key_with::<JsInt>(obj, "index", &mut out, Self::rule_index);
         Some(out)
     }
@@ -3823,12 +3234,10 @@ impl Check for RuntimeRequest {
         let serde_json::Value::Object(obj) = value else {
             return Some(out);
         };
-        if out.is_empty() {
-            if let Some(named) = obj.get("op").and_then(serde_json::Value::as_str).and_then(super::runtime_ops::strict_keys) {
-                let unknown: Vec<String> = obj.keys().filter(|k| !named.contains(&k.as_str())).cloned().collect();
-                if !unknown.is_empty() {
-                    out.push(crate::types::check::unrecognized(Vec::new(), unknown));
-                }
+        if let Some(named) = obj.get("op").and_then(serde_json::Value::as_str).and_then(super::runtime_ops::strict_keys) {
+            let unknown: Vec<String> = obj.keys().filter(|k| !named.contains(&k.as_str())).cloned().collect();
+            if !unknown.is_empty() {
+                out.push(crate::types::check::unrecognized(Vec::new(), unknown));
             }
         }
         if let Some(origin) = obj.get("origin") {

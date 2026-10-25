@@ -8,7 +8,7 @@ use indexmap::IndexMap;
 use serde::de::Error as _;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use super::helpers::ReqId;
 use crate::types::agents_report::{AgentsTarget, McpScope};
@@ -144,7 +144,13 @@ pub enum RuntimeOp {
     #[serde(rename = "recipes.get", rename_all = "camelCase")]
     RecipesGet { id: ReqId, name: String },
     #[serde(rename = "recipes.save", rename_all = "camelCase")]
-    RecipesSave { id: ReqId, name: String, file: Option<Value>, from: Option<String> },
+    RecipesSave {
+        id: ReqId,
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
+        file: Option<Option<Value>>,
+        from: Option<String>,
+    },
     #[serde(rename = "recipes.remove", rename_all = "camelCase")]
     RecipesRemove { id: ReqId, name: String, check: Option<bool> },
     #[serde(rename = "recipes.options", rename_all = "camelCase")]
@@ -718,13 +724,14 @@ pub struct RuntimeRequest {
 
 impl Serialize for RuntimeRequest {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Value::Object(mut frame) = serde_json::to_value(&self.op).map_err(S::Error::custom)? else {
-            return Err(S::Error::custom("an op writes as an object"));
-        };
-        if let Some(origin) = &self.origin {
-            frame.insert("origin".to_string(), serde_json::to_value(origin).map_err(S::Error::custom)?);
+        #[derive(Serialize)]
+        struct Framed<'a> {
+            #[serde(flatten)]
+            op: &'a RuntimeOp,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            origin: Option<&'a WorkspaceOrigin>,
         }
-        Value::Object(frame).serialize(s)
+        Framed { op: &self.op, origin: self.origin.as_ref() }.serialize(s)
     }
 }
 
@@ -738,11 +745,45 @@ impl<'de> Deserialize<'de> for RuntimeRequest {
     }
 }
 
+/// A rule on an `.optional()` key: it runs on the value when the key has one.
+pub(super) fn opt_rule<T>(x: &Option<T>, rule: impl FnOnce(&T) -> Result<(), SchemaError>) -> Result<(), SchemaError> {
+    x.as_ref().map_or(Ok(()), rule)
+}
+
+/// A rule on an `.optional().nullable()` key: it runs on a value, not on `null`.
+pub(super) fn dbl_rule<T>(x: &Option<Option<T>>, rule: impl FnOnce(&T) -> Result<(), SchemaError>) -> Result<(), SchemaError> {
+    x.as_ref().and_then(Option::as_ref).map_or(Ok(()), rule)
+}
+
+/// The issue zod's `EnvName` gives a variable name the shell would not take, at the key's own path below the record.
+pub(super) fn env_name_issue(key: &str) -> SchemaError {
+    SchemaError {
+        code: "invalid_string".into(),
+        path: vec![Value::from(key)],
+        message: "a variable's name is letters, digits and _, not starting with a digit".into(),
+        detail: IndexMap::from([("validation".to_string(), Value::from("regex"))]),
+    }
+}
+
+/// `z.record(EnvName, z.string().nullable()).optional()`: zod checks each entry's name, then its value, in the order the
+/// frame holds them, so a second bad name is a second issue.
+pub(super) fn env_key(obj: &Map<String, Value>, out: &mut Vec<SchemaError>) {
+    let Some(Value::Object(vars)) = obj.get("env") else {
+        return crate::types::keys::opt_key::<IndexMap<String, Option<String>>>(obj, "env", out);
+    };
+    for (name, value) in vars {
+        if !crate::types::check::env_name(name) {
+            out.push(env_name_issue(name).under("env"));
+        }
+        out.extend(crate::types::check::issues_of::<Option<String>>(value).into_iter().map(|e| e.under(name.as_str()).under("env")));
+    }
+}
+
 /// The keys of the ops whose object zod reads strict: a merge keeps the strictness of the schema merged in, so these ops
-/// refuse a key they do not name. `origin` is the envelope's and is always allowed.
+/// refuse a key they do not name, `origin` among them.
 pub(super) fn strict_keys(word: &str) -> Option<&'static [&'static str]> {
     match word {
-        "agents.setup" => Some(&["id", "op", "placeId", "agent", "on", "program", "configDir", "args", "env", "origin"]),
+        "agents.setup" => Some(&["id", "op", "placeId", "agent", "on", "program", "configDir", "args", "env"]),
         _ => None,
     }
 }
