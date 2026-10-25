@@ -6,8 +6,8 @@
 
 use std::sync::{Arc, Mutex};
 
-use futures::future::{BoxFuture, FutureExt};
-use futures::stream::{BoxStream, StreamExt};
+use futures::future::{LocalBoxFuture, FutureExt};
+use futures::stream::{LocalBoxStream, StreamExt};
 use tokio::sync::watch;
 use wsp_adapters::port::{AdapterEvent, AttachRunOptions, Attached, Env, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, OnEvent, SharedFuture, WriteOutcome};
 
@@ -56,7 +56,7 @@ impl Exit {
                 }
             }
         }
-        .boxed()
+        .boxed_local()
         .shared()
     }
 }
@@ -70,7 +70,7 @@ struct Scripted {
 }
 
 impl ExecStream for Scripted {
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
         let lines = self.lines.lock().unwrap().take().unwrap_or_default();
         let opts = self.opts.clone();
         let exit = self.exit.clone();
@@ -88,7 +88,7 @@ impl ExecStream for Scripted {
             None
         })
         .filter_map(|x| async move { x });
-        head.chain(tail).boxed()
+        head.chain(tail).boxed_local()
     }
     fn run(&self) -> Option<String> {
         Some(self.run.clone())
@@ -101,8 +101,8 @@ impl ExecStream for Scripted {
         self.order.lock().unwrap().push("kill".into());
         self.exit.resolve(None);
     }
-    fn write(&self, _line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
-        async { Ok(WriteOutcome::Written) }.boxed()
+    fn write(&self, _line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+        async { Ok(WriteOutcome::Written) }.boxed_local()
     }
     fn close_input(&self) {
         self.order.lock().unwrap().push("closeInput".into());
@@ -112,7 +112,7 @@ impl ExecStream for Scripted {
     }
 }
 
-type AttachFn = Arc<dyn Fn(&str, AttachRunOptions) -> BoxFuture<'static, Result<Attached, ExecFailure>> + Send + Sync>;
+type AttachFn = Arc<dyn Fn(&str, AttachRunOptions) -> LocalBoxFuture<'static, Result<Attached, ExecFailure>>>;
 
 /// Replays `lines` on every launch. TS `scriptedExec`.
 #[derive(Clone)]
@@ -158,13 +158,13 @@ impl ExecStreamFactory for ScriptedExec {
         self.calls.lock().unwrap().push(Call { command: command.to_string(), env: options.env.clone(), input: options.input.clone() });
         self.stream()
     }
-    fn attach(&self, run: &str, options: AttachRunOptions) -> Option<BoxFuture<'static, Result<Attached, ExecFailure>>> {
+    fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
         if !*self.attach_ok.lock().unwrap() {
             return None;
         }
         self.attached.lock().unwrap().push((run.to_string(), options.input));
         let stream = self.stream();
-        Some(async move { Ok(Attached::Stream(stream)) }.boxed())
+        Some(async move { Ok(Attached::Stream(stream)) }.boxed_local())
     }
 }
 

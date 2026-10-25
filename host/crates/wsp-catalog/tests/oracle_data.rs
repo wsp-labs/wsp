@@ -8,9 +8,9 @@ use serde_json::{json, Value};
 use wsp_catalog::context::*;
 use wsp_catalog::git_hosts::*;
 use wsp_catalog::marks::*;
-use wsp_catalog::pending::McpRowTransport;
 use wsp_catalog::seed::*;
 use wsp_catalog::skills::claude_plugin_skills;
+use wsp_wire::types::agents_report::McpRowTransport;
 
 #[test]
 fn the_brand_provider_and_editor_marks_are_the_ts_marks_in_order() {
@@ -46,7 +46,11 @@ fn the_seed_rows_are_the_ts_rows_and_judge_every_path_as_the_ts_does() {
         let path = s(&case["path"]);
         let dir = case["dir"].as_bool().unwrap();
         let got = seed_row_for(path, dir).map(|(row, kind)| (row.id.clone(), kind));
-        same(&format!("{path:?} dir {dir}"), json!({ "row": opt(got.as_ref().map(|g| g.0.clone())), "kind": opt(got.map(|g| g.1)) }), &json!({ "row": case["row"], "kind": case["kind"] }));
+        same(
+            &format!("{path:?} dir {dir}"),
+            json!({ "row": opt(got.as_ref().map(|g| g.0.clone())), "kind": opt(got.map(|g| g.1)) }),
+            &json!({ "row": case["row"], "kind": case["kind"] }),
+        );
     }
 }
 
@@ -92,9 +96,25 @@ fn only_the_four_thread_agents_run_threads() {
 fn every_agents_context_lands_the_ts_files_with_and_without_a_conflict() {
     let w = fixture("context.json");
     let roots = GuestRoots { etc: "/etc".into(), home: "/root".into() };
-    let input = |conflict: bool, fish: bool| ContextHookInput { short: "SHORT\n".into(), skill: "SKILL\n".into(), source: "/etc/wsp/short.md".into(), roots: roots.clone(), conflict, fish };
-    let odd = ContextHookInput { short: "a ''' b".into(), skill: "SKILL".into(), source: "/s".into(), roots: GuestRoots { etc: "/x/etc".into(), home: "/x/home".into() }, conflict: false, fish: true };
-    for ctx in [AgentContext::Claude, AgentContext::Codex, AgentContext::Gemini, AgentContext::Opencode, AgentContext::Pi, AgentContext::Hermes] {
+    let input = |conflict: bool, fish: bool| ContextHookInput {
+        short: "SHORT\n".into(),
+        skill: "SKILL\n".into(),
+        source: "/etc/wsp/short.md".into(),
+        roots: roots.clone(),
+        conflict,
+        fish,
+    };
+    let odd = ContextHookInput {
+        short: "a ''' b".into(),
+        skill: "SKILL".into(),
+        source: "/s".into(),
+        roots: GuestRoots { etc: "/x/etc".into(), home: "/x/home".into() },
+        conflict: false,
+        fish: true,
+    };
+    for ctx in
+        [AgentContext::Claude, AgentContext::Codex, AgentContext::Gemini, AgentContext::Opencode, AgentContext::Pi, AgentContext::Hermes]
+    {
         let id = json(ctx);
         let want = &w["hooks"][s(&id)];
         same(&format!("{id} cd"), opt(ctx.cd()), &want["cd"]);

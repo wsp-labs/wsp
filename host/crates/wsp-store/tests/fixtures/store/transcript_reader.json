@@ -1,0 +1,226 @@
+{
+ "reads": {
+  "all": {
+   "pos": [
+    1,
+    3,
+    "unnumbered",
+    6
+   ],
+   "total": 4
+  },
+  "limit2": {
+   "pos": [
+    "unnumbered",
+    6
+   ],
+   "total": 4
+  },
+  "limit0": {
+   "pos": [],
+   "total": 4
+  },
+  "before6": {
+   "pos": [
+    1,
+    3,
+    "unnumbered"
+   ],
+   "total": 4
+  },
+  "before1": {
+   "pos": [
+    "unnumbered"
+   ],
+   "total": 4
+  },
+  "before0": {
+   "pos": [],
+   "total": 4
+  },
+  "bytes0": {
+   "pos": [
+    6
+   ],
+   "total": 4
+  },
+  "bytes0strict": {
+   "pos": [],
+   "total": 4
+  },
+  "bytesExactTwo": {
+   "pos": [
+    "unnumbered",
+    6
+   ],
+   "total": 4
+  },
+  "bytesOneShort": {
+   "pos": [
+    6
+   ],
+   "total": 4
+  },
+  "strictExactOne": {
+   "pos": [
+    6
+   ],
+   "total": 4
+  },
+  "strictOneShort": {
+   "pos": [],
+   "total": 4
+  },
+  "threadEmpty": {
+   "events": [],
+   "total": 0
+  },
+  "sizes": [
+   116,
+   111,
+   126,
+   95,
+   108,
+   136
+  ]
+ },
+ "head": {
+  "long": {
+   "keys": [
+    "type",
+    "workspaceId",
+    "sessionId",
+    "threadId",
+    "pos",
+    "kind",
+    "text",
+    "cut"
+   ],
+   "textLength": 2048,
+   "cut": 2049,
+   "tail": [
+    122,
+    122,
+    122
+   ]
+  },
+  "exact": {
+   "keys": [
+    "type",
+    "workspaceId",
+    "sessionId",
+    "threadId",
+    "pos",
+    "kind",
+    "text"
+   ],
+   "textLength": 2048,
+   "tail": [
+    122,
+    122,
+    122
+   ]
+  },
+  "emoji": {
+   "keys": [
+    "type",
+    "workspaceId",
+    "sessionId",
+    "threadId",
+    "pos",
+    "kind",
+    "text",
+    "cut"
+   ],
+   "textLength": 2048,
+   "cut": 2053,
+   "tail": [
+    122,
+    122,
+    55357
+   ]
+  },
+  "patched": {
+   "keys": [
+    "type",
+    "workspaceId",
+    "sessionId",
+    "threadId",
+    "pos",
+    "kind",
+    "text",
+    "patch",
+    "patchCut"
+   ],
+   "textLength": 5,
+   "patchCut": true,
+   "patch": [
+    {
+     "path": "a.ts",
+     "hunks": [
+      {
+       "oldStart": 1,
+       "oldLines": 0,
+       "newStart": 1,
+       "newLines": 20,
+       "lines": [
+        "+line 0 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 1 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 2 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 3 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 4 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 5 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 6 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 7 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 8 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 9 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 10 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 11 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 12 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 13 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 14 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 15 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 16 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 17 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 18 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "+line 19 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
+       ]
+      }
+     ]
+    }
+   ],
+   "tail": [
+    111,
+    114,
+    116
+   ]
+  },
+  "textLong": {
+   "keys": [
+    "type",
+    "workspaceId",
+    "sessionId",
+    "threadId",
+    "pos",
+    "kind",
+    "text"
+   ],
+   "textLength": 5000,
+   "tail": [
+    122,
+    122,
+    122
+   ]
+  }
+ },
+ "eventJson": [
+  {
+   "json": "{\"type\":\"session.delta\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"threadId\":\"a\",\"pos\":1,\"kind\":\"text\",\"text\":\"😀 é \\u0001\"}",
+   "bytes": 116
+  },
+  {
+   "json": "{\"type\":\"session.end\",\"workspaceId\":\"w\",\"sessionId\":\"s\",\"pos\":2,\"exitCode\":null,\"sawResult\":false,\"at\":1792923718163.5}",
+   "bytes": 119
+  }
+ ]
+}

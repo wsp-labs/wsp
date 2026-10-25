@@ -1,0 +1,236 @@
+{
+ "fresh": {
+  "stream": "11111111-2222-4333-8444-555555555555",
+  "head": 0,
+  "events": [],
+  "gap": false
+ },
+ "freshAfter1": {
+  "stream": "11111111-2222-4333-8444-555555555555",
+  "head": 0,
+  "events": [],
+  "gap": true
+ },
+ "freshEmptyStream": {
+  "stream": "11111111-2222-4333-8444-555555555555",
+  "head": 0,
+  "events": [],
+  "gap": true
+ },
+ "freshNoAfterForeign": {
+  "stream": "11111111-2222-4333-8444-555555555555",
+  "head": 0,
+  "events": [],
+  "gap": false
+ },
+ "delivered": [
+  [
+   "typed",
+   {
+    "type": "workspace.renamed",
+    "workspaceId": "w0",
+    "name": "n0"
+   }
+  ],
+  [
+   "any",
+   {
+    "type": "workspace.renamed",
+    "workspaceId": "w0",
+    "name": "n0"
+   }
+  ],
+  [
+   "typed",
+   {
+    "type": "workspace.renamed",
+    "workspaceId": "w1",
+    "name": "n1",
+    "seq": 1
+   }
+  ],
+  [
+   "any",
+   {
+    "type": "workspace.renamed",
+    "workspaceId": "w1",
+    "name": "n1",
+    "seq": 1
+   }
+  ],
+  [
+   "typed",
+   {
+    "type": "workspace.renamed",
+    "workspaceId": "w2",
+    "name": "n2",
+    "seq": 2
+   }
+  ],
+  [
+   "any",
+   {
+    "type": "workspace.renamed",
+    "workspaceId": "w2",
+    "name": "n2",
+    "seq": 2
+   }
+  ],
+  [
+   "typed",
+   {
+    "type": "workspace.renamed",
+    "workspaceId": "w3",
+    "name": "n3",
+    "seq": 2
+   }
+  ],
+  [
+   "any",
+   {
+    "type": "workspace.renamed",
+    "workspaceId": "w3",
+    "name": "n3",
+    "seq": 2
+   }
+  ]
+ ],
+ "after0": {
+  "stream": "11111111-2222-4333-8444-555555555555",
+  "head": 2,
+  "events": [
+   {
+    "type": "workspace.renamed",
+    "workspaceId": "w1",
+    "name": "n1",
+    "seq": 1
+   },
+   {
+    "type": "workspace.renamed",
+    "workspaceId": "w2",
+    "name": "n2",
+    "seq": 2
+   }
+  ],
+  "gap": false
+ },
+ "after2": {
+  "stream": "11111111-2222-4333-8444-555555555555",
+  "head": 2,
+  "events": [],
+  "gap": false
+ },
+ "after3": {
+  "stream": "11111111-2222-4333-8444-555555555555",
+  "head": 2,
+  "events": [],
+  "gap": true
+ },
+ "after1Own": {
+  "stream": "11111111-2222-4333-8444-555555555555",
+  "head": 2,
+  "events": [
+   {
+    "type": "workspace.renamed",
+    "workspaceId": "w2",
+    "name": "n2",
+    "seq": 2
+   }
+  ],
+  "gap": false
+ },
+ "after1Foreign": {
+  "stream": "11111111-2222-4333-8444-555555555555",
+  "head": 2,
+  "events": [],
+  "gap": true
+ },
+ "wrapped": {
+  "after0": {
+   "gap": true,
+   "head": 5003,
+   "n": 0
+  },
+  "after2": {
+   "gap": true,
+   "n": 0
+  },
+  "after3": {
+   "gap": false,
+   "n": 5000,
+   "first": {
+    "type": "workspace.renamed",
+    "workspaceId": "w4",
+    "name": "n4",
+    "seq": 4
+   },
+   "last": {
+    "type": "workspace.renamed",
+    "workspaceId": "w5003",
+    "name": "n5003",
+    "seq": 5003
+   }
+  },
+  "after5003": {
+   "gap": false,
+   "n": 0
+  },
+  "after5002": {
+   "gap": false,
+   "n": 1,
+   "first": {
+    "type": "workspace.renamed",
+    "workspaceId": "w5003",
+    "name": "n5003",
+    "seq": 5003
+   }
+  }
+ },
+ "nested": [
+  "typed1:w1:1",
+  "typed1:w9:2",
+  "typedB:w9:2",
+  "any1:w9:2",
+  "added:w1:1",
+  "any1:w1:1"
+ ],
+ "throwing": {
+  "order": [
+   "first"
+  ],
+  "thrown": {
+   "err": "listener broke"
+  },
+  "since": {
+   "stream": "11111111-2222-4333-8444-555555555555",
+   "head": 1,
+   "events": [
+    {
+     "type": "workspace.renamed",
+     "workspaceId": "w1",
+     "name": "n1",
+     "seq": 1
+    }
+   ],
+   "gap": false
+  }
+ },
+ "unlistenTwice": [
+  "y"
+ ],
+ "constants": {
+  "EVENT_RING_CAP": 5000,
+  "SLATE_PR_POLL_MS": 30000,
+  "CATALOG_TTL_MS": 300000,
+  "CATALOG_PROBE_TIMEOUT_MS": 25000,
+  "FIRST_RUN_READ_MS": 3000,
+  "AGENT_VERSION_READ_MS": 3000,
+  "SESSION_TITLE_TTL_MS": 10000,
+  "CHECKOUT_TTL_MS": 10000,
+  "PR_PAGE_HOLD_MS": 60000,
+  "RATE_LIMIT_HOLD_MS": 60000,
+  "SESSION_TITLE_TIMEOUT_MS": 15000,
+  "SESSION_TITLE_REFRESH_MAX": 20,
+  "TITLE_MAKE_TIMEOUT_MS": 25000
+ }
+}

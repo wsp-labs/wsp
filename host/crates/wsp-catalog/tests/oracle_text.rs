@@ -30,11 +30,19 @@ fn text() -> Value {
 }
 
 fn path_of_json(v: &Value) -> Vec<PathSeg> {
-    v.as_array().unwrap().iter().map(|p| if let Some(n) = p.as_i64() { PathSeg::Index(n) } else { PathSeg::Key(s(p).to_string()) }).collect()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|p| if let Some(n) = p.as_i64() { PathSeg::Index(n) } else { PathSeg::Key(s(p).to_string()) })
+        .collect()
 }
 
 fn edits_of(v: &Value) -> Vec<JsonEdit> {
-    v.as_array().unwrap().iter().map(|e| (path_of_json(&e["path"]), if e["value"] == json!("UNDEFINED") { None } else { Some(e["value"].clone()) })).collect()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|e| (path_of_json(&e["path"]), if e["value"] == json!("UNDEFINED") { None } else { Some(e["value"].clone()) }))
+        .collect()
 }
 
 fn check_word(w: Option<McpCheckWord>) -> Value {
@@ -210,7 +218,10 @@ mod codex_app_server {
         assert_eq!(request(2, "plugin/list", json!({})), s(&w["requestNoParams"]));
         assert_eq!(notification("initialized"), s(&w["notification"]));
         assert_eq!(initialize_request(1), s(&w["initialize"]));
-        let stages = [ServerStage { lines: vec![initialize_request(1), request(2, "x", json!({}))], answers: 2 }, ServerStage { lines: vec!["it's".into()], answers: 1 }];
+        let stages = [
+            ServerStage { lines: vec![initialize_request(1), request(2, "x", json!({}))], answers: 2 },
+            ServerStage { lines: vec!["it's".into()], answers: 1 },
+        ];
         assert_eq!(app_server_script("codex", &stages), s(&w["script"]));
         assert_eq!(app_server_script("/opt/codex", &[ServerStage { lines: vec![], answers: 0 }]), s(&w["scriptOne"]));
     }
@@ -316,7 +327,9 @@ mod hook_words {
     #[test]
     fn claude_and_codex_carry_their_hooks_as_the_ts_modules_do() {
         let w = text()["hooks"].clone();
-        let settings = js_stringify_pretty(&json!({ "hooks": { "PreToolUse": [{ "matcher": "Bash", "hooks": [{ "type": "command", "command": "~/hooks/a.sh --flag" }, { "type": "command", "command": "bash ~/hooks/b.sh && /opt/nope/c" }] }], "Stop": [{ "hooks": [{ "type": "prompt", "prompt": "x" }] }] } }));
+        let settings = js_stringify_pretty(
+            &json!({ "hooks": { "PreToolUse": [{ "matcher": "Bash", "hooks": [{ "type": "command", "command": "~/hooks/a.sh --flag" }, { "type": "command", "command": "bash ~/hooks/b.sh && /opt/nope/c" }] }], "Stop": [{ "hooks": [{ "type": "prompt", "prompt": "x" }] }] } }),
+        );
         let carried = |c: wsp_catalog::hooks::CarriedHooks| json!({ "text": c.text, "carried": c.carried.iter().map(|x| json!({ "from": x.from, "to": x.to })).collect::<Vec<_>>(), "left": c.left });
         same("claude", json!({ "ok": carried(HookCarry::Claude.carry(&settings, "/Users/me", &placer).unwrap()) }), &w["claude"]);
         same("claudeFiles", json!({ "ok": hook_files(HookCarry::Claude, &settings, "/Users/me").unwrap() }), &w["claudeFiles"]);
@@ -331,7 +344,11 @@ mod hook_words {
 #[test]
 fn the_plugin_path_helpers_answer_as_the_ts_helpers() {
     let w = text()["plugins"].clone();
-    same("plainValues", json(plain_values("{\"installPath\": \"/a\", \"x\": {\"installPath\":\"/b\\\\c\"}, \"installPath\" : \"/d\"}", "installPath")), &w["plainValues"]);
+    same(
+        "plainValues",
+        json(plain_values("{\"installPath\": \"/a\", \"x\": {\"installPath\":\"/b\\\\c\"}, \"installPath\" : \"/d\"}", "installPath")),
+        &w["plainValues"],
+    );
     for (id, want) in w["idParts"].as_object().unwrap() {
         let (name, marketplace) = plugin_id_parts(id);
         same(&format!("idParts {id:?}"), json!({ "name": name, "marketplace": marketplace }), want);
@@ -353,12 +370,21 @@ fn the_plugin_path_helpers_answer_as_the_ts_helpers() {
 #[test]
 fn a_server_needs_its_own_credential_exactly_where_the_ts_says_so() {
     let w = text();
-    let signs_in = |url: &str| if url.contains("signs") { Some(true) } else if url.contains("open") { Some(false) } else { None };
+    let signs_in = |url: &str| {
+        if url.contains("signs") {
+            Some(true)
+        } else if url.contains("open") {
+            Some(false)
+        } else {
+            None
+        }
+    };
     for case in w["credentials"].as_array().unwrap() {
         let server: wsp_catalog::mcp::McpServer = serde_json::from_value(case["server"].clone()).unwrap();
         same(&format!("{}", case["server"]), json(wsp_catalog::mcp_login::needs_own_credential(&server, &signs_in)), &case["needs"]);
     }
-    let mut servers: Vec<wsp_catalog::mcp::McpServer> = w["credentials"].as_array().unwrap().iter().map(|c| serde_json::from_value(c["server"].clone()).unwrap()).collect();
+    let mut servers: Vec<wsp_catalog::mcp::McpServer> =
+        w["credentials"].as_array().unwrap().iter().map(|c| serde_json::from_value(c["server"].clone()).unwrap()).collect();
     servers.push(serde_json::from_value(json!({ "name": "s", "scope": "user", "transport": { "kind": "http", "url": "https://signs.example/mcp", "headers": {} }, "envRefs": ["ACME_PAT"] })).unwrap());
     same("addressesToAsk", json(wsp_catalog::mcp_login::addresses_to_ask(&servers)), &w["addressesToAsk"]);
 }
