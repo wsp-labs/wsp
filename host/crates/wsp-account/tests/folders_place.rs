@@ -15,10 +15,10 @@ mod folders;
 use std::rc::Rc;
 
 use base::{err_answer, kinded, plain, project, rec, rec_json, record, run, view_of, FakeBase};
-use folders::{preferences, FakeFolders};
+use folders::{preferences, FakeFolders, FakeHere};
 use serde_json::{json, Value};
 use wsp_account::projects::folders::place::{carry_modules, under, FolderAsk};
-use wsp_account::projects::folders::{folders_area, Folders, HereDaemon};
+use wsp_account::projects::folders::{folders_area, Folders};
 use wsp_account::projects::workspaces::seam::Entry;
 use wsp_wire::views::workspace::ProjectView;
 use wsp_wire::views::workspace_more::{WorktreeFolder, WorktreeReport};
@@ -183,9 +183,9 @@ fn record_folder_arms_the_sweep_only_for_a_made_worktree() {
     let p = rig.hold(web());
     run(rig.folders.record_folder(&p, None, None)).unwrap();
     run(rig.folders.record_folder(&p, Some(tree(json!({ "path": "/tmp/theirs", "branch": "theirs", "made": false }))), None)).unwrap();
-    assert_eq!(rig.base.clock.due(), Vec::<i64>::new());
+    base::assert_due(&rig.base.clock, &[]);
     run(rig.folders.record_folder(&p, Some(tree(json!({ "path": "/home/me/.wsp/worktrees/p_web/feat-x", "branch": "feat/x", "made": true }))), None)).unwrap();
-    assert_eq!(rig.base.clock.due(), vec![1_600_000]);
+    base::assert_due(&rig.base.clock, &[1_600_000]);
     assert!(rig.fake.sweep.borrow().timer.is_some());
 }
 
@@ -269,7 +269,7 @@ fn place_for_a_branch_with_no_daemon_binary_is_refused_and_the_project_folder_st
 fn worktree_folder_refuses_a_daemon_behind_before_the_copier_runs() {
     let rig = Rig::new();
     let p = rig.hold(web());
-    *rig.fake.here.borrow_mut() = Some(HereDaemon { version: DAEMON_VERSION - 1, fix: "npm i -g @wsp-labs/wsp".to_owned() });
+    *rig.fake.here.borrow_mut() = Some(Rc::new(FakeHere { version: (DAEMON_VERSION - 1) as u32, fix: "npm i -g @wsp-labs/wsp".to_owned() }));
     let e = refusal(run(rig.folders.worktree_folder(&p, "/home/me/web", "feat/x", None, None, None)));
     let said = format!("this computer's wsp daemon is version {} and this wsp needs {}; npm i -g @wsp-labs/wsp stages the right one", DAEMON_VERSION - 1, DAEMON_VERSION);
     assert_eq!(e, plain(&said));
@@ -570,7 +570,7 @@ fn worktree_record_at_keeps_made_for_of_the_record_it_writes_again() {
     assert!(Rc::ptr_eq(&got, &held));
     assert_eq!(worktree_of(&got), json!({ "path": "/tmp/wt", "branch": "feat/x", "made": true, "madeFor": "t_root" }));
     assert_eq!(rig.base.persisted.borrow().iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec!["ws_tree"]);
-    assert_eq!(rig.base.clock.due(), vec![1_600_000]);
+    base::assert_due(&rig.base.clock, &[1_600_000]);
     let no_branch = tree(json!({ "path": "/tmp/wt", "made": false }));
     run(rig.folders.worktree_record_at(&p, no_branch, None)).unwrap();
     assert_eq!(worktree_of(&got), json!({ "path": "/tmp/wt", "made": true, "madeFor": "t_root" }));
@@ -593,7 +593,7 @@ fn worktree_record_at_makes_a_child_of_the_asking_folder() {
         )
     );
     assert_eq!(rig.base.events.borrow().clone(), vec![created(&rig, &got)]);
-    assert_eq!(rig.base.clock.due(), Vec::<i64>::new());
+    base::assert_due(&rig.base.clock, &[]);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

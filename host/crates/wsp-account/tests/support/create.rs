@@ -18,6 +18,7 @@ use wsp_account::projects::workspaces::seam::{
 use wsp_core::clock::Clock;
 use wsp_core::ids::Ids;
 use wsp_core::types::pending::Store;
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::{CreateWorkspaceOptions, CreatedWorkspace, StageReport, WorkspaceRecord};
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
 use wsp_wire::views::preferences::Preferences;
@@ -185,8 +186,8 @@ impl Base for FakeCreate {
     fn session_views(&self) -> Vec<SessionView> {
         BaseOf(self.base.clone()).session_views()
     }
-    fn thread_workspaces(&self) -> Vec<(String, String)> {
-        BaseOf(self.base.clone()).thread_workspaces()
+    fn thread_records(&self) -> Vec<(String, ThreadRecord)> {
+        BaseOf(self.base.clone()).thread_records()
     }
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.reenter();

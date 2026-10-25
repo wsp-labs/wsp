@@ -14,7 +14,7 @@ use wsp_wire::views::preferences::{Preferences, PreferencesPatch};
 use wsp_wire::views::workspace::Caller;
 use wsp_words::exit::HostError;
 
-use crate::account::core_types::{AccountResult, Live};
+use crate::account::core_types::{AccountResult, Entry};
 
 /// What `set` answers (preferences.ts:94).
 #[derive(Clone, Debug, PartialEq)]
@@ -101,14 +101,14 @@ pub trait PreferencesCtx {
     fn on_workspace_deleted(&self, f: Rc<dyn Fn(&str)>);
 
     // The agents read's members (preferences.ts:99-151).
-    async fn entry_of(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<Live, HostError>;
+    async fn entry_of(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<Entry, HostError>;
     fn catalog_agents(&self) -> Vec<CatalogAgentKeys>;
-    fn thread_env(&self, entry: &Live, agent: &str) -> IndexMap<String, String>;
-    fn checkout_of(&self, entry: &Live) -> Result<String, HostError>;
-    fn is_local(&self, entry: &Live) -> bool;
+    fn thread_env(&self, entry: &Entry, agent: &str) -> IndexMap<String, String>;
+    fn checkout_of(&self, entry: &Entry) -> Result<String, HostError>;
+    fn is_local(&self, entry: &Entry) -> bool;
     /// `atProvider(ctx.placeIdOf(record), ctx.places)`.
-    fn at_provider(&self, entry: &Live) -> bool;
-    fn pause_mode(&self, entry: &Live) -> Option<String>;
+    fn at_provider(&self, entry: &Entry) -> bool;
+    fn pause_mode(&self, entry: &Entry) -> Option<String>;
     /// The projects on a place: id, name, `checkout ?? path`.
     fn projects_on(&self, place_id: &str) -> Vec<(String, String, String)>;
     async fn workspace_channel(&self, workspace_id: &str, on_event: Rc<dyn Fn(Value)>, origin: Option<&Caller>) -> AccountResult<Rc<dyn DaemonChannel>>;

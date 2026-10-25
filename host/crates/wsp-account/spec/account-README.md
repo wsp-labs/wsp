@@ -23,8 +23,8 @@ projects files (the other wsp-account writer). Every `file:line` below is at `65
   closure's `let` and `Map` state become fields in `Cell`/`RefCell` (`IndexMap` where the TS iterates a `Map`, so
   insertion order holds). Chapter 03: one thread, `Rc`, and no `RefCell` borrow held across an `.await` (rule 3.3).
 - **A2. One context trait per unit** (ruling 6401022701, item 4). `XxxCtx` names exactly the `ctx.` members the TS
-  file reads, one method each, with the TS member in its doc line. The wsp-core join implements them on the
-  context handle; the tests drive fakes. Nothing else of the runtime is reachable from a unit.
+  file reads, one method each, with the TS member in its doc line. The join implements them on the
+  context handle; the tests drive fakes. `join.md` lists what the join replaced. Nothing else of the runtime is reachable from a unit.
 - **A3. Channels is one area in three files.** `channelsArea` is one closure whose parts call each other
   (`copyChannel` calls `ownDaemonChannel` and `servedChannel`, `servedChannel` opens the box panels). In Rust it is one
   `ChannelsArea` struct in `channels.rs` with one `ChannelsCtx`, and `impl ChannelsArea` blocks in `channels/daemon.rs`,

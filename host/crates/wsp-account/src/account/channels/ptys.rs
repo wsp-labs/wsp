@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use wsp_core::daemon_channel::DaemonChannel;
 
 use super::ChannelsArea;
-use crate::account::core_types::{AccountResult, Live};
+use crate::account::core_types::{AccountResult, Entry};
 use crate::account::proc_scopes::ThreadTerminal;
 
 impl ChannelsArea {
@@ -57,7 +57,7 @@ impl ChannelsArea {
     }
 
     /// Y9, channels.ts:472.
-    pub async fn end_thread_shells(self: &Rc<Self>, entry: &Live, thread_id: &str) -> AccountResult<()> {
+    pub async fn end_thread_shells(self: &Rc<Self>, entry: &Entry, thread_id: &str) -> AccountResult<()> {
         todo!()
     }
 

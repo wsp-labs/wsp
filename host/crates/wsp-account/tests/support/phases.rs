@@ -20,6 +20,7 @@ use wsp_account::projects::workspaces::seam::{
 use wsp_core::clock::{Cancel, Clock};
 use wsp_core::ids::Ids;
 use wsp_core::types::pending::Store;
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::{SizeAsk, WorkspaceRecord};
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
 use wsp_engine::lifecycle::WakeResult;
@@ -34,7 +35,7 @@ use wsp_wire::wire::machine_link::{ExecResult, MachineShape};
 use wsp_words::exit::{HostError, Kind};
 
 pub use crate::base::{person as the_person, thread as asker};
-use crate::base::{kinded, merge, view_of, BaseOf, ClockOf, FakeBase};
+use crate::base::{kinded, merge, view_of, BaseOf, FakeBase};
 
 /// `refusalLine(happened, fix)` (thread.ts:393).
 pub fn refusal_line(happened: &str, fix: &str) -> String {
@@ -252,8 +253,8 @@ impl Base for FakePhases {
     fn session_views(&self) -> Vec<SessionView> {
         BaseOf(self.base.clone()).session_views()
     }
-    fn thread_workspaces(&self) -> Vec<(String, String)> {
-        BaseOf(self.base.clone()).thread_workspaces()
+    fn thread_records(&self) -> Vec<(String, ThreadRecord)> {
+        BaseOf(self.base.clone()).thread_records()
     }
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.reenter();
@@ -468,10 +469,10 @@ impl PhasesCtx for FakePhases {
     }
 
     async fn sleeps(&self, ms: i64) {
-        self.base.call("sleeps", json!({ "ms": ms, "now": ClockOf(self.base.clock.clone()).now() }));
+        self.base.call("sleeps", json!({ "ms": ms, "now": self.base.clock.now() }));
         let (tx, rx) = oneshot::channel::<()>();
         let tx = RefCell::new(Some(tx));
-        let cancel = ClockOf(self.base.clock.clone()).schedule(
+        let cancel = self.base.clock.schedule(
             Box::new(move || {
                 if let Some(t) = tx.borrow_mut().take() {
                     let _ = t.send(());

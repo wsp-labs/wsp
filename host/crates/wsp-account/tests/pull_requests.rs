@@ -21,8 +21,9 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use tokio::sync::Notify;
 
-use common::{error_json, live_with, oracle, plain, project, record, run, settle, FakeMachine};
-use wsp_account::account::core_types::{AccountError, AccountResult, Ask, Cancel, Frame, Live};
+use common::{error_json, FakeMachine, in_flight, live_with, oracle, plain, project, record, run, settle};
+use wsp_account::account::core_types::{AccountError, AccountResult, Ask, Frame, Entry};
+use wsp_core::clock::{Cancel, Clock, FakeClock};
 use wsp_account::account::pull_requests::{CacheEntry, FrameFor, PullRequestsArea, PullRequestsCtx, ReadOn};
 use wsp_core::types::internal::DaemonRefusal;
 use wsp_core::types::wiring::WorkspaceRecord;
@@ -199,6 +200,11 @@ fn checkout_json(branch: &str, head: &str) -> Checkout {
     parsed(json!({ "branch": branch, "ahead": 0, "behind": 0, "changed": 0, "head": head, "readAt": T0 }))
 }
 
+/// A timer's undo as an entry holds it: called once, the way the area takes it.
+fn held(cancel: Cancel) -> Option<Box<dyn FnOnce()>> {
+    Some(Box::new(move || cancel()))
+}
+
 fn counted() -> (Rc<Cell<u32>>, Cancel) {
     let c = Rc::new(Cell::new(0));
     let c2 = c.clone();
@@ -223,11 +229,9 @@ impl Daemon {
 
 struct World {
     me: Weak<World>,
-    now: Cell<i64>,
-    timers: RefCell<Vec<(u64, i64, Option<Box<dyn FnOnce()>>)>>,
-    next_timer: Cell<u64>,
+    clock: FakeClock,
     cache: RefCell<IndexMap<String, CacheEntry>>,
-    live: RefCell<IndexMap<String, Live>>,
+    live: RefCell<IndexMap<String, Entry>>,
     views: RefCell<Vec<SessionView>>,
     projects: RefCell<IndexMap<String, ProjectView>>,
     here: Daemon,
@@ -249,9 +253,7 @@ impl World {
     fn new() -> Rc<World> {
         let w = Rc::new_cyclic(|me| World {
             me: me.clone(),
-            now: Cell::new(T0),
-            timers: RefCell::new(vec![]),
-            next_timer: Cell::new(0),
+            clock: FakeClock::new(T0),
             cache: RefCell::new(IndexMap::new()),
             live: RefCell::new(IndexMap::new()),
             views: RefCell::new(vec![]),
@@ -290,7 +292,7 @@ impl World {
     }
 
     /// An entry on a record built from `over` laid on a running cloud copy of p1, held live under its id.
-    fn entry(&self, over: Value) -> Live {
+    fn entry(&self, over: Value) -> Entry {
         let base = json!({ "id": "w1", "name": "pr-lab", "kind": "cloud", "project": "p1", "machineId": "m1", "phase": "running" });
         let rec = record(&with(base, over));
         let machine = FakeMachine::new(&rec.machine_id);
@@ -300,18 +302,18 @@ impl World {
         e
     }
 
-    fn cloud(&self) -> Live {
+    fn cloud(&self) -> Entry {
         self.entry(json!({}))
     }
 
     /// A folder of this computer's project: a local workspace, no worktree.
-    fn folder(&self) -> Live {
+    fn folder(&self) -> Entry {
         self.entry(json!({ "kind": "local", "machineId": "" }))
     }
 
-    fn on_branch(&self, e: &Live, branch: &str, head: &str) {
+    fn on_branch(&self, e: &Entry, branch: &str, head: &str) {
         let c = checkout_json(branch, head);
-        *e.checkout.borrow_mut() = Some(c.clone());
+        e.borrow_mut().checkout = Some(c.clone());
         *self.checkout_answer.borrow_mut() = Some(c);
     }
 
@@ -331,27 +333,16 @@ impl World {
         self.log.borrow().iter().filter(|l| **l == format!("road {road}")).count()
     }
 
-    fn pending(&self) -> Vec<i64> {
-        let mut at: Vec<i64> = self.timers.borrow().iter().map(|t| t.1).collect();
-        at.sort();
-        at
+    /// The timers armed are exactly those due at `ats`, each moment named once.
+    fn assert_due(&self, ats: &[i64]) {
+        assert_eq!(self.clock.pending(), ats.len(), "timers armed, wanted at {ats:?}");
+        for at in ats {
+            assert!(self.clock.due_for(*at), "no timer due at {at}");
+        }
     }
 
     fn advance(&self, ms: i64) {
-        let target = self.now.get() + ms;
-        loop {
-            let next = self.timers.borrow().iter().filter(|t| t.1 <= target).min_by_key(|t| (t.1, t.0)).map(|t| t.0);
-            let Some(id) = next else { break };
-            let (at, f) = {
-                let mut timers = self.timers.borrow_mut();
-                let i = timers.iter().position(|t| t.0 == id).unwrap();
-                let t = timers.remove(i);
-                (t.1, t.2)
-            };
-            self.now.set(at);
-            f.expect("a timer's body")();
-        }
-        self.now.set(target);
+        self.clock.advance(ms);
     }
 
     fn cached(&self, key: &str) -> Option<CacheEntry> {
@@ -412,18 +403,10 @@ fn fields(rec: &Value) -> String {
 #[async_trait(?Send)]
 impl PullRequestsCtx for World {
     fn now(&self) -> i64 {
-        self.now.get()
+        self.clock.now()
     }
     fn schedule(&self, ms: i64, f: Box<dyn FnOnce()>) -> Cancel {
-        let id = self.next_timer.get() + 1;
-        self.next_timer.set(id);
-        self.timers.borrow_mut().push((id, self.now.get() + ms, Some(f)));
-        let me = self.me.clone();
-        Rc::new(move || {
-            if let Some(w) = me.upgrade() {
-                w.timers.borrow_mut().retain(|t| t.0 != id);
-            }
-        })
+        self.clock.schedule(f, ms)
     }
     fn cache_get(&self, key: &str) -> Option<CacheEntry> {
         self.cache.borrow().get(key).cloned()
@@ -436,7 +419,7 @@ impl PullRequestsCtx for World {
         self.put(format!("cache.delete {key}"));
         self.cache.borrow_mut().shift_remove(key);
     }
-    fn live(&self, workspace_id: &str) -> Option<Live> {
+    fn live(&self, workspace_id: &str) -> Option<Entry> {
         self.live.borrow().get(workspace_id).cloned()
     }
     fn session_views(&self) -> Vec<SessionView> {
@@ -446,7 +429,7 @@ impl PullRequestsCtx for World {
         self.put("road here".into());
         work(self.ask("here"), HOME.to_string()).await
     }
-    async fn with_daemon(&self, entry: &Live, work: wsp_account::account::core_types::Work<Value>) -> AccountResult<Value> {
+    async fn with_daemon(&self, entry: &Entry, work: wsp_account::account::core_types::Work<Value>) -> AccountResult<Value> {
         self.put("road copy".into());
         let _ = entry;
         work(self.ask("copy")).await
@@ -454,7 +437,7 @@ impl PullRequestsCtx for World {
     fn checkout_of(&self, _record: &WorkspaceRecord) -> Result<String, HostError> {
         Ok(COPY.to_string())
     }
-    async fn entry_of(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<Live, HostError> {
+    async fn entry_of(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<Entry, HostError> {
         self.put(format!("entry_of {workspace_id} {}", if origin.is_some() { "caller" } else { "none" }));
         self.live.borrow().get(workspace_id).cloned().ok_or_else(|| plain(&format!("no workspace {workspace_id}")))
     }
@@ -469,15 +452,15 @@ impl PullRequestsCtx for World {
         self.persisted.borrow_mut().push(serde_json::to_value(record).unwrap());
         Ok(())
     }
-    async fn status_now(&self, entry: &Live) {
+    async fn status_now(&self, entry: &Entry) {
         self.put("status".into());
-        let pr = serde_json::to_value(&*entry.pr.borrow()).unwrap();
+        let pr = serde_json::to_value(&entry.borrow().pr).unwrap();
         self.statuses.borrow_mut().push(pr);
     }
-    async fn read_checkout(&self, entry: &Live, force: bool) -> AccountResult<Option<Checkout>> {
+    async fn read_checkout(&self, entry: &Entry, force: bool) -> AccountResult<Option<Checkout>> {
         self.put(format!("checkout {force}"));
         let c = self.checkout_answer.borrow().clone();
-        *entry.checkout.borrow_mut() = c.clone();
+        entry.borrow_mut().checkout = c.clone();
         Ok(c)
     }
     fn slates_watch_pr(&self, _workspace_id: &str) -> bool {
@@ -500,8 +483,8 @@ impl PullRequestsCtx for World {
             None => Ok(()),
         }
     }
-    fn read_lead_of(&self, child: &Live) {
-        self.put(format!("lead {}", child.record.borrow().id));
+    fn read_lead_of(&self, child: &Entry) {
+        self.put(format!("lead {}", child.borrow().record.borrow().id));
     }
     async fn queued(&self, workspace_id: &str, work: LocalBoxFuture<'static, AccountResult<Value>>) -> AccountResult<Value> {
         self.put(format!("queued {workspace_id}"));
@@ -515,19 +498,19 @@ impl PullRequestsCtx for World {
     }
 }
 
-fn setup() -> (Rc<World>, Rc<PullRequestsArea>, Live) {
+fn setup() -> (Rc<World>, Rc<PullRequestsArea>, Entry) {
     let w = World::new();
     let area = PullRequestsArea::new(w.clone());
     let e = w.cloud();
     (w, area, e)
 }
 
-fn pr_of(e: &Live) -> Value {
-    serde_json::to_value(&*e.pr.borrow()).unwrap()
+fn pr_of(e: &Entry) -> Value {
+    serde_json::to_value(&e.borrow().pr).unwrap()
 }
 
-fn rec_of(e: &Live) -> Value {
-    serde_json::to_value(&*e.record.borrow()).unwrap()
+fn rec_of(e: &Entry) -> Value {
+    serde_json::to_value(&*e.borrow().record.borrow()).unwrap()
 }
 
 fn pr_value(r: &Option<PullRequestSeen>) -> Value {
@@ -539,16 +522,16 @@ fn kept_pr(over: Value) -> Value {
 }
 
 /// A kept pull request on the record, as a past read wrote it.
-fn keep(e: &Live, over: Value) {
+fn keep(e: &Entry, over: Value) {
     let mut v = rec_of(e);
     v["pr"] = kept_pr(over);
-    *e.record.borrow_mut() = parsed(v);
+    *e.borrow().record.borrow_mut() = parsed(v);
 }
 
-fn set_record(e: &Live, key: &str, value: Value) {
+fn set_record(e: &Entry, key: &str, value: Value) {
     let mut v = rec_of(e);
     v[key] = value;
-    *e.record.borrow_mut() = parsed(v);
+    *e.borrow().record.borrow_mut() = parsed(v);
 }
 
 // ---- Q1
@@ -770,7 +753,7 @@ fn q4_page_held_then_dropped() {
         let held = w.cached(PAGE_KEY).unwrap();
         assert_eq!(serde_json::to_string(&held.body).unwrap(), page_body(true));
         assert_eq!((held.tag, held.fetched_at), (None, T0));
-        assert_eq!(w.pending(), vec![T0 + PAGE_HOLD]);
+        w.assert_due(&[T0 + PAGE_HOLD]);
 
         // within the hold nothing is read
         w.advance(PAGE_HOLD - 1);
@@ -830,7 +813,7 @@ fn q4_a_page_the_copy_read_says_here_false() {
         let err = area.read_page(&e, REMOTE, 12, false).await.map(|_| ()).unwrap_err();
         assert_eq!(refusal(&err), (None, GH_DOWN.to_string()));
         assert!(w.cached(PAGE_KEY).is_none());
-        assert!(w.pending().is_empty());
+        w.assert_due(&[]);
     });
 }
 
@@ -987,9 +970,9 @@ async fn q7_left_branch_drops_and_reads_again() {
     let e = w.folder();
     keep(&e, json!({}));
     set_record(&e, "prSent", json!([{ "kind": "comment", "id": 5841958969_i64, "at": T0 }]));
-    *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0 - 1000)));
+    e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0 - 1000)));
     let (cancelled, cancel) = counted();
-    *e.pr_poll.borrow_mut() = Some(cancel);
+    e.borrow_mut().pr_poll = held(cancel);
     w.on_branch(&e, "other", "h1");
     answer_none(&w);
     let got = area.read_pull_request(&e, false, false).await;
@@ -1001,8 +984,8 @@ async fn q7_left_branch_drops_and_reads_again() {
     assert_eq!(w.fields_persisted(), vec!["{}".to_string()]);
     assert_eq!(cancelled.get(), 1);
     assert_eq!(pr_of(&e), Value::Null);
-    assert_eq!(e.pr_none_at.borrow().clone(), Some("h1".to_string()));
-    assert!(e.pr_poll.borrow().is_none());
+    assert_eq!(e.borrow().pr_none_at.clone(), Some("h1".to_string()));
+    assert!(e.borrow().pr_poll.is_none());
 }
 
 // Q7 step 2: a kept record pr that is not open answers the entry's pr, nothing read.
@@ -1012,11 +995,11 @@ async fn q7_a_settled_record_is_never_read() {
         let e = w.folder();
         keep(&e, json!({ "state": state }));
         w.on_branch(&e, "fix/ci", "h1");
-        *e.pr.borrow_mut() = Some(seen_of(fact(json!({ "state": state }), T0 - 5)));
+        e.borrow_mut().pr = Some(seen_of(fact(json!({ "state": state }), T0 - 5)));
         let got = area.read_pull_request(&e, true, true).await;
         assert_eq!(pr_value(&got), fact(json!({ "state": state }), T0 - 5), "{state}");
         assert!(w.log.borrow().is_empty(), "{state}");
-        *e.pr.borrow_mut() = None;
+        e.borrow_mut().pr = None;
         assert_eq!(pr_value(&area.read_pull_request(&e, true, false).await), Value::Null);
         assert!(w.log.borrow().is_empty(), "{state}");
     }
@@ -1042,7 +1025,7 @@ async fn q7_a_held_read_answers_held() {
         w.on_branch(&e, "fix/ci", "h1");
         let mut held = held;
         held["readAt"] = json!(T0 - age);
-        *e.pr.borrow_mut() = Some(seen_of(held.clone()));
+        e.borrow_mut().pr = Some(seen_of(held.clone()));
         let got = area.read_pull_request(&e, false, false).await;
         if stands {
             assert_eq!(pr_value(&got), held, "row {n}");
@@ -1055,7 +1038,7 @@ async fn q7_a_held_read_answers_held() {
     // a force reads whatever the age
     let (w, area, e) = setup();
     w.on_branch(&e, "fix/ci", "h1");
-    *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0 - 1)));
+    e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0 - 1)));
     area.read_pull_request(&e, true, false).await;
     assert_eq!(w.frames("here"), vec![read_frame.clone()]);
 
@@ -1063,31 +1046,31 @@ async fn q7_a_held_read_answers_held() {
     let (w, area, e) = setup();
     w.watched.set(true);
     w.on_branch(&e, "fix/ci", "h1");
-    *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0 - 100_000)));
+    e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0 - 100_000)));
     let (cancelled, cancel) = counted();
-    *e.pr_poll.borrow_mut() = Some(cancel);
-    e.pr_poll_ms.set(Some(IDLE));
+    e.borrow_mut().pr_poll = held(cancel);
+    e.borrow_mut().pr_poll_ms = Some(IDLE as u64);
     let got = area.read_pull_request(&e, false, false).await;
     assert_eq!(pr_value(&got), fact(json!({}), T0 - 100_000));
     assert!(w.log.borrow().is_empty());
     assert_eq!(cancelled.get(), 1);
-    assert_eq!(w.pending(), vec![T0 - 100_000 + POLL]);
-    assert_eq!(e.pr_poll_ms.get(), Some(POLL));
+    w.assert_due(&[T0 - 100_000 + POLL]);
+    assert_eq!(e.borrow().pr_poll_ms, Some(POLL as u64));
     // an armed timer already at the interval in force is left alone, and no timer armed is none armed
     let (cancelled, cancel) = counted();
-    *e.pr_poll.borrow_mut() = Some(cancel);
+    e.borrow_mut().pr_poll = held(cancel);
     area.read_pull_request(&e, false, false).await;
     assert_eq!(cancelled.get(), 0);
-    *e.pr_poll.borrow_mut() = None;
-    e.pr_poll_ms.set(None);
-    let before = w.pending();
+    e.borrow_mut().pr_poll = None;
+    e.borrow_mut().pr_poll_ms = None;
+    let before = w.clock.pending();
     area.read_pull_request(&e, false, false).await;
-    assert_eq!((w.pending(), e.pr_poll_ms.get()), (before, None));
+    assert_eq!((w.clock.pending(), e.borrow().pr_poll_ms), (before, None));
     // a why holds no timer of its own to re-arm
-    *e.pr.borrow_mut() = Some(seen_of(why("w", T0 - 1000)));
+    e.borrow_mut().pr = Some(seen_of(why("w", T0 - 1000)));
     let (cancelled, cancel) = counted();
-    *e.pr_poll.borrow_mut() = Some(cancel);
-    e.pr_poll_ms.set(Some(IDLE));
+    e.borrow_mut().pr_poll = held(cancel);
+    e.borrow_mut().pr_poll_ms = Some(IDLE as u64);
     area.read_pull_request(&e, false, false).await;
     assert_eq!(cancelled.get(), 0);
 }
@@ -1096,30 +1079,30 @@ async fn q7_a_held_read_answers_held() {
 async fn q7_a_branch_with_no_pull_request_waits_for_its_head() {
     let (w, area, e) = setup();
     w.on_branch(&e, "fix/ci", "h1");
-    *e.pr_none_at.borrow_mut() = Some("h1".into());
+    e.borrow_mut().pr_none_at = Some("h1".into());
     answer_none(&w);
     assert_eq!(pr_value(&area.read_pull_request(&e, false, false).await), Value::Null);
     assert!(w.log.borrow().is_empty());
     // the held answer is the entry's pr, a why included
-    *e.pr.borrow_mut() = Some(seen_of(why("a sentence", T0 - 50_000)));
+    e.borrow_mut().pr = Some(seen_of(why("a sentence", T0 - 50_000)));
     assert_eq!(pr_value(&area.read_pull_request(&e, false, false).await), why("a sentence", T0 - 50_000));
     assert!(w.log.borrow().is_empty());
     // forced, or the head moved, reads
     area.read_pull_request(&e, true, false).await;
     assert_eq!(w.frames("here").len(), 1);
     w.on_branch(&e, "fix/ci", "h2");
-    *e.pr_none_at.borrow_mut() = Some("h1".into());
+    e.borrow_mut().pr_none_at = Some("h1".into());
     area.read_pull_request(&e, false, false).await;
     assert_eq!(w.frames("here").len(), 2);
-    assert_eq!(e.pr_none_at.borrow().clone(), Some("h2".to_string()));
+    assert_eq!(e.borrow().pr_none_at.clone(), Some("h2".to_string()));
     // no head on the checkout is not a head to match
     let (w, area, e) = setup();
     w.on_branch(&e, "fix/ci", "h1");
-    e.checkout.borrow_mut().as_mut().unwrap().head = None;
+    e.borrow_mut().checkout.as_mut().unwrap().head = None;
     answer_none(&w);
     area.read_pull_request(&e, false, false).await;
     assert_eq!(w.frames("here").len(), 1);
-    assert_eq!(e.pr_none_at.borrow().clone(), None);
+    assert_eq!(e.borrow().pr_none_at.clone(), None);
     area.read_pull_request(&e, false, false).await;
     assert_eq!(w.frames("here").len(), 2);
 }
@@ -1130,26 +1113,26 @@ async fn q7_the_in_flight_mark() {
     w.on_branch(&e, "fix/ci", "h1");
     let marker = Some(seen_of(why("the read already in flight", T0)));
     let m = marker.clone();
-    let flying: LocalBoxFuture<'static, Option<PullRequestSeen>> = Box::pin(async move { m });
-    *e.pr_reading.borrow_mut() = Some(flying.shared());
+    let flying: LocalBoxFuture<'static, Result<Option<PullRequestSeen>, HostError>> = Box::pin(async move { Ok(m) });
+    e.borrow_mut().pr_reading = Some(flying.shared());
     let got = area.read_pull_request(&e, true, false).await;
     assert_eq!(pr_value(&got), pr_value(&marker));
     assert!(w.log.borrow().is_empty());
-    assert!(e.pr_reading.borrow().is_some());
+    assert!(e.borrow().pr_reading.is_some());
     // whole reads on its own, and clears the mark when it ends
     let got = area.read_pull_request(&e, true, true).await;
     assert_eq!(pr_value(&got), fact(json!({}), T0));
     assert_eq!(w.frames("here"), vec![pr_frame(HOME, json!({ "branch": "fix/ci" }))]);
-    assert!(e.pr_reading.borrow().is_none());
+    assert!(e.borrow().pr_reading.is_none());
     // a failed read clears it too
     w.here_says("git.prRead", |_| refused(None, GH_DOWN));
     area.read_pull_request(&e, true, false).await;
-    assert!(e.pr_reading.borrow().is_none());
+    assert!(e.borrow().pr_reading.is_none());
     // and so does one that took a no-host-cli's why
     w.here_says("git.prRead", |_| no_gh());
     w.copy_says("git.prRead", |_| no_gh());
     area.read_pull_request(&e, true, false).await;
-    assert!(e.pr_reading.borrow().is_none());
+    assert!(e.borrow().pr_reading.is_none());
 }
 
 // Q7 step 6: the read itself: what is asked, and when nothing is.
@@ -1158,7 +1141,7 @@ async fn q7_the_read_frame_and_when_none_is_sent() {
     let (w, area, e) = setup();
     w.set_project(Some("main"), "main", "");
     w.on_branch(&e, "fix/ci", "h1");
-    *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0 - 1)));
+    e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0 - 1)));
     let got = area.read_pull_request(&e, true, false).await;
     assert_eq!(pr_value(&got), fact(json!({}), T0 - 1));
     assert!(w.log.borrow().is_empty());
@@ -1176,7 +1159,7 @@ async fn q7_the_read_frame_and_when_none_is_sent() {
     assert_eq!(w.frames("here"), vec![pr_frame(HOME, json!({ "branch": "feat/read" }))]);
     // a checkout read that finds none, and no branch at all, answer the entry's pr
     let (w, area, e) = setup();
-    *e.pr.borrow_mut() = Some(seen_of(why("held", T0 - 1)));
+    e.borrow_mut().pr = Some(seen_of(why("held", T0 - 1)));
     assert_eq!(pr_value(&area.read_pull_request(&e, true, false).await), why("held", T0 - 1));
     assert_eq!(w.log_of("checkout "), vec!["false".to_string()]);
     assert!(w.frames("here").is_empty());
@@ -1262,7 +1245,7 @@ async fn q7_what_is_taken_from_the_answer() {
     w.on_branch(&e, "fix/ci", "h1");
     w.cache.borrow_mut().insert(key.clone(), cached(json!({ "x": 1 })));
     w.here_says("git.prRead", |_| ok(json!({ "unchanged": true, "seen": SEEN })));
-    *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0 - 1)));
+    e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0 - 1)));
     assert_eq!(pr_value(&area.read_pull_request(&e, true, false).await), Value::Null);
     assert_eq!(w.statuses.borrow().clone(), vec![Value::Null]);
 
@@ -1288,18 +1271,18 @@ async fn q7_what_is_taken_from_the_answer() {
     w.on_branch(&e, "fix/ci", "h1");
     answer_none(&w);
     area.read_pull_request(&e, true, false).await;
-    assert_eq!(e.pr_none_at.borrow().clone(), Some("h1".to_string()));
+    assert_eq!(e.borrow().pr_none_at.clone(), Some("h1".to_string()));
     assert_eq!(w.statuses.borrow().clone(), vec![Value::Null]);
     answer_pr(&w, open(json!({})));
     area.read_pull_request(&e, true, false).await;
-    assert_eq!(e.pr_none_at.borrow().clone(), None);
+    assert_eq!(e.borrow().pr_none_at.clone(), None);
     let (w, area, e) = setup();
     keep(&e, json!({}));
     w.on_branch(&e, "fix/ci", "h1");
-    *e.pr_none_at.borrow_mut() = Some("h1".into());
+    e.borrow_mut().pr_none_at = Some("h1".into());
     answer_none(&w);
     area.read_pull_request(&e, true, false).await;
-    assert_eq!(e.pr_none_at.borrow().clone(), None);
+    assert_eq!(e.borrow().pr_none_at.clone(), None);
 }
 
 // Q7 step 8: a refusal for want of a command line says why; any other failure keeps the last fact and re-arms the poll.
@@ -1322,7 +1305,7 @@ async fn q7_a_failed_read() {
         vec!["road here".to_string(), format!("frame here {here}"), "road copy".to_string(), format!("frame copy {copy}"), "status".to_string()]
     );
     assert!(w.persisted.borrow().is_empty());
-    assert!(w.pending().is_empty());
+    w.assert_due(&[]);
 
     // a stopped copy: the stopped sentence names the workspace, and the copy is not asked
     let (w, area, _e) = setup();
@@ -1345,13 +1328,13 @@ async fn q7_a_failed_read() {
     for failure in [refused(None, GH_DOWN), rate_limited(), refused(Some("no-git-credential"), "x")] {
         let (w, area, e) = setup();
         w.on_branch(&e, "fix/ci", "h1");
-        *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0 - 1)));
+        e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0 - 1)));
         w.here_says("git.prRead", move |_| failure.clone());
         let got = area.read_pull_request(&e, true, false).await;
         assert_eq!(pr_value(&got), fact(json!({}), T0 - 1));
         assert_eq!(w.log.borrow().clone(), vec!["road here".to_string(), format!("frame here {here}")]);
-        assert_eq!(w.pending(), vec![T0 + IDLE]);
-        assert_eq!(e.pr_poll_ms.get(), Some(IDLE));
+        w.assert_due(&[T0 + IDLE]);
+        assert_eq!(e.borrow().pr_poll_ms, Some(IDLE as u64));
     }
 }
 
@@ -1385,7 +1368,7 @@ fn q7_a_read_in_flight_is_joined() {
         let second = tokio::task::spawn_local(async move { a2.read_pull_request(&e2, true, false).await });
         settle().await;
         assert_eq!(w.frames("here").len(), 1);
-        assert!(e.pr_reading.borrow().is_some());
+        assert!(e.borrow().pr_reading.is_some());
         w.release("here");
         settle().await;
         let (one, two) = (first.await.unwrap(), second.await.unwrap());
@@ -1393,7 +1376,7 @@ fn q7_a_read_in_flight_is_joined() {
         assert_eq!(pr_value(&two), fact(json!({}), T0));
         assert_eq!(w.frames("here"), vec![pr_frame(HOME, json!({ "branch": "fix/ci" }))]);
         assert_eq!(w.statuses.borrow().len(), 1);
-        assert!(e.pr_reading.borrow().is_none());
+        assert!(e.borrow().pr_reading.is_none());
     });
 }
 
@@ -1422,13 +1405,13 @@ fn q7_whole_reads_alone() {
         let (one, two) = (first.await.unwrap(), second.await.unwrap());
         assert_eq!(pr_value(&one)["checks"][0]["state"], json!("pass"));
         assert_eq!(pr_value(&two)["checks"][0]["state"], json!("fail"));
-        assert!(e.pr_reading.borrow().is_none());
+        assert!(e.borrow().pr_reading.is_none());
     });
 }
 
 // ---- Q8
 
-fn record_pr(e: &Live) -> String {
+fn record_pr(e: &Entry) -> String {
     rec_of(e).get("pr").map(|v| v.to_string()).unwrap_or_else(|| "none".into())
 }
 
@@ -1445,7 +1428,7 @@ fn q8_take_writes_the_record_only_when_it_moved() {
         assert_eq!(w.fields_persisted(), vec![format!("{{\"pr\":{}}}", written(json!({})))]);
         assert_eq!(pr_of(&e), fact(json!({}), T0));
         assert_eq!(w.log.borrow().clone(), vec!["persist".to_string(), "status".to_string()]);
-        assert_eq!(w.pending(), vec![T0 + IDLE]);
+        w.assert_due(&[T0 + IDLE]);
 
         // the same state, number and branch again: no write, the status pushed, the timer moved
         w.advance(1000);
@@ -1453,7 +1436,7 @@ fn q8_take_writes_the_record_only_when_it_moved() {
         assert_eq!(w.persisted.borrow().len(), 1);
         assert_eq!(pr_of(&e), fact(json!({ "headOid": "c0ffee" }), T0 + 1000));
         assert_eq!(w.statuses.borrow().len(), 2);
-        assert_eq!(w.pending(), vec![T0 + 1000 + IDLE]);
+        w.assert_due(&[T0 + 1000 + IDLE]);
 
         // a move of branch alone writes
         area.take_pull_request(&e, Some(seen_of(fact(json!({ "branch": "fix/two" }), T0 + 1000)))).await.unwrap();
@@ -1466,15 +1449,15 @@ fn q8_take_writes_the_record_only_when_it_moved() {
         let merged = json!({ "number": 12, "url": "https://github.com/wsp/pr-lab/pull/12", "state": "merged", "base": "main", "branch": "fix/ci", "mergedAt": T0 + 2000, "checks": checks.clone() });
         assert_eq!(record_pr(&e), merged.to_string());
         assert_eq!(w.persisted.borrow().len(), 3);
-        assert!(w.pending().is_empty());
-        assert!(e.pr_poll.borrow().is_none());
+        w.assert_due(&[]);
+        assert!(e.borrow().pr_poll.is_none());
 
         // closed: closedAt, not mergedAt
         let (w, area, e) = setup();
         area.take_pull_request(&e, Some(seen_of(fact(json!({ "state": "closed" }), T0)))).await.unwrap();
         let closed = json!({ "number": 12, "url": "https://github.com/wsp/pr-lab/pull/12", "state": "closed", "base": "main", "branch": "fix/ci", "closedAt": T0, "checks": open(json!({}))["checks"].clone() });
         assert_eq!(record_pr(&e), closed.to_string());
-        assert!(w.pending().is_empty());
+        w.assert_due(&[]);
 
         // nothing, a why and a kept one set the entry and the status and touch no record
         for seen in [None, Some(seen_of(why("a sentence", T0))), Some(seen_of(json!({ "number": 12, "url": "u", "state": "open", "base": "main", "readAt": T0 })))] {
@@ -1486,7 +1469,7 @@ fn q8_take_writes_the_record_only_when_it_moved() {
             assert_eq!(w.statuses.borrow().clone(), vec![want]);
             assert!(w.persisted.borrow().is_empty());
             assert_eq!(record_pr(&e), kept_pr(json!({})).to_string());
-            assert!(w.pending().is_empty());
+            w.assert_due(&[]);
         }
 
         // a settled record settles the tree even when this take was not the one that settled it
@@ -1563,10 +1546,10 @@ fn q9_left_branch_table() {
         if let Some(k) = kept {
             let mut v = rec_of(&e);
             v["pr"] = k;
-            *e.record.borrow_mut() = parsed(v);
+            *e.borrow().record.borrow_mut() = parsed(v);
         }
         if let Some(b) = branch {
-            *e.checkout.borrow_mut() = Some(checkout_json(b, "h1"));
+            e.borrow_mut().checkout = Some(checkout_json(b, "h1"));
         }
         assert_eq!(area.left_branch(&e), left, "{label}");
     }
@@ -1583,15 +1566,15 @@ fn q10_drop_pull_request_clears_everything() {
         keep(&e, json!({}));
         set_record(&e, "prSent", json!([{ "kind": "comment", "id": 1, "at": T0 }]));
         set_record(&e, "branchThreads", json!({ "branch": "fix/ci", "threads": ["tA"] }));
-        *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0)));
-        *e.pr_none_at.borrow_mut() = Some("h1".into());
+        e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0)));
+        e.borrow_mut().pr_none_at = Some("h1".into());
         let (cancelled, cancel) = counted();
-        *e.pr_poll.borrow_mut() = Some(cancel);
+        e.borrow_mut().pr_poll = held(cancel);
         area.drop_pull_request(&e).await.unwrap();
         assert_eq!(cancelled.get(), 1);
-        assert!(e.pr_poll.borrow().is_none());
+        assert!(e.borrow().pr_poll.is_none());
         assert_eq!(pr_of(&e), Value::Null);
-        assert_eq!(e.pr_none_at.borrow().clone(), None);
+        assert_eq!(e.borrow().pr_none_at.clone(), None);
         assert_eq!(w.fields_persisted(), vec!["{\"branchThreads\":{\"branch\":\"fix/ci\",\"threads\":[\"tA\"]}}".to_string()]);
         assert_eq!(w.log.borrow().clone(), vec!["persist".to_string(), "status".to_string()]);
         assert_eq!(w.statuses.borrow().clone(), vec![Value::Null]);
@@ -1609,7 +1592,7 @@ fn q11_ran_on_branch_table() {
     run(async {
         let (w, area, _e) = setup();
         let e = w.folder();
-        let kept = |e: &Live| rec_of(e).get("branchThreads").map(|v| v.to_string()).unwrap_or_else(|| "none".into());
+        let kept = |e: &Entry| rec_of(e).get("branchThreads").map(|v| v.to_string()).unwrap_or_else(|| "none".into());
 
         // on its base, with nothing kept: nothing is written
         w.on_branch(&e, "main", "h1");
@@ -1677,19 +1660,19 @@ fn q12_poll_intervals() {
         let pending_fact = fact(json!({ "checks": [{ "name": "ci", "state": "pending" }] }), T0);
         // open, no window, no slate: the idle interval
         let (w, area, e) = setup();
-        *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0)));
+        e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0)));
         area.poll_pull_request(&e, None);
-        assert_eq!(w.pending(), vec![T0 + IDLE]);
-        assert_eq!(e.pr_poll_ms.get(), Some(IDLE));
-        assert!(e.pr_poll.borrow().is_some());
+        w.assert_due(&[T0 + IDLE]);
+        assert_eq!(e.borrow().pr_poll_ms, Some(IDLE as u64));
+        assert!(e.borrow().pr_poll.is_some());
         // arming again cancels the first
         area.poll_pull_request(&e, None);
-        assert_eq!(w.pending(), vec![T0 + IDLE]);
+        w.assert_due(&[T0 + IDLE]);
         // a window: the watched interval
         w.watched.set(true);
         area.poll_pull_request(&e, None);
-        assert_eq!(w.pending(), vec![T0 + POLL]);
-        assert_eq!(e.pr_poll_ms.get(), Some(POLL));
+        w.assert_due(&[T0 + POLL]);
+        assert_eq!(e.borrow().pr_poll_ms, Some(POLL as u64));
 
         // a pending check read by a slate: thirty seconds, window or none; a slate with nothing pending, or
         // pending with no slate, keeps the pace of the window
@@ -1705,44 +1688,44 @@ fn q12_poll_intervals() {
             w.watched.set(watched);
             w.slate_watches.set(slate);
             let f = if pending { pending_fact.clone() } else { fact(json!({}), T0) };
-            *e.pr.borrow_mut() = Some(seen_of(f));
+            e.borrow_mut().pr = Some(seen_of(f));
             area.poll_pull_request(&e, None);
-            assert_eq!(w.pending(), vec![T0 + ms], "{watched} {pending} {slate}");
-            assert_eq!(e.pr_poll_ms.get(), Some(ms));
+            w.assert_due(&[T0 + ms]);
+            assert_eq!(e.borrow().pr_poll_ms, Some(ms as u64));
         }
 
         // from: the interval counts from the last read; one already past fires at once
         let (w, area, e) = setup();
-        *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0)));
+        e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0)));
         area.poll_pull_request(&e, Some(T0 - 100_000));
-        assert_eq!(w.pending(), vec![T0 + IDLE - 100_000]);
-        assert_eq!(e.pr_poll_ms.get(), Some(IDLE));
+        w.assert_due(&[T0 + IDLE - 100_000]);
+        assert_eq!(e.borrow().pr_poll_ms, Some(IDLE as u64));
         area.poll_pull_request(&e, Some(T0 - 2 * IDLE));
-        assert_eq!(w.pending(), vec![T0]);
+        w.assert_due(&[T0]);
 
         // nothing is armed for anything but an open fact, and what was armed is cancelled
         for held in [Some(seen_of(fact(json!({ "state": "merged" }), T0))), Some(seen_of(fact(json!({ "state": "closed" }), T0))), Some(seen_of(why("w", T0))), None] {
             let (w, area, e) = setup();
-            *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0)));
+            e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0)));
             area.poll_pull_request(&e, None);
-            assert_eq!(w.pending().len(), 1);
-            *e.pr.borrow_mut() = held;
+            assert_eq!(w.clock.pending(), 1);
+            e.borrow_mut().pr = held;
             area.poll_pull_request(&e, None);
-            assert!(w.pending().is_empty());
-            assert!(e.pr_poll.borrow().is_none());
+            w.assert_due(&[]);
+            assert!(e.borrow().pr_poll.is_none());
         }
 
         // nor for an entry the live map no longer holds under its id, or holds another under
         let (w, area, e) = setup();
-        *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0)));
+        e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0)));
         w.live.borrow_mut().shift_remove("w1");
         area.poll_pull_request(&e, None);
-        assert!(w.pending().is_empty());
+        w.assert_due(&[]);
         let other = w.cloud();
         assert!(!Rc::ptr_eq(&other, &e));
         area.poll_pull_request(&e, None);
-        assert!(w.pending().is_empty());
-        assert!(e.pr_poll.borrow().is_none());
+        w.assert_due(&[]);
+        assert!(e.borrow().pr_poll.is_none());
     });
 }
 
@@ -1753,7 +1736,7 @@ fn q12_the_timer_forces_a_read() {
         let (w, area, e) = setup();
         keep(&e, json!({}));
         w.on_branch(&e, "fix/ci", "h1");
-        *e.pr.borrow_mut() = Some(seen_of(fact(json!({}), T0)));
+        e.borrow_mut().pr = Some(seen_of(fact(json!({}), T0)));
         area.poll_pull_request(&e, None);
         w.advance(IDLE - 1);
         settle().await;
@@ -1762,7 +1745,7 @@ fn q12_the_timer_forces_a_read() {
         settle().await;
         assert_eq!(w.frames("here"), vec![pr_frame(HOME, json!({ "number": 12 }))]);
         assert_eq!(pr_of(&e), fact(json!({}), T0 + IDLE));
-        assert_eq!(w.pending(), vec![T0 + 2 * IDLE]);
+        w.assert_due(&[T0 + 2 * IDLE]);
     });
 }
 
@@ -1899,7 +1882,7 @@ fn q13_a_folder_settles_only_its_branch_threads() {
             if let Some(t) = threads {
                 v["branchThreads"] = t;
             }
-            *e.record.borrow_mut() = parsed(v);
+            *e.borrow().record.borrow_mut() = parsed(v);
             rows(&w);
             area.settle_tree(&e).await;
             assert!(w.log.borrow().is_empty());
@@ -1999,7 +1982,7 @@ fn q15_update_copy_reads_after() {
     run(async {
         let (w, area, e) = setup();
         w.on_branch(&e, "fix/ci", "h1");
-        e.checkout.borrow_mut().take();
+        e.borrow_mut().checkout.take();
         w.copy_says("git.update", |_| ok(update_json(false, 0, json!(["README.md"]))));
         // the pull request read waits on this computer; the update answers regardless
         w.here.hold.set(true);
@@ -2097,7 +2080,7 @@ fn ts_a_read_goes_over_this_computer_with_the_projects_remote_and_the_copys_bran
         assert_eq!(w.roads("copy"), 0);
         assert_eq!(pr_of(&e), fact(json!({}), T0));
         assert_eq!(w.fields_persisted(), vec![format!("{{\"pr\":{}}}", kept_pr(json!({})))]);
-        assert_eq!(w.pending(), vec![T0 + IDLE]);
+        w.assert_due(&[T0 + IDLE]);
     });
 }
 
@@ -2124,7 +2107,7 @@ fn ts_the_copy_is_asked_only_where_it_runs_and_a_stopped_one_is_never_woken() {
         );
         // napped, a read after the poll interval says why it is not read, and the copy is not asked
         set_record(&e, "phase", json!("napping"));
-        let armed = e.pr_poll.borrow_mut().take();
+        let armed = e.borrow_mut().pr_poll.take();
         armed.expect("the timer a read armed")();
         w.advance(IDLE);
         w.log.borrow_mut().clear();
@@ -2166,14 +2149,14 @@ fn ts_a_failed_read_keeps_the_fact_and_reads_again_on_its_timer() {
         assert_eq!(pr_of(&e), held);
         assert_eq!(w.statuses.borrow().len(), 1);
         assert_eq!(w.persisted.borrow().len(), 1);
-        assert_eq!(w.pending(), vec![T0 + 2 * IDLE]);
+        w.assert_due(&[T0 + 2 * IDLE]);
         answer_pr(&w, open(json!({ "state": "merged" })));
         w.advance(IDLE);
         settle().await;
         assert_eq!(w.frames("here").len(), 3);
         assert_eq!(pr_of(&e), fact(json!({ "state": "merged" }), T0 + 2 * IDLE));
         assert_eq!(w.persisted.borrow().len(), 2);
-        assert!(w.pending().is_empty());
+        w.assert_due(&[]);
     });
 }
 
@@ -2191,7 +2174,7 @@ fn ts_merged_and_closed_are_recorded_as_the_host_says_them() {
             kept[at_key] = json!(T0);
             kept["checks"] = open(json!({}))["checks"].clone();
             assert_eq!(record_pr(&e), kept.to_string(), "{state}");
-            assert!(w.pending().is_empty());
+            w.assert_due(&[]);
         }
     });
 }
@@ -2222,7 +2205,7 @@ fn ts_an_open_one_is_read_on_its_timer_whatever_its_checks_say_and_never_again_o
         area.read_pull_request(&e, false, false).await;
         area.read_pull_request(&e, true, true).await;
         assert_eq!(w.frames("here").len(), 3);
-        assert!(w.pending().is_empty());
+        w.assert_due(&[]);
     });
 }
 

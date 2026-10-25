@@ -17,8 +17,8 @@ use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 
-use common::{live, oracle, plain, record, run, settle};
-use wsp_account::account::core_types::{AccountResult, Live};
+use common::{in_flight, live, oracle, plain, record, run, settle};
+use wsp_account::account::core_types::{AccountResult, Entry};
 use wsp_account::account::status::{Confirmed, ListedRow, ReadFailure, StatusArea, StatusCtx};
 use wsp_core::types::wiring::{AdoptedMachine, WakeAsk, WorkspaceRecord};
 use wsp_engine::orphans::{ReapFailure, ReapReason, ReapedMachine};
@@ -102,7 +102,7 @@ type Store = Rc<RefCell<IndexMap<String, IndexMap<String, Value>>>>;
 struct World {
     clock: Rc<Cell<i64>>,
     store: Store,
-    live: RefCell<Vec<Live>>,
+    live: RefCell<Vec<Entry>>,
     facts: RefCell<HashMap<String, Facts>>,
     projects: Vec<String>,
     machines: RefCell<HashMap<String, MachineAt>>,
@@ -198,7 +198,7 @@ impl Lab {
     fn machine(&self, id: &str, f: impl FnOnce(&mut MachineAt)) {
         f(self.w.machines.borrow_mut().get_mut(id).expect("a registered machine"));
     }
-    fn hold(&self, record_json: Value) -> Live {
+    fn hold(&self, record_json: Value) -> Entry {
         let entry = live(record(&record_json));
         self.w.live.borrow_mut().push(entry.clone());
         entry
@@ -260,7 +260,7 @@ impl StatusCtx for World {
         self.readied.set(true);
         tokio::task::yield_now().await;
     }
-    fn held(&self) -> Vec<Live> {
+    fn held(&self) -> Vec<Entry> {
         self.ready_before_held.set(self.readied.get());
         self.live.borrow().clone()
     }
@@ -275,8 +275,8 @@ impl StatusCtx for World {
     fn rate_usd_per_hour(&self, record: &WorkspaceRecord) -> f64 {
         self.facts.borrow().get(&record.id).map(|f| f.rate).unwrap_or(if record.kind == WorkspaceKind::Local { 0.0 } else { 0.11 })
     }
-    fn row_reason(&self, entry: &Live) -> Option<String> {
-        self.facts.borrow().get(&entry.record.borrow().id).and_then(|f| f.reason.clone())
+    fn row_reason(&self, entry: &Entry) -> Option<String> {
+        self.facts.borrow().get(&entry.borrow().record.borrow().id).and_then(|f| f.reason.clone())
     }
     fn idle_at(&self, workspace_id: &str) -> Option<f64> {
         self.facts.borrow().get(workspace_id).and_then(|f| f.idle_at)
@@ -284,17 +284,17 @@ impl StatusCtx for World {
     fn away_line(&self, record: &WorkspaceRecord) -> Option<String> {
         self.facts.borrow().get(&record.id).and_then(|f| f.away.clone())
     }
-    fn unreached_of(&self, entry: &Live) -> Option<Value> {
-        self.facts.borrow().get(&entry.record.borrow().id).and_then(|f| f.unreached.clone())
+    fn unreached_of(&self, entry: &Entry) -> Option<Value> {
+        self.facts.borrow().get(&entry.borrow().record.borrow().id).and_then(|f| f.unreached.clone())
     }
-    fn reach_of(&self, entry: &Live) -> String {
-        self.facts.borrow().get(&entry.record.borrow().id).map(|f| f.reach.clone()).unwrap_or_else(|| "ok".into())
+    fn reach_of(&self, entry: &Entry) -> String {
+        self.facts.borrow().get(&entry.borrow().record.borrow().id).map(|f| f.reach.clone()).unwrap_or_else(|| "ok".into())
     }
-    fn has_daemon(&self, entry: &Live) -> bool {
-        self.facts.borrow().get(&entry.record.borrow().id).is_some_and(|f| f.daemon)
+    fn has_daemon(&self, entry: &Entry) -> bool {
+        self.facts.borrow().get(&entry.borrow().record.borrow().id).is_some_and(|f| f.daemon)
     }
-    fn machine_reads(&self, entry: &Live) -> (bool, Option<f64>, bool, bool) {
-        self.facts.borrow().get(&entry.record.borrow().id).map(|f| f.reads).unwrap_or((false, None, false, false))
+    fn machine_reads(&self, entry: &Entry) -> (bool, Option<f64>, bool, bool) {
+        self.facts.borrow().get(&entry.borrow().record.borrow().id).map(|f| f.reads).unwrap_or((false, None, false, false))
     }
     fn polled_reach_set(&self, workspace_id: &str, machine_id: &str, reach: &str) {
         self.log.borrow_mut().push(format!("set {workspace_id} {machine_id} {reach}"));
@@ -305,24 +305,24 @@ impl StatusCtx for World {
     fn boot_work_has(&self, workspace_id: &str) -> bool {
         self.boot_work.borrow().contains(workspace_id)
     }
-    fn revive_daemon(&self, entry: &Live, reach: &str) {
-        self.log.borrow_mut().push(format!("revive {} {reach}", entry.record.borrow().id));
+    fn revive_daemon(&self, entry: &Entry, reach: &str) {
+        self.log.borrow_mut().push(format!("revive {} {reach}", entry.borrow().record.borrow().id));
     }
-    fn offer_daemon_again(&self, entry: &Live, status: &Value) {
-        self.log.borrow_mut().push(format!("offer {} {status}", entry.record.borrow().id));
+    fn offer_daemon_again(&self, entry: &Entry, status: &Value) {
+        self.log.borrow_mut().push(format!("offer {} {status}", entry.borrow().record.borrow().id));
     }
-    fn read_version_again(&self, entry: &Live, status: &Value) {
-        self.log.borrow_mut().push(format!("version {} {status}", entry.record.borrow().id));
+    fn read_version_again(&self, entry: &Entry, status: &Value) {
+        self.log.borrow_mut().push(format!("version {} {status}", entry.borrow().record.borrow().id));
     }
-    async fn adopt_gone(&self, entry: &Live, reason: &str) -> AccountResult<()> {
-        self.log.borrow_mut().push(format!("adopt_gone {} {reason}", entry.record.borrow().id));
+    async fn adopt_gone(&self, entry: &Entry, reason: &str) -> AccountResult<()> {
+        self.log.borrow_mut().push(format!("adopt_gone {} {reason}", entry.borrow().record.borrow().id));
         match self.adopt_gone_fails.borrow().clone() {
             Some(m) => Err(plain(&m).into()),
             None => Ok(()),
         }
     }
-    fn live(&self, workspace_id: &str) -> Option<Live> {
-        self.live.borrow().iter().find(|e| e.record.borrow().id == workspace_id).cloned()
+    fn live(&self, workspace_id: &str) -> Option<Entry> {
+        self.live.borrow().iter().find(|e| e.borrow().record.borrow().id == workspace_id).cloned()
     }
     async fn store_get(&self, collection: &str, id: &str) -> AccountResult<Option<Value>> {
         tokio::task::yield_now().await;
@@ -375,7 +375,7 @@ impl StatusCtx for World {
         self.projects.iter().any(|p| p == id)
     }
     fn name_refusal(&self, name: &str) -> Option<String> {
-        self.live.borrow().iter().any(|e| e.record.borrow().name == name).then(|| format!("{name} is taken"))
+        self.live.borrow().iter().any(|e| e.borrow().record.borrow().name == name).then(|| format!("{name} is taken"))
     }
     fn places_wired(&self) -> String {
         self.wired.clone()
@@ -404,7 +404,7 @@ impl StatusCtx for World {
             }
         }
     }
-    fn attach(&self, record: WorkspaceRecord) -> Live {
+    fn attach(&self, record: WorkspaceRecord) -> Entry {
         self.log.borrow_mut().push(format!("attach {}", record.id));
         let entry = live(record);
         self.live.borrow_mut().push(entry.clone());
@@ -415,15 +415,15 @@ impl StatusCtx for World {
         self.store.borrow_mut().entry("workspaces".into()).or_default().insert(record.id.clone(), serde_json::to_value(record).unwrap());
         Ok(())
     }
-    fn sync_daemon(&self, entry: &Live) {
-        self.log.borrow_mut().push(format!("sync {}", entry.record.borrow().id));
+    fn sync_daemon(&self, entry: &Entry) {
+        self.log.borrow_mut().push(format!("sync {}", entry.borrow().record.borrow().id));
     }
     fn emit(&self, event: Value) {
         self.log.borrow_mut().push(format!("emit {}", event["type"].as_str().unwrap_or("")));
         self.events.borrow_mut().push(event);
     }
-    async fn emit_status(&self, entry: &Live, reach: &str, reason: &str) {
-        self.log.borrow_mut().push(format!("status {} {reach} {reason}", entry.record.borrow().id));
+    async fn emit_status(&self, entry: &Entry, reach: &str, reason: &str) {
+        self.log.borrow_mut().push(format!("status {} {reach} {reason}", entry.borrow().record.borrow().id));
     }
     fn spawn(&self, f: LocalBoxFuture<'static, ()>) {
         tokio::task::spawn_local(f);
@@ -463,11 +463,11 @@ fn full_facts() -> Facts {
     }
 }
 
-fn load(entry: &Live) {
-    entry.generation.set(3);
-    entry.wake_ask.set(Some(WakeAsk { ask: 2, of: 3 }));
-    *entry.checkout.borrow_mut() = Some(serde_json::from_value::<Checkout>(json!({ "branch": "main", "ahead": 1, "behind": 0, "changed": 2, "readAt": 7 })).unwrap());
-    *entry.pr.borrow_mut() = Some(serde_json::from_value::<PullRequestSeen>(json!({ "why": "gh is not signed in", "readAt": 5 })).unwrap());
+fn load(entry: &Entry) {
+    entry.borrow_mut().generation = 3;
+    entry.borrow_mut().wake_ask = Some(WakeAsk { ask: 2, of: 3 });
+    entry.borrow_mut().checkout = Some(serde_json::from_value::<Checkout>(json!({ "branch": "main", "ahead": 1, "behind": 0, "changed": 2, "readAt": 7 })).unwrap());
+    entry.borrow_mut().pr = Some(serde_json::from_value::<PullRequestSeen>(json!({ "why": "gh is not signed in", "readAt": 5 })).unwrap());
 }
 
 const FULL_KEYS: [&str; 21] = [
@@ -574,7 +574,7 @@ fn ported_a_rename_leaves_the_idle_mark_where_it_was() {
         let entry = lab.hold(entry_json("w1", "cloud", "running"));
         lab.w.facts.borrow_mut().insert("w1".into(), Facts { idle_at: Some(T0 as f64 + 20.0 * MIN as f64), ..Facts::default() });
         let first = lab.area.records().await;
-        entry.record.borrow_mut().name = "the name he typed".into();
+        entry.borrow().record.borrow_mut().name = "the name he typed".into();
         let second = lab.area.records().await;
         assert_eq!(first[0]["idleAt"].as_f64(), Some(T0 as f64 + 20.0 * MIN as f64));
         assert_eq!(second[0]["idleAt"], first[0]["idleAt"]);
@@ -691,10 +691,10 @@ fn s5_skips_table() {
         for (ws, flag) in [("ws_creating", 0), ("ws_waking", 1), ("ws_deleting", 2), ("ws_napping", 3)] {
             let entry = lab.hold(json!({ "id": ws, "name": ws, "kind": "cloud", "phase": "running", "project": "p1", "machineId": format!("held_{ws}") }));
             match flag {
-                0 => entry.creating.set(true),
-                1 => entry.waking.set(true),
-                2 => entry.deleting.set(true),
-                _ => entry.napping.set(true),
+                0 => entry.borrow_mut().creating = true,
+                1 => entry.borrow_mut().waking = Some(in_flight()),
+                2 => entry.borrow_mut().deleting = Some(in_flight()),
+                _ => entry.borrow_mut().napping = Some(in_flight()),
             }
             listing.push(lab.row(&format!("m_{ws}"), "paused", Some(ws), 3 * DAY));
         }
@@ -773,7 +773,7 @@ fn s6_unreached_named_with_its_deletion_time() {
             lab.advance(10 * MIN);
         }
         assert!(lab.w.stops.borrow().is_empty(), "nothing is stopped before the day is out");
-        assert_eq!(lab.w.live.borrow()[1].record.borrow().machine_id, "held", "the record is left as it was");
+        assert_eq!(lab.w.live.borrow()[1].borrow().record.borrow().machine_id, "held", "the record is left as it was");
     });
 }
 

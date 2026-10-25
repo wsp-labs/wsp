@@ -18,7 +18,8 @@ use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::machine_link::ReadingsAnswer;
 use wsp_words::exit::HostError;
 
-use crate::account::core_types::{AccountResult, Cancel, Frame, Live};
+use wsp_core::clock::Cancel;
+use crate::account::core_types::{AccountResult, Entry, Frame};
 
 /// A computer's name as a person reads it, by id (`nameOf`). A named alias so `async_trait` leaves its `&str` higher-ranked.
 pub type NameOf = Rc<dyn for<'a> Fn(&'a str) -> String>;
@@ -29,7 +30,7 @@ pub type LabelOf = Rc<dyn for<'a> Fn(UsageSplit, &'a str) -> String>;
 /// usage.ts:25.
 pub const SIGN_INS_HELD_MS: i64 = 60_000;
 
-/// One log row filed into the ledger (`UsageEntry`, runtime usage.ts). Stand-in for wsp-machines' until the join.
+/// One log row filed into the ledger (`UsageEntry`, runtime usage.ts). wsp-machines' `usage.rs` is empty, so the row is held here (spec/join.md).
 #[derive(Clone, Debug, PartialEq)]
 pub struct UsageEntry {
     pub at: f64,
@@ -46,7 +47,7 @@ pub struct UsageEntry {
     pub source: String,
 }
 
-/// One plan limit reading (`LimitReading`, runtime usage.ts). Stand-in for wsp-machines' until the join.
+/// One plan limit reading (`LimitReading`, runtime usage.ts). wsp-machines' `usage.rs` is empty, so the row is held here (spec/join.md).
 #[derive(Clone, Debug, PartialEq)]
 pub struct LimitReading {
     pub key: String,
@@ -169,9 +170,9 @@ pub trait UsageCtx {
     /// `spendReset({ account, creditId?, on? })` (usage_reset).
     async fn spend_reset(&self, account: &str, credit_id: Option<&str>, on: Option<&str>) -> Result<ResetAnswer, HostError>;
     /// The row parts `rowReason` reads.
-    fn nap_refused_reason(&self, entry: &Live) -> Option<String>;
-    fn stop_refused_reason(&self, entry: &Live) -> Option<String>;
-    fn disk_reason(&self, entry: &Live) -> Option<String>;
+    fn nap_refused_reason(&self, entry: &Entry) -> Option<String>;
+    fn stop_refused_reason(&self, entry: &Entry) -> Option<String>;
+    fn disk_reason(&self, entry: &Entry) -> Option<String>;
     fn spawn(&self, f: LocalBoxFuture<'static, ()>);
     fn warn(&self, line: &str);
 }
@@ -201,7 +202,7 @@ impl UsageArea {
     }
 
     /// U2, usage.ts:44.
-    pub fn row_reason(&self, entry: &Live) -> Option<String> {
+    pub fn row_reason(&self, entry: &Entry) -> Option<String> {
         todo!()
     }
 

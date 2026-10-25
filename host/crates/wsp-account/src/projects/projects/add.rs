@@ -25,12 +25,7 @@ pub enum LandingKind {
 }
 
 /// `ctx.computerRows()`'s row.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ComputerRow {
-    pub id: String,
-    pub name: String,
-    pub kind: PlaceKind,
-}
+pub use wsp_machines::machines::boot::ComputerRow;
 
 /// A computer the person joined as its login runs every command there, and that login's home.
 #[derive(Clone)]

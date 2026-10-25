@@ -18,6 +18,7 @@ use wsp_core::clock::Clock;
 use wsp_core::ids::Ids;
 use wsp_core::types::harness::StartPicksAsked;
 use wsp_core::types::pending::Store;
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::{CreateWorkspaceOptions, CreatedWorkspace, WorkspaceRecord};
 use wsp_wire::types::pull_request::PullRequest;
 use wsp_wire::types::start::IssueRead;
@@ -164,8 +165,8 @@ impl Base for FakeStart {
     fn session_views(&self) -> Vec<SessionView> {
         self.b().session_views()
     }
-    fn thread_workspaces(&self) -> Vec<(String, String)> {
-        self.b().thread_workspaces()
+    fn thread_records(&self) -> Vec<(String, ThreadRecord)> {
+        self.b().thread_records()
     }
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.b().persist(record).await

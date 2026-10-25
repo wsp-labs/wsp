@@ -12,7 +12,7 @@ use wsp_core::types::wiring::{AdoptedMachine, WorkspaceRecord};
 use wsp_engine::orphans::{ReapFailure, ReapedMachine};
 use wsp_words::exit::HostError;
 
-use crate::account::core_types::{AccountResult, Live};
+use crate::account::core_types::{AccountResult, Entry};
 
 /// One row of a provider's listing as the sweep hands it (`ListedMachine`): id, state and labels.
 #[derive(Clone, Debug, PartialEq)]
@@ -47,30 +47,30 @@ pub enum ReadFailure {
 pub trait StatusCtx {
     // The rows (status.ts:13-43).
     async fn ready(&self);
-    fn held(&self) -> Vec<Live>;
+    fn held(&self) -> Vec<Entry>;
     /// `ctx.view(record)` as the TS object.
     fn view(&self, record: &WorkspaceRecord) -> Map<String, Value>;
     fn rate_usd_per_hour(&self, record: &WorkspaceRecord) -> f64;
-    fn row_reason(&self, entry: &Live) -> Option<String>;
+    fn row_reason(&self, entry: &Entry) -> Option<String>;
     fn idle_at(&self, workspace_id: &str) -> Option<f64>;
     fn away_line(&self, record: &WorkspaceRecord) -> Option<String>;
-    fn unreached_of(&self, entry: &Live) -> Option<Value>;
+    fn unreached_of(&self, entry: &Entry) -> Option<Value>;
     /// `ctx.reachOf(entry)`.
-    fn reach_of(&self, entry: &Live) -> String;
-    fn has_daemon(&self, entry: &Live) -> bool;
+    fn reach_of(&self, entry: &Entry) -> String;
+    fn has_daemon(&self, entry: &Entry) -> bool;
     /// Which optional machine reads the entry's machine offers: `daemonAnswers`, `daemonAnswersPromptMs`, `metrics`,
     /// `facts`, in that order.
-    fn machine_reads(&self, entry: &Live) -> (bool, Option<f64>, bool, bool);
+    fn machine_reads(&self, entry: &Entry) -> (bool, Option<f64>, bool, bool);
 
     // The poll (status.ts:49-66).
     fn polled_reach_set(&self, workspace_id: &str, machine_id: &str, reach: &str);
     fn polled_reach_delete(&self, workspace_id: &str);
     fn boot_work_has(&self, workspace_id: &str) -> bool;
-    fn revive_daemon(&self, entry: &Live, reach: &str);
-    fn offer_daemon_again(&self, entry: &Live, status: &Value);
-    fn read_version_again(&self, entry: &Live, status: &Value);
-    async fn adopt_gone(&self, entry: &Live, reason: &str) -> AccountResult<()>;
-    fn live(&self, workspace_id: &str) -> Option<Live>;
+    fn revive_daemon(&self, entry: &Entry, reach: &str);
+    fn offer_daemon_again(&self, entry: &Entry, status: &Value);
+    fn read_version_again(&self, entry: &Entry, status: &Value);
+    async fn adopt_gone(&self, entry: &Entry, reason: &str) -> AccountResult<()>;
+    fn live(&self, workspace_id: &str) -> Option<Entry>;
 
     // adoptLost (status.ts:81-180).
     async fn store_get(&self, collection: &str, id: &str) -> AccountResult<Option<Value>>;
@@ -94,11 +94,11 @@ pub trait StatusCtx {
     /// `ctx.gone.stop(at.backend, await at.backend.get(id))`.
     async fn stop_unrecorded(&self, place: &str, machine_id: &str) -> Result<(), ReadFailure>;
     /// `ctx.attach(record, machine)` for the machine `confirm` read.
-    fn attach(&self, record: WorkspaceRecord) -> Live;
+    fn attach(&self, record: WorkspaceRecord) -> Entry;
     async fn persist(&self, record: &WorkspaceRecord) -> AccountResult<()>;
-    fn sync_daemon(&self, entry: &Live);
+    fn sync_daemon(&self, entry: &Entry);
     fn emit(&self, event: Value);
-    async fn emit_status(&self, entry: &Live, reach: &str, reason: &str);
+    async fn emit_status(&self, entry: &Entry, reach: &str, reason: &str);
     fn spawn(&self, f: futures::future::LocalBoxFuture<'static, ()>);
     fn warn(&self, line: &str);
 }

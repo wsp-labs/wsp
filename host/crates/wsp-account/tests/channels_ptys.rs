@@ -26,9 +26,11 @@ use serde_json::{json, Value};
 use common::{live_with, oracle, plain, record, run, settle, FakeMachine};
 use wsp_account::account::box_panels::{BoxPanelsCtx, StartedRow};
 use wsp_account::account::channels::{
-    ChannelRow, ChannelThread, ChannelsArea, ChannelsCtx, TerminalSignIn, ThreadLaunch, COMPUTER_PROCS, COMPUTER_WATCHES, GUEST_EVENTS, PORT_ROOTS_RECHECK_MS, PTY_EVENTS, WORKSPACE_FRAMES,
+    ChannelRow, ChannelsArea, ChannelsCtx, TerminalSignIn, ThreadLaunch, COMPUTER_PROCS, COMPUTER_WATCHES, GUEST_EVENTS, PORT_ROOTS_RECHECK_MS, PTY_EVENTS, WORKSPACE_FRAMES,
 };
-use wsp_account::account::core_types::{AccountError, AccountResult, Cancel, Frame, Live, Release};
+use wsp_account::account::core_types::{AccountError, AccountResult, Frame, Entry, Release};
+use wsp_core::clock::{Cancel, Clock, FakeClock};
+use wsp_core::types::internal::ThreadRecord;
 use wsp_account::account::proc_scopes::{KeptRow, LatestRow, ProcScopesArea, ProcScopesCtx, ScopeRecord, ScopeRow, ThreadTerminal};
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel};
 use wsp_core::devices::{DeviceDoor, HeldDevice, IssuedCode, MintMore, PairedDevice, ScopedRoad};
@@ -47,46 +49,6 @@ use wsp_words::exit::HostError;
 // that answer by script, and a context holding every ctx member the TS reads. Nothing sleeps; spawned work runs when a
 // test calls `settle().await`.
 // ---------------------------------------------------------------------------------------------------------------------
-
-type Timer = (u64, i64, Rc<Cell<bool>>, Option<Box<dyn FnOnce()>>);
-
-/// A clock that moves only when a test says so; a timer fires when `advance` reaches its moment.
-#[derive(Default)]
-struct Clock {
-    now: Cell<i64>,
-    seq: Cell<u64>,
-    timers: RefCell<Vec<Timer>>,
-}
-
-impl Clock {
-    fn schedule(&self, ms: i64, f: Box<dyn FnOnce()>) -> Cancel {
-        let id = self.seq.get() + 1;
-        self.seq.set(id);
-        let off = Rc::new(Cell::new(false));
-        self.timers.borrow_mut().push((id, self.now.get() + ms, off.clone(), Some(f)));
-        Rc::new(move || off.set(true))
-    }
-    fn advance(&self, ms: i64) {
-        let target = self.now.get() + ms;
-        loop {
-            let next = {
-                let mut timers = self.timers.borrow_mut();
-                timers.retain(|t| !t.2.get());
-                let due = timers.iter().enumerate().filter(|(_, t)| t.1 <= target).min_by_key(|(_, t)| (t.1, t.0)).map(|(i, _)| i);
-                due.map(|i| timers.remove(i))
-            };
-            let Some((_, at, _, f)) = next else { break };
-            self.now.set(at.max(self.now.get()));
-            if let Some(f) = f {
-                f();
-            }
-        }
-        self.now.set(target);
-    }
-    fn pending(&self) -> usize {
-        self.timers.borrow().iter().filter(|t| !t.2.get()).count()
-    }
-}
 
 /// A store of documents that logs every call as the oracle's did: `["put", collection, id, value]`,
 /// `["delete", collection, id]`, and each read as `[collection, id]`. A put waits while `held` is set.
@@ -309,7 +271,7 @@ impl DaemonChannel for SharedChannel {
 
 /// The context of the channels area, every member the TS reads off its ctx.
 struct World {
-    clock: Clock,
+    clock: FakeClock,
     warns: RefCell<Vec<String>>,
     store: Rc<Store>,
     door: Rc<Door>,
@@ -318,7 +280,7 @@ struct World {
     cuts: RefCell<HashMap<(String, String), bool>>,
     facts: RefCell<HashMap<(String, String, String), String>>,
     rows: RefCell<Vec<ChannelRow>>,
-    threads: RefCell<IndexMap<String, ChannelThread>>,
+    threads: RefCell<IndexMap<String, ThreadRecord>>,
     // the kind's module
     home: RefCell<Option<String>>,
     road: RefCell<AccountResult<DaemonReachView>>,
@@ -377,7 +339,7 @@ fn unanswered() -> AccountError {
 impl World {
     fn new() -> Rc<World> {
         Rc::new(World {
-            clock: Clock::default(),
+            clock: FakeClock::new(0),
             warns: RefCell::default(),
             store: Rc::new(Store::default()),
             door: Rc::new(Door::default()),
@@ -483,7 +445,7 @@ impl BoxPanelsCtx for NoPanels {
     fn scopes_on(&self, _place_id: &str) -> Vec<wsp_wire::wire::daemon::ProcScope> {
         vec![]
     }
-    fn thread_env(&self, _entry: &Live) -> IndexMap<String, String> {
+    fn thread_env(&self, _entry: &Entry) -> IndexMap<String, String> {
         IndexMap::new()
     }
     fn spawn(&self, f: LocalBoxFuture<'static, ()>) {
@@ -505,7 +467,7 @@ impl ChannelsCtx for World {
     fn session_rows(&self) -> Vec<ChannelRow> {
         self.rows.borrow().clone()
     }
-    fn thread_record(&self, thread_id: &str) -> Option<ChannelThread> {
+    fn thread_record(&self, thread_id: &str) -> Option<ThreadRecord> {
         self.threads.borrow().get(thread_id).cloned()
     }
     fn thread_ids(&self) -> Vec<String> {
@@ -517,8 +479,8 @@ impl ChannelsCtx for World {
     fn home_dir(&self, _record: &WorkspaceRecord) -> Option<String> {
         self.home.borrow().clone()
     }
-    async fn daemon_road(&self, entry: &Live) -> AccountResult<DaemonReachView> {
-        self.roads_asked.borrow_mut().push(entry.record.borrow().id.clone());
+    async fn daemon_road(&self, entry: &Entry) -> AccountResult<DaemonReachView> {
+        self.roads_asked.borrow_mut().push(entry.borrow().record.borrow().id.clone());
         self.road.borrow().clone()
     }
     fn turn_road(&self, _kind: WorkspaceKind) -> Option<ScopedRoad> {
@@ -583,8 +545,8 @@ impl ChannelsCtx for World {
         self.local_roads_asked.set(self.local_roads_asked.get() + 1);
         self.local_road.borrow().clone()
     }
-    async fn adopt_pause(&self, entry: &Live) {
-        self.adopted.borrow_mut().push(entry.record.borrow().id.clone());
+    async fn adopt_pause(&self, entry: &Entry) {
+        self.adopted.borrow_mut().push(entry.borrow().record.borrow().id.clone());
     }
     fn broker_ready(&self) -> bool {
         self.broker.get()
@@ -671,28 +633,28 @@ impl ChannelsCtx for World {
     fn live_has(&self, workspace_id: &str) -> bool {
         self.live_ids.borrow().contains(workspace_id)
     }
-    async fn thread_launch(&self, _entry: &Live, _thread_id: &str, _root_thread_id: &str) -> AccountResult<ThreadLaunch> {
+    async fn thread_launch(&self, _entry: &Entry, _thread_id: &str, _root_thread_id: &str) -> AccountResult<ThreadLaunch> {
         unreachable!("the copy's acts are not read by these tests")
     }
-    fn brokered_env(&self, _token: &str, _entry: &Live) -> IndexMap<String, String> {
+    fn brokered_env(&self, _token: &str, _entry: &Entry) -> IndexMap<String, String> {
         unreachable!()
     }
-    fn terminal_sign_in(&self, _harness: &str, _entry: &Live, _token: &str) -> Option<TerminalSignIn> {
+    fn terminal_sign_in(&self, _harness: &str, _entry: &Entry, _token: &str) -> Option<TerminalSignIn> {
         unreachable!()
     }
     fn terminal_line(&self, _harness: &str, _program: &str) -> String {
         unreachable!()
     }
-    async fn thread_folder(&self, _entry: &Live) -> String {
+    async fn thread_folder(&self, _entry: &Entry) -> String {
         unreachable!()
     }
-    fn thread_env(&self, _entry: &Live) -> IndexMap<String, String> {
+    fn thread_env(&self, _entry: &Entry) -> IndexMap<String, String> {
         unreachable!()
     }
     async fn persist(&self, _record: &WorkspaceRecord) -> AccountResult<()> {
         unreachable!()
     }
-    fn read_checkout_soon(&self, _entry: &Live) {
+    fn read_checkout_soon(&self, _entry: &Entry) {
         unreachable!()
     }
     async fn delete_workspace(&self, _workspace_id: &str) -> AccountResult<()> {
@@ -702,10 +664,10 @@ impl ChannelsCtx for World {
         unreachable!()
     }
     fn now(&self) -> i64 {
-        self.clock.now.get()
+        self.clock.now()
     }
     fn schedule(&self, ms: i64, f: Box<dyn FnOnce()>) -> Cancel {
-        self.clock.schedule(ms, f)
+        self.clock.schedule(f, ms)
     }
     fn spawn(&self, f: LocalBoxFuture<'static, ()>) {
         tokio::task::spawn_local(f);

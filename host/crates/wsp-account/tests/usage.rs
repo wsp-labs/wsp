@@ -33,8 +33,9 @@ use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 
-use common::{error_json, live, oracle, plain, record, run, settle};
-use wsp_account::account::core_types::{AccountResult, Cancel, Frame, Live};
+use common::{error_json, in_flight, live, oracle, plain, record, run, settle};
+use wsp_account::account::core_types::{AccountResult, Frame, Entry};
+use wsp_core::clock::Cancel;
 use wsp_account::account::usage::{LabelOf, NameOf, AccountKey, LimitReading, PlanRoad, ResetPlaceView, UsageArea, UsageCtx, UsageEntry};
 use wsp_core::types::wiring::{DeleteSaid, ReadingsTarget, WorkspaceRecord};
 use wsp_frames::{UsageLogsReply, UsageStore};
@@ -567,13 +568,13 @@ impl UsageCtx for World {
         self.spends.borrow_mut().push(Value::Object(o));
         self.spend_answer.borrow().clone()
     }
-    fn nap_refused_reason(&self, _entry: &Live) -> Option<String> {
+    fn nap_refused_reason(&self, _entry: &Entry) -> Option<String> {
         self.nap.borrow().clone()
     }
-    fn stop_refused_reason(&self, _entry: &Live) -> Option<String> {
+    fn stop_refused_reason(&self, _entry: &Entry) -> Option<String> {
         self.stop.borrow().clone()
     }
-    fn disk_reason(&self, _entry: &Live) -> Option<String> {
+    fn disk_reason(&self, _entry: &Entry) -> Option<String> {
         self.disk.borrow().clone()
     }
     fn spawn(&self, f: LocalBoxFuture<'static, ()>) {
@@ -676,12 +677,12 @@ fn u2_row_reason_order() {
         // The wake's own words come before the record's refusal, and the delete line before both.
         *w.nap.borrow_mut() = Some("nap refusal".into());
         let said = entry(true);
-        *said.wake_said.borrow_mut() = Some("the wake said this".into());
+        said.borrow_mut().wake_said = Some("the wake said this".into());
         assert_eq!(a.row_reason(&said), Some("the wake said this".to_string()));
-        *said.delete_said.borrow_mut() = Some(DeleteSaid { phase: WorkspacePhase::Running, line: "the delete line".into() });
+        said.borrow_mut().delete_said = Some(DeleteSaid { phase: WorkspacePhase::Running, line: "the delete line".into() });
         assert_eq!(a.row_reason(&said), Some("the delete line".to_string()));
         // A phase that moved since the sentence was said leaves it behind.
-        *said.delete_said.borrow_mut() = Some(DeleteSaid { phase: WorkspacePhase::Napping, line: "the delete line".into() });
+        said.borrow_mut().delete_said = Some(DeleteSaid { phase: WorkspacePhase::Napping, line: "the delete line".into() });
         assert_eq!(a.row_reason(&said), Some("the wake said this".to_string()));
     });
 }

@@ -21,6 +21,7 @@ use wsp_core::ids::Ids;
 use wsp_core::types::api::DaemonEventListener;
 use wsp_core::types::harness::StartPicksAsked;
 use wsp_core::types::pending::Store;
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::{Detach, SysListener, WorkspaceRecord};
 use wsp_wire::types::pull_request::PullRequest;
 use wsp_wire::types::start::{IssueRead, WorkspaceFrom, WorkspaceFromKind};
@@ -156,8 +157,8 @@ impl Base for FakeReview {
     fn session_views(&self) -> Vec<SessionView> {
         self.b().session_views()
     }
-    fn thread_workspaces(&self) -> Vec<(String, String)> {
-        self.b().thread_workspaces()
+    fn thread_records(&self) -> Vec<(String, ThreadRecord)> {
+        self.b().thread_records()
     }
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.b().persist(record).await

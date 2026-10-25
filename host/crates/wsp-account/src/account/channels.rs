@@ -20,7 +20,9 @@ use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::wire::place_link::PlaceReport;
 
 use crate::account::box_panels::{BoxPanelsCtx, BoxPanelsOpener, Watchers};
-use crate::account::core_types::{AccountResult, Cancel, Live};
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::ThreadRecord;
+use crate::account::core_types::{AccountResult, Entry};
 
 pub mod copy;
 pub mod daemon;
@@ -68,14 +70,6 @@ pub struct ChannelRow {
     pub run: Option<String>,
 }
 
-/// A thread record as the channels read it.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ChannelThread {
-    pub workspace_id: String,
-    pub permission_mode: Option<String>,
-    pub harness: Option<String>,
-}
-
 /// What `ctx.threadLaunch(entry, threadId, root)` answers: the turn's scoped device and its environment.
 pub struct ThreadLaunch {
     pub scoped: Option<PairedDevice>,
@@ -83,11 +77,7 @@ pub struct ThreadLaunch {
 }
 
 /// `terminalSignIn(...)`'s answer: the program a shell signs in with and its environment.
-#[derive(Clone, Debug, PartialEq)]
-pub struct TerminalSignIn {
-    pub program: String,
-    pub env: IndexMap<String, String>,
-}
+pub use wsp_machines::machines::brokered::TerminalSignIn;
 
 /// What the channels area reads off the runtime's context and the modules it imports.
 #[async_trait(?Send)]
@@ -102,7 +92,7 @@ pub trait ChannelsCtx {
     /// `sessions.values()`, in map order.
     fn session_rows(&self) -> Vec<ChannelRow>;
     /// `threadRecords.get(id)`.
-    fn thread_record(&self, thread_id: &str) -> Option<ChannelThread>;
+    fn thread_record(&self, thread_id: &str) -> Option<ThreadRecord>;
     /// `threadRecords`' ids, in map order.
     fn thread_ids(&self) -> Vec<String>;
     /// `ctx.latestOn(thread)?.harness`.
@@ -112,7 +102,7 @@ pub trait ChannelsCtx {
     /// `moduleOf(kind).homeDir(record)`.
     fn home_dir(&self, record: &WorkspaceRecord) -> Option<String>;
     /// `moduleOf(kind).daemonRoad(entry)`.
-    async fn daemon_road(&self, entry: &Live) -> AccountResult<DaemonReachView>;
+    async fn daemon_road(&self, entry: &Entry) -> AccountResult<DaemonReachView>;
     /// `moduleOf(kind).turnRoad`.
     fn turn_road(&self, kind: WorkspaceKind) -> Option<ScopedRoad>;
 
@@ -145,7 +135,7 @@ pub trait ChannelsCtx {
     fn local_home_dir(&self) -> String;
     /// `ctx.localRoad()`.
     async fn local_road(&self) -> AccountResult<DaemonReachView>;
-    async fn adopt_pause(&self, entry: &Live);
+    async fn adopt_pause(&self, entry: &Entry);
     /// `ctx.opts.broker?.ready() === true`.
     fn broker_ready(&self) -> bool;
     fn root_of(&self, thread_id: &str) -> String;
@@ -183,18 +173,18 @@ pub trait ChannelsCtx {
     fn live_has(&self, workspace_id: &str) -> bool;
 
     // The copy's acts (copy C6-C14).
-    async fn thread_launch(&self, entry: &Live, thread_id: &str, root_thread_id: &str) -> AccountResult<ThreadLaunch>;
+    async fn thread_launch(&self, entry: &Entry, thread_id: &str, root_thread_id: &str) -> AccountResult<ThreadLaunch>;
     /// `brokeredEnv(token, entry.record.branchOfRecord, publicMarketplaces(ctx))`.
-    fn brokered_env(&self, token: &str, entry: &Live) -> IndexMap<String, String>;
+    fn brokered_env(&self, token: &str, entry: &Entry) -> IndexMap<String, String>;
     /// `terminalSignIn(harness, launchToken => ctx.brokeredLaunch(entry, harness, launchToken), token)`.
-    fn terminal_sign_in(&self, harness: &str, entry: &Live, token: &str) -> Option<TerminalSignIn>;
+    fn terminal_sign_in(&self, harness: &str, entry: &Entry, token: &str) -> Option<TerminalSignIn>;
     /// `terminalLine(harness, program)`.
     fn terminal_line(&self, harness: &str, program: &str) -> String;
-    async fn thread_folder(&self, entry: &Live) -> String;
-    fn thread_env(&self, entry: &Live) -> IndexMap<String, String>;
+    async fn thread_folder(&self, entry: &Entry) -> String;
+    fn thread_env(&self, entry: &Entry) -> IndexMap<String, String>;
     async fn persist(&self, record: &WorkspaceRecord) -> AccountResult<()>;
     /// `void ctx.readCheckout(entry, true)`.
-    fn read_checkout_soon(&self, entry: &Live);
+    fn read_checkout_soon(&self, entry: &Entry);
     /// `ctx.workspaces.delete(id)`.
     async fn delete_workspace(&self, workspace_id: &str) -> AccountResult<()>;
     /// `spawnSync("git", ["-C", path, "remote", "get-url", "origin"], { timeout })`: exit status and stdout.

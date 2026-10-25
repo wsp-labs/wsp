@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use wsp_wire::wire::daemon::ProcScope;
 
-use crate::account::core_types::{AccountResult, Frame, Live, Release, Served};
+use crate::account::core_types::{AccountResult, Frame, Entry, Release, Served};
 
 /// box-panels.ts:21: the most cgroups one watch names, the daemon's own cap.
 pub const WATCH_CGROUPS_MAX: usize = 16;
@@ -56,7 +56,7 @@ pub trait BoxPanelsCtx {
     /// `ctx.scopesOn(placeId)` (proc_scopes P6).
     fn scopes_on(&self, place_id: &str) -> Vec<ProcScope>;
     /// `ctx.threadEnv(entry)`, keys in order.
-    fn thread_env(&self, entry: &Live) -> IndexMap<String, String>;
+    fn thread_env(&self, entry: &Entry) -> IndexMap<String, String>;
     /// A `void` promise: runs on the host's thread, nobody waits for it.
     fn spawn(&self, f: futures::future::LocalBoxFuture<'static, ()>);
 }
@@ -90,7 +90,7 @@ impl BoxPanelsOpener {
     }
 
     /// box-panels.ts:78: one pane on `place_id`'s link, its frames served by `served`, its terminals in `folder`.
-    pub fn open(self: &Rc<Self>, entry: &Live, place_id: &str, served: Served, folder: &str) -> Rc<dyn BoxPanels> {
+    pub fn open(self: &Rc<Self>, entry: &Entry, place_id: &str, served: Served, folder: &str) -> Rc<dyn BoxPanels> {
         todo!()
     }
 }
