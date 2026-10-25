@@ -2,29 +2,28 @@
   "replies": [
     {
       "id": 1,
-      "ok": false,
-      "error": "unauthorized",
-      "kind": "auth"
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
     },
     {
-      "parity": "no reply",
-      "id": "2"
+      "id": 2,
+      "ok": true,
+      "hosts": []
     },
     {
-      "parity": "no reply",
-      "id": "3"
+      "id": 3,
+      "ok": true,
+      "code": "<code>",
+      "expiresAt": "<time>",
+      "hostKey": "<id-1>"
     },
     {
-      "parity": "no reply",
-      "id": "4"
+      "id": 4,
+      "ok": true,
+      "ticket": "<id-2>",
+      "expiresAt": "<time>"
     }
   ],
-  "events": [
-    {
-      "close": {
-        "code": 4401,
-        "reason": "unauthorized"
-      }
-    }
-  ]
+  "events": []
 }

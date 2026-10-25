@@ -2,37 +2,40 @@
   "replies": [
     {
       "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "seq": 0,
+      "stream": "<uuid-1>"
+    },
+    {
+      "id": 3,
       "ok": false,
-      "error": "unauthorized",
-      "kind": "auth"
+      "error": "no place named <p-1>; you have <computer>",
+      "kind": "usage"
     },
     {
-      "parity": "no reply",
-      "id": "2"
+      "id": 4,
+      "ok": false,
+      "error": "no place named <p-1>; you have <computer>",
+      "kind": "usage"
     },
     {
-      "parity": "no reply",
-      "id": "3"
+      "id": 5,
+      "ok": false,
+      "error": "no place named <p-1>; you have <computer>",
+      "kind": "usage"
     },
     {
-      "parity": "no reply",
-      "id": "4"
-    },
-    {
-      "parity": "no reply",
-      "id": "5"
-    },
-    {
-      "parity": "no reply",
-      "id": "6"
+      "id": 6,
+      "ok": false,
+      "error": "no place named <p-1>; you have <computer>",
+      "kind": "usage"
     }
   ],
-  "events": [
-    {
-      "close": {
-        "code": 4401,
-        "reason": "unauthorized"
-      }
-    }
-  ]
+  "events": []
 }

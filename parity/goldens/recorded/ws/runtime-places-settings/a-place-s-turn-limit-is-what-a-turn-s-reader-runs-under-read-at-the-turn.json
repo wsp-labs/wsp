@@ -2,21 +2,46 @@
   "replies": [
     {
       "id": 1,
-      "ok": false,
-      "error": "unauthorized",
-      "kind": "auth"
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
     },
     {
-      "parity": "no reply",
-      "id": "2"
-    }
-  ],
-  "events": [
-    {
-      "close": {
-        "code": 4401,
-        "reason": "unauthorized"
+      "id": 2,
+      "ok": true,
+      "place": {
+        "id": "here",
+        "kind": "computer",
+        "name": "<computer>",
+        "default": true,
+        "os": "<machine>",
+        "shape": "<machine>",
+        "diskFreeBytes": "<machine>",
+        "engine": "none",
+        "home": "<tmp>/home",
+        "present": true,
+        "takesForks": false,
+        "buildsImages": false,
+        "cap": "<machine>",
+        "capDefault": "<machine>",
+        "settings": {
+          "turnLimitMs": 7200000
+        },
+        "turnLimitMs": 7200000,
+        "turnLimitDefault": null,
+        "spawn": {
+          "spawn": true,
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "spawn": true,
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0
       }
     }
-  ]
+  ],
+  "events": []
 }

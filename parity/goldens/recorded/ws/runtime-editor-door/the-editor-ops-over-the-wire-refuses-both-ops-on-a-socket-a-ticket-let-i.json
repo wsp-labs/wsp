@@ -2,16 +2,21 @@
   "replies": [
     {
       "id": 1,
-      "ok": true,
-      "version": "<version>",
-      "road": "up"
+      "ok": false,
+      "error": "unauthorized",
+      "kind": "auth"
     },
     {
-      "id": 2,
-      "ok": true,
-      "ticket": "<id-1>",
-      "expiresAt": "<time>"
+      "parity": "no reply",
+      "id": "2"
     }
   ],
-  "events": []
+  "events": [
+    {
+      "close": {
+        "code": 4401,
+        "reason": "unauthorized"
+      }
+    }
+  ]
 }
