@@ -963,3 +963,150 @@ pub fn run<F: std::future::Future<Output = ()>>(f: F) {
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
     tokio::task::LocalSet::new().block_on(&rt, f);
 }
+
+// ---------------------------------------------------------------- a backend
+
+/// A machine backend answering only what the place door reads off one: its capabilities (`PLACE_FACTS` of the TS
+/// fixture by default), its pricing (`rate` an hour at every size, `default` as its default size), which optional
+/// methods it offers, and what `place_limits`, `capacity` and `list_snapshots` answer. Every machine road refuses.
+pub struct StubBackend {
+    pub capabilities: Value,
+    pub rate: f64,
+    pub default: (f64, f64),
+    pub offers: wsp_engine::machine::BackendOffers,
+    pub limits: std::sync::Mutex<Option<Result<Option<wsp_wire::views::place_more::CloudLimits>, String>>>,
+    pub capacity: std::sync::Mutex<Option<Result<Value, String>>>,
+    pub snapshots: std::sync::Mutex<Option<Result<Vec<Value>, String>>>,
+    pub asked: std::sync::Mutex<Vec<String>>,
+}
+
+impl StubBackend {
+    pub fn new() -> Self {
+        StubBackend {
+            capabilities: json!({
+                "liveCloneForks": false, "pauseMode": "memory", "replacesMachine": true, "previewUrls": false, "signedUrls": false,
+                "callbackRelay": true, "diskSnapshots": true, "images": true, "snapshotsAnyLife": false, "snapshotListing": true,
+                "templates": true, "kept": false, "copies": true, "ownNetwork": true, "sizes": [{ "cpu": 2, "memMb": 4096, "rateUsdPerHour": 0 }]
+            }),
+            rate: 0.0,
+            default: (2.0, 4096.0),
+            offers: wsp_engine::machine::BackendOffers::default(),
+            limits: std::sync::Mutex::new(None),
+            capacity: std::sync::Mutex::new(None),
+            snapshots: std::sync::Mutex::new(None),
+            asked: std::sync::Mutex::new(Vec::new()),
+        }
+    }
+    pub fn arc(self) -> Arc<dyn MachineBackend> {
+        Arc::new(self)
+    }
+    fn note(&self, s: &str) {
+        self.asked.lock().unwrap().push(s.to_string());
+    }
+}
+
+struct StubPricing {
+    rate: f64,
+    default: (f64, f64),
+}
+
+impl wsp_engine::machine::BackendPricing for StubPricing {
+    fn rate_usd_per_hour(&self, _size: wsp_engine::machine::Size) -> f64 {
+        self.rate
+    }
+    fn default_size(&self) -> wsp_engine::machine::Size {
+        wsp_engine::machine::Size { cpu: self.default.0, mem_mb: self.default.1 }
+    }
+    fn snapshot_storage(&self) -> wsp_engine::machine::SnapshotStoragePricing {
+        wsp_engine::machine::SnapshotStoragePricing {
+            wire: serde_json::from_value(json!({ "freeGb": 0, "usdPerGbMonth": 0, "billedFrom": "" })).unwrap(),
+            free_named: None,
+            usd_per_named_month: None,
+        }
+    }
+}
+
+fn refused<T>(what: &str) -> wsp_engine::errors::Result<T> {
+    Err(wsp_engine::EngineError::Other { message: format!("{what} is not on this stub"), code: None })
+}
+
+#[async_trait]
+impl MachineBackend for StubBackend {
+    fn capabilities(&self) -> wsp_engine::machine::Capabilities {
+        serde_json::from_value(self.capabilities.clone()).expect("capabilities")
+    }
+    fn pricing(&self) -> Arc<dyn wsp_engine::machine::BackendPricing> {
+        Arc::new(StubPricing { rate: self.rate, default: self.default })
+    }
+    fn offers(&self) -> wsp_engine::machine::BackendOffers {
+        self.offers.clone()
+    }
+    async fn create(&self, _: wsp_engine::machine::MachineSpec, _: Option<wsp_engine::machine::Waiting>, _: Option<String>) -> wsp_engine::errors::Result<Arc<dyn wsp_engine::machine::Machine>> {
+        refused("create")
+    }
+    async fn get(&self, _: &str) -> wsp_engine::errors::Result<Arc<dyn wsp_engine::machine::Machine>> {
+        refused("get")
+    }
+    async fn list(&self, _: Option<&IndexMap<String, String>>) -> wsp_engine::errors::Result<Vec<wsp_engine::machine::MachineListRow>> {
+        refused("list")
+    }
+    async fn delete_snapshot(&self, _: &str) -> wsp_engine::errors::Result<()> {
+        refused("delete_snapshot")
+    }
+    async fn place_limits(&self) -> wsp_engine::errors::Result<Option<wsp_wire::views::place_more::CloudLimits>> {
+        self.note("placeLimits");
+        match self.limits.lock().unwrap().clone() {
+            Some(Ok(l)) => Ok(l),
+            Some(Err(e)) => Err(wsp_engine::EngineError::Other { message: e, code: None }),
+            None => refused("place_limits"),
+        }
+    }
+    async fn capacity(&self) -> wsp_engine::errors::Result<wsp_engine::machine::PlaceCapacity> {
+        self.note("capacity");
+        match self.capacity.lock().unwrap().clone() {
+            Some(Ok(c)) => Ok(serde_json::from_value(c).expect("capacity")),
+            Some(Err(e)) => Err(wsp_engine::EngineError::Other { message: e, code: None }),
+            None => refused("capacity"),
+        }
+    }
+    async fn list_snapshots(&self, ids: Option<&[String]>) -> wsp_engine::errors::Result<Vec<wsp_engine::machine::SnapshotRow>> {
+        self.note(&format!("listSnapshots {}", ids.map(|i| i.join(",")).unwrap_or_default()));
+        match self.snapshots.lock().unwrap().clone() {
+            Some(Ok(rows)) => Ok(rows.into_iter().map(|r| serde_json::from_value(r).expect("snapshot row")).collect()),
+            Some(Err(e)) => Err(wsp_engine::EngineError::Other { message: e, code: None }),
+            None => refused("list_snapshots"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------- a machine link
+
+/// The link a `PlaceMachine` rides, answering each frame with what `answer` says; every frame written down.
+pub struct FakeMachineLink {
+    pub answer: Box<dyn Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, String> + Send + Sync>,
+    pub asked: std::sync::Mutex<Vec<(String, Value)>>,
+}
+
+impl FakeMachineLink {
+    pub fn new(answer: impl Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, String> + Send + Sync + 'static) -> Arc<Self> {
+        Arc::new(FakeMachineLink { answer: Box::new(answer), asked: std::sync::Mutex::new(Vec::new()) })
+    }
+    /// Every exec answers exit 0 with `stdout`.
+    pub fn exec_says(stdout: &'static str) -> Arc<Self> {
+        FakeMachineLink::new(move |_, _| Ok(obj(json!({ "exitCode": 0, "stdout": stdout, "stderr": "", "truncated": false }))))
+    }
+    pub fn ops(&self) -> Vec<(String, Value)> {
+        self.asked.lock().unwrap().clone()
+    }
+}
+
+#[async_trait]
+impl MachineLink for FakeMachineLink {
+    async fn request(&self, op: &str, params: Map<String, Value>, _ask: wsp_engine::link_backend::LinkAsk) -> wsp_engine::errors::Result<Map<String, Value>> {
+        self.asked.lock().unwrap().push((op.to_string(), Value::Object(params.clone())));
+        (self.answer)(op, &params).map_err(|message| wsp_engine::EngineError::Other { message, code: None })
+    }
+    async fn forward(&self, _place_port: u16) -> wsp_engine::errors::Result<u16> {
+        Err(wsp_engine::EngineError::Other { message: "no forward on this fake".into(), code: None })
+    }
+}
