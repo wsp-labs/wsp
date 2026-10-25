@@ -4,13 +4,17 @@
 //! Brewfile, the rows outside the catalog.
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use wsp_catalog::catalog::{base_entry_for, catalog_entry, catalog_tool_for, Below as CatalogBelow, CatalogEntry, ToolEntry};
-use wsp_catalog::pending::ToolPin;
-use wsp_catalog::road_modules::{as_linuxbrew, fixes_version, install_env, install_homes, row_road as manager_row_road, ToolRow, BREW_ENV};
-use wsp_catalog::roads::{version_of, InstallRoad, RoadName, APT_ENV};
+use wsp_catalog::catalog::{
+    at_catalog_pin, base_entry_for, catalog_entry, catalog_tool_for, install_after, pinned_note, Below as CatalogBelow, CatalogEntry,
+    RoadEvidence, ToolEntry,
+};
+use wsp_catalog::road_modules::{
+    as_linuxbrew, fixes_version, install_env, install_homes, road_module, row_road as manager_row_road, ToolRow, BREW_ENV,
+};
+use wsp_catalog::roads::{version_of, InstallRoad, RoadName, APT_ENV, ROADS};
 use wsp_wire::types::init_job::LoginChoice;
 use wsp_wire::types::shell_quote::shell_quote;
-use wsp_wire::views::golden_image::{package_of, RecipeCustomRow, BREW_ID_PREFIX};
+use wsp_wire::views::golden_image::{package_of, tool_row_prefix, RecipeCustomRow, ToolPin, BREW_ID_PREFIX};
 
 use super::{PinRead, SkippedItem, ToolInstall, TAP_PREFIX};
 
@@ -173,7 +177,9 @@ pub fn asks_version(road: &InstallRoad) -> Option<String> {
 // }
 /// golden-import.ts:704 `roadReads`.
 pub fn road_reads(road: &InstallRoad, bin: &str, prefix: Option<&str>) -> RoadReads {
-    todo!()
+    let module = road_module(road);
+    let bins = module.bins(road, Some(&install_homes(prefix)));
+    RoadReads { present: module.present(road, bin), bins: (!bins.is_empty()).then_some(bins), check: None }
 }
 
 // TS golden-import.ts:711-717
@@ -186,7 +192,7 @@ pub fn road_reads(road: &InstallRoad, bin: &str, prefix: Option<&str>) -> RoadRe
 // }
 /// golden-import.ts:714 `roadStepReads`.
 pub fn road_step_reads(road: &InstallRoad, bin: &str, prefix: Option<&str>) -> RoadReads {
-    todo!()
+    RoadReads { check: road_module(road).check(road, bin), ..road_reads(road, bin, prefix) }
 }
 
 // TS golden-import.ts:719-724
@@ -198,7 +204,8 @@ pub fn road_step_reads(road: &InstallRoad, bin: &str, prefix: Option<&str>) -> R
 // }
 /// golden-import.ts:720 `pinReadOf`.
 pub fn pin_read_of(road: &InstallRoad, bin: &str, prefix: Option<&str>) -> PinRead {
-    todo!()
+    let module = road_module(road);
+    PinRead { read: module.installed(road, bin, Some(&install_homes(prefix))), fixed: fixes_version(road), words: module.words() }
 }
 
 // TS golden-import.ts:765-774
@@ -278,7 +285,6 @@ pub fn formula_of(id: &str) -> Option<String> {
 //   out.text = lines.length > 0 ? `${lines.join("\n")}\n` : "";
 //   return out;
 // }
-/// golden-import.ts:875 `brewfileFor`.
 /// golden-import.ts:146 `withheld`: a credential-shaped row is not copied without the person's answer on its row.
 pub(super) fn withheld(e: &RecipeEntry) -> bool {
     e.consent == Some(true) && e.choice != Some(LoginChoice::Copy)
@@ -309,6 +315,7 @@ fn release_for(e: &RecipeEntry, brew: &BrewTable) -> Option<PlannedRoad> {
     Some(PlannedRoad { id: e.id.clone(), name: info.name.clone(), source: info.source.clone()?, pin: e.pin.clone() })
 }
 
+/// golden-import.ts:875 `brewfileFor`.
 pub fn brewfile_for(entries: &[RecipeEntry], brew: &BrewTable) -> Brewfile {
     let mut out = Brewfile::default();
     for e in entries {
@@ -396,31 +403,27 @@ pub fn catalog_tool_of(e: &RecipeEntry) -> Option<&'static ToolEntry> {
     }
 }
 
-const MANAGER_ORDER: [&str; 7] = ["npm", "pnpm", "bun", "uv", "pipx", "cargo", "go"];
+/// golden-import.ts:911 `MANAGER_ORDER`: the managers whose rows the collector writes, in the order their steps run.
+pub(super) const MANAGER_ORDER: [RoadName; 7] =
+    [RoadName::Npm, RoadName::Pnpm, RoadName::Bun, RoadName::Uv, RoadName::Pipx, RoadName::Cargo, RoadName::Go];
+
+/// golden-import.ts:904 `managerBehind`: the manager whose own toolchain an install runs on top of, when what it waits
+/// on names one.
+pub(super) fn manager_behind(dep: Option<&str>) -> Option<RoadName> {
+    let dep = dep?;
+    MANAGER_ORDER.into_iter().find(|m| catalog_tool_for(m.as_str()).is_some_and(|t| t.id == dep))
+}
 
 fn manager_tool(formula: &str) -> Option<&'static ToolEntry> {
     let entry = catalog_tool_for(formula)?;
     if matches!(entry.install_road, InstallRoad::Brew { .. }) {
         return None;
     }
-    MANAGER_ORDER.iter().any(|m| catalog_tool_for(m).is_some_and(|t| t.id == entry.id)).then_some(entry)
+    MANAGER_ORDER.iter().any(|m| catalog_tool_for(m.as_str()).is_some_and(|t| t.id == entry.id)).then_some(entry)
 }
 
 pub(super) fn road_word(manager: RoadName) -> &'static str {
-    match manager {
-        RoadName::Brew => "brew",
-        RoadName::Npm => "npm",
-        RoadName::Pnpm => "pnpm",
-        RoadName::Bun => "bun",
-        RoadName::Uv => "uv",
-        RoadName::Pipx => "pipx",
-        RoadName::Cargo => "cargo",
-        RoadName::Go => "go",
-        RoadName::Release => "release",
-        RoadName::Vendor => "vendor",
-        RoadName::Apt => "apt",
-        RoadName::Script => "script",
-    }
+    manager.as_str()
 }
 
 // TS golden-import.ts:937-945
@@ -497,7 +500,80 @@ pub fn manager_formula(manager: RoadName) -> Option<String> {
 // }
 /// golden-import.ts:958 `rowRoad`.
 pub fn row_road(e: &RecipeEntry, brew: &BrewTable) -> Option<PlannedRow> {
-    todo!()
+    let pkg = package_of(&e.id);
+    let version = e.version.as_deref();
+    if let Some(known) = catalog_tool_of(e) {
+        let module = road_module(&known.install_road);
+        let takes_version = module_takes_version(known.install_road.name());
+        let asked = match version {
+            Some(v) if takes_version => module.at(&known.install_road, v).unwrap_or_else(|| known.install_road.clone()),
+            _ => known.install_road.clone(),
+        };
+        let at = at_catalog_pin(&asked, version);
+        let pinned = known.install_road.version();
+        let mut notes: Vec<String> = Vec::new();
+        if known.source.road == RoadEvidence::Unmeasured {
+            notes.push(UNMEASURED_ROAD.to_string());
+        }
+        if let Some(note) = &at.note {
+            notes.push(note.clone());
+        } else if let Some(v) = version.filter(|v| !takes_version && Some(*v) != pinned) {
+            notes.push(match pinned {
+                Some(p) => pinned_note(v, p),
+                None => format!("{v} asked, installed {} at its current version", module.words()),
+            });
+        }
+        return Some(PlannedRow {
+            road: with_pin(at.road, e.pin.as_ref()),
+            bin: Some(known.bin.clone()),
+            pinned: at.pinned,
+            below: at.below.map(|b| CatalogBelow { node: b.node, road: with_pin(b.road, e.pin.as_ref()) }),
+            after: install_after(known),
+            note: (!notes.is_empty()).then(|| notes.join("; ")),
+        });
+    }
+    if let Some(release) = release_for(e, brew) {
+        let road = InstallRoad::Release {
+            repo: Some(release.source.repo.clone()),
+            version: Some(release.source.tag.clone()),
+            assets: None,
+            pin: release.pin.clone(),
+            go: Some(format!("github.com/{}@{}", release.source.repo, release.source.tag)),
+        };
+        return Some(PlannedRow { road, bin: Some(release.name), pinned: None, below: None, after: None, note: None });
+    }
+    if e.id.starts_with(CATALOG_PREFIX) {
+        return None;
+    }
+    let manager = ROADS.iter().find(|m| e.id.starts_with(&tool_row_prefix(m.as_str())))?;
+    let row = ToolRow { name: pkg, version: e.version.clone(), paths: e.paths.clone(), label: e.label.clone() };
+    let from_row = manager_row_road(manager.as_str(), &row)?;
+    let at = at_catalog_pin(&from_row, version);
+    let bin = road_module(&at.road).bin(&at.road);
+    Some(PlannedRow { road: at.road, bin, pinned: at.pinned, below: at.below, after: None, note: at.note })
+}
+
+fn module_takes_version(road: RoadName) -> bool {
+    matches!(road, RoadName::Npm | RoadName::Pnpm | RoadName::Bun | RoadName::Uv | RoadName::Pipx | RoadName::Cargo | RoadName::Go)
+}
+
+fn with_pin(mut road: InstallRoad, pin: Option<&ToolPin>) -> InstallRoad {
+    let Some(pin) = pin else { return road };
+    match &mut road {
+        InstallRoad::Brew { pin: p, .. }
+        | InstallRoad::Go { pin: p, .. }
+        | InstallRoad::Release { pin: p, .. }
+        | InstallRoad::Vendor { pin: p, .. }
+        | InstallRoad::Apt { pin: p, .. }
+        | InstallRoad::Script { pin: p, .. } => *p = Some(pin.clone()),
+        InstallRoad::Npm { package, .. }
+        | InstallRoad::Pnpm(package)
+        | InstallRoad::Bun(package)
+        | InstallRoad::Uv(package)
+        | InstallRoad::Pipx(package)
+        | InstallRoad::Cargo(package) => package.pin = Some(pin.clone()),
+    }
+    road
 }
 
 // TS golden-import.ts:803-814
@@ -625,7 +701,14 @@ pub enum ViaRoad {
 // }
 /// golden-import.ts:1058 `viaRoad(road, bin, path, prefix)`.
 pub fn via_road(road: &InstallRoad, bin: &str, path: &str, prefix: Option<&str>) -> ViaRoad {
-    todo!()
+    let module = road_module(road);
+    match module.install(road, bin, Some(&install_homes(prefix))) {
+        Err(note) => ViaRoad::Note(note.0),
+        Ok(line) => {
+            let shown = module.shown(road, bin).unwrap_or_else(|| shown_of(&line.split('\n').collect::<Vec<_>>()));
+            ViaRoad::Step { cmd: format!("{}\n{line}", path_line(path, prefix)), shown }
+        }
+    }
 }
 
 // TS golden-import.ts:1065-1068

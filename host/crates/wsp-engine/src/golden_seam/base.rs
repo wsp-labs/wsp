@@ -4,10 +4,9 @@
 use std::collections::BTreeSet;
 
 use indexmap::{IndexMap, IndexSet};
-use wsp_catalog::catalog::{base_floor, install_after, smoke_of, CatalogEntry};
+use wsp_catalog::catalog::{base_floor, install_after};
 use wsp_catalog::road_modules::{APT_INDEX, APT_UPDATE};
 use wsp_wire::types::shell_quote::shell_quote;
-use wsp_words::js::is_js_whitespace;
 use wsp_words::words::units::fmt_bytes;
 
 use super::import_roads::{apt_index_step, path_line, road_word, via_road, ViaRoad};

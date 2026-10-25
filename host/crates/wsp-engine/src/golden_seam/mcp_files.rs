@@ -519,7 +519,7 @@ pub fn edit_scopes(plan: &McpPlan, agents: &[McpAgentPlan], read: &[Option<Scope
 /// golden-mcp.ts:317 `landConfigs(machine, base, read, texts)`: the words when a config did not land. Never fails.
 pub async fn land_configs(
     machine: &dyn Machine,
-    base: &(dyn Fn(&str) -> String),
+    base: &dyn Fn(&str) -> String,
     read: &[Option<ScopeRead>],
     texts: &IndexMap<String, String>,
 ) -> Option<String> {
