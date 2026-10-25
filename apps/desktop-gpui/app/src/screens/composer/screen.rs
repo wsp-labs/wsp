@@ -106,7 +106,16 @@ impl Screen for ComposerScreen {
     }
 }
 
+/// The page of a machine deleted with its sub-thread, reached by a link or a kept selection: nothing to start there.
+const SUB_THREAD_DELETED: &str = "This sub-thread was deleted, and its machine with it.";
+
 impl ComposerScreen {
+    /// Whether the page's workspace is a machine deleted once its sub-thread was done, whose sub-thread was deleted.
+    fn deleted_sub_thread(&self, cx: &App) -> bool {
+        let Some(workspace) = self.workspace.as_deref() else { return false };
+        crate::screens::terminal::workspaces_sidebar(cx).is_some_and(|s| s.read(cx).deleted_sub_thread(workspace))
+    }
+
     /// Ties the composer to the thread `opened` names, else the host's newest, or to a new thread on its workspace.
     fn connect(&mut self, opened: Opened, window: &mut Window, cx: &mut Context<Self>) {
         self.composer.update(cx, |c, cx| c.set_hold(Some(Hold::Connecting), cx));
@@ -294,6 +303,21 @@ impl Render for ComposerScreen {
             self.focus.focus(window, cx);
         }
         let p = cx.palette().clone();
+        if self.deleted_sub_thread(cx) {
+            if self.hero.read(cx).follows() {
+                self.hero.update(cx, |h, cx| h.follow(None, cx));
+            }
+            return div()
+                .debug_selector(|| "sub-thread-deleted".into())
+                .size_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_sm()
+                .text_color(p.muted_foreground)
+                .child(SUB_THREAD_DELETED)
+                .into_any_element();
+        }
         let fresh = self.composer.read(cx).fresh();
         let focus = self.focus.clone();
         // Cached at its height as drawn, so its caret's blink draws the composer alone, as the thread's dock does.
@@ -342,6 +366,6 @@ impl Render for ComposerScreen {
             .children(
                 self.note.clone().map(|note| div().absolute().top_0().left_0().p_4().text_sm().text_color(p.muted_foreground).child(note)),
             );
-        super::drop::chat(chat, &self.composer, window, cx)
+        super::drop::chat(chat, &self.composer, window, cx).into_any_element()
     }
 }
