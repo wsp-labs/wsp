@@ -89,6 +89,10 @@ impl HeroField {
         cx.notify();
     }
 
+    pub fn follows(&self) -> bool {
+        self.composer.is_some()
+    }
+
     /// How many next frames the field asked for.
     pub fn frames(&self) -> u64 {
         self.frames

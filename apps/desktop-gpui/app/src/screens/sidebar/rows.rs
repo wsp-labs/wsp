@@ -106,7 +106,11 @@ impl Sidebar {
                 let made = w.get("createdAt").and_then(Value::as_str).and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok());
                 Some((made.map_or(0., |t| t.timestamp_millis() as f64), w.get("id")?.as_str()?.to_owned()))
             })
-            .filter(|(_, id)| !thread_workspaces.contains(id.as_str()) && self.in_pick(self.workspace_project(id).as_deref()))
+            .filter(|(_, id)| {
+                !thread_workspaces.contains(id.as_str())
+                    && !self.deleted_sub_thread(id)
+                    && self.in_pick(self.workspace_project(id).as_deref())
+            })
             .collect();
         bare.sort_by(|a, b| b.0.total_cmp(&a.0));
         let mut failed_done = failed.is_empty();
@@ -313,6 +317,15 @@ impl Sidebar {
         div().px(px(8.)).child(self.workspace_card(id, cx)).into_any_element()
     }
 
+    /// A cloud machine deleted once its sub-thread was done whose sub-thread was deleted after it: the host keeps its
+    /// record, and nothing of it is left to open.
+    pub fn deleted_sub_thread(&self, workspace: &str) -> bool {
+        let w = self.around.workspaces.get(workspace);
+        w.is_some_and(|w| {
+            w.get("kind").and_then(Value::as_str) == Some("cloud") && w.get("phase").and_then(Value::as_str) == Some("released")
+        }) && !self.rows.iter().any(|r| r.workspace_id == workspace)
+    }
+
     /// The cloud machines a listed thread started that hold no thread yet, newest first (threadTree.ts `forkedBy`).
     pub(super) fn machines(&self) -> Vec<model::Machine> {
         let held: std::collections::HashSet<&str> = self.threads.iter().map(|t| t.workspace_id.as_str()).collect();
@@ -325,10 +338,8 @@ impl Sidebar {
                 let workspace = w.get("id")?.as_str()?.to_owned();
                 let lead = w.get("parentThreadId")?.as_str()?;
                 let made = w.get("createdAt").and_then(Value::as_str).and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok());
-                (!held.contains(workspace.as_str()) && self.thread(lead).is_some()).then(|| model::Machine {
-                    lead: lead.to_owned(),
-                    workspace,
-                    started_at: made.map_or(0., |t| t.timestamp_millis() as f64),
+                (!held.contains(workspace.as_str()) && self.thread(lead).is_some() && !self.deleted_sub_thread(&workspace)).then(|| {
+                    model::Machine { lead: lead.to_owned(), workspace, started_at: made.map_or(0., |t| t.timestamp_millis() as f64) }
                 })
             })
             .collect();
