@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// One slate drawn by the real renderer with fixed values, for the #2439 shots: ?slate=<name>&theme=graphite|paper.
+// One slate drawn by the real renderer with fixed values, for the #2439 shots: ?slate=<name>&theme=graphite|paper, and
+// &three=pairs for three stat tiles two a row in a narrow panel.
 // The slate's text comes from slates/ here or the glance test's own files, its values from the glance test's.
 // ?runs=<name> draws a cold writer's slate (cold/written/) with its runs.json as the runs' results instead.
 import { createRoot } from "react-dom/client";
@@ -9,6 +10,7 @@ import "../../src/themes/index.js";
 import { ActionRunner, StateSender, type SlateLink } from "../../src/slate/actions.js";
 import { SlateEngine, type Scheduler } from "../../src/slate/engine.js";
 import { SLATE_VIEWS } from "../../src/slate/pieces/index.js";
+import { STATS_THREE } from "../../src/slate/pieces/stats.js";
 import { SlateView } from "../../src/slate/SlateView.js";
 import { runResults } from "./cold/run-results.js";
 import data from "../../../../packages/protocol/test/slate/glance/values.json";
@@ -24,6 +26,7 @@ const name = at.get("slate") ?? "before";
 const runsName = at.get("runs");
 const theme = at.get("theme") ?? "graphite";
 document.documentElement.dataset["theme"] = theme;
+if (at.get("three") === "pairs") STATS_THREE.narrow = "pairs";
 document.documentElement.classList.toggle("dark", theme === "graphite");
 
 const text = Object.entries(texts).find(([path]) => path.endsWith(`/${name}.slate`))?.[1];
