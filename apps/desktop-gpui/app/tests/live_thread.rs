@@ -204,6 +204,27 @@ fn one_spinner_step_renders_the_spinner_alone(cx: &mut TestAppContext) {
     }
 }
 
+/// Waits for the app to settle while the Working clock reads a frozen now: the test clock a minute on, so the timers
+/// that run on it have fired and every sidebar time has passed its seconds; then the preferences in the store and a
+/// second and a half of the wall clock in which nothing around the thread rendered, so a read that failed has been
+/// read again and has landed.
+fn settle(cx: &mut VisualTestContext) {
+    for _ in 0..61 {
+        cx.executor().advance_clock(Duration::from_secs(1));
+        cx.run_until_parked();
+    }
+    let (mut quiet, end) = (Instant::now(), Instant::now() + Duration::from_secs(60));
+    while quiet.elapsed() < Duration::from_millis(1_500) {
+        assert!(Instant::now() < end, "something around the thread went on rendering for a minute");
+        std::thread::sleep(Duration::from_millis(50));
+        cx.run_until_parked();
+        let counts = frames::take();
+        if AROUND.iter().any(|view| counts.contains_key(view)) || cx.update(|_, cx| desktop_gpui::prefs::shown(cx).is_none()) {
+            quiet = Instant::now();
+        }
+    }
+}
+
 #[gpui_kit::test]
 fn one_tick_of_the_working_clock_renders_the_clock_alone(cx: &mut TestAppContext) {
     let (_host, _, cx) = opened(cx);
@@ -213,11 +234,10 @@ fn one_tick_of_the_working_clock_renders_the_clock_alone(cx: &mut TestAppContext
         cx.set_reduce_motion(true);
         cx.set_global(FrozenNow(now));
     });
+    settle(cx);
     let clocks = drawn("Clock", cx);
-    cx.executor().advance_clock(Duration::from_millis(1_100));
-    cx.run_until_parked();
-    frames::take();
     for _ in 0..3 {
+        frames::take();
         let counts = step_of("Clock", cx, |cx| {
             now += 1_000.;
             cx.update(|_, cx| cx.set_global(FrozenNow(now)));
