@@ -111,6 +111,11 @@ it("machine context", () => {
     { name: "aliases-shared", input: { workspace: { name: "w" }, probe: probe({ aliasesUnread: "shared" }), facts: FACTS } },
     { name: "aliases-late", input: { workspace: { name: "w" }, probe: probe({ aliasesUnread: "late", overlay: true, has: new Set(["podman", "wsp-open"]) }), facts: FACTS } },
     ...ctx.CONTEXT_AGENTS.map(a => ({ name: `agent-${a.id}`, input: { workspace: { name: "w" }, golden: GOLDEN, probe: probe(), facts: FACTS, agent: a, atProvider: true } })),
+    // Wave 2: the branches the inputs above never reach.
+    { name: "no-overlay-with-docker", input: { workspace: { name: "w" }, probe: probe({ overlay: false, has: new Set(["docker", "podman"]) }), facts: FACTS } },
+    { name: "golden-without-workspace", input: { golden: GOLDEN, probe: probe(), facts: FACTS } },
+    { name: "golden-short-strings", input: { workspace: { name: "w" }, golden: { version: 1, createdAt: "2026", setupSha: "abc" }, probe: probe(), facts: FACTS } },
+    { name: "fish-without-the-open-shim", input: { workspace: { name: "w" }, probe: probe({ has: new Set(["fish"]) }), facts: FACTS } },
   ];
   const PROBE_OUT = ["noise", "WSP_CTX", "KERNEL 6.6.30", "KERNEL ", "DISK 20466256 11720704", "OVERLAY yes", "HAS tmux", "HAS ", "HAS tmux", "VERSION python3: Python 3.12.13", "AGENT claude", "AGENT claude", "AGENT nobody", "SECRET OPENAI_API_KEY", "SECRET 1BAD", "SECRET GH_TOKEN", "SECRET GH_TOKEN", "SHELL zsh", "ALIAS zz open", "ALIAS a  code ", "ALIAS lonely", "ALIAS B x", "ALIASES late", "CONFLICT gemini", "CONFLICT nobody", `FACTS ${Buffer.from(JSON.stringify(FACTS)).toString("base64")}`, "WSP_CTX_END", "SHELL fish"].join("\n");
   const probes = [

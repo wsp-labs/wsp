@@ -449,6 +449,26 @@
    "name": "agent-hermes",
    "long": "wsp writes this file when a workspace is forked; edits are overwritten.\n\n# This machine\n\nThis is a Linux machine in the cloud that wsp set up from the recipe of the person's computer: the files, tools and agents they ticked. It is not that computer.\n\n- Linux 6.6.30, user root, home /root. macOS apps, casks and Mac App Store apps are not here.\n- On every wsp machine: python3 3.12.13.\n- Homebrew is at /home/linuxbrew/.linuxbrew.\n- Login shells get their PATH from /etc/profile.d/wsp-golden.sh: /opt/wsp-agents/bin:/opt/node/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\n- Containers do not run here: the kernel has no overlayfs, and Docker and Podman are not installed. Install services natively.\n- wsp-daemon listens on 0.0.0.0:7070 with its own token. Do not stop it and do not bind port 7070.\n- wsp on this machine's PATH drives the person's host as this thread; wsp --help agent lists its verbs.\n- A turn ends when the agent process exits, not at its reply, and the thread reads running until then; a command you run in the background holds the turn open until it finishes, up to the turn limit set for this computer if it has one, and its result reaches you there. Start long work with your harness's own background road, which wakes you when it ends, and never with a shell &, which nothing tracks and which wakes nobody when it ends. Nothing else wakes you, so a command whose output you want in the same breath runs in the foreground and you wait for it. Only a server you mean to keep serving is detached with setsid nohup, and that one holds nothing open.\n- When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.\n- A command you mean the person to run goes in a fenced block labelled `sh`, which the app shows with Run: the person runs it with one click, in this thread's folder, and sees its output under the block.\n- Every agent session starts in the thread's folder; terminal panes open in the home folder.\n- A server listening on a port shows in the app as a server the person can open. A loopback-only bind (127.0.0.1) is unreachable through the preview edge; bind 0.0.0.0. Ports below 1024 are not forwarded.\n- Sign-ins go through wsp: BROWSER is /usr/local/bin/wsp-open and xdg-open is the same shim. The page opens on the person's computer and the callback port is tunnelled back here.\n- A server that needs the person's own sign-in or key does not run on a cloud machine, which holds no sign-in or key of theirs. When a tool from one is missing, say it is not available on cloud machines, and do not suggest signing it in here (no /mcp, no mcp login command).\n- Secrets are exported by /etc/profile.d/wsp-secrets.sh and /etc/fish/conf.d/wsp-secrets.fish. They are never printed, logged or committed, and that file is never read or copied. .env files, .netrc and private keys were never copied from the person's computer.\n\n# This workspace\n\n- Workspace: w.\n- Golden: v3, sealed 2026-09-05, setup 9f2a7c1d4e5b.\n- Disk: 19.5 GB root disk, 11.2 GB free when this file was written. wsp keeps 2 GB free and skips tool installs that would go under it.\n- Secrets set in /etc/profile.d/wsp-secrets.sh: OPENAI_API_KEY, GH_TOKEN. Use them by name ($NAME); a missing one is asked for through wsp, not typed here.\n- Tools that did not install: raycast (macOS app, no Linux build).\n- Agents that did not install: Zed (no installer known).\n- Files left on the person's computer: ~/.ssh/id_ed25519 (private key, never copied).\n- Aliases whose command is not here: o runs open.\n\n# How to\n\n- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &, or tmux new -d -s <name> '<cmd>'. Read the log file, not the tool output. Bind 0.0.0.0 if the person should open it.\n- Hand the person a URL: print it as http://localhost:<port>; wsp forwards the port and the link opens on their computer. For a page that is not a local server, run wsp-open <url>; it appears in the app for them to open.\n- Ask for a sign-in: run the tool's own login command (gh auth login, gcloud auth login). It opens through $BROWSER, the person signs in on their computer, and the callback comes back here. Do not paste tokens into the terminal and do not ask for a password.\n- Work in a folder: cd <dir> && <cmd> on one line, or absolute paths.\n- Use a secret: $NAME is set from /etc/profile.d/wsp-secrets.sh. Never echo, log or commit a value, and never cat that file.\n",
    "short": "wsp writes this file when a workspace is forked; edits are overwritten.\n\nThis is a Linux machine in the cloud that wsp set up from the recipe of the person's computer; it is not that computer. The wsp-machine skill has the full picture: what did not install, the secret names, the aliases whose commands are missing, and how the common things are done here.\n\n- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &, or tmux new -d -s <name> '<cmd>'.\n- A turn ends when the agent process exits, not at its reply, and the thread reads running until then; a command you run in the background holds the turn open until it finishes, up to the turn limit set for this computer if it has one, and its result reaches you there. Start long work with your harness's own background road, which wakes you when it ends, and never with a shell &, which nothing tracks and which wakes nobody when it ends. Nothing else wakes you, so a command whose output you want in the same breath runs in the foreground and you wait for it. Only a server you mean to keep serving is detached with setsid nohup, and that one holds nothing open.\n- When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.\n- A command you mean the person to run goes in a fenced block labelled `sh`, which the app shows with Run: the person runs it with one click, in this thread's folder, and sees its output under the block.\n- Every agent session starts in the thread's folder; terminal panes open in the home folder.\n- A server listening on a port shows in the app for the person to open; bind 0.0.0.0, not 127.0.0.1. A printed http://localhost:<port> link has its port forwarded to their computer. Ports below 1024 are not forwarded.\n- Containers do not run here: the kernel has no overlayfs, and Docker and Podman are not installed. Install services natively.\n- Disk: 19.5 GB root disk, 11.2 GB free when this file was written. wsp keeps 2 GB free.\n- Secrets are exported by /etc/profile.d/wsp-secrets.sh. Use them by name ($NAME); never print, log or commit a value, and never read that file.\n- Sign-ins go through wsp: run the tool's own login command and the page opens on the person's computer. Do not paste tokens into the terminal and do not ask for a password.\n- A server that needs the person's own sign-in or key does not run on a cloud machine, which holds no sign-in or key of theirs. When a tool from one is missing, say it is not available on cloud machines, and do not suggest signing it in here (no /mcp, no mcp login command).\n"
+  },
+  {
+   "name": "no-overlay-with-docker",
+   "long": "wsp writes this file when a workspace is forked; edits are overwritten.\n\n# This machine\n\nThis is a Linux machine in the cloud that wsp set up from the recipe of the person's computer: the files, tools and agents they ticked. It is not that computer.\n\n- Linux 6.6.30, user root, home /root. macOS apps, casks and Mac App Store apps are not here.\n- On every wsp machine: python3 3.12.13.\n- Containers do not run here: the kernel has no overlayfs. Install services natively.\n- wsp-daemon listens on 0.0.0.0:7070 with its own token. Do not stop it and do not bind port 7070.\n- wsp on this machine's PATH drives the person's host as this thread; wsp --help agent lists its verbs.\n- A turn ends when the agent process exits, not at its reply, and the thread reads running until then; a command you run in the background holds the turn open until it finishes, up to the turn limit set for this computer if it has one, and its result reaches you there. Start long work with your harness's own background road, which wakes you when it ends, and never with a shell &, which nothing tracks and which wakes nobody when it ends. Nothing else wakes you, so a command whose output you want in the same breath runs in the foreground and you wait for it. Only a server you mean to keep serving is detached with setsid nohup, and that one holds nothing open.\n- When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.\n- A command you mean the person to run goes in a fenced block labelled `sh`, which the app shows with Run: the person runs it with one click, in this thread's folder, and sees its output under the block.\n- Every agent session starts in the thread's folder; terminal panes open in the home folder.\n- A server listening on a port shows in the app as a server the person can open. A loopback-only bind (127.0.0.1) is unreachable through the preview edge; bind 0.0.0.0. Ports below 1024 are not forwarded.\n- Secrets are exported by /etc/profile.d/wsp-secrets.sh. They are never printed, logged or committed, and that file is never read or copied. .env files, .netrc and private keys were never copied from the person's computer.\n\n# This workspace\n\n- Workspace: w.\n- Golden: version not recorded.\n- Disk: 19.5 GB root disk, 11.2 GB free when this file was written. wsp keeps 2 GB free and skips tool installs that would go under it.\n- Secrets set in /etc/profile.d/wsp-secrets.sh: OPENAI_API_KEY, GH_TOKEN. Use them by name ($NAME); a missing one is asked for through wsp, not typed here.\n- Tools that did not install: raycast (macOS app, no Linux build).\n- Agents that did not install: Zed (no installer known).\n- Files left on the person's computer: ~/.ssh/id_ed25519 (private key, never copied).\n- Aliases whose command is not here: o runs open.\n\n# How to\n\n- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &. Read the log file, not the tool output. Bind 0.0.0.0 if the person should open it.\n- Hand the person a URL: print it as http://localhost:<port>; wsp forwards the port and the link opens on their computer.\n- Work in a folder: cd <dir> && <cmd> on one line, or absolute paths.\n- Use a secret: $NAME is set from /etc/profile.d/wsp-secrets.sh. Never echo, log or commit a value, and never cat that file.\n",
+   "short": "wsp writes this file when a workspace is forked; edits are overwritten.\n\nThis is a Linux machine in the cloud that wsp set up from the recipe of the person's computer; it is not that computer. The wsp-machine skill has the full picture: what did not install, the secret names, the aliases whose commands are missing, and how the common things are done here.\n\n- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &.\n- A turn ends when the agent process exits, not at its reply, and the thread reads running until then; a command you run in the background holds the turn open until it finishes, up to the turn limit set for this computer if it has one, and its result reaches you there. Start long work with your harness's own background road, which wakes you when it ends, and never with a shell &, which nothing tracks and which wakes nobody when it ends. Nothing else wakes you, so a command whose output you want in the same breath runs in the foreground and you wait for it. Only a server you mean to keep serving is detached with setsid nohup, and that one holds nothing open.\n- When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.\n- A command you mean the person to run goes in a fenced block labelled `sh`, which the app shows with Run: the person runs it with one click, in this thread's folder, and sees its output under the block.\n- Every agent session starts in the thread's folder; terminal panes open in the home folder.\n- A server listening on a port shows in the app for the person to open; bind 0.0.0.0, not 127.0.0.1. A printed http://localhost:<port> link has its port forwarded to their computer. Ports below 1024 are not forwarded.\n- Containers do not run here: the kernel has no overlayfs. Install services natively.\n- Disk: 19.5 GB root disk, 11.2 GB free when this file was written. wsp keeps 2 GB free.\n- Secrets are exported by /etc/profile.d/wsp-secrets.sh. Use them by name ($NAME); never print, log or commit a value, and never read that file.\n"
+  },
+  {
+   "name": "golden-without-workspace",
+   "long": "wsp writes this file when a workspace is forked; edits are overwritten.\n\n# This machine\n\nThis is a Linux machine in the cloud that wsp set up from the recipe of the person's computer: the files, tools and agents they ticked. It is not that computer.\n\n- Linux 6.6.30, user root, home /root. macOS apps, casks and Mac App Store apps are not here.\n- On every wsp machine: python3 3.12.13.\n- Homebrew is at /home/linuxbrew/.linuxbrew.\n- Login shells get their PATH from /etc/profile.d/wsp-golden.sh: /opt/wsp-agents/bin:/opt/node/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\n- Containers do not run here: the kernel has no overlayfs, and Docker and Podman are not installed. Install services natively.\n- wsp-daemon listens on 0.0.0.0:7070 with its own token. Do not stop it and do not bind port 7070.\n- wsp on this machine's PATH drives the person's host as this thread; wsp --help agent lists its verbs.\n- A turn ends when the agent process exits, not at its reply, and the thread reads running until then; a command you run in the background holds the turn open until it finishes, up to the turn limit set for this computer if it has one, and its result reaches you there. Start long work with your harness's own background road, which wakes you when it ends, and never with a shell &, which nothing tracks and which wakes nobody when it ends. Nothing else wakes you, so a command whose output you want in the same breath runs in the foreground and you wait for it. Only a server you mean to keep serving is detached with setsid nohup, and that one holds nothing open.\n- When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.\n- A command you mean the person to run goes in a fenced block labelled `sh`, which the app shows with Run: the person runs it with one click, in this thread's folder, and sees its output under the block.\n- Every agent session starts in the thread's folder; terminal panes open in the home folder.\n- A server listening on a port shows in the app as a server the person can open. A loopback-only bind (127.0.0.1) is unreachable through the preview edge; bind 0.0.0.0. Ports below 1024 are not forwarded.\n- Sign-ins go through wsp: BROWSER is /usr/local/bin/wsp-open and xdg-open is the same shim. The page opens on the person's computer and the callback port is tunnelled back here.\n- Secrets are exported by /etc/profile.d/wsp-secrets.sh and /etc/fish/conf.d/wsp-secrets.fish. They are never printed, logged or committed, and that file is never read or copied. .env files, .netrc and private keys were never copied from the person's computer.\n\n# This workspace\n\n- This machine is a golden builder, not a workspace yet.\n- Golden: v3, sealed 2026-09-05, setup 9f2a7c1d4e5b.\n- Disk: 19.5 GB root disk, 11.2 GB free when this file was written. wsp keeps 2 GB free and skips tool installs that would go under it.\n- Secrets set in /etc/profile.d/wsp-secrets.sh: OPENAI_API_KEY, GH_TOKEN. Use them by name ($NAME); a missing one is asked for through wsp, not typed here.\n- Tools that did not install: raycast (macOS app, no Linux build).\n- Agents that did not install: Zed (no installer known).\n- Files left on the person's computer: ~/.ssh/id_ed25519 (private key, never copied).\n- Aliases whose command is not here: o runs open.\n\n# How to\n\n- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &, or tmux new -d -s <name> '<cmd>'. Read the log file, not the tool output. Bind 0.0.0.0 if the person should open it.\n- Hand the person a URL: print it as http://localhost:<port>; wsp forwards the port and the link opens on their computer. For a page that is not a local server, run wsp-open <url>; it appears in the app for them to open.\n- Ask for a sign-in: run the tool's own login command (gh auth login, gcloud auth login). It opens through $BROWSER, the person signs in on their computer, and the callback comes back here. Do not paste tokens into the terminal and do not ask for a password.\n- Work in a folder: cd <dir> && <cmd> on one line, or absolute paths.\n- Use a secret: $NAME is set from /etc/profile.d/wsp-secrets.sh. Never echo, log or commit a value, and never cat that file.\n",
+   "short": "wsp writes this file when a workspace is forked; edits are overwritten.\n\nThis is a Linux machine in the cloud that wsp set up from the recipe of the person's computer; it is not that computer. The wsp-machine skill has the full picture: what did not install, the secret names, the aliases whose commands are missing, and how the common things are done here.\n\n- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &, or tmux new -d -s <name> '<cmd>'.\n- A turn ends when the agent process exits, not at its reply, and the thread reads running until then; a command you run in the background holds the turn open until it finishes, up to the turn limit set for this computer if it has one, and its result reaches you there. Start long work with your harness's own background road, which wakes you when it ends, and never with a shell &, which nothing tracks and which wakes nobody when it ends. Nothing else wakes you, so a command whose output you want in the same breath runs in the foreground and you wait for it. Only a server you mean to keep serving is detached with setsid nohup, and that one holds nothing open.\n- When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.\n- A command you mean the person to run goes in a fenced block labelled `sh`, which the app shows with Run: the person runs it with one click, in this thread's folder, and sees its output under the block.\n- Every agent session starts in the thread's folder; terminal panes open in the home folder.\n- A server listening on a port shows in the app for the person to open; bind 0.0.0.0, not 127.0.0.1. A printed http://localhost:<port> link has its port forwarded to their computer. Ports below 1024 are not forwarded.\n- Containers do not run here: the kernel has no overlayfs, and Docker and Podman are not installed. Install services natively.\n- Disk: 19.5 GB root disk, 11.2 GB free when this file was written. wsp keeps 2 GB free.\n- Secrets are exported by /etc/profile.d/wsp-secrets.sh. Use them by name ($NAME); never print, log or commit a value, and never read that file.\n- Sign-ins go through wsp: run the tool's own login command and the page opens on the person's computer. Do not paste tokens into the terminal and do not ask for a password.\n"
+  },
+  {
+   "name": "golden-short-strings",
+   "long": "wsp writes this file when a workspace is forked; edits are overwritten.\n\n# This machine\n\nThis is a Linux machine in the cloud that wsp set up from the recipe of the person's computer: the files, tools and agents they ticked. It is not that computer.\n\n- Linux 6.6.30, user root, home /root. macOS apps, casks and Mac App Store apps are not here.\n- On every wsp machine: python3 3.12.13.\n- Homebrew is at /home/linuxbrew/.linuxbrew.\n- Login shells get their PATH from /etc/profile.d/wsp-golden.sh: /root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\n- Containers do not run here: the kernel has no overlayfs, and Docker and Podman are not installed. Install services natively.\n- wsp-daemon listens on 0.0.0.0:7070 with its own token. Do not stop it and do not bind port 7070.\n- wsp on this machine's PATH drives the person's host as this thread; wsp --help agent lists its verbs.\n- A turn ends when the agent process exits, not at its reply, and the thread reads running until then; a command you run in the background holds the turn open until it finishes, up to the turn limit set for this computer if it has one, and its result reaches you there. Start long work with your harness's own background road, which wakes you when it ends, and never with a shell &, which nothing tracks and which wakes nobody when it ends. Nothing else wakes you, so a command whose output you want in the same breath runs in the foreground and you wait for it. Only a server you mean to keep serving is detached with setsid nohup, and that one holds nothing open.\n- When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.\n- A command you mean the person to run goes in a fenced block labelled `sh`, which the app shows with Run: the person runs it with one click, in this thread's folder, and sees its output under the block.\n- Every agent session starts in the thread's folder; terminal panes open in the home folder.\n- A server listening on a port shows in the app as a server the person can open. A loopback-only bind (127.0.0.1) is unreachable through the preview edge; bind 0.0.0.0. Ports below 1024 are not forwarded.\n- Sign-ins go through wsp: BROWSER is /usr/local/bin/wsp-open and xdg-open is the same shim. The page opens on the person's computer and the callback port is tunnelled back here.\n- Secrets are exported by /etc/profile.d/wsp-secrets.sh and /etc/fish/conf.d/wsp-secrets.fish. They are never printed, logged or committed, and that file is never read or copied. .env files, .netrc and private keys were never copied from the person's computer.\n\n# This workspace\n\n- Workspace: w.\n- Golden: v1, sealed 2026, setup abc.\n- Disk: 19.5 GB root disk, 11.2 GB free when this file was written. wsp keeps 2 GB free and skips tool installs that would go under it.\n- Secrets set in /etc/profile.d/wsp-secrets.sh: OPENAI_API_KEY, GH_TOKEN. Use them by name ($NAME); a missing one is asked for through wsp, not typed here.\n- Tools that did not install: raycast (macOS app, no Linux build).\n- Agents that did not install: Zed (no installer known).\n- Files left on the person's computer: ~/.ssh/id_ed25519 (private key, never copied).\n- Aliases whose command is not here: o runs open.\n\n# How to\n\n- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &, or tmux new -d -s <name> '<cmd>'. Read the log file, not the tool output. Bind 0.0.0.0 if the person should open it.\n- Hand the person a URL: print it as http://localhost:<port>; wsp forwards the port and the link opens on their computer. For a page that is not a local server, run wsp-open <url>; it appears in the app for them to open.\n- Ask for a sign-in: run the tool's own login command (gh auth login, gcloud auth login). It opens through $BROWSER, the person signs in on their computer, and the callback comes back here. Do not paste tokens into the terminal and do not ask for a password.\n- Work in a folder: cd <dir> && <cmd> on one line, or absolute paths.\n- Use a secret: $NAME is set from /etc/profile.d/wsp-secrets.sh. Never echo, log or commit a value, and never cat that file.\n",
+   "short": "wsp writes this file when a workspace is forked; edits are overwritten.\n\nThis is a Linux machine in the cloud that wsp set up from the recipe of the person's computer; it is not that computer. The wsp-machine skill has the full picture: what did not install, the secret names, the aliases whose commands are missing, and how the common things are done here.\n\n- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &, or tmux new -d -s <name> '<cmd>'.\n- A turn ends when the agent process exits, not at its reply, and the thread reads running until then; a command you run in the background holds the turn open until it finishes, up to the turn limit set for this computer if it has one, and its result reaches you there. Start long work with your harness's own background road, which wakes you when it ends, and never with a shell &, which nothing tracks and which wakes nobody when it ends. Nothing else wakes you, so a command whose output you want in the same breath runs in the foreground and you wait for it. Only a server you mean to keep serving is detached with setsid nohup, and that one holds nothing open.\n- When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.\n- A command you mean the person to run goes in a fenced block labelled `sh`, which the app shows with Run: the person runs it with one click, in this thread's folder, and sees its output under the block.\n- Every agent session starts in the thread's folder; terminal panes open in the home folder.\n- A server listening on a port shows in the app for the person to open; bind 0.0.0.0, not 127.0.0.1. A printed http://localhost:<port> link has its port forwarded to their computer. Ports below 1024 are not forwarded.\n- Containers do not run here: the kernel has no overlayfs, and Docker and Podman are not installed. Install services natively.\n- Disk: 19.5 GB root disk, 11.2 GB free when this file was written. wsp keeps 2 GB free.\n- Secrets are exported by /etc/profile.d/wsp-secrets.sh. Use them by name ($NAME); never print, log or commit a value, and never read that file.\n- Sign-ins go through wsp: run the tool's own login command and the page opens on the person's computer. Do not paste tokens into the terminal and do not ask for a password.\n"
+  },
+  {
+   "name": "fish-without-the-open-shim",
+   "long": "wsp writes this file when a workspace is forked; edits are overwritten.\n\n# This machine\n\nThis is a Linux machine in the cloud that wsp set up from the recipe of the person's computer: the files, tools and agents they ticked. It is not that computer.\n\n- Linux 6.6.30, user root, home /root. macOS apps, casks and Mac App Store apps are not here.\n- On every wsp machine: python3 3.12.13.\n- Containers do not run here: the kernel has no overlayfs, and Docker and Podman are not installed. Install services natively.\n- wsp-daemon listens on 0.0.0.0:7070 with its own token. Do not stop it and do not bind port 7070.\n- wsp on this machine's PATH drives the person's host as this thread; wsp --help agent lists its verbs.\n- A turn ends when the agent process exits, not at its reply, and the thread reads running until then; a command you run in the background holds the turn open until it finishes, up to the turn limit set for this computer if it has one, and its result reaches you there. Start long work with your harness's own background road, which wakes you when it ends, and never with a shell &, which nothing tracks and which wakes nobody when it ends. Nothing else wakes you, so a command whose output you want in the same breath runs in the foreground and you wait for it. Only a server you mean to keep serving is detached with setsid nohup, and that one holds nothing open.\n- When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.\n- A command you mean the person to run goes in a fenced block labelled `sh`, which the app shows with Run: the person runs it with one click, in this thread's folder, and sees its output under the block.\n- Every agent session starts in the thread's folder; terminal panes open in the home folder.\n- A server listening on a port shows in the app as a server the person can open. A loopback-only bind (127.0.0.1) is unreachable through the preview edge; bind 0.0.0.0. Ports below 1024 are not forwarded.\n- Secrets are exported by /etc/profile.d/wsp-secrets.sh and /etc/fish/conf.d/wsp-secrets.fish. They are never printed, logged or committed, and that file is never read or copied. .env files, .netrc and private keys were never copied from the person's computer.\n\n# This workspace\n\n- Workspace: w.\n- Golden: version not recorded.\n- Disk: 19.5 GB root disk, 11.2 GB free when this file was written. wsp keeps 2 GB free and skips tool installs that would go under it.\n- Secrets set in /etc/profile.d/wsp-secrets.sh: OPENAI_API_KEY, GH_TOKEN. Use them by name ($NAME); a missing one is asked for through wsp, not typed here.\n- Tools that did not install: raycast (macOS app, no Linux build).\n- Agents that did not install: Zed (no installer known).\n- Files left on the person's computer: ~/.ssh/id_ed25519 (private key, never copied).\n- Aliases whose command is not here: o runs open.\n\n# How to\n\n- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &. Read the log file, not the tool output. Bind 0.0.0.0 if the person should open it.\n- Hand the person a URL: print it as http://localhost:<port>; wsp forwards the port and the link opens on their computer.\n- Work in a folder: cd <dir> && <cmd> on one line, or absolute paths.\n- Use a secret: $NAME is set from /etc/profile.d/wsp-secrets.sh. Never echo, log or commit a value, and never cat that file.\n",
+   "short": "wsp writes this file when a workspace is forked; edits are overwritten.\n\nThis is a Linux machine in the cloud that wsp set up from the recipe of the person's computer; it is not that computer. The wsp-machine skill has the full picture: what did not install, the secret names, the aliases whose commands are missing, and how the common things are done here.\n\n- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &.\n- A turn ends when the agent process exits, not at its reply, and the thread reads running until then; a command you run in the background holds the turn open until it finishes, up to the turn limit set for this computer if it has one, and its result reaches you there. Start long work with your harness's own background road, which wakes you when it ends, and never with a shell &, which nothing tracks and which wakes nobody when it ends. Nothing else wakes you, so a command whose output you want in the same breath runs in the foreground and you wait for it. Only a server you mean to keep serving is detached with setsid nohup, and that one holds nothing open.\n- When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.\n- A command you mean the person to run goes in a fenced block labelled `sh`, which the app shows with Run: the person runs it with one click, in this thread's folder, and sees its output under the block.\n- Every agent session starts in the thread's folder; terminal panes open in the home folder.\n- A server listening on a port shows in the app for the person to open; bind 0.0.0.0, not 127.0.0.1. A printed http://localhost:<port> link has its port forwarded to their computer. Ports below 1024 are not forwarded.\n- Containers do not run here: the kernel has no overlayfs, and Docker and Podman are not installed. Install services natively.\n- Disk: 19.5 GB root disk, 11.2 GB free when this file was written. wsp keeps 2 GB free.\n- Secrets are exported by /etc/profile.d/wsp-secrets.sh. Use them by name ($NAME); never print, log or commit a value, and never read that file.\n"
   }
  ],
  "renderInputs": [
@@ -1244,6 +1264,295 @@
     },
     "agent": "hermes",
     "atProvider": true
+   }
+  },
+  {
+   "name": "no-overlay-with-docker",
+   "input": {
+    "workspace": {
+     "name": "w"
+    },
+    "probe": {
+     "kernel": "6.6.30",
+     "disk": {
+      "sizeBytes": 20957446144,
+      "freeBytes": 12002000896
+     },
+     "overlay": false,
+     "has": [
+      "docker",
+      "podman"
+     ],
+     "versions": [
+      {
+       "name": "python3",
+       "version": "3.12.13"
+      }
+     ],
+     "agents": [
+      "claude",
+      "codex",
+      "gemini",
+      "opencode",
+      "pi",
+      "hermes"
+     ],
+     "secrets": [
+      "OPENAI_API_KEY",
+      "GH_TOKEN"
+     ],
+     "shell": "zsh",
+     "aliases": [
+      {
+       "name": "o",
+       "word": "open"
+      }
+     ],
+     "conflicts": []
+    },
+    "facts": {
+     "tools": [
+      {
+       "id": "tools/brew-cask/raycast",
+       "label": "raycast",
+       "note": "macOS app, no Linux build"
+      }
+     ],
+     "agents": [
+      {
+       "id": "agents/zed",
+       "label": "Zed",
+       "note": "no installer known"
+      }
+     ],
+     "files": [
+      {
+       "path": "~/.ssh/id_ed25519",
+       "note": "private key, never copied"
+      }
+     ]
+    },
+    "agent": null
+   }
+  },
+  {
+   "name": "golden-without-workspace",
+   "input": {
+    "golden": {
+     "version": 3,
+     "createdAt": "2026-09-05T14:02:11.000Z",
+     "setupSha": "9f2a7c1d4e5b6a7f8091a2b3c4d5e6f7",
+     "npmBin": "/opt/node/bin"
+    },
+    "probe": {
+     "kernel": "6.6.30",
+     "disk": {
+      "sizeBytes": 20957446144,
+      "freeBytes": 12002000896
+     },
+     "overlay": false,
+     "has": [
+      "tmux",
+      "fish",
+      "brew",
+      "golden-path",
+      "wsp-open"
+     ],
+     "versions": [
+      {
+       "name": "python3",
+       "version": "3.12.13"
+      }
+     ],
+     "agents": [
+      "claude",
+      "codex",
+      "gemini",
+      "opencode",
+      "pi",
+      "hermes"
+     ],
+     "secrets": [
+      "OPENAI_API_KEY",
+      "GH_TOKEN"
+     ],
+     "shell": "zsh",
+     "aliases": [
+      {
+       "name": "o",
+       "word": "open"
+      }
+     ],
+     "conflicts": []
+    },
+    "facts": {
+     "tools": [
+      {
+       "id": "tools/brew-cask/raycast",
+       "label": "raycast",
+       "note": "macOS app, no Linux build"
+      }
+     ],
+     "agents": [
+      {
+       "id": "agents/zed",
+       "label": "Zed",
+       "note": "no installer known"
+      }
+     ],
+     "files": [
+      {
+       "path": "~/.ssh/id_ed25519",
+       "note": "private key, never copied"
+      }
+     ]
+    },
+    "agent": null
+   }
+  },
+  {
+   "name": "golden-short-strings",
+   "input": {
+    "workspace": {
+     "name": "w"
+    },
+    "golden": {
+     "version": 1,
+     "createdAt": "2026",
+     "setupSha": "abc"
+    },
+    "probe": {
+     "kernel": "6.6.30",
+     "disk": {
+      "sizeBytes": 20957446144,
+      "freeBytes": 12002000896
+     },
+     "overlay": false,
+     "has": [
+      "tmux",
+      "fish",
+      "brew",
+      "golden-path",
+      "wsp-open"
+     ],
+     "versions": [
+      {
+       "name": "python3",
+       "version": "3.12.13"
+      }
+     ],
+     "agents": [
+      "claude",
+      "codex",
+      "gemini",
+      "opencode",
+      "pi",
+      "hermes"
+     ],
+     "secrets": [
+      "OPENAI_API_KEY",
+      "GH_TOKEN"
+     ],
+     "shell": "zsh",
+     "aliases": [
+      {
+       "name": "o",
+       "word": "open"
+      }
+     ],
+     "conflicts": []
+    },
+    "facts": {
+     "tools": [
+      {
+       "id": "tools/brew-cask/raycast",
+       "label": "raycast",
+       "note": "macOS app, no Linux build"
+      }
+     ],
+     "agents": [
+      {
+       "id": "agents/zed",
+       "label": "Zed",
+       "note": "no installer known"
+      }
+     ],
+     "files": [
+      {
+       "path": "~/.ssh/id_ed25519",
+       "note": "private key, never copied"
+      }
+     ]
+    },
+    "agent": null
+   }
+  },
+  {
+   "name": "fish-without-the-open-shim",
+   "input": {
+    "workspace": {
+     "name": "w"
+    },
+    "probe": {
+     "kernel": "6.6.30",
+     "disk": {
+      "sizeBytes": 20957446144,
+      "freeBytes": 12002000896
+     },
+     "overlay": false,
+     "has": [
+      "fish"
+     ],
+     "versions": [
+      {
+       "name": "python3",
+       "version": "3.12.13"
+      }
+     ],
+     "agents": [
+      "claude",
+      "codex",
+      "gemini",
+      "opencode",
+      "pi",
+      "hermes"
+     ],
+     "secrets": [
+      "OPENAI_API_KEY",
+      "GH_TOKEN"
+     ],
+     "shell": "zsh",
+     "aliases": [
+      {
+       "name": "o",
+       "word": "open"
+      }
+     ],
+     "conflicts": []
+    },
+    "facts": {
+     "tools": [
+      {
+       "id": "tools/brew-cask/raycast",
+       "label": "raycast",
+       "note": "macOS app, no Linux build"
+      }
+     ],
+     "agents": [
+      {
+       "id": "agents/zed",
+       "label": "Zed",
+       "note": "no installer known"
+      }
+     ],
+     "files": [
+      {
+       "path": "~/.ssh/id_ed25519",
+       "note": "private key, never copied"
+      }
+     ]
+    },
+    "agent": null
    }
   }
  ],
