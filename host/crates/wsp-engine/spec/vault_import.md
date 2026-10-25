@@ -53,12 +53,32 @@ Up to three attempts of `PUT url` with the bytes as body. A rejected fetch on at
 failed<where>: <the error's message> after 3 attempts`; before that, sleep `backoff_ms(attempt, random)` and retry.
 An ok answer returns. Otherwise read the body text (unreadable is `""`), `classify(status, None, error, None)` where
 `error` is the body's JSON `error` when it is a string; `should_retry(kind, attempt)` false fails with
-`upload_failure(status, body, part, parts, attempt)`, else sleep and retry. 502 to 504 retry; 413 and any other 4xx
-are final on the first answer. Parts already up are not sent again; the retry is per part.
+`upload_failure(status, body, part, parts, attempt)`, else sleep and retry. Only `transient` retries: a 502 to 504
+retries unless its JSON `error` is exactly `Failed to snapshot sandbox` (that 502 is snapshotUnavailable, final at
+once); 500, 501, 505, 413, 429 and any other 4xx are final on the first answer. Parts already up are not sent again; the retry is per part.
 
 `upload_failure`: `vault import upload failed`, then ` on part <p> of <n>` unless one part, `: HTTP <status>`, then
 ` <reason>` unless empty (the JSON `error` string, else the trimmed body's first 300 UTF-16 units), ` after <n>
 attempts` only past one, `; the upload takes at most <limit> bytes per PUT` only when JSON `limit` is a number.
+
+Pinned since (V-rules, values from running the TS):
+
+- V8. Sleeps: `backoff_ms(1)` (1000 to 1249 ms) after the first try, `backoff_ms(2)` (2000 to 2249) after the second,
+  none after the third. Each PUT is method `PUT`, the part as body, no header, no deadline (`abort: None`); the URL is
+  minted once per part, not per attempt.
+- V9. A 502 `{"error":"Failed to snapshot sandbox"}`, a 500 and a 429 are each one PUT then the error.
+- V10. The reason: a string `error` is taken whole, even `""` (then no reason, and the body's other words are not
+  used) and even past 300 units; the 300 cut is for a body whose JSON has no string `error` (an array, a quoted
+  string, `null`, non-JSON), taken as its trimmed text. `limit` is printed as JS prints a number (`1.5`, `0`); a
+  string `limit` adds nothing.
+- V11. `<path> links to a target too long for a ustar header` and the size refusal name the path as given (leading
+  slashes kept); `<path> does not fit a ustar header` names it with its leading slashes cut; a link is judged before
+  its name.
+- V12. `split_name` takes the rightmost slash that leaves a prefix of at most 155 and a name of at most 100 bytes:
+  `a*50/b*50/c*50/d` is prefix `a*50/b*50/c*50`, name `d` (the cut after `b` also fits and is wrong).
+- V13. `tar_path(root, p)` is posix `path.relative`: `("/root", "/root")` is `""`, a path outside climbs (`../etc/x`,
+  and the lookalike `/rootx/y` is `../rootx/y`), trailing and doubled slashes and `.`/`..` segments normalise
+  (`/root/a/../b` is `b`). A relative input resolves against the host's current folder, as node's does.
 
 ## land_bundle (:510)
 
@@ -78,6 +98,7 @@ attempts` only past one, `; the upload takes at most <limit> bytes per PUT` only
 
 | Rule | Tests |
 |---|---|
+| V8 to V13 | vault_hard.rs: `a_transient_part_sleeps_the_backoff_between_its_three_tries_and_not_after`, `a_502_that_names_the_snapshot_a_500_and_a_429_are_final_at_once`, `an_upload_refusal_reads_the_body_as_the_ts_does`, `tar_refusals_spell_the_path_as_the_ts_does`, `a_long_name_is_cut_at_the_rightmost_slash_that_fits`, `tar_path_is_posix_path_relative` |
 | tar bytes: split names, link, dir, UTF-8, modes, checksum | `the_tar_inside_the_gzip_is_the_ts_bytes_with_a_split_name_a_link_a_dir_and_utf8`, `no_entry_is_two_zero_blocks` (provision_pins.rs); vault_import.rs: tarOf cases |
 | what fits, byte counts, refusals | `what_fits_a_ustar_header_counts_bytes_cuts_leading_slashes_and_splits_at_a_slash`, `a_path_or_link_ustar_cannot_hold_is_refused_with_the_ts_words` |
 | the import script, hash, flags, leave, empty archive refused before any call | `each_import_sends_the_ts_script_checks_the_hash_and_refuses_an_empty_archive_before_any_call`; vault_import.rs: importInto, overlay, leave cases |

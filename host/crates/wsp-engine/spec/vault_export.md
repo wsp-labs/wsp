@@ -71,7 +71,7 @@ chars of a random base-36 fraction>`. Two calls never collide in practice; nothi
 
 ## The scripts (byte for byte; tests/fixtures/oracle/provision.json)
 
-- `excluding_archive_script(cwd, targets, rule, out, leave)` (:145): seven lines joined by `\n`: `set -eo pipefail`,
+- `excluding_archive_script(cwd, targets, rule, out, leave)` (:145): eight lines joined by `\n`: `set -eo pipefail`,
   `cd <q cwd>`, the cache-root find (`-mindepth 1`, `.git` pruned, the cache test pruned and printed) into `<out>.list`,
   `printf '%s\0'` of the targets into `<out>.keep`, the keep find (`.git` and everything under it printed, caches
   pruned, the rest printed, NUL-separated) appended, `tar czf <q out><leave flags> --no-recursion --null -T <q
@@ -85,10 +85,35 @@ chars of a random base-36 fraction>`. Two calls never collide in practice; nothi
   `path.relative(root, p)`. `leave_flags(root, leave)` (:193): ` --exclude=<q tar_path(root, p)>` per path, each
   before the operands (GNU tar reads an exclude only for names after it).
 
+## Pinned since (V-rules, values from running the TS)
+
+- V1. The exec road: `run` the tar (deadline `timeout_ms` or 120,000), `exec` `wc -c < <q path>` (20,000), `exec`
+  `base64 < <q path>` (`timeout_ms` or 120,000; a `Some(0)` is 0, not the default), `exec` the `rm -f` (20,000). No
+  URL is minted. Progress `{0, size}` before the read and `{size, size}` after.
+- V2. `EXEC_READ_CAP` is inclusive: 16,777,216 is read; 16,777,217 is `VaultTooLarge { bytes, message: "the archive
+  on the machine is <n> bytes and this provider mints no download URL, so it comes back through one command, which is
+  capped at 16777216" }` with no base64 exec and no progress, the cleanup still sent. A read that comes back short is
+  `vault export read failed: the machine held <n> bytes and <m> came back`; a failed read is `vault export read failed
+  (exit <n>): <last 500 UTF-16 units of stderr>`.
+- V3. base64 decodes as node's `Buffer.from(s, "base64")`: characters outside the alphabet are skipped, padding is
+  optional, `-` and `_` read as `+` and `/` (`-_-_` is `fb ff bf`). A strict decoder fails three of the four cases.
+- V4. `guest_file_size` is JS `Number(stdout.trim())`: `0x10` is 16, `1e3` is 1000, blank is 0; `abc`, `Infinity`
+  and two lines are `the archive's size on the machine is unknown: <last 200 units of stderr>`, as is a non-zero exit.
+  (A fraction or a negative reads in the TS; `u64` cannot hold them: after-port note.)
+- V5. Every chunk is a progress call, an empty one included. The total is the caller's `Some(total)` (0 included,
+  which then stays 0 while bytes grow), else content-length as `Number` where finite and above 0, else the bytes so
+  far. A status that is not ok is `vault export download failed: HTTP <status>` before any progress. The request is a
+  bare `GET`: no header, no body, `abort: None` (a hung download waits, as in the TS).
+- V6. `download_file` opens `into` truncating (a 27-byte file is 7 bytes after a 7-byte download) and removes it on any
+  failure, so a file that was there before a failed download is gone, not kept. Writing to a temp file and renaming
+  would keep it: wrong.
+- V7. Exports always use `GUEST_TMP` for their own archive: `tmp_dir` is an import option and is not read here.
+
 ## Rules against tests
 
 | Rule | Tests |
 |---|---|
+| V1 to V6 | vault_hard.rs: `the_exec_road_reads_the_size_then_one_base64_exec_and_mints_no_url`, `sixteen_mib_exactly_is_read_and_one_byte_more_is_refused_before_the_read`, `base64_is_decoded_as_leniently_as_node_and_a_failed_read_names_its_exit`, `the_guests_size_reads_as_js_number_reads_it`, `progress_counts_every_chunk_and_a_total_of_zero_stays_zero`, `a_failed_download_removes_the_file_that_was_there_and_a_good_one_truncates_it` |
 | exact export scripts, commands and order; tar run detached, size read and cleanup inline | `each_export_sends_the_ts_commands_in_order_and_refuses_with_the_ts_words` (provision_pins.rs); vault_export.rs: the run/exec split, exact script spellings |
 | no paths: an empty archive, no find, no walk | same, case `none`; vault_export.rs: an export naming no path |
 | every path a cache: refused before any call | same, case `allCaches`; `kept_paths_judge_the_last_name_and_refuse_when_every_path_is_a_cache` |
