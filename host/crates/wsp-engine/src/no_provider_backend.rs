@@ -9,7 +9,9 @@ use async_trait::async_trait;
 use indexmap::IndexMap;
 
 use crate::errors::{EngineError, Result};
-use crate::machine::{BackendPricing, Capabilities, Machine, MachineBackend, MachineListRow, MachineSpec, Size, SnapshotStoragePricing, Waiting};
+use crate::machine::{
+    BackendPricing, Capabilities, Machine, MachineBackend, MachineListRow, MachineSpec, Size, SnapshotStoragePricing, Waiting,
+};
 
 /// no-provider-backend.ts:29. Whether the error is the refusal of a host with no provider key.
 pub fn is_no_provider(e: &EngineError) -> bool {

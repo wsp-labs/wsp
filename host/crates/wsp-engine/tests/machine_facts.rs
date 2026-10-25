@@ -43,7 +43,14 @@ fn answer(exit_code: i64, stdout: &str) -> ExecResult {
 fn reads_one_answer_per_line_and_a_line_that_printed_nothing_is_an_answer_the_machine_does_not_have() {
     assert_eq!(
         read_values(UBUNTU),
-        map(&[("pretty", "Ubuntu 24.04.3 LTS"), ("mac", ""), ("kernel", "Linux 6.8.0-79-generic"), ("uptime", "96521.42"), ("boot", ""), ("home", "/home/dev")])
+        map(&[
+            ("pretty", "Ubuntu 24.04.3 LTS"),
+            ("mac", ""),
+            ("kernel", "Linux 6.8.0-79-generic"),
+            ("uptime", "96521.42"),
+            ("boot", ""),
+            ("home", "/home/dev")
+        ])
     );
     assert_eq!(read_values(""), map(&[]));
     assert_eq!(read_values("kernel Linux 6.8.0\n"), map(&[("kernel", "Linux 6.8.0")]));

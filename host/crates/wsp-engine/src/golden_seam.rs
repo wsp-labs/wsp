@@ -102,6 +102,8 @@ pub struct ImportFiles {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct SkippedPath {
+    #[serde(default)]
+    pub id: String,
     pub path: String,
     pub note: String,
 }

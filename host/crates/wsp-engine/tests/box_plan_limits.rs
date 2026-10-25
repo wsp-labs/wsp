@@ -77,7 +77,13 @@ fn reads_the_owners_plan_machines_at_once_sizes_sold_and_starts_used_in_each_win
     assert_eq!(
         place_limits_of(&limits_of(&owner_limits())),
         Some(CloudLimits {
-            plan: CloudPlan { key: Some("box_20".into()), trial: false, machines_at_once: 100, sizes: sizes(&["2x4", "4x8", "8x16"]), running: Some(11) },
+            plan: CloudPlan {
+                key: Some("box_20".into()),
+                trial: false,
+                machines_at_once: 100,
+                sizes: sizes(&["2x4", "4x8", "8x16"]),
+                running: Some(11)
+            },
             starts: Some(CloudStarts { minute: window(0, 12), hour: window(9, 60), day: window(187, 200) }),
             credit_hours: Some(JsNumber(81.6)),
         })

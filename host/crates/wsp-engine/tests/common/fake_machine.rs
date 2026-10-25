@@ -8,7 +8,9 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use wsp_engine::errors::{EngineError, Result};
-use wsp_engine::machine::{ExecOptions, ExecResult, Machine, MachineKind, MachineLife, MachineOffers, MachineState, PreviewReach, RunOptions, SnapshotOptions};
+use wsp_engine::machine::{
+    ExecOptions, ExecResult, Machine, MachineKind, MachineLife, MachineOffers, MachineState, PreviewReach, RunOptions, SnapshotOptions,
+};
 
 pub struct FakeMachine {
     id: String,
@@ -26,7 +28,13 @@ impl FakeMachine {
     }
 
     pub fn with_log(id: &str, log: Arc<Mutex<Vec<String>>>) -> Arc<Self> {
-        Arc::new(FakeMachine { id: id.to_string(), log, minted: AtomicU32::new(0), resume_error: Mutex::new(None), refuse_resumed_snapshots: Mutex::new(false) })
+        Arc::new(FakeMachine {
+            id: id.to_string(),
+            log,
+            minted: AtomicU32::new(0),
+            resume_error: Mutex::new(None),
+            refuse_resumed_snapshots: Mutex::new(false),
+        })
     }
 
     /// Every resume from now on throws this.
@@ -116,6 +124,10 @@ impl Machine for FakeMachine {
         self.record(format!("preview_url:{port}"));
         let n = self.minted.fetch_add(1, Ordering::SeqCst) + 1;
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as f64;
-        Ok(PreviewReach { url: format!("https://{}-{port}.example", self.id), token: format!("t{n}"), expires_at: (now + 3_600_000.0).into() })
+        Ok(PreviewReach {
+            url: format!("https://{}-{port}.example", self.id),
+            token: format!("t{n}"),
+            expires_at: (now + 3_600_000.0).into(),
+        })
     }
 }

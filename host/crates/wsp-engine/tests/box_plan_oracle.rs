@@ -160,7 +160,8 @@ fn box_labels_reads_back_only_names_wsp_made_with_their_keys_in_order() {
             Some(want) => {
                 let got = got.unwrap_or_else(|| panic!("no labels for {case}"));
                 let pairs: Vec<(&str, &str)> = got.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-                let want_pairs: Vec<(&str, &str)> = case["keys"].as_array().unwrap().iter().map(|k| (oracle::s(k), oracle::s(&want[oracle::s(k)]))).collect();
+                let want_pairs: Vec<(&str, &str)> =
+                    case["keys"].as_array().unwrap().iter().map(|k| (oracle::s(k), oracle::s(&want[oracle::s(k)]))).collect();
                 assert_eq!(pairs, want_pairs, "{case}");
             }
         }
