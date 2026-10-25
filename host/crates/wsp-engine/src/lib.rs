@@ -27,6 +27,7 @@ pub mod machine;
 pub mod machine_context;
 pub mod machine_facts;
 pub mod no_provider_backend;
+pub(crate) mod js_value;
 pub(crate) mod node_base64;
 pub mod orphans;
 pub mod place_machine;

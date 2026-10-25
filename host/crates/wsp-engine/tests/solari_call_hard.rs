@@ -287,7 +287,7 @@ fn a_preview_token_reads_its_expiry_as_node_does() {
         (format!("{}.s", b64(r#"{"exp":9007199254740993}"#)), 9_007_199_254_740_992),
         (format!("{}.s", b64(r#"{"exp":99999999999999999999}"#)), i64::MAX),
     ] {
-        assert_eq!(preview_token_expiry(&token, 1000), want, "{token}");
+        assert_eq!(preview_token_expiry(&token, 1000) as i64, want, "{token}");
     }
 }
 

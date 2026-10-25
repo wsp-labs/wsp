@@ -9,7 +9,8 @@ use indexmap::IndexMap;
 use serde_json::{json, Value};
 
 use super::machine::BoxMachine;
-use super::request::{js_string, BoxShared};
+use super::request::BoxShared;
+use crate::js_value::js_string;
 use super::plan::{
     box_budgets, box_class_for, box_labels, box_name, box_root_disk_gb, is_uuid, state_map, state_of, BoxLimits, BoxPricing, SizeAsk,
     BACKSTOP_RETRY_MAX_MS, BACKSTOP_RETRY_MS, BACKSTOP_SLACK_MS, BOX_BASE_TEMPLATE, BOX_CLASSES, BOX_KEY_KEPT_MS, IN_PROGRESS_WAIT_MS,

@@ -482,14 +482,14 @@ fn mint_token(exp: i64) -> String {
 fn reads_the_ms_exp_claim_from_the_real_token_shape() {
     let now = now_ms();
     let exp = now + 60 * 60_000;
-    assert_eq!(preview_token_expiry(&mint_token(exp), now), exp);
+    assert_eq!(preview_token_expiry(&mint_token(exp), now) as i64, exp);
 }
 
 // TS: packages/engine/test/solari-backend.test.ts:314
 #[test]
 fn falls_back_to_the_measured_60_min_ttl_when_the_token_is_opaque() {
     let now = now_ms();
-    assert_eq!(preview_token_expiry("not-a-token-at-all", now), now + PREVIEW_TTL_MS);
+    assert_eq!(preview_token_expiry("not-a-token-at-all", now) as i64, now + PREVIEW_TTL_MS);
     assert_eq!(PREVIEW_TTL_MS, 60 * 60_000);
 }
 

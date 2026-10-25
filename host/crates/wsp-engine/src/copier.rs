@@ -259,6 +259,7 @@ fn node_join(parts: &[&str]) -> String {
         return ".".into();
     }
     let absolute = joined.starts_with('/');
+    let trailing = joined.ends_with('/');
     let mut out: Vec<&str> = Vec::new();
     for segment in joined.split('/') {
         match segment {
@@ -273,11 +274,15 @@ fn node_join(parts: &[&str]) -> String {
             kept => out.push(kept),
         }
     }
-    let body = out.join("/");
+    let mut body = out.join("/");
+    if body.is_empty() && !absolute {
+        body.push('.');
+    }
+    if trailing && !body.is_empty() && !body.ends_with('/') {
+        body.push('/');
+    }
     if absolute {
         format!("/{body}")
-    } else if body.is_empty() {
-        ".".into()
     } else {
         body
     }
