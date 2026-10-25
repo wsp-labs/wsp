@@ -58,3 +58,15 @@ describe("a run's summary, kept to a glance", () => {
     expect(named).toEqual(["FAIL |node|  src/checkout.test.ts > checkout > rounds a refund"]);
   });
 });
+
+describe("the readings the GPUI app's port is held to", () => {
+  it("reads every case in output/readings.json as written there, which the GPUI app's own test reads too", () => {
+    type Reading = { name: string; file?: string; lines?: string[]; summary: object; counts: string[] };
+    const cases = JSON.parse(readFileSync(new URL("./output/readings.json", import.meta.url), "utf8")) as Reading[];
+    expect(cases.length).toBeGreaterThan(20);
+    for (const c of cases) {
+      const s = slateRunSummary(c.file === undefined ? c.lines! : lines(c.file));
+      expect({ summary: s, counts: slateSummaryCounts(s).map(x => x.words) }, c.name).toEqual({ summary: c.summary, counts: c.counts });
+    }
+  });
+});

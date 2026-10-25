@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The pieces a slate is read at a glance by (#2468), drawn against a host started for this binary alone, at the
+//! The pieces a slate is read at a glance by, drawn against a host started for this binary alone, at the
 //! narrow panel's 400 px and a widened 640: a ring and a meter beside numbers as tiles of one strip, progress, choices
 //! as a titled pick card, the stat row's narrow layouts, a decision, and the gallery's renderer findings.
 
@@ -29,6 +29,11 @@ fn bench() -> (&'static Throwaway, &'static PathBuf) {
 
 /// The panel at `width` on a fresh thread holding `slate`, drawn with every formula answered and its widths measured.
 fn open<'a>(cx: &'a mut TestAppContext, slate: &str, width: f32) -> &'a mut VisualTestContext {
+    open_screen(cx, slate, width).1
+}
+
+/// `open`, keeping the screen to read the slate's values from.
+fn open_screen<'a>(cx: &'a mut TestAppContext, slate: &str, width: f32) -> (Entity<SlateScreen>, &'a mut VisualTestContext) {
     let (host, folder) = bench();
     let thread = fixture::staged(host, folder, &fixture::State { name: "glance", file: None });
     fixture::write(host, &thread, slate);
@@ -61,7 +66,36 @@ fn open<'a>(cx: &'a mut TestAppContext, slate: &str, width: f32) -> &'a mut Visu
         cx.update(|window, cx| window.render_frame(cx));
         cx.run_until_parked();
     }
-    cx
+    (screen, cx)
+}
+
+fn value_of(cx: &mut VisualTestContext, screen: &Entity<SlateScreen>, path: &str) -> Option<serde_json::Value> {
+    cx.read(|cx| screen.read(cx).slate().and_then(|s| s.value(path).cloned()))
+}
+
+fn wait_for(
+    cx: &mut VisualTestContext,
+    screen: &Entity<SlateScreen>,
+    what: &str,
+    done: impl Fn(&mut VisualTestContext, &Entity<SlateScreen>) -> bool,
+) {
+    let limit = Instant::now() + Duration::from_secs(30);
+    loop {
+        cx.update(|window, cx| window.render_frame(cx));
+        cx.run_until_parked();
+        if done(cx, screen) {
+            return;
+        }
+        assert!(Instant::now() < limit, "never: {what}");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+fn click_at(cx: &mut VisualTestContext, at: gpui_kit::Point<Pixels>) {
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    cx.simulate_click(at, gpui_kit::Modifiers::none());
+    cx.run_until_parked();
 }
 
 fn at(cx: &mut VisualTestContext, selector: &str) -> Bounds<Pixels> {
@@ -110,6 +144,7 @@ const PROGRESS: &str = r#"<slate title="Progress">
 fn progress_counts_every_row_and_lists_only_the_rows_not_done(cx: &mut TestAppContext) {
     let cx = open(cx, PROGRESS, 400.);
     assert!(drawn(cx, "slate-progress-3/5"), "three of the five rows are done");
+    assert!(drawn(cx, "slate-progress-label"), "the label stands beside the count");
     assert!(drawn(cx, "slate-p-open-Slate") && drawn(cx, "slate-p-open-Browser"), "the two rows not done are listed");
     assert!(!drawn(cx, "slate-p-open-Usage"), "a done row is not");
     let open = [at(cx, "slate-p-open-Slate"), at(cx, "slate-p-open-Browser")];
@@ -127,6 +162,15 @@ fn progress_with_every_row_done_says_all_and_lists_nothing(cx: &mut TestAppConte
     let cx = open(cx, &all, 400.);
     assert!(drawn(cx, "slate-progress-5/5"));
     assert!(!drawn(cx, "slate-p-open-Slate"));
+}
+
+#[gpui_kit::test]
+fn progress_with_no_rows_says_none_yet_alone(cx: &mut TestAppContext) {
+    let none = PROGRESS.replace(r#"items={[{ n: "Settings", in: true }, { n: "Usage", in: true }, { n: "Slate", in: false, why: "strip tiles" }, { n: "Thread", in: true }, { n: "Browser", in: false }]}"#, "items={[]}");
+    assert_ne!(none, PROGRESS);
+    let cx = open(cx, &none, 400.);
+    assert!(drawn(cx, "slate-progress-0/0"));
+    assert!(!drawn(cx, "slate-progress-label"), "None yet, not None yet screens in the app");
 }
 
 #[gpui_kit::test]
@@ -241,18 +285,116 @@ fn a_decision_says_every_answers_note(cx: &mut TestAppContext) {
     assert!(drawn(cx, "slate-answer-note"), "the other answer's note stands under the pick, not in a tooltip");
 }
 
-const HELD: &str = r#"<slate title="Deploy">
+#[gpui_kit::test]
+fn a_decision_marks_the_agents_pick_on_its_answer(cx: &mut TestAppContext) {
+    let cx = open(cx, DECISION, 400.);
+    let decision = at(cx, "slate-decision-open");
+    let mine = at(cx, "slate-answer-mine");
+    // A selector drawn twice reads as the last drawn: Later, the answer after the pick.
+    let later = at(cx, "button");
+    assert!(
+        level(mine.left(), decision.left()) && mine.right() < later.left(),
+        "the pick, Now, the first answer, carries the mark: {mine:?} {later:?}"
+    );
+}
+
+const DECIDE: &str = r#"<slate title="Ship">
+  <value name="ship" start="" />
   <value name="n" start={0} />
   <column>
-    <button id="b" label="Deploy" held="Checks are still running" onPress={set($n, $n + 1)} />
+    <decision id="d" label="Ship it now?" value={$ship} onChange={set($n, $n + 1)}>
+      <option value="now" label="Now" />
+    </decision>
   </column>
 </slate>
 "#;
 
 #[gpui_kit::test]
-fn a_held_button_says_why_under_itself(cx: &mut TestAppContext) {
-    let cx = open(cx, HELD, 400.);
-    assert!(drawn(cx, "slate-held-why"), "the held button says its reason where the person looks, not only on hover");
+fn change_clears_a_decision_and_raises_no_change_for_the_empty_answer(cx: &mut TestAppContext) {
+    let (screen, cx) = open_screen(cx, DECIDE, 400.);
+    // The one answer, then Change: the only button on the page each time.
+    let now = at(cx, "button");
+    click_at(cx, now.center());
+    wait_for(cx, &screen, "Now answered and change raised once", |cx, s| {
+        drawn(cx, "slate-decision-answered") && value_of(cx, s, "$n") == Some(serde_json::json!(1))
+    });
+    let change = at(cx, "button");
+    click_at(cx, change.center());
+    wait_for(cx, &screen, "the answer cleared", |cx, s| {
+        value_of(cx, s, "$ship") == Some(serde_json::json!("")) && drawn(cx, "slate-decision-open")
+    });
+    for _ in 0..25 {
+        cx.run_until_parked();
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(value_of(cx, &screen, "$n"), Some(serde_json::json!(1)), "clearing the answer sends nothing, as the web's decision does");
+}
+
+const HELD_DECISION: &str = r#"<slate title="Ship">
+  <value name="ship" start="" />
+  <column>
+    <decision id="d" label="Ship it now?" value={$ship} held="Checks are still running" onChange={send("Ship", $ship)}>
+      <option value="now" label="Now" />
+      <option value="later" label="Later" />
+    </decision>
+  </column>
+</slate>
+"#;
+
+fn held_decision_says_why(cx: &mut TestAppContext, start: &str, state: &str) {
+    let slate = HELD_DECISION.replace(r#"start="""#, start);
+    let cx = open(cx, &slate, 400.);
+    let decision = at(cx, &format!("slate-decision-{state}"));
+    assert!(drawn(cx, "slate-held-why"), "{state}: the reason a decision is held is drawn, not left to a hover");
+    let why = at(cx, "slate-held-why");
+    let answers = at(cx, "button");
+    assert!(decision.contains(&why.origin) && why.top() >= answers.bottom(), "{state}: under the decision's answers: {why:?} {answers:?}");
+}
+
+#[gpui_kit::test]
+fn a_held_decision_says_why_on_screen_as_a_held_button_does(cx: &mut TestAppContext) {
+    held_decision_says_why(cx, r#"start="""#, "open");
+}
+
+#[gpui_kit::test]
+fn a_held_decision_once_answered_still_says_why_beside_its_change(cx: &mut TestAppContext) {
+    held_decision_says_why(cx, r#"start="now""#, "answered");
+}
+
+const SMALL_CHART: &str = r#"<slate title="Errors">
+  <column>
+    <chart id="ch" label="Errors" height="small" items={[{ t: 1, v: 3 }, { t: 2, v: 9 }, { t: 3, v: 4 }]} x={item.t} value={item.v} />
+  </column>
+</slate>
+"#;
+
+#[gpui_kit::test]
+fn a_small_chart_keeps_its_small_height_in_a_widened_panel(cx: &mut TestAppContext) {
+    let cx = open(cx, SMALL_CHART, 640.);
+    let plot = at(cx, "chart-plot");
+    assert!(plot.size.height <= px(120.), "a small chart's plot fits its 120 px at 640: {plot:?}");
+}
+
+const STRIP_AFTER_NUMBER: &str = r#"<slate title="Strip">
+  <column>
+    <heading id="h" level="section">Build</heading>
+    <number id="n" label="Queue" value={3} />
+    <status id="st" tone="warning">slow</status>
+    <row id="g">
+      <number id="a" label="Passed" value={209} />
+      <number id="b" label="Failed" value={5} />
+    </row>
+  </column>
+</slate>
+"#;
+
+#[gpui_kit::test]
+fn a_strip_after_a_number_and_its_status_is_a_card_of_its_own(cx: &mut TestAppContext) {
+    let cx = open(cx, STRIP_AFTER_NUMBER, 400.);
+    let strip = at(cx, "slate-strip");
+    // The last card drawn holds the strip: its own card starts at the strip, the number's card starts above it.
+    let card = at(cx, "card");
+    assert!(card.contains(&strip.origin) && strip.top() - card.top() < px(4.), "the strip is a card of its own: {strip:?} {card:?}");
 }
 
 const CHART: &str = r#"<slate title="Errors">
@@ -326,7 +468,7 @@ const FACTS: &str = r#"<slate title="Branch">
 "#;
 
 #[gpui_kit::test]
-fn facts_under_480_stand_one_a_line(cx: &mut TestAppContext) {
+fn facts_at_760_share_one_line(cx: &mut TestAppContext) {
     let wide = open(cx, FACTS, 760.);
     let one_line = at(wide, "slate-facts").size.height;
     assert!(one_line <= px(24.), "wide, the facts share a line: {one_line:?}");

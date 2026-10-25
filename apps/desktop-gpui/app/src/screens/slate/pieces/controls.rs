@@ -855,7 +855,8 @@ fn decision(p: &PieceCx, _window: &mut Window, cx: &mut App) -> AnyElement {
     let pal = cx.palette().clone();
     let path = two_way(p.piece.prop("value"));
     let picked = current(p, path.as_deref()).cloned().filter(|v| !v.is_null() && v.as_str() != Some(""));
-    let open = held_by(p.prop("held")).is_none() && path.is_some() && !p.busy();
+    let held = held_by(p.prop("held"));
+    let open = held.is_none() && path.is_some() && !p.busy();
     let list: Vec<Choice> = choices_of(&present(p, "options")).into_iter().take(4).collect();
     let mine = list.iter().find(|c| same(Some(&c.value), p.prop("pick")));
     let answered = list.iter().find(|c| same(Some(&c.value), picked.as_ref()));
@@ -872,9 +873,11 @@ fn decision(p: &PieceCx, _window: &mut Window, cx: &mut App) -> AnyElement {
             .gap(px(10.))
             .child(h_flex().min_w_0().flex_wrap().gap(px(8.)).children(list.iter().enumerate().map(|(ix, c)| {
                 let (picker, value) = (Picker::of(p, path.clone()), c.value.clone());
-                Button::outline(p.el(&format!("answer-{ix}")), c.label.clone())
-                    .held(!open)
-                    .on_click(move |_, _, cx| picker.pick(value.clone(), cx))
+                let suggested = mine.is_some_and(|m| std::ptr::eq(m, c));
+                let answer = Button::outline(p.el(&format!("answer-{ix}")), c.label.clone());
+                let answer = if suggested { answer.edge(pal.foreground.opacity(0.3)) } else { answer };
+                let answer = answer.held(!open).on_click(move |_, _, cx| picker.pick(value.clone(), cx));
+                div().flex_none().when(suggested, |d| d.debug_selector(|| "slate-answer-mine".into())).child(answer)
             })))
             .when(mine.is_some() || others.peek().is_some(), |el| {
                 // The other answers' notes stand under the pick's, quieter, so each answer's cost reads without a hover.
@@ -898,7 +901,8 @@ fn decision(p: &PieceCx, _window: &mut Window, cx: &mut App) -> AnyElement {
             })
             .into_any_element(),
         Some(c) => {
-            let picker = Picker::of(p, path.clone());
+            // Change clears the answer to pick again and sends nothing, as the web's decision does.
+            let picker = Picker { change: false, ..Picker::of(p, path.clone()) };
             h_flex()
                 .min_w_0()
                 .items_center()
@@ -920,6 +924,14 @@ fn decision(p: &PieceCx, _window: &mut Window, cx: &mut App) -> AnyElement {
         .debug_selector(move || format!("slate-decision-{}", if answered.is_some() { "answered" } else { "open" }))
         .child(title)
         .child(body)
+        .children(held.map(|why| {
+            div()
+                .debug_selector(|| "slate-held-why".into())
+                .text_size(px(12.))
+                .line_height(px(16.))
+                .text_color(pal.muted_foreground)
+                .child(why)
+        }))
         .children(outcome(p.outcome(), cx))
         .into_any_element()
 }

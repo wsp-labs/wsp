@@ -34,11 +34,21 @@ pub fn draw(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement
     }
 }
 
-/// A figure written as text, value="90", read as the number it spells (`slateFigureValue`).
+/// A figure written as text, value="90", read as the number it spells (`slateFigureValue`); other text stays text.
 fn figure_value(v: Option<&Value>) -> Option<Value> {
     match v {
-        Some(Value::String(s)) => s.trim().parse::<f64>().ok().map(Value::from).or_else(|| Some(Value::String(s.clone()))),
+        Some(Value::String(s)) if spells_a_number(s.trim()) => s.trim().parse::<f64>().ok().map(Value::from),
         other => other.filter(|v| !v.is_null()).cloned(),
+    }
+}
+
+/// `^-?\d+(\.\d+)?$`: "1e3", "+5", ".5" and "NaN" are not figures.
+fn spells_a_number(s: &str) -> bool {
+    let digits = |d: &str| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit());
+    let s = s.strip_prefix('-').unwrap_or(s);
+    match s.split_once('.') {
+        Some((whole, part)) => digits(whole) && digits(part),
+        None => digits(s),
     }
 }
 
@@ -65,19 +75,13 @@ fn ring(share: f64, ink: Hsla) -> gpui_kit::Div {
         })
 }
 
-/// How a stat row stands at its width: every tile across, two a row (a third spanning), or one line a tile.
+/// How a stat row stands at its width: every tile across, two a row, or one line a tile.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tiles {
     Across,
     Pairs,
     Lines,
 }
-
-/// Three tiles under 480 px two a row with the third spanning, where set; one line a tile otherwise. Held for the
-/// owner's ruling between the two (#2439).
-#[derive(Clone, Copy, Default)]
-pub struct ThreeAsPairs(pub bool);
-impl gpui_kit::Global for ThreeAsPairs {}
 
 /// The widths from which three or four tiles stand across, `stats.tsx`'s `ACROSS` steps: 30 to 46 rem.
 const ACROSS_FROM: [f32; 5] = [480., 544., 608., 672., 736.];
@@ -100,12 +104,12 @@ pub fn stats_fit(count: usize, need: impl Fn(f32) -> f32) -> ((f32, f32), Option
 }
 
 /// The ruling on a stat row by its width: two tiles always two a row; three and four across from `across`, and under
-/// it four two a row and three as lines, or two a row with the third spanning where `pairs`.
-pub fn tiles_at(count: usize, width: Option<f32>, across: Option<f32>, pairs: bool) -> Tiles {
+/// it four two a row and three as lines.
+pub fn tiles_at(count: usize, width: Option<f32>, across: Option<f32>) -> Tiles {
     let wide = count <= 2 || width.zip(across).is_some_and(|(w, a)| w >= a);
     match () {
         _ if wide => Tiles::Across,
-        _ if count == 3 && !pairs => Tiles::Lines,
+        _ if count == 3 => Tiles::Lines,
         _ => Tiles::Pairs,
     }
 }
@@ -176,8 +180,7 @@ fn stats(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
     };
     let (size, across) = stats_fit(tiles.len(), need);
     let (width, probe) = layout::measured(p.el("stats-width"), window, cx);
-    let pairs = cx.try_global::<ThreeAsPairs>().is_some_and(|t| t.0);
-    let arrangement = tiles_at(tiles.len(), width.map(f32::from), across, pairs);
+    let arrangement = tiles_at(tiles.len(), width.map(f32::from), across);
     let pad = if arrangement == Tiles::Lines || tiles.len() <= 2 { INSET } else { px(12.) };
     let rule = pal.border.opacity(0.5);
     let mut cells: Vec<AnyElement> = tiles
@@ -657,8 +660,20 @@ mod tests {
 
     use gpui_kit::{div, prelude::*, px, size, Context, TestAppContext, Window};
 
-    use super::{digit_roll, line_points, stats_fit, tiles_at, Tiles};
+    use serde_json::json;
+
+    use super::{digit_roll, figure_value, line_points, stats_fit, tiles_at, Tiles};
     use crate::ui::{self, Side};
+
+    #[test]
+    fn a_figure_written_as_text_reads_as_the_protocol_reads_it() {
+        assert_eq!(figure_value(Some(&json!(" 90 "))), Some(json!(90.)));
+        assert_eq!(figure_value(Some(&json!("-2.5"))), Some(json!(-2.5)));
+        for text in ["1e3", "+5", ".5", "5.", "NaN", "inf", "-", "1,000"] {
+            assert_eq!(figure_value(Some(&json!(text))), Some(json!(text)), "{text} stays text");
+        }
+        assert_eq!(figure_value(Some(&json!(null))), None);
+    }
 
     struct Figure(Rc<RefCell<&'static str>>);
 
@@ -701,15 +716,14 @@ mod tests {
 
     #[test]
     fn a_stat_row_takes_its_tiles_a_row_by_its_own_width() {
-        assert_eq!(tiles_at(2, Some(366.), None, false), Tiles::Across, "two tiles stand two a row however narrow");
-        assert_eq!(tiles_at(3, Some(366.), Some(480.), false), Tiles::Lines, "three under 480 px are one line each");
-        assert_eq!(tiles_at(3, Some(366.), Some(480.), true), Tiles::Pairs, "or two a row with the third spanning");
-        assert_eq!(tiles_at(3, Some(479.), Some(480.), false), Tiles::Lines);
-        assert_eq!(tiles_at(3, Some(480.), Some(480.), false), Tiles::Across);
-        assert_eq!(tiles_at(4, Some(543.), Some(544.), false), Tiles::Pairs, "four under 544 px are two a row");
-        assert_eq!(tiles_at(4, Some(608.), Some(544.), false), Tiles::Across);
-        assert_eq!(tiles_at(4, Some(1000.), None, false), Tiles::Pairs, "a row no width holds across stays two a row");
-        assert_eq!(tiles_at(3, None, Some(480.), false), Tiles::Lines, "a row not measured yet draws narrow");
+        assert_eq!(tiles_at(2, Some(366.), None), Tiles::Across, "two tiles stand two a row however narrow");
+        assert_eq!(tiles_at(3, Some(366.), Some(480.)), Tiles::Lines, "three under 480 px are one line each");
+        assert_eq!(tiles_at(3, Some(479.), Some(480.)), Tiles::Lines);
+        assert_eq!(tiles_at(3, Some(480.), Some(480.)), Tiles::Across);
+        assert_eq!(tiles_at(4, Some(543.), Some(544.)), Tiles::Pairs, "four under 544 px are two a row");
+        assert_eq!(tiles_at(4, Some(608.), Some(544.)), Tiles::Across);
+        assert_eq!(tiles_at(4, Some(1000.), None), Tiles::Pairs, "a row no width holds across stays two a row");
+        assert_eq!(tiles_at(3, None, Some(480.)), Tiles::Lines, "a row not measured yet draws narrow");
     }
 
     #[test]
