@@ -1,0 +1,936 @@
+[
+ {
+  "type": "AccessChoice",
+  "case": "full",
+  "input": "plan",
+  "output": "\"plan\""
+ },
+ {
+  "type": "AccessChoice",
+  "case": "minimal",
+  "input": "ask",
+  "output": "\"ask\""
+ },
+ {
+  "type": "AccessChoice",
+  "case": "value auto-edit",
+  "input": "auto-edit",
+  "output": "\"auto-edit\""
+ },
+ {
+  "type": "AccessChoice",
+  "case": "value full",
+  "input": "full",
+  "output": "\"full\""
+ },
+ {
+  "type": "AccessChoice",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentDefaults",
+  "case": "full",
+  "input": {
+   "model": "text é",
+   "effort": "text é",
+   "access": "plan",
+   "models": {
+    "hide": [
+     "text é"
+    ],
+    "order": [
+     "text é"
+    ],
+    "custom": [
+     "text é"
+    ]
+   }
+  },
+  "output": "{\"model\":\"text é\",\"effort\":\"text é\",\"access\":\"plan\",\"models\":{\"hide\":[\"text é\"],\"order\":[\"text é\"],\"custom\":[\"text é\"]}}"
+ },
+ {
+  "type": "AgentDefaults",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "AgentDefaults",
+  "case": "nulls",
+  "input": {
+   "model": "s",
+   "effort": "s",
+   "access": "ask",
+   "models": {}
+  },
+  "output": "{\"model\":\"s\",\"effort\":\"s\",\"access\":\"ask\",\"models\":{}}"
+ },
+ {
+  "type": "AgentDefaults",
+  "case": "an unknown key",
+  "input": {
+   "model": "text é",
+   "effort": "text é",
+   "access": "plan",
+   "models": {
+    "hide": [
+     "text é"
+    ],
+    "order": [
+     "text é"
+    ],
+    "custom": [
+     "text é"
+    ]
+   },
+   "unexpectedKey": 1
+  },
+  "issue": {
+   "code": "unrecognized_keys",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentDefaults",
+  "case": "access: not one of its values",
+  "input": {
+   "model": "text é",
+   "effort": "text é",
+   "access": "not-a-value",
+   "models": {
+    "hide": [
+     "text é"
+    ],
+    "order": [
+     "text é"
+    ],
+    "custom": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "access"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentDefaultsPatch",
+  "case": "full",
+  "input": {
+   "model": "text é",
+   "effort": "text é",
+   "access": "plan",
+   "models": {
+    "hide": [
+     "text é"
+    ],
+    "order": [
+     "text é"
+    ],
+    "custom": [
+     "text é"
+    ]
+   }
+  },
+  "output": "{\"model\":\"text é\",\"effort\":\"text é\",\"access\":\"plan\",\"models\":{\"hide\":[\"text é\"],\"order\":[\"text é\"],\"custom\":[\"text é\"]}}"
+ },
+ {
+  "type": "AgentDefaultsPatch",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "AgentDefaultsPatch",
+  "case": "nulls",
+  "input": {
+   "model": null,
+   "effort": null,
+   "access": null,
+   "models": null
+  },
+  "output": "{\"model\":null,\"effort\":null,\"access\":null,\"models\":null}"
+ },
+ {
+  "type": "AgentDefaultsPatch",
+  "case": "an unknown key",
+  "input": {
+   "model": "text é",
+   "effort": "text é",
+   "access": "plan",
+   "models": {
+    "hide": [
+     "text é"
+    ],
+    "order": [
+     "text é"
+    ],
+    "custom": [
+     "text é"
+    ]
+   },
+   "unexpectedKey": 1
+  },
+  "issue": {
+   "code": "unrecognized_keys",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentDefaultsPatch",
+  "case": "access: not one of its values",
+  "input": {
+   "model": "text é",
+   "effort": "text é",
+   "access": "not-a-value",
+   "models": {
+    "hide": [
+     "text é"
+    ],
+    "order": [
+     "text é"
+    ],
+    "custom": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "access"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentSetupSet",
+  "case": "full",
+  "input": {
+   "on": true,
+   "program": "text é",
+   "configDir": "text é",
+   "args": [
+    "text é"
+   ],
+   "env": {
+    "k": "text é"
+   }
+  },
+  "output": "{\"on\":true,\"program\":\"text é\",\"configDir\":\"text é\",\"args\":[\"text é\"],\"env\":{\"k\":\"text é\"}}"
+ },
+ {
+  "type": "AgentSetupSet",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "AgentSetupSet",
+  "case": "nulls",
+  "input": {
+   "on": false,
+   "program": null,
+   "configDir": null,
+   "args": null,
+   "env": {}
+  },
+  "output": "{\"on\":false,\"program\":null,\"configDir\":null,\"args\":null,\"env\":{}}"
+ },
+ {
+  "type": "AgentSetupSet",
+  "case": "an unknown key",
+  "input": {
+   "on": true,
+   "program": "text é",
+   "configDir": "text é",
+   "args": [
+    "text é"
+   ],
+   "env": {
+    "k": "text é"
+   },
+   "unexpectedKey": 1
+  },
+  "issue": {
+   "code": "unrecognized_keys",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentSetupSet",
+  "case": "on: not a boolean",
+  "input": {
+   "on": "yes",
+   "program": "text é",
+   "configDir": "text é",
+   "args": [
+    "text é"
+   ],
+   "env": {
+    "k": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "on"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentSetupSet",
+  "case": "program: shorter than 1",
+  "input": {
+   "on": true,
+   "program": "",
+   "configDir": "text é",
+   "args": [
+    "text é"
+   ],
+   "env": {
+    "k": "text é"
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "program"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "AgentSetupSet",
+  "case": "configDir: shorter than 1",
+  "input": {
+   "on": true,
+   "program": "text é",
+   "configDir": "",
+   "args": [
+    "text é"
+   ],
+   "env": {
+    "k": "text é"
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "configDir"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "AgentSetupView",
+  "case": "full",
+  "input": {
+   "on": true,
+   "program": "text é",
+   "configDir": "text é",
+   "args": [
+    "text é"
+   ],
+   "envNames": [
+    "text é"
+   ]
+  },
+  "output": "{\"on\":true,\"program\":\"text é\",\"configDir\":\"text é\",\"args\":[\"text é\"],\"envNames\":[\"text é\"]}"
+ },
+ {
+  "type": "AgentSetupView",
+  "case": "minimal",
+  "input": {
+   "on": false,
+   "envNames": []
+  },
+  "output": "{\"on\":false,\"envNames\":[]}"
+ },
+ {
+  "type": "AgentSetupView",
+  "case": "nulls",
+  "input": {
+   "on": false,
+   "program": "s",
+   "configDir": "s",
+   "args": [],
+   "envNames": []
+  },
+  "output": "{\"on\":false,\"program\":\"s\",\"configDir\":\"s\",\"args\":[],\"envNames\":[]}"
+ },
+ {
+  "type": "AgentSetupView",
+  "case": "an unknown key",
+  "input": {
+   "on": true,
+   "program": "text é",
+   "configDir": "text é",
+   "args": [
+    "text é"
+   ],
+   "envNames": [
+    "text é"
+   ],
+   "unexpectedKey": 1
+  },
+  "issue": {
+   "code": "unrecognized_keys",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentSetupView",
+  "case": "missing on",
+  "input": {
+   "program": "text é",
+   "configDir": "text é",
+   "args": [
+    "text é"
+   ],
+   "envNames": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "on"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentSetupView",
+  "case": "on: not a boolean",
+  "input": {
+   "on": "yes",
+   "program": "text é",
+   "configDir": "text é",
+   "args": [
+    "text é"
+   ],
+   "envNames": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "on"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "DefaultFrom",
+  "case": "full",
+  "input": "catalog",
+  "output": "\"catalog\""
+ },
+ {
+  "type": "DefaultFrom",
+  "case": "minimal",
+  "input": "named",
+  "output": "\"named\""
+ },
+ {
+  "type": "DefaultFrom",
+  "case": "value project",
+  "input": "project",
+  "output": "\"project\""
+ },
+ {
+  "type": "DefaultFrom",
+  "case": "value default",
+  "input": "default",
+  "output": "\"default\""
+ },
+ {
+  "type": "DefaultFrom",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "EnvName",
+  "case": "full",
+  "input": "a",
+  "output": "\"a\""
+ },
+ {
+  "type": "EnvName",
+  "case": "minimal",
+  "input": "s",
+  "output": "\"s\""
+ },
+ {
+  "type": "ModelPicker",
+  "case": "full",
+  "input": {
+   "hide": [
+    "text é"
+   ],
+   "order": [
+    "text é"
+   ],
+   "custom": [
+    "text é"
+   ]
+  },
+  "output": "{\"hide\":[\"text é\"],\"order\":[\"text é\"],\"custom\":[\"text é\"]}"
+ },
+ {
+  "type": "ModelPicker",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "ModelPicker",
+  "case": "nulls",
+  "input": {
+   "hide": [],
+   "order": [],
+   "custom": []
+  },
+  "output": "{\"hide\":[],\"order\":[],\"custom\":[]}"
+ },
+ {
+  "type": "ModelPicker",
+  "case": "an unknown key",
+  "input": {
+   "hide": [
+    "text é"
+   ],
+   "order": [
+    "text é"
+   ],
+   "custom": [
+    "text é"
+   ],
+   "unexpectedKey": 1
+  },
+  "issue": {
+   "code": "unrecognized_keys",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectOverrides",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "access": "plan",
+   "afterWorktree": "text é",
+   "trackers": [
+    "owner/repo"
+   ]
+  },
+  "output": "{\"agent\":\"text é\",\"model\":\"text é\",\"effort\":\"text é\",\"access\":\"plan\",\"afterWorktree\":\"text é\",\"trackers\":[\"owner/repo\"]}"
+ },
+ {
+  "type": "ProjectOverrides",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "ProjectOverrides",
+  "case": "nulls",
+  "input": {
+   "agent": "s",
+   "model": "s",
+   "effort": "s",
+   "access": "ask",
+   "afterWorktree": "s",
+   "trackers": []
+  },
+  "output": "{\"agent\":\"s\",\"model\":\"s\",\"effort\":\"s\",\"access\":\"ask\",\"afterWorktree\":\"s\",\"trackers\":[]}"
+ },
+ {
+  "type": "ProjectOverrides",
+  "case": "an unknown key",
+  "input": {
+   "agent": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "access": "plan",
+   "afterWorktree": "text é",
+   "trackers": [
+    "owner/repo"
+   ],
+   "unexpectedKey": 1
+  },
+  "issue": {
+   "code": "unrecognized_keys",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectOverrides",
+  "case": "access: not one of its values",
+  "input": {
+   "agent": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "access": "not-a-value",
+   "afterWorktree": "text é",
+   "trackers": [
+    "owner/repo"
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "access"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectOverrides",
+  "case": "afterWorktree: shorter than 1",
+  "input": {
+   "agent": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "access": "plan",
+   "afterWorktree": "",
+   "trackers": [
+    "owner/repo"
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "afterWorktree"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ProjectOverridesPatch",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "access": "plan",
+   "afterWorktree": "text é",
+   "trackers": [
+    "owner/repo"
+   ]
+  },
+  "output": "{\"agent\":\"text é\",\"model\":\"text é\",\"effort\":\"text é\",\"access\":\"plan\",\"afterWorktree\":\"text é\",\"trackers\":[\"owner/repo\"]}"
+ },
+ {
+  "type": "ProjectOverridesPatch",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "ProjectOverridesPatch",
+  "case": "nulls",
+  "input": {
+   "agent": null,
+   "model": null,
+   "effort": null,
+   "access": null,
+   "afterWorktree": null,
+   "trackers": null
+  },
+  "output": "{\"agent\":null,\"model\":null,\"effort\":null,\"access\":null,\"afterWorktree\":null,\"trackers\":null}"
+ },
+ {
+  "type": "ProjectOverridesPatch",
+  "case": "an unknown key",
+  "input": {
+   "agent": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "access": "plan",
+   "afterWorktree": "text é",
+   "trackers": [
+    "owner/repo"
+   ],
+   "unexpectedKey": 1
+  },
+  "issue": {
+   "code": "unrecognized_keys",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectOverridesPatch",
+  "case": "access: not one of its values",
+  "input": {
+   "agent": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "access": "not-a-value",
+   "afterWorktree": "text é",
+   "trackers": [
+    "owner/repo"
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "access"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectOverridesPatch",
+  "case": "afterWorktree: shorter than 1",
+  "input": {
+   "agent": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "access": "plan",
+   "afterWorktree": "",
+   "trackers": [
+    "owner/repo"
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "afterWorktree"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ResolvedAccess",
+  "case": "full",
+  "input": {
+   "value": "plan",
+   "mode": "text é",
+   "from": "catalog"
+  },
+  "output": "{\"value\":\"plan\",\"mode\":\"text é\",\"from\":\"catalog\"}"
+ },
+ {
+  "type": "ResolvedAccess",
+  "case": "minimal",
+  "input": {
+   "value": "ask",
+   "mode": "s",
+   "from": "named"
+  },
+  "output": "{\"value\":\"ask\",\"mode\":\"s\",\"from\":\"named\"}"
+ },
+ {
+  "type": "ResolvedAccess",
+  "case": "missing value",
+  "input": {
+   "mode": "text é",
+   "from": "catalog"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "value"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ResolvedAccess",
+  "case": "value: not one of its values",
+  "input": {
+   "value": "not-a-value",
+   "mode": "text é",
+   "from": "catalog"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "value"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ResolvedAccess",
+  "case": "from: not one of its values",
+  "input": {
+   "value": "plan",
+   "mode": "text é",
+   "from": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "from"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ResolvedPick",
+  "case": "full",
+  "input": {
+   "value": "text é",
+   "from": "catalog"
+  },
+  "output": "{\"value\":\"text é\",\"from\":\"catalog\"}"
+ },
+ {
+  "type": "ResolvedPick",
+  "case": "minimal",
+  "input": {
+   "value": "s",
+   "from": "named"
+  },
+  "output": "{\"value\":\"s\",\"from\":\"named\"}"
+ },
+ {
+  "type": "ResolvedPick",
+  "case": "missing value",
+  "input": {
+   "from": "catalog"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "value"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ResolvedPick",
+  "case": "from: not one of its values",
+  "input": {
+   "value": "text é",
+   "from": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "from"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadDefaults",
+  "case": "full",
+  "input": {
+   "agent": {
+    "value": "text é",
+    "from": "catalog"
+   },
+   "model": {
+    "value": "text é",
+    "from": "catalog"
+   },
+   "effort": {
+    "value": "text é",
+    "from": "catalog"
+   },
+   "access": {
+    "value": "plan",
+    "mode": "text é",
+    "from": "catalog"
+   }
+  },
+  "output": "{\"agent\":{\"value\":\"text é\",\"from\":\"catalog\"},\"model\":{\"value\":\"text é\",\"from\":\"catalog\"},\"effort\":{\"value\":\"text é\",\"from\":\"catalog\"},\"access\":{\"value\":\"plan\",\"mode\":\"text é\",\"from\":\"catalog\"}}"
+ },
+ {
+  "type": "ThreadDefaults",
+  "case": "minimal",
+  "input": {
+   "agent": {
+    "value": "s",
+    "from": "named"
+   }
+  },
+  "output": "{\"agent\":{\"value\":\"s\",\"from\":\"named\"}}"
+ },
+ {
+  "type": "ThreadDefaults",
+  "case": "nulls",
+  "input": {
+   "agent": {
+    "value": "s",
+    "from": "named"
+   },
+   "model": {
+    "value": "s",
+    "from": "named"
+   },
+   "effort": {
+    "value": "s",
+    "from": "named"
+   },
+   "access": {
+    "value": "ask",
+    "mode": "s",
+    "from": "named"
+   }
+  },
+  "output": "{\"agent\":{\"value\":\"s\",\"from\":\"named\"},\"model\":{\"value\":\"s\",\"from\":\"named\"},\"effort\":{\"value\":\"s\",\"from\":\"named\"},\"access\":{\"value\":\"ask\",\"mode\":\"s\",\"from\":\"named\"}}"
+ },
+ {
+  "type": "ThreadDefaults",
+  "case": "missing agent",
+  "input": {
+   "model": {
+    "value": "text é",
+    "from": "catalog"
+   },
+   "effort": {
+    "value": "text é",
+    "from": "catalog"
+   },
+   "access": {
+    "value": "plan",
+    "mode": "text é",
+    "from": "catalog"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TrackerRepo",
+  "case": "full",
+  "input": "owner/repo",
+  "output": "\"owner/repo\""
+ }
+]

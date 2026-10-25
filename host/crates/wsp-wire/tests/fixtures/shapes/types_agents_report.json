@@ -1,0 +1,3202 @@
+[
+ {
+  "type": "AgentRoad",
+  "case": "full",
+  "input": "none",
+  "output": "\"none\""
+ },
+ {
+  "type": "AgentRoad",
+  "case": "minimal",
+  "input": "wsp",
+  "output": "\"wsp\""
+ },
+ {
+  "type": "AgentRoad",
+  "case": "value own",
+  "input": "own",
+  "output": "\"own\""
+ },
+ {
+  "type": "AgentRoad",
+  "case": "value shim",
+  "input": "shim",
+  "output": "\"shim\""
+ },
+ {
+  "type": "AgentRoad",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentRow",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "installed": true,
+   "version": "text é",
+   "latest": "text é",
+   "pinned": "text é",
+   "road": "none",
+   "installsOnFirstRun": true,
+   "versionUnread": true,
+   "path": "text é",
+   "via": "text é",
+   "signIn": "unknown",
+   "signInRoad": "none",
+   "wspTools": true,
+   "signInDetail": "text é",
+   "signInKind": "oauth",
+   "signInPlan": "text é",
+   "update": {
+    "to": "text é",
+    "command": "text é"
+   },
+   "setup": {
+    "on": true,
+    "program": "text é",
+    "configDir": "text é",
+    "args": [
+     "text é"
+    ],
+    "envNames": [
+     "text é"
+    ]
+   }
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"installed\":true,\"version\":\"text é\",\"latest\":\"text é\",\"pinned\":\"text é\",\"road\":\"none\",\"installsOnFirstRun\":true,\"versionUnread\":true,\"path\":\"text é\",\"via\":\"text é\",\"signIn\":\"unknown\",\"signInRoad\":\"none\",\"wspTools\":true,\"signInDetail\":\"text é\",\"signInKind\":\"oauth\",\"signInPlan\":\"text é\",\"update\":{\"to\":\"text é\",\"command\":\"text é\"},\"setup\":{\"on\":true,\"program\":\"text é\",\"configDir\":\"text é\",\"args\":[\"text é\"],\"envNames\":[\"text é\"]}}"
+ },
+ {
+  "type": "AgentRow",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "installed": false,
+   "road": "wsp",
+   "signIn": "signed-in",
+   "signInRoad": "device",
+   "wspTools": false
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"installed\":false,\"road\":\"wsp\",\"signIn\":\"signed-in\",\"signInRoad\":\"device\",\"wspTools\":false}"
+ },
+ {
+  "type": "AgentRow",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "installed": false,
+   "version": "s",
+   "latest": "s",
+   "pinned": "s",
+   "road": "wsp",
+   "installsOnFirstRun": true,
+   "versionUnread": true,
+   "path": "s",
+   "via": "s",
+   "signIn": "signed-in",
+   "signInRoad": "device",
+   "wspTools": false,
+   "signInDetail": "s",
+   "signInKind": "api-key",
+   "signInPlan": "s",
+   "update": {
+    "to": "s",
+    "command": "s"
+   },
+   "setup": {
+    "on": false,
+    "envNames": []
+   }
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"installed\":false,\"version\":\"s\",\"latest\":\"s\",\"pinned\":\"s\",\"road\":\"wsp\",\"installsOnFirstRun\":true,\"versionUnread\":true,\"path\":\"s\",\"via\":\"s\",\"signIn\":\"signed-in\",\"signInRoad\":\"device\",\"wspTools\":false,\"signInDetail\":\"s\",\"signInKind\":\"api-key\",\"signInPlan\":\"s\",\"update\":{\"to\":\"s\",\"command\":\"s\"},\"setup\":{\"on\":false,\"envNames\":[]}}"
+ },
+ {
+  "type": "AgentRow",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "installed": true,
+   "version": "text é",
+   "latest": "text é",
+   "pinned": "text é",
+   "road": "none",
+   "installsOnFirstRun": true,
+   "versionUnread": true,
+   "path": "text é",
+   "via": "text é",
+   "signIn": "unknown",
+   "signInRoad": "none",
+   "wspTools": true,
+   "signInDetail": "text é",
+   "signInKind": "oauth",
+   "signInPlan": "text é",
+   "update": {
+    "to": "text é",
+    "command": "text é"
+   },
+   "setup": {
+    "on": true,
+    "program": "text é",
+    "configDir": "text é",
+    "args": [
+     "text é"
+    ],
+    "envNames": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentRow",
+  "case": "installed: not a boolean",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "installed": "yes",
+   "version": "text é",
+   "latest": "text é",
+   "pinned": "text é",
+   "road": "none",
+   "installsOnFirstRun": true,
+   "versionUnread": true,
+   "path": "text é",
+   "via": "text é",
+   "signIn": "unknown",
+   "signInRoad": "none",
+   "wspTools": true,
+   "signInDetail": "text é",
+   "signInKind": "oauth",
+   "signInPlan": "text é",
+   "update": {
+    "to": "text é",
+    "command": "text é"
+   },
+   "setup": {
+    "on": true,
+    "program": "text é",
+    "configDir": "text é",
+    "args": [
+     "text é"
+    ],
+    "envNames": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "installed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentRow",
+  "case": "road: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "installed": true,
+   "version": "text é",
+   "latest": "text é",
+   "pinned": "text é",
+   "road": "not-a-value",
+   "installsOnFirstRun": true,
+   "versionUnread": true,
+   "path": "text é",
+   "via": "text é",
+   "signIn": "unknown",
+   "signInRoad": "none",
+   "wspTools": true,
+   "signInDetail": "text é",
+   "signInKind": "oauth",
+   "signInPlan": "text é",
+   "update": {
+    "to": "text é",
+    "command": "text é"
+   },
+   "setup": {
+    "on": true,
+    "program": "text é",
+    "configDir": "text é",
+    "args": [
+     "text é"
+    ],
+    "envNames": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "road"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentRow",
+  "case": "signInRoad: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "installed": true,
+   "version": "text é",
+   "latest": "text é",
+   "pinned": "text é",
+   "road": "none",
+   "installsOnFirstRun": true,
+   "versionUnread": true,
+   "path": "text é",
+   "via": "text é",
+   "signIn": "unknown",
+   "signInRoad": "not-a-value",
+   "wspTools": true,
+   "signInDetail": "text é",
+   "signInKind": "oauth",
+   "signInPlan": "text é",
+   "update": {
+    "to": "text é",
+    "command": "text é"
+   },
+   "setup": {
+    "on": true,
+    "program": "text é",
+    "configDir": "text é",
+    "args": [
+     "text é"
+    ],
+    "envNames": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "signInRoad"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentRow",
+  "case": "wspTools: not a boolean",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "installed": true,
+   "version": "text é",
+   "latest": "text é",
+   "pinned": "text é",
+   "road": "none",
+   "installsOnFirstRun": true,
+   "versionUnread": true,
+   "path": "text é",
+   "via": "text é",
+   "signIn": "unknown",
+   "signInRoad": "none",
+   "wspTools": "yes",
+   "signInDetail": "text é",
+   "signInKind": "oauth",
+   "signInPlan": "text é",
+   "update": {
+    "to": "text é",
+    "command": "text é"
+   },
+   "setup": {
+    "on": true,
+    "program": "text é",
+    "configDir": "text é",
+    "args": [
+     "text é"
+    ],
+    "envNames": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "wspTools"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentRow",
+  "case": "signInKind: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "installed": true,
+   "version": "text é",
+   "latest": "text é",
+   "pinned": "text é",
+   "road": "none",
+   "installsOnFirstRun": true,
+   "versionUnread": true,
+   "path": "text é",
+   "via": "text é",
+   "signIn": "unknown",
+   "signInRoad": "none",
+   "wspTools": true,
+   "signInDetail": "text é",
+   "signInKind": "not-a-value",
+   "signInPlan": "text é",
+   "update": {
+    "to": "text é",
+    "command": "text é"
+   },
+   "setup": {
+    "on": true,
+    "program": "text é",
+    "configDir": "text é",
+    "args": [
+     "text é"
+    ],
+    "envNames": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "signInKind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentSignInKind",
+  "case": "full",
+  "input": "oauth",
+  "output": "\"oauth\""
+ },
+ {
+  "type": "AgentSignInKind",
+  "case": "minimal",
+  "input": "api-key",
+  "output": "\"api-key\""
+ },
+ {
+  "type": "AgentSignInKind",
+  "case": "value subscription",
+  "input": "subscription",
+  "output": "\"subscription\""
+ },
+ {
+  "type": "AgentSignInKind",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentSignInState",
+  "case": "full",
+  "input": "none",
+  "output": "\"none\""
+ },
+ {
+  "type": "AgentSignInState",
+  "case": "minimal",
+  "input": "signed-in",
+  "output": "\"signed-in\""
+ },
+ {
+  "type": "AgentSignInState",
+  "case": "value vault-key",
+  "input": "vault-key",
+  "output": "\"vault-key\""
+ },
+ {
+  "type": "AgentSignInState",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentsChangedEvent",
+  "case": "full",
+  "input": {
+   "type": "agents.changed",
+   "target": {
+    "workspaceId": "text é"
+   }
+  },
+  "output": "{\"target\":{\"workspaceId\":\"text é\"}}",
+  "tag": {
+   "key": "type",
+   "value": "agents.changed"
+  }
+ },
+ {
+  "type": "AgentsChangedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "agents.changed"
+  },
+  "output": "{}",
+  "tag": {
+   "key": "type",
+   "value": "agents.changed"
+  }
+ },
+ {
+  "type": "AgentsChangedEvent",
+  "case": "nulls",
+  "input": {
+   "type": "agents.changed",
+   "target": {
+    "placeId": "s"
+   }
+  },
+  "output": "{\"target\":{\"placeId\":\"s\"}}",
+  "tag": {
+   "key": "type",
+   "value": "agents.changed"
+  }
+ },
+ {
+  "type": "AgentsProject",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "path": "text é"
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\"}"
+ },
+ {
+  "type": "AgentsProject",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "path": "s"
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\"}"
+ },
+ {
+  "type": "AgentsProject",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "path": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentsReport",
+  "case": "full",
+  "input": {
+   "target": {
+    "workspaceId": "text é"
+   },
+   "home": "text é",
+   "user": "text é",
+   "readAt": "text é",
+   "stale": "napping",
+   "pauseMode": "disk",
+   "agents": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "installed": true,
+     "version": "text é",
+     "latest": "text é",
+     "pinned": "text é",
+     "road": "none",
+     "installsOnFirstRun": true,
+     "versionUnread": true,
+     "path": "text é",
+     "via": "text é",
+     "signIn": "unknown",
+     "signInRoad": "none",
+     "wspTools": true,
+     "signInDetail": "text é",
+     "signInKind": "oauth",
+     "signInPlan": "text é",
+     "update": {
+      "to": "text é",
+      "command": "text é"
+     },
+     "setup": {
+      "on": true,
+      "program": "text é",
+      "configDir": "text é",
+      "args": [],
+      "envNames": []
+     }
+    }
+   ],
+   "skills": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "paths": [
+      {
+       "path": "text é"
+      }
+     ],
+     "scope": "plugin",
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "plugin": "text é"
+    }
+   ],
+   "servers": [
+    {
+     "agent": "text é",
+     "name": "text é",
+     "scope": "project",
+     "file": "text é",
+     "launch": true,
+     "transport": {
+      "kind": "http",
+      "host": "text é"
+     },
+     "envNames": [
+      "text é"
+     ],
+     "auth": "unknown",
+     "enabled": true,
+     "inRecipe": true,
+     "tools": [
+      {
+       "name": "text é"
+      }
+     ],
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "signInLine": "text é",
+     "off": "text é"
+    }
+   ],
+   "plugins": [
+    {
+     "agent": "text é",
+     "id": "text é",
+     "name": "text é",
+     "marketplace": "text é",
+     "version": "text é",
+     "scope": "local",
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "on": true,
+     "missing": "uninstalled",
+     "path": "text é",
+     "setIn": "text é",
+     "description": "text é",
+     "source": "text é",
+     "brings": {
+      "skills": [],
+      "commands": [],
+      "subagents": [],
+      "hooks": [],
+      "servers": [],
+      "lsp": [],
+      "apps": []
+     }
+    }
+   ],
+   "refused": [
+    "text é"
+   ],
+   "projects": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "path": "text é"
+    }
+   ],
+   "reach": "none"
+  },
+  "output": "{\"target\":{\"workspaceId\":\"text é\"},\"home\":\"text é\",\"user\":\"text é\",\"readAt\":\"text é\",\"stale\":\"napping\",\"pauseMode\":\"disk\",\"agents\":[{\"id\":\"text é\",\"name\":\"text é\",\"installed\":true,\"version\":\"text é\",\"latest\":\"text é\",\"pinned\":\"text é\",\"road\":\"none\",\"installsOnFirstRun\":true,\"versionUnread\":true,\"path\":\"text é\",\"via\":\"text é\",\"signIn\":\"unknown\",\"signInRoad\":\"none\",\"wspTools\":true,\"signInDetail\":\"text é\",\"signInKind\":\"oauth\",\"signInPlan\":\"text é\",\"update\":{\"to\":\"text é\",\"command\":\"text é\"},\"setup\":{\"on\":true,\"program\":\"text é\",\"configDir\":\"text é\",\"args\":[],\"envNames\":[]}}],\"skills\":[{\"name\":\"text é\",\"description\":\"text é\",\"paths\":[{\"path\":\"text é\"}],\"scope\":\"plugin\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\"},\"plugin\":\"text é\"}],\"servers\":[{\"agent\":\"text é\",\"name\":\"text é\",\"scope\":\"project\",\"file\":\"text é\",\"launch\":true,\"transport\":{\"kind\":\"http\",\"host\":\"text é\"},\"envNames\":[\"text é\"],\"auth\":\"unknown\",\"enabled\":true,\"inRecipe\":true,\"tools\":[{\"name\":\"text é\"}],\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\"},\"signInLine\":\"text é\",\"off\":\"text é\"}],\"plugins\":[{\"agent\":\"text é\",\"id\":\"text é\",\"name\":\"text é\",\"marketplace\":\"text é\",\"version\":\"text é\",\"scope\":\"local\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\"},\"on\":true,\"missing\":\"uninstalled\",\"path\":\"text é\",\"setIn\":\"text é\",\"description\":\"text é\",\"source\":\"text é\",\"brings\":{\"skills\":[],\"commands\":[],\"subagents\":[],\"hooks\":[],\"servers\":[],\"lsp\":[],\"apps\":[]}}],\"refused\":[\"text é\"],\"projects\":[{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\"}],\"reach\":\"none\"}",
+  "anyOrder": true
+ },
+ {
+  "type": "AgentsReport",
+  "case": "minimal",
+  "input": {
+   "target": {
+    "placeId": "s"
+   },
+   "home": "s",
+   "user": "s",
+   "readAt": "s",
+   "agents": [],
+   "skills": [],
+   "servers": [],
+   "refused": []
+  },
+  "output": "{\"target\":{\"placeId\":\"s\"},\"home\":\"s\",\"user\":\"s\",\"readAt\":\"s\",\"agents\":[],\"skills\":[],\"servers\":[],\"refused\":[]}"
+ },
+ {
+  "type": "AgentsReport",
+  "case": "nulls",
+  "input": {
+   "target": {
+    "placeId": "s"
+   },
+   "home": "s",
+   "user": "s",
+   "readAt": "s",
+   "stale": "napping",
+   "pauseMode": "memory",
+   "agents": [],
+   "skills": [],
+   "servers": [],
+   "plugins": [],
+   "refused": [],
+   "projects": [],
+   "reach": "here"
+  },
+  "output": "{\"target\":{\"placeId\":\"s\"},\"home\":\"s\",\"user\":\"s\",\"readAt\":\"s\",\"stale\":\"napping\",\"pauseMode\":\"memory\",\"agents\":[],\"skills\":[],\"servers\":[],\"plugins\":[],\"refused\":[],\"projects\":[],\"reach\":\"here\"}"
+ },
+ {
+  "type": "AgentsReport",
+  "case": "missing target",
+  "input": {
+   "home": "text é",
+   "user": "text é",
+   "readAt": "text é",
+   "stale": "napping",
+   "pauseMode": "disk",
+   "agents": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "installed": true,
+     "version": "text é",
+     "latest": "text é",
+     "pinned": "text é",
+     "road": "none",
+     "installsOnFirstRun": true,
+     "versionUnread": true,
+     "path": "text é",
+     "via": "text é",
+     "signIn": "unknown",
+     "signInRoad": "none",
+     "wspTools": true,
+     "signInDetail": "text é",
+     "signInKind": "oauth",
+     "signInPlan": "text é",
+     "update": {
+      "to": "text é",
+      "command": "text é"
+     },
+     "setup": {
+      "on": true,
+      "program": "text é",
+      "configDir": "text é",
+      "args": [],
+      "envNames": []
+     }
+    }
+   ],
+   "skills": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "paths": [
+      {
+       "path": "text é"
+      }
+     ],
+     "scope": "plugin",
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "plugin": "text é"
+    }
+   ],
+   "servers": [
+    {
+     "agent": "text é",
+     "name": "text é",
+     "scope": "project",
+     "file": "text é",
+     "launch": true,
+     "transport": {
+      "kind": "http",
+      "host": "text é"
+     },
+     "envNames": [
+      "text é"
+     ],
+     "auth": "unknown",
+     "enabled": true,
+     "inRecipe": true,
+     "tools": [
+      {
+       "name": "text é"
+      }
+     ],
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "signInLine": "text é",
+     "off": "text é"
+    }
+   ],
+   "plugins": [
+    {
+     "agent": "text é",
+     "id": "text é",
+     "name": "text é",
+     "marketplace": "text é",
+     "version": "text é",
+     "scope": "local",
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "on": true,
+     "missing": "uninstalled",
+     "path": "text é",
+     "setIn": "text é",
+     "description": "text é",
+     "source": "text é",
+     "brings": {
+      "skills": [],
+      "commands": [],
+      "subagents": [],
+      "hooks": [],
+      "servers": [],
+      "lsp": [],
+      "apps": []
+     }
+    }
+   ],
+   "refused": [
+    "text é"
+   ],
+   "projects": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "path": "text é"
+    }
+   ],
+   "reach": "none"
+  },
+  "issue": {
+   "code": "invalid_union",
+   "path": [
+    "target"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentsReport",
+  "case": "pauseMode: not one of its values",
+  "input": {
+   "target": {
+    "workspaceId": "text é"
+   },
+   "home": "text é",
+   "user": "text é",
+   "readAt": "text é",
+   "stale": "napping",
+   "pauseMode": "not-a-value",
+   "agents": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "installed": true,
+     "version": "text é",
+     "latest": "text é",
+     "pinned": "text é",
+     "road": "none",
+     "installsOnFirstRun": true,
+     "versionUnread": true,
+     "path": "text é",
+     "via": "text é",
+     "signIn": "unknown",
+     "signInRoad": "none",
+     "wspTools": true,
+     "signInDetail": "text é",
+     "signInKind": "oauth",
+     "signInPlan": "text é",
+     "update": {
+      "to": "text é",
+      "command": "text é"
+     },
+     "setup": {
+      "on": true,
+      "program": "text é",
+      "configDir": "text é",
+      "args": [],
+      "envNames": []
+     }
+    }
+   ],
+   "skills": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "paths": [
+      {
+       "path": "text é"
+      }
+     ],
+     "scope": "plugin",
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "plugin": "text é"
+    }
+   ],
+   "servers": [
+    {
+     "agent": "text é",
+     "name": "text é",
+     "scope": "project",
+     "file": "text é",
+     "launch": true,
+     "transport": {
+      "kind": "http",
+      "host": "text é"
+     },
+     "envNames": [
+      "text é"
+     ],
+     "auth": "unknown",
+     "enabled": true,
+     "inRecipe": true,
+     "tools": [
+      {
+       "name": "text é"
+      }
+     ],
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "signInLine": "text é",
+     "off": "text é"
+    }
+   ],
+   "plugins": [
+    {
+     "agent": "text é",
+     "id": "text é",
+     "name": "text é",
+     "marketplace": "text é",
+     "version": "text é",
+     "scope": "local",
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "on": true,
+     "missing": "uninstalled",
+     "path": "text é",
+     "setIn": "text é",
+     "description": "text é",
+     "source": "text é",
+     "brings": {
+      "skills": [],
+      "commands": [],
+      "subagents": [],
+      "hooks": [],
+      "servers": [],
+      "lsp": [],
+      "apps": []
+     }
+    }
+   ],
+   "refused": [
+    "text é"
+   ],
+   "projects": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "path": "text é"
+    }
+   ],
+   "reach": "none"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "pauseMode"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentsReport",
+  "case": "reach: not one of its values",
+  "input": {
+   "target": {
+    "workspaceId": "text é"
+   },
+   "home": "text é",
+   "user": "text é",
+   "readAt": "text é",
+   "stale": "napping",
+   "pauseMode": "disk",
+   "agents": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "installed": true,
+     "version": "text é",
+     "latest": "text é",
+     "pinned": "text é",
+     "road": "none",
+     "installsOnFirstRun": true,
+     "versionUnread": true,
+     "path": "text é",
+     "via": "text é",
+     "signIn": "unknown",
+     "signInRoad": "none",
+     "wspTools": true,
+     "signInDetail": "text é",
+     "signInKind": "oauth",
+     "signInPlan": "text é",
+     "update": {
+      "to": "text é",
+      "command": "text é"
+     },
+     "setup": {
+      "on": true,
+      "program": "text é",
+      "configDir": "text é",
+      "args": [],
+      "envNames": []
+     }
+    }
+   ],
+   "skills": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "paths": [
+      {
+       "path": "text é"
+      }
+     ],
+     "scope": "plugin",
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "plugin": "text é"
+    }
+   ],
+   "servers": [
+    {
+     "agent": "text é",
+     "name": "text é",
+     "scope": "project",
+     "file": "text é",
+     "launch": true,
+     "transport": {
+      "kind": "http",
+      "host": "text é"
+     },
+     "envNames": [
+      "text é"
+     ],
+     "auth": "unknown",
+     "enabled": true,
+     "inRecipe": true,
+     "tools": [
+      {
+       "name": "text é"
+      }
+     ],
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "signInLine": "text é",
+     "off": "text é"
+    }
+   ],
+   "plugins": [
+    {
+     "agent": "text é",
+     "id": "text é",
+     "name": "text é",
+     "marketplace": "text é",
+     "version": "text é",
+     "scope": "local",
+     "project": {
+      "id": "text é",
+      "name": "text é",
+      "path": "text é"
+     },
+     "on": true,
+     "missing": "uninstalled",
+     "path": "text é",
+     "setIn": "text é",
+     "description": "text é",
+     "source": "text é",
+     "brings": {
+      "skills": [],
+      "commands": [],
+      "subagents": [],
+      "hooks": [],
+      "servers": [],
+      "lsp": [],
+      "apps": []
+     }
+    }
+   ],
+   "refused": [
+    "text é"
+   ],
+   "projects": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "path": "text é"
+    }
+   ],
+   "reach": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "reach"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentsSignInEvent",
+  "case": "full",
+  "input": {
+   "type": "agents.signIn",
+   "signInId": "text é",
+   "state": "failed",
+   "url": "text é",
+   "code": "text é",
+   "paste": true,
+   "said": "text é",
+   "ptyId": "text é"
+  },
+  "output": "{\"signInId\":\"text é\",\"state\":\"failed\",\"url\":\"text é\",\"code\":\"text é\",\"paste\":true,\"said\":\"text é\",\"ptyId\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "agents.signIn"
+  }
+ },
+ {
+  "type": "AgentsSignInEvent",
+  "case": "minimal",
+  "input": {
+   "type": "agents.signIn",
+   "signInId": "s",
+   "state": "running"
+  },
+  "output": "{\"signInId\":\"s\",\"state\":\"running\"}",
+  "tag": {
+   "key": "type",
+   "value": "agents.signIn"
+  }
+ },
+ {
+  "type": "AgentsSignInEvent",
+  "case": "nulls",
+  "input": {
+   "type": "agents.signIn",
+   "signInId": "s",
+   "state": "running",
+   "url": "s",
+   "code": "s",
+   "paste": false,
+   "said": "s",
+   "ptyId": "s"
+  },
+  "output": "{\"signInId\":\"s\",\"state\":\"running\",\"url\":\"s\",\"code\":\"s\",\"paste\":false,\"said\":\"s\",\"ptyId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "agents.signIn"
+  }
+ },
+ {
+  "type": "AgentsSignInEvent",
+  "case": "missing signInId",
+  "input": {
+   "type": "agents.signIn",
+   "state": "failed",
+   "url": "text é",
+   "code": "text é",
+   "paste": true,
+   "said": "text é",
+   "ptyId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "signInId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentsSignInEvent",
+  "case": "state: not one of its values",
+  "input": {
+   "type": "agents.signIn",
+   "signInId": "text é",
+   "state": "not-a-value",
+   "url": "text é",
+   "code": "text é",
+   "paste": true,
+   "said": "text é",
+   "ptyId": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentsSignInEvent",
+  "case": "paste: not a boolean",
+  "input": {
+   "type": "agents.signIn",
+   "signInId": "text é",
+   "state": "failed",
+   "url": "text é",
+   "code": "text é",
+   "paste": "yes",
+   "said": "text é",
+   "ptyId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "paste"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentsSignInRun",
+  "case": "full",
+  "input": {
+   "signInId": "text é",
+   "target": {
+    "workspaceId": "text é"
+   },
+   "agent": "text é",
+   "server": "text é",
+   "scope": "project",
+   "project": "text é",
+   "last": {
+    "type": "agents.signIn",
+    "signInId": "text é",
+    "state": "failed",
+    "url": "text é",
+    "code": "text é",
+    "paste": true,
+    "said": "text é",
+    "ptyId": "text é"
+   },
+   "ended": true
+  },
+  "output": "{\"signInId\":\"text é\",\"target\":{\"workspaceId\":\"text é\"},\"agent\":\"text é\",\"server\":\"text é\",\"scope\":\"project\",\"project\":\"text é\",\"last\":{\"type\":\"agents.signIn\",\"signInId\":\"text é\",\"state\":\"failed\",\"url\":\"text é\",\"code\":\"text é\",\"paste\":true,\"said\":\"text é\",\"ptyId\":\"text é\"},\"ended\":true}"
+ },
+ {
+  "type": "AgentsSignInRun",
+  "case": "minimal",
+  "input": {
+   "signInId": "s",
+   "target": {
+    "placeId": "s"
+   },
+   "agent": "s"
+  },
+  "output": "{\"signInId\":\"s\",\"target\":{\"placeId\":\"s\"},\"agent\":\"s\"}"
+ },
+ {
+  "type": "AgentsSignInRun",
+  "case": "nulls",
+  "input": {
+   "signInId": "s",
+   "target": {
+    "placeId": "s"
+   },
+   "agent": "s",
+   "server": "s",
+   "scope": "user",
+   "project": "s",
+   "last": {
+    "type": "agents.signIn",
+    "signInId": "s",
+    "state": "running"
+   },
+   "ended": true
+  },
+  "output": "{\"signInId\":\"s\",\"target\":{\"placeId\":\"s\"},\"agent\":\"s\",\"server\":\"s\",\"scope\":\"user\",\"project\":\"s\",\"last\":{\"type\":\"agents.signIn\",\"signInId\":\"s\",\"state\":\"running\"},\"ended\":true}"
+ },
+ {
+  "type": "AgentsSignInRun",
+  "case": "missing signInId",
+  "input": {
+   "target": {
+    "workspaceId": "text é"
+   },
+   "agent": "text é",
+   "server": "text é",
+   "scope": "project",
+   "project": "text é",
+   "last": {
+    "type": "agents.signIn",
+    "signInId": "text é",
+    "state": "failed",
+    "url": "text é",
+    "code": "text é",
+    "paste": true,
+    "said": "text é",
+    "ptyId": "text é"
+   },
+   "ended": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "signInId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentsSignInRun",
+  "case": "scope: not one of its values",
+  "input": {
+   "signInId": "text é",
+   "target": {
+    "workspaceId": "text é"
+   },
+   "agent": "text é",
+   "server": "text é",
+   "scope": "not-a-value",
+   "project": "text é",
+   "last": {
+    "type": "agents.signIn",
+    "signInId": "text é",
+    "state": "failed",
+    "url": "text é",
+    "code": "text é",
+    "paste": true,
+    "said": "text é",
+    "ptyId": "text é"
+   },
+   "ended": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "scope"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AgentsTarget",
+  "case": "full",
+  "input": {
+   "workspaceId": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\"}"
+ },
+ {
+  "type": "AgentsTarget",
+  "case": "minimal",
+  "input": {
+   "placeId": "s"
+  },
+  "output": "{\"placeId\":\"s\"}"
+ },
+ {
+  "type": "AgentsTarget",
+  "case": "variant 0",
+  "input": {
+   "placeId": "text é",
+   "project": "text é"
+  },
+  "output": "{\"placeId\":\"text é\",\"project\":\"text é\"}"
+ },
+ {
+  "type": "McpAuth",
+  "case": "full",
+  "input": "unknown",
+  "output": "\"unknown\""
+ },
+ {
+  "type": "McpAuth",
+  "case": "minimal",
+  "input": "open",
+  "output": "\"open\""
+ },
+ {
+  "type": "McpAuth",
+  "case": "value env-key",
+  "input": "env-key",
+  "output": "\"env-key\""
+ },
+ {
+  "type": "McpAuth",
+  "case": "value connected",
+  "input": "connected",
+  "output": "\"connected\""
+ },
+ {
+  "type": "McpAuth",
+  "case": "value signed-in",
+  "input": "signed-in",
+  "output": "\"signed-in\""
+ },
+ {
+  "type": "McpAuth",
+  "case": "value needs-sign-in",
+  "input": "needs-sign-in",
+  "output": "\"needs-sign-in\""
+ },
+ {
+  "type": "McpAuth",
+  "case": "value failed",
+  "input": "failed",
+  "output": "\"failed\""
+ },
+ {
+  "type": "McpAuth",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "McpRow",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "name": "text é",
+   "scope": "project",
+   "file": "text é",
+   "launch": true,
+   "transport": {
+    "kind": "http",
+    "host": "text é"
+   },
+   "envNames": [
+    "text é"
+   ],
+   "auth": "unknown",
+   "enabled": true,
+   "inRecipe": true,
+   "tools": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "params": [
+      {
+       "name": "text é",
+       "required": true
+      }
+     ]
+    }
+   ],
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "signInLine": "text é",
+   "off": "text é"
+  },
+  "output": "{\"agent\":\"text é\",\"name\":\"text é\",\"scope\":\"project\",\"file\":\"text é\",\"launch\":true,\"transport\":{\"kind\":\"http\",\"host\":\"text é\"},\"envNames\":[\"text é\"],\"auth\":\"unknown\",\"enabled\":true,\"inRecipe\":true,\"tools\":[{\"name\":\"text é\",\"description\":\"text é\",\"params\":[{\"name\":\"text é\",\"required\":true}]}],\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\"},\"signInLine\":\"text é\",\"off\":\"text é\"}"
+ },
+ {
+  "type": "McpRow",
+  "case": "minimal",
+  "input": {
+   "agent": "s",
+   "name": "s",
+   "scope": "user",
+   "transport": {
+    "kind": "stdio",
+    "line": "s"
+   },
+   "envNames": [],
+   "auth": "open",
+   "enabled": false
+  },
+  "output": "{\"agent\":\"s\",\"name\":\"s\",\"scope\":\"user\",\"transport\":{\"kind\":\"stdio\",\"line\":\"s\"},\"envNames\":[],\"auth\":\"open\",\"enabled\":false}"
+ },
+ {
+  "type": "McpRow",
+  "case": "nulls",
+  "input": {
+   "agent": "s",
+   "name": "s",
+   "scope": "user",
+   "file": "s",
+   "launch": true,
+   "transport": {
+    "kind": "stdio",
+    "line": "s"
+   },
+   "envNames": [],
+   "auth": "open",
+   "enabled": false,
+   "inRecipe": false,
+   "tools": [],
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s"
+   },
+   "signInLine": "s",
+   "off": "s"
+  },
+  "output": "{\"agent\":\"s\",\"name\":\"s\",\"scope\":\"user\",\"file\":\"s\",\"launch\":true,\"transport\":{\"kind\":\"stdio\",\"line\":\"s\"},\"envNames\":[],\"auth\":\"open\",\"enabled\":false,\"inRecipe\":false,\"tools\":[],\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\"},\"signInLine\":\"s\",\"off\":\"s\"}"
+ },
+ {
+  "type": "McpRow",
+  "case": "missing agent",
+  "input": {
+   "name": "text é",
+   "scope": "project",
+   "file": "text é",
+   "launch": true,
+   "transport": {
+    "kind": "http",
+    "host": "text é"
+   },
+   "envNames": [
+    "text é"
+   ],
+   "auth": "unknown",
+   "enabled": true,
+   "inRecipe": true,
+   "tools": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "params": [
+      {
+       "name": "text é",
+       "required": true
+      }
+     ]
+    }
+   ],
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "signInLine": "text é",
+   "off": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "McpRow",
+  "case": "scope: not one of its values",
+  "input": {
+   "agent": "text é",
+   "name": "text é",
+   "scope": "not-a-value",
+   "file": "text é",
+   "launch": true,
+   "transport": {
+    "kind": "http",
+    "host": "text é"
+   },
+   "envNames": [
+    "text é"
+   ],
+   "auth": "unknown",
+   "enabled": true,
+   "inRecipe": true,
+   "tools": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "params": [
+      {
+       "name": "text é",
+       "required": true
+      }
+     ]
+    }
+   ],
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "signInLine": "text é",
+   "off": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "scope"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "McpRow",
+  "case": "auth: not one of its values",
+  "input": {
+   "agent": "text é",
+   "name": "text é",
+   "scope": "project",
+   "file": "text é",
+   "launch": true,
+   "transport": {
+    "kind": "http",
+    "host": "text é"
+   },
+   "envNames": [
+    "text é"
+   ],
+   "auth": "not-a-value",
+   "enabled": true,
+   "inRecipe": true,
+   "tools": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "params": [
+      {
+       "name": "text é",
+       "required": true
+      }
+     ]
+    }
+   ],
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "signInLine": "text é",
+   "off": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "auth"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "McpRow",
+  "case": "enabled: not a boolean",
+  "input": {
+   "agent": "text é",
+   "name": "text é",
+   "scope": "project",
+   "file": "text é",
+   "launch": true,
+   "transport": {
+    "kind": "http",
+    "host": "text é"
+   },
+   "envNames": [
+    "text é"
+   ],
+   "auth": "unknown",
+   "enabled": "yes",
+   "inRecipe": true,
+   "tools": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "params": [
+      {
+       "name": "text é",
+       "required": true
+      }
+     ]
+    }
+   ],
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "signInLine": "text é",
+   "off": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "enabled"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "McpRow",
+  "case": "inRecipe: not a boolean",
+  "input": {
+   "agent": "text é",
+   "name": "text é",
+   "scope": "project",
+   "file": "text é",
+   "launch": true,
+   "transport": {
+    "kind": "http",
+    "host": "text é"
+   },
+   "envNames": [
+    "text é"
+   ],
+   "auth": "unknown",
+   "enabled": true,
+   "inRecipe": "yes",
+   "tools": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "params": [
+      {
+       "name": "text é",
+       "required": true
+      }
+     ]
+    }
+   ],
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "signInLine": "text é",
+   "off": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "inRecipe"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "McpRowTransport",
+  "case": "full",
+  "input": {
+   "kind": "http",
+   "host": "text é"
+  },
+  "output": "{\"kind\":\"http\",\"host\":\"text é\"}"
+ },
+ {
+  "type": "McpRowTransport",
+  "case": "minimal",
+  "input": {
+   "kind": "stdio",
+   "line": "s"
+  },
+  "output": "{\"kind\":\"stdio\",\"line\":\"s\"}"
+ },
+ {
+  "type": "McpRowTransport",
+  "case": "variant 0",
+  "input": {
+   "kind": "stdio",
+   "line": "text é"
+  },
+  "output": "{\"kind\":\"stdio\",\"line\":\"text é\"}"
+ },
+ {
+  "type": "McpScope",
+  "case": "full",
+  "input": "project",
+  "output": "\"project\""
+ },
+ {
+  "type": "McpScope",
+  "case": "minimal",
+  "input": "user",
+  "output": "\"user\""
+ },
+ {
+  "type": "McpScope",
+  "case": "value home",
+  "input": "home",
+  "output": "\"home\""
+ },
+ {
+  "type": "McpScope",
+  "case": "value local",
+  "input": "local",
+  "output": "\"local\""
+ },
+ {
+  "type": "McpScope",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "McpTool",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "description": "text é",
+   "params": [
+    {
+     "name": "text é",
+     "type": "text é",
+     "required": true,
+     "description": "text é"
+    }
+   ]
+  },
+  "output": "{\"name\":\"text é\",\"description\":\"text é\",\"params\":[{\"name\":\"text é\",\"type\":\"text é\",\"required\":true,\"description\":\"text é\"}]}"
+ },
+ {
+  "type": "McpTool",
+  "case": "minimal",
+  "input": {
+   "name": "s"
+  },
+  "output": "{\"name\":\"s\"}"
+ },
+ {
+  "type": "McpTool",
+  "case": "nulls",
+  "input": {
+   "name": "s",
+   "description": "s",
+   "params": []
+  },
+  "output": "{\"name\":\"s\",\"description\":\"s\",\"params\":[]}"
+ },
+ {
+  "type": "McpTool",
+  "case": "missing name",
+  "input": {
+   "description": "text é",
+   "params": [
+    {
+     "name": "text é",
+     "type": "text é",
+     "required": true,
+     "description": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "McpToolParam",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "type": "text é",
+   "required": true,
+   "description": "text é"
+  },
+  "output": "{\"name\":\"text é\",\"type\":\"text é\",\"required\":true,\"description\":\"text é\"}"
+ },
+ {
+  "type": "McpToolParam",
+  "case": "minimal",
+  "input": {
+   "name": "s",
+   "required": false
+  },
+  "output": "{\"name\":\"s\",\"required\":false}"
+ },
+ {
+  "type": "McpToolParam",
+  "case": "nulls",
+  "input": {
+   "name": "s",
+   "type": "s",
+   "required": false,
+   "description": "s"
+  },
+  "output": "{\"name\":\"s\",\"type\":\"s\",\"required\":false,\"description\":\"s\"}"
+ },
+ {
+  "type": "McpToolParam",
+  "case": "missing name",
+  "input": {
+   "type": "text é",
+   "required": true,
+   "description": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "McpToolParam",
+  "case": "required: not a boolean",
+  "input": {
+   "name": "text é",
+   "type": "text é",
+   "required": "yes",
+   "description": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "required"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PageReach",
+  "case": "full",
+  "input": "none",
+  "output": "\"none\""
+ },
+ {
+  "type": "PageReach",
+  "case": "minimal",
+  "input": "here",
+  "output": "\"here\""
+ },
+ {
+  "type": "PageReach",
+  "case": "value relay",
+  "input": "relay",
+  "output": "\"relay\""
+ },
+ {
+  "type": "PageReach",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PluginAsk",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "plugin": "text é"
+  },
+  "output": "{\"agent\":\"text é\",\"plugin\":\"text é\"}"
+ },
+ {
+  "type": "PluginAsk",
+  "case": "minimal",
+  "input": {
+   "agent": "s",
+   "plugin": "s"
+  },
+  "output": "{\"agent\":\"s\",\"plugin\":\"s\"}"
+ },
+ {
+  "type": "PluginAsk",
+  "case": "missing agent",
+  "input": {
+   "plugin": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PluginBrings",
+  "case": "full",
+  "input": {
+   "skills": [
+    "text é"
+   ],
+   "commands": [
+    "text é"
+   ],
+   "subagents": [
+    "text é"
+   ],
+   "hooks": [
+    "text é"
+   ],
+   "servers": [
+    "text é"
+   ],
+   "lsp": [
+    "text é"
+   ],
+   "apps": [
+    "text é"
+   ]
+  },
+  "output": "{\"skills\":[\"text é\"],\"commands\":[\"text é\"],\"subagents\":[\"text é\"],\"hooks\":[\"text é\"],\"servers\":[\"text é\"],\"lsp\":[\"text é\"],\"apps\":[\"text é\"]}"
+ },
+ {
+  "type": "PluginBrings",
+  "case": "minimal",
+  "input": {
+   "skills": [],
+   "commands": [],
+   "subagents": [],
+   "hooks": [],
+   "servers": [],
+   "lsp": [],
+   "apps": []
+  },
+  "output": "{\"skills\":[],\"commands\":[],\"subagents\":[],\"hooks\":[],\"servers\":[],\"lsp\":[],\"apps\":[]}"
+ },
+ {
+  "type": "PluginBrings",
+  "case": "missing skills",
+  "input": {
+   "commands": [
+    "text é"
+   ],
+   "subagents": [
+    "text é"
+   ],
+   "hooks": [
+    "text é"
+   ],
+   "servers": [
+    "text é"
+   ],
+   "lsp": [
+    "text é"
+   ],
+   "apps": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "skills"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PluginMissing",
+  "case": "full",
+  "input": "uninstalled",
+  "output": "\"uninstalled\""
+ },
+ {
+  "type": "PluginMissing",
+  "case": "minimal",
+  "input": "folder",
+  "output": "\"folder\""
+ },
+ {
+  "type": "PluginMissing",
+  "case": "value marketplace",
+  "input": "marketplace",
+  "output": "\"marketplace\""
+ },
+ {
+  "type": "PluginMissing",
+  "case": "value unlisted",
+  "input": "unlisted",
+  "output": "\"unlisted\""
+ },
+ {
+  "type": "PluginMissing",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PluginRow",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "id": "text é",
+   "name": "text é",
+   "marketplace": "text é",
+   "version": "text é",
+   "scope": "local",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "on": true,
+   "missing": "uninstalled",
+   "path": "text é",
+   "setIn": "text é",
+   "description": "text é",
+   "source": "text é",
+   "brings": {
+    "skills": [
+     "text é"
+    ],
+    "commands": [
+     "text é"
+    ],
+    "subagents": [
+     "text é"
+    ],
+    "hooks": [
+     "text é"
+    ],
+    "servers": [
+     "text é"
+    ],
+    "lsp": [
+     "text é"
+    ],
+    "apps": [
+     "text é"
+    ]
+   }
+  },
+  "output": "{\"agent\":\"text é\",\"id\":\"text é\",\"name\":\"text é\",\"marketplace\":\"text é\",\"version\":\"text é\",\"scope\":\"local\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\"},\"on\":true,\"missing\":\"uninstalled\",\"path\":\"text é\",\"setIn\":\"text é\",\"description\":\"text é\",\"source\":\"text é\",\"brings\":{\"skills\":[\"text é\"],\"commands\":[\"text é\"],\"subagents\":[\"text é\"],\"hooks\":[\"text é\"],\"servers\":[\"text é\"],\"lsp\":[\"text é\"],\"apps\":[\"text é\"]}}",
+  "anyOrder": true
+ },
+ {
+  "type": "PluginRow",
+  "case": "minimal",
+  "input": {
+   "agent": "s",
+   "id": "s",
+   "name": "s",
+   "marketplace": "s",
+   "scope": "user",
+   "on": false,
+   "brings": {
+    "skills": [],
+    "commands": [],
+    "subagents": [],
+    "hooks": [],
+    "servers": [],
+    "lsp": [],
+    "apps": []
+   }
+  },
+  "output": "{\"agent\":\"s\",\"id\":\"s\",\"name\":\"s\",\"marketplace\":\"s\",\"scope\":\"user\",\"on\":false,\"brings\":{\"skills\":[],\"commands\":[],\"subagents\":[],\"hooks\":[],\"servers\":[],\"lsp\":[],\"apps\":[]}}"
+ },
+ {
+  "type": "PluginRow",
+  "case": "nulls",
+  "input": {
+   "agent": "s",
+   "id": "s",
+   "name": "s",
+   "marketplace": "s",
+   "version": "s",
+   "scope": "user",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s"
+   },
+   "on": false,
+   "missing": "folder",
+   "path": "s",
+   "setIn": "s",
+   "description": "s",
+   "source": "s",
+   "brings": {
+    "skills": [],
+    "commands": [],
+    "subagents": [],
+    "hooks": [],
+    "servers": [],
+    "lsp": [],
+    "apps": []
+   }
+  },
+  "output": "{\"agent\":\"s\",\"id\":\"s\",\"name\":\"s\",\"marketplace\":\"s\",\"version\":\"s\",\"scope\":\"user\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\"},\"on\":false,\"missing\":\"folder\",\"path\":\"s\",\"setIn\":\"s\",\"description\":\"s\",\"source\":\"s\",\"brings\":{\"skills\":[],\"commands\":[],\"subagents\":[],\"hooks\":[],\"servers\":[],\"lsp\":[],\"apps\":[]}}",
+  "anyOrder": true
+ },
+ {
+  "type": "PluginRow",
+  "case": "missing agent",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "marketplace": "text é",
+   "version": "text é",
+   "scope": "local",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "on": true,
+   "missing": "uninstalled",
+   "path": "text é",
+   "setIn": "text é",
+   "description": "text é",
+   "source": "text é",
+   "brings": {
+    "skills": [
+     "text é"
+    ],
+    "commands": [
+     "text é"
+    ],
+    "subagents": [
+     "text é"
+    ],
+    "hooks": [
+     "text é"
+    ],
+    "servers": [
+     "text é"
+    ],
+    "lsp": [
+     "text é"
+    ],
+    "apps": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PluginRow",
+  "case": "scope: not one of its values",
+  "input": {
+   "agent": "text é",
+   "id": "text é",
+   "name": "text é",
+   "marketplace": "text é",
+   "version": "text é",
+   "scope": "not-a-value",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "on": true,
+   "missing": "uninstalled",
+   "path": "text é",
+   "setIn": "text é",
+   "description": "text é",
+   "source": "text é",
+   "brings": {
+    "skills": [
+     "text é"
+    ],
+    "commands": [
+     "text é"
+    ],
+    "subagents": [
+     "text é"
+    ],
+    "hooks": [
+     "text é"
+    ],
+    "servers": [
+     "text é"
+    ],
+    "lsp": [
+     "text é"
+    ],
+    "apps": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "scope"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PluginRow",
+  "case": "on: not a boolean",
+  "input": {
+   "agent": "text é",
+   "id": "text é",
+   "name": "text é",
+   "marketplace": "text é",
+   "version": "text é",
+   "scope": "local",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "on": "yes",
+   "missing": "uninstalled",
+   "path": "text é",
+   "setIn": "text é",
+   "description": "text é",
+   "source": "text é",
+   "brings": {
+    "skills": [
+     "text é"
+    ],
+    "commands": [
+     "text é"
+    ],
+    "subagents": [
+     "text é"
+    ],
+    "hooks": [
+     "text é"
+    ],
+    "servers": [
+     "text é"
+    ],
+    "lsp": [
+     "text é"
+    ],
+    "apps": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "on"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PluginRow",
+  "case": "missing: not one of its values",
+  "input": {
+   "agent": "text é",
+   "id": "text é",
+   "name": "text é",
+   "marketplace": "text é",
+   "version": "text é",
+   "scope": "local",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "on": true,
+   "missing": "not-a-value",
+   "path": "text é",
+   "setIn": "text é",
+   "description": "text é",
+   "source": "text é",
+   "brings": {
+    "skills": [
+     "text é"
+    ],
+    "commands": [
+     "text é"
+    ],
+    "subagents": [
+     "text é"
+    ],
+    "hooks": [
+     "text é"
+    ],
+    "servers": [
+     "text é"
+    ],
+    "lsp": [
+     "text é"
+    ],
+    "apps": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "missing"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PluginScope",
+  "case": "full",
+  "input": "local",
+  "output": "\"local\""
+ },
+ {
+  "type": "PluginScope",
+  "case": "minimal",
+  "input": "user",
+  "output": "\"user\""
+ },
+ {
+  "type": "PluginScope",
+  "case": "value project",
+  "input": "project",
+  "output": "\"project\""
+ },
+ {
+  "type": "PluginScope",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ServerAdd",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "name": "text é",
+   "project": true,
+   "command": "text é",
+   "args": [
+    "text é"
+   ],
+   "env": {
+    "k": "text é"
+   },
+   "url": "text é",
+   "headers": {
+    "k": "text é"
+   }
+  },
+  "output": "{\"agent\":\"text é\",\"name\":\"text é\",\"project\":true,\"command\":\"text é\",\"args\":[\"text é\"],\"env\":{\"k\":\"text é\"},\"url\":\"text é\",\"headers\":{\"k\":\"text é\"}}"
+ },
+ {
+  "type": "ServerAdd",
+  "case": "minimal",
+  "input": {
+   "agent": "s",
+   "name": "s"
+  },
+  "output": "{\"agent\":\"s\",\"name\":\"s\"}"
+ },
+ {
+  "type": "ServerAdd",
+  "case": "nulls",
+  "input": {
+   "agent": "s",
+   "name": "s",
+   "project": false,
+   "command": "s",
+   "args": [],
+   "env": {},
+   "url": "s",
+   "headers": {}
+  },
+  "output": "{\"agent\":\"s\",\"name\":\"s\",\"project\":false,\"command\":\"s\",\"args\":[],\"env\":{},\"url\":\"s\",\"headers\":{}}"
+ },
+ {
+  "type": "ServerAdd",
+  "case": "missing agent",
+  "input": {
+   "name": "text é",
+   "project": true,
+   "command": "text é",
+   "args": [
+    "text é"
+   ],
+   "env": {
+    "k": "text é"
+   },
+   "url": "text é",
+   "headers": {
+    "k": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ServerAdd",
+  "case": "project: not a boolean",
+  "input": {
+   "agent": "text é",
+   "name": "text é",
+   "project": "yes",
+   "command": "text é",
+   "args": [
+    "text é"
+   ],
+   "env": {
+    "k": "text é"
+   },
+   "url": "text é",
+   "headers": {
+    "k": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "project"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ServerAsk",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "name": "text é",
+   "scope": "project"
+  },
+  "output": "{\"agent\":\"text é\",\"name\":\"text é\",\"scope\":\"project\"}"
+ },
+ {
+  "type": "ServerAsk",
+  "case": "minimal",
+  "input": {
+   "agent": "s",
+   "name": "s"
+  },
+  "output": "{\"agent\":\"s\",\"name\":\"s\"}"
+ },
+ {
+  "type": "ServerAsk",
+  "case": "nulls",
+  "input": {
+   "agent": "s",
+   "name": "s",
+   "scope": "user"
+  },
+  "output": "{\"agent\":\"s\",\"name\":\"s\",\"scope\":\"user\"}"
+ },
+ {
+  "type": "ServerAsk",
+  "case": "missing agent",
+  "input": {
+   "name": "text é",
+   "scope": "project"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ServerAsk",
+  "case": "scope: not one of its values",
+  "input": {
+   "agent": "text é",
+   "name": "text é",
+   "scope": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "scope"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ServerToolsAnswer",
+  "case": "full",
+  "input": {
+   "auth": "unknown",
+   "tools": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "params": [
+      {
+       "name": "text é",
+       "required": true
+      }
+     ]
+    }
+   ],
+   "holder": "text é",
+   "refused": "text é",
+   "readAt": "text é"
+  },
+  "output": "{\"auth\":\"unknown\",\"tools\":[{\"name\":\"text é\",\"description\":\"text é\",\"params\":[{\"name\":\"text é\",\"required\":true}]}],\"holder\":\"text é\",\"refused\":\"text é\",\"readAt\":\"text é\"}"
+ },
+ {
+  "type": "ServerToolsAnswer",
+  "case": "minimal",
+  "input": {
+   "auth": "open",
+   "readAt": "s"
+  },
+  "output": "{\"auth\":\"open\",\"readAt\":\"s\"}"
+ },
+ {
+  "type": "ServerToolsAnswer",
+  "case": "nulls",
+  "input": {
+   "auth": "open",
+   "tools": [],
+   "holder": "s",
+   "refused": "s",
+   "readAt": "s"
+  },
+  "output": "{\"auth\":\"open\",\"tools\":[],\"holder\":\"s\",\"refused\":\"s\",\"readAt\":\"s\"}"
+ },
+ {
+  "type": "ServerToolsAnswer",
+  "case": "missing auth",
+  "input": {
+   "tools": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "params": [
+      {
+       "name": "text é",
+       "required": true
+      }
+     ]
+    }
+   ],
+   "holder": "text é",
+   "refused": "text é",
+   "readAt": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "auth"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ServerToolsAnswer",
+  "case": "auth: not one of its values",
+  "input": {
+   "auth": "not-a-value",
+   "tools": [
+    {
+     "name": "text é",
+     "description": "text é",
+     "params": [
+      {
+       "name": "text é",
+       "required": true
+      }
+     ]
+    }
+   ],
+   "holder": "text é",
+   "refused": "text é",
+   "readAt": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "auth"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SignInLine",
+  "case": "full",
+  "input": {
+   "command": "text é",
+   "env": {
+    "k": "text é"
+   },
+   "prepare": "text é",
+   "status": "text é"
+  },
+  "output": "{\"command\":\"text é\",\"env\":{\"k\":\"text é\"},\"prepare\":\"text é\",\"status\":\"text é\"}"
+ },
+ {
+  "type": "SignInLine",
+  "case": "minimal",
+  "input": {
+   "command": "s"
+  },
+  "output": "{\"command\":\"s\"}"
+ },
+ {
+  "type": "SignInLine",
+  "case": "nulls",
+  "input": {
+   "command": "s",
+   "env": {},
+   "prepare": "s",
+   "status": "s"
+  },
+  "output": "{\"command\":\"s\",\"env\":{},\"prepare\":\"s\",\"status\":\"s\"}"
+ },
+ {
+  "type": "SignInLine",
+  "case": "missing command",
+  "input": {
+   "env": {
+    "k": "text é"
+   },
+   "prepare": "text é",
+   "status": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "command"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SignInRoad",
+  "case": "full",
+  "input": "none",
+  "output": "\"none\""
+ },
+ {
+  "type": "SignInRoad",
+  "case": "minimal",
+  "input": "device",
+  "output": "\"device\""
+ },
+ {
+  "type": "SignInRoad",
+  "case": "value code",
+  "input": "code",
+  "output": "\"code\""
+ },
+ {
+  "type": "SignInRoad",
+  "case": "value key",
+  "input": "key",
+  "output": "\"key\""
+ },
+ {
+  "type": "SignInRoad",
+  "case": "value token",
+  "input": "token",
+  "output": "\"token\""
+ },
+ {
+  "type": "SignInRoad",
+  "case": "value terminal",
+  "input": "terminal",
+  "output": "\"terminal\""
+ },
+ {
+  "type": "SignInRoad",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SkillAdded",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "agents": [
+    {
+     "agent": "text é",
+     "path": "text é"
+    }
+   ]
+  },
+  "output": "{\"path\":\"text é\",\"agents\":[{\"agent\":\"text é\",\"path\":\"text é\"}]}"
+ },
+ {
+  "type": "SkillAdded",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "agents": []
+  },
+  "output": "{\"path\":\"s\",\"agents\":[]}"
+ },
+ {
+  "type": "SkillAdded",
+  "case": "missing path",
+  "input": {
+   "agents": [
+    {
+     "agent": "text é",
+     "path": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SkillHit",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "source": "text é",
+   "skillId": "text é",
+   "name": "text é",
+   "installs": 7
+  },
+  "output": "{\"id\":\"text é\",\"source\":\"text é\",\"skillId\":\"text é\",\"name\":\"text é\",\"installs\":7}"
+ },
+ {
+  "type": "SkillHit",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "source": "s",
+   "skillId": "s",
+   "name": "s",
+   "installs": 7
+  },
+  "output": "{\"id\":\"s\",\"source\":\"s\",\"skillId\":\"s\",\"name\":\"s\",\"installs\":7}"
+ },
+ {
+  "type": "SkillHit",
+  "case": "missing id",
+  "input": {
+   "source": "text é",
+   "skillId": "text é",
+   "name": "text é",
+   "installs": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SkillHit",
+  "case": "installs: not an integer",
+  "input": {
+   "id": "text é",
+   "source": "text é",
+   "skillId": "text é",
+   "name": "text é",
+   "installs": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "installs"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SkillHit",
+  "case": "installs: under 0",
+  "input": {
+   "id": "text é",
+   "source": "text é",
+   "skillId": "text é",
+   "name": "text é",
+   "installs": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "installs"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SkillPath",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "agent": "text é",
+   "linkTo": "text é",
+   "off": true
+  },
+  "output": "{\"path\":\"text é\",\"agent\":\"text é\",\"linkTo\":\"text é\",\"off\":true}"
+ },
+ {
+  "type": "SkillPath",
+  "case": "minimal",
+  "input": {
+   "path": "s"
+  },
+  "output": "{\"path\":\"s\"}"
+ },
+ {
+  "type": "SkillPath",
+  "case": "nulls",
+  "input": {
+   "path": "s",
+   "agent": "s",
+   "linkTo": "s",
+   "off": true
+  },
+  "output": "{\"path\":\"s\",\"agent\":\"s\",\"linkTo\":\"s\",\"off\":true}"
+ },
+ {
+  "type": "SkillPath",
+  "case": "missing path",
+  "input": {
+   "agent": "text é",
+   "linkTo": "text é",
+   "off": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SkillPreview",
+  "case": "full",
+  "input": {
+   "text": "text é",
+   "size": 7
+  },
+  "output": "{\"text\":\"text é\",\"size\":7}"
+ },
+ {
+  "type": "SkillPreview",
+  "case": "minimal",
+  "input": {
+   "text": "s",
+   "size": 7
+  },
+  "output": "{\"text\":\"s\",\"size\":7}"
+ },
+ {
+  "type": "SkillPreview",
+  "case": "missing text",
+  "input": {
+   "size": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "text"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SkillPreview",
+  "case": "size: not an integer",
+  "input": {
+   "text": "text é",
+   "size": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "size"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SkillPreview",
+  "case": "size: under 0",
+  "input": {
+   "text": "text é",
+   "size": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "size"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SkillRow",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "description": "text é",
+   "paths": [
+    {
+     "path": "text é",
+     "agent": "text é",
+     "linkTo": "text é",
+     "off": true
+    }
+   ],
+   "scope": "plugin",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "plugin": "text é"
+  },
+  "output": "{\"name\":\"text é\",\"description\":\"text é\",\"paths\":[{\"path\":\"text é\",\"agent\":\"text é\",\"linkTo\":\"text é\",\"off\":true}],\"scope\":\"plugin\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\"},\"plugin\":\"text é\"}"
+ },
+ {
+  "type": "SkillRow",
+  "case": "minimal",
+  "input": {
+   "name": "s",
+   "paths": [
+    {
+     "path": "s"
+    }
+   ],
+   "scope": "user"
+  },
+  "output": "{\"name\":\"s\",\"paths\":[{\"path\":\"s\"}],\"scope\":\"user\"}"
+ },
+ {
+  "type": "SkillRow",
+  "case": "nulls",
+  "input": {
+   "name": "s",
+   "description": "s",
+   "paths": [
+    {
+     "path": "s"
+    }
+   ],
+   "scope": "user",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s"
+   },
+   "plugin": "s"
+  },
+  "output": "{\"name\":\"s\",\"description\":\"s\",\"paths\":[{\"path\":\"s\"}],\"scope\":\"user\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\"},\"plugin\":\"s\"}"
+ },
+ {
+  "type": "SkillRow",
+  "case": "missing name",
+  "input": {
+   "description": "text é",
+   "paths": [
+    {
+     "path": "text é",
+     "agent": "text é",
+     "linkTo": "text é",
+     "off": true
+    }
+   ],
+   "scope": "plugin",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "plugin": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SkillRow",
+  "case": "paths: fewer than 1 items",
+  "input": {
+   "name": "text é",
+   "description": "text é",
+   "paths": [],
+   "scope": "plugin",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "plugin": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "paths"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SkillRow",
+  "case": "scope: not one of its values",
+  "input": {
+   "name": "text é",
+   "description": "text é",
+   "paths": [
+    {
+     "path": "text é",
+     "agent": "text é",
+     "linkTo": "text é",
+     "off": true
+    }
+   ],
+   "scope": "not-a-value",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é"
+   },
+   "plugin": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "scope"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SkillScope",
+  "case": "full",
+  "input": "plugin",
+  "output": "\"plugin\""
+ },
+ {
+  "type": "SkillScope",
+  "case": "minimal",
+  "input": "user",
+  "output": "\"user\""
+ },
+ {
+  "type": "SkillScope",
+  "case": "value project",
+  "input": "project",
+  "output": "\"project\""
+ },
+ {
+  "type": "SkillScope",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ }
+]

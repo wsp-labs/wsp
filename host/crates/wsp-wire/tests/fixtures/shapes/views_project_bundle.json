@@ -1,0 +1,2968 @@
+[
+ {
+  "type": "CredentialSignal",
+  "case": "full",
+  "input": "history",
+  "output": "\"history\""
+ },
+ {
+  "type": "CredentialSignal",
+  "case": "minimal",
+  "input": "name",
+  "output": "\"name\""
+ },
+ {
+  "type": "CredentialSignal",
+  "case": "value mode",
+  "input": "mode",
+  "output": "\"mode\""
+ },
+ {
+  "type": "CredentialSignal",
+  "case": "value keys",
+  "input": "keys",
+  "output": "\"keys\""
+ },
+ {
+  "type": "CredentialSignal",
+  "case": "value pem",
+  "input": "pem",
+  "output": "\"pem\""
+ },
+ {
+  "type": "CredentialSignal",
+  "case": "value url",
+  "input": "url",
+  "output": "\"url\""
+ },
+ {
+  "type": "CredentialSignal",
+  "case": "value gitleaks",
+  "input": "gitleaks",
+  "output": "\"gitleaks\""
+ },
+ {
+  "type": "CredentialSignal",
+  "case": "value catalog",
+  "input": "catalog",
+  "output": "\"catalog\""
+ },
+ {
+  "type": "CredentialSignal",
+  "case": "value exports",
+  "input": "exports",
+  "output": "\"exports\""
+ },
+ {
+  "type": "CredentialSignal",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HostFolder",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "repo": true,
+   "branch": "text é",
+   "touchedAt": 2.5
+  },
+  "output": "{\"path\":\"text é\",\"repo\":true,\"branch\":\"text é\",\"touchedAt\":2.5}"
+ },
+ {
+  "type": "HostFolder",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "repo": false
+  },
+  "output": "{\"path\":\"s\",\"repo\":false}"
+ },
+ {
+  "type": "HostFolder",
+  "case": "nulls",
+  "input": {
+   "path": "s",
+   "repo": false,
+   "branch": "s",
+   "touchedAt": 3
+  },
+  "output": "{\"path\":\"s\",\"repo\":false,\"branch\":\"s\",\"touchedAt\":3}"
+ },
+ {
+  "type": "HostFolder",
+  "case": "missing path",
+  "input": {
+   "repo": true,
+   "branch": "text é",
+   "touchedAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HostFolder",
+  "case": "repo: not a boolean",
+  "input": {
+   "path": "text é",
+   "repo": "yes",
+   "branch": "text é",
+   "touchedAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "repo"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HostFolderListing",
+  "case": "full",
+  "input": {
+   "dir": "text é",
+   "roots": [
+    "text é"
+   ],
+   "folders": [
+    {
+     "path": "text é",
+     "repo": true,
+     "branch": "text é",
+     "touchedAt": 2.5
+    }
+   ],
+   "hidden": 7
+  },
+  "output": "{\"dir\":\"text é\",\"roots\":[\"text é\"],\"folders\":[{\"path\":\"text é\",\"repo\":true,\"branch\":\"text é\",\"touchedAt\":2.5}],\"hidden\":7}"
+ },
+ {
+  "type": "HostFolderListing",
+  "case": "minimal",
+  "input": {
+   "dir": "s",
+   "roots": [],
+   "folders": [],
+   "hidden": 7
+  },
+  "output": "{\"dir\":\"s\",\"roots\":[],\"folders\":[],\"hidden\":7}"
+ },
+ {
+  "type": "HostFolderListing",
+  "case": "missing dir",
+  "input": {
+   "roots": [
+    "text é"
+   ],
+   "folders": [
+    {
+     "path": "text é",
+     "repo": true,
+     "branch": "text é",
+     "touchedAt": 2.5
+    }
+   ],
+   "hidden": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "dir"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HostFolderListing",
+  "case": "hidden: not an integer",
+  "input": {
+   "dir": "text é",
+   "roots": [
+    "text é"
+   ],
+   "folders": [
+    {
+     "path": "text é",
+     "repo": true,
+     "branch": "text é",
+     "touchedAt": 2.5
+    }
+   ],
+   "hidden": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "hidden"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectAgent",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "name": "text é",
+   "sessions": 2.5,
+   "bytes": 2.5,
+   "carry": "transcript-only",
+   "error": "text é"
+  },
+  "output": "{\"agent\":\"text é\",\"name\":\"text é\",\"sessions\":2.5,\"bytes\":2.5,\"carry\":\"transcript-only\",\"error\":\"text é\"}"
+ },
+ {
+  "type": "ProjectAgent",
+  "case": "minimal",
+  "input": {
+   "agent": "s",
+   "name": "s",
+   "sessions": 3,
+   "bytes": 3,
+   "carry": "moves"
+  },
+  "output": "{\"agent\":\"s\",\"name\":\"s\",\"sessions\":3,\"bytes\":3,\"carry\":\"moves\"}"
+ },
+ {
+  "type": "ProjectAgent",
+  "case": "nulls",
+  "input": {
+   "agent": "s",
+   "name": "s",
+   "sessions": 3,
+   "bytes": 3,
+   "carry": "moves",
+   "error": "s"
+  },
+  "output": "{\"agent\":\"s\",\"name\":\"s\",\"sessions\":3,\"bytes\":3,\"carry\":\"moves\",\"error\":\"s\"}"
+ },
+ {
+  "type": "ProjectAgent",
+  "case": "missing agent",
+  "input": {
+   "name": "text é",
+   "sessions": 2.5,
+   "bytes": 2.5,
+   "carry": "transcript-only",
+   "error": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectAgent",
+  "case": "carry: not one of its values",
+  "input": {
+   "agent": "text é",
+   "name": "text é",
+   "sessions": 2.5,
+   "bytes": 2.5,
+   "carry": "not-a-value",
+   "error": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "carry"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectAgentOutcome",
+  "case": "full",
+  "input": "failed",
+  "output": "\"failed\""
+ },
+ {
+  "type": "ProjectAgentOutcome",
+  "case": "minimal",
+  "input": "moved",
+  "output": "\"moved\""
+ },
+ {
+  "type": "ProjectAgentOutcome",
+  "case": "value transcript-only",
+  "input": "transcript-only",
+  "output": "\"transcript-only\""
+ },
+ {
+  "type": "ProjectAgentOutcome",
+  "case": "value carried",
+  "input": "carried",
+  "output": "\"carried\""
+ },
+ {
+  "type": "ProjectAgentOutcome",
+  "case": "value nothing",
+  "input": "nothing",
+  "output": "\"nothing\""
+ },
+ {
+  "type": "ProjectAgentOutcome",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectAgentResult",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "files": 2.5,
+   "bytes": 2.5,
+   "outcome": "failed",
+   "sessions": 2.5,
+   "skipped": 2.5,
+   "error": "text é",
+   "rows": 2.5,
+   "note": "text é"
+  },
+  "output": "{\"agent\":\"text é\",\"files\":2.5,\"bytes\":2.5,\"outcome\":\"failed\",\"sessions\":2.5,\"skipped\":2.5,\"error\":\"text é\",\"rows\":2.5,\"note\":\"text é\"}"
+ },
+ {
+  "type": "ProjectAgentResult",
+  "case": "minimal",
+  "input": {
+   "agent": "s",
+   "files": 3,
+   "bytes": 3,
+   "outcome": "moved"
+  },
+  "output": "{\"agent\":\"s\",\"files\":3,\"bytes\":3,\"outcome\":\"moved\"}"
+ },
+ {
+  "type": "ProjectAgentResult",
+  "case": "nulls",
+  "input": {
+   "agent": "s",
+   "files": 3,
+   "bytes": 3,
+   "outcome": "moved",
+   "sessions": 3,
+   "skipped": 3,
+   "error": "s",
+   "rows": 3,
+   "note": "s"
+  },
+  "output": "{\"agent\":\"s\",\"files\":3,\"bytes\":3,\"outcome\":\"moved\",\"sessions\":3,\"skipped\":3,\"error\":\"s\",\"rows\":3,\"note\":\"s\"}"
+ },
+ {
+  "type": "ProjectAgentResult",
+  "case": "missing agent",
+  "input": {
+   "files": 2.5,
+   "bytes": 2.5,
+   "outcome": "failed",
+   "sessions": 2.5,
+   "skipped": 2.5,
+   "error": "text é",
+   "rows": 2.5,
+   "note": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectAgentResult",
+  "case": "outcome: not one of its values",
+  "input": {
+   "agent": "text é",
+   "files": 2.5,
+   "bytes": 2.5,
+   "outcome": "not-a-value",
+   "sessions": 2.5,
+   "skipped": 2.5,
+   "error": "text é",
+   "rows": 2.5,
+   "note": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "outcome"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectCarry",
+  "case": "full",
+  "input": "transcript-only",
+  "output": "\"transcript-only\""
+ },
+ {
+  "type": "ProjectCarry",
+  "case": "minimal",
+  "input": "moves",
+  "output": "\"moves\""
+ },
+ {
+  "type": "ProjectCarry",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectExportEvent",
+  "case": "full",
+  "input": {
+   "type": "project.export",
+   "workspaceId": "text é",
+   "source": "text é",
+   "dest": "text é",
+   "stage": "failed",
+   "message": "text é",
+   "elapsedMs": 2.5,
+   "bytes": 2.5,
+   "total": 2.5
+  },
+  "output": "{\"workspaceId\":\"text é\",\"source\":\"text é\",\"dest\":\"text é\",\"stage\":\"failed\",\"message\":\"text é\",\"elapsedMs\":2.5,\"bytes\":2.5,\"total\":2.5}",
+  "tag": {
+   "key": "type",
+   "value": "project.export"
+  }
+ },
+ {
+  "type": "ProjectExportEvent",
+  "case": "minimal",
+  "input": {
+   "type": "project.export",
+   "workspaceId": "s",
+   "source": "s",
+   "dest": "s",
+   "stage": "packing",
+   "message": "s",
+   "elapsedMs": 3
+  },
+  "output": "{\"workspaceId\":\"s\",\"source\":\"s\",\"dest\":\"s\",\"stage\":\"packing\",\"message\":\"s\",\"elapsedMs\":3}",
+  "tag": {
+   "key": "type",
+   "value": "project.export"
+  }
+ },
+ {
+  "type": "ProjectExportEvent",
+  "case": "nulls",
+  "input": {
+   "type": "project.export",
+   "workspaceId": "s",
+   "source": "s",
+   "dest": "s",
+   "stage": "packing",
+   "message": "s",
+   "elapsedMs": 3,
+   "bytes": 3,
+   "total": 3
+  },
+  "output": "{\"workspaceId\":\"s\",\"source\":\"s\",\"dest\":\"s\",\"stage\":\"packing\",\"message\":\"s\",\"elapsedMs\":3,\"bytes\":3,\"total\":3}",
+  "tag": {
+   "key": "type",
+   "value": "project.export"
+  }
+ },
+ {
+  "type": "ProjectExportEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "project.export",
+   "source": "text é",
+   "dest": "text é",
+   "stage": "failed",
+   "message": "text é",
+   "elapsedMs": 2.5,
+   "bytes": 2.5,
+   "total": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectExportEvent",
+  "case": "stage: not one of its values",
+  "input": {
+   "type": "project.export",
+   "workspaceId": "text é",
+   "source": "text é",
+   "dest": "text é",
+   "stage": "not-a-value",
+   "message": "text é",
+   "elapsedMs": 2.5,
+   "bytes": 2.5,
+   "total": 2.5
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "stage"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectExportResult",
+  "case": "full",
+  "input": {
+   "dest": "text é",
+   "files": 2.5,
+   "bytes": 2.5,
+   "excluded": [
+    "text é"
+   ],
+   "agents": [
+    {
+     "agent": "text é",
+     "files": 2.5,
+     "bytes": 2.5,
+     "outcome": "failed",
+     "sessions": 2.5,
+     "skipped": 2.5,
+     "error": "text é",
+     "rows": 2.5,
+     "note": "text é"
+    }
+   ]
+  },
+  "output": "{\"dest\":\"text é\",\"files\":2.5,\"bytes\":2.5,\"excluded\":[\"text é\"],\"agents\":[{\"agent\":\"text é\",\"files\":2.5,\"bytes\":2.5,\"outcome\":\"failed\",\"sessions\":2.5,\"skipped\":2.5,\"error\":\"text é\",\"rows\":2.5,\"note\":\"text é\"}]}"
+ },
+ {
+  "type": "ProjectExportResult",
+  "case": "minimal",
+  "input": {
+   "dest": "s",
+   "files": 3,
+   "bytes": 3,
+   "excluded": [],
+   "agents": []
+  },
+  "output": "{\"dest\":\"s\",\"files\":3,\"bytes\":3,\"excluded\":[],\"agents\":[]}"
+ },
+ {
+  "type": "ProjectExportResult",
+  "case": "missing dest",
+  "input": {
+   "files": 2.5,
+   "bytes": 2.5,
+   "excluded": [
+    "text é"
+   ],
+   "agents": [
+    {
+     "agent": "text é",
+     "files": 2.5,
+     "bytes": 2.5,
+     "outcome": "failed",
+     "sessions": 2.5,
+     "skipped": 2.5,
+     "error": "text é",
+     "rows": 2.5,
+     "note": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "dest"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectExportStage",
+  "case": "full",
+  "input": "failed",
+  "output": "\"failed\""
+ },
+ {
+  "type": "ProjectExportStage",
+  "case": "minimal",
+  "input": "packing",
+  "output": "\"packing\""
+ },
+ {
+  "type": "ProjectExportStage",
+  "case": "value downloading",
+  "input": "downloading",
+  "output": "\"downloading\""
+ },
+ {
+  "type": "ProjectExportStage",
+  "case": "value landing",
+  "input": "landing",
+  "output": "\"landing\""
+ },
+ {
+  "type": "ProjectExportStage",
+  "case": "value done",
+  "input": "done",
+  "output": "\"done\""
+ },
+ {
+  "type": "ProjectExportStage",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectImportEvent",
+  "case": "full",
+  "input": {
+   "type": "project.import",
+   "workspaceId": "text é",
+   "source": "text é",
+   "dest": "text é",
+   "stage": "failed",
+   "message": "text é",
+   "elapsedMs": 2.5,
+   "bytes": 2.5,
+   "total": 2.5
+  },
+  "output": "{\"workspaceId\":\"text é\",\"source\":\"text é\",\"dest\":\"text é\",\"stage\":\"failed\",\"message\":\"text é\",\"elapsedMs\":2.5,\"bytes\":2.5,\"total\":2.5}",
+  "tag": {
+   "key": "type",
+   "value": "project.import"
+  }
+ },
+ {
+  "type": "ProjectImportEvent",
+  "case": "minimal",
+  "input": {
+   "type": "project.import",
+   "workspaceId": "s",
+   "source": "s",
+   "dest": "s",
+   "stage": "planned",
+   "message": "s",
+   "elapsedMs": 3
+  },
+  "output": "{\"workspaceId\":\"s\",\"source\":\"s\",\"dest\":\"s\",\"stage\":\"planned\",\"message\":\"s\",\"elapsedMs\":3}",
+  "tag": {
+   "key": "type",
+   "value": "project.import"
+  }
+ },
+ {
+  "type": "ProjectImportEvent",
+  "case": "nulls",
+  "input": {
+   "type": "project.import",
+   "workspaceId": "s",
+   "source": "s",
+   "dest": "s",
+   "stage": "planned",
+   "message": "s",
+   "elapsedMs": 3,
+   "bytes": 3,
+   "total": 3
+  },
+  "output": "{\"workspaceId\":\"s\",\"source\":\"s\",\"dest\":\"s\",\"stage\":\"planned\",\"message\":\"s\",\"elapsedMs\":3,\"bytes\":3,\"total\":3}",
+  "tag": {
+   "key": "type",
+   "value": "project.import"
+  }
+ },
+ {
+  "type": "ProjectImportEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "project.import",
+   "source": "text é",
+   "dest": "text é",
+   "stage": "failed",
+   "message": "text é",
+   "elapsedMs": 2.5,
+   "bytes": 2.5,
+   "total": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectImportEvent",
+  "case": "stage: not one of its values",
+  "input": {
+   "type": "project.import",
+   "workspaceId": "text é",
+   "source": "text é",
+   "dest": "text é",
+   "stage": "not-a-value",
+   "message": "text é",
+   "elapsedMs": 2.5,
+   "bytes": 2.5,
+   "total": 2.5
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "stage"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectImportResult",
+  "case": "full",
+  "input": {
+   "dest": "text é",
+   "files": 2.5,
+   "bytes": 2.5,
+   "parts": 2.5,
+   "cut": [
+    "text é"
+   ],
+   "rewritten": [
+    "text é"
+   ],
+   "agents": [
+    {
+     "agent": "text é",
+     "files": 2.5,
+     "bytes": 2.5,
+     "outcome": "failed",
+     "sessions": 2.5,
+     "skipped": 2.5,
+     "error": "text é",
+     "rows": 2.5,
+     "note": "text é"
+    }
+   ],
+   "project": {
+    "name": "text é",
+    "dest": "text é",
+    "importedAt": "text é",
+    "size": 7
+   }
+  },
+  "output": "{\"dest\":\"text é\",\"files\":2.5,\"bytes\":2.5,\"parts\":2.5,\"cut\":[\"text é\"],\"rewritten\":[\"text é\"],\"agents\":[{\"agent\":\"text é\",\"files\":2.5,\"bytes\":2.5,\"outcome\":\"failed\",\"sessions\":2.5,\"skipped\":2.5,\"error\":\"text é\",\"rows\":2.5,\"note\":\"text é\"}],\"project\":{\"name\":\"text é\",\"dest\":\"text é\",\"importedAt\":\"text é\",\"size\":7}}"
+ },
+ {
+  "type": "ProjectImportResult",
+  "case": "minimal",
+  "input": {
+   "dest": "s",
+   "files": 3,
+   "bytes": 3,
+   "parts": 3,
+   "cut": [],
+   "rewritten": [],
+   "agents": [],
+   "project": {
+    "name": "s",
+    "dest": "s",
+    "importedAt": "s"
+   }
+  },
+  "output": "{\"dest\":\"s\",\"files\":3,\"bytes\":3,\"parts\":3,\"cut\":[],\"rewritten\":[],\"agents\":[],\"project\":{\"name\":\"s\",\"dest\":\"s\",\"importedAt\":\"s\"}}"
+ },
+ {
+  "type": "ProjectImportResult",
+  "case": "missing dest",
+  "input": {
+   "files": 2.5,
+   "bytes": 2.5,
+   "parts": 2.5,
+   "cut": [
+    "text é"
+   ],
+   "rewritten": [
+    "text é"
+   ],
+   "agents": [
+    {
+     "agent": "text é",
+     "files": 2.5,
+     "bytes": 2.5,
+     "outcome": "failed",
+     "sessions": 2.5,
+     "skipped": 2.5,
+     "error": "text é",
+     "rows": 2.5,
+     "note": "text é"
+    }
+   ],
+   "project": {
+    "name": "text é",
+    "dest": "text é",
+    "importedAt": "text é",
+    "size": 7
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "dest"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectImportStage",
+  "case": "full",
+  "input": "failed",
+  "output": "\"failed\""
+ },
+ {
+  "type": "ProjectImportStage",
+  "case": "minimal",
+  "input": "planned",
+  "output": "\"planned\""
+ },
+ {
+  "type": "ProjectImportStage",
+  "case": "value consented",
+  "input": "consented",
+  "output": "\"consented\""
+ },
+ {
+  "type": "ProjectImportStage",
+  "case": "value packing",
+  "input": "packing",
+  "output": "\"packing\""
+ },
+ {
+  "type": "ProjectImportStage",
+  "case": "value uploading",
+  "input": "uploading",
+  "output": "\"uploading\""
+ },
+ {
+  "type": "ProjectImportStage",
+  "case": "value landing",
+  "input": "landing",
+  "output": "\"landing\""
+ },
+ {
+  "type": "ProjectImportStage",
+  "case": "value done",
+  "input": "done",
+  "output": "\"done\""
+ },
+ {
+  "type": "ProjectImportStage",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectPlan",
+  "case": "full",
+  "input": {
+   "source": "text é",
+   "repo": true,
+   "files": 2.5,
+   "bytes": 2.5,
+   "secrets": [
+    {
+     "path": "text é",
+     "bytes": 2.5,
+     "signals": [
+      "history"
+     ],
+     "rewrite": {
+      "urls": [],
+      "drop": []
+     }
+    }
+   ],
+   "values": [
+    "text é"
+   ],
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    {
+     "path": "text é",
+     "note": "text é"
+    }
+   ],
+   "agents": [
+    {
+     "agent": "text é",
+     "name": "text é",
+     "sessions": 2.5,
+     "bytes": 2.5,
+     "carry": "transcript-only",
+     "error": "text é"
+    }
+   ]
+  },
+  "output": "{\"source\":\"text é\",\"repo\":true,\"files\":2.5,\"bytes\":2.5,\"secrets\":[{\"path\":\"text é\",\"bytes\":2.5,\"signals\":[\"history\"],\"rewrite\":{\"urls\":[],\"drop\":[]}}],\"values\":[\"text é\"],\"excluded\":[\"text é\"],\"skipped\":[{\"path\":\"text é\",\"note\":\"text é\"}],\"agents\":[{\"agent\":\"text é\",\"name\":\"text é\",\"sessions\":2.5,\"bytes\":2.5,\"carry\":\"transcript-only\",\"error\":\"text é\"}]}"
+ },
+ {
+  "type": "ProjectPlan",
+  "case": "minimal",
+  "input": {
+   "source": "s",
+   "repo": false,
+   "files": 3,
+   "bytes": 3,
+   "secrets": [],
+   "excluded": [],
+   "skipped": [],
+   "agents": []
+  },
+  "output": "{\"source\":\"s\",\"repo\":false,\"files\":3,\"bytes\":3,\"secrets\":[],\"excluded\":[],\"skipped\":[],\"agents\":[]}"
+ },
+ {
+  "type": "ProjectPlan",
+  "case": "nulls",
+  "input": {
+   "source": "s",
+   "repo": false,
+   "files": 3,
+   "bytes": 3,
+   "secrets": [],
+   "values": [],
+   "excluded": [],
+   "skipped": [],
+   "agents": []
+  },
+  "output": "{\"source\":\"s\",\"repo\":false,\"files\":3,\"bytes\":3,\"secrets\":[],\"values\":[],\"excluded\":[],\"skipped\":[],\"agents\":[]}"
+ },
+ {
+  "type": "ProjectPlan",
+  "case": "missing source",
+  "input": {
+   "repo": true,
+   "files": 2.5,
+   "bytes": 2.5,
+   "secrets": [
+    {
+     "path": "text é",
+     "bytes": 2.5,
+     "signals": [
+      "history"
+     ],
+     "rewrite": {
+      "urls": [],
+      "drop": []
+     }
+    }
+   ],
+   "values": [
+    "text é"
+   ],
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    {
+     "path": "text é",
+     "note": "text é"
+    }
+   ],
+   "agents": [
+    {
+     "agent": "text é",
+     "name": "text é",
+     "sessions": 2.5,
+     "bytes": 2.5,
+     "carry": "transcript-only",
+     "error": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "source"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectPlan",
+  "case": "repo: not a boolean",
+  "input": {
+   "source": "text é",
+   "repo": "yes",
+   "files": 2.5,
+   "bytes": 2.5,
+   "secrets": [
+    {
+     "path": "text é",
+     "bytes": 2.5,
+     "signals": [
+      "history"
+     ],
+     "rewrite": {
+      "urls": [],
+      "drop": []
+     }
+    }
+   ],
+   "values": [
+    "text é"
+   ],
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    {
+     "path": "text é",
+     "note": "text é"
+    }
+   ],
+   "agents": [
+    {
+     "agent": "text é",
+     "name": "text é",
+     "sessions": 2.5,
+     "bytes": 2.5,
+     "carry": "transcript-only",
+     "error": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "repo"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectRewrite",
+  "case": "full",
+  "input": {
+   "urls": [
+    "text é"
+   ],
+   "drop": [
+    "text é"
+   ]
+  },
+  "output": "{\"urls\":[\"text é\"],\"drop\":[\"text é\"]}"
+ },
+ {
+  "type": "ProjectRewrite",
+  "case": "minimal",
+  "input": {
+   "urls": [],
+   "drop": []
+  },
+  "output": "{\"urls\":[],\"drop\":[]}"
+ },
+ {
+  "type": "ProjectRewrite",
+  "case": "missing urls",
+  "input": {
+   "drop": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "urls"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectSecret",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "bytes": 2.5,
+   "signals": [
+    "history"
+   ],
+   "rewrite": {
+    "urls": [
+     "text é"
+    ],
+    "drop": [
+     "text é"
+    ]
+   }
+  },
+  "output": "{\"path\":\"text é\",\"bytes\":2.5,\"signals\":[\"history\"],\"rewrite\":{\"urls\":[\"text é\"],\"drop\":[\"text é\"]}}"
+ },
+ {
+  "type": "ProjectSecret",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "bytes": 3,
+   "signals": []
+  },
+  "output": "{\"path\":\"s\",\"bytes\":3,\"signals\":[]}"
+ },
+ {
+  "type": "ProjectSecret",
+  "case": "nulls",
+  "input": {
+   "path": "s",
+   "bytes": 3,
+   "signals": [],
+   "rewrite": {
+    "urls": [],
+    "drop": []
+   }
+  },
+  "output": "{\"path\":\"s\",\"bytes\":3,\"signals\":[],\"rewrite\":{\"urls\":[],\"drop\":[]}}"
+ },
+ {
+  "type": "ProjectSecret",
+  "case": "missing path",
+  "input": {
+   "bytes": 2.5,
+   "signals": [
+    "history"
+   ],
+   "rewrite": {
+    "urls": [
+     "text é"
+    ],
+    "drop": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "full",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "fontFamily": [
+    "text é"
+   ],
+   "fontSize": 2.5,
+   "theme": "text é",
+   "background": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "foreground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ],
+   "selectionBackground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorColor": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorStyle": "block_hollow",
+   "cursorStyleBlink": true,
+   "windowPaddingX": {
+    "left": 2.5,
+    "right": 2.5
+   },
+   "windowPaddingY": {
+    "top": 2.5,
+    "bottom": 2.5
+   },
+   "backgroundOpacity": 0.5,
+   "backgroundBlur": 7
+  },
+  "output": "{\"files\":[\"text é\"],\"fontFamily\":[\"text é\"],\"fontSize\":2.5,\"theme\":\"text é\",\"background\":{\"r\":7,\"g\":7,\"b\":7},\"foreground\":{\"r\":7,\"g\":7,\"b\":7},\"palette\":[{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7}],\"selectionBackground\":{\"r\":7,\"g\":7,\"b\":7},\"cursorColor\":{\"r\":7,\"g\":7,\"b\":7},\"cursorStyle\":\"block_hollow\",\"cursorStyleBlink\":true,\"windowPaddingX\":{\"left\":2.5,\"right\":2.5},\"windowPaddingY\":{\"top\":2.5,\"bottom\":2.5},\"backgroundOpacity\":0.5,\"backgroundBlur\":7}"
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "minimal",
+  "input": {
+   "files": [],
+   "fontFamily": [],
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ]
+  },
+  "output": "{\"files\":[],\"fontFamily\":[],\"palette\":[{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7}]}"
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "nulls",
+  "input": {
+   "files": [],
+   "fontFamily": [],
+   "fontSize": 3,
+   "theme": "s",
+   "background": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "foreground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ],
+   "selectionBackground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorColor": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorStyle": "block",
+   "cursorStyleBlink": false,
+   "windowPaddingX": {
+    "left": 3,
+    "right": 3
+   },
+   "windowPaddingY": {
+    "top": 3,
+    "bottom": 3
+   },
+   "backgroundOpacity": 0.5,
+   "backgroundBlur": 7
+  },
+  "output": "{\"files\":[],\"fontFamily\":[],\"fontSize\":3,\"theme\":\"s\",\"background\":{\"r\":7,\"g\":7,\"b\":7},\"foreground\":{\"r\":7,\"g\":7,\"b\":7},\"palette\":[{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7},{\"r\":7,\"g\":7,\"b\":7}],\"selectionBackground\":{\"r\":7,\"g\":7,\"b\":7},\"cursorColor\":{\"r\":7,\"g\":7,\"b\":7},\"cursorStyle\":\"block\",\"cursorStyleBlink\":false,\"windowPaddingX\":{\"left\":3,\"right\":3},\"windowPaddingY\":{\"top\":3,\"bottom\":3},\"backgroundOpacity\":0.5,\"backgroundBlur\":7}"
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "missing files",
+  "input": {
+   "fontFamily": [
+    "text é"
+   ],
+   "fontSize": 2.5,
+   "theme": "text é",
+   "background": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "foreground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ],
+   "selectionBackground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorColor": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorStyle": "block_hollow",
+   "cursorStyleBlink": true,
+   "windowPaddingX": {
+    "left": 2.5,
+    "right": 2.5
+   },
+   "windowPaddingY": {
+    "top": 2.5,
+    "bottom": 2.5
+   },
+   "backgroundOpacity": 0.5,
+   "backgroundBlur": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "files"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "fontSize: under 0",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "fontFamily": [
+    "text é"
+   ],
+   "fontSize": 0,
+   "theme": "text é",
+   "background": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "foreground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ],
+   "selectionBackground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorColor": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorStyle": "block_hollow",
+   "cursorStyleBlink": true,
+   "windowPaddingX": {
+    "left": 2.5,
+    "right": 2.5
+   },
+   "windowPaddingY": {
+    "top": 2.5,
+    "bottom": 2.5
+   },
+   "backgroundOpacity": 0.5,
+   "backgroundBlur": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "fontSize"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "palette: not 16 items",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "fontFamily": [
+    "text é"
+   ],
+   "fontSize": 2.5,
+   "theme": "text é",
+   "background": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "foreground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ],
+   "selectionBackground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorColor": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorStyle": "block_hollow",
+   "cursorStyleBlink": true,
+   "windowPaddingX": {
+    "left": 2.5,
+    "right": 2.5
+   },
+   "windowPaddingY": {
+    "top": 2.5,
+    "bottom": 2.5
+   },
+   "backgroundOpacity": 0.5,
+   "backgroundBlur": 7
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "palette"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "cursorStyle: not one of its values",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "fontFamily": [
+    "text é"
+   ],
+   "fontSize": 2.5,
+   "theme": "text é",
+   "background": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "foreground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ],
+   "selectionBackground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorColor": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorStyle": "not-a-value",
+   "cursorStyleBlink": true,
+   "windowPaddingX": {
+    "left": 2.5,
+    "right": 2.5
+   },
+   "windowPaddingY": {
+    "top": 2.5,
+    "bottom": 2.5
+   },
+   "backgroundOpacity": 0.5,
+   "backgroundBlur": 7
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "cursorStyle"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "cursorStyleBlink: not a boolean",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "fontFamily": [
+    "text é"
+   ],
+   "fontSize": 2.5,
+   "theme": "text é",
+   "background": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "foreground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ],
+   "selectionBackground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorColor": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorStyle": "block_hollow",
+   "cursorStyleBlink": "yes",
+   "windowPaddingX": {
+    "left": 2.5,
+    "right": 2.5
+   },
+   "windowPaddingY": {
+    "top": 2.5,
+    "bottom": 2.5
+   },
+   "backgroundOpacity": 0.5,
+   "backgroundBlur": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "cursorStyleBlink"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "backgroundOpacity: under 0",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "fontFamily": [
+    "text é"
+   ],
+   "fontSize": 2.5,
+   "theme": "text é",
+   "background": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "foreground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ],
+   "selectionBackground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorColor": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorStyle": "block_hollow",
+   "cursorStyleBlink": true,
+   "windowPaddingX": {
+    "left": 2.5,
+    "right": 2.5
+   },
+   "windowPaddingY": {
+    "top": 2.5,
+    "bottom": 2.5
+   },
+   "backgroundOpacity": -1,
+   "backgroundBlur": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "backgroundOpacity"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "backgroundOpacity: over 1",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "fontFamily": [
+    "text é"
+   ],
+   "fontSize": 2.5,
+   "theme": "text é",
+   "background": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "foreground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ],
+   "selectionBackground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorColor": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorStyle": "block_hollow",
+   "cursorStyleBlink": true,
+   "windowPaddingX": {
+    "left": 2.5,
+    "right": 2.5
+   },
+   "windowPaddingY": {
+    "top": 2.5,
+    "bottom": 2.5
+   },
+   "backgroundOpacity": 2,
+   "backgroundBlur": 7
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "backgroundOpacity"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "backgroundBlur: not an integer",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "fontFamily": [
+    "text é"
+   ],
+   "fontSize": 2.5,
+   "theme": "text é",
+   "background": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "foreground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ],
+   "selectionBackground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorColor": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorStyle": "block_hollow",
+   "cursorStyleBlink": true,
+   "windowPaddingX": {
+    "left": 2.5,
+    "right": 2.5
+   },
+   "windowPaddingY": {
+    "top": 2.5,
+    "bottom": 2.5
+   },
+   "backgroundOpacity": 0.5,
+   "backgroundBlur": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "backgroundBlur"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TerminalConfig",
+  "case": "backgroundBlur: under 0",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "fontFamily": [
+    "text é"
+   ],
+   "fontSize": 2.5,
+   "theme": "text é",
+   "background": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "foreground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "palette": [
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    },
+    {
+     "r": 7,
+     "g": 7,
+     "b": 7
+    }
+   ],
+   "selectionBackground": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorColor": {
+    "r": 7,
+    "g": 7,
+    "b": 7
+   },
+   "cursorStyle": "block_hollow",
+   "cursorStyleBlink": true,
+   "windowPaddingX": {
+    "left": 2.5,
+    "right": 2.5
+   },
+   "windowPaddingY": {
+    "top": 2.5,
+    "bottom": 2.5
+   },
+   "backgroundOpacity": 0.5,
+   "backgroundBlur": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "backgroundBlur"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TerminalCursorStyle",
+  "case": "full",
+  "input": "block_hollow",
+  "output": "\"block_hollow\""
+ },
+ {
+  "type": "TerminalCursorStyle",
+  "case": "minimal",
+  "input": "block",
+  "output": "\"block\""
+ },
+ {
+  "type": "TerminalCursorStyle",
+  "case": "value bar",
+  "input": "bar",
+  "output": "\"bar\""
+ },
+ {
+  "type": "TerminalCursorStyle",
+  "case": "value underline",
+  "input": "underline",
+  "output": "\"underline\""
+ },
+ {
+  "type": "TerminalCursorStyle",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TerminalRgb",
+  "case": "full",
+  "input": {
+   "r": 7,
+   "g": 7,
+   "b": 7
+  },
+  "output": "{\"r\":7,\"g\":7,\"b\":7}"
+ },
+ {
+  "type": "TerminalRgb",
+  "case": "missing r",
+  "input": {
+   "g": 7,
+   "b": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "r"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TerminalRgb",
+  "case": "r: not an integer",
+  "input": {
+   "r": 2.5,
+   "g": 7,
+   "b": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "r"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TerminalRgb",
+  "case": "r: under 0",
+  "input": {
+   "r": -1,
+   "g": 7,
+   "b": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "r"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TerminalRgb",
+  "case": "r: over 255",
+  "input": {
+   "r": 256,
+   "g": 7,
+   "b": 7
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "r"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TerminalRgb",
+  "case": "g: not an integer",
+  "input": {
+   "r": 7,
+   "g": 2.5,
+   "b": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "g"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TerminalRgb",
+  "case": "g: under 0",
+  "input": {
+   "r": 7,
+   "g": -1,
+   "b": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "g"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TerminalRgb",
+  "case": "g: over 255",
+  "input": {
+   "r": 7,
+   "g": 256,
+   "b": 7
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "g"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TerminalRgb",
+  "case": "b: not an integer",
+  "input": {
+   "r": 7,
+   "g": 7,
+   "b": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "b"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TerminalRgb",
+  "case": "b: under 0",
+  "input": {
+   "r": 7,
+   "g": 7,
+   "b": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "b"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TerminalRgb",
+  "case": "b: over 255",
+  "input": {
+   "r": 7,
+   "g": 7,
+   "b": 256
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "b"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TerminalScheme",
+  "case": "full",
+  "input": "dark",
+  "output": "\"dark\""
+ },
+ {
+  "type": "TerminalScheme",
+  "case": "minimal",
+  "input": "light",
+  "output": "\"light\""
+ },
+ {
+  "type": "TerminalScheme",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ }
+]

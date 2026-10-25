@@ -1,0 +1,2343 @@
+[
+ {
+  "type": "AccountLimit",
+  "case": "full",
+  "input": {
+   "key": "text é",
+   "agent": "text é",
+   "label": "text é",
+   "road": "own",
+   "plan": "text é",
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "status": "reached",
+   "keyed": true,
+   "readAt": 2.5,
+   "computers": [
+    "text é"
+   ],
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ],
+    "readAt": 2.5,
+    "detailAt": 2.5
+   }
+  },
+  "output": "{\"key\":\"text é\",\"agent\":\"text é\",\"label\":\"text é\",\"road\":\"own\",\"plan\":\"text é\",\"windows\":[{\"kind\":\"overage\",\"usedPercent\":2.5,\"resetsAt\":2.5}],\"status\":\"reached\",\"keyed\":true,\"readAt\":2.5,\"computers\":[\"text é\"],\"credits\":{\"count\":7,\"credits\":[{\"id\":\"text é\",\"status\":\"unknown\",\"expiresAt\":2.5}],\"readAt\":2.5,\"detailAt\":2.5}}"
+ },
+ {
+  "type": "AccountLimit",
+  "case": "minimal",
+  "input": {
+   "key": "s",
+   "agent": "s",
+   "label": "s",
+   "windows": [],
+   "readAt": 3,
+   "computers": []
+  },
+  "output": "{\"key\":\"s\",\"agent\":\"s\",\"label\":\"s\",\"windows\":[],\"readAt\":3,\"computers\":[]}"
+ },
+ {
+  "type": "AccountLimit",
+  "case": "nulls",
+  "input": {
+   "key": "s",
+   "agent": "s",
+   "label": "s",
+   "road": "named",
+   "plan": "s",
+   "windows": [],
+   "status": "ok",
+   "keyed": false,
+   "readAt": 3,
+   "computers": [],
+   "credits": {
+    "count": 7,
+    "readAt": 3
+   }
+  },
+  "output": "{\"key\":\"s\",\"agent\":\"s\",\"label\":\"s\",\"road\":\"named\",\"plan\":\"s\",\"windows\":[],\"status\":\"ok\",\"keyed\":false,\"readAt\":3,\"computers\":[],\"credits\":{\"count\":7,\"readAt\":3}}"
+ },
+ {
+  "type": "AccountLimit",
+  "case": "missing key",
+  "input": {
+   "agent": "text é",
+   "label": "text é",
+   "road": "own",
+   "plan": "text é",
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "status": "reached",
+   "keyed": true,
+   "readAt": 2.5,
+   "computers": [
+    "text é"
+   ],
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ],
+    "readAt": 2.5,
+    "detailAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "key"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AccountLimit",
+  "case": "road: not one of its values",
+  "input": {
+   "key": "text é",
+   "agent": "text é",
+   "label": "text é",
+   "road": "not-a-value",
+   "plan": "text é",
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "status": "reached",
+   "keyed": true,
+   "readAt": 2.5,
+   "computers": [
+    "text é"
+   ],
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ],
+    "readAt": 2.5,
+    "detailAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "road"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AccountLimit",
+  "case": "status: not one of its values",
+  "input": {
+   "key": "text é",
+   "agent": "text é",
+   "label": "text é",
+   "road": "own",
+   "plan": "text é",
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "status": "not-a-value",
+   "keyed": true,
+   "readAt": 2.5,
+   "computers": [
+    "text é"
+   ],
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ],
+    "readAt": 2.5,
+    "detailAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "status"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AccountLimit",
+  "case": "keyed: not a boolean",
+  "input": {
+   "key": "text é",
+   "agent": "text é",
+   "label": "text é",
+   "road": "own",
+   "plan": "text é",
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "status": "reached",
+   "keyed": "yes",
+   "readAt": 2.5,
+   "computers": [
+    "text é"
+   ],
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ],
+    "readAt": 2.5,
+    "detailAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "keyed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AccountNote",
+  "case": "full",
+  "input": "not read yet: shows after its next turn",
+  "output": "\"not read yet: shows after its next turn\""
+ },
+ {
+  "type": "AccountNote",
+  "case": "minimal",
+  "input": "reports no plan limit",
+  "output": "\"reports no plan limit\""
+ },
+ {
+  "type": "AccountNote",
+  "case": "value pays per token, no plan limit",
+  "input": "pays per token, no plan limit",
+  "output": "\"pays per token, no plan limit\""
+ },
+ {
+  "type": "AccountNote",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AccountRoad",
+  "case": "full",
+  "input": "own",
+  "output": "\"own\""
+ },
+ {
+  "type": "AccountRoad",
+  "case": "minimal",
+  "input": "named",
+  "output": "\"named\""
+ },
+ {
+  "type": "AccountRoad",
+  "case": "value vault",
+  "input": "vault",
+  "output": "\"vault\""
+ },
+ {
+  "type": "AccountRoad",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AccountRow",
+  "case": "full",
+  "input": {
+   "key": "text é",
+   "agent": "text é",
+   "label": "text é",
+   "computers": [
+    "text é"
+   ],
+   "plan": "text é",
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "status": "reached",
+   "readAt": 2.5,
+   "note": "not read yet: shows after its next turn",
+   "burn": {
+    "tokensPerMinute": 2.5,
+    "threads": 7
+   },
+   "address": "text é",
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ],
+    "nextExpiresAt": 2.5,
+    "readAt": 2.5,
+    "detailAt": 2.5
+   }
+  },
+  "output": "{\"key\":\"text é\",\"agent\":\"text é\",\"label\":\"text é\",\"computers\":[\"text é\"],\"plan\":\"text é\",\"windows\":[{\"kind\":\"overage\",\"usedPercent\":2.5,\"resetsAt\":2.5}],\"status\":\"reached\",\"readAt\":2.5,\"note\":\"not read yet: shows after its next turn\",\"burn\":{\"tokensPerMinute\":2.5,\"threads\":7},\"address\":\"text é\",\"credits\":{\"count\":7,\"credits\":[{\"id\":\"text é\",\"status\":\"unknown\",\"expiresAt\":2.5}],\"nextExpiresAt\":2.5,\"readAt\":2.5,\"detailAt\":2.5}}"
+ },
+ {
+  "type": "AccountRow",
+  "case": "minimal",
+  "input": {
+   "key": "s",
+   "agent": "s",
+   "label": "s",
+   "computers": []
+  },
+  "output": "{\"key\":\"s\",\"agent\":\"s\",\"label\":\"s\",\"computers\":[]}"
+ },
+ {
+  "type": "AccountRow",
+  "case": "nulls",
+  "input": {
+   "key": "s",
+   "agent": "s",
+   "label": "s",
+   "computers": [],
+   "plan": "s",
+   "windows": [],
+   "status": "ok",
+   "readAt": 3,
+   "note": "reports no plan limit",
+   "burn": {
+    "tokensPerMinute": 3,
+    "threads": 7
+   },
+   "address": "s",
+   "credits": {
+    "count": 7,
+    "readAt": 3
+   }
+  },
+  "output": "{\"key\":\"s\",\"agent\":\"s\",\"label\":\"s\",\"computers\":[],\"plan\":\"s\",\"windows\":[],\"status\":\"ok\",\"readAt\":3,\"note\":\"reports no plan limit\",\"burn\":{\"tokensPerMinute\":3,\"threads\":7},\"address\":\"s\",\"credits\":{\"count\":7,\"readAt\":3}}"
+ },
+ {
+  "type": "AccountRow",
+  "case": "missing key",
+  "input": {
+   "agent": "text é",
+   "label": "text é",
+   "computers": [
+    "text é"
+   ],
+   "plan": "text é",
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "status": "reached",
+   "readAt": 2.5,
+   "note": "not read yet: shows after its next turn",
+   "burn": {
+    "tokensPerMinute": 2.5,
+    "threads": 7
+   },
+   "address": "text é",
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ],
+    "nextExpiresAt": 2.5,
+    "readAt": 2.5,
+    "detailAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "key"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AccountRow",
+  "case": "status: not one of its values",
+  "input": {
+   "key": "text é",
+   "agent": "text é",
+   "label": "text é",
+   "computers": [
+    "text é"
+   ],
+   "plan": "text é",
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "status": "not-a-value",
+   "readAt": 2.5,
+   "note": "not read yet: shows after its next turn",
+   "burn": {
+    "tokensPerMinute": 2.5,
+    "threads": 7
+   },
+   "address": "text é",
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ],
+    "nextExpiresAt": 2.5,
+    "readAt": 2.5,
+    "detailAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "status"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AccountRow",
+  "case": "note: not one of its values",
+  "input": {
+   "key": "text é",
+   "agent": "text é",
+   "label": "text é",
+   "computers": [
+    "text é"
+   ],
+   "plan": "text é",
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "status": "reached",
+   "readAt": 2.5,
+   "note": "not-a-value",
+   "burn": {
+    "tokensPerMinute": 2.5,
+    "threads": 7
+   },
+   "address": "text é",
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ],
+    "nextExpiresAt": 2.5,
+    "readAt": 2.5,
+    "detailAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "note"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AccountsAnswer",
+  "case": "full",
+  "input": {
+   "accounts": [
+    {
+     "key": "text é",
+     "agent": "text é",
+     "label": "text é",
+     "computers": [
+      "text é"
+     ],
+     "plan": "text é",
+     "windows": [
+      {
+       "kind": "overage",
+       "usedPercent": 2.5
+      }
+     ],
+     "status": "reached",
+     "readAt": 2.5,
+     "note": "not read yet: shows after its next turn",
+     "burn": {
+      "tokensPerMinute": 2.5,
+      "threads": 7
+     },
+     "address": "text é",
+     "credits": {
+      "count": 7,
+      "credits": [],
+      "nextExpiresAt": 2.5,
+      "readAt": 2.5,
+      "detailAt": 2.5
+     }
+    }
+   ]
+  },
+  "output": "{\"accounts\":[{\"key\":\"text é\",\"agent\":\"text é\",\"label\":\"text é\",\"computers\":[\"text é\"],\"plan\":\"text é\",\"windows\":[{\"kind\":\"overage\",\"usedPercent\":2.5}],\"status\":\"reached\",\"readAt\":2.5,\"note\":\"not read yet: shows after its next turn\",\"burn\":{\"tokensPerMinute\":2.5,\"threads\":7},\"address\":\"text é\",\"credits\":{\"count\":7,\"credits\":[],\"nextExpiresAt\":2.5,\"readAt\":2.5,\"detailAt\":2.5}}]}"
+ },
+ {
+  "type": "AccountsAnswer",
+  "case": "minimal",
+  "input": {
+   "accounts": []
+  },
+  "output": "{\"accounts\":[]}"
+ },
+ {
+  "type": "AccountsAnswer",
+  "case": "missing accounts",
+  "input": {},
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "accounts"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "BankedResets",
+  "case": "full",
+  "input": {
+   "count": 7,
+   "credits": [
+    {
+     "id": "text é",
+     "status": "unknown",
+     "expiresAt": 2.5
+    }
+   ]
+  },
+  "output": "{\"count\":7,\"credits\":[{\"id\":\"text é\",\"status\":\"unknown\",\"expiresAt\":2.5}]}"
+ },
+ {
+  "type": "BankedResets",
+  "case": "minimal",
+  "input": {
+   "count": 7
+  },
+  "output": "{\"count\":7}"
+ },
+ {
+  "type": "BankedResets",
+  "case": "nulls",
+  "input": {
+   "count": 7,
+   "credits": []
+  },
+  "output": "{\"count\":7,\"credits\":[]}"
+ },
+ {
+  "type": "BankedResets",
+  "case": "missing count",
+  "input": {
+   "credits": [
+    {
+     "id": "text é",
+     "status": "unknown",
+     "expiresAt": 2.5
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "count"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "BankedResets",
+  "case": "count: not an integer",
+  "input": {
+   "count": 2.5,
+   "credits": [
+    {
+     "id": "text é",
+     "status": "unknown",
+     "expiresAt": 2.5
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "count"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "BankedResets",
+  "case": "count: under 0",
+  "input": {
+   "count": -1,
+   "credits": [
+    {
+     "id": "text é",
+     "status": "unknown",
+     "expiresAt": 2.5
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "count"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "HarnessLimit",
+  "case": "full",
+  "input": {
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "plan": "text é",
+   "status": "reached",
+   "account": {
+    "id": "text é",
+    "label": "text é"
+   },
+   "keyed": true,
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ]
+   }
+  },
+  "output": "{\"windows\":[{\"kind\":\"overage\",\"usedPercent\":2.5,\"resetsAt\":2.5}],\"plan\":\"text é\",\"status\":\"reached\",\"account\":{\"id\":\"text é\",\"label\":\"text é\"},\"keyed\":true,\"credits\":{\"count\":7,\"credits\":[{\"id\":\"text é\",\"status\":\"unknown\",\"expiresAt\":2.5}]}}"
+ },
+ {
+  "type": "HarnessLimit",
+  "case": "minimal",
+  "input": {
+   "windows": []
+  },
+  "output": "{\"windows\":[]}"
+ },
+ {
+  "type": "HarnessLimit",
+  "case": "nulls",
+  "input": {
+   "windows": [],
+   "plan": "s",
+   "status": "ok",
+   "account": {
+    "id": "s"
+   },
+   "keyed": false,
+   "credits": {
+    "count": 7
+   }
+  },
+  "output": "{\"windows\":[],\"plan\":\"s\",\"status\":\"ok\",\"account\":{\"id\":\"s\"},\"keyed\":false,\"credits\":{\"count\":7}}"
+ },
+ {
+  "type": "HarnessLimit",
+  "case": "missing windows",
+  "input": {
+   "plan": "text é",
+   "status": "reached",
+   "account": {
+    "id": "text é",
+    "label": "text é"
+   },
+   "keyed": true,
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "windows"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessLimit",
+  "case": "status: not one of its values",
+  "input": {
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "plan": "text é",
+   "status": "not-a-value",
+   "account": {
+    "id": "text é",
+    "label": "text é"
+   },
+   "keyed": true,
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "status"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessLimit",
+  "case": "keyed: not a boolean",
+  "input": {
+   "windows": [
+    {
+     "kind": "overage",
+     "usedPercent": 2.5,
+     "resetsAt": 2.5
+    }
+   ],
+   "plan": "text é",
+   "status": "reached",
+   "account": {
+    "id": "text é",
+    "label": "text é"
+   },
+   "keyed": "yes",
+   "credits": {
+    "count": 7,
+    "credits": [
+     {
+      "id": "text é",
+      "status": "unknown",
+      "expiresAt": 2.5
+     }
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "keyed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "LimitKind",
+  "case": "full",
+  "input": "overage",
+  "output": "\"overage\""
+ },
+ {
+  "type": "LimitKind",
+  "case": "minimal",
+  "input": "session",
+  "output": "\"session\""
+ },
+ {
+  "type": "LimitKind",
+  "case": "value week",
+  "input": "week",
+  "output": "\"week\""
+ },
+ {
+  "type": "LimitKind",
+  "case": "value week_opus",
+  "input": "week_opus",
+  "output": "\"week_opus\""
+ },
+ {
+  "type": "LimitKind",
+  "case": "value week_sonnet",
+  "input": "week_sonnet",
+  "output": "\"week_sonnet\""
+ },
+ {
+  "type": "LimitKind",
+  "case": "value month",
+  "input": "month",
+  "output": "\"month\""
+ },
+ {
+  "type": "LimitKind",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "LimitStatus",
+  "case": "full",
+  "input": "reached",
+  "output": "\"reached\""
+ },
+ {
+  "type": "LimitStatus",
+  "case": "minimal",
+  "input": "ok",
+  "output": "\"ok\""
+ },
+ {
+  "type": "LimitStatus",
+  "case": "value warning",
+  "input": "warning",
+  "output": "\"warning\""
+ },
+ {
+  "type": "LimitStatus",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "LimitWindow",
+  "case": "full",
+  "input": {
+   "kind": "overage",
+   "usedPercent": 2.5,
+   "resetsAt": 2.5
+  },
+  "output": "{\"kind\":\"overage\",\"usedPercent\":2.5,\"resetsAt\":2.5}"
+ },
+ {
+  "type": "LimitWindow",
+  "case": "minimal",
+  "input": {
+   "kind": "session",
+   "usedPercent": 3
+  },
+  "output": "{\"kind\":\"session\",\"usedPercent\":3}"
+ },
+ {
+  "type": "LimitWindow",
+  "case": "nulls",
+  "input": {
+   "kind": "session",
+   "usedPercent": 3,
+   "resetsAt": 3
+  },
+  "output": "{\"kind\":\"session\",\"usedPercent\":3,\"resetsAt\":3}"
+ },
+ {
+  "type": "LimitWindow",
+  "case": "missing kind",
+  "input": {
+   "usedPercent": 2.5,
+   "resetsAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "LimitWindow",
+  "case": "kind: not one of its values",
+  "input": {
+   "kind": "not-a-value",
+   "usedPercent": 2.5,
+   "resetsAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReadingsRange",
+  "case": "full",
+  "input": "month",
+  "output": "\"month\""
+ },
+ {
+  "type": "ReadingsRange",
+  "case": "minimal",
+  "input": "15m",
+  "output": "\"15m\""
+ },
+ {
+  "type": "ReadingsRange",
+  "case": "value day",
+  "input": "day",
+  "output": "\"day\""
+ },
+ {
+  "type": "ReadingsRange",
+  "case": "value week",
+  "input": "week",
+  "output": "\"week\""
+ },
+ {
+  "type": "ReadingsRange",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ResetAnswer",
+  "case": "full",
+  "input": {
+   "outcome": "unknown",
+   "said": "text é",
+   "account": {
+    "key": "text é",
+    "agent": "text é",
+    "label": "text é",
+    "computers": [
+     "text é"
+    ],
+    "plan": "text é",
+    "windows": [
+     {
+      "kind": "overage",
+      "usedPercent": 2.5,
+      "resetsAt": 2.5
+     }
+    ],
+    "status": "reached",
+    "readAt": 2.5,
+    "note": "not read yet: shows after its next turn",
+    "burn": {
+     "tokensPerMinute": 2.5,
+     "threads": 7
+    },
+    "address": "text é",
+    "credits": {
+     "count": 7,
+     "credits": [
+      {
+       "id": "text é",
+       "status": "unknown"
+      }
+     ],
+     "nextExpiresAt": 2.5,
+     "readAt": 2.5,
+     "detailAt": 2.5
+    }
+   }
+  },
+  "output": "{\"outcome\":\"unknown\",\"said\":\"text é\",\"account\":{\"key\":\"text é\",\"agent\":\"text é\",\"label\":\"text é\",\"computers\":[\"text é\"],\"plan\":\"text é\",\"windows\":[{\"kind\":\"overage\",\"usedPercent\":2.5,\"resetsAt\":2.5}],\"status\":\"reached\",\"readAt\":2.5,\"note\":\"not read yet: shows after its next turn\",\"burn\":{\"tokensPerMinute\":2.5,\"threads\":7},\"address\":\"text é\",\"credits\":{\"count\":7,\"credits\":[{\"id\":\"text é\",\"status\":\"unknown\"}],\"nextExpiresAt\":2.5,\"readAt\":2.5,\"detailAt\":2.5}}}"
+ },
+ {
+  "type": "ResetAnswer",
+  "case": "minimal",
+  "input": {
+   "outcome": "reset",
+   "said": "s"
+  },
+  "output": "{\"outcome\":\"reset\",\"said\":\"s\"}"
+ },
+ {
+  "type": "ResetAnswer",
+  "case": "nulls",
+  "input": {
+   "outcome": "reset",
+   "said": "s",
+   "account": {
+    "key": "s",
+    "agent": "s",
+    "label": "s",
+    "computers": []
+   }
+  },
+  "output": "{\"outcome\":\"reset\",\"said\":\"s\",\"account\":{\"key\":\"s\",\"agent\":\"s\",\"label\":\"s\",\"computers\":[]}}"
+ },
+ {
+  "type": "ResetAnswer",
+  "case": "missing outcome",
+  "input": {
+   "said": "text é",
+   "account": {
+    "key": "text é",
+    "agent": "text é",
+    "label": "text é",
+    "computers": [
+     "text é"
+    ],
+    "plan": "text é",
+    "windows": [
+     {
+      "kind": "overage",
+      "usedPercent": 2.5,
+      "resetsAt": 2.5
+     }
+    ],
+    "status": "reached",
+    "readAt": 2.5,
+    "note": "not read yet: shows after its next turn",
+    "burn": {
+     "tokensPerMinute": 2.5,
+     "threads": 7
+    },
+    "address": "text é",
+    "credits": {
+     "count": 7,
+     "credits": [
+      {
+       "id": "text é",
+       "status": "unknown"
+      }
+     ],
+     "nextExpiresAt": 2.5,
+     "readAt": 2.5,
+     "detailAt": 2.5
+    }
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "outcome"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ResetAnswer",
+  "case": "outcome: not one of its values",
+  "input": {
+   "outcome": "not-a-value",
+   "said": "text é",
+   "account": {
+    "key": "text é",
+    "agent": "text é",
+    "label": "text é",
+    "computers": [
+     "text é"
+    ],
+    "plan": "text é",
+    "windows": [
+     {
+      "kind": "overage",
+      "usedPercent": 2.5,
+      "resetsAt": 2.5
+     }
+    ],
+    "status": "reached",
+    "readAt": 2.5,
+    "note": "not read yet: shows after its next turn",
+    "burn": {
+     "tokensPerMinute": 2.5,
+     "threads": 7
+    },
+    "address": "text é",
+    "credits": {
+     "count": 7,
+     "credits": [
+      {
+       "id": "text é",
+       "status": "unknown"
+      }
+     ],
+     "nextExpiresAt": 2.5,
+     "readAt": 2.5,
+     "detailAt": 2.5
+    }
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "outcome"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ResetCredit",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "status": "unknown",
+   "expiresAt": 2.5
+  },
+  "output": "{\"id\":\"text é\",\"status\":\"unknown\",\"expiresAt\":2.5}"
+ },
+ {
+  "type": "ResetCredit",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "status": "available"
+  },
+  "output": "{\"id\":\"s\",\"status\":\"available\"}"
+ },
+ {
+  "type": "ResetCredit",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "status": "available",
+   "expiresAt": 3
+  },
+  "output": "{\"id\":\"s\",\"status\":\"available\",\"expiresAt\":3}"
+ },
+ {
+  "type": "ResetCredit",
+  "case": "missing id",
+  "input": {
+   "status": "unknown",
+   "expiresAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ResetCredit",
+  "case": "status: not one of its values",
+  "input": {
+   "id": "text é",
+   "status": "not-a-value",
+   "expiresAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "status"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ResetOutcome",
+  "case": "full",
+  "input": "unknown",
+  "output": "\"unknown\""
+ },
+ {
+  "type": "ResetOutcome",
+  "case": "minimal",
+  "input": "reset",
+  "output": "\"reset\""
+ },
+ {
+  "type": "ResetOutcome",
+  "case": "value nothingToReset",
+  "input": "nothingToReset",
+  "output": "\"nothingToReset\""
+ },
+ {
+  "type": "ResetOutcome",
+  "case": "value noCredit",
+  "input": "noCredit",
+  "output": "\"noCredit\""
+ },
+ {
+  "type": "ResetOutcome",
+  "case": "value alreadyRedeemed",
+  "input": "alreadyRedeemed",
+  "output": "\"alreadyRedeemed\""
+ },
+ {
+  "type": "ResetOutcome",
+  "case": "value earlier",
+  "input": "earlier",
+  "output": "\"earlier\""
+ },
+ {
+  "type": "ResetOutcome",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TurnLimit",
+  "case": "full",
+  "input": {
+   "resetsAt": 2.5
+  },
+  "output": "{\"resetsAt\":2.5}"
+ },
+ {
+  "type": "TurnLimit",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "TurnLimit",
+  "case": "nulls",
+  "input": {
+   "resetsAt": 3
+  },
+  "output": "{\"resetsAt\":3}"
+ },
+ {
+  "type": "UsageAccountEvent",
+  "case": "full",
+  "input": {
+   "type": "usage.account",
+   "key": "text é",
+   "row": {
+    "key": "text é",
+    "agent": "text é",
+    "label": "text é",
+    "computers": [
+     "text é"
+    ],
+    "plan": "text é",
+    "windows": [
+     {
+      "kind": "overage",
+      "usedPercent": 2.5,
+      "resetsAt": 2.5
+     }
+    ],
+    "status": "reached",
+    "readAt": 2.5,
+    "note": "not read yet: shows after its next turn",
+    "burn": {
+     "tokensPerMinute": 2.5,
+     "threads": 7
+    },
+    "address": "text é",
+    "credits": {
+     "count": 7,
+     "credits": [
+      {
+       "id": "text é",
+       "status": "unknown"
+      }
+     ],
+     "nextExpiresAt": 2.5,
+     "readAt": 2.5,
+     "detailAt": 2.5
+    }
+   }
+  },
+  "output": "{\"key\":\"text é\",\"row\":{\"key\":\"text é\",\"agent\":\"text é\",\"label\":\"text é\",\"computers\":[\"text é\"],\"plan\":\"text é\",\"windows\":[{\"kind\":\"overage\",\"usedPercent\":2.5,\"resetsAt\":2.5}],\"status\":\"reached\",\"readAt\":2.5,\"note\":\"not read yet: shows after its next turn\",\"burn\":{\"tokensPerMinute\":2.5,\"threads\":7},\"address\":\"text é\",\"credits\":{\"count\":7,\"credits\":[{\"id\":\"text é\",\"status\":\"unknown\"}],\"nextExpiresAt\":2.5,\"readAt\":2.5,\"detailAt\":2.5}}}",
+  "tag": {
+   "key": "type",
+   "value": "usage.account"
+  }
+ },
+ {
+  "type": "UsageAccountEvent",
+  "case": "minimal",
+  "input": {
+   "type": "usage.account",
+   "key": "s",
+   "row": {
+    "key": "s",
+    "agent": "s",
+    "label": "s",
+    "computers": []
+   }
+  },
+  "output": "{\"key\":\"s\",\"row\":{\"key\":\"s\",\"agent\":\"s\",\"label\":\"s\",\"computers\":[]}}",
+  "tag": {
+   "key": "type",
+   "value": "usage.account"
+  }
+ },
+ {
+  "type": "UsageAccountEvent",
+  "case": "missing key",
+  "input": {
+   "type": "usage.account",
+   "row": {
+    "key": "text é",
+    "agent": "text é",
+    "label": "text é",
+    "computers": [
+     "text é"
+    ],
+    "plan": "text é",
+    "windows": [
+     {
+      "kind": "overage",
+      "usedPercent": 2.5,
+      "resetsAt": 2.5
+     }
+    ],
+    "status": "reached",
+    "readAt": 2.5,
+    "note": "not read yet: shows after its next turn",
+    "burn": {
+     "tokensPerMinute": 2.5,
+     "threads": 7
+    },
+    "address": "text é",
+    "credits": {
+     "count": 7,
+     "credits": [
+      {
+       "id": "text é",
+       "status": "unknown"
+      }
+     ],
+     "nextExpiresAt": 2.5,
+     "readAt": 2.5,
+     "detailAt": 2.5
+    }
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "key"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsageDay",
+  "case": "full",
+  "input": {
+   "day": "text é",
+   "rows": [
+    {
+     "day": "text é",
+     "hour": 7,
+     "agent": "text é",
+     "account": "text é",
+     "computer": "text é",
+     "project": "text é",
+     "model": "text é",
+     "turns": 7,
+     "tokens": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "costReported": 2.5,
+     "unreported": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "source": "log"
+    }
+   ],
+   "sessions": [
+    "text é"
+   ]
+  },
+  "output": "{\"day\":\"text é\",\"rows\":[{\"day\":\"text é\",\"hour\":7,\"agent\":\"text é\",\"account\":\"text é\",\"computer\":\"text é\",\"project\":\"text é\",\"model\":\"text é\",\"turns\":7,\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"costReported\":2.5,\"unreported\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"source\":\"log\"}],\"sessions\":[\"text é\"]}"
+ },
+ {
+  "type": "UsageDay",
+  "case": "minimal",
+  "input": {
+   "day": "s",
+   "rows": []
+  },
+  "output": "{\"day\":\"s\",\"rows\":[]}"
+ },
+ {
+  "type": "UsageDay",
+  "case": "nulls",
+  "input": {
+   "day": "s",
+   "rows": [],
+   "sessions": []
+  },
+  "output": "{\"day\":\"s\",\"rows\":[],\"sessions\":[]}"
+ },
+ {
+  "type": "UsageDay",
+  "case": "missing day",
+  "input": {
+   "rows": [
+    {
+     "day": "text é",
+     "hour": 7,
+     "agent": "text é",
+     "account": "text é",
+     "computer": "text é",
+     "project": "text é",
+     "model": "text é",
+     "turns": 7,
+     "tokens": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "costReported": 2.5,
+     "unreported": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "source": "log"
+    }
+   ],
+   "sessions": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "day"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsageKey",
+  "case": "full",
+  "input": {
+   "day": "text é",
+   "hour": 7,
+   "agent": "text é",
+   "account": "text é",
+   "computer": "text é",
+   "project": "text é",
+   "model": "text é"
+  },
+  "output": "{\"day\":\"text é\",\"hour\":7,\"agent\":\"text é\",\"account\":\"text é\",\"computer\":\"text é\",\"project\":\"text é\",\"model\":\"text é\"}"
+ },
+ {
+  "type": "UsageKey",
+  "case": "minimal",
+  "input": {
+   "day": "s",
+   "hour": 7,
+   "agent": "s",
+   "account": "s",
+   "computer": "s",
+   "project": "s",
+   "model": "s"
+  },
+  "output": "{\"day\":\"s\",\"hour\":7,\"agent\":\"s\",\"account\":\"s\",\"computer\":\"s\",\"project\":\"s\",\"model\":\"s\"}"
+ },
+ {
+  "type": "UsageKey",
+  "case": "missing day",
+  "input": {
+   "hour": 7,
+   "agent": "text é",
+   "account": "text é",
+   "computer": "text é",
+   "project": "text é",
+   "model": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "day"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsageKey",
+  "case": "hour: not an integer",
+  "input": {
+   "day": "text é",
+   "hour": 2.5,
+   "agent": "text é",
+   "account": "text é",
+   "computer": "text é",
+   "project": "text é",
+   "model": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "hour"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsageRange",
+  "case": "full",
+  "input": "month",
+  "output": "\"month\""
+ },
+ {
+  "type": "UsageRange",
+  "case": "minimal",
+  "input": "day",
+  "output": "\"day\""
+ },
+ {
+  "type": "UsageRange",
+  "case": "value week",
+  "input": "week",
+  "output": "\"week\""
+ },
+ {
+  "type": "UsageRange",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsageRow",
+  "case": "full",
+  "input": {
+   "day": "text é",
+   "hour": 7,
+   "agent": "text é",
+   "account": "text é",
+   "computer": "text é",
+   "project": "text é",
+   "model": "text é",
+   "turns": 7,
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "costReported": 2.5,
+   "unreported": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "source": "log"
+  },
+  "output": "{\"day\":\"text é\",\"hour\":7,\"agent\":\"text é\",\"account\":\"text é\",\"computer\":\"text é\",\"project\":\"text é\",\"model\":\"text é\",\"turns\":7,\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"costReported\":2.5,\"unreported\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"source\":\"log\"}"
+ },
+ {
+  "type": "UsageRow",
+  "case": "minimal",
+  "input": {
+   "day": "s",
+   "hour": 7,
+   "agent": "s",
+   "account": "s",
+   "computer": "s",
+   "project": "s",
+   "model": "s",
+   "turns": 7,
+   "tokens": {
+    "input": 3,
+    "output": 3,
+    "cached": 3,
+    "cacheWrite": 3,
+    "reasoning": 3
+   },
+   "source": "wsp"
+  },
+  "output": "{\"day\":\"s\",\"hour\":7,\"agent\":\"s\",\"account\":\"s\",\"computer\":\"s\",\"project\":\"s\",\"model\":\"s\",\"turns\":7,\"tokens\":{\"input\":3,\"output\":3,\"cached\":3,\"cacheWrite\":3,\"reasoning\":3},\"source\":\"wsp\"}"
+ },
+ {
+  "type": "UsageRow",
+  "case": "nulls",
+  "input": {
+   "day": "s",
+   "hour": 7,
+   "agent": "s",
+   "account": "s",
+   "computer": "s",
+   "project": "s",
+   "model": "s",
+   "turns": 7,
+   "tokens": {
+    "input": 3,
+    "output": 3,
+    "cached": 3,
+    "cacheWrite": 3,
+    "reasoning": 3
+   },
+   "costReported": 3,
+   "unreported": {
+    "input": 3,
+    "output": 3,
+    "cached": 3,
+    "cacheWrite": 3,
+    "reasoning": 3
+   },
+   "source": "wsp"
+  },
+  "output": "{\"day\":\"s\",\"hour\":7,\"agent\":\"s\",\"account\":\"s\",\"computer\":\"s\",\"project\":\"s\",\"model\":\"s\",\"turns\":7,\"tokens\":{\"input\":3,\"output\":3,\"cached\":3,\"cacheWrite\":3,\"reasoning\":3},\"costReported\":3,\"unreported\":{\"input\":3,\"output\":3,\"cached\":3,\"cacheWrite\":3,\"reasoning\":3},\"source\":\"wsp\"}"
+ },
+ {
+  "type": "UsageRow",
+  "case": "missing day",
+  "input": {
+   "hour": 7,
+   "agent": "text é",
+   "account": "text é",
+   "computer": "text é",
+   "project": "text é",
+   "model": "text é",
+   "turns": 7,
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "costReported": 2.5,
+   "unreported": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "source": "log"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "day"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsageRow",
+  "case": "hour: not an integer",
+  "input": {
+   "day": "text é",
+   "hour": 2.5,
+   "agent": "text é",
+   "account": "text é",
+   "computer": "text é",
+   "project": "text é",
+   "model": "text é",
+   "turns": 7,
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "costReported": 2.5,
+   "unreported": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "source": "log"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "hour"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsageRow",
+  "case": "turns: not an integer",
+  "input": {
+   "day": "text é",
+   "hour": 7,
+   "agent": "text é",
+   "account": "text é",
+   "computer": "text é",
+   "project": "text é",
+   "model": "text é",
+   "turns": 2.5,
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "costReported": 2.5,
+   "unreported": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "source": "log"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "turns"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsageRow",
+  "case": "source: not one of its values",
+  "input": {
+   "day": "text é",
+   "hour": 7,
+   "agent": "text é",
+   "account": "text é",
+   "computer": "text é",
+   "project": "text é",
+   "model": "text é",
+   "turns": 7,
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "costReported": 2.5,
+   "unreported": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "source": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "source"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsageSplit",
+  "case": "full",
+  "input": "source",
+  "output": "\"source\""
+ },
+ {
+  "type": "UsageSplit",
+  "case": "minimal",
+  "input": "agent",
+  "output": "\"agent\""
+ },
+ {
+  "type": "UsageSplit",
+  "case": "value account",
+  "input": "account",
+  "output": "\"account\""
+ },
+ {
+  "type": "UsageSplit",
+  "case": "value computer",
+  "input": "computer",
+  "output": "\"computer\""
+ },
+ {
+  "type": "UsageSplit",
+  "case": "value project",
+  "input": "project",
+  "output": "\"project\""
+ },
+ {
+  "type": "UsageSplit",
+  "case": "value model",
+  "input": "model",
+  "output": "\"model\""
+ },
+ {
+  "type": "UsageSplit",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsageTokens",
+  "case": "full",
+  "input": {
+   "input": 2.5,
+   "output": 2.5,
+   "cached": 2.5,
+   "cacheWrite": 2.5,
+   "reasoning": 2.5
+  },
+  "output": "{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5}"
+ },
+ {
+  "type": "UsageTokens",
+  "case": "minimal",
+  "input": {
+   "input": 3,
+   "output": 3,
+   "cached": 3,
+   "cacheWrite": 3,
+   "reasoning": 3
+  },
+  "output": "{\"input\":3,\"output\":3,\"cached\":3,\"cacheWrite\":3,\"reasoning\":3}"
+ },
+ {
+  "type": "UsageTokens",
+  "case": "missing input",
+  "input": {
+   "output": 2.5,
+   "cached": 2.5,
+   "cacheWrite": 2.5,
+   "reasoning": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "input"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsedAnswer",
+  "case": "full",
+  "input": {
+   "range": "month",
+   "split": "source",
+   "rows": [
+    {
+     "key": "text é",
+     "label": "text é",
+     "agent": "text é",
+     "tokens": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "costReported": 2.5,
+     "costList": 2.5,
+     "priced": true,
+     "estimate": 2.5,
+     "saved": 2.5,
+     "turns": 7
+    }
+   ],
+   "series": [
+    {
+     "t": 2.5,
+     "tokens": 2.5
+    }
+   ],
+   "since": 2.5,
+   "until": 2.5,
+   "logs": {
+    "agents": [
+     "text é"
+    ],
+    "computers": [
+     "text é"
+    ]
+   },
+   "lines": [
+    {
+     "key": "text é",
+     "label": "text é",
+     "points": [
+      2.5
+     ]
+    }
+   ]
+  },
+  "output": "{\"range\":\"month\",\"split\":\"source\",\"rows\":[{\"key\":\"text é\",\"label\":\"text é\",\"agent\":\"text é\",\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"costReported\":2.5,\"costList\":2.5,\"priced\":true,\"estimate\":2.5,\"saved\":2.5,\"turns\":7}],\"series\":[{\"t\":2.5,\"tokens\":2.5}],\"since\":2.5,\"until\":2.5,\"logs\":{\"agents\":[\"text é\"],\"computers\":[\"text é\"]},\"lines\":[{\"key\":\"text é\",\"label\":\"text é\",\"points\":[2.5]}]}"
+ },
+ {
+  "type": "UsedAnswer",
+  "case": "minimal",
+  "input": {
+   "range": "day",
+   "split": "agent",
+   "rows": [],
+   "series": [],
+   "since": 3,
+   "until": 3
+  },
+  "output": "{\"range\":\"day\",\"split\":\"agent\",\"rows\":[],\"series\":[],\"since\":3,\"until\":3}"
+ },
+ {
+  "type": "UsedAnswer",
+  "case": "nulls",
+  "input": {
+   "range": "day",
+   "split": "agent",
+   "rows": [],
+   "series": [],
+   "since": 3,
+   "until": 3,
+   "logs": {
+    "agents": [],
+    "computers": []
+   },
+   "lines": []
+  },
+  "output": "{\"range\":\"day\",\"split\":\"agent\",\"rows\":[],\"series\":[],\"since\":3,\"until\":3,\"logs\":{\"agents\":[],\"computers\":[]},\"lines\":[]}"
+ },
+ {
+  "type": "UsedAnswer",
+  "case": "missing range",
+  "input": {
+   "split": "source",
+   "rows": [
+    {
+     "key": "text é",
+     "label": "text é",
+     "agent": "text é",
+     "tokens": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "costReported": 2.5,
+     "costList": 2.5,
+     "priced": true,
+     "estimate": 2.5,
+     "saved": 2.5,
+     "turns": 7
+    }
+   ],
+   "series": [
+    {
+     "t": 2.5,
+     "tokens": 2.5
+    }
+   ],
+   "since": 2.5,
+   "until": 2.5,
+   "logs": {
+    "agents": [
+     "text é"
+    ],
+    "computers": [
+     "text é"
+    ]
+   },
+   "lines": [
+    {
+     "key": "text é",
+     "label": "text é",
+     "points": [
+      2.5
+     ]
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "range"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsedAnswer",
+  "case": "range: not one of its values",
+  "input": {
+   "range": "not-a-value",
+   "split": "source",
+   "rows": [
+    {
+     "key": "text é",
+     "label": "text é",
+     "agent": "text é",
+     "tokens": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "costReported": 2.5,
+     "costList": 2.5,
+     "priced": true,
+     "estimate": 2.5,
+     "saved": 2.5,
+     "turns": 7
+    }
+   ],
+   "series": [
+    {
+     "t": 2.5,
+     "tokens": 2.5
+    }
+   ],
+   "since": 2.5,
+   "until": 2.5,
+   "logs": {
+    "agents": [
+     "text é"
+    ],
+    "computers": [
+     "text é"
+    ]
+   },
+   "lines": [
+    {
+     "key": "text é",
+     "label": "text é",
+     "points": [
+      2.5
+     ]
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "range"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsedAnswer",
+  "case": "split: not one of its values",
+  "input": {
+   "range": "month",
+   "split": "not-a-value",
+   "rows": [
+    {
+     "key": "text é",
+     "label": "text é",
+     "agent": "text é",
+     "tokens": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "costReported": 2.5,
+     "costList": 2.5,
+     "priced": true,
+     "estimate": 2.5,
+     "saved": 2.5,
+     "turns": 7
+    }
+   ],
+   "series": [
+    {
+     "t": 2.5,
+     "tokens": 2.5
+    }
+   ],
+   "since": 2.5,
+   "until": 2.5,
+   "logs": {
+    "agents": [
+     "text é"
+    ],
+    "computers": [
+     "text é"
+    ]
+   },
+   "lines": [
+    {
+     "key": "text é",
+     "label": "text é",
+     "points": [
+      2.5
+     ]
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "split"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsedRow",
+  "case": "full",
+  "input": {
+   "key": "text é",
+   "label": "text é",
+   "agent": "text é",
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "costReported": 2.5,
+   "costList": 2.5,
+   "priced": true,
+   "estimate": 2.5,
+   "saved": 2.5,
+   "turns": 7
+  },
+  "output": "{\"key\":\"text é\",\"label\":\"text é\",\"agent\":\"text é\",\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"costReported\":2.5,\"costList\":2.5,\"priced\":true,\"estimate\":2.5,\"saved\":2.5,\"turns\":7}"
+ },
+ {
+  "type": "UsedRow",
+  "case": "minimal",
+  "input": {
+   "key": "s",
+   "label": "s",
+   "tokens": {
+    "input": 3,
+    "output": 3,
+    "cached": 3
+   },
+   "priced": false
+  },
+  "output": "{\"key\":\"s\",\"label\":\"s\",\"tokens\":{\"input\":3,\"output\":3,\"cached\":3},\"priced\":false}"
+ },
+ {
+  "type": "UsedRow",
+  "case": "nulls",
+  "input": {
+   "key": "s",
+   "label": "s",
+   "agent": "s",
+   "tokens": {
+    "input": 3,
+    "output": 3,
+    "cached": 3
+   },
+   "costReported": 3,
+   "costList": 3,
+   "priced": false,
+   "estimate": 3,
+   "saved": 3,
+   "turns": 7
+  },
+  "output": "{\"key\":\"s\",\"label\":\"s\",\"agent\":\"s\",\"tokens\":{\"input\":3,\"output\":3,\"cached\":3},\"costReported\":3,\"costList\":3,\"priced\":false,\"estimate\":3,\"saved\":3,\"turns\":7}"
+ },
+ {
+  "type": "UsedRow",
+  "case": "missing key",
+  "input": {
+   "label": "text é",
+   "agent": "text é",
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "costReported": 2.5,
+   "costList": 2.5,
+   "priced": true,
+   "estimate": 2.5,
+   "saved": 2.5,
+   "turns": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "key"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsedRow",
+  "case": "priced: not a boolean",
+  "input": {
+   "key": "text é",
+   "label": "text é",
+   "agent": "text é",
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "costReported": 2.5,
+   "costList": 2.5,
+   "priced": "yes",
+   "estimate": 2.5,
+   "saved": 2.5,
+   "turns": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "priced"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "UsedRow",
+  "case": "turns: not an integer",
+  "input": {
+   "key": "text é",
+   "label": "text é",
+   "agent": "text é",
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "costReported": 2.5,
+   "costList": 2.5,
+   "priced": true,
+   "estimate": 2.5,
+   "saved": 2.5,
+   "turns": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "turns"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

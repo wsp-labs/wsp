@@ -1,0 +1,2529 @@
+[
+ {
+  "type": "InitAgent",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "configured": true,
+   "takesTools": true
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"configured\":true,\"takesTools\":true}"
+ },
+ {
+  "type": "InitAgent",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "configured": false,
+   "takesTools": false
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"configured\":false,\"takesTools\":false}"
+ },
+ {
+  "type": "InitAgent",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "configured": true,
+   "takesTools": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitAgent",
+  "case": "configured: not a boolean",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "configured": "yes",
+   "takesTools": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "configured"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitAgent",
+  "case": "takesTools: not a boolean",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "configured": true,
+   "takesTools": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "takesTools"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitChoice",
+  "case": "full",
+  "input": {
+   "value": "text é",
+   "label": "text é"
+  },
+  "output": "{\"value\":\"text é\",\"label\":\"text é\"}"
+ },
+ {
+  "type": "InitChoice",
+  "case": "minimal",
+  "input": {
+   "value": "s",
+   "label": "s"
+  },
+  "output": "{\"value\":\"s\",\"label\":\"s\"}"
+ },
+ {
+  "type": "InitChoice",
+  "case": "missing value",
+  "input": {
+   "label": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "value"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitDraft",
+  "case": "full",
+  "input": {
+   "at": "text é",
+   "ticks": [
+    "text é"
+   ],
+   "answers": {
+    "k": "text é"
+   }
+  },
+  "output": "{\"at\":\"text é\",\"ticks\":[\"text é\"],\"answers\":{\"k\":\"text é\"}}"
+ },
+ {
+  "type": "InitDraft",
+  "case": "minimal",
+  "input": {
+   "at": "s",
+   "ticks": [],
+   "answers": {}
+  },
+  "output": "{\"at\":\"s\",\"ticks\":[],\"answers\":{}}"
+ },
+ {
+  "type": "InitDraft",
+  "case": "missing at",
+  "input": {
+   "ticks": [
+    "text é"
+   ],
+   "answers": {
+    "k": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "at"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitFooterLine",
+  "case": "full",
+  "input": {
+   "text": "text é",
+   "tone": "red"
+  },
+  "output": "{\"text\":\"text é\",\"tone\":\"red\"}"
+ },
+ {
+  "type": "InitFooterLine",
+  "case": "minimal",
+  "input": {
+   "text": "s"
+  },
+  "output": "{\"text\":\"s\"}"
+ },
+ {
+  "type": "InitFooterLine",
+  "case": "nulls",
+  "input": {
+   "text": "s",
+   "tone": "yellow"
+  },
+  "output": "{\"text\":\"s\",\"tone\":\"yellow\"}"
+ },
+ {
+  "type": "InitFooterLine",
+  "case": "missing text",
+  "input": {
+   "tone": "red"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "text"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitFooterLine",
+  "case": "tone: not one of its values",
+  "input": {
+   "text": "text é",
+   "tone": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "tone"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitJob",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "road": "terminal",
+   "phase": "cancelled",
+   "keys": {
+    "k": true
+   },
+   "step": 7,
+   "stoppable": true,
+   "disk": {
+    "fixed": 2.5,
+    "total": 2.5
+   },
+   "screens": [
+    {
+     "id": "wsp",
+     "title": "text é",
+     "top": "text é",
+     "items": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "detail": []
+      }
+     ],
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     },
+     "footer": [
+      {
+       "text": "text é"
+      }
+     ],
+     "tally": "text é"
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "machine",
+     "tool": "text é",
+     "label": "text é",
+     "state": "text é",
+     "login": "deferred",
+     "detail": "text é",
+     "page": "text é",
+     "code": "text é",
+     "finish": "none",
+     "ms": 2.5,
+     "since": 2.5,
+     "lines": [
+      "text é"
+     ]
+    }
+   ],
+   "progress": {
+    "done": 7,
+    "total": 7
+   },
+   "needsYou": {
+    "what": "text é",
+    "since": 7
+   },
+   "drafts": [
+    {
+     "at": "text é",
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     }
+    }
+   ],
+   "log": [
+    "text é"
+   ],
+   "thread": {
+    "id": "text é",
+    "workspaceId": "text é",
+    "session": "text é",
+    "harness": "text é"
+   },
+   "line": "text é",
+   "error": "text é",
+   "keyRefused": true,
+   "golden": {
+    "version": 7
+   },
+   "cleanup": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "update": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "builders": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "workspace": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "place": {
+    "id": "text é",
+    "name": "text é",
+    "kind": "provider"
+   }
+  },
+  "output": "{\"id\":\"text é\",\"road\":\"terminal\",\"phase\":\"cancelled\",\"keys\":{\"k\":true},\"step\":7,\"stoppable\":true,\"disk\":{\"fixed\":2.5,\"total\":2.5},\"screens\":[{\"id\":\"wsp\",\"title\":\"text é\",\"top\":\"text é\",\"items\":[{\"id\":\"text é\",\"label\":\"text é\",\"detail\":[]}],\"ticks\":[\"text é\"],\"answers\":{\"k\":\"text é\"},\"footer\":[{\"text\":\"text é\"}],\"tally\":\"text é\"}],\"rows\":[{\"id\":\"text é\",\"kind\":\"machine\",\"tool\":\"text é\",\"label\":\"text é\",\"state\":\"text é\",\"login\":\"deferred\",\"detail\":\"text é\",\"page\":\"text é\",\"code\":\"text é\",\"finish\":\"none\",\"ms\":2.5,\"since\":2.5,\"lines\":[\"text é\"]}],\"progress\":{\"done\":7,\"total\":7},\"needsYou\":{\"what\":\"text é\",\"since\":7},\"drafts\":[{\"at\":\"text é\",\"ticks\":[\"text é\"],\"answers\":{\"k\":\"text é\"}}],\"log\":[\"text é\"],\"thread\":{\"id\":\"text é\",\"workspaceId\":\"text é\",\"session\":\"text é\",\"harness\":\"text é\"},\"line\":\"text é\",\"error\":\"text é\",\"keyRefused\":true,\"golden\":{\"version\":7},\"cleanup\":[{\"level\":\"warn\",\"line\":\"text é\"}],\"update\":[{\"level\":\"warn\",\"line\":\"text é\"}],\"builders\":[{\"level\":\"warn\",\"line\":\"text é\"}],\"workspace\":{\"id\":\"text é\",\"name\":\"text é\"},\"place\":{\"id\":\"text é\",\"name\":\"text é\",\"kind\":\"provider\"}}"
+ },
+ {
+  "type": "InitJob",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "road": "manual",
+   "phase": "agent",
+   "keys": {},
+   "step": 7,
+   "stoppable": false,
+   "screens": [],
+   "rows": [],
+   "progress": {
+    "done": 7,
+    "total": 7
+   },
+   "log": []
+  },
+  "output": "{\"id\":\"s\",\"road\":\"manual\",\"phase\":\"agent\",\"keys\":{},\"step\":7,\"stoppable\":false,\"screens\":[],\"rows\":[],\"progress\":{\"done\":7,\"total\":7},\"log\":[]}"
+ },
+ {
+  "type": "InitJob",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "road": "manual",
+   "phase": "agent",
+   "keys": {},
+   "step": 7,
+   "stoppable": false,
+   "disk": {
+    "fixed": 3,
+    "total": 3
+   },
+   "screens": [],
+   "rows": [],
+   "progress": {
+    "done": 7,
+    "total": 7
+   },
+   "needsYou": {
+    "what": "s",
+    "since": 7
+   },
+   "drafts": [],
+   "log": [],
+   "thread": {
+    "id": "s",
+    "workspaceId": "s",
+    "session": "s",
+    "harness": "s"
+   },
+   "line": "s",
+   "error": "s",
+   "keyRefused": false,
+   "golden": {
+    "version": 7
+   },
+   "cleanup": [],
+   "update": [],
+   "builders": [],
+   "workspace": {
+    "id": "s",
+    "name": "s"
+   },
+   "place": {
+    "id": "s",
+    "name": "s"
+   }
+  },
+  "output": "{\"id\":\"s\",\"road\":\"manual\",\"phase\":\"agent\",\"keys\":{},\"step\":7,\"stoppable\":false,\"disk\":{\"fixed\":3,\"total\":3},\"screens\":[],\"rows\":[],\"progress\":{\"done\":7,\"total\":7},\"needsYou\":{\"what\":\"s\",\"since\":7},\"drafts\":[],\"log\":[],\"thread\":{\"id\":\"s\",\"workspaceId\":\"s\",\"session\":\"s\",\"harness\":\"s\"},\"line\":\"s\",\"error\":\"s\",\"keyRefused\":false,\"golden\":{\"version\":7},\"cleanup\":[],\"update\":[],\"builders\":[],\"workspace\":{\"id\":\"s\",\"name\":\"s\"},\"place\":{\"id\":\"s\",\"name\":\"s\"}}"
+ },
+ {
+  "type": "InitJob",
+  "case": "missing id",
+  "input": {
+   "road": "terminal",
+   "phase": "cancelled",
+   "keys": {
+    "k": true
+   },
+   "step": 7,
+   "stoppable": true,
+   "disk": {
+    "fixed": 2.5,
+    "total": 2.5
+   },
+   "screens": [
+    {
+     "id": "wsp",
+     "title": "text é",
+     "top": "text é",
+     "items": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "detail": []
+      }
+     ],
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     },
+     "footer": [
+      {
+       "text": "text é"
+      }
+     ],
+     "tally": "text é"
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "machine",
+     "tool": "text é",
+     "label": "text é",
+     "state": "text é",
+     "login": "deferred",
+     "detail": "text é",
+     "page": "text é",
+     "code": "text é",
+     "finish": "none",
+     "ms": 2.5,
+     "since": 2.5,
+     "lines": [
+      "text é"
+     ]
+    }
+   ],
+   "progress": {
+    "done": 7,
+    "total": 7
+   },
+   "needsYou": {
+    "what": "text é",
+    "since": 7
+   },
+   "drafts": [
+    {
+     "at": "text é",
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     }
+    }
+   ],
+   "log": [
+    "text é"
+   ],
+   "thread": {
+    "id": "text é",
+    "workspaceId": "text é",
+    "session": "text é",
+    "harness": "text é"
+   },
+   "line": "text é",
+   "error": "text é",
+   "keyRefused": true,
+   "golden": {
+    "version": 7
+   },
+   "cleanup": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "update": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "builders": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "workspace": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "place": {
+    "id": "text é",
+    "name": "text é",
+    "kind": "provider"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitJob",
+  "case": "road: not one of its values",
+  "input": {
+   "id": "text é",
+   "road": "not-a-value",
+   "phase": "cancelled",
+   "keys": {
+    "k": true
+   },
+   "step": 7,
+   "stoppable": true,
+   "disk": {
+    "fixed": 2.5,
+    "total": 2.5
+   },
+   "screens": [
+    {
+     "id": "wsp",
+     "title": "text é",
+     "top": "text é",
+     "items": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "detail": []
+      }
+     ],
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     },
+     "footer": [
+      {
+       "text": "text é"
+      }
+     ],
+     "tally": "text é"
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "machine",
+     "tool": "text é",
+     "label": "text é",
+     "state": "text é",
+     "login": "deferred",
+     "detail": "text é",
+     "page": "text é",
+     "code": "text é",
+     "finish": "none",
+     "ms": 2.5,
+     "since": 2.5,
+     "lines": [
+      "text é"
+     ]
+    }
+   ],
+   "progress": {
+    "done": 7,
+    "total": 7
+   },
+   "needsYou": {
+    "what": "text é",
+    "since": 7
+   },
+   "drafts": [
+    {
+     "at": "text é",
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     }
+    }
+   ],
+   "log": [
+    "text é"
+   ],
+   "thread": {
+    "id": "text é",
+    "workspaceId": "text é",
+    "session": "text é",
+    "harness": "text é"
+   },
+   "line": "text é",
+   "error": "text é",
+   "keyRefused": true,
+   "golden": {
+    "version": 7
+   },
+   "cleanup": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "update": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "builders": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "workspace": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "place": {
+    "id": "text é",
+    "name": "text é",
+    "kind": "provider"
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "road"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitJob",
+  "case": "phase: not one of its values",
+  "input": {
+   "id": "text é",
+   "road": "terminal",
+   "phase": "not-a-value",
+   "keys": {
+    "k": true
+   },
+   "step": 7,
+   "stoppable": true,
+   "disk": {
+    "fixed": 2.5,
+    "total": 2.5
+   },
+   "screens": [
+    {
+     "id": "wsp",
+     "title": "text é",
+     "top": "text é",
+     "items": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "detail": []
+      }
+     ],
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     },
+     "footer": [
+      {
+       "text": "text é"
+      }
+     ],
+     "tally": "text é"
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "machine",
+     "tool": "text é",
+     "label": "text é",
+     "state": "text é",
+     "login": "deferred",
+     "detail": "text é",
+     "page": "text é",
+     "code": "text é",
+     "finish": "none",
+     "ms": 2.5,
+     "since": 2.5,
+     "lines": [
+      "text é"
+     ]
+    }
+   ],
+   "progress": {
+    "done": 7,
+    "total": 7
+   },
+   "needsYou": {
+    "what": "text é",
+    "since": 7
+   },
+   "drafts": [
+    {
+     "at": "text é",
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     }
+    }
+   ],
+   "log": [
+    "text é"
+   ],
+   "thread": {
+    "id": "text é",
+    "workspaceId": "text é",
+    "session": "text é",
+    "harness": "text é"
+   },
+   "line": "text é",
+   "error": "text é",
+   "keyRefused": true,
+   "golden": {
+    "version": 7
+   },
+   "cleanup": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "update": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "builders": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "workspace": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "place": {
+    "id": "text é",
+    "name": "text é",
+    "kind": "provider"
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "phase"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitJob",
+  "case": "step: not an integer",
+  "input": {
+   "id": "text é",
+   "road": "terminal",
+   "phase": "cancelled",
+   "keys": {
+    "k": true
+   },
+   "step": 2.5,
+   "stoppable": true,
+   "disk": {
+    "fixed": 2.5,
+    "total": 2.5
+   },
+   "screens": [
+    {
+     "id": "wsp",
+     "title": "text é",
+     "top": "text é",
+     "items": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "detail": []
+      }
+     ],
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     },
+     "footer": [
+      {
+       "text": "text é"
+      }
+     ],
+     "tally": "text é"
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "machine",
+     "tool": "text é",
+     "label": "text é",
+     "state": "text é",
+     "login": "deferred",
+     "detail": "text é",
+     "page": "text é",
+     "code": "text é",
+     "finish": "none",
+     "ms": 2.5,
+     "since": 2.5,
+     "lines": [
+      "text é"
+     ]
+    }
+   ],
+   "progress": {
+    "done": 7,
+    "total": 7
+   },
+   "needsYou": {
+    "what": "text é",
+    "since": 7
+   },
+   "drafts": [
+    {
+     "at": "text é",
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     }
+    }
+   ],
+   "log": [
+    "text é"
+   ],
+   "thread": {
+    "id": "text é",
+    "workspaceId": "text é",
+    "session": "text é",
+    "harness": "text é"
+   },
+   "line": "text é",
+   "error": "text é",
+   "keyRefused": true,
+   "golden": {
+    "version": 7
+   },
+   "cleanup": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "update": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "builders": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "workspace": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "place": {
+    "id": "text é",
+    "name": "text é",
+    "kind": "provider"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "step"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitJob",
+  "case": "step: under 0",
+  "input": {
+   "id": "text é",
+   "road": "terminal",
+   "phase": "cancelled",
+   "keys": {
+    "k": true
+   },
+   "step": -1,
+   "stoppable": true,
+   "disk": {
+    "fixed": 2.5,
+    "total": 2.5
+   },
+   "screens": [
+    {
+     "id": "wsp",
+     "title": "text é",
+     "top": "text é",
+     "items": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "detail": []
+      }
+     ],
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     },
+     "footer": [
+      {
+       "text": "text é"
+      }
+     ],
+     "tally": "text é"
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "machine",
+     "tool": "text é",
+     "label": "text é",
+     "state": "text é",
+     "login": "deferred",
+     "detail": "text é",
+     "page": "text é",
+     "code": "text é",
+     "finish": "none",
+     "ms": 2.5,
+     "since": 2.5,
+     "lines": [
+      "text é"
+     ]
+    }
+   ],
+   "progress": {
+    "done": 7,
+    "total": 7
+   },
+   "needsYou": {
+    "what": "text é",
+    "since": 7
+   },
+   "drafts": [
+    {
+     "at": "text é",
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     }
+    }
+   ],
+   "log": [
+    "text é"
+   ],
+   "thread": {
+    "id": "text é",
+    "workspaceId": "text é",
+    "session": "text é",
+    "harness": "text é"
+   },
+   "line": "text é",
+   "error": "text é",
+   "keyRefused": true,
+   "golden": {
+    "version": 7
+   },
+   "cleanup": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "update": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "builders": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "workspace": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "place": {
+    "id": "text é",
+    "name": "text é",
+    "kind": "provider"
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "step"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "InitJob",
+  "case": "stoppable: not a boolean",
+  "input": {
+   "id": "text é",
+   "road": "terminal",
+   "phase": "cancelled",
+   "keys": {
+    "k": true
+   },
+   "step": 7,
+   "stoppable": "yes",
+   "disk": {
+    "fixed": 2.5,
+    "total": 2.5
+   },
+   "screens": [
+    {
+     "id": "wsp",
+     "title": "text é",
+     "top": "text é",
+     "items": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "detail": []
+      }
+     ],
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     },
+     "footer": [
+      {
+       "text": "text é"
+      }
+     ],
+     "tally": "text é"
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "machine",
+     "tool": "text é",
+     "label": "text é",
+     "state": "text é",
+     "login": "deferred",
+     "detail": "text é",
+     "page": "text é",
+     "code": "text é",
+     "finish": "none",
+     "ms": 2.5,
+     "since": 2.5,
+     "lines": [
+      "text é"
+     ]
+    }
+   ],
+   "progress": {
+    "done": 7,
+    "total": 7
+   },
+   "needsYou": {
+    "what": "text é",
+    "since": 7
+   },
+   "drafts": [
+    {
+     "at": "text é",
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     }
+    }
+   ],
+   "log": [
+    "text é"
+   ],
+   "thread": {
+    "id": "text é",
+    "workspaceId": "text é",
+    "session": "text é",
+    "harness": "text é"
+   },
+   "line": "text é",
+   "error": "text é",
+   "keyRefused": true,
+   "golden": {
+    "version": 7
+   },
+   "cleanup": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "update": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "builders": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "workspace": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "place": {
+    "id": "text é",
+    "name": "text é",
+    "kind": "provider"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "stoppable"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitJob",
+  "case": "keyRefused: not a boolean",
+  "input": {
+   "id": "text é",
+   "road": "terminal",
+   "phase": "cancelled",
+   "keys": {
+    "k": true
+   },
+   "step": 7,
+   "stoppable": true,
+   "disk": {
+    "fixed": 2.5,
+    "total": 2.5
+   },
+   "screens": [
+    {
+     "id": "wsp",
+     "title": "text é",
+     "top": "text é",
+     "items": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "detail": []
+      }
+     ],
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     },
+     "footer": [
+      {
+       "text": "text é"
+      }
+     ],
+     "tally": "text é"
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "machine",
+     "tool": "text é",
+     "label": "text é",
+     "state": "text é",
+     "login": "deferred",
+     "detail": "text é",
+     "page": "text é",
+     "code": "text é",
+     "finish": "none",
+     "ms": 2.5,
+     "since": 2.5,
+     "lines": [
+      "text é"
+     ]
+    }
+   ],
+   "progress": {
+    "done": 7,
+    "total": 7
+   },
+   "needsYou": {
+    "what": "text é",
+    "since": 7
+   },
+   "drafts": [
+    {
+     "at": "text é",
+     "ticks": [
+      "text é"
+     ],
+     "answers": {
+      "k": "text é"
+     }
+    }
+   ],
+   "log": [
+    "text é"
+   ],
+   "thread": {
+    "id": "text é",
+    "workspaceId": "text é",
+    "session": "text é",
+    "harness": "text é"
+   },
+   "line": "text é",
+   "error": "text é",
+   "keyRefused": "yes",
+   "golden": {
+    "version": 7
+   },
+   "cleanup": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "update": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "builders": [
+    {
+     "level": "warn",
+     "line": "text é"
+    }
+   ],
+   "workspace": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "place": {
+    "id": "text é",
+    "name": "text é",
+    "kind": "provider"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "keyRefused"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitJobEvent",
+  "case": "full",
+  "input": {
+   "type": "init.job",
+   "job": {
+    "id": "text é",
+    "road": "terminal",
+    "phase": "cancelled",
+    "keys": {
+     "k": true
+    },
+    "step": 7,
+    "stoppable": true,
+    "disk": {
+     "fixed": 2.5,
+     "total": 2.5
+    },
+    "screens": [
+     {
+      "id": "wsp",
+      "title": "text é",
+      "top": "text é",
+      "items": [],
+      "ticks": [],
+      "answers": {},
+      "footer": [],
+      "tally": "text é"
+     }
+    ],
+    "rows": [
+     {
+      "id": "text é",
+      "kind": "machine",
+      "tool": "text é",
+      "label": "text é",
+      "state": "text é",
+      "login": "deferred",
+      "detail": "text é",
+      "page": "text é",
+      "code": "text é",
+      "finish": "none",
+      "ms": 2.5,
+      "since": 2.5,
+      "lines": []
+     }
+    ],
+    "progress": {
+     "done": 7,
+     "total": 7
+    },
+    "needsYou": {
+     "what": "text é",
+     "since": 7
+    },
+    "drafts": [
+     {
+      "at": "text é",
+      "ticks": [],
+      "answers": {}
+     }
+    ],
+    "log": [
+     "text é"
+    ],
+    "thread": {
+     "id": "text é",
+     "workspaceId": "text é",
+     "session": "text é",
+     "harness": "text é"
+    },
+    "line": "text é",
+    "error": "text é",
+    "keyRefused": true,
+    "golden": {
+     "version": 7
+    },
+    "cleanup": [
+     {
+      "level": "warn",
+      "line": "text é"
+     }
+    ],
+    "update": [
+     {
+      "level": "warn",
+      "line": "text é"
+     }
+    ],
+    "builders": [
+     {
+      "level": "warn",
+      "line": "text é"
+     }
+    ],
+    "workspace": {
+     "id": "text é",
+     "name": "text é"
+    },
+    "place": {
+     "id": "text é",
+     "name": "text é",
+     "kind": "provider"
+    }
+   }
+  },
+  "output": "{\"job\":{\"id\":\"text é\",\"road\":\"terminal\",\"phase\":\"cancelled\",\"keys\":{\"k\":true},\"step\":7,\"stoppable\":true,\"disk\":{\"fixed\":2.5,\"total\":2.5},\"screens\":[{\"id\":\"wsp\",\"title\":\"text é\",\"top\":\"text é\",\"items\":[],\"ticks\":[],\"answers\":{},\"footer\":[],\"tally\":\"text é\"}],\"rows\":[{\"id\":\"text é\",\"kind\":\"machine\",\"tool\":\"text é\",\"label\":\"text é\",\"state\":\"text é\",\"login\":\"deferred\",\"detail\":\"text é\",\"page\":\"text é\",\"code\":\"text é\",\"finish\":\"none\",\"ms\":2.5,\"since\":2.5,\"lines\":[]}],\"progress\":{\"done\":7,\"total\":7},\"needsYou\":{\"what\":\"text é\",\"since\":7},\"drafts\":[{\"at\":\"text é\",\"ticks\":[],\"answers\":{}}],\"log\":[\"text é\"],\"thread\":{\"id\":\"text é\",\"workspaceId\":\"text é\",\"session\":\"text é\",\"harness\":\"text é\"},\"line\":\"text é\",\"error\":\"text é\",\"keyRefused\":true,\"golden\":{\"version\":7},\"cleanup\":[{\"level\":\"warn\",\"line\":\"text é\"}],\"update\":[{\"level\":\"warn\",\"line\":\"text é\"}],\"builders\":[{\"level\":\"warn\",\"line\":\"text é\"}],\"workspace\":{\"id\":\"text é\",\"name\":\"text é\"},\"place\":{\"id\":\"text é\",\"name\":\"text é\",\"kind\":\"provider\"}}}",
+  "tag": {
+   "key": "type",
+   "value": "init.job"
+  }
+ },
+ {
+  "type": "InitJobEvent",
+  "case": "minimal",
+  "input": {
+   "type": "init.job",
+   "job": {
+    "id": "s",
+    "road": "manual",
+    "phase": "agent",
+    "keys": {},
+    "step": 7,
+    "stoppable": false,
+    "screens": [],
+    "rows": [],
+    "progress": {
+     "done": 7,
+     "total": 7
+    },
+    "log": []
+   }
+  },
+  "output": "{\"job\":{\"id\":\"s\",\"road\":\"manual\",\"phase\":\"agent\",\"keys\":{},\"step\":7,\"stoppable\":false,\"screens\":[],\"rows\":[],\"progress\":{\"done\":7,\"total\":7},\"log\":[]}}",
+  "tag": {
+   "key": "type",
+   "value": "init.job"
+  }
+ },
+ {
+  "type": "InitJobEvent",
+  "case": "missing job",
+  "input": {
+   "type": "init.job"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "job"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitKeys",
+  "case": "full",
+  "input": {
+   "k": true
+  },
+  "output": "{\"k\":true}"
+ },
+ {
+  "type": "InitKeys",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "InitNeedsYou",
+  "case": "full",
+  "input": {
+   "what": "text é",
+   "since": 7
+  },
+  "output": "{\"what\":\"text é\",\"since\":7}"
+ },
+ {
+  "type": "InitNeedsYou",
+  "case": "minimal",
+  "input": {
+   "what": "s",
+   "since": 7
+  },
+  "output": "{\"what\":\"s\",\"since\":7}"
+ },
+ {
+  "type": "InitNeedsYou",
+  "case": "missing what",
+  "input": {
+   "since": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "what"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitNeedsYou",
+  "case": "since: not an integer",
+  "input": {
+   "what": "text é",
+   "since": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "since"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitNeedsYou",
+  "case": "since: under 0",
+  "input": {
+   "what": "text é",
+   "since": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "since"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "InitNeedsYouEvent",
+  "case": "full",
+  "input": {
+   "type": "job.needs-you",
+   "jobId": "text é",
+   "needsYou": {
+    "what": "text é",
+    "since": 7
+   }
+  },
+  "output": "{\"jobId\":\"text é\",\"needsYou\":{\"what\":\"text é\",\"since\":7}}",
+  "tag": {
+   "key": "type",
+   "value": "job.needs-you"
+  }
+ },
+ {
+  "type": "InitNeedsYouEvent",
+  "case": "minimal",
+  "input": {
+   "type": "job.needs-you",
+   "jobId": "s",
+   "needsYou": {
+    "what": "s",
+    "since": 7
+   }
+  },
+  "output": "{\"jobId\":\"s\",\"needsYou\":{\"what\":\"s\",\"since\":7}}",
+  "tag": {
+   "key": "type",
+   "value": "job.needs-you"
+  }
+ },
+ {
+  "type": "InitNeedsYouEvent",
+  "case": "missing jobId",
+  "input": {
+   "type": "job.needs-you",
+   "needsYou": {
+    "what": "text é",
+    "since": 7
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "jobId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitPhase",
+  "case": "full",
+  "input": "cancelled",
+  "output": "\"cancelled\""
+ },
+ {
+  "type": "InitPhase",
+  "case": "minimal",
+  "input": "agent",
+  "output": "\"agent\""
+ },
+ {
+  "type": "InitPhase",
+  "case": "value reading",
+  "input": "reading",
+  "output": "\"reading\""
+ },
+ {
+  "type": "InitPhase",
+  "case": "value answering",
+  "input": "answering",
+  "output": "\"answering\""
+ },
+ {
+  "type": "InitPhase",
+  "case": "value building",
+  "input": "building",
+  "output": "\"building\""
+ },
+ {
+  "type": "InitPhase",
+  "case": "value signing-in",
+  "input": "signing-in",
+  "output": "\"signing-in\""
+ },
+ {
+  "type": "InitPhase",
+  "case": "value sealing",
+  "input": "sealing",
+  "output": "\"sealing\""
+ },
+ {
+  "type": "InitPhase",
+  "case": "value finishing",
+  "input": "finishing",
+  "output": "\"finishing\""
+ },
+ {
+  "type": "InitPhase",
+  "case": "value done",
+  "input": "done",
+  "output": "\"done\""
+ },
+ {
+  "type": "InitPhase",
+  "case": "value failed",
+  "input": "failed",
+  "output": "\"failed\""
+ },
+ {
+  "type": "InitPhase",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitRoad",
+  "case": "full",
+  "input": "terminal",
+  "output": "\"terminal\""
+ },
+ {
+  "type": "InitRoad",
+  "case": "minimal",
+  "input": "manual",
+  "output": "\"manual\""
+ },
+ {
+  "type": "InitRoad",
+  "case": "value agent",
+  "input": "agent",
+  "output": "\"agent\""
+ },
+ {
+  "type": "InitRoad",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitRow",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "kind": "machine",
+   "tool": "text é",
+   "label": "text é",
+   "state": "text é",
+   "login": "deferred",
+   "detail": "text é",
+   "page": "text é",
+   "code": "text é",
+   "finish": "none",
+   "ms": 2.5,
+   "since": 2.5,
+   "lines": [
+    "text é"
+   ]
+  },
+  "output": "{\"id\":\"text é\",\"kind\":\"machine\",\"tool\":\"text é\",\"label\":\"text é\",\"state\":\"text é\",\"login\":\"deferred\",\"detail\":\"text é\",\"page\":\"text é\",\"code\":\"text é\",\"finish\":\"none\",\"ms\":2.5,\"since\":2.5,\"lines\":[\"text é\"]}"
+ },
+ {
+  "type": "InitRow",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "kind": "fact",
+   "label": "s",
+   "state": "s"
+  },
+  "output": "{\"id\":\"s\",\"kind\":\"fact\",\"label\":\"s\",\"state\":\"s\"}"
+ },
+ {
+  "type": "InitRow",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "kind": "fact",
+   "tool": "s",
+   "label": "s",
+   "state": "s",
+   "login": "signed-in",
+   "detail": "s",
+   "page": "s",
+   "code": "s",
+   "finish": "callback",
+   "ms": 3,
+   "since": 3,
+   "lines": []
+  },
+  "output": "{\"id\":\"s\",\"kind\":\"fact\",\"tool\":\"s\",\"label\":\"s\",\"state\":\"s\",\"login\":\"signed-in\",\"detail\":\"s\",\"page\":\"s\",\"code\":\"s\",\"finish\":\"callback\",\"ms\":3,\"since\":3,\"lines\":[]}"
+ },
+ {
+  "type": "InitRow",
+  "case": "missing id",
+  "input": {
+   "kind": "machine",
+   "tool": "text é",
+   "label": "text é",
+   "state": "text é",
+   "login": "deferred",
+   "detail": "text é",
+   "page": "text é",
+   "code": "text é",
+   "finish": "none",
+   "ms": 2.5,
+   "since": 2.5,
+   "lines": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitRow",
+  "case": "kind: not one of its values",
+  "input": {
+   "id": "text é",
+   "kind": "not-a-value",
+   "tool": "text é",
+   "label": "text é",
+   "state": "text é",
+   "login": "deferred",
+   "detail": "text é",
+   "page": "text é",
+   "code": "text é",
+   "finish": "none",
+   "ms": 2.5,
+   "since": 2.5,
+   "lines": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitRow",
+  "case": "login: not one of its values",
+  "input": {
+   "id": "text é",
+   "kind": "machine",
+   "tool": "text é",
+   "label": "text é",
+   "state": "text é",
+   "login": "not-a-value",
+   "detail": "text é",
+   "page": "text é",
+   "code": "text é",
+   "finish": "none",
+   "ms": 2.5,
+   "since": 2.5,
+   "lines": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "login"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitRow",
+  "case": "finish: not one of its values",
+  "input": {
+   "id": "text é",
+   "kind": "machine",
+   "tool": "text é",
+   "label": "text é",
+   "state": "text é",
+   "login": "deferred",
+   "detail": "text é",
+   "page": "text é",
+   "code": "text é",
+   "finish": "not-a-value",
+   "ms": 2.5,
+   "since": 2.5,
+   "lines": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "finish"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitRowKind",
+  "case": "full",
+  "input": "machine",
+  "output": "\"machine\""
+ },
+ {
+  "type": "InitRowKind",
+  "case": "minimal",
+  "input": "fact",
+  "output": "\"fact\""
+ },
+ {
+  "type": "InitRowKind",
+  "case": "value stage",
+  "input": "stage",
+  "output": "\"stage\""
+ },
+ {
+  "type": "InitRowKind",
+  "case": "value sign-in",
+  "input": "sign-in",
+  "output": "\"sign-in\""
+ },
+ {
+  "type": "InitRowKind",
+  "case": "value secret",
+  "input": "secret",
+  "output": "\"secret\""
+ },
+ {
+  "type": "InitRowKind",
+  "case": "value agent",
+  "input": "agent",
+  "output": "\"agent\""
+ },
+ {
+  "type": "InitRowKind",
+  "case": "value workspace",
+  "input": "workspace",
+  "output": "\"workspace\""
+ },
+ {
+  "type": "InitRowKind",
+  "case": "value project",
+  "input": "project",
+  "output": "\"project\""
+ },
+ {
+  "type": "InitRowKind",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitSaidLine",
+  "case": "full",
+  "input": {
+   "level": "warn",
+   "line": "text é"
+  },
+  "output": "{\"level\":\"warn\",\"line\":\"text é\"}"
+ },
+ {
+  "type": "InitSaidLine",
+  "case": "minimal",
+  "input": {
+   "level": "info",
+   "line": "s"
+  },
+  "output": "{\"level\":\"info\",\"line\":\"s\"}"
+ },
+ {
+  "type": "InitSaidLine",
+  "case": "missing level",
+  "input": {
+   "line": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "level"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitSaidLine",
+  "case": "level: not one of its values",
+  "input": {
+   "level": "not-a-value",
+   "line": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "level"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitScreen",
+  "case": "full",
+  "input": {
+   "id": "wsp",
+   "title": "text é",
+   "top": "text é",
+   "items": [
+    {
+     "id": "text é",
+     "label": "text é",
+     "size": 2.5,
+     "why": "text é",
+     "group": "text é",
+     "detail": [
+      "text é"
+     ],
+     "lock": "off",
+     "choices": [
+      {
+       "value": "text é",
+       "label": "text é"
+      }
+     ],
+     "key": {
+      "name": "text é",
+      "saved": true
+     },
+     "state": "text é",
+     "mark": "text é"
+    }
+   ],
+   "ticks": [
+    "text é"
+   ],
+   "answers": {
+    "k": "text é"
+   },
+   "footer": [
+    {
+     "text": "text é",
+     "tone": "red"
+    }
+   ],
+   "tally": "text é"
+  },
+  "output": "{\"id\":\"wsp\",\"title\":\"text é\",\"top\":\"text é\",\"items\":[{\"id\":\"text é\",\"label\":\"text é\",\"size\":2.5,\"why\":\"text é\",\"group\":\"text é\",\"detail\":[\"text é\"],\"lock\":\"off\",\"choices\":[{\"value\":\"text é\",\"label\":\"text é\"}],\"key\":{\"name\":\"text é\",\"saved\":true},\"state\":\"text é\",\"mark\":\"text é\"}],\"ticks\":[\"text é\"],\"answers\":{\"k\":\"text é\"},\"footer\":[{\"text\":\"text é\",\"tone\":\"red\"}],\"tally\":\"text é\"}"
+ },
+ {
+  "type": "InitScreen",
+  "case": "minimal",
+  "input": {
+   "id": "agents",
+   "title": "s",
+   "top": "s",
+   "items": [],
+   "ticks": [],
+   "answers": {},
+   "footer": []
+  },
+  "output": "{\"id\":\"agents\",\"title\":\"s\",\"top\":\"s\",\"items\":[],\"ticks\":[],\"answers\":{},\"footer\":[]}"
+ },
+ {
+  "type": "InitScreen",
+  "case": "nulls",
+  "input": {
+   "id": "agents",
+   "title": "s",
+   "top": "s",
+   "items": [],
+   "ticks": [],
+   "answers": {},
+   "footer": [],
+   "tally": "s"
+  },
+  "output": "{\"id\":\"agents\",\"title\":\"s\",\"top\":\"s\",\"items\":[],\"ticks\":[],\"answers\":{},\"footer\":[],\"tally\":\"s\"}"
+ },
+ {
+  "type": "InitScreen",
+  "case": "missing id",
+  "input": {
+   "title": "text é",
+   "top": "text é",
+   "items": [
+    {
+     "id": "text é",
+     "label": "text é",
+     "size": 2.5,
+     "why": "text é",
+     "group": "text é",
+     "detail": [
+      "text é"
+     ],
+     "lock": "off",
+     "choices": [
+      {
+       "value": "text é",
+       "label": "text é"
+      }
+     ],
+     "key": {
+      "name": "text é",
+      "saved": true
+     },
+     "state": "text é",
+     "mark": "text é"
+    }
+   ],
+   "ticks": [
+    "text é"
+   ],
+   "answers": {
+    "k": "text é"
+   },
+   "footer": [
+    {
+     "text": "text é",
+     "tone": "red"
+    }
+   ],
+   "tally": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitScreen",
+  "case": "id: not one of its values",
+  "input": {
+   "id": "not-a-value",
+   "title": "text é",
+   "top": "text é",
+   "items": [
+    {
+     "id": "text é",
+     "label": "text é",
+     "size": 2.5,
+     "why": "text é",
+     "group": "text é",
+     "detail": [
+      "text é"
+     ],
+     "lock": "off",
+     "choices": [
+      {
+       "value": "text é",
+       "label": "text é"
+      }
+     ],
+     "key": {
+      "name": "text é",
+      "saved": true
+     },
+     "state": "text é",
+     "mark": "text é"
+    }
+   ],
+   "ticks": [
+    "text é"
+   ],
+   "answers": {
+    "k": "text é"
+   },
+   "footer": [
+    {
+     "text": "text é",
+     "tone": "red"
+    }
+   ],
+   "tally": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitScreenId",
+  "case": "full",
+  "input": "wsp",
+  "output": "\"wsp\""
+ },
+ {
+  "type": "InitScreenId",
+  "case": "minimal",
+  "input": "agents",
+  "output": "\"agents\""
+ },
+ {
+  "type": "InitScreenId",
+  "case": "value tools",
+  "input": "tools",
+  "output": "\"tools\""
+ },
+ {
+  "type": "InitScreenId",
+  "case": "value also",
+  "input": "also",
+  "output": "\"also\""
+ },
+ {
+  "type": "InitScreenId",
+  "case": "value logins",
+  "input": "logins",
+  "output": "\"logins\""
+ },
+ {
+  "type": "InitScreenId",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitScreenItem",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "label": "text é",
+   "size": 2.5,
+   "why": "text é",
+   "group": "text é",
+   "detail": [
+    "text é"
+   ],
+   "lock": "off",
+   "choices": [
+    {
+     "value": "text é",
+     "label": "text é"
+    }
+   ],
+   "key": {
+    "name": "text é",
+    "saved": true
+   },
+   "state": "text é",
+   "mark": "text é"
+  },
+  "output": "{\"id\":\"text é\",\"label\":\"text é\",\"size\":2.5,\"why\":\"text é\",\"group\":\"text é\",\"detail\":[\"text é\"],\"lock\":\"off\",\"choices\":[{\"value\":\"text é\",\"label\":\"text é\"}],\"key\":{\"name\":\"text é\",\"saved\":true},\"state\":\"text é\",\"mark\":\"text é\"}"
+ },
+ {
+  "type": "InitScreenItem",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "label": "s",
+   "detail": []
+  },
+  "output": "{\"id\":\"s\",\"label\":\"s\",\"detail\":[]}"
+ },
+ {
+  "type": "InitScreenItem",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "label": "s",
+   "size": null,
+   "why": "s",
+   "group": "s",
+   "detail": [],
+   "lock": "on",
+   "choices": [],
+   "key": {
+    "name": "s",
+    "saved": false
+   },
+   "state": "s",
+   "mark": "s"
+  },
+  "output": "{\"id\":\"s\",\"label\":\"s\",\"size\":null,\"why\":\"s\",\"group\":\"s\",\"detail\":[],\"lock\":\"on\",\"choices\":[],\"key\":{\"name\":\"s\",\"saved\":false},\"state\":\"s\",\"mark\":\"s\"}"
+ },
+ {
+  "type": "InitScreenItem",
+  "case": "missing id",
+  "input": {
+   "label": "text é",
+   "size": 2.5,
+   "why": "text é",
+   "group": "text é",
+   "detail": [
+    "text é"
+   ],
+   "lock": "off",
+   "choices": [
+    {
+     "value": "text é",
+     "label": "text é"
+    }
+   ],
+   "key": {
+    "name": "text é",
+    "saved": true
+   },
+   "state": "text é",
+   "mark": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "InitScreenItem",
+  "case": "size: under 0",
+  "input": {
+   "id": "text é",
+   "label": "text é",
+   "size": -1,
+   "why": "text é",
+   "group": "text é",
+   "detail": [
+    "text é"
+   ],
+   "lock": "off",
+   "choices": [
+    {
+     "value": "text é",
+     "label": "text é"
+    }
+   ],
+   "key": {
+    "name": "text é",
+    "saved": true
+   },
+   "state": "text é",
+   "mark": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "size"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "InitScreenItem",
+  "case": "lock: not one of its values",
+  "input": {
+   "id": "text é",
+   "label": "text é",
+   "size": 2.5,
+   "why": "text é",
+   "group": "text é",
+   "detail": [
+    "text é"
+   ],
+   "lock": "not-a-value",
+   "choices": [
+    {
+     "value": "text é",
+     "label": "text é"
+    }
+   ],
+   "key": {
+    "name": "text é",
+    "saved": true
+   },
+   "state": "text é",
+   "mark": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "lock"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "LoginChoice",
+  "case": "full",
+  "input": "token",
+  "output": "\"token\""
+ },
+ {
+  "type": "LoginChoice",
+  "case": "minimal",
+  "input": "copy",
+  "output": "\"copy\""
+ },
+ {
+  "type": "LoginChoice",
+  "case": "value machine",
+  "input": "machine",
+  "output": "\"machine\""
+ },
+ {
+  "type": "LoginChoice",
+  "case": "value later",
+  "input": "later",
+  "output": "\"later\""
+ },
+ {
+  "type": "LoginChoice",
+  "case": "value key",
+  "input": "key",
+  "output": "\"key\""
+ },
+ {
+  "type": "LoginChoice",
+  "case": "value skip",
+  "input": "skip",
+  "output": "\"skip\""
+ },
+ {
+  "type": "LoginChoice",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "LoginState",
+  "case": "full",
+  "input": "deferred",
+  "output": "\"deferred\""
+ },
+ {
+  "type": "LoginState",
+  "case": "minimal",
+  "input": "signed-in",
+  "output": "\"signed-in\""
+ },
+ {
+  "type": "LoginState",
+  "case": "value not-signed-in",
+  "input": "not-signed-in",
+  "output": "\"not-signed-in\""
+ },
+ {
+  "type": "LoginState",
+  "case": "value not-verified",
+  "input": "not-verified",
+  "output": "\"not-verified\""
+ },
+ {
+  "type": "LoginState",
+  "case": "value skipped",
+  "input": "skipped",
+  "output": "\"skipped\""
+ },
+ {
+  "type": "LoginState",
+  "case": "value copied",
+  "input": "copied",
+  "output": "\"copied\""
+ },
+ {
+  "type": "LoginState",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SetupPlace",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "kind": "provider"
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"kind\":\"provider\"}"
+ },
+ {
+  "type": "SetupPlace",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s"
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\"}"
+ },
+ {
+  "type": "SetupPlace",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "kind": "computer"
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"kind\":\"computer\"}"
+ },
+ {
+  "type": "SetupPlace",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "kind": "provider"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SetupPlace",
+  "case": "kind: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "kind": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SignInFinish",
+  "case": "full",
+  "input": "none",
+  "output": "\"none\""
+ },
+ {
+  "type": "SignInFinish",
+  "case": "minimal",
+  "input": "callback",
+  "output": "\"callback\""
+ },
+ {
+  "type": "SignInFinish",
+  "case": "value code",
+  "input": "code",
+  "output": "\"code\""
+ },
+ {
+  "type": "SignInFinish",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ }
+]

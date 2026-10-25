@@ -1,0 +1,96 @@
+[
+ {
+  "type": "ThreadMessage",
+  "case": "full",
+  "input": {
+   "who": "turn",
+   "at": 2.5,
+   "text": "text é"
+  },
+  "output": "{\"who\":\"turn\",\"at\":2.5,\"text\":\"text é\"}"
+ },
+ {
+  "type": "ThreadMessage",
+  "case": "minimal",
+  "input": {
+   "who": "person",
+   "text": "s"
+  },
+  "output": "{\"who\":\"person\",\"text\":\"s\"}"
+ },
+ {
+  "type": "ThreadMessage",
+  "case": "nulls",
+  "input": {
+   "who": "person",
+   "at": 3,
+   "text": "s"
+  },
+  "output": "{\"who\":\"person\",\"at\":3,\"text\":\"s\"}"
+ },
+ {
+  "type": "ThreadMessage",
+  "case": "missing who",
+  "input": {
+   "at": 2.5,
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "who"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadMessage",
+  "case": "who: not one of its values",
+  "input": {
+   "who": "not-a-value",
+   "at": 2.5,
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "who"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadVoice",
+  "case": "full",
+  "input": "turn",
+  "output": "\"turn\""
+ },
+ {
+  "type": "ThreadVoice",
+  "case": "minimal",
+  "input": "person",
+  "output": "\"person\""
+ },
+ {
+  "type": "ThreadVoice",
+  "case": "value agent",
+  "input": "agent",
+  "output": "\"agent\""
+ },
+ {
+  "type": "ThreadVoice",
+  "case": "value tool",
+  "input": "tool",
+  "output": "\"tool\""
+ },
+ {
+  "type": "ThreadVoice",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ }
+]

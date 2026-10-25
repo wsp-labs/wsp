@@ -1,0 +1,95 @@
+[
+ {
+  "type": "PlanAlert",
+  "case": "full",
+  "input": {
+   "kind": "back"
+  },
+  "output": "{\"kind\":\"back\"}"
+ },
+ {
+  "type": "PlanAlert",
+  "case": "minimal",
+  "input": {
+   "kind": "low",
+   "window": "session",
+   "step": 3
+  },
+  "output": "{\"kind\":\"low\",\"window\":\"session\",\"step\":3}"
+ },
+ {
+  "type": "PlanAlert",
+  "case": "variant 0",
+  "input": {
+   "kind": "low",
+   "window": "overage",
+   "step": 2.5
+  },
+  "output": "{\"kind\":\"low\",\"window\":\"overage\",\"step\":2.5}"
+ },
+ {
+  "type": "PlanAlert",
+  "case": "variant 1",
+  "input": {
+   "kind": "blocked"
+  },
+  "output": "{\"kind\":\"blocked\"}"
+ },
+ {
+  "type": "UsageAlertEvent",
+  "case": "full",
+  "input": {
+   "type": "usage.alert",
+   "key": "text é",
+   "agent": "text é",
+   "label": "text é",
+   "alert": {
+    "kind": "back"
+   }
+  },
+  "output": "{\"key\":\"text é\",\"agent\":\"text é\",\"label\":\"text é\",\"alert\":{\"kind\":\"back\"}}",
+  "tag": {
+   "key": "type",
+   "value": "usage.alert"
+  }
+ },
+ {
+  "type": "UsageAlertEvent",
+  "case": "minimal",
+  "input": {
+   "type": "usage.alert",
+   "key": "s",
+   "agent": "s",
+   "label": "s",
+   "alert": {
+    "kind": "low",
+    "window": "session",
+    "step": 3
+   }
+  },
+  "output": "{\"key\":\"s\",\"agent\":\"s\",\"label\":\"s\",\"alert\":{\"kind\":\"low\",\"window\":\"session\",\"step\":3}}",
+  "tag": {
+   "key": "type",
+   "value": "usage.alert"
+  }
+ },
+ {
+  "type": "UsageAlertEvent",
+  "case": "missing key",
+  "input": {
+   "type": "usage.alert",
+   "agent": "text é",
+   "label": "text é",
+   "alert": {
+    "kind": "back"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "key"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

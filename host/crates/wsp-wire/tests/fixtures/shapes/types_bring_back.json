@@ -1,0 +1,539 @@
+[
+ {
+  "type": "BringBackResult",
+  "case": "full",
+  "input": {
+   "branch": "text é",
+   "base": "text é",
+   "ahead": 7,
+   "uncommitted": 7,
+   "stat": [
+    "text é"
+   ],
+   "pr": {
+    "number": 7,
+    "url": "text é",
+    "state": "closed",
+    "host": "text é",
+    "draft": true,
+    "base": "text é",
+    "branch": "text é",
+    "headOid": "text é",
+    "headSubject": "text é",
+    "mergeable": "unknown",
+    "mergeState": "text é",
+    "review": "required",
+    "checks": [
+     {
+      "name": "text é",
+      "workflow": "text é",
+      "state": "cancelled",
+      "run": {
+       "runId": 7,
+       "jobId": 7
+      },
+      "link": "text é",
+      "description": "text é",
+      "startedAt": "text é",
+      "completedAt": "text é"
+     }
+    ],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7,
+    "behindBase": 7,
+    "author": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    },
+    "autoMerge": {
+     "method": "rebase",
+     "by": "text é"
+    }
+   },
+   "note": "text é",
+   "refused": "text é"
+  },
+  "output": "{\"branch\":\"text é\",\"base\":\"text é\",\"ahead\":7,\"uncommitted\":7,\"stat\":[\"text é\"],\"pr\":{\"number\":7,\"url\":\"text é\",\"state\":\"closed\",\"host\":\"text é\",\"draft\":true,\"base\":\"text é\",\"branch\":\"text é\",\"headOid\":\"text é\",\"headSubject\":\"text é\",\"mergeable\":\"unknown\",\"mergeState\":\"text é\",\"review\":\"required\",\"checks\":[{\"name\":\"text é\",\"workflow\":\"text é\",\"state\":\"cancelled\",\"run\":{\"runId\":7,\"jobId\":7},\"link\":\"text é\",\"description\":\"text é\",\"startedAt\":\"text é\",\"completedAt\":\"text é\"}],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"behindBase\":7,\"author\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true},\"autoMerge\":{\"method\":\"rebase\",\"by\":\"text é\"}},\"note\":\"text é\",\"refused\":\"text é\"}"
+ },
+ {
+  "type": "BringBackResult",
+  "case": "minimal",
+  "input": {
+   "branch": "s",
+   "base": "s",
+   "ahead": 7,
+   "uncommitted": 7,
+   "stat": []
+  },
+  "output": "{\"branch\":\"s\",\"base\":\"s\",\"ahead\":7,\"uncommitted\":7,\"stat\":[]}"
+ },
+ {
+  "type": "BringBackResult",
+  "case": "nulls",
+  "input": {
+   "branch": "s",
+   "base": "s",
+   "ahead": 7,
+   "uncommitted": 7,
+   "stat": [],
+   "pr": {
+    "number": 7,
+    "url": "s",
+    "state": "open",
+    "host": "s",
+    "draft": false,
+    "base": "s",
+    "branch": "s",
+    "headOid": "s",
+    "headSubject": "s",
+    "mergeable": "mergeable",
+    "mergeState": "s",
+    "review": "none",
+    "checks": [],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7
+   },
+   "note": "s",
+   "refused": "s"
+  },
+  "output": "{\"branch\":\"s\",\"base\":\"s\",\"ahead\":7,\"uncommitted\":7,\"stat\":[],\"pr\":{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"host\":\"s\",\"draft\":false,\"base\":\"s\",\"branch\":\"s\",\"headOid\":\"s\",\"headSubject\":\"s\",\"mergeable\":\"mergeable\",\"mergeState\":\"s\",\"review\":\"none\",\"checks\":[],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7},\"note\":\"s\",\"refused\":\"s\"}"
+ },
+ {
+  "type": "BringBackResult",
+  "case": "missing branch",
+  "input": {
+   "base": "text é",
+   "ahead": 7,
+   "uncommitted": 7,
+   "stat": [
+    "text é"
+   ],
+   "pr": {
+    "number": 7,
+    "url": "text é",
+    "state": "closed",
+    "host": "text é",
+    "draft": true,
+    "base": "text é",
+    "branch": "text é",
+    "headOid": "text é",
+    "headSubject": "text é",
+    "mergeable": "unknown",
+    "mergeState": "text é",
+    "review": "required",
+    "checks": [
+     {
+      "name": "text é",
+      "workflow": "text é",
+      "state": "cancelled",
+      "run": {
+       "runId": 7,
+       "jobId": 7
+      },
+      "link": "text é",
+      "description": "text é",
+      "startedAt": "text é",
+      "completedAt": "text é"
+     }
+    ],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7,
+    "behindBase": 7,
+    "author": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    },
+    "autoMerge": {
+     "method": "rebase",
+     "by": "text é"
+    }
+   },
+   "note": "text é",
+   "refused": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "branch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "BringBackResult",
+  "case": "ahead: not an integer",
+  "input": {
+   "branch": "text é",
+   "base": "text é",
+   "ahead": 2.5,
+   "uncommitted": 7,
+   "stat": [
+    "text é"
+   ],
+   "pr": {
+    "number": 7,
+    "url": "text é",
+    "state": "closed",
+    "host": "text é",
+    "draft": true,
+    "base": "text é",
+    "branch": "text é",
+    "headOid": "text é",
+    "headSubject": "text é",
+    "mergeable": "unknown",
+    "mergeState": "text é",
+    "review": "required",
+    "checks": [
+     {
+      "name": "text é",
+      "workflow": "text é",
+      "state": "cancelled",
+      "run": {
+       "runId": 7,
+       "jobId": 7
+      },
+      "link": "text é",
+      "description": "text é",
+      "startedAt": "text é",
+      "completedAt": "text é"
+     }
+    ],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7,
+    "behindBase": 7,
+    "author": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    },
+    "autoMerge": {
+     "method": "rebase",
+     "by": "text é"
+    }
+   },
+   "note": "text é",
+   "refused": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "ahead"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "BringBackResult",
+  "case": "uncommitted: not an integer",
+  "input": {
+   "branch": "text é",
+   "base": "text é",
+   "ahead": 7,
+   "uncommitted": 2.5,
+   "stat": [
+    "text é"
+   ],
+   "pr": {
+    "number": 7,
+    "url": "text é",
+    "state": "closed",
+    "host": "text é",
+    "draft": true,
+    "base": "text é",
+    "branch": "text é",
+    "headOid": "text é",
+    "headSubject": "text é",
+    "mergeable": "unknown",
+    "mergeState": "text é",
+    "review": "required",
+    "checks": [
+     {
+      "name": "text é",
+      "workflow": "text é",
+      "state": "cancelled",
+      "run": {
+       "runId": 7,
+       "jobId": 7
+      },
+      "link": "text é",
+      "description": "text é",
+      "startedAt": "text é",
+      "completedAt": "text é"
+     }
+    ],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7,
+    "behindBase": 7,
+    "author": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    },
+    "autoMerge": {
+     "method": "rebase",
+     "by": "text é"
+    }
+   },
+   "note": "text é",
+   "refused": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "uncommitted"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrReply",
+  "case": "full",
+  "input": {
+   "pr": {
+    "number": 7,
+    "url": "text é",
+    "state": "closed",
+    "host": "text é",
+    "draft": true,
+    "base": "text é",
+    "branch": "text é",
+    "headOid": "text é",
+    "headSubject": "text é",
+    "mergeable": "unknown",
+    "mergeState": "text é",
+    "review": "required",
+    "checks": [
+     {
+      "name": "text é",
+      "workflow": "text é",
+      "state": "cancelled",
+      "run": {
+       "runId": 7,
+       "jobId": 7
+      },
+      "link": "text é",
+      "description": "text é",
+      "startedAt": "text é",
+      "completedAt": "text é"
+     }
+    ],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7,
+    "behindBase": 7,
+    "author": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    },
+    "autoMerge": {
+     "method": "rebase",
+     "by": "text é"
+    }
+   },
+   "created": true
+  },
+  "output": "{\"pr\":{\"number\":7,\"url\":\"text é\",\"state\":\"closed\",\"host\":\"text é\",\"draft\":true,\"base\":\"text é\",\"branch\":\"text é\",\"headOid\":\"text é\",\"headSubject\":\"text é\",\"mergeable\":\"unknown\",\"mergeState\":\"text é\",\"review\":\"required\",\"checks\":[{\"name\":\"text é\",\"workflow\":\"text é\",\"state\":\"cancelled\",\"run\":{\"runId\":7,\"jobId\":7},\"link\":\"text é\",\"description\":\"text é\",\"startedAt\":\"text é\",\"completedAt\":\"text é\"}],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"behindBase\":7,\"author\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true},\"autoMerge\":{\"method\":\"rebase\",\"by\":\"text é\"}},\"created\":true}"
+ },
+ {
+  "type": "GitPrReply",
+  "case": "minimal",
+  "input": {
+   "pr": {
+    "number": 7,
+    "url": "s",
+    "state": "open",
+    "host": "s",
+    "draft": false,
+    "base": "s",
+    "branch": "s",
+    "headOid": "s",
+    "headSubject": "s",
+    "mergeable": "mergeable",
+    "mergeState": "s",
+    "review": "none",
+    "checks": [],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7
+   },
+   "created": false
+  },
+  "output": "{\"pr\":{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"host\":\"s\",\"draft\":false,\"base\":\"s\",\"branch\":\"s\",\"headOid\":\"s\",\"headSubject\":\"s\",\"mergeable\":\"mergeable\",\"mergeState\":\"s\",\"review\":\"none\",\"checks\":[],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7},\"created\":false}"
+ },
+ {
+  "type": "GitPrReply",
+  "case": "missing pr",
+  "input": {
+   "created": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pr"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrReply",
+  "case": "created: not a boolean",
+  "input": {
+   "pr": {
+    "number": 7,
+    "url": "text é",
+    "state": "closed",
+    "host": "text é",
+    "draft": true,
+    "base": "text é",
+    "branch": "text é",
+    "headOid": "text é",
+    "headSubject": "text é",
+    "mergeable": "unknown",
+    "mergeState": "text é",
+    "review": "required",
+    "checks": [
+     {
+      "name": "text é",
+      "workflow": "text é",
+      "state": "cancelled",
+      "run": {
+       "runId": 7,
+       "jobId": 7
+      },
+      "link": "text é",
+      "description": "text é",
+      "startedAt": "text é",
+      "completedAt": "text é"
+     }
+    ],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7,
+    "behindBase": 7,
+    "author": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    },
+    "autoMerge": {
+     "method": "rebase",
+     "by": "text é"
+    }
+   },
+   "created": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "created"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPushReply",
+  "case": "full",
+  "input": {
+   "branch": "text é",
+   "base": "text é",
+   "remote": "text é",
+   "ahead": 7,
+   "uncommitted": 7,
+   "stat": [
+    "text é"
+   ]
+  },
+  "output": "{\"branch\":\"text é\",\"base\":\"text é\",\"remote\":\"text é\",\"ahead\":7,\"uncommitted\":7,\"stat\":[\"text é\"]}"
+ },
+ {
+  "type": "GitPushReply",
+  "case": "minimal",
+  "input": {
+   "branch": "s",
+   "base": "s",
+   "remote": "s",
+   "ahead": 7,
+   "uncommitted": 7,
+   "stat": []
+  },
+  "output": "{\"branch\":\"s\",\"base\":\"s\",\"remote\":\"s\",\"ahead\":7,\"uncommitted\":7,\"stat\":[]}"
+ },
+ {
+  "type": "GitPushReply",
+  "case": "missing branch",
+  "input": {
+   "base": "text é",
+   "remote": "text é",
+   "ahead": 7,
+   "uncommitted": 7,
+   "stat": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "branch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPushReply",
+  "case": "ahead: not an integer",
+  "input": {
+   "branch": "text é",
+   "base": "text é",
+   "remote": "text é",
+   "ahead": 2.5,
+   "uncommitted": 7,
+   "stat": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "ahead"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPushReply",
+  "case": "uncommitted: not an integer",
+  "input": {
+   "branch": "text é",
+   "base": "text é",
+   "remote": "text é",
+   "ahead": 7,
+   "uncommitted": 2.5,
+   "stat": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "uncommitted"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

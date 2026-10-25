@@ -1,0 +1,273 @@
+[
+ {
+  "type": "SubOut",
+  "case": "full",
+  "input": {
+   "on": "text é",
+   "machine": "text é",
+   "size": {
+    "cpu": 7,
+    "memMb": 7
+   },
+   "rateUsdPerHour": 2.5,
+   "repo": "text é",
+   "base": {
+    "branch": "text é",
+    "sha": "text é"
+   },
+   "branch": "text é",
+   "sent": {
+    "paths": [
+     "text é"
+    ],
+    "bytes": 7,
+    "missing": [
+     "text é"
+    ]
+   },
+   "notSent": {
+    "uncommitted": 7,
+    "why": "text é"
+   },
+   "deleteAfterMinutes": 7
+  },
+  "output": "{\"on\":\"text é\",\"machine\":\"text é\",\"size\":{\"cpu\":7,\"memMb\":7},\"rateUsdPerHour\":2.5,\"repo\":\"text é\",\"base\":{\"branch\":\"text é\",\"sha\":\"text é\"},\"branch\":\"text é\",\"sent\":{\"paths\":[\"text é\"],\"bytes\":7,\"missing\":[\"text é\"]},\"notSent\":{\"uncommitted\":7,\"why\":\"text é\"},\"deleteAfterMinutes\":7}"
+ },
+ {
+  "type": "SubOut",
+  "case": "minimal",
+  "input": {
+   "on": "s",
+   "machine": "s",
+   "size": {
+    "cpu": 7,
+    "memMb": 7
+   },
+   "rateUsdPerHour": 3,
+   "repo": "s",
+   "base": {
+    "branch": "s",
+    "sha": "s"
+   },
+   "branch": "s",
+   "sent": {
+    "paths": [],
+    "bytes": 7,
+    "missing": []
+   },
+   "notSent": {
+    "uncommitted": 7
+   },
+   "deleteAfterMinutes": 7
+  },
+  "output": "{\"on\":\"s\",\"machine\":\"s\",\"size\":{\"cpu\":7,\"memMb\":7},\"rateUsdPerHour\":3,\"repo\":\"s\",\"base\":{\"branch\":\"s\",\"sha\":\"s\"},\"branch\":\"s\",\"sent\":{\"paths\":[],\"bytes\":7,\"missing\":[]},\"notSent\":{\"uncommitted\":7},\"deleteAfterMinutes\":7}"
+ },
+ {
+  "type": "SubOut",
+  "case": "missing on",
+  "input": {
+   "machine": "text é",
+   "size": {
+    "cpu": 7,
+    "memMb": 7
+   },
+   "rateUsdPerHour": 2.5,
+   "repo": "text é",
+   "base": {
+    "branch": "text é",
+    "sha": "text é"
+   },
+   "branch": "text é",
+   "sent": {
+    "paths": [
+     "text é"
+    ],
+    "bytes": 7,
+    "missing": [
+     "text é"
+    ]
+   },
+   "notSent": {
+    "uncommitted": 7,
+    "why": "text é"
+   },
+   "deleteAfterMinutes": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "on"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubOut",
+  "case": "deleteAfterMinutes: not an integer",
+  "input": {
+   "on": "text é",
+   "machine": "text é",
+   "size": {
+    "cpu": 7,
+    "memMb": 7
+   },
+   "rateUsdPerHour": 2.5,
+   "repo": "text é",
+   "base": {
+    "branch": "text é",
+    "sha": "text é"
+   },
+   "branch": "text é",
+   "sent": {
+    "paths": [
+     "text é"
+    ],
+    "bytes": 7,
+    "missing": [
+     "text é"
+    ]
+   },
+   "notSent": {
+    "uncommitted": 7,
+    "why": "text é"
+   },
+   "deleteAfterMinutes": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "deleteAfterMinutes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubOut",
+  "case": "deleteAfterMinutes: under 0",
+  "input": {
+   "on": "text é",
+   "machine": "text é",
+   "size": {
+    "cpu": 7,
+    "memMb": 7
+   },
+   "rateUsdPerHour": 2.5,
+   "repo": "text é",
+   "base": {
+    "branch": "text é",
+    "sha": "text é"
+   },
+   "branch": "text é",
+   "sent": {
+    "paths": [
+     "text é"
+    ],
+    "bytes": 7,
+    "missing": [
+     "text é"
+    ]
+   },
+   "notSent": {
+    "uncommitted": 7,
+    "why": "text é"
+   },
+   "deleteAfterMinutes": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "deleteAfterMinutes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SubStarted",
+  "case": "full",
+  "input": {
+   "out": {
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7
+    },
+    "rateUsdPerHour": 2.5,
+    "repo": "text é",
+    "base": {
+     "branch": "text é",
+     "sha": "text é"
+    },
+    "branch": "text é",
+    "sent": {
+     "paths": [
+      "text é"
+     ],
+     "bytes": 7,
+     "missing": [
+      "text é"
+     ]
+    },
+    "notSent": {
+     "uncommitted": 7,
+     "why": "text é"
+    },
+    "deleteAfterMinutes": 7
+   },
+   "folder": "text é",
+   "preamble": "text é",
+   "harness": "text é"
+  },
+  "output": "{\"out\":{\"on\":\"text é\",\"machine\":\"text é\",\"size\":{\"cpu\":7,\"memMb\":7},\"rateUsdPerHour\":2.5,\"repo\":\"text é\",\"base\":{\"branch\":\"text é\",\"sha\":\"text é\"},\"branch\":\"text é\",\"sent\":{\"paths\":[\"text é\"],\"bytes\":7,\"missing\":[\"text é\"]},\"notSent\":{\"uncommitted\":7,\"why\":\"text é\"},\"deleteAfterMinutes\":7},\"folder\":\"text é\",\"preamble\":\"text é\",\"harness\":\"text é\"}"
+ },
+ {
+  "type": "SubStarted",
+  "case": "minimal",
+  "input": {
+   "out": {
+    "on": "s",
+    "machine": "s",
+    "size": {
+     "cpu": 7,
+     "memMb": 7
+    },
+    "rateUsdPerHour": 3,
+    "repo": "s",
+    "base": {
+     "branch": "s",
+     "sha": "s"
+    },
+    "branch": "s",
+    "sent": {
+     "paths": [],
+     "bytes": 7,
+     "missing": []
+    },
+    "notSent": {
+     "uncommitted": 7
+    },
+    "deleteAfterMinutes": 7
+   },
+   "folder": "s",
+   "preamble": "s",
+   "harness": "s"
+  },
+  "output": "{\"out\":{\"on\":\"s\",\"machine\":\"s\",\"size\":{\"cpu\":7,\"memMb\":7},\"rateUsdPerHour\":3,\"repo\":\"s\",\"base\":{\"branch\":\"s\",\"sha\":\"s\"},\"branch\":\"s\",\"sent\":{\"paths\":[],\"bytes\":7,\"missing\":[]},\"notSent\":{\"uncommitted\":7},\"deleteAfterMinutes\":7},\"folder\":\"s\",\"preamble\":\"s\",\"harness\":\"s\"}"
+ },
+ {
+  "type": "SubStarted",
+  "case": "missing out",
+  "input": {
+   "folder": "text é",
+   "preamble": "text é",
+   "harness": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "out"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

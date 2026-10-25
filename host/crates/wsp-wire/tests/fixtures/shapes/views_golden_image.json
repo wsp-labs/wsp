@@ -1,0 +1,4481 @@
+[
+ {
+  "type": "GoldenBaseTool",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "version": "text é"
+  },
+  "output": "{\"name\":\"text é\",\"version\":\"text é\"}"
+ },
+ {
+  "type": "GoldenBaseTool",
+  "case": "minimal",
+  "input": {
+   "name": "s",
+   "version": "s"
+  },
+  "output": "{\"name\":\"s\",\"version\":\"s\"}"
+ },
+ {
+  "type": "GoldenBaseTool",
+  "case": "missing name",
+  "input": {
+   "version": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenBuilderView",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "kind": "desktop",
+   "createdAt": "text é",
+   "placeId": "text é",
+   "placeName": "text é",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "sealable": true,
+   "recipeHash": "text é",
+   "recipe": {
+    "ticks": [
+     {
+      "id": "text é",
+      "choice": "token",
+      "version": "text é",
+      "road": "text é",
+      "installer": "text é",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "login": "text é",
+    "files": [
+     {
+      "id": "text é",
+      "path": "text é",
+      "dest": "text é",
+      "digest": "text é",
+      "volatile": true
+     }
+    ]
+   },
+   "foreignOwner": "text é",
+   "heldBy": {
+    "host": "text é",
+    "pid": 2.5,
+    "heartbeat": "text é"
+   },
+   "building": true,
+   "sealed": {
+    "at": "text é",
+    "version": 2.5
+   }
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"kind\":\"desktop\",\"createdAt\":\"text é\",\"placeId\":\"text é\",\"placeName\":\"text é\",\"size\":{\"cpu\":2.5,\"memMb\":2.5},\"rateUsdPerHour\":2.5,\"screen\":{\"streamUrl\":\"text é\"},\"sealable\":true,\"recipeHash\":\"text é\",\"recipe\":{\"ticks\":[{\"id\":\"text é\",\"choice\":\"token\",\"version\":\"text é\",\"road\":\"text é\",\"installer\":\"text é\",\"pin\":{\"tag\":\"text é\"}}],\"login\":\"text é\",\"files\":[{\"id\":\"text é\",\"path\":\"text é\",\"dest\":\"text é\",\"digest\":\"text é\",\"volatile\":true}]},\"foreignOwner\":\"text é\",\"heldBy\":{\"host\":\"text é\",\"pid\":2.5,\"heartbeat\":\"text é\"},\"building\":true,\"sealed\":{\"at\":\"text é\",\"version\":2.5}}"
+ },
+ {
+  "type": "GoldenBuilderView",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "kind": "sandbox",
+   "createdAt": "s",
+   "placeId": "s",
+   "placeName": "s",
+   "size": {
+    "cpu": 3,
+    "memMb": 3
+   }
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"kind\":\"sandbox\",\"createdAt\":\"s\",\"placeId\":\"s\",\"placeName\":\"s\",\"size\":{\"cpu\":3,\"memMb\":3}}"
+ },
+ {
+  "type": "GoldenBuilderView",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "kind": "sandbox",
+   "createdAt": "s",
+   "placeId": "s",
+   "placeName": "s",
+   "size": {
+    "cpu": 3,
+    "memMb": 3
+   },
+   "rateUsdPerHour": 3,
+   "screen": {
+    "streamUrl": "s"
+   },
+   "sealable": false,
+   "recipeHash": "s",
+   "recipe": {
+    "ticks": [],
+    "files": []
+   },
+   "foreignOwner": "s",
+   "heldBy": {
+    "host": "s",
+    "pid": 3,
+    "heartbeat": "s"
+   },
+   "building": false,
+   "sealed": {
+    "at": "s",
+    "version": 3
+   }
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"kind\":\"sandbox\",\"createdAt\":\"s\",\"placeId\":\"s\",\"placeName\":\"s\",\"size\":{\"cpu\":3,\"memMb\":3},\"rateUsdPerHour\":3,\"screen\":{\"streamUrl\":\"s\"},\"sealable\":false,\"recipeHash\":\"s\",\"recipe\":{\"ticks\":[],\"files\":[]},\"foreignOwner\":\"s\",\"heldBy\":{\"host\":\"s\",\"pid\":3,\"heartbeat\":\"s\"},\"building\":false,\"sealed\":{\"at\":\"s\",\"version\":3}}"
+ },
+ {
+  "type": "GoldenBuilderView",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "kind": "desktop",
+   "createdAt": "text é",
+   "placeId": "text é",
+   "placeName": "text é",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "sealable": true,
+   "recipeHash": "text é",
+   "recipe": {
+    "ticks": [
+     {
+      "id": "text é",
+      "choice": "token",
+      "version": "text é",
+      "road": "text é",
+      "installer": "text é",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "login": "text é",
+    "files": [
+     {
+      "id": "text é",
+      "path": "text é",
+      "dest": "text é",
+      "digest": "text é",
+      "volatile": true
+     }
+    ]
+   },
+   "foreignOwner": "text é",
+   "heldBy": {
+    "host": "text é",
+    "pid": 2.5,
+    "heartbeat": "text é"
+   },
+   "building": true,
+   "sealed": {
+    "at": "text é",
+    "version": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenBuilderView",
+  "case": "kind: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "kind": "not-a-value",
+   "createdAt": "text é",
+   "placeId": "text é",
+   "placeName": "text é",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "sealable": true,
+   "recipeHash": "text é",
+   "recipe": {
+    "ticks": [
+     {
+      "id": "text é",
+      "choice": "token",
+      "version": "text é",
+      "road": "text é",
+      "installer": "text é",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "login": "text é",
+    "files": [
+     {
+      "id": "text é",
+      "path": "text é",
+      "dest": "text é",
+      "digest": "text é",
+      "volatile": true
+     }
+    ]
+   },
+   "foreignOwner": "text é",
+   "heldBy": {
+    "host": "text é",
+    "pid": 2.5,
+    "heartbeat": "text é"
+   },
+   "building": true,
+   "sealed": {
+    "at": "text é",
+    "version": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenBuilderView",
+  "case": "sealable: not a boolean",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "kind": "desktop",
+   "createdAt": "text é",
+   "placeId": "text é",
+   "placeName": "text é",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "sealable": "yes",
+   "recipeHash": "text é",
+   "recipe": {
+    "ticks": [
+     {
+      "id": "text é",
+      "choice": "token",
+      "version": "text é",
+      "road": "text é",
+      "installer": "text é",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "login": "text é",
+    "files": [
+     {
+      "id": "text é",
+      "path": "text é",
+      "dest": "text é",
+      "digest": "text é",
+      "volatile": true
+     }
+    ]
+   },
+   "foreignOwner": "text é",
+   "heldBy": {
+    "host": "text é",
+    "pid": 2.5,
+    "heartbeat": "text é"
+   },
+   "building": true,
+   "sealed": {
+    "at": "text é",
+    "version": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "sealable"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenBuilderView",
+  "case": "building: not a boolean",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "kind": "desktop",
+   "createdAt": "text é",
+   "placeId": "text é",
+   "placeName": "text é",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "sealable": true,
+   "recipeHash": "text é",
+   "recipe": {
+    "ticks": [
+     {
+      "id": "text é",
+      "choice": "token",
+      "version": "text é",
+      "road": "text é",
+      "installer": "text é",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "login": "text é",
+    "files": [
+     {
+      "id": "text é",
+      "path": "text é",
+      "dest": "text é",
+      "digest": "text é",
+      "volatile": true
+     }
+    ]
+   },
+   "foreignOwner": "text é",
+   "heldBy": {
+    "host": "text é",
+    "pid": 2.5,
+    "heartbeat": "text é"
+   },
+   "building": "yes",
+   "sealed": {
+    "at": "text é",
+    "version": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "building"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenLeftBehind",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "path": "text é",
+   "note": "text é"
+  },
+  "output": "{\"id\":\"text é\",\"path\":\"text é\",\"note\":\"text é\"}"
+ },
+ {
+  "type": "GoldenLeftBehind",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "path": "s",
+   "note": "s"
+  },
+  "output": "{\"id\":\"s\",\"path\":\"s\",\"note\":\"s\"}"
+ },
+ {
+  "type": "GoldenLeftBehind",
+  "case": "missing id",
+  "input": {
+   "path": "text é",
+   "note": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenLogin",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "state": "deferred"
+  },
+  "output": "{\"name\":\"text é\",\"state\":\"deferred\"}"
+ },
+ {
+  "type": "GoldenLogin",
+  "case": "minimal",
+  "input": {
+   "name": "s",
+   "state": "signed-in"
+  },
+  "output": "{\"name\":\"s\",\"state\":\"signed-in\"}"
+ },
+ {
+  "type": "GoldenLogin",
+  "case": "missing name",
+  "input": {
+   "state": "deferred"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenLogin",
+  "case": "state: not one of its values",
+  "input": {
+   "name": "text é",
+   "state": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenManifest",
+  "case": "full",
+  "input": {
+   "head": 2.5,
+   "versions": [
+    {
+     "version": 2.5,
+     "snapshotId": "text é",
+     "templateId": "text é",
+     "baseTemplate": "text é",
+     "kind": "desktop",
+     "setupSha": "text é",
+     "createdAt": "text é",
+     "smoke": {
+      "cmd": "text é",
+      "exitCode": 2.5
+     },
+     "size": {
+      "cpu": 2.5,
+      "memMb": 2.5
+     },
+     "browserShim": true,
+     "npmBin": "text é",
+     "logins": [
+      {
+       "name": "text é",
+       "state": "deferred"
+      }
+     ],
+     "missingTools": [
+      {
+       "id": "text é",
+       "name": "text é",
+       "outcome": "failed",
+       "note": "text é"
+      }
+     ],
+     "silenced": [
+      "text é"
+     ],
+     "shellNoise": "text é",
+     "leftBehind": [
+      {
+       "id": "text é",
+       "path": "text é",
+       "note": "text é"
+      }
+     ],
+     "parentSnapshotId": "text é",
+     "base": [
+      {
+       "name": "text é",
+       "version": "text é"
+      }
+     ],
+     "retired": [
+      {
+       "id": "text é",
+       "name": "text é"
+      }
+     ],
+     "usedBytes": 7,
+     "imageHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+     "noSecrets": true
+    }
+   ]
+  },
+  "output": "{\"head\":2.5,\"versions\":[{\"version\":2.5,\"snapshotId\":\"text é\",\"templateId\":\"text é\",\"baseTemplate\":\"text é\",\"kind\":\"desktop\",\"setupSha\":\"text é\",\"createdAt\":\"text é\",\"smoke\":{\"cmd\":\"text é\",\"exitCode\":2.5},\"size\":{\"cpu\":2.5,\"memMb\":2.5},\"browserShim\":true,\"npmBin\":\"text é\",\"logins\":[{\"name\":\"text é\",\"state\":\"deferred\"}],\"missingTools\":[{\"id\":\"text é\",\"name\":\"text é\",\"outcome\":\"failed\",\"note\":\"text é\"}],\"silenced\":[\"text é\"],\"shellNoise\":\"text é\",\"leftBehind\":[{\"id\":\"text é\",\"path\":\"text é\",\"note\":\"text é\"}],\"parentSnapshotId\":\"text é\",\"base\":[{\"name\":\"text é\",\"version\":\"text é\"}],\"retired\":[{\"id\":\"text é\",\"name\":\"text é\"}],\"usedBytes\":7,\"imageHash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"noSecrets\":true}]}"
+ },
+ {
+  "type": "GoldenManifest",
+  "case": "minimal",
+  "input": {
+   "head": 3,
+   "versions": []
+  },
+  "output": "{\"head\":3,\"versions\":[]}"
+ },
+ {
+  "type": "GoldenManifest",
+  "case": "missing head",
+  "input": {
+   "versions": [
+    {
+     "version": 2.5,
+     "snapshotId": "text é",
+     "templateId": "text é",
+     "baseTemplate": "text é",
+     "kind": "desktop",
+     "setupSha": "text é",
+     "createdAt": "text é",
+     "smoke": {
+      "cmd": "text é",
+      "exitCode": 2.5
+     },
+     "size": {
+      "cpu": 2.5,
+      "memMb": 2.5
+     },
+     "browserShim": true,
+     "npmBin": "text é",
+     "logins": [
+      {
+       "name": "text é",
+       "state": "deferred"
+      }
+     ],
+     "missingTools": [
+      {
+       "id": "text é",
+       "name": "text é",
+       "outcome": "failed",
+       "note": "text é"
+      }
+     ],
+     "silenced": [
+      "text é"
+     ],
+     "shellNoise": "text é",
+     "leftBehind": [
+      {
+       "id": "text é",
+       "path": "text é",
+       "note": "text é"
+      }
+     ],
+     "parentSnapshotId": "text é",
+     "base": [
+      {
+       "name": "text é",
+       "version": "text é"
+      }
+     ],
+     "retired": [
+      {
+       "id": "text é",
+       "name": "text é"
+      }
+     ],
+     "usedBytes": 7,
+     "imageHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+     "noSecrets": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "head"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenMissingTool",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "outcome": "failed",
+   "note": "text é"
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"outcome\":\"failed\",\"note\":\"text é\"}"
+ },
+ {
+  "type": "GoldenMissingTool",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "outcome": "skipped",
+   "note": "s"
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"outcome\":\"skipped\",\"note\":\"s\"}"
+ },
+ {
+  "type": "GoldenMissingTool",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "outcome": "failed",
+   "note": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenMissingTool",
+  "case": "outcome: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "outcome": "not-a-value",
+   "note": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "outcome"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenRetired",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é"
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\"}"
+ },
+ {
+  "type": "GoldenRetired",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s"
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\"}"
+ },
+ {
+  "type": "GoldenRetired",
+  "case": "missing id",
+  "input": {
+   "name": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenStage",
+  "case": "full",
+  "input": "failed",
+  "output": "\"failed\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "minimal",
+  "input": "creating",
+  "output": "\"creating\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "value deploying-daemon",
+  "input": "deploying-daemon",
+  "output": "\"deploying-daemon\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "value applying-setup",
+  "input": "applying-setup",
+  "output": "\"applying-setup\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "value uploading-files",
+  "input": "uploading-files",
+  "output": "\"uploading-files\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "value installing-harness",
+  "input": "installing-harness",
+  "output": "\"installing-harness\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "value installing-tools",
+  "input": "installing-tools",
+  "output": "\"installing-tools\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "value installing-mcp",
+  "input": "installing-mcp",
+  "output": "\"installing-mcp\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "value ready",
+  "input": "ready",
+  "output": "\"ready\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "value snapshotting",
+  "input": "snapshotting",
+  "output": "\"snapshotting\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "value promoting",
+  "input": "promoting",
+  "output": "\"promoting\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "value smoke-forking",
+  "input": "smoke-forking",
+  "output": "\"smoke-forking\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "value sealed",
+  "input": "sealed",
+  "output": "\"sealed\""
+ },
+ {
+  "type": "GoldenStage",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenStageEvent",
+  "case": "full",
+  "input": {
+   "type": "golden.stage",
+   "name": "text é",
+   "stage": "failed",
+   "detail": "text é",
+   "step": {
+    "label": "text é",
+    "command": "text é"
+   },
+   "left": [
+    "text é"
+   ],
+   "place": "text é"
+  },
+  "output": "{\"name\":\"text é\",\"stage\":\"failed\",\"detail\":\"text é\",\"step\":{\"label\":\"text é\",\"command\":\"text é\"},\"left\":[\"text é\"],\"place\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "golden.stage"
+  }
+ },
+ {
+  "type": "GoldenStageEvent",
+  "case": "minimal",
+  "input": {
+   "type": "golden.stage",
+   "name": "s",
+   "stage": "creating"
+  },
+  "output": "{\"name\":\"s\",\"stage\":\"creating\"}",
+  "tag": {
+   "key": "type",
+   "value": "golden.stage"
+  }
+ },
+ {
+  "type": "GoldenStageEvent",
+  "case": "nulls",
+  "input": {
+   "type": "golden.stage",
+   "name": "s",
+   "stage": "creating",
+   "detail": "s",
+   "step": {
+    "label": "s",
+    "command": "s"
+   },
+   "left": [],
+   "place": "s"
+  },
+  "output": "{\"name\":\"s\",\"stage\":\"creating\",\"detail\":\"s\",\"step\":{\"label\":\"s\",\"command\":\"s\"},\"left\":[],\"place\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "golden.stage"
+  }
+ },
+ {
+  "type": "GoldenStageEvent",
+  "case": "missing name",
+  "input": {
+   "type": "golden.stage",
+   "stage": "failed",
+   "detail": "text é",
+   "step": {
+    "label": "text é",
+    "command": "text é"
+   },
+   "left": [
+    "text é"
+   ],
+   "place": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenStageEvent",
+  "case": "stage: not one of its values",
+  "input": {
+   "type": "golden.stage",
+   "name": "text é",
+   "stage": "not-a-value",
+   "detail": "text é",
+   "step": {
+    "label": "text é",
+    "command": "text é"
+   },
+   "left": [
+    "text é"
+   ],
+   "place": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "stage"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenStep",
+  "case": "full",
+  "input": {
+   "label": "text é",
+   "command": "text é"
+  },
+  "output": "{\"label\":\"text é\",\"command\":\"text é\"}"
+ },
+ {
+  "type": "GoldenStep",
+  "case": "minimal",
+  "input": {
+   "label": "s",
+   "command": "s"
+  },
+  "output": "{\"label\":\"s\",\"command\":\"s\"}"
+ },
+ {
+  "type": "GoldenStep",
+  "case": "missing label",
+  "input": {
+   "command": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "label"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenVersion",
+  "case": "full",
+  "input": {
+   "version": 2.5,
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "baseTemplate": "text é",
+   "kind": "desktop",
+   "setupSha": "text é",
+   "createdAt": "text é",
+   "smoke": {
+    "cmd": "text é",
+    "exitCode": 2.5
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "browserShim": true,
+   "npmBin": "text é",
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "missingTools": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "outcome": "failed",
+     "note": "text é"
+    }
+   ],
+   "silenced": [
+    "text é"
+   ],
+   "shellNoise": "text é",
+   "leftBehind": [
+    {
+     "id": "text é",
+     "path": "text é",
+     "note": "text é"
+    }
+   ],
+   "parentSnapshotId": "text é",
+   "base": [
+    {
+     "name": "text é",
+     "version": "text é"
+    }
+   ],
+   "retired": [
+    {
+     "id": "text é",
+     "name": "text é"
+    }
+   ],
+   "usedBytes": 7,
+   "imageHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "noSecrets": true
+  },
+  "output": "{\"version\":2.5,\"snapshotId\":\"text é\",\"templateId\":\"text é\",\"baseTemplate\":\"text é\",\"kind\":\"desktop\",\"setupSha\":\"text é\",\"createdAt\":\"text é\",\"smoke\":{\"cmd\":\"text é\",\"exitCode\":2.5},\"size\":{\"cpu\":2.5,\"memMb\":2.5},\"browserShim\":true,\"npmBin\":\"text é\",\"logins\":[{\"name\":\"text é\",\"state\":\"deferred\"}],\"missingTools\":[{\"id\":\"text é\",\"name\":\"text é\",\"outcome\":\"failed\",\"note\":\"text é\"}],\"silenced\":[\"text é\"],\"shellNoise\":\"text é\",\"leftBehind\":[{\"id\":\"text é\",\"path\":\"text é\",\"note\":\"text é\"}],\"parentSnapshotId\":\"text é\",\"base\":[{\"name\":\"text é\",\"version\":\"text é\"}],\"retired\":[{\"id\":\"text é\",\"name\":\"text é\"}],\"usedBytes\":7,\"imageHash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"noSecrets\":true}"
+ },
+ {
+  "type": "GoldenVersion",
+  "case": "minimal",
+  "input": {
+   "version": 3,
+   "snapshotId": "s",
+   "baseTemplate": "s",
+   "setupSha": "s",
+   "createdAt": "s",
+   "smoke": {
+    "cmd": "s",
+    "exitCode": 3
+   }
+  },
+  "output": "{\"version\":3,\"snapshotId\":\"s\",\"baseTemplate\":\"s\",\"setupSha\":\"s\",\"createdAt\":\"s\",\"smoke\":{\"cmd\":\"s\",\"exitCode\":3}}"
+ },
+ {
+  "type": "GoldenVersion",
+  "case": "nulls",
+  "input": {
+   "version": 3,
+   "snapshotId": "s",
+   "templateId": "s",
+   "baseTemplate": "s",
+   "kind": "sandbox",
+   "setupSha": "s",
+   "createdAt": "s",
+   "smoke": {
+    "cmd": "s",
+    "exitCode": 3
+   },
+   "size": {
+    "cpu": 3,
+    "memMb": 3
+   },
+   "browserShim": false,
+   "npmBin": "s",
+   "logins": [],
+   "missingTools": [],
+   "silenced": [],
+   "shellNoise": "s",
+   "leftBehind": [],
+   "parentSnapshotId": "s",
+   "base": [],
+   "retired": [],
+   "usedBytes": 7,
+   "imageHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "noSecrets": false
+  },
+  "output": "{\"version\":3,\"snapshotId\":\"s\",\"templateId\":\"s\",\"baseTemplate\":\"s\",\"kind\":\"sandbox\",\"setupSha\":\"s\",\"createdAt\":\"s\",\"smoke\":{\"cmd\":\"s\",\"exitCode\":3},\"size\":{\"cpu\":3,\"memMb\":3},\"browserShim\":false,\"npmBin\":\"s\",\"logins\":[],\"missingTools\":[],\"silenced\":[],\"shellNoise\":\"s\",\"leftBehind\":[],\"parentSnapshotId\":\"s\",\"base\":[],\"retired\":[],\"usedBytes\":7,\"imageHash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"noSecrets\":false}"
+ },
+ {
+  "type": "GoldenVersion",
+  "case": "missing version",
+  "input": {
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "baseTemplate": "text é",
+   "kind": "desktop",
+   "setupSha": "text é",
+   "createdAt": "text é",
+   "smoke": {
+    "cmd": "text é",
+    "exitCode": 2.5
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "browserShim": true,
+   "npmBin": "text é",
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "missingTools": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "outcome": "failed",
+     "note": "text é"
+    }
+   ],
+   "silenced": [
+    "text é"
+   ],
+   "shellNoise": "text é",
+   "leftBehind": [
+    {
+     "id": "text é",
+     "path": "text é",
+     "note": "text é"
+    }
+   ],
+   "parentSnapshotId": "text é",
+   "base": [
+    {
+     "name": "text é",
+     "version": "text é"
+    }
+   ],
+   "retired": [
+    {
+     "id": "text é",
+     "name": "text é"
+    }
+   ],
+   "usedBytes": 7,
+   "imageHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "version"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenVersion",
+  "case": "kind: not one of its values",
+  "input": {
+   "version": 2.5,
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "baseTemplate": "text é",
+   "kind": "not-a-value",
+   "setupSha": "text é",
+   "createdAt": "text é",
+   "smoke": {
+    "cmd": "text é",
+    "exitCode": 2.5
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "browserShim": true,
+   "npmBin": "text é",
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "missingTools": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "outcome": "failed",
+     "note": "text é"
+    }
+   ],
+   "silenced": [
+    "text é"
+   ],
+   "shellNoise": "text é",
+   "leftBehind": [
+    {
+     "id": "text é",
+     "path": "text é",
+     "note": "text é"
+    }
+   ],
+   "parentSnapshotId": "text é",
+   "base": [
+    {
+     "name": "text é",
+     "version": "text é"
+    }
+   ],
+   "retired": [
+    {
+     "id": "text é",
+     "name": "text é"
+    }
+   ],
+   "usedBytes": 7,
+   "imageHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenVersion",
+  "case": "browserShim: not a boolean",
+  "input": {
+   "version": 2.5,
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "baseTemplate": "text é",
+   "kind": "desktop",
+   "setupSha": "text é",
+   "createdAt": "text é",
+   "smoke": {
+    "cmd": "text é",
+    "exitCode": 2.5
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "browserShim": "yes",
+   "npmBin": "text é",
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "missingTools": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "outcome": "failed",
+     "note": "text é"
+    }
+   ],
+   "silenced": [
+    "text é"
+   ],
+   "shellNoise": "text é",
+   "leftBehind": [
+    {
+     "id": "text é",
+     "path": "text é",
+     "note": "text é"
+    }
+   ],
+   "parentSnapshotId": "text é",
+   "base": [
+    {
+     "name": "text é",
+     "version": "text é"
+    }
+   ],
+   "retired": [
+    {
+     "id": "text é",
+     "name": "text é"
+    }
+   ],
+   "usedBytes": 7,
+   "imageHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "browserShim"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenVersion",
+  "case": "usedBytes: not an integer",
+  "input": {
+   "version": 2.5,
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "baseTemplate": "text é",
+   "kind": "desktop",
+   "setupSha": "text é",
+   "createdAt": "text é",
+   "smoke": {
+    "cmd": "text é",
+    "exitCode": 2.5
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "browserShim": true,
+   "npmBin": "text é",
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "missingTools": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "outcome": "failed",
+     "note": "text é"
+    }
+   ],
+   "silenced": [
+    "text é"
+   ],
+   "shellNoise": "text é",
+   "leftBehind": [
+    {
+     "id": "text é",
+     "path": "text é",
+     "note": "text é"
+    }
+   ],
+   "parentSnapshotId": "text é",
+   "base": [
+    {
+     "name": "text é",
+     "version": "text é"
+    }
+   ],
+   "retired": [
+    {
+     "id": "text é",
+     "name": "text é"
+    }
+   ],
+   "usedBytes": 2.5,
+   "imageHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "usedBytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GoldenVersion",
+  "case": "usedBytes: under 0",
+  "input": {
+   "version": 2.5,
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "baseTemplate": "text é",
+   "kind": "desktop",
+   "setupSha": "text é",
+   "createdAt": "text é",
+   "smoke": {
+    "cmd": "text é",
+    "exitCode": 2.5
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "browserShim": true,
+   "npmBin": "text é",
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "missingTools": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "outcome": "failed",
+     "note": "text é"
+    }
+   ],
+   "silenced": [
+    "text é"
+   ],
+   "shellNoise": "text é",
+   "leftBehind": [
+    {
+     "id": "text é",
+     "path": "text é",
+     "note": "text é"
+    }
+   ],
+   "parentSnapshotId": "text é",
+   "base": [
+    {
+     "name": "text é",
+     "version": "text é"
+    }
+   ],
+   "retired": [
+    {
+     "id": "text é",
+     "name": "text é"
+    }
+   ],
+   "usedBytes": -1,
+   "imageHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "usedBytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "GoldenVersion",
+  "case": "imageHash: not 64 long",
+  "input": {
+   "version": 2.5,
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "baseTemplate": "text é",
+   "kind": "desktop",
+   "setupSha": "text é",
+   "createdAt": "text é",
+   "smoke": {
+    "cmd": "text é",
+    "exitCode": 2.5
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "browserShim": true,
+   "npmBin": "text é",
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "missingTools": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "outcome": "failed",
+     "note": "text é"
+    }
+   ],
+   "silenced": [
+    "text é"
+   ],
+   "shellNoise": "text é",
+   "leftBehind": [
+    {
+     "id": "text é",
+     "path": "text é",
+     "note": "text é"
+    }
+   ],
+   "parentSnapshotId": "text é",
+   "base": [
+    {
+     "name": "text é",
+     "version": "text é"
+    }
+   ],
+   "retired": [
+    {
+     "id": "text é",
+     "name": "text é"
+    }
+   ],
+   "usedBytes": 7,
+   "imageHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "imageHash"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "GoldenVersion",
+  "case": "noSecrets: not a boolean",
+  "input": {
+   "version": 2.5,
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "baseTemplate": "text é",
+   "kind": "desktop",
+   "setupSha": "text é",
+   "createdAt": "text é",
+   "smoke": {
+    "cmd": "text é",
+    "exitCode": 2.5
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "browserShim": true,
+   "npmBin": "text é",
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "missingTools": [
+    {
+     "id": "text é",
+     "name": "text é",
+     "outcome": "failed",
+     "note": "text é"
+    }
+   ],
+   "silenced": [
+    "text é"
+   ],
+   "shellNoise": "text é",
+   "leftBehind": [
+    {
+     "id": "text é",
+     "path": "text é",
+     "note": "text é"
+    }
+   ],
+   "parentSnapshotId": "text é",
+   "base": [
+    {
+     "name": "text é",
+     "version": "text é"
+    }
+   ],
+   "retired": [
+    {
+     "id": "text é",
+     "name": "text é"
+    }
+   ],
+   "usedBytes": 7,
+   "imageHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "noSecrets": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "noSecrets"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MachineKind",
+  "case": "full",
+  "input": "desktop",
+  "output": "\"desktop\""
+ },
+ {
+  "type": "MachineKind",
+  "case": "minimal",
+  "input": "sandbox",
+  "output": "\"sandbox\""
+ },
+ {
+  "type": "MachineKind",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "Recipe",
+  "case": "full",
+  "input": {
+   "version": 1,
+   "at": "text é",
+   "tick": "default",
+   "histories": [
+    {
+     "agent": "text é",
+     "state": "no-reader",
+     "sessions": 7,
+     "calls": 7
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "tool",
+     "on": true,
+     "source": {
+      "kind": "popular",
+      "sessions": 7,
+      "images": 7
+     },
+     "size": 7,
+     "signIn": "token",
+     "pin": {
+      "tag": "text é",
+      "sha256": "text é",
+      "arch": "aarch64",
+      "latest": true
+     }
+    }
+   ],
+   "custom": [
+    {
+     "kind": "custom",
+     "id": "text é",
+     "name": "text é",
+     "install": [
+      "text é"
+     ],
+     "check": "text é",
+     "manager": "text é",
+     "size": 7,
+     "why": "text é"
+    }
+   ],
+   "engine": true
+  },
+  "output": "{\"version\":1,\"at\":\"text é\",\"tick\":\"default\",\"histories\":[{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}],\"rows\":[{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7},\"size\":7,\"signIn\":\"token\",\"pin\":{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true}}],\"custom\":[{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"manager\":\"text é\",\"size\":7,\"why\":\"text é\"}],\"engine\":true}"
+ },
+ {
+  "type": "Recipe",
+  "case": "minimal",
+  "input": {
+   "version": 1,
+   "at": "s",
+   "histories": [],
+   "rows": []
+  },
+  "output": "{\"version\":1,\"at\":\"s\",\"histories\":[],\"rows\":[]}"
+ },
+ {
+  "type": "Recipe",
+  "case": "nulls",
+  "input": {
+   "version": 1,
+   "at": "s",
+   "tick": "used",
+   "histories": [],
+   "rows": [],
+   "custom": [],
+   "engine": false
+  },
+  "output": "{\"version\":1,\"at\":\"s\",\"tick\":\"used\",\"histories\":[],\"rows\":[],\"custom\":[],\"engine\":false}"
+ },
+ {
+  "type": "Recipe",
+  "case": "missing version",
+  "input": {
+   "at": "text é",
+   "tick": "default",
+   "histories": [
+    {
+     "agent": "text é",
+     "state": "no-reader",
+     "sessions": 7,
+     "calls": 7
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "tool",
+     "on": true,
+     "source": {
+      "kind": "popular",
+      "sessions": 7,
+      "images": 7
+     },
+     "size": 7,
+     "signIn": "token",
+     "pin": {
+      "tag": "text é",
+      "sha256": "text é",
+      "arch": "aarch64",
+      "latest": true
+     }
+    }
+   ],
+   "custom": [
+    {
+     "kind": "custom",
+     "id": "text é",
+     "name": "text é",
+     "install": [
+      "text é"
+     ],
+     "check": "text é",
+     "manager": "text é",
+     "size": 7,
+     "why": "text é"
+    }
+   ],
+   "engine": true
+  },
+  "issue": {
+   "code": "invalid_literal",
+   "path": [
+    "version"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "Recipe",
+  "case": "at: shorter than 1",
+  "input": {
+   "version": 1,
+   "at": "",
+   "tick": "default",
+   "histories": [
+    {
+     "agent": "text é",
+     "state": "no-reader",
+     "sessions": 7,
+     "calls": 7
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "tool",
+     "on": true,
+     "source": {
+      "kind": "popular",
+      "sessions": 7,
+      "images": 7
+     },
+     "size": 7,
+     "signIn": "token",
+     "pin": {
+      "tag": "text é",
+      "sha256": "text é",
+      "arch": "aarch64",
+      "latest": true
+     }
+    }
+   ],
+   "custom": [
+    {
+     "kind": "custom",
+     "id": "text é",
+     "name": "text é",
+     "install": [
+      "text é"
+     ],
+     "check": "text é",
+     "manager": "text é",
+     "size": 7,
+     "why": "text é"
+    }
+   ],
+   "engine": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "at"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "Recipe",
+  "case": "tick: not one of its values",
+  "input": {
+   "version": 1,
+   "at": "text é",
+   "tick": "not-a-value",
+   "histories": [
+    {
+     "agent": "text é",
+     "state": "no-reader",
+     "sessions": 7,
+     "calls": 7
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "tool",
+     "on": true,
+     "source": {
+      "kind": "popular",
+      "sessions": 7,
+      "images": 7
+     },
+     "size": 7,
+     "signIn": "token",
+     "pin": {
+      "tag": "text é",
+      "sha256": "text é",
+      "arch": "aarch64",
+      "latest": true
+     }
+    }
+   ],
+   "custom": [
+    {
+     "kind": "custom",
+     "id": "text é",
+     "name": "text é",
+     "install": [
+      "text é"
+     ],
+     "check": "text é",
+     "manager": "text é",
+     "size": 7,
+     "why": "text é"
+    }
+   ],
+   "engine": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "tick"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "Recipe",
+  "case": "engine: not a boolean",
+  "input": {
+   "version": 1,
+   "at": "text é",
+   "tick": "default",
+   "histories": [
+    {
+     "agent": "text é",
+     "state": "no-reader",
+     "sessions": 7,
+     "calls": 7
+    }
+   ],
+   "rows": [
+    {
+     "id": "text é",
+     "kind": "tool",
+     "on": true,
+     "source": {
+      "kind": "popular",
+      "sessions": 7,
+      "images": 7
+     },
+     "size": 7,
+     "signIn": "token",
+     "pin": {
+      "tag": "text é",
+      "sha256": "text é",
+      "arch": "aarch64",
+      "latest": true
+     }
+    }
+   ],
+   "custom": [
+    {
+     "kind": "custom",
+     "id": "text é",
+     "name": "text é",
+     "install": [
+      "text é"
+     ],
+     "check": "text é",
+     "manager": "text é",
+     "size": 7,
+     "why": "text é"
+    }
+   ],
+   "engine": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "engine"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "full",
+  "input": {
+   "kind": "custom",
+   "id": "text é",
+   "name": "text é",
+   "install": [
+    "text é"
+   ],
+   "check": "text é",
+   "manager": "text é",
+   "size": 7,
+   "why": "text é"
+  },
+  "output": "{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"manager\":\"text é\",\"size\":7,\"why\":\"text é\"}"
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "minimal",
+  "input": {
+   "kind": "custom",
+   "id": "s",
+   "name": "s",
+   "install": [
+    "s"
+   ],
+   "check": "s",
+   "why": "s"
+  },
+  "output": "{\"kind\":\"custom\",\"id\":\"s\",\"name\":\"s\",\"install\":[\"s\"],\"check\":\"s\",\"why\":\"s\"}"
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "nulls",
+  "input": {
+   "kind": "custom",
+   "id": "s",
+   "name": "s",
+   "install": [
+    "s"
+   ],
+   "check": "s",
+   "manager": "s",
+   "size": 7,
+   "why": "s"
+  },
+  "output": "{\"kind\":\"custom\",\"id\":\"s\",\"name\":\"s\",\"install\":[\"s\"],\"check\":\"s\",\"manager\":\"s\",\"size\":7,\"why\":\"s\"}"
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "missing kind",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "install": [
+    "text é"
+   ],
+   "check": "text é",
+   "manager": "text é",
+   "size": 7,
+   "why": "text é"
+  },
+  "issue": {
+   "code": "invalid_literal",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "id: shorter than 1",
+  "input": {
+   "kind": "custom",
+   "id": "",
+   "name": "text é",
+   "install": [
+    "text é"
+   ],
+   "check": "text é",
+   "manager": "text é",
+   "size": 7,
+   "why": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "name: shorter than 1",
+  "input": {
+   "kind": "custom",
+   "id": "text é",
+   "name": "",
+   "install": [
+    "text é"
+   ],
+   "check": "text é",
+   "manager": "text é",
+   "size": 7,
+   "why": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "install: fewer than 1 items",
+  "input": {
+   "kind": "custom",
+   "id": "text é",
+   "name": "text é",
+   "install": [],
+   "check": "text é",
+   "manager": "text é",
+   "size": 7,
+   "why": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "install"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "check: shorter than 1",
+  "input": {
+   "kind": "custom",
+   "id": "text é",
+   "name": "text é",
+   "install": [
+    "text é"
+   ],
+   "check": "",
+   "manager": "text é",
+   "size": 7,
+   "why": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "check"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "manager: shorter than 1",
+  "input": {
+   "kind": "custom",
+   "id": "text é",
+   "name": "text é",
+   "install": [
+    "text é"
+   ],
+   "check": "text é",
+   "manager": "",
+   "size": 7,
+   "why": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "manager"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "size: not an integer",
+  "input": {
+   "kind": "custom",
+   "id": "text é",
+   "name": "text é",
+   "install": [
+    "text é"
+   ],
+   "check": "text é",
+   "manager": "text é",
+   "size": 2.5,
+   "why": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "size"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "size: under 0",
+  "input": {
+   "kind": "custom",
+   "id": "text é",
+   "name": "text é",
+   "install": [
+    "text é"
+   ],
+   "check": "text é",
+   "manager": "text é",
+   "size": -1,
+   "why": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "size"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeCustomRow",
+  "case": "why: shorter than 1",
+  "input": {
+   "kind": "custom",
+   "id": "text é",
+   "name": "text é",
+   "install": [
+    "text é"
+   ],
+   "check": "text é",
+   "manager": "text é",
+   "size": 7,
+   "why": ""
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "why"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeDigest",
+  "case": "full",
+  "input": {
+   "ticks": [
+    {
+     "id": "text é",
+     "choice": "token",
+     "version": "text é",
+     "road": "text é",
+     "installer": "text é",
+     "pin": {
+      "tag": "text é",
+      "sha256": "text é",
+      "arch": "aarch64",
+      "latest": true
+     }
+    }
+   ],
+   "login": "text é",
+   "files": [
+    {
+     "id": "text é",
+     "path": "text é",
+     "dest": "text é",
+     "digest": "text é",
+     "volatile": true
+    }
+   ]
+  },
+  "output": "{\"ticks\":[{\"id\":\"text é\",\"choice\":\"token\",\"version\":\"text é\",\"road\":\"text é\",\"installer\":\"text é\",\"pin\":{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true}}],\"login\":\"text é\",\"files\":[{\"id\":\"text é\",\"path\":\"text é\",\"dest\":\"text é\",\"digest\":\"text é\",\"volatile\":true}]}"
+ },
+ {
+  "type": "RecipeDigest",
+  "case": "minimal",
+  "input": {
+   "ticks": [],
+   "files": []
+  },
+  "output": "{\"ticks\":[],\"files\":[]}"
+ },
+ {
+  "type": "RecipeDigest",
+  "case": "nulls",
+  "input": {
+   "ticks": [],
+   "login": "s",
+   "files": []
+  },
+  "output": "{\"ticks\":[],\"login\":\"s\",\"files\":[]}"
+ },
+ {
+  "type": "RecipeDigest",
+  "case": "missing ticks",
+  "input": {
+   "login": "text é",
+   "files": [
+    {
+     "id": "text é",
+     "path": "text é",
+     "dest": "text é",
+     "digest": "text é",
+     "volatile": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "ticks"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeHistory",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "state": "no-reader",
+   "sessions": 7,
+   "calls": 7
+  },
+  "output": "{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}"
+ },
+ {
+  "type": "RecipeHistory",
+  "case": "minimal",
+  "input": {
+   "agent": "s",
+   "state": "read",
+   "sessions": 7,
+   "calls": 7
+  },
+  "output": "{\"agent\":\"s\",\"state\":\"read\",\"sessions\":7,\"calls\":7}"
+ },
+ {
+  "type": "RecipeHistory",
+  "case": "missing agent",
+  "input": {
+   "state": "no-reader",
+   "sessions": 7,
+   "calls": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeHistory",
+  "case": "agent: shorter than 1",
+  "input": {
+   "agent": "",
+   "state": "no-reader",
+   "sessions": 7,
+   "calls": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeHistory",
+  "case": "state: not one of its values",
+  "input": {
+   "agent": "text é",
+   "state": "not-a-value",
+   "sessions": 7,
+   "calls": 7
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeHistory",
+  "case": "sessions: not an integer",
+  "input": {
+   "agent": "text é",
+   "state": "no-reader",
+   "sessions": 2.5,
+   "calls": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "sessions"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeHistory",
+  "case": "sessions: under 0",
+  "input": {
+   "agent": "text é",
+   "state": "no-reader",
+   "sessions": -1,
+   "calls": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "sessions"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeHistory",
+  "case": "calls: not an integer",
+  "input": {
+   "agent": "text é",
+   "state": "no-reader",
+   "sessions": 7,
+   "calls": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "calls"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeHistory",
+  "case": "calls: under 0",
+  "input": {
+   "agent": "text é",
+   "state": "no-reader",
+   "sessions": 7,
+   "calls": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "calls"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeRow",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "kind": "tool",
+   "on": true,
+   "source": {
+    "kind": "popular",
+    "sessions": 7,
+    "images": 7
+   },
+   "size": 7,
+   "signIn": "token",
+   "pin": {
+    "tag": "text é",
+    "sha256": "text é",
+    "arch": "aarch64",
+    "latest": true
+   }
+  },
+  "output": "{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7},\"size\":7,\"signIn\":\"token\",\"pin\":{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true}}"
+ },
+ {
+  "type": "RecipeRow",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "kind": "agent",
+   "on": false,
+   "source": {
+    "kind": "project",
+    "why": "s"
+   }
+  },
+  "output": "{\"id\":\"s\",\"kind\":\"agent\",\"on\":false,\"source\":{\"kind\":\"project\",\"why\":\"s\"}}"
+ },
+ {
+  "type": "RecipeRow",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "kind": "agent",
+   "on": false,
+   "source": {
+    "kind": "project",
+    "why": "s"
+   },
+   "size": 7,
+   "signIn": "copy",
+   "pin": {
+    "tag": "s"
+   }
+  },
+  "output": "{\"id\":\"s\",\"kind\":\"agent\",\"on\":false,\"source\":{\"kind\":\"project\",\"why\":\"s\"},\"size\":7,\"signIn\":\"copy\",\"pin\":{\"tag\":\"s\"}}"
+ },
+ {
+  "type": "RecipeRow",
+  "case": "missing id",
+  "input": {
+   "kind": "tool",
+   "on": true,
+   "source": {
+    "kind": "popular",
+    "sessions": 7,
+    "images": 7
+   },
+   "size": 7,
+   "signIn": "token",
+   "pin": {
+    "tag": "text é",
+    "sha256": "text é",
+    "arch": "aarch64",
+    "latest": true
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeRow",
+  "case": "id: shorter than 1",
+  "input": {
+   "id": "",
+   "kind": "tool",
+   "on": true,
+   "source": {
+    "kind": "popular",
+    "sessions": 7,
+    "images": 7
+   },
+   "size": 7,
+   "signIn": "token",
+   "pin": {
+    "tag": "text é",
+    "sha256": "text é",
+    "arch": "aarch64",
+    "latest": true
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeRow",
+  "case": "kind: not one of its values",
+  "input": {
+   "id": "text é",
+   "kind": "not-a-value",
+   "on": true,
+   "source": {
+    "kind": "popular",
+    "sessions": 7,
+    "images": 7
+   },
+   "size": 7,
+   "signIn": "token",
+   "pin": {
+    "tag": "text é",
+    "sha256": "text é",
+    "arch": "aarch64",
+    "latest": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeRow",
+  "case": "on: not a boolean",
+  "input": {
+   "id": "text é",
+   "kind": "tool",
+   "on": "yes",
+   "source": {
+    "kind": "popular",
+    "sessions": 7,
+    "images": 7
+   },
+   "size": 7,
+   "signIn": "token",
+   "pin": {
+    "tag": "text é",
+    "sha256": "text é",
+    "arch": "aarch64",
+    "latest": true
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "on"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeRow",
+  "case": "size: not an integer",
+  "input": {
+   "id": "text é",
+   "kind": "tool",
+   "on": true,
+   "source": {
+    "kind": "popular",
+    "sessions": 7,
+    "images": 7
+   },
+   "size": 2.5,
+   "signIn": "token",
+   "pin": {
+    "tag": "text é",
+    "sha256": "text é",
+    "arch": "aarch64",
+    "latest": true
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "size"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeRow",
+  "case": "size: under 0",
+  "input": {
+   "id": "text é",
+   "kind": "tool",
+   "on": true,
+   "source": {
+    "kind": "popular",
+    "sessions": 7,
+    "images": 7
+   },
+   "size": -1,
+   "signIn": "token",
+   "pin": {
+    "tag": "text é",
+    "sha256": "text é",
+    "arch": "aarch64",
+    "latest": true
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "size"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeRow",
+  "case": "signIn: not one of its values",
+  "input": {
+   "id": "text é",
+   "kind": "tool",
+   "on": true,
+   "source": {
+    "kind": "popular",
+    "sessions": 7,
+    "images": 7
+   },
+   "size": 7,
+   "signIn": "not-a-value",
+   "pin": {
+    "tag": "text é",
+    "sha256": "text é",
+    "arch": "aarch64",
+    "latest": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "signIn"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeSource",
+  "case": "full",
+  "input": {
+   "kind": "popular",
+   "sessions": 7,
+   "images": 7
+  },
+  "output": "{\"kind\":\"popular\",\"sessions\":7,\"images\":7}"
+ },
+ {
+  "type": "RecipeSource",
+  "case": "minimal",
+  "input": {
+   "kind": "project",
+   "why": "s"
+  },
+  "output": "{\"kind\":\"project\",\"why\":\"s\"}"
+ },
+ {
+  "type": "RecipeSource",
+  "case": "variant 0",
+  "input": {
+   "kind": "project",
+   "why": "text é"
+  },
+  "output": "{\"kind\":\"project\",\"why\":\"text é\"}"
+ },
+ {
+  "type": "RecipeSource",
+  "case": "variant 1",
+  "input": {
+   "kind": "installed",
+   "paths": [
+    "text é"
+   ],
+   "bin": true
+  },
+  "output": "{\"kind\":\"installed\",\"paths\":[\"text é\"],\"bin\":true}"
+ },
+ {
+  "type": "RecipeSource",
+  "case": "variant 2",
+  "input": {
+   "kind": "used",
+   "sessions": 7,
+   "calls": 7
+  },
+  "output": "{\"kind\":\"used\",\"sessions\":7,\"calls\":7}"
+ },
+ {
+  "type": "RecipeTick",
+  "case": "full",
+  "input": "default",
+  "output": "\"default\""
+ },
+ {
+  "type": "RecipeTick",
+  "case": "minimal",
+  "input": "used",
+  "output": "\"used\""
+ },
+ {
+  "type": "RecipeTick",
+  "case": "value installed",
+  "input": "installed",
+  "output": "\"installed\""
+ },
+ {
+  "type": "RecipeTick",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImage",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "recipeHash": "text é",
+   "recipe": {
+    "version": 1,
+    "at": "text é",
+    "tick": "default",
+    "histories": [
+     {
+      "agent": "text é",
+      "state": "no-reader",
+      "sessions": 7,
+      "calls": 7
+     }
+    ],
+    "rows": [
+     {
+      "id": "text é",
+      "kind": "tool",
+      "on": true,
+      "source": {
+       "kind": "popular",
+       "sessions": 7,
+       "images": 7
+      },
+      "size": 7,
+      "signIn": "token",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "custom": [
+     {
+      "kind": "custom",
+      "id": "text é",
+      "name": "text é",
+      "install": [
+       "text é"
+      ],
+      "check": "text é",
+      "manager": "text é",
+      "size": 7,
+      "why": "text é"
+     }
+    ],
+    "engine": true
+   },
+   "pins": [
+    {
+     "tag": "text é",
+     "sha256": "text é",
+     "arch": "aarch64",
+     "latest": true,
+     "id": "text é",
+     "road": "text é"
+    }
+   ],
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "sealedAt": "text é",
+   "sealedFrom": "text é",
+   "vault": {
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "bytes": 7,
+    "paths": 7,
+    "held": [
+     "text é"
+    ],
+    "takenAt": "text é"
+   },
+   "usedBytes": 7,
+   "place": "text é",
+   "noSecrets": true
+  },
+  "output": "{\"name\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"text é\",\"recipe\":{\"version\":1,\"at\":\"text é\",\"tick\":\"default\",\"histories\":[{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}],\"rows\":[{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7},\"size\":7,\"signIn\":\"token\",\"pin\":{\"tag\":\"text é\"}}],\"custom\":[{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"manager\":\"text é\",\"size\":7,\"why\":\"text é\"}],\"engine\":true},\"pins\":[{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true,\"id\":\"text é\",\"road\":\"text é\"}],\"logins\":[{\"name\":\"text é\",\"state\":\"deferred\"}],\"sealedAt\":\"text é\",\"sealedFrom\":\"text é\",\"vault\":{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"held\":[\"text é\"],\"takenAt\":\"text é\"},\"usedBytes\":7,\"place\":\"text é\",\"noSecrets\":true}"
+ },
+ {
+  "type": "SealedImage",
+  "case": "minimal",
+  "input": {
+   "name": "s",
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "recipeHash": "s",
+   "logins": [],
+   "sealedAt": "s",
+   "sealedFrom": "s"
+  },
+  "output": "{\"name\":\"s\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"s\",\"logins\":[],\"sealedAt\":\"s\",\"sealedFrom\":\"s\"}"
+ },
+ {
+  "type": "SealedImage",
+  "case": "nulls",
+  "input": {
+   "name": "s",
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "recipeHash": "s",
+   "recipe": {
+    "version": 1,
+    "at": "s",
+    "histories": [],
+    "rows": []
+   },
+   "pins": [],
+   "logins": [],
+   "sealedAt": "s",
+   "sealedFrom": "s",
+   "vault": {
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "bytes": 7,
+    "paths": 7,
+    "takenAt": "s"
+   },
+   "usedBytes": 7,
+   "place": "s",
+   "noSecrets": false
+  },
+  "output": "{\"name\":\"s\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"s\",\"recipe\":{\"version\":1,\"at\":\"s\",\"histories\":[],\"rows\":[]},\"pins\":[],\"logins\":[],\"sealedAt\":\"s\",\"sealedFrom\":\"s\",\"vault\":{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"takenAt\":\"s\"},\"usedBytes\":7,\"place\":\"s\",\"noSecrets\":false}"
+ },
+ {
+  "type": "SealedImage",
+  "case": "missing name",
+  "input": {
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "recipeHash": "text é",
+   "recipe": {
+    "version": 1,
+    "at": "text é",
+    "tick": "default",
+    "histories": [
+     {
+      "agent": "text é",
+      "state": "no-reader",
+      "sessions": 7,
+      "calls": 7
+     }
+    ],
+    "rows": [
+     {
+      "id": "text é",
+      "kind": "tool",
+      "on": true,
+      "source": {
+       "kind": "popular",
+       "sessions": 7,
+       "images": 7
+      },
+      "size": 7,
+      "signIn": "token",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "custom": [
+     {
+      "kind": "custom",
+      "id": "text é",
+      "name": "text é",
+      "install": [
+       "text é"
+      ],
+      "check": "text é",
+      "manager": "text é",
+      "size": 7,
+      "why": "text é"
+     }
+    ],
+    "engine": true
+   },
+   "pins": [
+    {
+     "tag": "text é",
+     "sha256": "text é",
+     "arch": "aarch64",
+     "latest": true,
+     "id": "text é",
+     "road": "text é"
+    }
+   ],
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "sealedAt": "text é",
+   "sealedFrom": "text é",
+   "vault": {
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "bytes": 7,
+    "paths": 7,
+    "held": [
+     "text é"
+    ],
+    "takenAt": "text é"
+   },
+   "usedBytes": 7,
+   "place": "text é",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImage",
+  "case": "version: not an integer",
+  "input": {
+   "name": "text é",
+   "version": 2.5,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "recipeHash": "text é",
+   "recipe": {
+    "version": 1,
+    "at": "text é",
+    "tick": "default",
+    "histories": [
+     {
+      "agent": "text é",
+      "state": "no-reader",
+      "sessions": 7,
+      "calls": 7
+     }
+    ],
+    "rows": [
+     {
+      "id": "text é",
+      "kind": "tool",
+      "on": true,
+      "source": {
+       "kind": "popular",
+       "sessions": 7,
+       "images": 7
+      },
+      "size": 7,
+      "signIn": "token",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "custom": [
+     {
+      "kind": "custom",
+      "id": "text é",
+      "name": "text é",
+      "install": [
+       "text é"
+      ],
+      "check": "text é",
+      "manager": "text é",
+      "size": 7,
+      "why": "text é"
+     }
+    ],
+    "engine": true
+   },
+   "pins": [
+    {
+     "tag": "text é",
+     "sha256": "text é",
+     "arch": "aarch64",
+     "latest": true,
+     "id": "text é",
+     "road": "text é"
+    }
+   ],
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "sealedAt": "text é",
+   "sealedFrom": "text é",
+   "vault": {
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "bytes": 7,
+    "paths": 7,
+    "held": [
+     "text é"
+    ],
+    "takenAt": "text é"
+   },
+   "usedBytes": 7,
+   "place": "text é",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "version"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImage",
+  "case": "version: under 0",
+  "input": {
+   "name": "text é",
+   "version": 0,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "recipeHash": "text é",
+   "recipe": {
+    "version": 1,
+    "at": "text é",
+    "tick": "default",
+    "histories": [
+     {
+      "agent": "text é",
+      "state": "no-reader",
+      "sessions": 7,
+      "calls": 7
+     }
+    ],
+    "rows": [
+     {
+      "id": "text é",
+      "kind": "tool",
+      "on": true,
+      "source": {
+       "kind": "popular",
+       "sessions": 7,
+       "images": 7
+      },
+      "size": 7,
+      "signIn": "token",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "custom": [
+     {
+      "kind": "custom",
+      "id": "text é",
+      "name": "text é",
+      "install": [
+       "text é"
+      ],
+      "check": "text é",
+      "manager": "text é",
+      "size": 7,
+      "why": "text é"
+     }
+    ],
+    "engine": true
+   },
+   "pins": [
+    {
+     "tag": "text é",
+     "sha256": "text é",
+     "arch": "aarch64",
+     "latest": true,
+     "id": "text é",
+     "road": "text é"
+    }
+   ],
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "sealedAt": "text é",
+   "sealedFrom": "text é",
+   "vault": {
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "bytes": 7,
+    "paths": 7,
+    "held": [
+     "text é"
+    ],
+    "takenAt": "text é"
+   },
+   "usedBytes": 7,
+   "place": "text é",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "version"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedImage",
+  "case": "hash: not 64 long",
+  "input": {
+   "name": "text é",
+   "version": 7,
+   "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "recipeHash": "text é",
+   "recipe": {
+    "version": 1,
+    "at": "text é",
+    "tick": "default",
+    "histories": [
+     {
+      "agent": "text é",
+      "state": "no-reader",
+      "sessions": 7,
+      "calls": 7
+     }
+    ],
+    "rows": [
+     {
+      "id": "text é",
+      "kind": "tool",
+      "on": true,
+      "source": {
+       "kind": "popular",
+       "sessions": 7,
+       "images": 7
+      },
+      "size": 7,
+      "signIn": "token",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "custom": [
+     {
+      "kind": "custom",
+      "id": "text é",
+      "name": "text é",
+      "install": [
+       "text é"
+      ],
+      "check": "text é",
+      "manager": "text é",
+      "size": 7,
+      "why": "text é"
+     }
+    ],
+    "engine": true
+   },
+   "pins": [
+    {
+     "tag": "text é",
+     "sha256": "text é",
+     "arch": "aarch64",
+     "latest": true,
+     "id": "text é",
+     "road": "text é"
+    }
+   ],
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "sealedAt": "text é",
+   "sealedFrom": "text é",
+   "vault": {
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "bytes": 7,
+    "paths": 7,
+    "held": [
+     "text é"
+    ],
+    "takenAt": "text é"
+   },
+   "usedBytes": 7,
+   "place": "text é",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "hash"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedImage",
+  "case": "usedBytes: not an integer",
+  "input": {
+   "name": "text é",
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "recipeHash": "text é",
+   "recipe": {
+    "version": 1,
+    "at": "text é",
+    "tick": "default",
+    "histories": [
+     {
+      "agent": "text é",
+      "state": "no-reader",
+      "sessions": 7,
+      "calls": 7
+     }
+    ],
+    "rows": [
+     {
+      "id": "text é",
+      "kind": "tool",
+      "on": true,
+      "source": {
+       "kind": "popular",
+       "sessions": 7,
+       "images": 7
+      },
+      "size": 7,
+      "signIn": "token",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "custom": [
+     {
+      "kind": "custom",
+      "id": "text é",
+      "name": "text é",
+      "install": [
+       "text é"
+      ],
+      "check": "text é",
+      "manager": "text é",
+      "size": 7,
+      "why": "text é"
+     }
+    ],
+    "engine": true
+   },
+   "pins": [
+    {
+     "tag": "text é",
+     "sha256": "text é",
+     "arch": "aarch64",
+     "latest": true,
+     "id": "text é",
+     "road": "text é"
+    }
+   ],
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "sealedAt": "text é",
+   "sealedFrom": "text é",
+   "vault": {
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "bytes": 7,
+    "paths": 7,
+    "held": [
+     "text é"
+    ],
+    "takenAt": "text é"
+   },
+   "usedBytes": 2.5,
+   "place": "text é",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "usedBytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImage",
+  "case": "usedBytes: under 0",
+  "input": {
+   "name": "text é",
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "recipeHash": "text é",
+   "recipe": {
+    "version": 1,
+    "at": "text é",
+    "tick": "default",
+    "histories": [
+     {
+      "agent": "text é",
+      "state": "no-reader",
+      "sessions": 7,
+      "calls": 7
+     }
+    ],
+    "rows": [
+     {
+      "id": "text é",
+      "kind": "tool",
+      "on": true,
+      "source": {
+       "kind": "popular",
+       "sessions": 7,
+       "images": 7
+      },
+      "size": 7,
+      "signIn": "token",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "custom": [
+     {
+      "kind": "custom",
+      "id": "text é",
+      "name": "text é",
+      "install": [
+       "text é"
+      ],
+      "check": "text é",
+      "manager": "text é",
+      "size": 7,
+      "why": "text é"
+     }
+    ],
+    "engine": true
+   },
+   "pins": [
+    {
+     "tag": "text é",
+     "sha256": "text é",
+     "arch": "aarch64",
+     "latest": true,
+     "id": "text é",
+     "road": "text é"
+    }
+   ],
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "sealedAt": "text é",
+   "sealedFrom": "text é",
+   "vault": {
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "bytes": 7,
+    "paths": 7,
+    "held": [
+     "text é"
+    ],
+    "takenAt": "text é"
+   },
+   "usedBytes": -1,
+   "place": "text é",
+   "noSecrets": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "usedBytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedImage",
+  "case": "noSecrets: not a boolean",
+  "input": {
+   "name": "text é",
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "recipeHash": "text é",
+   "recipe": {
+    "version": 1,
+    "at": "text é",
+    "tick": "default",
+    "histories": [
+     {
+      "agent": "text é",
+      "state": "no-reader",
+      "sessions": 7,
+      "calls": 7
+     }
+    ],
+    "rows": [
+     {
+      "id": "text é",
+      "kind": "tool",
+      "on": true,
+      "source": {
+       "kind": "popular",
+       "sessions": 7,
+       "images": 7
+      },
+      "size": 7,
+      "signIn": "token",
+      "pin": {
+       "tag": "text é"
+      }
+     }
+    ],
+    "custom": [
+     {
+      "kind": "custom",
+      "id": "text é",
+      "name": "text é",
+      "install": [
+       "text é"
+      ],
+      "check": "text é",
+      "manager": "text é",
+      "size": 7,
+      "why": "text é"
+     }
+    ],
+    "engine": true
+   },
+   "pins": [
+    {
+     "tag": "text é",
+     "sha256": "text é",
+     "arch": "aarch64",
+     "latest": true,
+     "id": "text é",
+     "road": "text é"
+    }
+   ],
+   "logins": [
+    {
+     "name": "text é",
+     "state": "deferred"
+    }
+   ],
+   "sealedAt": "text é",
+   "sealedFrom": "text é",
+   "vault": {
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "bytes": 7,
+    "paths": 7,
+    "held": [
+     "text é"
+    ],
+    "takenAt": "text é"
+   },
+   "usedBytes": 7,
+   "place": "text é",
+   "noSecrets": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "noSecrets"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImageBuilt",
+  "case": "full",
+  "input": {
+   "copy": {
+    "place": "text é",
+    "version": 7,
+    "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "snapshotId": "text é",
+    "templateId": "text é",
+    "builtAt": "text é",
+    "sizeBytes": 7
+   },
+   "built": true
+  },
+  "output": "{\"copy\":{\"place\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"snapshotId\":\"text é\",\"templateId\":\"text é\",\"builtAt\":\"text é\",\"sizeBytes\":7},\"built\":true}"
+ },
+ {
+  "type": "SealedImageBuilt",
+  "case": "minimal",
+  "input": {
+   "copy": {
+    "place": "s",
+    "version": 7,
+    "snapshotId": "s",
+    "builtAt": "s"
+   },
+   "built": false
+  },
+  "output": "{\"copy\":{\"place\":\"s\",\"version\":7,\"snapshotId\":\"s\",\"builtAt\":\"s\"},\"built\":false}"
+ },
+ {
+  "type": "SealedImageBuilt",
+  "case": "missing copy",
+  "input": {
+   "built": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "copy"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImageBuilt",
+  "case": "built: not a boolean",
+  "input": {
+   "copy": {
+    "place": "text é",
+    "version": 7,
+    "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "snapshotId": "text é",
+    "templateId": "text é",
+    "builtAt": "text é",
+    "sizeBytes": 7
+   },
+   "built": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "built"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImageCopy",
+  "case": "full",
+  "input": {
+   "place": "text é",
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "builtAt": "text é",
+   "sizeBytes": 7
+  },
+  "output": "{\"place\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"snapshotId\":\"text é\",\"templateId\":\"text é\",\"builtAt\":\"text é\",\"sizeBytes\":7}"
+ },
+ {
+  "type": "SealedImageCopy",
+  "case": "minimal",
+  "input": {
+   "place": "s",
+   "version": 7,
+   "snapshotId": "s",
+   "builtAt": "s"
+  },
+  "output": "{\"place\":\"s\",\"version\":7,\"snapshotId\":\"s\",\"builtAt\":\"s\"}"
+ },
+ {
+  "type": "SealedImageCopy",
+  "case": "nulls",
+  "input": {
+   "place": "s",
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "snapshotId": "s",
+   "templateId": "s",
+   "builtAt": "s",
+   "sizeBytes": 7
+  },
+  "output": "{\"place\":\"s\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"snapshotId\":\"s\",\"templateId\":\"s\",\"builtAt\":\"s\",\"sizeBytes\":7}"
+ },
+ {
+  "type": "SealedImageCopy",
+  "case": "missing place",
+  "input": {
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "builtAt": "text é",
+   "sizeBytes": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "place"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImageCopy",
+  "case": "version: not an integer",
+  "input": {
+   "place": "text é",
+   "version": 2.5,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "builtAt": "text é",
+   "sizeBytes": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "version"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImageCopy",
+  "case": "version: under 0",
+  "input": {
+   "place": "text é",
+   "version": 0,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "builtAt": "text é",
+   "sizeBytes": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "version"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedImageCopy",
+  "case": "hash: not 64 long",
+  "input": {
+   "place": "text é",
+   "version": 7,
+   "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "builtAt": "text é",
+   "sizeBytes": 7
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "hash"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedImageCopy",
+  "case": "sizeBytes: not an integer",
+  "input": {
+   "place": "text é",
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "builtAt": "text é",
+   "sizeBytes": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "sizeBytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImageCopy",
+  "case": "sizeBytes: under 0",
+  "input": {
+   "place": "text é",
+   "version": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "snapshotId": "text é",
+   "templateId": "text é",
+   "builtAt": "text é",
+   "sizeBytes": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "sizeBytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedImageExport",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "bytes": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "output": "{\"path\":\"text é\",\"bytes\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"}"
+ },
+ {
+  "type": "SealedImageExport",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "bytes": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "output": "{\"path\":\"s\",\"bytes\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"}"
+ },
+ {
+  "type": "SealedImageExport",
+  "case": "missing path",
+  "input": {
+   "bytes": 7,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImageExport",
+  "case": "bytes: not an integer",
+  "input": {
+   "path": "text é",
+   "bytes": 2.5,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedImageExport",
+  "case": "bytes: under 0",
+  "input": {
+   "path": "text é",
+   "bytes": -1,
+   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedImageExport",
+  "case": "hash: not 64 long",
+  "input": {
+   "path": "text é",
+   "bytes": 7,
+   "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "hash"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedPin",
+  "case": "full",
+  "input": {
+   "tag": "text é",
+   "sha256": "text é",
+   "arch": "aarch64",
+   "latest": true,
+   "id": "text é",
+   "road": "text é"
+  },
+  "output": "{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true,\"id\":\"text é\",\"road\":\"text é\"}"
+ },
+ {
+  "type": "SealedPin",
+  "case": "minimal",
+  "input": {
+   "tag": "s",
+   "id": "s"
+  },
+  "output": "{\"tag\":\"s\",\"id\":\"s\"}"
+ },
+ {
+  "type": "SealedPin",
+  "case": "nulls",
+  "input": {
+   "tag": "s",
+   "sha256": "s",
+   "arch": "x86_64",
+   "latest": true,
+   "id": "s",
+   "road": "s"
+  },
+  "output": "{\"tag\":\"s\",\"sha256\":\"s\",\"arch\":\"x86_64\",\"latest\":true,\"id\":\"s\",\"road\":\"s\"}"
+ },
+ {
+  "type": "SealedPin",
+  "case": "missing tag",
+  "input": {
+   "sha256": "text é",
+   "arch": "aarch64",
+   "latest": true,
+   "id": "text é",
+   "road": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "tag"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedPin",
+  "case": "tag: shorter than 1",
+  "input": {
+   "tag": "",
+   "sha256": "text é",
+   "arch": "aarch64",
+   "latest": true,
+   "id": "text é",
+   "road": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "tag"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedPin",
+  "case": "sha256: shorter than 1",
+  "input": {
+   "tag": "text é",
+   "sha256": "",
+   "arch": "aarch64",
+   "latest": true,
+   "id": "text é",
+   "road": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "sha256"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedPin",
+  "case": "arch: not one of its values",
+  "input": {
+   "tag": "text é",
+   "sha256": "text é",
+   "arch": "not-a-value",
+   "latest": true,
+   "id": "text é",
+   "road": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "arch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedPin",
+  "case": "id: shorter than 1",
+  "input": {
+   "tag": "text é",
+   "sha256": "text é",
+   "arch": "aarch64",
+   "latest": true,
+   "id": "",
+   "road": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedVault",
+  "case": "full",
+  "input": {
+   "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "bytes": 7,
+   "paths": 7,
+   "held": [
+    "text é"
+   ],
+   "takenAt": "text é"
+  },
+  "output": "{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"held\":[\"text é\"],\"takenAt\":\"text é\"}"
+ },
+ {
+  "type": "SealedVault",
+  "case": "minimal",
+  "input": {
+   "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "bytes": 7,
+   "paths": 7,
+   "takenAt": "s"
+  },
+  "output": "{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"takenAt\":\"s\"}"
+ },
+ {
+  "type": "SealedVault",
+  "case": "nulls",
+  "input": {
+   "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "bytes": 7,
+   "paths": 7,
+   "held": [],
+   "takenAt": "s"
+  },
+  "output": "{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"held\":[],\"takenAt\":\"s\"}"
+ },
+ {
+  "type": "SealedVault",
+  "case": "missing sha256",
+  "input": {
+   "bytes": 7,
+   "paths": 7,
+   "held": [
+    "text é"
+   ],
+   "takenAt": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "sha256"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedVault",
+  "case": "sha256: not 64 long",
+  "input": {
+   "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "bytes": 7,
+   "paths": 7,
+   "held": [
+    "text é"
+   ],
+   "takenAt": "text é"
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "sha256"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedVault",
+  "case": "bytes: not an integer",
+  "input": {
+   "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "bytes": 2.5,
+   "paths": 7,
+   "held": [
+    "text é"
+   ],
+   "takenAt": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedVault",
+  "case": "bytes: under 0",
+  "input": {
+   "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "bytes": -1,
+   "paths": 7,
+   "held": [
+    "text é"
+   ],
+   "takenAt": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedVault",
+  "case": "paths: not an integer",
+  "input": {
+   "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "bytes": 7,
+   "paths": 2.5,
+   "held": [
+    "text é"
+   ],
+   "takenAt": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "paths"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedVault",
+  "case": "paths: under 0",
+  "input": {
+   "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+   "bytes": 7,
+   "paths": -1,
+   "held": [
+    "text é"
+   ],
+   "takenAt": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "paths"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SealedVaultHeader",
+  "case": "full",
+  "input": {
+   "format": "wsp-vault-1",
+   "cipher": "aes-256-gcm",
+   "to": "key",
+   "salt": "text é",
+   "nonce": "text é",
+   "ephemeral": "text é",
+   "image": {
+    "name": "text é",
+    "version": 7,
+    "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "recipeHash": "text é",
+    "recipe": {
+     "version": 1,
+     "at": "text é",
+     "tick": "default",
+     "histories": [
+      {
+       "agent": "text é",
+       "state": "no-reader",
+       "sessions": 7,
+       "calls": 7
+      }
+     ],
+     "rows": [
+      {
+       "id": "text é",
+       "kind": "tool",
+       "on": true,
+       "source": {
+        "kind": "popular",
+        "sessions": 7,
+        "images": 7
+       }
+      }
+     ],
+     "custom": [
+      {
+       "kind": "custom",
+       "id": "text é",
+       "name": "text é",
+       "install": [
+        "text é"
+       ],
+       "check": "text é",
+       "why": "text é"
+      }
+     ],
+     "engine": true
+    },
+    "pins": [
+     {
+      "tag": "text é",
+      "sha256": "text é",
+      "arch": "aarch64",
+      "latest": true,
+      "id": "text é",
+      "road": "text é"
+     }
+    ],
+    "logins": [
+     {
+      "name": "text é",
+      "state": "deferred"
+     }
+    ],
+    "sealedAt": "text é",
+    "sealedFrom": "text é",
+    "vault": {
+     "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+     "bytes": 7,
+     "paths": 7,
+     "held": [
+      "text é"
+     ],
+     "takenAt": "text é"
+    },
+    "usedBytes": 7,
+    "place": "text é",
+    "noSecrets": true
+   }
+  },
+  "output": "{\"format\":\"wsp-vault-1\",\"cipher\":\"aes-256-gcm\",\"to\":\"key\",\"salt\":\"text é\",\"nonce\":\"text é\",\"ephemeral\":\"text é\",\"image\":{\"name\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"text é\",\"recipe\":{\"version\":1,\"at\":\"text é\",\"tick\":\"default\",\"histories\":[{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}],\"rows\":[{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7}}],\"custom\":[{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"why\":\"text é\"}],\"engine\":true},\"pins\":[{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true,\"id\":\"text é\",\"road\":\"text é\"}],\"logins\":[{\"name\":\"text é\",\"state\":\"deferred\"}],\"sealedAt\":\"text é\",\"sealedFrom\":\"text é\",\"vault\":{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"held\":[\"text é\"],\"takenAt\":\"text é\"},\"usedBytes\":7,\"place\":\"text é\",\"noSecrets\":true}}"
+ },
+ {
+  "type": "SealedVaultHeader",
+  "case": "minimal",
+  "input": {
+   "format": "wsp-vault-1",
+   "cipher": "aes-256-gcm",
+   "to": "passphrase",
+   "salt": "s",
+   "nonce": "s",
+   "image": {
+    "name": "s",
+    "version": 7,
+    "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "recipeHash": "s",
+    "logins": [],
+    "sealedAt": "s",
+    "sealedFrom": "s"
+   }
+  },
+  "output": "{\"format\":\"wsp-vault-1\",\"cipher\":\"aes-256-gcm\",\"to\":\"passphrase\",\"salt\":\"s\",\"nonce\":\"s\",\"image\":{\"name\":\"s\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"s\",\"logins\":[],\"sealedAt\":\"s\",\"sealedFrom\":\"s\"}}"
+ },
+ {
+  "type": "SealedVaultHeader",
+  "case": "nulls",
+  "input": {
+   "format": "wsp-vault-1",
+   "cipher": "aes-256-gcm",
+   "to": "passphrase",
+   "salt": "s",
+   "nonce": "s",
+   "ephemeral": "s",
+   "image": {
+    "name": "s",
+    "version": 7,
+    "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "recipeHash": "s",
+    "logins": [],
+    "sealedAt": "s",
+    "sealedFrom": "s"
+   }
+  },
+  "output": "{\"format\":\"wsp-vault-1\",\"cipher\":\"aes-256-gcm\",\"to\":\"passphrase\",\"salt\":\"s\",\"nonce\":\"s\",\"ephemeral\":\"s\",\"image\":{\"name\":\"s\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"s\",\"logins\":[],\"sealedAt\":\"s\",\"sealedFrom\":\"s\"}}"
+ },
+ {
+  "type": "SealedVaultHeader",
+  "case": "missing format",
+  "input": {
+   "cipher": "aes-256-gcm",
+   "to": "key",
+   "salt": "text é",
+   "nonce": "text é",
+   "ephemeral": "text é",
+   "image": {
+    "name": "text é",
+    "version": 7,
+    "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "recipeHash": "text é",
+    "recipe": {
+     "version": 1,
+     "at": "text é",
+     "tick": "default",
+     "histories": [
+      {
+       "agent": "text é",
+       "state": "no-reader",
+       "sessions": 7,
+       "calls": 7
+      }
+     ],
+     "rows": [
+      {
+       "id": "text é",
+       "kind": "tool",
+       "on": true,
+       "source": {
+        "kind": "popular",
+        "sessions": 7,
+        "images": 7
+       }
+      }
+     ],
+     "custom": [
+      {
+       "kind": "custom",
+       "id": "text é",
+       "name": "text é",
+       "install": [
+        "text é"
+       ],
+       "check": "text é",
+       "why": "text é"
+      }
+     ],
+     "engine": true
+    },
+    "pins": [
+     {
+      "tag": "text é",
+      "sha256": "text é",
+      "arch": "aarch64",
+      "latest": true,
+      "id": "text é",
+      "road": "text é"
+     }
+    ],
+    "logins": [
+     {
+      "name": "text é",
+      "state": "deferred"
+     }
+    ],
+    "sealedAt": "text é",
+    "sealedFrom": "text é",
+    "vault": {
+     "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+     "bytes": 7,
+     "paths": 7,
+     "held": [
+      "text é"
+     ],
+     "takenAt": "text é"
+    },
+    "usedBytes": 7,
+    "place": "text é",
+    "noSecrets": true
+   }
+  },
+  "issue": {
+   "code": "invalid_literal",
+   "path": [
+    "format"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SealedVaultHeader",
+  "case": "to: not one of its values",
+  "input": {
+   "format": "wsp-vault-1",
+   "cipher": "aes-256-gcm",
+   "to": "not-a-value",
+   "salt": "text é",
+   "nonce": "text é",
+   "ephemeral": "text é",
+   "image": {
+    "name": "text é",
+    "version": 7,
+    "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "recipeHash": "text é",
+    "recipe": {
+     "version": 1,
+     "at": "text é",
+     "tick": "default",
+     "histories": [
+      {
+       "agent": "text é",
+       "state": "no-reader",
+       "sessions": 7,
+       "calls": 7
+      }
+     ],
+     "rows": [
+      {
+       "id": "text é",
+       "kind": "tool",
+       "on": true,
+       "source": {
+        "kind": "popular",
+        "sessions": 7,
+        "images": 7
+       }
+      }
+     ],
+     "custom": [
+      {
+       "kind": "custom",
+       "id": "text é",
+       "name": "text é",
+       "install": [
+        "text é"
+       ],
+       "check": "text é",
+       "why": "text é"
+      }
+     ],
+     "engine": true
+    },
+    "pins": [
+     {
+      "tag": "text é",
+      "sha256": "text é",
+      "arch": "aarch64",
+      "latest": true,
+      "id": "text é",
+      "road": "text é"
+     }
+    ],
+    "logins": [
+     {
+      "name": "text é",
+      "state": "deferred"
+     }
+    ],
+    "sealedAt": "text é",
+    "sealedFrom": "text é",
+    "vault": {
+     "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+     "bytes": 7,
+     "paths": 7,
+     "held": [
+      "text é"
+     ],
+     "takenAt": "text é"
+    },
+    "usedBytes": 7,
+    "place": "text é",
+    "noSecrets": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "to"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ToolPin",
+  "case": "full",
+  "input": {
+   "tag": "text é",
+   "sha256": "text é",
+   "arch": "aarch64",
+   "latest": true
+  },
+  "output": "{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true}"
+ },
+ {
+  "type": "ToolPin",
+  "case": "minimal",
+  "input": {
+   "tag": "s"
+  },
+  "output": "{\"tag\":\"s\"}"
+ },
+ {
+  "type": "ToolPin",
+  "case": "nulls",
+  "input": {
+   "tag": "s",
+   "sha256": "s",
+   "arch": "x86_64",
+   "latest": true
+  },
+  "output": "{\"tag\":\"s\",\"sha256\":\"s\",\"arch\":\"x86_64\",\"latest\":true}"
+ },
+ {
+  "type": "ToolPin",
+  "case": "missing tag",
+  "input": {
+   "sha256": "text é",
+   "arch": "aarch64",
+   "latest": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "tag"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ToolPin",
+  "case": "tag: shorter than 1",
+  "input": {
+   "tag": "",
+   "sha256": "text é",
+   "arch": "aarch64",
+   "latest": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "tag"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ToolPin",
+  "case": "sha256: shorter than 1",
+  "input": {
+   "tag": "text é",
+   "sha256": "",
+   "arch": "aarch64",
+   "latest": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "sha256"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ToolPin",
+  "case": "arch: not one of its values",
+  "input": {
+   "tag": "text é",
+   "sha256": "text é",
+   "arch": "not-a-value",
+   "latest": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "arch"
+   ],
+   "serdeLevel": true
+  }
+ }
+]
