@@ -42,7 +42,7 @@ the factory that builds the area is what is deferred, and tests inject a fake on
 
 ## Decisions
 1. `create` is `Box<dyn FnOnce(Rc<dyn SlatesDeps>) -> Rc<dyn Slates>>`; the real wiring passes `create_slates`.
-2. The log line goes through `wsp_core::console` at info, its ms off `std::time::Instant`, not the clock (it measures
+2. The log line goes to stdout, as `console.log` does, its ms off `std::time::Instant`, not the clock (it measures
    the host's work, not a time the replay controls).
 
 ## After the port
