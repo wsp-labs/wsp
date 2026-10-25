@@ -2,8 +2,19 @@
 //! box-backend.ts:23-345 at a4033dc34. Spec: spec/box_plan.md.
 use indexmap::IndexMap;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
-use crate::machine::{CloudLimits, LifecycleBudgets, MachineState, Size, SnapshotStoragePricing};
+use crate::errors::EngineError;
+use crate::labels::{
+    BUILDER_LABEL, CREATED_AT_LABEL, DOCTOR_LABEL, GOLDEN_LABEL, HOST_LABEL, NAME_LABEL, OWNER_LABEL, SMOKE_LABEL, WORKSPACE_LABEL,
+    WSP_LABEL,
+};
+use crate::machine::{CloudLimits, LifecycleBudgets, MachineState, Size, SnapshotStoragePricing, WireSnapshotStoragePricing};
+use wsp_wire::types::js_number::{JsInt, JsNumber};
+use wsp_wire::views::place_more::{CloudPlan, CloudStarts, StartsWindow};
+use wsp_wire::wire::capabilities::WorkspaceSize;
+use wsp_words::js::{collate, utf16};
+use wsp_words::words::units::size_word;
 pub use wsp_words::words::units::StartWindow;
 
 /// box-backend.ts:25.
@@ -22,11 +33,22 @@ pub enum BoxClassType {
 impl BoxClassType {
     /// The provider's word: "small", "default", "large", "xlarge".
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            BoxClassType::Small => "small",
+            BoxClassType::Default => "default",
+            BoxClassType::Large => "large",
+            BoxClassType::Xlarge => "xlarge",
+        }
     }
     /// The word read back; `None` for any other.
     pub fn parse(word: &str) -> Option<Self> {
-        todo!()
+        match word {
+            "small" => Some(BoxClassType::Small),
+            "default" => Some(BoxClassType::Default),
+            "large" => Some(BoxClassType::Large),
+            "xlarge" => Some(BoxClassType::Xlarge),
+            _ => None,
+        }
     }
 }
 
@@ -52,7 +74,11 @@ pub const BOX_CLASSES: [BoxClass; 4] = [
 
 /// box-backend.ts:49. The root disk a class reads, in GB; xlarge was never measured and has none.
 pub fn box_root_disk_gb(kind: BoxClassType) -> Option<f64> {
-    todo!()
+    match kind {
+        BoxClassType::Small | BoxClassType::Default => Some(75.0),
+        BoxClassType::Large => Some(160.0),
+        BoxClassType::Xlarge => None,
+    }
 }
 
 /// A size as `boxClassFor` takes it: each figure may be absent.
@@ -64,17 +90,27 @@ pub struct SizeAsk {
 
 /// box-backend.ts:52.
 pub fn box_class_for(size: SizeAsk) -> BoxClass {
-    todo!()
+    let exact = BOX_CLASSES.iter().find(|c| size.cpu == Some(c.cpu) && size.mem_mb == Some(c.mem_mb));
+    if let Some(class) = exact {
+        return *class;
+    }
+    let fits = BOX_CLASSES.iter().find(|c| c.cpu >= size.cpu.unwrap_or(0.0) && c.mem_mb >= size.mem_mb.unwrap_or(0.0));
+    *fits.unwrap_or(&BOX_CLASSES[BOX_CLASSES.len() - 1])
 }
 
 /// box-backend.ts:58 `classOfType`.
 pub fn class_of_type(kind: Option<&str>) -> Option<BoxClass> {
-    todo!()
+    let kind = kind.and_then(BoxClassType::parse)?;
+    BOX_CLASSES.iter().find(|c| c.kind == kind).copied()
 }
 
 /// box-backend.ts:62. Free 0 GB, $0 a GB-month, billed from "", 10 named free, $1.70 each past them.
 pub fn box_snapshot_storage() -> SnapshotStoragePricing {
-    todo!()
+    SnapshotStoragePricing {
+        wire: WireSnapshotStoragePricing { free_gb: JsNumber(0.0), usd_per_gb_month: JsNumber(0.0), billed_from: String::new() },
+        free_named: Some(10),
+        usd_per_named_month: Some(1.7),
+    }
 }
 
 /// box-backend.ts:64. The class's rate, default size 2 cpu and 4096 MB, [`box_snapshot_storage`], no builder disk.
@@ -82,13 +118,13 @@ pub struct BoxPricing;
 
 impl crate::machine::BackendPricing for BoxPricing {
     fn rate_usd_per_hour(&self, size: Size) -> f64 {
-        todo!()
+        box_class_for(SizeAsk { cpu: Some(size.cpu), mem_mb: Some(size.mem_mb) }).rate_usd_per_hour
     }
     fn default_size(&self) -> Size {
-        todo!()
+        Size { cpu: 2.0, mem_mb: 4096.0 }
     }
     fn snapshot_storage(&self) -> SnapshotStoragePricing {
-        todo!()
+        box_snapshot_storage()
     }
 }
 
@@ -97,7 +133,7 @@ pub const BOX_BASE_TEMPLATE: &str = r#"base"#;
 
 /// box-backend.ts:76. One wake attempt, 900,000 ms for the daemon, no resume asks.
 pub fn box_budgets() -> LifecycleBudgets {
-    todo!()
+    LifecycleBudgets { wake_attempts: JsInt::from(1), daemon_answers_ms: JsNumber(900_000.0), resume_asks: None }
 }
 
 pub const BOX_PAUSE_MS: u64 = 600000;
@@ -128,7 +164,9 @@ pub const TRIAL_TTL_S: u64 = 7200;
 /// box-backend.ts:132.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 pub struct StartCount {
+    #[serde(serialize_with = "wsp_words::js::serialize_f64")]
     pub used: f64,
+    #[serde(serialize_with = "wsp_words::js::serialize_f64")]
     pub limit: f64,
 }
 
@@ -142,7 +180,11 @@ pub struct StartWindows {
 
 impl StartWindows {
     pub fn get(&self, w: StartWindow) -> StartCount {
-        todo!()
+        match w {
+            StartWindow::Minute => self.minute,
+            StartWindow::Hour => self.hour,
+            StartWindow::Day => self.day,
+        }
     }
 }
 
@@ -152,41 +194,121 @@ impl StartWindows {
 #[serde(rename_all = "camelCase")]
 pub struct BoxLimits {
     pub trial: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub plan_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", serialize_with = "wsp_words::js::serialize_opt_f64")]
     pub plan_usd: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none", serialize_with = "wsp_words::js::serialize_opt_f64")]
     pub machines_at_once: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none", serialize_with = "wsp_words::js::serialize_opt_f64")]
     pub active_boxes: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub starts: Option<StartWindows>,
     pub sizes: Vec<BoxClassType>,
     pub can_start: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub start_blocked_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", serialize_with = "wsp_words::js::serialize_opt_f64")]
     pub credit_balance_hours: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub billing_status: Option<String>,
 }
 
 /// box-backend.ts:175.
 pub fn plan_sizes(trial: bool, plan_usd: Option<f64>) -> Vec<BoxClassType> {
-    todo!()
+    if trial {
+        return vec![BoxClassType::Small, BoxClassType::Default];
+    }
+    if plan_usd.is_some_and(|usd| usd >= 100.0) {
+        return vec![BoxClassType::Small, BoxClassType::Default, BoxClassType::Large, BoxClassType::Xlarge];
+    }
+    vec![BoxClassType::Small, BoxClassType::Default, BoxClassType::Large]
 }
 
 /// box-backend.ts:182. `None` where the read named no machine cap.
 pub fn place_limits_of(limits: &BoxLimits) -> Option<CloudLimits> {
-    todo!()
+    let machines_at_once = limits.machines_at_once?;
+    let sizes = BOX_CLASSES
+        .iter()
+        .filter(|c| limits.sizes.contains(&c.kind))
+        .map(|c| size_word(&WorkspaceSize { cpu: JsNumber(c.cpu), mem_mb: JsNumber(c.mem_mb) }))
+        .collect();
+    let window = |w: StartCount| StartsWindow { used: JsInt(JsNumber(w.used)), limit: JsInt(JsNumber(w.limit)) };
+    Some(CloudLimits {
+        plan: CloudPlan {
+            key: limits.plan_key.clone(),
+            trial: limits.trial,
+            machines_at_once: JsInt(JsNumber(machines_at_once)),
+            sizes,
+            running: limits.active_boxes.map(|n| JsInt(JsNumber(n))),
+        },
+        starts: limits.starts.map(|s| CloudStarts { minute: window(s.minute), hour: window(s.hour), day: window(s.day) }),
+        credit_hours: limits.credit_balance_hours.map(JsNumber),
+    })
 }
 
 /// box-backend.ts:193. `raw` is `GET /limits`'s body as JSON; a field of the wrong type reads as absent.
 pub fn limits_of(raw: &Value) -> BoxLimits {
-    todo!()
+    let number = |v: Option<&Value>| v.and_then(Value::as_f64).filter(|n| n.is_finite());
+    let text = |v: Option<&Value>| v.and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_string);
+    let plan_key = text(raw.get("sandboxPlanKey"));
+    let trial = raw.get("accessTier").and_then(Value::as_str) == Some("trial") || plan_key.as_deref() == Some("trial");
+    let tier = raw.get("sandboxPlanTiers").and_then(Value::as_array).and_then(|tiers| {
+        tiers.iter().find(|t| match (&plan_key, t.get("key")) {
+            (None, None) => true,
+            (Some(key), Some(Value::String(tier_key))) => key == tier_key,
+            _ => false,
+        })
+    });
+    let tier_dollars = number(tier.and_then(|t| t.get("dollars")));
+    let digits_usd = plan_key
+        .as_deref()
+        .and_then(|k| k.strip_prefix("box_"))
+        .filter(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+        .and_then(|d| d.parse::<f64>().ok())
+        .filter(|n| n.is_finite());
+    let plan_usd = if trial { None } else { number(raw.get("sandboxPlanDollars")).or(tier_dollars).or(digits_usd) };
+    let count = |w: Option<&Value>| {
+        let limit = number(w.and_then(|w| w.get("limit")))?;
+        Some(StartCount { used: number(w.and_then(|w| w.get("used"))).unwrap_or(0.0), limit })
+    };
+    let starts = raw.get("starts");
+    let window = |name: &str| count(starts.and_then(|s| s.get(name)));
+    let starts = match (window("minute"), window("hour"), window("day")) {
+        (Some(minute), Some(hour), Some(day)) if starts.and_then(|s| s.get("unlimited")) != Some(&Value::Bool(true)) => {
+            Some(StartWindows { minute, hour, day })
+        }
+        _ => None,
+    };
+    BoxLimits {
+        trial,
+        plan_key,
+        plan_usd,
+        machines_at_once: number(raw.get("maxActiveSandboxes")),
+        active_boxes: number(raw.get("activeSandboxes")),
+        starts,
+        sizes: plan_sizes(trial, plan_usd),
+        can_start: raw.get("canStart") != Some(&Value::Bool(false)),
+        start_blocked_reason: text(raw.get("startBlockedReason")),
+        credit_balance_hours: number(raw.get("creditBalanceHours")),
+        billing_status: text(raw.get("billingStatus")),
+    }
 }
 
 /// box-backend.ts:256. A provider state as a machine state; a word the table does not know reads running.
 pub fn state_of(state: &str) -> MachineState {
-    todo!()
+    state_map(state).unwrap_or(MachineState::Running)
 }
 
 /// box-backend.ts:256 `STATE_MAP[state]`: `None` for a word the table does not know.
 pub fn state_map(state: &str) -> Option<MachineState> {
-    todo!()
+    match state {
+        "init" | "provisioning" | "provisioned" | "cloning" => Some(MachineState::Starting),
+        "ready" | "idle" | "running" => Some(MachineState::Running),
+        "archiving" | "archived" => Some(MachineState::Paused),
+        "error" | "cancelled" => Some(MachineState::Gone),
+        _ => None,
+    }
 }
 
 /// box-backend.ts:250. The box user's home, which the agent starts every command in.
@@ -195,14 +317,77 @@ pub const BOX_WORK_DIR: &str = "/home/user";
 /// box-backend.ts:277.
 pub const BOX_NAME_MAX: usize = 120;
 
+/// The label keys wsp stamps, by the letter each rides under, in rank order (box-backend.ts:283). Keys outside it rank
+/// after these and ride under their own name.
+const SHORT_KEYS: [(&str, &str); 9] = [
+    (OWNER_LABEL, "o"),
+    (WORKSPACE_LABEL, "w"),
+    (CREATED_AT_LABEL, "t"),
+    (BUILDER_LABEL, "b"),
+    (SMOKE_LABEL, "s"),
+    (DOCTOR_LABEL, "d"),
+    (HOST_LABEL, "h"),
+    (GOLDEN_LABEL, "g"),
+    (NAME_LABEL, "n"),
+];
+
+fn encode_value(value: &str) -> String {
+    value.replace('%', "%25").replace(';', "%3b").replace('=', "%3d")
+}
+
+/// Each `%XX` is one UTF-16 unit of that value (`String.fromCharCode`), never a UTF-8 decode.
+fn decode_value(value: &str) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    let mut out = String::with_capacity(value.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '%' && i + 2 < chars.len() {
+            if let (Some(hi), Some(lo)) = (chars[i + 1].to_digit(16), chars[i + 2].to_digit(16)) {
+                out.push(char::from((hi * 16 + lo) as u8));
+                i += 3;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
 /// box-backend.ts:301. Lengths count UTF-16 units, as the TS's `.length`.
 pub fn box_name(labels: &IndexMap<String, String>) -> String {
-    todo!()
+    let rank = |key: &str| SHORT_KEYS.iter().position(|(k, _)| *k == key).unwrap_or(SHORT_KEYS.len());
+    let mut pairs: Vec<(&String, &String)> = labels.iter().filter(|(k, _)| k.as_str() != WSP_LABEL).collect();
+    pairs.sort_by(|(a, _), (b, _)| rank(a).cmp(&rank(b)).then_with(|| collate(a, b)));
+    let mut name = WSP_LABEL.to_string();
+    for (key, value) in pairs {
+        let short = SHORT_KEYS.iter().find(|(k, _)| *k == key.as_str()).map_or(key.as_str(), |(_, s)| s);
+        let pair = format!(";{short}={}", encode_value(value));
+        if utf16::len(&name) + utf16::len(&pair) > BOX_NAME_MAX {
+            break;
+        }
+        name.push_str(&pair);
+    }
+    name
 }
 
 /// box-backend.ts:319. `None` for an absent name or one wsp did not make.
 pub fn box_labels(name: Option<&str>) -> Option<IndexMap<String, String>> {
-    todo!()
+    let mut parts = name?.split(';');
+    if parts.next() != Some(WSP_LABEL) {
+        return None;
+    }
+    let mut labels = IndexMap::new();
+    labels.insert(WSP_LABEL.to_string(), "1".to_string());
+    for part in parts {
+        let Some((short, value)) = part.split_once('=') else { continue };
+        if short.is_empty() {
+            continue;
+        }
+        let key = SHORT_KEYS.iter().find(|(_, s)| *s == short).map_or(short, |(k, _)| k);
+        labels.insert(key.to_string(), decode_value(value));
+    }
+    Some(labels)
 }
 
 /// box-backend.ts:336.
@@ -210,10 +395,36 @@ pub const SNAPSHOT_NAME_MAX: usize = 63;
 
 /// box-backend.ts:337. Fails, as the TS throws, with `EngineError::Other` and the TS's sentence.
 pub fn box_snapshot_name(name: &str) -> crate::errors::Result<String> {
-    todo!()
+    // Each UTF-16 unit outside the pattern is one dash, so a character above U+FFFF is two.
+    let lowered: String = name
+        .to_lowercase()
+        .chars()
+        .flat_map(|c| -> Vec<char> {
+            if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' {
+                vec![c]
+            } else {
+                vec!['-'; c.len_utf16()]
+            }
+        })
+        .collect();
+    let cleaned = lowered.trim_start_matches('-');
+    if cleaned.is_empty() {
+        return Err(EngineError::Other {
+            message: format!("{} leaves nothing a named snapshot can be called", Value::String(name.to_string())),
+            code: None,
+        });
+    }
+    if cleaned.len() <= SNAPSHOT_NAME_MAX {
+        return Ok(cleaned.to_string());
+    }
+    let hash = &hex::encode(Sha256::digest(name.as_bytes()))[..8];
+    let head = cleaned[..SNAPSHOT_NAME_MAX - hash.len() - 1].trim_end_matches('-');
+    Ok(format!("{head}-{hash}"))
 }
 
 /// box-backend.ts:345. A UUID, any case: the provider's history ids.
 pub fn is_uuid(id: &str) -> bool {
-    todo!()
+    let groups: Vec<&str> = id.split('-').collect();
+    let widths = [8, 4, 4, 4, 12];
+    groups.len() == widths.len() && groups.iter().zip(widths).all(|(g, w)| g.len() == w && g.bytes().all(|b| b.is_ascii_hexdigit()))
 }

@@ -28,6 +28,7 @@ pub fn scenes() -> Vec<Value> {
 pub fn scene(name: &str) -> Scene {
     let want = scenes().into_iter().find(|s| s["name"] == name).unwrap_or_else(|| panic!("no scene {name}"));
     let api = FakeBox::new();
+    *api.unrouted_request_id.lock().unwrap() = Some("req_1".to_string());
     let b = &want["budgets"];
     let ms = |k: &str| b.get(k).and_then(Value::as_u64);
     let on = backend_on(

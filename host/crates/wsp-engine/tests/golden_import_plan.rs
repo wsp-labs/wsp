@@ -14,7 +14,6 @@ use std::process::Command;
 
 use wsp_catalog::catalog::{base_note, catalog_entry, install_line};
 use wsp_catalog::linux_casks::KUBECTL;
-use wsp_catalog::pending::{Platform, ToolPin};
 use wsp_catalog::road_modules::{
     road_step, BREW, BREW_PREFIX, BREW_REAL, BREW_REPO, HOMEBREW_COMMIT, HOMEBREW_TAG, LINUXBREW_HOME, LINUXBREW_SHIM,
 };
@@ -26,7 +25,8 @@ use wsp_engine::golden_seam::{
 use wsp_engine::provision::{presence_tests, Versions};
 use wsp_wire::types::daemon_contract::{HOMEBREW_PREFIX, TOOL_PREFIX};
 use wsp_wire::types::shell_quote::shell_quote;
-use wsp_wire::views::golden_image::{CustomLit, RecipeCustomRow};
+use wsp_wire::views::golden_image::{CustomLit, RecipeCustomRow, ToolPin};
+use wsp_words::words::computer::Platform;
 use wsp_words::project_path::probe_path;
 use wsp_words::semver::compare_versions;
 
