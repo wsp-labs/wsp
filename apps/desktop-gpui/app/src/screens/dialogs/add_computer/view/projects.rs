@@ -22,7 +22,7 @@ impl AddComputer {
         let facts = self.options.as_ref().map(|o| list(o, "folders").to_vec()).unwrap_or_default();
         let fact_of = |path: &str| facts.iter().find(|f| str_of(f, "path") == Some(path)).cloned().unwrap_or(json!({}));
         let here = self.here_projects();
-        let looks = self.preferences.get("projectLook").cloned().unwrap_or(json!({}));
+        let looks = self.project_look();
         let with_facts = |mut f: Folder| {
             let fact = fact_of(&f.path);
             f.bytes = fact.get("bytes").and_then(Value::as_u64);

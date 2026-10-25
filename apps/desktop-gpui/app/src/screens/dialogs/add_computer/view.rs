@@ -189,7 +189,7 @@ impl AddComputer {
         let here = self.here();
         let picks = self.picks_now(cx);
         let name = str_of(&picks, "name").unwrap_or_default().to_owned();
-        let all = choices::everything(&name, &options, &self.here_projects(), self.preferences.get("projectLook").unwrap_or(&json!({})));
+        let all = choices::everything(&name, &options, &self.here_projects(), &self.project_look());
         let pick = |id: &str, next: Value, cx: &mut Context<Self>| pick_from(cx, id.to_owned(), next);
         let mut rows = vec![Choice::new("from-here", format!("Everything on {here}"), self.from == "here")
             .glyph(Glyph::ListChecks)

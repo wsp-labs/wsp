@@ -231,7 +231,7 @@ impl PullRequestScreen {
         let Some(workspace_id) = self.opened.workspace_id.clone() else { return };
         let (tx, mut rx) = mpsc::unbounded();
         let road = link::follow(&self.host, workspace_id.clone(), tx);
-        let agent = link::agent_of(&self.host, workspace_id);
+        let agent = link::agent_of(&self.host, workspace_id, link::default_agent(cx));
         cx.spawn(async move |this, cx| {
             if let Ok(agent) = agent.await {
                 _ = this.update(cx, |this, cx| {
