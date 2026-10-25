@@ -1189,6 +1189,10 @@ fn a_rail_held_off_its_centre_does_not_jump_and_a_release_past_the_window_still_
     cx.simulate_mouse_down(point(px(262.), px(400.)), MouseButton::Left, Modifiers::none());
     cx.simulate_mouse_move(point(px(272.), px(400.)), MouseButton::Left, Modifiers::none());
     cx.simulate_mouse_move(point(px(300.), px(400.)), MouseButton::Left, Modifiers::none());
+    // A record that lands mid-drag and says nothing new of the width, as the sidebar's first read on a slow computer,
+    // leaves the rail where the pointer holds it.
+    let sidebar = shell.read_with(cx, |s, _| s.sidebar().clone());
+    sidebar.update(cx, |s, cx| s.apply(desktop_gpui::sidebar::host::Change::Preferences(json!({ "theme": "system", "labs": true })), cx));
     cx.run_until_parked();
     assert_eq!(cx.debug_bounds("sidebar-column").unwrap().size.width, px(294.));
     cx.simulate_mouse_up(point(px(1500.), px(900.)), MouseButton::Left, Modifiers::none());
