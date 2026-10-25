@@ -1,0 +1,651 @@
+[
+ {
+  "type": "ActivityEnded",
+  "case": "full",
+  "input": {
+   "pid": 7,
+   "ended": [
+    {
+     "pid": 7,
+     "ppid": 7,
+     "depth": 7,
+     "startedAt": 2.5,
+     "kind": "other",
+     "name": "text é",
+     "command": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "ports": [
+      7
+     ]
+    }
+   ],
+   "forced": [
+    7
+   ],
+   "left": [
+    7
+   ],
+   "freed": "text é"
+  },
+  "output": "{\"pid\":7,\"ended\":[{\"pid\":7,\"ppid\":7,\"depth\":7,\"startedAt\":2.5,\"kind\":\"other\",\"name\":\"text é\",\"command\":\"text é\",\"memory\":2.5,\"cpu\":2.5,\"ports\":[7]}],\"forced\":[7],\"left\":[7],\"freed\":\"text é\"}"
+ },
+ {
+  "type": "ActivityEnded",
+  "case": "minimal",
+  "input": {
+   "pid": 7,
+   "ended": [],
+   "forced": [],
+   "left": []
+  },
+  "output": "{\"pid\":7,\"ended\":[],\"forced\":[],\"left\":[]}"
+ },
+ {
+  "type": "ActivityEnded",
+  "case": "nulls",
+  "input": {
+   "pid": 7,
+   "ended": [],
+   "forced": [],
+   "left": [],
+   "freed": "s"
+  },
+  "output": "{\"pid\":7,\"ended\":[],\"forced\":[],\"left\":[],\"freed\":\"s\"}"
+ },
+ {
+  "type": "ActivityEnded",
+  "case": "missing pid",
+  "input": {
+   "ended": [
+    {
+     "pid": 7,
+     "ppid": 7,
+     "depth": 7,
+     "startedAt": 2.5,
+     "kind": "other",
+     "name": "text é",
+     "command": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "ports": [
+      7
+     ]
+    }
+   ],
+   "forced": [
+    7
+   ],
+   "left": [
+    7
+   ],
+   "freed": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ActivityEnded",
+  "case": "pid: not an integer",
+  "input": {
+   "pid": 2.5,
+   "ended": [
+    {
+     "pid": 7,
+     "ppid": 7,
+     "depth": 7,
+     "startedAt": 2.5,
+     "kind": "other",
+     "name": "text é",
+     "command": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "ports": [
+      7
+     ]
+    }
+   ],
+   "forced": [
+    7
+   ],
+   "left": [
+    7
+   ],
+   "freed": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ActivityProc",
+  "case": "full",
+  "input": {
+   "pid": 7,
+   "ppid": 7,
+   "depth": 7,
+   "startedAt": 2.5,
+   "kind": "other",
+   "name": "text é",
+   "command": "text é",
+   "memory": 2.5,
+   "cpu": 2.5,
+   "ports": [
+    7
+   ]
+  },
+  "output": "{\"pid\":7,\"ppid\":7,\"depth\":7,\"startedAt\":2.5,\"kind\":\"other\",\"name\":\"text é\",\"command\":\"text é\",\"memory\":2.5,\"cpu\":2.5,\"ports\":[7]}"
+ },
+ {
+  "type": "ActivityProc",
+  "case": "minimal",
+  "input": {
+   "pid": 7,
+   "ppid": 7,
+   "depth": 7,
+   "startedAt": 3,
+   "kind": "agent",
+   "name": "s",
+   "command": "s",
+   "memory": 3,
+   "cpu": 3,
+   "ports": []
+  },
+  "output": "{\"pid\":7,\"ppid\":7,\"depth\":7,\"startedAt\":3,\"kind\":\"agent\",\"name\":\"s\",\"command\":\"s\",\"memory\":3,\"cpu\":3,\"ports\":[]}"
+ },
+ {
+  "type": "ActivityProc",
+  "case": "missing pid",
+  "input": {
+   "ppid": 7,
+   "depth": 7,
+   "startedAt": 2.5,
+   "kind": "other",
+   "name": "text é",
+   "command": "text é",
+   "memory": 2.5,
+   "cpu": 2.5,
+   "ports": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ActivityProc",
+  "case": "pid: not an integer",
+  "input": {
+   "pid": 2.5,
+   "ppid": 7,
+   "depth": 7,
+   "startedAt": 2.5,
+   "kind": "other",
+   "name": "text é",
+   "command": "text é",
+   "memory": 2.5,
+   "cpu": 2.5,
+   "ports": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ActivityProc",
+  "case": "ppid: not an integer",
+  "input": {
+   "pid": 7,
+   "ppid": 2.5,
+   "depth": 7,
+   "startedAt": 2.5,
+   "kind": "other",
+   "name": "text é",
+   "command": "text é",
+   "memory": 2.5,
+   "cpu": 2.5,
+   "ports": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "ppid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ActivityProc",
+  "case": "depth: not an integer",
+  "input": {
+   "pid": 7,
+   "ppid": 7,
+   "depth": 2.5,
+   "startedAt": 2.5,
+   "kind": "other",
+   "name": "text é",
+   "command": "text é",
+   "memory": 2.5,
+   "cpu": 2.5,
+   "ports": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "depth"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ActivityProc",
+  "case": "depth: under 0",
+  "input": {
+   "pid": 7,
+   "ppid": 7,
+   "depth": -1,
+   "startedAt": 2.5,
+   "kind": "other",
+   "name": "text é",
+   "command": "text é",
+   "memory": 2.5,
+   "cpu": 2.5,
+   "ports": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "depth"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ActivityProc",
+  "case": "kind: not one of its values",
+  "input": {
+   "pid": 7,
+   "ppid": 7,
+   "depth": 7,
+   "startedAt": 2.5,
+   "kind": "not-a-value",
+   "name": "text é",
+   "command": "text é",
+   "memory": 2.5,
+   "cpu": 2.5,
+   "ports": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ActivityThread",
+  "case": "full",
+  "input": {
+   "threadId": "text é",
+   "title": "text é",
+   "workspaceId": "text é",
+   "memory": 2.5,
+   "cpu": 2.5,
+   "processes": [
+    {
+     "pid": 7,
+     "ppid": 7,
+     "depth": 7,
+     "startedAt": 2.5,
+     "kind": "other",
+     "name": "text é",
+     "command": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "ports": [
+      7
+     ]
+    }
+   ]
+  },
+  "output": "{\"threadId\":\"text é\",\"title\":\"text é\",\"workspaceId\":\"text é\",\"memory\":2.5,\"cpu\":2.5,\"processes\":[{\"pid\":7,\"ppid\":7,\"depth\":7,\"startedAt\":2.5,\"kind\":\"other\",\"name\":\"text é\",\"command\":\"text é\",\"memory\":2.5,\"cpu\":2.5,\"ports\":[7]}]}"
+ },
+ {
+  "type": "ActivityThread",
+  "case": "minimal",
+  "input": {
+   "threadId": "s",
+   "title": "s",
+   "workspaceId": "s",
+   "memory": 3,
+   "cpu": 3,
+   "processes": []
+  },
+  "output": "{\"threadId\":\"s\",\"title\":\"s\",\"workspaceId\":\"s\",\"memory\":3,\"cpu\":3,\"processes\":[]}"
+ },
+ {
+  "type": "ActivityThread",
+  "case": "missing threadId",
+  "input": {
+   "title": "text é",
+   "workspaceId": "text é",
+   "memory": 2.5,
+   "cpu": 2.5,
+   "processes": [
+    {
+     "pid": 7,
+     "ppid": 7,
+     "depth": 7,
+     "startedAt": 2.5,
+     "kind": "other",
+     "name": "text é",
+     "command": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "ports": [
+      7
+     ]
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "threadId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ActivityView",
+  "case": "full",
+  "input": {
+   "computer": "text é",
+   "at": 2.5,
+   "threads": [
+    {
+     "threadId": "text é",
+     "title": "text é",
+     "workspaceId": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "processes": [
+      {
+       "pid": 7,
+       "ppid": 7,
+       "depth": 7,
+       "startedAt": 2.5,
+       "kind": "other",
+       "name": "text é",
+       "command": "text é",
+       "memory": 2.5,
+       "cpu": 2.5,
+       "ports": []
+      }
+     ]
+    }
+   ],
+   "wsp": [
+    {
+     "pid": 7,
+     "ppid": 7,
+     "depth": 7,
+     "startedAt": 2.5,
+     "kind": "other",
+     "name": "text é",
+     "command": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "ports": [
+      7
+     ]
+    }
+   ],
+   "unowned": [
+    {
+     "pid": 7,
+     "ppid": 7,
+     "depth": 7,
+     "startedAt": 2.5,
+     "kind": "other",
+     "name": "text é",
+     "command": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "ports": [
+      7
+     ]
+    }
+   ]
+  },
+  "output": "{\"computer\":\"text é\",\"at\":2.5,\"threads\":[{\"threadId\":\"text é\",\"title\":\"text é\",\"workspaceId\":\"text é\",\"memory\":2.5,\"cpu\":2.5,\"processes\":[{\"pid\":7,\"ppid\":7,\"depth\":7,\"startedAt\":2.5,\"kind\":\"other\",\"name\":\"text é\",\"command\":\"text é\",\"memory\":2.5,\"cpu\":2.5,\"ports\":[]}]}],\"wsp\":[{\"pid\":7,\"ppid\":7,\"depth\":7,\"startedAt\":2.5,\"kind\":\"other\",\"name\":\"text é\",\"command\":\"text é\",\"memory\":2.5,\"cpu\":2.5,\"ports\":[7]}],\"unowned\":[{\"pid\":7,\"ppid\":7,\"depth\":7,\"startedAt\":2.5,\"kind\":\"other\",\"name\":\"text é\",\"command\":\"text é\",\"memory\":2.5,\"cpu\":2.5,\"ports\":[7]}]}"
+ },
+ {
+  "type": "ActivityView",
+  "case": "minimal",
+  "input": {
+   "computer": "s",
+   "at": 3,
+   "threads": [],
+   "wsp": [],
+   "unowned": []
+  },
+  "output": "{\"computer\":\"s\",\"at\":3,\"threads\":[],\"wsp\":[],\"unowned\":[]}"
+ },
+ {
+  "type": "ActivityView",
+  "case": "missing computer",
+  "input": {
+   "at": 2.5,
+   "threads": [
+    {
+     "threadId": "text é",
+     "title": "text é",
+     "workspaceId": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "processes": [
+      {
+       "pid": 7,
+       "ppid": 7,
+       "depth": 7,
+       "startedAt": 2.5,
+       "kind": "other",
+       "name": "text é",
+       "command": "text é",
+       "memory": 2.5,
+       "cpu": 2.5,
+       "ports": []
+      }
+     ]
+    }
+   ],
+   "wsp": [
+    {
+     "pid": 7,
+     "ppid": 7,
+     "depth": 7,
+     "startedAt": 2.5,
+     "kind": "other",
+     "name": "text é",
+     "command": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "ports": [
+      7
+     ]
+    }
+   ],
+   "unowned": [
+    {
+     "pid": 7,
+     "ppid": 7,
+     "depth": 7,
+     "startedAt": 2.5,
+     "kind": "other",
+     "name": "text é",
+     "command": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "ports": [
+      7
+     ]
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "computer"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "LeftThread",
+  "case": "full",
+  "input": {
+   "threadId": "text é",
+   "title": "text é",
+   "workspaceId": "text é",
+   "memory": 2.5,
+   "cpu": 2.5,
+   "processes": [
+    {
+     "pid": 7,
+     "ppid": 7,
+     "depth": 7,
+     "startedAt": 2.5,
+     "kind": "other",
+     "name": "text é",
+     "command": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "ports": [
+      7
+     ]
+    }
+   ],
+   "on": "text é"
+  },
+  "output": "{\"threadId\":\"text é\",\"title\":\"text é\",\"workspaceId\":\"text é\",\"memory\":2.5,\"cpu\":2.5,\"processes\":[{\"pid\":7,\"ppid\":7,\"depth\":7,\"startedAt\":2.5,\"kind\":\"other\",\"name\":\"text é\",\"command\":\"text é\",\"memory\":2.5,\"cpu\":2.5,\"ports\":[7]}],\"on\":\"text é\"}"
+ },
+ {
+  "type": "LeftThread",
+  "case": "minimal",
+  "input": {
+   "threadId": "s",
+   "title": "s",
+   "workspaceId": "s",
+   "memory": 3,
+   "cpu": 3,
+   "processes": []
+  },
+  "output": "{\"threadId\":\"s\",\"title\":\"s\",\"workspaceId\":\"s\",\"memory\":3,\"cpu\":3,\"processes\":[]}"
+ },
+ {
+  "type": "LeftThread",
+  "case": "nulls",
+  "input": {
+   "threadId": "s",
+   "title": "s",
+   "workspaceId": "s",
+   "memory": 3,
+   "cpu": 3,
+   "processes": [],
+   "on": "s"
+  },
+  "output": "{\"threadId\":\"s\",\"title\":\"s\",\"workspaceId\":\"s\",\"memory\":3,\"cpu\":3,\"processes\":[],\"on\":\"s\"}"
+ },
+ {
+  "type": "LeftThread",
+  "case": "missing threadId",
+  "input": {
+   "title": "text é",
+   "workspaceId": "text é",
+   "memory": 2.5,
+   "cpu": 2.5,
+   "processes": [
+    {
+     "pid": 7,
+     "ppid": 7,
+     "depth": 7,
+     "startedAt": 2.5,
+     "kind": "other",
+     "name": "text é",
+     "command": "text é",
+     "memory": 2.5,
+     "cpu": 2.5,
+     "ports": [
+      7
+     ]
+    }
+   ],
+   "on": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "threadId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProcessesAsk",
+  "case": "full",
+  "input": "keep",
+  "output": "\"keep\""
+ },
+ {
+  "type": "ProcessesAsk",
+  "case": "minimal",
+  "input": "ask",
+  "output": "\"ask\""
+ },
+ {
+  "type": "ProcessesAsk",
+  "case": "value stop",
+  "input": "stop",
+  "output": "\"stop\""
+ },
+ {
+  "type": "ProcessesAsk",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ }
+]

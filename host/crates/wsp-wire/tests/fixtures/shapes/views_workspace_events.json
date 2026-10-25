@@ -1,0 +1,1422 @@
+[
+ {
+  "type": "InboxFileEvent",
+  "case": "full",
+  "input": {
+   "type": "inbox.file",
+   "workspaceId": "text é",
+   "path": "text é",
+   "bytes": 2.5
+  },
+  "output": "{\"workspaceId\":\"text é\",\"path\":\"text é\",\"bytes\":2.5}",
+  "tag": {
+   "key": "type",
+   "value": "inbox.file"
+  }
+ },
+ {
+  "type": "InboxFileEvent",
+  "case": "minimal",
+  "input": {
+   "type": "inbox.file",
+   "workspaceId": "s",
+   "path": "s",
+   "bytes": 3
+  },
+  "output": "{\"workspaceId\":\"s\",\"path\":\"s\",\"bytes\":3}",
+  "tag": {
+   "key": "type",
+   "value": "inbox.file"
+  }
+ },
+ {
+  "type": "InboxFileEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "inbox.file",
+   "path": "text é",
+   "bytes": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PortCloseEvent",
+  "case": "full",
+  "input": {
+   "type": "port.close",
+   "workspaceId": "text é",
+   "port": 2.5,
+   "pid": 2.5,
+   "process": "text é",
+   "command": "text é",
+   "exited": true,
+   "left": true,
+   "at": "text é",
+   "watch": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"port\":2.5,\"pid\":2.5,\"process\":\"text é\",\"command\":\"text é\",\"exited\":true,\"left\":true,\"at\":\"text é\",\"watch\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "port.close"
+  }
+ },
+ {
+  "type": "PortCloseEvent",
+  "case": "minimal",
+  "input": {
+   "type": "port.close",
+   "workspaceId": "s",
+   "port": 3
+  },
+  "output": "{\"workspaceId\":\"s\",\"port\":3}",
+  "tag": {
+   "key": "type",
+   "value": "port.close"
+  }
+ },
+ {
+  "type": "PortCloseEvent",
+  "case": "nulls",
+  "input": {
+   "type": "port.close",
+   "workspaceId": "s",
+   "port": 3,
+   "pid": 3,
+   "process": "s",
+   "command": "s",
+   "exited": false,
+   "left": false,
+   "at": "s",
+   "watch": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"port\":3,\"pid\":3,\"process\":\"s\",\"command\":\"s\",\"exited\":false,\"left\":false,\"at\":\"s\",\"watch\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "port.close"
+  }
+ },
+ {
+  "type": "PortCloseEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "port.close",
+   "port": 2.5,
+   "pid": 2.5,
+   "process": "text é",
+   "command": "text é",
+   "exited": true,
+   "left": true,
+   "at": "text é",
+   "watch": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PortCloseEvent",
+  "case": "exited: not a boolean",
+  "input": {
+   "type": "port.close",
+   "workspaceId": "text é",
+   "port": 2.5,
+   "pid": 2.5,
+   "process": "text é",
+   "command": "text é",
+   "exited": "yes",
+   "left": true,
+   "at": "text é",
+   "watch": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "exited"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PortCloseEvent",
+  "case": "left: not a boolean",
+  "input": {
+   "type": "port.close",
+   "workspaceId": "text é",
+   "port": 2.5,
+   "pid": 2.5,
+   "process": "text é",
+   "command": "text é",
+   "exited": true,
+   "left": "yes",
+   "at": "text é",
+   "watch": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "left"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PortOpenEvent",
+  "case": "full",
+  "input": {
+   "type": "port.open",
+   "workspaceId": "text é",
+   "port": 2.5,
+   "pid": 2.5,
+   "process": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"port\":2.5,\"pid\":2.5,\"process\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "port.open"
+  }
+ },
+ {
+  "type": "PortOpenEvent",
+  "case": "minimal",
+  "input": {
+   "type": "port.open",
+   "workspaceId": "s",
+   "port": 3
+  },
+  "output": "{\"workspaceId\":\"s\",\"port\":3}",
+  "tag": {
+   "key": "type",
+   "value": "port.open"
+  }
+ },
+ {
+  "type": "PortOpenEvent",
+  "case": "nulls",
+  "input": {
+   "type": "port.open",
+   "workspaceId": "s",
+   "port": 3,
+   "pid": 3,
+   "process": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"port\":3,\"pid\":3,\"process\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "port.open"
+  }
+ },
+ {
+  "type": "PortOpenEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "port.open",
+   "port": 2.5,
+   "pid": 2.5,
+   "process": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceCostEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.cost",
+   "workspaceId": "text é",
+   "phase": "released",
+   "rateUsdPerHour": 2.5,
+   "awakeMs": 2.5,
+   "accruedUsd": 2.5,
+   "at": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"phase\":\"released\",\"rateUsdPerHour\":2.5,\"awakeMs\":2.5,\"accruedUsd\":2.5,\"at\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.cost"
+  }
+ },
+ {
+  "type": "WorkspaceCostEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.cost",
+   "workspaceId": "s",
+   "phase": "running",
+   "rateUsdPerHour": 3,
+   "awakeMs": 3,
+   "accruedUsd": 3,
+   "at": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"phase\":\"running\",\"rateUsdPerHour\":3,\"awakeMs\":3,\"accruedUsd\":3,\"at\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.cost"
+  }
+ },
+ {
+  "type": "WorkspaceCostEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.cost",
+   "phase": "released",
+   "rateUsdPerHour": 2.5,
+   "awakeMs": 2.5,
+   "accruedUsd": 2.5,
+   "at": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceCostEvent",
+  "case": "phase: not one of its values",
+  "input": {
+   "type": "workspace.cost",
+   "workspaceId": "text é",
+   "phase": "not-a-value",
+   "rateUsdPerHour": 2.5,
+   "awakeMs": 2.5,
+   "accruedUsd": 2.5,
+   "at": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "phase"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceCreateStage",
+  "case": "full",
+  "input": "failed",
+  "output": "\"failed\""
+ },
+ {
+  "type": "WorkspaceCreateStage",
+  "case": "minimal",
+  "input": "fork-requested",
+  "output": "\"fork-requested\""
+ },
+ {
+  "type": "WorkspaceCreateStage",
+  "case": "value hostname-set",
+  "input": "hostname-set",
+  "output": "\"hostname-set\""
+ },
+ {
+  "type": "WorkspaceCreateStage",
+  "case": "value preview-route",
+  "input": "preview-route",
+  "output": "\"preview-route\""
+ },
+ {
+  "type": "WorkspaceCreateStage",
+  "case": "value daemon-answering",
+  "input": "daemon-answering",
+  "output": "\"daemon-answering\""
+ },
+ {
+  "type": "WorkspaceCreateStage",
+  "case": "value project-cloned",
+  "input": "project-cloned",
+  "output": "\"project-cloned\""
+ },
+ {
+  "type": "WorkspaceCreateStage",
+  "case": "value ready",
+  "input": "ready",
+  "output": "\"ready\""
+ },
+ {
+  "type": "WorkspaceCreateStage",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceCreatedEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.created",
+   "workspace": {
+    "id": "text é",
+    "name": "text é",
+    "machineId": "text é",
+    "phase": "released",
+    "kind": "place",
+    "golden": "text é",
+    "createdAt": "text é",
+    "project": {
+     "id": "text é",
+     "name": "text é",
+     "path": "text é",
+     "computer": "text é"
+    },
+    "folder": "text é",
+    "home": "text é",
+    "claudeSessionId": "text é",
+    "queue": {
+     "since": "text é",
+     "why": "minute"
+    },
+    "screen": {
+     "streamUrl": "text é"
+    },
+    "gone": "text é",
+    "theme": {
+     "dots": [
+      {
+       "angle": 2.5,
+       "radius": 0.5
+      }
+     ],
+     "harmony": "analogousThree",
+     "grain": 0.5,
+     "opacity": 0.5,
+     "mode": "dark"
+    },
+    "glyph": "lamp",
+    "daemonNote": "text é",
+    "vaultedAt": "text é",
+    "vaultRefused": "text é",
+    "daemonRefusedAt": {
+     "machineId": "text é",
+     "at": "text é",
+     "why": "text é"
+    },
+    "wakeRefused": "text é",
+    "diskGone": "text é",
+    "agents": {
+     "spawn": true,
+     "maxMachines": 7,
+     "maxDepth": 7
+    },
+    "parentThreadId": "text é",
+    "rootThreadId": "text é",
+    "parentWorkspaceId": "text é",
+    "place": "text é",
+    "worktree": {
+     "path": "text é",
+     "branch": "text é",
+     "made": true,
+     "madeFor": "text é",
+     "settled": {
+      "at": 2.5,
+      "why": "removed"
+     },
+     "kept": "text é",
+     "removeFailed": "text é",
+     "gone": true
+    },
+    "provider": "text é",
+    "pauseMode": "disk",
+    "from": {
+     "kind": "review",
+     "repo": "text é",
+     "number": 7,
+     "url": "text é",
+     "title": "text é",
+     "base": "text é",
+     "head": {
+      "branch": "text é",
+      "oid": "text é",
+      "fork": {
+       "owner": "text é",
+       "pushable": true
+      }
+     }
+    },
+    "review": {
+     "note": "text é",
+     "at": 2.5,
+     "reasked": true
+    },
+    "branchOfRecord": {
+     "repoId": 7,
+     "owner": "text é",
+     "name": "text é",
+     "branch": "text é",
+     "startSha": "text é",
+     "public": true
+    }
+   }
+  },
+  "output": "{\"workspace\":{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"queue\":{\"since\":\"text é\",\"why\":\"minute\"},\"screen\":{\"streamUrl\":\"text é\"},\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"provider\":\"text é\",\"pauseMode\":\"disk\",\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"text é\",\"name\":\"text é\",\"branch\":\"text é\",\"startSha\":\"text é\",\"public\":true}}}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.created"
+  }
+ },
+ {
+  "type": "WorkspaceCreatedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.created",
+   "workspace": {
+    "id": "s",
+    "name": "s",
+    "machineId": "s",
+    "phase": "running",
+    "golden": "s",
+    "createdAt": "s",
+    "project": {
+     "id": "s",
+     "name": "s",
+     "path": "s",
+     "computer": "s"
+    }
+   }
+  },
+  "output": "{\"workspace\":{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"}}}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.created"
+  }
+ },
+ {
+  "type": "WorkspaceCreatedEvent",
+  "case": "missing workspace",
+  "input": {
+   "type": "workspace.created"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspace"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceCreatingEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.creating",
+   "workspaceId": "text é",
+   "name": "text é",
+   "stage": "failed",
+   "message": "text é",
+   "elapsedMs": 2.5,
+   "notice": "text é",
+   "detail": "text é",
+   "waiting": true,
+   "askedBy": {
+    "threadId": "text é",
+    "rootThreadId": "text é"
+   }
+  },
+  "output": "{\"workspaceId\":\"text é\",\"name\":\"text é\",\"stage\":\"failed\",\"message\":\"text é\",\"elapsedMs\":2.5,\"notice\":\"text é\",\"detail\":\"text é\",\"waiting\":true,\"askedBy\":{\"threadId\":\"text é\",\"rootThreadId\":\"text é\"}}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.creating"
+  }
+ },
+ {
+  "type": "WorkspaceCreatingEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.creating",
+   "workspaceId": "s",
+   "name": "s",
+   "stage": "fork-requested",
+   "message": "s",
+   "elapsedMs": 3
+  },
+  "output": "{\"workspaceId\":\"s\",\"name\":\"s\",\"stage\":\"fork-requested\",\"message\":\"s\",\"elapsedMs\":3}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.creating"
+  }
+ },
+ {
+  "type": "WorkspaceCreatingEvent",
+  "case": "nulls",
+  "input": {
+   "type": "workspace.creating",
+   "workspaceId": "s",
+   "name": "s",
+   "stage": "fork-requested",
+   "message": "s",
+   "elapsedMs": 3,
+   "notice": "s",
+   "detail": "s",
+   "waiting": true,
+   "askedBy": {
+    "threadId": "s",
+    "rootThreadId": "s"
+   }
+  },
+  "output": "{\"workspaceId\":\"s\",\"name\":\"s\",\"stage\":\"fork-requested\",\"message\":\"s\",\"elapsedMs\":3,\"notice\":\"s\",\"detail\":\"s\",\"waiting\":true,\"askedBy\":{\"threadId\":\"s\",\"rootThreadId\":\"s\"}}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.creating"
+  }
+ },
+ {
+  "type": "WorkspaceCreatingEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.creating",
+   "name": "text é",
+   "stage": "failed",
+   "message": "text é",
+   "elapsedMs": 2.5,
+   "notice": "text é",
+   "detail": "text é",
+   "waiting": true,
+   "askedBy": {
+    "threadId": "text é",
+    "rootThreadId": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceCreatingEvent",
+  "case": "stage: not one of its values",
+  "input": {
+   "type": "workspace.creating",
+   "workspaceId": "text é",
+   "name": "text é",
+   "stage": "not-a-value",
+   "message": "text é",
+   "elapsedMs": 2.5,
+   "notice": "text é",
+   "detail": "text é",
+   "waiting": true,
+   "askedBy": {
+    "threadId": "text é",
+    "rootThreadId": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "stage"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceDeletedEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.deleted",
+   "workspaceId": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.deleted"
+  }
+ },
+ {
+  "type": "WorkspaceDeletedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.deleted",
+   "workspaceId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.deleted"
+  }
+ },
+ {
+  "type": "WorkspaceDeletedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.deleted"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceGoneEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.gone",
+   "workspaceId": "text é",
+   "machineId": "text é",
+   "reason": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"machineId\":\"text é\",\"reason\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.gone"
+  }
+ },
+ {
+  "type": "WorkspaceGoneEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.gone",
+   "workspaceId": "s",
+   "machineId": "s",
+   "reason": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"machineId\":\"s\",\"reason\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.gone"
+  }
+ },
+ {
+  "type": "WorkspaceGoneEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.gone",
+   "machineId": "text é",
+   "reason": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceLookEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.look",
+   "workspaceId": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.look"
+  }
+ },
+ {
+  "type": "WorkspaceLookEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.look",
+   "workspaceId": "s",
+   "theme": {
+    "dots": [
+     {
+      "angle": 3,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "single",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "auto"
+   },
+   "glyph": "terminal"
+  },
+  "output": "{\"workspaceId\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.look"
+  }
+ },
+ {
+  "type": "WorkspaceLookEvent",
+  "case": "nulls",
+  "input": {
+   "type": "workspace.look",
+   "workspaceId": "s",
+   "theme": null,
+   "glyph": null
+  },
+  "output": "{\"workspaceId\":\"s\",\"theme\":null,\"glyph\":null}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.look"
+  }
+ },
+ {
+  "type": "WorkspaceLookEvent",
+  "case": "missing theme, which is null or a value but never absent",
+  "input": {
+   "type": "workspace.look",
+   "workspaceId": "text é",
+   "glyph": "lamp"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "theme"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceLookEvent",
+  "case": "missing glyph, which is null or a value but never absent",
+  "input": {
+   "type": "workspace.look",
+   "workspaceId": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "glyph"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceLookEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.look",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceLookEvent",
+  "case": "glyph: not one of its values",
+  "input": {
+   "type": "workspace.look",
+   "workspaceId": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "glyph"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceNappedEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.napped",
+   "workspaceId": "text é",
+   "found": true
+  },
+  "output": "{\"workspaceId\":\"text é\",\"found\":true}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.napped"
+  }
+ },
+ {
+  "type": "WorkspaceNappedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.napped",
+   "workspaceId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.napped"
+  }
+ },
+ {
+  "type": "WorkspaceNappedEvent",
+  "case": "nulls",
+  "input": {
+   "type": "workspace.napped",
+   "workspaceId": "s",
+   "found": false
+  },
+  "output": "{\"workspaceId\":\"s\",\"found\":false}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.napped"
+  }
+ },
+ {
+  "type": "WorkspaceNappedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.napped",
+   "found": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceNappedEvent",
+  "case": "found: not a boolean",
+  "input": {
+   "type": "workspace.napped",
+   "workspaceId": "text é",
+   "found": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "found"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceReleasedEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.released",
+   "workspaceId": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.released"
+  }
+ },
+ {
+  "type": "WorkspaceReleasedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.released",
+   "workspaceId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.released"
+  }
+ },
+ {
+  "type": "WorkspaceReleasedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.released"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceRenamedEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.renamed",
+   "workspaceId": "text é",
+   "name": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"name\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.renamed"
+  }
+ },
+ {
+  "type": "WorkspaceRenamedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.renamed",
+   "workspaceId": "s",
+   "name": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"name\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.renamed"
+  }
+ },
+ {
+  "type": "WorkspaceRenamedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.renamed",
+   "name": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceReviewEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.review",
+   "workspaceId": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.review"
+  }
+ },
+ {
+  "type": "WorkspaceReviewEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.review",
+   "workspaceId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.review"
+  }
+ },
+ {
+  "type": "WorkspaceReviewEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.review"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceStatusEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.status",
+   "status": {
+    "id": "text é",
+    "name": "text é",
+    "machineId": "text é",
+    "phase": "released",
+    "kind": "place",
+    "golden": "text é",
+    "createdAt": "text é",
+    "project": {
+     "id": "text é",
+     "name": "text é",
+     "path": "text é",
+     "computer": "text é"
+    },
+    "folder": "text é",
+    "home": "text é",
+    "claudeSessionId": "text é",
+    "queue": {
+     "since": "text é",
+     "why": "minute"
+    },
+    "screen": {
+     "streamUrl": "text é"
+    },
+    "gone": "text é",
+    "theme": {
+     "dots": [
+      {
+       "angle": 2.5,
+       "radius": 0.5
+      }
+     ],
+     "harmony": "analogousThree",
+     "grain": 0.5,
+     "opacity": 0.5,
+     "mode": "dark"
+    },
+    "glyph": "lamp",
+    "daemonNote": "text é",
+    "vaultedAt": "text é",
+    "vaultRefused": "text é",
+    "daemonRefusedAt": {
+     "machineId": "text é",
+     "at": "text é",
+     "why": "text é"
+    },
+    "wakeRefused": "text é",
+    "diskGone": "text é",
+    "agents": {
+     "spawn": true,
+     "maxMachines": 7,
+     "maxDepth": 7
+    },
+    "parentThreadId": "text é",
+    "rootThreadId": "text é",
+    "parentWorkspaceId": "text é",
+    "place": "text é",
+    "worktree": {
+     "path": "text é",
+     "branch": "text é",
+     "made": true,
+     "madeFor": "text é",
+     "settled": {
+      "at": 2.5,
+      "why": "removed"
+     },
+     "kept": "text é",
+     "removeFailed": "text é",
+     "gone": true
+    },
+    "provider": "text é",
+    "pauseMode": "disk",
+    "from": {
+     "kind": "review",
+     "repo": "text é",
+     "number": 7,
+     "url": "text é",
+     "title": "text é",
+     "base": "text é",
+     "head": {
+      "branch": "text é",
+      "oid": "text é",
+      "fork": {
+       "owner": "text é",
+       "pushable": true
+      }
+     }
+    },
+    "review": {
+     "note": "text é",
+     "at": 2.5,
+     "reasked": true
+    },
+    "branchOfRecord": {
+     "repoId": 7,
+     "owner": "text é",
+     "name": "text é",
+     "branch": "text é",
+     "startSha": "text é",
+     "public": true
+    },
+    "machineState": "gone",
+    "reach": {
+     "state": "zombie",
+     "url": "text é",
+     "expiresAt": 2.5,
+     "offline": true
+    },
+    "size": {
+     "cpu": 2.5,
+     "memMb": 2.5
+    },
+    "rateUsdPerHour": 2.5,
+    "facts": {
+     "os": "text é",
+     "uptimeMs": 2.5,
+     "folder": "text é"
+    },
+    "reason": "text é",
+    "wakeAsk": {
+     "ask": 2.5,
+     "of": 2.5
+    },
+    "idleAt": 2.5,
+    "checkout": {
+     "branch": "text é",
+     "ahead": 7,
+     "behind": 7,
+     "changed": 7,
+     "editsUnread": true,
+     "countsUnknown": true,
+     "stashes": 7,
+     "head": "text é",
+     "readAt": 2.5
+    },
+    "pr": {
+     "why": "text é",
+     "readAt": 2.5
+    },
+    "tree": {
+     "leadBranch": "text é",
+     "children": [
+      {
+       "workspaceId": "text é",
+       "branch": "text é"
+      }
+     ],
+     "readAt": 2.5
+    }
+   }
+  },
+  "output": "{\"status\":{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"queue\":{\"since\":\"text é\",\"why\":\"minute\"},\"screen\":{\"streamUrl\":\"text é\"},\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"provider\":\"text é\",\"pauseMode\":\"disk\",\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"text é\",\"name\":\"text é\",\"branch\":\"text é\",\"startSha\":\"text é\",\"public\":true},\"machineState\":\"gone\",\"reach\":{\"state\":\"zombie\",\"url\":\"text é\",\"expiresAt\":2.5,\"offline\":true},\"size\":{\"cpu\":2.5,\"memMb\":2.5},\"rateUsdPerHour\":2.5,\"facts\":{\"os\":\"text é\",\"uptimeMs\":2.5,\"folder\":\"text é\"},\"reason\":\"text é\",\"wakeAsk\":{\"ask\":2.5,\"of\":2.5},\"idleAt\":2.5,\"checkout\":{\"branch\":\"text é\",\"ahead\":7,\"behind\":7,\"changed\":7,\"editsUnread\":true,\"countsUnknown\":true,\"stashes\":7,\"head\":\"text é\",\"readAt\":2.5},\"pr\":{\"why\":\"text é\",\"readAt\":2.5},\"tree\":{\"leadBranch\":\"text é\",\"children\":[{\"workspaceId\":\"text é\",\"branch\":\"text é\"}],\"readAt\":2.5}}}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.status"
+  }
+ },
+ {
+  "type": "WorkspaceStatusEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.status",
+   "status": {
+    "id": "s",
+    "name": "s",
+    "machineId": "s",
+    "phase": "running",
+    "golden": "s",
+    "createdAt": "s",
+    "project": {
+     "id": "s",
+     "name": "s",
+     "path": "s",
+     "computer": "s"
+    },
+    "machineState": "starting",
+    "reach": {
+     "state": "reachable"
+    },
+    "size": {
+     "cpu": 3,
+     "memMb": 3
+    },
+    "rateUsdPerHour": 3
+   }
+  },
+  "output": "{\"status\":{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"machineState\":\"starting\",\"reach\":{\"state\":\"reachable\"},\"size\":{\"cpu\":3,\"memMb\":3},\"rateUsdPerHour\":3}}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.status"
+  }
+ },
+ {
+  "type": "WorkspaceStatusEvent",
+  "case": "missing status",
+  "input": {
+   "type": "workspace.status"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "status"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceUpgradedEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.upgraded",
+   "workspaceId": "text é",
+   "machineId": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"machineId\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.upgraded"
+  }
+ },
+ {
+  "type": "WorkspaceUpgradedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.upgraded",
+   "workspaceId": "s",
+   "machineId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"machineId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.upgraded"
+  }
+ },
+ {
+  "type": "WorkspaceUpgradedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.upgraded",
+   "machineId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceViewedEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.viewed",
+   "workspaceId": "text é",
+   "viewed": {
+    "k": "text é"
+   }
+  },
+  "output": "{\"workspaceId\":\"text é\",\"viewed\":{\"k\":\"text é\"}}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.viewed"
+  }
+ },
+ {
+  "type": "WorkspaceViewedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.viewed",
+   "workspaceId": "s",
+   "viewed": {}
+  },
+  "output": "{\"workspaceId\":\"s\",\"viewed\":{}}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.viewed"
+  }
+ },
+ {
+  "type": "WorkspaceViewedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.viewed",
+   "viewed": {
+    "k": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceWokenEvent",
+  "case": "full",
+  "input": {
+   "type": "workspace.woken",
+   "workspaceId": "text é",
+   "machineId": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"machineId\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.woken"
+  }
+ },
+ {
+  "type": "WorkspaceWokenEvent",
+  "case": "minimal",
+  "input": {
+   "type": "workspace.woken",
+   "workspaceId": "s",
+   "machineId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"machineId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "workspace.woken"
+  }
+ },
+ {
+  "type": "WorkspaceWokenEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "workspace.woken",
+   "machineId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

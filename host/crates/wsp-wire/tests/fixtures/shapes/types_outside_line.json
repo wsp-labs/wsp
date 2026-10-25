@@ -1,0 +1,90 @@
+[
+ {
+  "type": "OutsideLine",
+  "case": "full",
+  "input": {
+   "title": "text é",
+   "body": "text é",
+   "show": true,
+   "sound": true,
+   "id": "text é"
+  },
+  "output": "{\"title\":\"text é\",\"body\":\"text é\",\"show\":true,\"sound\":true,\"id\":\"text é\"}"
+ },
+ {
+  "type": "OutsideLine",
+  "case": "minimal",
+  "input": {
+   "title": "s",
+   "body": "s",
+   "show": false,
+   "sound": false
+  },
+  "output": "{\"title\":\"s\",\"body\":\"s\",\"show\":false,\"sound\":false}"
+ },
+ {
+  "type": "OutsideLine",
+  "case": "nulls",
+  "input": {
+   "title": "s",
+   "body": "s",
+   "show": false,
+   "sound": false,
+   "id": "s"
+  },
+  "output": "{\"title\":\"s\",\"body\":\"s\",\"show\":false,\"sound\":false,\"id\":\"s\"}"
+ },
+ {
+  "type": "OutsideLine",
+  "case": "missing title",
+  "input": {
+   "body": "text é",
+   "show": true,
+   "sound": true,
+   "id": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "title"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "OutsideLine",
+  "case": "show: not a boolean",
+  "input": {
+   "title": "text é",
+   "body": "text é",
+   "show": "yes",
+   "sound": true,
+   "id": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "show"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "OutsideLine",
+  "case": "sound: not a boolean",
+  "input": {
+   "title": "text é",
+   "body": "text é",
+   "show": true,
+   "sound": "yes",
+   "id": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "sound"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

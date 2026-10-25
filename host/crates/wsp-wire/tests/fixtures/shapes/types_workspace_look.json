@@ -1,0 +1,625 @@
+[
+ {
+  "type": "ThemeDot",
+  "case": "full",
+  "input": {
+   "angle": 2.5,
+   "radius": 0.5
+  },
+  "output": "{\"angle\":2.5,\"radius\":0.5}"
+ },
+ {
+  "type": "ThemeDot",
+  "case": "minimal",
+  "input": {
+   "angle": 3,
+   "radius": 0.5
+  },
+  "output": "{\"angle\":3,\"radius\":0.5}"
+ },
+ {
+  "type": "ThemeDot",
+  "case": "missing angle",
+  "input": {
+   "radius": 0.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "angle"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThemeDot",
+  "case": "angle: under 0",
+  "input": {
+   "angle": -1,
+   "radius": 0.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "angle"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ThemeDot",
+  "case": "angle: over 360",
+  "input": {
+   "angle": 361,
+   "radius": 0.5
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "angle"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ThemeDot",
+  "case": "radius: under 0",
+  "input": {
+   "angle": 2.5,
+   "radius": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "radius"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ThemeDot",
+  "case": "radius: over 1",
+  "input": {
+   "angle": 2.5,
+   "radius": 2
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "radius"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ThemeHarmony",
+  "case": "full",
+  "input": "analogousThree",
+  "output": "\"analogousThree\""
+ },
+ {
+  "type": "ThemeHarmony",
+  "case": "minimal",
+  "input": "single",
+  "output": "\"single\""
+ },
+ {
+  "type": "ThemeHarmony",
+  "case": "value complementary",
+  "input": "complementary",
+  "output": "\"complementary\""
+ },
+ {
+  "type": "ThemeHarmony",
+  "case": "value analogous",
+  "input": "analogous",
+  "output": "\"analogous\""
+ },
+ {
+  "type": "ThemeHarmony",
+  "case": "value splitComplementary",
+  "input": "splitComplementary",
+  "output": "\"splitComplementary\""
+ },
+ {
+  "type": "ThemeHarmony",
+  "case": "value triadic",
+  "input": "triadic",
+  "output": "\"triadic\""
+ },
+ {
+  "type": "ThemeHarmony",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThemeMode",
+  "case": "full",
+  "input": "dark",
+  "output": "\"dark\""
+ },
+ {
+  "type": "ThemeMode",
+  "case": "minimal",
+  "input": "auto",
+  "output": "\"auto\""
+ },
+ {
+  "type": "ThemeMode",
+  "case": "value light",
+  "input": "light",
+  "output": "\"light\""
+ },
+ {
+  "type": "ThemeMode",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "full",
+  "input": "lamp",
+  "output": "\"lamp\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "minimal",
+  "input": "terminal",
+  "output": "\"terminal\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value code",
+  "input": "code",
+  "output": "\"code\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value bug",
+  "input": "bug",
+  "output": "\"bug\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value wrench",
+  "input": "wrench",
+  "output": "\"wrench\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value hammer",
+  "input": "hammer",
+  "output": "\"hammer\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value rocket",
+  "input": "rocket",
+  "output": "\"rocket\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value flask",
+  "input": "flask",
+  "output": "\"flask\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value database",
+  "input": "database",
+  "output": "\"database\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value cloud",
+  "input": "cloud",
+  "output": "\"cloud\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value globe",
+  "input": "globe",
+  "output": "\"globe\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value compass",
+  "input": "compass",
+  "output": "\"compass\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value map",
+  "input": "map",
+  "output": "\"map\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value book",
+  "input": "book",
+  "output": "\"book\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value feather",
+  "input": "feather",
+  "output": "\"feather\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value palette",
+  "input": "palette",
+  "output": "\"palette\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value leaf",
+  "input": "leaf",
+  "output": "\"leaf\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value star",
+  "input": "star",
+  "output": "\"star\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value bolt",
+  "input": "bolt",
+  "output": "\"bolt\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value key",
+  "input": "key",
+  "output": "\"key\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value shield",
+  "input": "shield",
+  "output": "\"shield\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value box",
+  "input": "box",
+  "output": "\"box\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value folder",
+  "input": "folder",
+  "output": "\"folder\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "value chip",
+  "input": "chip",
+  "output": "\"chip\""
+ },
+ {
+  "type": "WorkspaceGlyph",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceLook",
+  "case": "full",
+  "input": {
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp"
+  },
+  "output": "{\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\"}"
+ },
+ {
+  "type": "WorkspaceLook",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "WorkspaceLook",
+  "case": "nulls",
+  "input": {
+   "theme": null,
+   "glyph": null
+  },
+  "output": "{\"theme\":null,\"glyph\":null}"
+ },
+ {
+  "type": "WorkspaceLook",
+  "case": "glyph: not one of its values",
+  "input": {
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "glyph"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceTheme",
+  "case": "full",
+  "input": {
+   "dots": [
+    {
+     "angle": 2.5,
+     "radius": 0.5
+    }
+   ],
+   "harmony": "analogousThree",
+   "grain": 0.5,
+   "opacity": 0.5,
+   "mode": "dark"
+  },
+  "output": "{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"}"
+ },
+ {
+  "type": "WorkspaceTheme",
+  "case": "minimal",
+  "input": {
+   "dots": [
+    {
+     "angle": 3,
+     "radius": 0.5
+    }
+   ],
+   "harmony": "single",
+   "grain": 0.5,
+   "opacity": 0.5,
+   "mode": "auto"
+  },
+  "output": "{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"}"
+ },
+ {
+  "type": "WorkspaceTheme",
+  "case": "missing dots",
+  "input": {
+   "harmony": "analogousThree",
+   "grain": 0.5,
+   "opacity": 0.5,
+   "mode": "dark"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "dots"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceTheme",
+  "case": "dots: more than 3 items",
+  "input": {
+   "dots": [
+    {
+     "angle": 2.5,
+     "radius": 0.5
+    },
+    {
+     "angle": 2.5,
+     "radius": 0.5
+    },
+    {
+     "angle": 2.5,
+     "radius": 0.5
+    },
+    {
+     "angle": 2.5,
+     "radius": 0.5
+    }
+   ],
+   "harmony": "analogousThree",
+   "grain": 0.5,
+   "opacity": 0.5,
+   "mode": "dark"
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "dots"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "WorkspaceTheme",
+  "case": "dots: fewer than 1 items",
+  "input": {
+   "dots": [],
+   "harmony": "analogousThree",
+   "grain": 0.5,
+   "opacity": 0.5,
+   "mode": "dark"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "dots"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "WorkspaceTheme",
+  "case": "harmony: not one of its values",
+  "input": {
+   "dots": [
+    {
+     "angle": 2.5,
+     "radius": 0.5
+    }
+   ],
+   "harmony": "not-a-value",
+   "grain": 0.5,
+   "opacity": 0.5,
+   "mode": "dark"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "harmony"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceTheme",
+  "case": "grain: under 0",
+  "input": {
+   "dots": [
+    {
+     "angle": 2.5,
+     "radius": 0.5
+    }
+   ],
+   "harmony": "analogousThree",
+   "grain": -1,
+   "opacity": 0.5,
+   "mode": "dark"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "grain"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "WorkspaceTheme",
+  "case": "grain: over 1",
+  "input": {
+   "dots": [
+    {
+     "angle": 2.5,
+     "radius": 0.5
+    }
+   ],
+   "harmony": "analogousThree",
+   "grain": 2,
+   "opacity": 0.5,
+   "mode": "dark"
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "grain"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "WorkspaceTheme",
+  "case": "opacity: under 0.1",
+  "input": {
+   "dots": [
+    {
+     "angle": 2.5,
+     "radius": 0.5
+    }
+   ],
+   "harmony": "analogousThree",
+   "grain": 0.5,
+   "opacity": -0.9,
+   "mode": "dark"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "opacity"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "WorkspaceTheme",
+  "case": "opacity: over 1",
+  "input": {
+   "dots": [
+    {
+     "angle": 2.5,
+     "radius": 0.5
+    }
+   ],
+   "harmony": "analogousThree",
+   "grain": 0.5,
+   "opacity": 2,
+   "mode": "dark"
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "opacity"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "WorkspaceTheme",
+  "case": "mode: not one of its values",
+  "input": {
+   "dots": [
+    {
+     "angle": 2.5,
+     "radius": 0.5
+    }
+   ],
+   "harmony": "analogousThree",
+   "grain": 0.5,
+   "opacity": 0.5,
+   "mode": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "mode"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

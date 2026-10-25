@@ -1,0 +1,790 @@
+[
+ {
+  "type": "GitIssueReadReply",
+  "case": "full",
+  "input": {
+   "issue": {
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "body": "text é",
+    "state": "text é",
+    "comments": [
+     {
+      "author": "text é",
+      "body": "text é",
+      "at": "text é"
+     }
+    ]
+   }
+  },
+  "output": "{\"issue\":{\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"body\":\"text é\",\"state\":\"text é\",\"comments\":[{\"author\":\"text é\",\"body\":\"text é\",\"at\":\"text é\"}]}}"
+ },
+ {
+  "type": "GitIssueReadReply",
+  "case": "minimal",
+  "input": {
+   "issue": {
+    "number": 7,
+    "url": "s",
+    "title": "s",
+    "body": "s",
+    "state": "s",
+    "comments": []
+   }
+  },
+  "output": "{\"issue\":{\"number\":7,\"url\":\"s\",\"title\":\"s\",\"body\":\"s\",\"state\":\"s\",\"comments\":[]}}"
+ },
+ {
+  "type": "GitIssueReadReply",
+  "case": "missing issue",
+  "input": {},
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "issue"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrCheckoutReply",
+  "case": "full",
+  "input": {
+   "branch": "text é"
+  },
+  "output": "{\"branch\":\"text é\"}"
+ },
+ {
+  "type": "GitPrCheckoutReply",
+  "case": "minimal",
+  "input": {
+   "branch": "s"
+  },
+  "output": "{\"branch\":\"s\"}"
+ },
+ {
+  "type": "GitPrCheckoutReply",
+  "case": "missing branch",
+  "input": {},
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "branch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrDiffReply",
+  "case": "full",
+  "input": {
+   "diff": "text é",
+   "truncated": true,
+   "left": [
+    "text é"
+   ]
+  },
+  "output": "{\"diff\":\"text é\",\"truncated\":true,\"left\":[\"text é\"]}"
+ },
+ {
+  "type": "GitPrDiffReply",
+  "case": "minimal",
+  "input": {
+   "diff": "s",
+   "truncated": false,
+   "left": []
+  },
+  "output": "{\"diff\":\"s\",\"truncated\":false,\"left\":[]}"
+ },
+ {
+  "type": "GitPrDiffReply",
+  "case": "missing diff",
+  "input": {
+   "truncated": true,
+   "left": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "diff"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrDiffReply",
+  "case": "truncated: not a boolean",
+  "input": {
+   "diff": "text é",
+   "truncated": "yes",
+   "left": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "truncated"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrReviewReply",
+  "case": "full",
+  "input": {
+   "url": "text é",
+   "folded": [
+    "text é"
+   ]
+  },
+  "output": "{\"url\":\"text é\",\"folded\":[\"text é\"]}"
+ },
+ {
+  "type": "GitPrReviewReply",
+  "case": "minimal",
+  "input": {
+   "url": "s",
+   "folded": []
+  },
+  "output": "{\"url\":\"s\",\"folded\":[]}"
+ },
+ {
+  "type": "GitPrReviewReply",
+  "case": "missing url",
+  "input": {
+   "folded": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "url"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GithubLink",
+  "case": "full",
+  "input": {
+   "host": "github.com",
+   "repo": "text é",
+   "kind": "pull_request",
+   "number": 7,
+   "url": "text é"
+  },
+  "output": "{\"host\":\"github.com\",\"repo\":\"text é\",\"kind\":\"pull_request\",\"number\":7,\"url\":\"text é\"}"
+ },
+ {
+  "type": "GithubLink",
+  "case": "minimal",
+  "input": {
+   "host": "github.com",
+   "repo": "s",
+   "kind": "issue",
+   "number": 7,
+   "url": "s"
+  },
+  "output": "{\"host\":\"github.com\",\"repo\":\"s\",\"kind\":\"issue\",\"number\":7,\"url\":\"s\"}"
+ },
+ {
+  "type": "GithubLink",
+  "case": "missing host",
+  "input": {
+   "repo": "text é",
+   "kind": "pull_request",
+   "number": 7,
+   "url": "text é"
+  },
+  "issue": {
+   "code": "invalid_literal",
+   "path": [
+    "host"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GithubLink",
+  "case": "kind: not one of its values",
+  "input": {
+   "host": "github.com",
+   "repo": "text é",
+   "kind": "not-a-value",
+   "number": 7,
+   "url": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GithubLink",
+  "case": "number: not an integer",
+  "input": {
+   "host": "github.com",
+   "repo": "text é",
+   "kind": "pull_request",
+   "number": 2.5,
+   "url": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GithubLink",
+  "case": "number: under 0",
+  "input": {
+   "host": "github.com",
+   "repo": "text é",
+   "kind": "pull_request",
+   "number": -1,
+   "url": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "IssueRead",
+  "case": "full",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "title": "text é",
+   "body": "text é",
+   "state": "text é",
+   "comments": [
+    {
+     "author": "text é",
+     "body": "text é",
+     "at": "text é"
+    }
+   ]
+  },
+  "output": "{\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"body\":\"text é\",\"state\":\"text é\",\"comments\":[{\"author\":\"text é\",\"body\":\"text é\",\"at\":\"text é\"}]}"
+ },
+ {
+  "type": "IssueRead",
+  "case": "minimal",
+  "input": {
+   "number": 7,
+   "url": "s",
+   "title": "s",
+   "body": "s",
+   "state": "s",
+   "comments": []
+  },
+  "output": "{\"number\":7,\"url\":\"s\",\"title\":\"s\",\"body\":\"s\",\"state\":\"s\",\"comments\":[]}"
+ },
+ {
+  "type": "IssueRead",
+  "case": "missing number",
+  "input": {
+   "url": "text é",
+   "title": "text é",
+   "body": "text é",
+   "state": "text é",
+   "comments": [
+    {
+     "author": "text é",
+     "body": "text é",
+     "at": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "IssueRead",
+  "case": "number: not an integer",
+  "input": {
+   "number": 2.5,
+   "url": "text é",
+   "title": "text é",
+   "body": "text é",
+   "state": "text é",
+   "comments": [
+    {
+     "author": "text é",
+     "body": "text é",
+     "at": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "IssueRead",
+  "case": "number: under 0",
+  "input": {
+   "number": -1,
+   "url": "text é",
+   "title": "text é",
+   "body": "text é",
+   "state": "text é",
+   "comments": [
+    {
+     "author": "text é",
+     "body": "text é",
+     "at": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ReviewBlock",
+  "case": "full",
+  "input": {
+   "verdict": "request_changes",
+   "summary": "text é",
+   "comments": [
+    {
+     "path": "text é",
+     "line": 7,
+     "side": "RIGHT",
+     "body": "text é"
+    }
+   ]
+  },
+  "output": "{\"verdict\":\"request_changes\",\"summary\":\"text é\",\"comments\":[{\"path\":\"text é\",\"line\":7,\"side\":\"RIGHT\",\"body\":\"text é\"}]}"
+ },
+ {
+  "type": "ReviewBlock",
+  "case": "minimal",
+  "input": {
+   "verdict": "comment",
+   "summary": "s",
+   "comments": []
+  },
+  "output": "{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[]}"
+ },
+ {
+  "type": "ReviewBlock",
+  "case": "missing verdict",
+  "input": {
+   "summary": "text é",
+   "comments": [
+    {
+     "path": "text é",
+     "line": 7,
+     "side": "RIGHT",
+     "body": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "verdict"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReviewDraft",
+  "case": "full",
+  "input": {
+   "note": "text é",
+   "at": 2.5,
+   "reasked": true
+  },
+  "output": "{\"note\":\"text é\",\"at\":2.5,\"reasked\":true}"
+ },
+ {
+  "type": "ReviewDraft",
+  "case": "minimal",
+  "input": {
+   "verdict": "comment",
+   "summary": "s",
+   "comments": [],
+   "headOid": "s",
+   "threadId": "s",
+   "at": 3
+  },
+  "output": "{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3}"
+ },
+ {
+  "type": "ReviewDraft",
+  "case": "variant 0",
+  "input": {
+   "verdict": "request_changes",
+   "summary": "text é",
+   "comments": [
+    {
+     "id": "text é",
+     "path": "text é",
+     "line": 7,
+     "side": "RIGHT",
+     "body": "text é",
+     "on": true,
+     "inSummary": true
+    }
+   ],
+   "headOid": "text é",
+   "threadId": "text é",
+   "at": 2.5,
+   "posted": {
+    "url": "text é",
+    "at": 2.5,
+    "folded": [
+     "text é"
+    ]
+   }
+  },
+  "output": "{\"verdict\":\"request_changes\",\"summary\":\"text é\",\"comments\":[{\"id\":\"text é\",\"path\":\"text é\",\"line\":7,\"side\":\"RIGHT\",\"body\":\"text é\",\"on\":true,\"inSummary\":true}],\"headOid\":\"text é\",\"threadId\":\"text é\",\"at\":2.5,\"posted\":{\"url\":\"text é\",\"at\":2.5,\"folded\":[\"text é\"]}}"
+ },
+ {
+  "type": "ReviewDraftComment",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "RIGHT",
+   "body": "text é",
+   "on": true,
+   "inSummary": true
+  },
+  "output": "{\"id\":\"text é\",\"path\":\"text é\",\"line\":7,\"side\":\"RIGHT\",\"body\":\"text é\",\"on\":true,\"inSummary\":true}"
+ },
+ {
+  "type": "ReviewDraftComment",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "path": "s",
+   "line": 7,
+   "side": "LEFT",
+   "body": "s",
+   "on": false
+  },
+  "output": "{\"id\":\"s\",\"path\":\"s\",\"line\":7,\"side\":\"LEFT\",\"body\":\"s\",\"on\":false}"
+ },
+ {
+  "type": "ReviewDraftComment",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "path": "s",
+   "line": 7,
+   "side": "LEFT",
+   "body": "s",
+   "on": false,
+   "inSummary": false
+  },
+  "output": "{\"id\":\"s\",\"path\":\"s\",\"line\":7,\"side\":\"LEFT\",\"body\":\"s\",\"on\":false,\"inSummary\":false}"
+ },
+ {
+  "type": "ReviewDraftComment",
+  "case": "missing id",
+  "input": {
+   "path": "text é",
+   "line": 7,
+   "side": "RIGHT",
+   "body": "text é",
+   "on": true,
+   "inSummary": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReviewDraftComment",
+  "case": "line: not an integer",
+  "input": {
+   "id": "text é",
+   "path": "text é",
+   "line": 2.5,
+   "side": "RIGHT",
+   "body": "text é",
+   "on": true,
+   "inSummary": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReviewDraftComment",
+  "case": "line: under 0",
+  "input": {
+   "id": "text é",
+   "path": "text é",
+   "line": 0,
+   "side": "RIGHT",
+   "body": "text é",
+   "on": true,
+   "inSummary": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ReviewDraftComment",
+  "case": "side: not one of its values",
+  "input": {
+   "id": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "not-a-value",
+   "body": "text é",
+   "on": true,
+   "inSummary": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "side"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReviewDraftComment",
+  "case": "on: not a boolean",
+  "input": {
+   "id": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "RIGHT",
+   "body": "text é",
+   "on": "yes",
+   "inSummary": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "on"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReviewDraftComment",
+  "case": "inSummary: not a boolean",
+  "input": {
+   "id": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "RIGHT",
+   "body": "text é",
+   "on": true,
+   "inSummary": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "inSummary"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceFrom",
+  "case": "full",
+  "input": {
+   "kind": "review",
+   "repo": "text é",
+   "number": 7,
+   "url": "text é",
+   "title": "text é",
+   "base": "text é",
+   "head": {
+    "branch": "text é",
+    "oid": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    }
+   }
+  },
+  "output": "{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}}"
+ },
+ {
+  "type": "WorkspaceFrom",
+  "case": "minimal",
+  "input": {
+   "kind": "issue",
+   "repo": "s",
+   "number": 7,
+   "url": "s",
+   "title": "s"
+  },
+  "output": "{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"}"
+ },
+ {
+  "type": "WorkspaceFrom",
+  "case": "nulls",
+  "input": {
+   "kind": "issue",
+   "repo": "s",
+   "number": 7,
+   "url": "s",
+   "title": "s",
+   "base": "s",
+   "head": {
+    "branch": "s"
+   }
+  },
+  "output": "{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\",\"base\":\"s\",\"head\":{\"branch\":\"s\"}}"
+ },
+ {
+  "type": "WorkspaceFrom",
+  "case": "missing kind",
+  "input": {
+   "repo": "text é",
+   "number": 7,
+   "url": "text é",
+   "title": "text é",
+   "base": "text é",
+   "head": {
+    "branch": "text é",
+    "oid": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    }
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceFrom",
+  "case": "kind: not one of its values",
+  "input": {
+   "kind": "not-a-value",
+   "repo": "text é",
+   "number": 7,
+   "url": "text é",
+   "title": "text é",
+   "base": "text é",
+   "head": {
+    "branch": "text é",
+    "oid": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    }
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceFrom",
+  "case": "number: not an integer",
+  "input": {
+   "kind": "review",
+   "repo": "text é",
+   "number": 2.5,
+   "url": "text é",
+   "title": "text é",
+   "base": "text é",
+   "head": {
+    "branch": "text é",
+    "oid": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    }
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceFrom",
+  "case": "number: under 0",
+  "input": {
+   "kind": "review",
+   "repo": "text é",
+   "number": -1,
+   "url": "text é",
+   "title": "text é",
+   "base": "text é",
+   "head": {
+    "branch": "text é",
+    "oid": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    }
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": false
+  }
+ }
+]
