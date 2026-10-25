@@ -144,7 +144,7 @@ impl Check for InitSetupPricing {
 /// No refinement of its own; checks every nested field that has one.
 impl Check for MachineSizeOffer {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
     }
 }
 

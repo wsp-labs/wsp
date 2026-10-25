@@ -627,24 +627,3 @@ pub mod double_option {
         Option::<T>::deserialize(d).map(Some)
     }
 }
-
-/// wsp-frames' copy of a shape the protocol names as one of ours: a value of it is checked by reading its JSON through
-/// ours, so every refusal ours would make is the same here, at the same path.
-macro_rules! through_ours {
-    ($foreign:path, $ours:path) => {
-        impl Check for $foreign {
-            fn check(&self) -> Result<(), SchemaError> {
-                let json = serde_json::to_value(self).expect("a wsp-frames shape writes as JSON");
-                parse::<$ours>(&json).map(|_| ())
-            }
-
-            fn describe(path: &[Value]) -> Option<Zod> {
-                <$ours as Check>::describe(path)
-            }
-        }
-    };
-}
-
-through_ours!(wsp_frames::PullRequest, crate::types::pull_request::PullRequest);
-through_ours!(wsp_frames::PullRequestComment, crate::types::pull_request::PullRequestComment);
-through_ours!(wsp_frames::PullRequestReviewComment, crate::types::pull_request::PullRequestReviewComment);

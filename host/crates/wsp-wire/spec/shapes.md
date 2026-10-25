@@ -33,8 +33,13 @@ The views the host sends and the records it keeps, as serde types. The implement
 6. A zod schema is re-exported from wsp-frames only where everything matches zod: the keys and their order, each field's
    type (an integer where zod has `.int()`, a `JsNumber` where zod has `z.number()`, unsigned only where zod says so), every
    check (a `>= 0` rule must not be a serde refusal), the defaults and the nullable keys, and the nested schemas. Otherwise
-   the type is a local struct with `JsNumber` fields and zod's rules, and wsp-frames is left alone. Re-exported today: the
-   unit enums and the `Git*Reply`s whose audit passed (see the list in `src/types/` where each `pub use wsp_frames::` is).
+   the type is a local struct with `JsNumber` fields and zod's rules, and wsp-frames is left alone. Re-exported today, after
+   the audit: the unit enums (`PullRequestState`, `Mergeable`, `ReviewState`, `CheckState`, `MergeMethod`, `ReactionContent`,
+   `CopyWord`, `MachineKind`, `MachineState`, `WorkspaceKind`, `Carried`) and the structs `GitStartOnReply`, `GitPrDiffReply`,
+   `GitPrCheckoutReply`, `GitPrReviewReply`, `PullRequestLabel`, `PullRequestReviewRequest`, `GitRunLogReply`, `GitPrMergeReply`,
+   `GitRepoReadReply`, `GitPrResolveReply`, `CarryModule`. Local, because they differ: `GitPushReply`, `GitPrReply`, `IssueRead`,
+   `GitIssueReadReply`, `GitBranchCompareReply`, `PullRequestReaction`, `PullRequestCommit`, `GitPrReadReply`, `GitPrReactReply`,
+   `GitPrReplyReply`, `UsageTokens`, `HostFolder`, `HostFolderListing`, `WorkspaceCopy`, and `RelayPort` (wire/limits.rs).
 7. Hand rules beside the generated ones: `WorkspaceCopy.from/at`, `MachineShare.source/target`,
    `MachineBind.source/target` refine with `crate::wire::limits::is_plain_path` (custom, "an absolute path on the
    computer" / "an absolute path inside the workspace", views/place.ts:180-206); `textSize` and `codeSize` refine to
