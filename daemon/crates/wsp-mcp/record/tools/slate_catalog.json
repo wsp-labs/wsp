@@ -1,7 +1,7 @@
 {
   "cloudOff": {
     "name": "slate_catalog",
-    "description": "What a slate, the live panel beside the chat, can hold: every piece, and the runs that keep it fresh. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.",
+    "description": "What a slate here can hold: every piece and run. The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -35,7 +35,7 @@
   },
   "cloudOn": {
     "name": "slate_catalog",
-    "description": "What a slate, the live panel beside the chat, can hold: every piece, and the runs that keep it fresh. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.",
+    "description": "What a slate here can hold: every piece and run. The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.",
     "inputSchema": {
       "type": "object",
       "properties": {

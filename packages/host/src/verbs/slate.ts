@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { turnTokenOf, usageRefusal, SLATE_SCRIPT_WORDS, SLATE_TOOLS } from "@wsp/protocol";
+import { turnTokenOf, usageRefusal, SLATE_PURPOSE, SLATE_SCRIPT_WORDS, SLATE_TOOLS } from "@wsp/protocol";
 import { type HostClient, type VerbDeps, type VerbContext, usageIs, tool, type Verb, flagList, pick } from "./client.js";
 import { threadOf } from "./workspaces-help.js";
 import { asText } from "./io.js";
@@ -95,7 +95,7 @@ export const SLATE_VERBS: readonly Verb[] = [
       return 0;
     },
     tool: tool({
-      description: "What a slate, the live panel beside the chat, can hold: every piece, and the runs that keep it fresh. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.",
+      description: `What a slate here can hold: every piece and run. ${SLATE_PURPOSE} Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.`,
       input: { name: z.string().optional().describe("leave out first: the index of every piece; then an entry, like runs") },
       output: { text: z.string() },
       call: async ({ name }, deps) => {
@@ -135,7 +135,7 @@ export const SLATE_VERBS: readonly Verb[] = [
       return 0;
     },
     tool: tool({
-      description: `Writes this thread's slate, the live panel here beside the chat. Use it to show the person what they want to see, watch, monitor or keep an eye on while you work (live data, traffic, metrics, a price, logs, a PR, progress, status), a dashboard, a form to fill in or a checklist. A run with every= refreshes on a timer with no turns, so nothing polls. ${SLATE_SCRIPT_WORDS}`,
+      description: `Writes this thread's slate. ${SLATE_PURPOSE} Show what they want to see (live data, traffic, metrics, a price, a PR, progress), a dashboard, a form to fill in or a decision. A run with every= refreshes with no turns. ${SLATE_SCRIPT_WORDS}`,
       input: {
         thread: SlateThreadIn,
         text: z.string().optional().describe("JSX-like text: a <slate>, or a patch"),
@@ -180,7 +180,7 @@ export const SLATE_VERBS: readonly Verb[] = [
       return 0;
     },
     tool: tool({
-      description: "Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move as you work; reactions fire. start starts a run the person allowed to run always.",
+      description: "Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move; reactions fire. start starts a run the person allowed always.",
       input: { thread: SlateThreadIn, values: z.record(z.string(), z.unknown()).optional().describe("$path: new value"), start: z.array(z.string()).optional().describe("runs allowed always"), if_version: SlateIfVersionIn },
       output: slateOut("problems", "waiting", "notStarted"),
       stream: ["text"],
