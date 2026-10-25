@@ -17,7 +17,12 @@ fn pins() -> serde_json::Value {
 #[test]
 fn the_landing_folder_is_posix_dirname() {
     for case in pins()["putScript"].as_array().unwrap() {
-        assert_eq!(put_bytes_script(case["path"].as_str().unwrap(), 3, "/tmp/wsp-put-x"), case["out"].as_str().unwrap(), "{}", case["path"]);
+        assert_eq!(
+            put_bytes_script(case["path"].as_str().unwrap(), 3, "/tmp/wsp-put-x"),
+            case["out"].as_str().unwrap(),
+            "{}",
+            case["path"]
+        );
     }
 }
 
