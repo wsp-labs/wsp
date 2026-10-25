@@ -6,6 +6,7 @@ use regex::Regex;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
+use crate::json_parse::parse_json;
 use crate::config_write::store_base;
 use crate::json_edit::edit_json;
 use crate::jsonc_tree::PathSeg;
@@ -206,7 +207,7 @@ pub fn in_store(state_home: &str, path: &str, home: &str, store: Option<&str>) -
 
 /// The JSON a text holds, or nothing (plugins.ts:375).
 pub fn json_of(text: Option<&str>) -> Option<Value> {
-    serde_json::from_str(text?).ok()
+    parse_json(text?).ok()
 }
 
 /// Absolute paths joined, `.` and `..` resolved, `..` past the root staying at the root (plugins.ts:386).
