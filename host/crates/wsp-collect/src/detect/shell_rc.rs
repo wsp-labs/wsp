@@ -9,19 +9,45 @@
 pub use crate::detect::shell_rc_strip::{strip_exports, Stripped};
 
 pub const FISH_CONF_D: &str = ".config/fish/conf.d";
-pub const RC_PATHS: [&str; 11] = [".zshrc", ".zshenv", ".zprofile", ".zlogin", ".bashrc", ".bash_profile", ".profile", ".inputrc", ".aliases", ".zsh_aliases", ".config/fish/config.fish"];
-pub const RC_NAMES: [&str; 11] = [".zshrc", ".zshenv", ".zprofile", ".zlogin", ".bashrc", ".bash_profile", ".profile", ".inputrc", ".aliases", ".zsh_aliases", "config.fish"];
+pub const RC_PATHS: [&str; 11] = [
+    ".zshrc",
+    ".zshenv",
+    ".zprofile",
+    ".zlogin",
+    ".bashrc",
+    ".bash_profile",
+    ".profile",
+    ".inputrc",
+    ".aliases",
+    ".zsh_aliases",
+    ".config/fish/config.fish",
+];
+pub const RC_NAMES: [&str; 11] = [
+    ".zshrc",
+    ".zshenv",
+    ".zprofile",
+    ".zlogin",
+    ".bashrc",
+    ".bash_profile",
+    ".profile",
+    ".inputrc",
+    ".aliases",
+    ".zsh_aliases",
+    "config.fish",
+];
 pub const SECRET_WORDS: [&str; 8] = ["KEY", "APIKEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PASS", "PASSPHRASE"];
 /// JavaScript regex source.
 pub const SECRET_END: &str = r#"(?:APIKEY|TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE)$"#;
 /// JavaScript regex source.
-pub const PLAIN_PASS: &str = r#"^(?:ASK|BY|ANTI|DE|OUT|OVER|SUB|SUR|TO|UN|UNDER|(?:BE|EN|GYRO|OUT|PRE|RE|UN)?COM|(?:COUNTER|NON)?TRES)PASS$"#;
+pub const PLAIN_PASS: &str =
+    r#"^(?:ASK|BY|ANTI|DE|OUT|OVER|SUB|SUR|TO|UN|UNDER|(?:BE|EN|GYRO|OUT|PRE|RE|UN)?COM|(?:COUNTER|NON)?TRES)PASS$"#;
 pub const SECRET_LAST: [&str; 3] = ["PWD", "AUTH", "PAT"];
 /// JavaScript regex source.
 pub const SETTING: &str = r#"^(?:FISH_KEY_BINDINGS|FISH_SEQUENCE_KEY_DELAY_MS|DISABLE_FZF_KEY_BINDINGS|TIKTOKEN_CACHE_DIR|CLAUDE_CODE_SKIP_\w+_AUTH|PASSWORD_STORE_(?:DIR|KEY|SIGNING_KEY|GPG_OPTS|X_SELECTION|CLIP_TIME|UMASK|GENERATED_LENGTH|CHARACTER_SET|CHARACTER_SET_NO_SYMBOLS|ENABLE_EXTENSIONS|EXTENSIONS_DIR))$"#;
 pub const NAME: &str = "[A-Za-z_][A-Za-z0-9_]*";
 /// JavaScript regex source.
-pub const EXPORTED: &str = r#"^\s*\\?(?:export|typeset|declare|readonly|local|integer|float|private|env|sudo|doas|nohup|nice)(?:\s+-\w+)*\s+(.*)$"#;
+pub const EXPORTED: &str =
+    r#"^\s*\\?(?:export|typeset|declare|readonly|local|integer|float|private|env|sudo|doas|nohup|nice)(?:\s+-\w+)*\s+(.*)$"#;
 /// JavaScript regex source.
 pub const FISH_SET: &str = r#"^\s*set((?:\s+--?[\w-]+)*)\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s|$)"#;
 /// JavaScript regex source.
@@ -32,7 +58,8 @@ pub const PRECOMMAND: &str = "\\\\?(?:!|-|builtin|noglob|nocorrect|and|or|not|co
 /// JavaScript regex source.
 pub const KEYWORDS: &str = r#"^\s*(?:then|do|else|elif|if|while|until|\\?(?:!|-|builtin|noglob|nocorrect|and|or|not|coproc|repeat\s+\S+|time(?:\s+-p)?|command(?:\s+-p)?|exec(?:\s+-[cl]*a\s+\S+|\s+-[cl]+)*))\s+"#;
 /// JavaScript regex source.
-pub const ASSIGNS: &str = r#"^(?:(?:export|typeset|declare|readonly|local|set)\s|[A-Za-z_][A-Za-z0-9_]*\+?=(?:"[^"$`]*"|'[^']*'|[^\s"'$`])*$)"#;
+pub const ASSIGNS: &str =
+    r#"^(?:(?:export|typeset|declare|readonly|local|set)\s|[A-Za-z_][A-Za-z0-9_]*\+?=(?:"[^"$`]*"|'[^']*'|[^\s"'$`])*$)"#;
 /// JavaScript regex source.
 pub const GUARD: &str = r#"(?<=^|[\s;&|({])(if|elif|while|until)\s+(?=(?:\\?(?:!|-|builtin|noglob|nocorrect|and|or|not|coproc|repeat\s+\S+|time(?:\s+-p)?|command(?:\s+-p)?|exec(?:\s+-[cl]*a\s+\S+|\s+-[cl]+)*)\s+)*$)"#;
 /// JavaScript regex source.

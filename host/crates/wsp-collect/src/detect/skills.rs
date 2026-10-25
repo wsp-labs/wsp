@@ -319,7 +319,12 @@ pub fn skill_md_frontmatter(text: &str) -> SkillFront {
 // }
 /// `agents` `None` is the catalog's agents. Each project's link check is one `sh` run; the projects run at once and
 /// their roots land in project order.
-pub async fn skill_roots(host: &Host, agents: Option<&[&AgentEntry]>, projects: &[AgentsProject], plugins: &[AgentPlugins]) -> Vec<SkillRootAt> {
+pub async fn skill_roots(
+    host: &Host,
+    agents: Option<&[&AgentEntry]>,
+    projects: &[AgentsProject],
+    plugins: &[AgentPlugins],
+) -> Vec<SkillRootAt> {
     todo!()
 }
 
