@@ -106,14 +106,33 @@ the maps); what `runtimeCore` itself decides is ported here behind `CoreCtx`, th
 
 ## Rules against tests (`tests/runtime_core.rs`)
 
+Generated from the rule each test names in its first comment; 35 tests.
+
 | Rule | Tests | TS case |
 |---|---|---|
-| C2-C4 | `the_defaults_are_the_wiring_constants`, `reads_state_is_none_past_the_providers_read`, `took_the_resume_only_running_or_starting` | runtime.ts:498-515 |
-| C5 | `vault_paths_drop_the_skipped_and_the_empty`, `vault_enumeration_failing_names_stderrs_tail` | runtime-golden-update.test.ts |
-| C6-C9 | `a_launch_with_no_road_mints_nothing`, `a_launch_names_the_url_and_key_only_where_they_stand`, `a_brokered_launch_reads_the_broker_first`, `the_mint_is_scoped_to_the_thread_and_its_road` | spawn-guard.test.ts, thread-cap.test.ts, vault.test.ts |
-| C10 | `a_snooze_wakes_every_window_at_its_time`, `a_moved_snooze_says_nothing`, `a_long_snooze_rearms_past_the_timer_cap`, `a_past_snooze_arms_nothing` | thread-marks.test.ts:186 |
-| C11 | `resume_at_reset_fires_at_its_time_and_at_once_when_past`, `a_moved_resume_does_nothing`, `a_failed_resume_warns` | usage-limit-resume.test.ts |
-| C12-C14 | `standing_on_splits_forks_folders_and_projects`, `fork_name_is_its_one_threads_title`, `forget_project_in_order` | places-remove.test.ts |
-| C16-C21 | `holds_on_reads_unsaved_forks_then_projects`, `drop_on_stops_at_the_first_refusal_naming_those_gone`, `forget_on_ends_and_drops_then_forgets`, `remove_folder_refuses_while_records_stand`, `folder_look_keeps_what_the_person_set` | places-remove.test.ts, places-settings.test.ts |
-| C22 | `add_folder_keeps_a_matching_move`, `add_folder_refuses_a_gone_folder_and_no_remote` | places-setup.test.ts |
-| C23-C27 | `place_absent_and_present_re_emit_the_stage`, `place_present_rehydrates_stand_ins_only`, `golden_stage_writes_and_drops_the_copy_row`, `place_removed_drops_the_copy_row` | places-image.test.ts, places.test.ts |
+| C2 | `the_defaults_are_the_wiring_constants` | runtime.ts:498-515 |
+| C3 | `took_the_resume_only_running_or_starting`, `reads_state_answers_the_providers_state`, `reads_state_is_none_past_the_providers_read` | runtime.ts:504-505; runtime.ts:505 (until, bounded on the runtime's clock); runtime.ts:509 |
+| C5 | `vault_paths_drop_the_skipped_and_the_empty`, `vault_paths_given_read_nothing_off_the_machine`, `vault_enumeration_failing_names_stderrs_tail` | runtime.ts:517-528; runtime.ts:518; runtime.ts:522 |
+| C6 | `a_launch_with_no_road_mints_nothing` | runtime.ts:544-545 |
+| C7 | `a_brokered_launch_reads_the_broker_first` | runtime.ts:549-553 |
+| C8 | `the_mint_is_scoped_to_the_thread_and_its_road` | runtime.ts:554, spawn-guard.test.ts |
+| C9 | `a_launch_names_the_url_and_key_only_where_they_stand` | runtime.ts:556-563 |
+| C10 | `a_snooze_wakes_every_window_at_its_time`, `a_moved_snooze_says_nothing_and_a_new_one_replaces_the_old`, `a_long_snooze_rearms_past_the_timer_cap`, `a_past_snooze_arms_nothing` | runtime.ts:865-873; runtime.ts:867-868; runtime.ts:874, 877 (MAX_TIMER_MS); thread-marks.test.ts:186 |
+| C11 | `resume_at_reset_fires_at_its_time_and_at_once_when_past`, `a_moved_resume_does_nothing`, `a_failed_resume_warns` | runtime.ts:892; runtime.ts:894; usage-limit-resume.test.ts; runtime.ts:886-899 |
+| C12 | `standing_on_splits_forks_folders_and_projects` | places-remove.test.ts; runtime.ts:908-927 |
+| C13 | `fork_name_is_its_one_threads_title_else_its_name` | runtime.ts:936-939 |
+| C14 | `forget_project_in_order` | runtime.ts:929-934 |
+| C15 | `place_removed_drops_the_copy_row` | runtime.ts:769-771 |
+| C16 | `holds_on_reads_unsaved_forks_then_projects` | runtime.ts:629-648 |
+| C17 | `drop_on_stops_at_the_first_refusal_naming_those_gone`, `drop_on_takes_forks_then_folders_then_projects_with_force` | runtime.ts:653-670; runtime.ts:665-669 |
+| C18 | `forget_on_ends_and_drops_then_forgets` | runtime.ts:671-679 |
+| C19 | `machines_on_names_the_machines_there` | runtime.ts:686-689 |
+| C20 | `remove_folder_refuses_while_records_stand` | runtime.ts:756-762 |
+| C21 | `folder_look_keeps_what_the_person_set`, `folder_look_with_neither_writes_null_and_a_moved_image_is_worn_or_cleared` | runtime.ts:583-589; runtime.ts:587-588 |
+| C23 | `place_setup_with_an_end_keeps_the_copy_current` | runtime.ts:774-777 |
+| C24 | `place_absent_and_present_re_emit_the_stage` | runtime.ts:781-791, places-image.test.ts |
+| C25 | `place_present_rehydrates_stand_ins_only` | runtime.ts:796-812, places.test.ts |
+| C26 | `golden_stage_writes_and_drops_the_copy_row` | runtime.ts:841-846, places-image.test.ts |
+| C27 | `row_says_failure_is_false_for_the_place_reasons` | runtime.ts:850-853 |
+
+Not pinned here: C1 (the assembly order) and C22 (`add_folder`, the recipe's folder road) need every area built, and are left to the whole-host tapes and to places-setup.test.ts's cases once wsp-machines is joined; C4 (`sleeps`) is one line over the clock.

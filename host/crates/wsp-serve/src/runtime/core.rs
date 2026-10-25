@@ -28,8 +28,27 @@ pub struct CoreDefaults {
     pub host_id: String,
 }
 
-/// runtime.ts:498-515. `hostname` is this computer's, read by the caller.
-pub fn core_defaults(opts: &RuntimeOptions, hostname: &str) -> CoreDefaults {
+/// The option values the defaults are read from (`RuntimeOptions`' own fields of the same names).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct DefaultsAsked {
+    pub provider_read_ms: Option<u64>,
+    pub gone_confirm_ms: Option<u64>,
+    pub late_read_ms: Option<u64>,
+    pub daemon_hello_timeout_ms: Option<u64>,
+    pub vault_cap_bytes: Option<u64>,
+    pub idle_default_window_ms: Option<u64>,
+    pub host_id: Option<String>,
+}
+
+impl DefaultsAsked {
+    /// The values `opts` names.
+    pub fn of(opts: &RuntimeOptions) -> DefaultsAsked {
+        todo!()
+    }
+}
+
+/// runtime.ts:498-515 (spec C2). `hostname` is this computer's, read by the caller.
+pub fn core_defaults(asked: &DefaultsAsked, hostname: &str) -> CoreDefaults {
     todo!()
 }
 
@@ -139,11 +158,64 @@ pub trait CoreCtx {
     async fn drop_record(&self, workspace_id: &str) -> Result<(), HostError>;
     async fn store_delete_project(&self, project_id: &str) -> Result<(), HostError>;
     async fn forget_icon(&self, project_id: &str) -> Result<(), HostError>;
+    /// The person's look on a project (`preferences.projectLook[id]`).
+    async fn project_look(&self, project_id: &str) -> Result<Option<ProjectLook>, HostError>;
+    /// `preferences.set({ projectLook: { [id]: look or null } })`.
+    async fn set_project_look(&self, project_id: &str, look: Option<ProjectLook>) -> Result<(), HostError>;
+    /// `projectIcons.wear(id, image)`, or `projectIcons.set(id, null)` for `None`.
+    async fn set_icon(&self, project_id: &str, image: Option<String>) -> Result<(), HostError>;
+    /// `image.keepCurrent(placeId)`, not awaited by the core.
+    fn keep_current(&self, place_id: &str);
+    /// `placeDoor.nameOf(placeId)`.
+    fn place_name(&self, place_id: &str) -> String;
+    /// The stored workspaces on that place this host holds by a stand-in (`isHeldAway`), in the store's order.
+    async fn held_away_on(&self, place_id: &str) -> Result<Vec<String>, HostError>;
+    /// `hydrateWorkspace(raw)`: whether it came back as a live entry.
+    async fn hydrate(&self, workspace_id: &str) -> Result<bool, HostError>;
+    /// `syncDaemon(entry)`, not awaited.
+    fn sync_daemon(&self, workspace_id: &str);
+    async fn reread_held(&self, workspace_id: &str, why: &str) -> Result<(), HostError>;
+    /// The held rows whose record is on that place.
+    fn held_on(&self, place_id: &str) -> Vec<String>;
+    async fn poll(&self, workspace_ids: Vec<String>) -> Result<(), HostError>;
+    /// A computer this host holds no backend and no link to now (`placeAway`).
+    fn place_away(&self, place_id: &str) -> bool;
+}
+
+/// A project's look: its icon and hue words, each where set. Written `icon` then `hue`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
+pub struct ProjectLook {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hue: Option<String>,
+}
+
+/// A recipe's folder pick as `folderLook` reads it (`RecipeFile["folders"][string]`): icon, hue, image.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FolderPick {
+    pub icon: Option<String>,
+    pub hue: Option<String>,
+    pub image: Option<String>,
+}
+
+/// One build's stage on a joined computer, kept so a gap in its link can say so (runtime.ts:836).
+#[derive(Clone, Debug, PartialEq)]
+pub struct StageAt {
+    pub place: String,
+    pub name: String,
+    pub named: bool,
+    /// The whole `golden.stage` frame it last sent.
+    pub frame: serde_json::Value,
 }
 
 /// The core's timers and readings over a `CoreCtx` (runtime.ts:860-939). One per runtime.
 pub struct Core {
     pub(crate) ctx: Rc<dyn CoreCtx>,
+    /// What each place's row says about its copy (runtime.ts:840), as `copy_build_of` answers it, in JSON.
+    pub(crate) copy_rows: std::cell::RefCell<IndexMap<String, serde_json::Value>>,
+    /// Each build's stage on a joined computer, by place and image name (runtime.ts:836).
+    pub(crate) stage_at: std::cell::RefCell<IndexMap<String, StageAt>>,
     pub(crate) snooze_timers: std::cell::RefCell<IndexMap<String, wsp_core::clock::Cancel>>,
     pub(crate) resume_timers: std::cell::RefCell<IndexMap<String, wsp_core::clock::Cancel>>,
 }
@@ -198,6 +270,33 @@ impl Core {
     }
     /// `recording.removeFolder(placeId, projectId)` (spec C20).
     pub async fn remove_folder(&self, place_id: &str, project_id: &str) -> Result<(), HostError> {
+        todo!()
+    }
+    /// `folderLook(projectId, was, now)` (spec C21).
+    pub async fn folder_look(&self, project_id: &str, was: &FolderPick, now: &FolderPick) -> Result<(), HostError> {
+        todo!()
+    }
+    /// The bus listeners `runtimeCore` adds (spec C23, C26): a `place.setup` with an end keeps that place's copy
+    /// current; a `golden.stage` naming a place writes or drops its copy row. Every other event does nothing.
+    pub fn on_bus_event(&self, e: &serde_json::Value) {
+        todo!()
+    }
+    /// The place door's listeners (spec C15, C24, C25): `place.removed` drops the copy row; `place.absent` and
+    /// `place.present` re-emit each stage on that place; `place.present` rehydrates the stand-ins there.
+    pub fn on_place_event(self: &Rc<Self>, e: &serde_json::Value) {
+        todo!()
+    }
+    /// Keeps a build's stage on a joined computer, for the re-emits (runtime.ts:836).
+    pub fn note_stage(&self, at: StageAt) {
+        todo!()
+    }
+    /// The copy row of a place, as `copyRows.get(placeId)`.
+    pub fn copy_row(&self, place_id: &str) -> Option<serde_json::Value> {
+        todo!()
+    }
+    /// `rowSaysFailure(place, e)` (spec C27): false for a fork-nowhere or a provisioning refusal (wsp-machines'
+    /// marks), an absent place (the engine's), or a place away.
+    pub fn row_says_failure(&self, place_id: &str, e: &HostError) -> bool {
         todo!()
     }
 }

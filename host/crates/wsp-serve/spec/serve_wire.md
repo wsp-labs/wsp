@@ -46,13 +46,17 @@ only tests in this crate that open a real websocket (tokio-tungstenite on loopba
 
 ## Rules against tests (`tests/serve_wire.rs`)
 
+Generated from the rule each test names in its first comment; 11 tests.
+
 | Rule | Tests | TS case |
 |---|---|---|
-| W1 | `the_defaults_are_the_protocols_numbers` | serve.ts:386-389 |
-| W2, W4 | `a_runtime_given_port_zero_binds_one_and_names_it`, `a_runtime_with_no_port_and_no_attach_names_port_zero` | serve.test.ts:37 |
-| W4, W5 | `an_upgrade_the_hosts_reading_refuses_is_closed_on_its_own_port_and_an_attached_one`, `an_attached_upgrade_on_another_path_is_answered_400`, `the_own_port_answers_any_path` | serve.test.ts:287 |
+| W1 | `the_defaults_are_the_protocols_numbers` | serve.ts:327-331, 386-389 |
+| W2 | `a_runtime_given_port_zero_binds_one_and_names_it`, `a_runtime_with_no_port_and_no_attach_names_port_zero` | serve.test.ts:37; serve.ts:1911 |
+| W4 | `a_runtime_given_port_zero_binds_one_and_names_it`, `the_own_port_answers_any_path`, `an_upgrade_the_hosts_reading_refuses_is_closed_on_its_own_port_and_an_attached_one` | serve.test.ts:287; serve.test.ts:37; serve.ts:470 (no path option on the runtime's own server) |
+| W5 | `an_upgrade_the_hosts_reading_refuses_is_closed_on_its_own_port_and_an_attached_one`, `an_attached_upgrade_on_another_path_is_answered_400` | serve.test.ts:287; serve.ts:481-488 |
 | W6 | `an_unmasked_frame_is_said_in_one_line_and_the_next_socket_is_answered` | serve.test.ts:136 |
 | W7 | `authorize_names_nobody_for_an_empty_token_and_the_host_for_its_own` | serve.ts:1917 |
 | W8 | `revoke_device_cuts_every_socket_that_device_holds` | pairing.test.ts |
-| W9 | `a_stop_closes_every_client_with_4001`, `a_client_that_never_answers_the_close_is_cut_after_the_grace` | serve.test.ts:44 |
-| W10 | `a_sealed_socket_writes_no_plaintext` | serve.test.ts:216 |
+| W9 | `a_stop_closes_every_client_with_4001`, `a_client_that_never_answers_the_close_is_cut_after_the_grace` | serve.test.ts:44; serve.ts:1923-1926 |
+
+W3 (the upgrade readings' defaults) rides every listener test with none given; W10 is pinned in serve_door.rs, `seal_open_answers_in_the_clear_then_seals_every_frame`.
