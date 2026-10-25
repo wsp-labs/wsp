@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use indexmap::IndexMap;
-use wsp_adapters::port::{AgentLaunch, HarnessAdapter, HarnessExec, KeptAgent, ServerValues};
+use wsp_adapters::port::{AgentLaunch, Env, HarnessAdapter, HarnessExec};
 use wsp_core::ids::Ids;
 use wsp_core::types::api::WarmAsk;
 use wsp_core::types::internal::KeptLaunch;
@@ -19,7 +19,8 @@ use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::runtime::SessionWarmResult;
 use wsp_words::exit::HostError;
 
-use crate::pending::{Entry, Records, Waiting};
+use crate::threads::agents::launch::{AdapterAsk, BuiltAdapter, DefaultsOn, LaunchServers};
+use crate::threads::threads::{Entry, KeptHand, ThreadRecords};
 
 /// launch.ts:212. Rules L1, L2.
 pub fn served_to(wsp: Option<&McpServerSpec>, root_thread_id: &str, thread_id: &str) -> Option<McpServerSpec> {
@@ -28,7 +29,7 @@ pub fn served_to(wsp: Option<&McpServerSpec>, root_thread_id: &str, thread_id: &
 
 /// launch.ts:221. `rows` is the place door's rows (None where the host has no door); `prompt` is the send's, written in
 /// place. Answers the clouds held. Rules L3-L6.
-pub fn clouds_told(rows: Option<Vec<PlaceView>>, records: &Records, thread_id: &str, prompt: &mut String) -> Vec<String> {
+pub fn clouds_told(rows: Option<Vec<PlaceView>>, records: &ThreadRecords, thread_id: &str, prompt: &mut String) -> Vec<String> {
     todo!()
 }
 
@@ -50,55 +51,12 @@ pub struct LaunchPicks {
     pub context_window: Option<String>,
 }
 
-/// The defaults' read of a catalog: the catalog with its marks, and what a thread with none opens on.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Resolved {
-    pub catalog: Option<HarnessCatalog>,
-    pub open_model: Option<String>,
-    pub open_effort: Option<String>,
-}
-
-/// An adapter built for a workspace and an agent (TS `ctx.adapterFor(...)`).
-#[derive(Clone)]
-pub struct BuiltAdapter {
-    pub harness: String,
-    pub adapter: Arc<dyn HarnessAdapter>,
-}
-
-/// What `ctx.adapterFor` is handed beside the entry and the agent.
-#[derive(Clone, Default)]
-pub struct AdapterAsk {
-    pub env: IndexMap<String, String>,
-    pub waiting: Option<Waiting>,
-    pub server_values: Option<ServerValues>,
-    pub thread_id: Option<String>,
-    pub asks_until_stopped: bool,
-}
-
 /// What a thread's launch is minted with (TS `threadLaunch(...)`).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ThreadLaunch {
     pub scoped_device_id: Option<String>,
     pub env: IndexMap<String, String>,
     pub wsp: Option<McpServerSpec>,
-}
-
-/// The servers a launch carries beside the wsp one (TS `Pick<HarnessStartOptions, "serverValues" | "offServers">`).
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct LaunchServers {
-    pub server_values: Option<ServerValues>,
-    pub off_servers: Option<Vec<String>>,
-}
-
-/// A warm agent handed to the runtime to keep (TS `ctx.holdWarm(threadId, {...})`).
-pub struct WarmHold {
-    pub workspace_id: String,
-    pub agent: Box<dyn KeptAgent>,
-    pub launch: KeptLaunch,
-    pub turn_token: String,
-    pub scope_device_id: Option<String>,
-    pub waiting: Waiting,
-    pub harness: String,
 }
 
 /// What the launch area reads of the runtime. The TS module-level helpers that read the runtime's own tables
@@ -117,15 +75,15 @@ pub trait LaunchCtx {
     async fn preferences(&self) -> Result<Preferences, HostError>;
     fn default_agent_of(&self, prefs: &Preferences, entry: &Entry) -> String;
     fn agent_off(&self, entry: &Entry, harness: &str) -> bool;
-    /// `ctx.adapterFor(entry, harness, env, waiting, serverValues, threadId, asksUntilStopped)`.
-    fn adapter_for(&self, entry: &Entry, harness: &str, ask: AdapterAsk) -> Result<BuiltAdapter, HostError>;
+    /// `ctx.adapterFor(entry, harness, env, waiting, servers, threadId, asksUntilStopped)`: `ask.named` is the harness.
+    fn adapter_for(&self, entry: &Entry, ask: AdapterAsk) -> Result<BuiltAdapter, HostError>;
     /// Whether the adapter has a `warm` road (TS `adapter.warm !== undefined`; the Rust port answers it by calling).
     fn adapter_warms(&self, adapter: &dyn HarnessAdapter) -> bool;
     async fn confine_setup(&self, entry: &Entry, harness: &str) -> Result<(), HostError>;
     /// `harnessCatalog(harness) === undefined ? undefined : ctx.catalogOn(table, entry, adapter)`, with the table read.
     async fn catalog_on(&self, harness: &str, entry: &Entry, adapter: &dyn HarnessAdapter) -> Result<Option<HarnessCatalog>, HostError>;
     /// `ctx.defaultsOn(catalog, prefs, prefs.projectDefaults[project])`.
-    fn defaults_on(&self, catalog: HarnessCatalog, prefs: &Preferences, project: &str) -> Resolved;
+    fn defaults_on(&self, catalog: HarnessCatalog, prefs: &Preferences, project: &str) -> DefaultsOn;
     fn named_mode(&self, catalog: Option<&HarnessCatalog>, harness: &str, access: &AccessChoice) -> Option<String>;
     fn access_of(&self, workspace_id: &str, thread_id: &str, session: Option<&str>) -> Option<String>;
     fn ran_on(&self, workspace_id: &str, thread_id: &str, session: Option<&str>) -> RanPicks;
@@ -145,10 +103,10 @@ pub trait LaunchCtx {
     /// `ctx.reapKept(threadId)`.
     fn reap_kept(&self, thread_id: &str);
     async fn thread_launch(&self, entry: &Entry, thread_id: &str, root_thread_id: &str, aside: bool) -> Result<ThreadLaunch, HostError>;
-    /// `serverValuesOf(opts.vault?.() ?? {})`.
-    fn vault_server_values(&self) -> ServerValues;
+    /// `opts.vault?.() ?? {}`; the area reads `server_values_of` off it.
+    fn vault(&self) -> Env;
     async fn launch_servers_for(&self, entry: &Entry, harness: &str, adapter: &dyn HarnessAdapter, cwd: &str) -> Result<LaunchServers, HostError>;
-    fn hold_warm(&self, thread_id: &str, hold: WarmHold);
+    fn hold_warm(&self, thread_id: &str, hold: KeptHand);
     async fn revoke_device(&self, device_id: &str) -> Result<(), HostError>;
 }
 

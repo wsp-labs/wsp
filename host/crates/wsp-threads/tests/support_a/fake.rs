@@ -18,7 +18,21 @@ pub use wsp_core::types::api::*;
 pub use wsp_core::types::internal::{EndThread, KeptLaunch, Reopened, SearchedHit, Taken, ThreadRecord, ThreadStamps, ThreadWords, TreeTalk, TurnAsked, TurnLive, TurnWritten};
 pub use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
 pub use wsp_threads::activity::*;
-pub use wsp_threads::pending::*;
+pub use wsp_threads::threads::threads::{Entry, Row, Sessions, ThreadRecords, Waiting};
+pub use wsp_threads::threads::agents::launch::{AdapterAsk, BuiltAdapter, DefaultsOn, LaunchServers};
+pub use wsp_threads::threads::forks::{ForkPlan, StartFn};
+pub use wsp_threads::threads::threads::{CapAt, CapHeld, CheckpointAsk, KeptHand, NotifyOn, TurnChangesAsk};
+pub use wsp_threads::threads::agents::launch::LandedImages;
+pub use wsp_core::context::Joined;
+pub use wsp_core::types::internal::{KeptProcess, SessionEntry};
+pub use wsp_core::types::wiring::Local;
+pub use super::entry::entry_over;
+pub use wsp_account::account::rules::TreeOf;
+pub use wsp_machines::machines::boot::entries::{EntryAsk, RowAt};
+pub use wsp_machines::machines::sub_spawn::machine::Resumed;
+pub use wsp_store::transcript_reader::ThreadRead;
+pub use wsp_wire::types::usage::AccountsAnswer;
+pub use wsp_wire::wire::events_union::EventUnion;
 pub use wsp_threads::threads::launch::*;
 pub use wsp_threads::threads::sessions::*;
 pub use wsp_threads::threads::trimmed_row::*;
@@ -110,40 +124,8 @@ impl Ids for ScriptedIds {
 pub struct NoExec;
 
 impl HarnessExec for NoExec {
-    fn exec(&self, _command: &str, _env: Option<&Env>) -> BoxFuture<'static, Result<String, ExecFailure>> {
-        futures::future::ready(Ok(String::new())).boxed()
-    }
-}
-
-/// A live workspace whose record a test reads and writes.
-pub struct FakeEntry {
-    pub record: RefCell<WorkspaceRecord>,
-    pub unchecked: Cell<bool>,
-    pub exec: RefCell<Arc<dyn HarnessExec>>,
-    pub opens_thread: RefCell<Option<String>>,
-}
-
-impl EntryHandle for FakeEntry {
-    fn id(&self) -> String {
-        self.record.borrow().id.clone()
-    }
-    fn record(&self) -> WorkspaceRecord {
-        self.record.borrow().clone()
-    }
-    fn set_session(&self, session_id: &str) {
-        self.record.borrow_mut().claude_session_id = Some(session_id.to_string());
-    }
-    fn unchecked(&self) -> bool {
-        self.unchecked.get()
-    }
-    fn set_checked(&self) {
-        self.unchecked.set(false);
-    }
-    fn opens_thread(&self) -> Option<String> {
-        self.opens_thread.borrow().clone()
-    }
-    fn harness_exec(&self, _ms: u64) -> Arc<dyn HarnessExec> {
-        self.exec.borrow().clone()
+    fn exec(&self, _command: &str, _env: Option<&Env>) -> LocalBoxFuture<'static, Result<String, ExecFailure>> {
+        futures::future::ready(Ok(String::new())).boxed_local()
     }
 }
 
@@ -163,8 +145,54 @@ pub fn record(id: &str, extra: Value) -> WorkspaceRecord {
     serde_json::from_value(record_doc(id, extra)).expect("a workspace record the fixture builds")
 }
 
-pub fn entry(id: &str, extra: Value) -> Rc<FakeEntry> {
-    Rc::new(FakeEntry { record: RefCell::new(record(id, extra)), unchecked: Cell::new(false), exec: RefCell::new(Arc::new(NoExec)), opens_thread: RefCell::new(None) })
+/// A live workspace over a record and a machine that answers every exec with nothing.
+pub fn entry(id: &str, extra: Value) -> Entry {
+    entry_over(record(id, extra), Arc::new(NoMachine { id: format!("m-{id}") }))
+}
+
+/// A machine no test drives: every road is unimplemented but its id.
+pub struct NoMachine {
+    pub id: String,
+}
+
+#[async_trait::async_trait(?Send)]
+impl wsp_engine::machine::Machine for NoMachine {
+    fn id(&self) -> &str {
+        &self.id
+    }
+    fn kind(&self) -> wsp_engine::machine::MachineKind {
+        wsp_engine::machine::MachineKind::Sandbox
+    }
+    fn offers(&self) -> wsp_engine::machine::MachineOffers {
+        wsp_engine::machine::MachineOffers::default()
+    }
+    async fn exec(&self, _cmd: &str, _opts: wsp_engine::machine::ExecOptions) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> {
+        Ok(wsp_engine::machine::ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() })
+    }
+    async fn run(&self, _script: &str, _opts: wsp_engine::machine::RunOptions) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> {
+        unimplemented!()
+    }
+    async fn snapshot(&self, _name: &str, _life: wsp_engine::machine::MachineLife, _opts: wsp_engine::machine::SnapshotOptions) -> wsp_engine::errors::Result<String> {
+        unimplemented!()
+    }
+    async fn pause(&self, _wait_ms: Option<u64>) -> wsp_engine::errors::Result<()> {
+        unimplemented!()
+    }
+    async fn resume(&self, _signal: Option<&wsp_engine::Cancel>) -> wsp_engine::errors::Result<()> {
+        unimplemented!()
+    }
+    async fn kill(&self) -> wsp_engine::errors::Result<()> {
+        unimplemented!()
+    }
+    async fn state(&self) -> wsp_engine::errors::Result<wsp_engine::machine::MachineState> {
+        Ok(wsp_engine::machine::MachineState::Running)
+    }
+    async fn download_url(&self, _path: &str) -> wsp_engine::errors::Result<String> {
+        unimplemented!()
+    }
+    async fn upload_url(&self, _path: &str) -> wsp_engine::errors::Result<String> {
+        unimplemented!()
+    }
 }
 
 /// A row's view: `id`, `workspaceId`, `harness` and `status` are required; `extra` lays any other key over them.
@@ -176,15 +204,11 @@ pub fn view(id: &str, workspace_id: &str, extra: Value) -> SessionView {
     serde_json::from_value(doc).expect("a session view the fixture builds")
 }
 
-pub fn shared(v: SessionView) -> SharedView {
-    Rc::new(RefCell::new(v))
-}
-
 /// A row with only its view and turn id (the fields `SessionEntry::new` would set), built here so the fixture does
-/// not wait on that body.
-pub fn row(v: SessionView, turn_id: &str) -> SessionEntry {
-    SessionEntry {
-        view: shared(v),
+/// not wait on that body, held by reference as every area holds one.
+pub fn row(v: SessionView, turn_id: &str) -> Row {
+    Rc::new(RefCell::new(SessionEntry {
+        view: v,
         turn_id: turn_id.to_string(),
         replaces: None,
         notify: None,
@@ -204,7 +228,7 @@ pub fn row(v: SessionView, turn_id: &str) -> SessionEntry {
         calls: None,
         unanswered: false,
         queued: false,
-    }
+    }))
 }
 
 /// An event as the transcript holds one, from its JSON.
@@ -226,8 +250,8 @@ pub struct FakeHost {
     pub hooks: Hooks,
     pub clock: FakeClock,
     pub ids: Rc<ScriptedIds>,
-    pub rows: Rows,
-    pub records: Records,
+    pub rows: Sessions,
+    pub records: ThreadRecords,
     pub entries: RefCell<IndexMap<String, Entry>>,
     pub recorded: RefCell<Vec<SessionEvent>>,
     pub emitted: RefCell<Vec<Value>>,
@@ -268,19 +292,18 @@ impl FakeHost {
     }
 
     /// Holds a live workspace, answering `live_entry` and the entry reads for it.
-    pub fn add_entry(&self, e: Rc<FakeEntry>) -> Entry {
-        let id = e.record.borrow().id.clone();
-        let entry: Entry = e;
+    pub fn add_entry(&self, entry: Entry) -> Entry {
+        let id = entry.borrow().record.borrow().id.clone();
         self.entries.borrow_mut().insert(id, entry.clone());
         entry
     }
 
-    pub fn add_row(&self, key: &str, r: SessionEntry) {
+    pub fn add_row(&self, key: &str, r: Row) {
         self.rows.borrow_mut().insert(key.to_string(), r);
     }
 
     pub fn add_record(&self, thread_id: &str, workspace_id: &str, record: ThreadRecord) {
-        self.records.borrow_mut().insert(thread_id.to_string(), HeldThread { workspace_id: workspace_id.to_string(), record });
+        self.records.borrow_mut().insert(thread_id.to_string(), ThreadRecord { workspace_id: workspace_id.to_string(), ..record });
     }
 
     /// The recorded events as JSON, in order.
@@ -302,7 +325,8 @@ impl FakeHost {
         let rows = self.rows.borrow();
         let mut latest: Option<SessionView> = None;
         for r in rows.values() {
-            let v = r.view.borrow();
+            let r = r.borrow();
+            let v = &r.view;
             if v.thread_id.as_deref() != Some(thread_id) {
                 continue;
             }

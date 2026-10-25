@@ -9,12 +9,14 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
-use wsp_adapters::port::{AdapterEvent, HarnessSession, KeptAgent, PermissionAsk};
+use wsp_adapters::port::{HarnessExec, HarnessSession, OnEvent, PermissionAsk};
 use wsp_core::clock::Clock;
+use wsp_core::context::Joined;
 use wsp_core::types::internal::{KeptLaunch, TurnWritten};
-use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
+use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::types::attachments::AttachmentRecord;
-use wsp_wire::types::usage::{HarnessLimit, UsageTokens};
+use wsp_wire::types::usage::{AccountsAnswer, HarnessLimit, UsageTokens};
+use wsp_wire::wire::events_union::EventUnion;
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::views::session_events_more::SessionEvent;
@@ -22,20 +24,15 @@ use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 use wsp_wire::wire::runtime::SessionStartOutcome;
 use wsp_words::exit::HostError;
 
-use crate::pending::{Entry, Joined, Records, Rows, SharedAsked, SharedLive, SharedView, Waiting};
-use crate::threads::launch::{AdapterAsk, BuiltAdapter};
+use crate::threads::agents::launch::{AdapterAsk, BuiltAdapter};
+use crate::threads::threads::{CheckpointAsk, Entry, KeptHand, Row, Sessions, ThreadRecords, TurnChangesAsk};
 
 pub mod forward;
 pub mod reopen;
 pub mod run;
 
-/// The road a turn's events arrive on. Not `Send`: it holds the turn's state. wsp-adapters' `OnEvent` is
-/// `Arc<dyn Fn + Send + Sync>` and drops those bounds before a real harness can be handed one (ruling 6400791637,
-/// point 1); see the slice README.
-pub type Forward = Rc<dyn Fn(AdapterEvent)>;
-
 /// Launches the harness session, handing it the turn's forward; may call it before it returns (TS `t.open`).
-pub type Open = Box<dyn FnOnce(Forward) -> Result<Arc<dyn HarnessSession>, HostError>>;
+pub type Open = Box<dyn FnOnce(OnEvent) -> Result<Arc<dyn HarnessSession>, HostError>>;
 
 /// What the turn's own `session.start` row carries (turns.ts:42).
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -67,7 +64,8 @@ pub struct TurnSnapshot {
 /// Everything `run_turn` is handed (turns.ts:19-67).
 pub struct TurnStart {
     pub entry: Entry,
-    pub view: SharedView,
+    /// The turn's row, built by the caller around the view it keeps writing; `run` inserts it into `sessions`.
+    pub row: Row,
     pub written: Option<TurnWritten>,
     pub thread_id: String,
     pub turn_id: String,
@@ -79,49 +77,13 @@ pub struct TurnStart {
     /// Never `held`.
     pub outcome: SessionStartOutcome,
     pub opening: Opening,
-    pub asked: Option<SharedAsked>,
     pub resume: Option<String>,
-    pub turn_live: Option<SharedLive>,
     pub images_dir: Option<String>,
     pub snapshot: Option<TurnSnapshot>,
     pub reports_edits: bool,
-    pub waiting: Option<Waiting>,
+    pub waiting: Option<crate::threads::threads::Waiting>,
     pub keep: Option<KeptLaunch>,
     pub open: Open,
-}
-
-/// A row as the notify, cut and send-back roads read it (TS `{ view, turnId, turnLive?, notify?, ... }`).
-#[derive(Clone)]
-pub struct TurnRow {
-    pub view: SharedView,
-    pub turn_id: String,
-    pub notify: Option<Vec<String>>,
-    pub notify_by: Option<ThreadScope>,
-    pub notify_road: Option<WorkspaceOrigin>,
-    pub turn_live: Option<SharedLive>,
-    pub asked: Option<SharedAsked>,
-}
-
-/// `ctx.keepCheckpoint(entry, ...)`'s ask (turns.ts:149).
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct CheckpointAsk {
-    pub session_id: String,
-    pub thread_id: String,
-    pub turn_id: String,
-    pub anchor: Option<String>,
-    pub kept: Option<String>,
-}
-
-/// `ctx.readTurnChanges(entry, ...)`'s ask (turns.ts:88).
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ChangesAsk {
-    pub session_id: String,
-    pub turn_id: String,
-    pub thread_id: String,
-    pub cwd: String,
-    pub from: String,
-    pub started_at: f64,
-    pub wrote: Option<Vec<String>>,
 }
 
 /// The account a turn's use is filed under (TS `ctx.usageAccountOf(...)`).
@@ -171,18 +133,6 @@ pub struct BurnAsk {
     pub replayed: Option<(String, f64)>,
 }
 
-/// A kept agent handed to the runtime at a turn's end (turns.ts:683).
-pub struct KeptHold {
-    pub workspace_id: String,
-    pub agent: Box<dyn KeptAgent>,
-    pub launch: KeptLaunch,
-    pub session: String,
-    pub turn_token: String,
-    pub pid: Option<u32>,
-    pub scope_device_id: Option<String>,
-    pub waiting: Waiting,
-}
-
 /// What the runtime's close runs for each turn still open (TS `ctx.heldAtClose`).
 pub type HeldAtClose = Rc<RefCell<Vec<Rc<dyn Fn()>>>>;
 
@@ -194,38 +144,38 @@ pub type Sweep = Box<dyn FnOnce(Vec<String>) -> LocalBoxFuture<'static, Result<V
 #[async_trait(?Send)]
 pub trait TurnsCtx {
     fn clock(&self) -> Rc<dyn Clock>;
-    fn sessions(&self) -> Rows;
-    fn records(&self) -> Records;
+    fn sessions(&self) -> Sessions;
+    fn records(&self) -> ThreadRecords;
     fn live_entry(&self, workspace_id: &str) -> Option<Entry>;
     fn latest_on(&self, thread_id: &str) -> Option<SessionView>;
     fn closing(&self) -> bool;
     /// `ctx.record(event)`: the transcript row, and the bus.
     fn record(&self, event: SessionEvent);
     /// `bus.emit(event)` for the events no transcript holds (`thread.marked`, `usage.account`).
-    fn emit(&self, event: serde_json::Value);
+    fn emit(&self, event: EventUnion);
     /// `bus.pass(event)`: delivered, never ringed.
-    fn pass(&self, event: serde_json::Value);
+    fn pass(&self, event: EventUnion);
     async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError>;
     async fn persist_record(&self, record: WorkspaceRecord) -> Result<(), HostError>;
     fn held_at_close(&self) -> HeldAtClose;
     async fn slates_turn_ended(&self, thread_id: &str, turn_id: &str) -> Result<(), HostError>;
     fn keep_checkpoint(&self, entry: &Entry, ask: CheckpointAsk) -> Joined;
     fn checkpoints_landing(&self) -> Rc<RefCell<IndexMap<String, Joined>>>;
-    async fn read_turn_changes(&self, entry: &Entry, ask: ChangesAsk) -> Result<bool, HostError>;
+    async fn read_turn_changes(&self, entry: &Entry, ask: TurnChangesAsk) -> Result<bool, HostError>;
     fn lead_asks(&self) -> Rc<RefCell<IndexMap<String, PermissionAsk>>>;
     /// `harnessCatalog(harness)?.permissionModes` label of a mode.
     fn mode_label(&self, harness: &str, mode: &str) -> Option<String>;
     /// `ctx.settleCut(row, reason, () => reason, byStop, unreached)`.
-    fn settle_cut(&self, row: TurnRow, reason: &str, by_stop: bool, unreached: bool);
+    fn settle_cut(&self, row: &Row, reason: &str, by_stop: bool, unreached: bool);
     /// `ctx.lineTry({ view, turnId, asked? })`.
-    fn line_try(&self, row: &TurnRow) -> bool;
+    fn line_try(&self, row: &Row) -> bool;
     fn prompt_held(&self, request_id: &str);
     async fn name_in_harness(&self, view: SessionView, title: &str) -> Result<(), HostError>;
     /// `ctx.sourceOf(view)`: where the row's title came from.
     fn source_of(&self, view: &SessionView) -> Option<String>;
     fn hold_ask(&self, ask: LocalBoxFuture<'static, ()>);
-    async fn refresh_title(&self, view: SharedView, ended: bool) -> Result<(), HostError>;
-    async fn make_title(&self, view: SharedView) -> Result<(), HostError>;
+    async fn refresh_title(&self, row: &Row, ended: bool) -> Result<(), HostError>;
+    async fn make_title(&self, row: &Row) -> Result<(), HostError>;
     fn usage_account_of(&self, entry: &Entry, harness: &str, account: Option<(String, Option<String>)>) -> UsageAccount;
     fn usage_computer_of(&self, record: &WorkspaceRecord) -> String;
     async fn ledger_add(&self, row: LedgerUse) -> Result<(), HostError>;
@@ -233,10 +183,10 @@ pub trait TurnsCtx {
     async fn ledger_limit(&self, ask: LimitAsk) -> Result<(serde_json::Value, serde_json::Value), HostError>;
     async fn alerts_read(&self, before: serde_json::Value, after: serde_json::Value) -> Result<(), HostError>;
     /// `(await ctx.usageAccounts()).accounts`, each with its key.
-    async fn usage_accounts(&self) -> Result<Vec<(String, serde_json::Value)>, HostError>;
+    async fn usage_accounts(&self) -> Result<AccountsAnswer, HostError>;
     fn burn_add(&self, ask: BurnAsk);
     /// `ctx.notifyEnd(row, notify, ctx.tellAs(row), result, { open })`.
-    fn notify_end(&self, row: TurnRow, notify: &[String], result: TurnResult, open: bool);
+    fn notify_end(&self, row: &Row, notify: &[String], result: TurnResult, open: bool);
     /// waits' `agent_retried`.
     fn agent_retried(&self, turn_id: &str, why: Option<&str>);
     fn end_snooze_for(&self, view: &SessionView);
@@ -244,6 +194,8 @@ pub trait TurnsCtx {
     fn idle_release(&self, workspace_id: &str);
     fn arm_disk_watch(&self);
     async fn read_disk(&self, entry: &Entry) -> Result<(), HostError>;
+    /// `harnessExec(entry.machine, ms)`: the machine's command road for a harness read bounded by `ms`.
+    fn harness_exec(&self, entry: &Entry, timeout_ms: u64) -> Arc<dyn HarnessExec>;
     /// `ctx.moduleOf(entry.record.kind).sharedDaemon`.
     fn shared_daemon(&self, entry: &Entry) -> bool;
     fn turn_groups(&self) -> Rc<RefCell<IndexMap<String, IndexMap<u32, String>>>>;
@@ -251,7 +203,7 @@ pub trait TurnsCtx {
     fn port_roots_moved(&self, workspace_id: &str);
     /// Keeps the agent for the thread's next turn; a hold the runtime refuses is handed back, so the turn closes its
     /// agent (TS `ctx.holdKept(...)` answering false).
-    fn hold_kept(&self, thread_id: &str, hold: KeptHold) -> Option<KeptHold>;
+    fn hold_kept(&self, thread_id: &str, hold: KeptHand) -> Option<KeptHand>;
     async fn revoke_device(&self, device_id: &str) -> Result<(), HostError>;
     async fn read_checkout(&self, entry: &Entry, fresh: bool) -> Result<(), HostError>;
     async fn ran_on_branch(&self, entry: &Entry, thread_id: &str) -> Result<(), HostError>;
@@ -261,13 +213,13 @@ pub trait TurnsCtx {
     fn pull_request_state(&self, entry: &Entry) -> Option<String>;
     async fn settle_tree(&self, entry: &Entry) -> Result<(), HostError>;
     fn drop_images(&self, entry: &Entry, dir: &str);
-    fn send_back(&self, row: TurnRow, unread: Vec<String>, stopped: bool);
+    fn send_back(&self, row: &Row, unread: Vec<String>, stopped: bool);
     async fn take_review(&self, entry: &Entry, thread_id: &str, text: &str) -> Result<(), HostError>;
     // reopen
     fn is_held_away(&self, workspace_id: &str) -> bool;
     /// `ctx.execFactoryFor(entry).sweep`, None where the factory has none.
     fn exec_sweep(&self, entry: &Entry) -> Option<Sweep>;
-    fn adapter_for(&self, entry: &Entry, harness: &str, ask: AdapterAsk) -> Result<BuiltAdapter, HostError>;
+    fn adapter_for(&self, entry: &Entry, ask: AdapterAsk) -> Result<BuiltAdapter, HostError>;
     async fn open_thread(&self, workspace_id: &str, thread_id: &str) -> Result<Vec<SessionEvent>, HostError>;
 }
 
@@ -283,24 +235,5 @@ impl TurnsArea {
     }
 }
 
-/// What a row the store left running carries into a re-open (turns.ts:774).
-#[derive(Clone)]
-pub struct ReopenRow {
-    pub view: SharedView,
-    pub turn_id: String,
-    pub notify: Option<Vec<String>>,
-    pub notify_by: Option<ThreadScope>,
-    pub notify_road: Option<WorkspaceOrigin>,
-    pub turn_live: Option<SharedLive>,
-    pub run: Option<String>,
-    pub from: Option<u64>,
-    pub asked: Option<SharedAsked>,
-    pub turn_token: Option<String>,
-    pub scope_device_id: Option<String>,
-    pub snapshot: Option<String>,
-}
-
 pub use run::{TurnHandle, TurnState};
 
-/// The handle `run_turn` answers, as the runtime holds it.
-pub type Handle = Rc<dyn SessionHandle>;

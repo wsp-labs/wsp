@@ -3,9 +3,11 @@
 //! order (string, bool and number arguments in parentheses), and answered by the hook a test set for
 //! `"<Trait>::<method>"`, else by the host's own state, else by a neutral default (no, none, empty, ok). A method with
 //! no neutral answer panics naming the hook to set. `generated.rs` is written by `gen_fake.py` from the traits:
-//! `python3 tests/support/gen_fake.py src tests/support/fake_hand.rs.in > tests/support/generated.rs`.
+//! `python3 tests/support_a/gen_fake.py src tests/support_a/fake_hand.rs.in > tests/support_a/generated.rs`.
 #![allow(dead_code)]
 
+#[path = "../common/entry.rs"]
+pub mod entry;
 pub mod fake;
 pub mod generated;
 pub mod session;

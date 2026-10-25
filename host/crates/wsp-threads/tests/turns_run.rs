@@ -2,9 +2,11 @@
 //! spec/turns_run.md. TS cases: session-row.test.ts:145, permission-relay.test.ts:179-420 and :646-700,
 //! turn-changes.test.ts:170 and :483-510, thread-keeps-process.test.ts:92. The event switch is turns_forward's:
 //! events here only open an ask, name an anchor, report what the agent held or give a reply.
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::{Cell, RefCell};
+use std::collections::BTreeSet;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
@@ -47,30 +49,33 @@ fn doc(id: &str, extra: Value) -> Value {
     d
 }
 
-fn turn_view(extra: Value) -> SharedView {
-    shared(serde_json::from_value(doc(TURN, extra)).expect("a session view"))
+fn turn_row(extra: Value) -> Row {
+    row(serde_json::from_value(doc(TURN, extra)).expect("a session view"), TURN)
 }
 
-fn json_of(view: &SharedView) -> Value {
-    serde_json::to_value(&*view.borrow()).expect("a view serializes")
+fn json_of(turn: &Row) -> Value {
+    serde_json::to_value(&turn.borrow().view).expect("a view serializes")
+}
+
+/// The turn's live state as its row holds it now.
+fn live_of(turn: &Row) -> TurnLive {
+    turn.borrow().turn_live.clone().expect("the row's live state")
 }
 
 /// The row the start road keeps under the turn's id while the harness is still being reached.
-fn launching(host: &FakeHost, view: &SharedView) {
-    let mut r = row(view.borrow().clone(), TURN);
-    r.view = view.clone();
-    host.add_row(TURN, r);
+fn launching(host: &FakeHost, turn: &Row) {
+    host.add_row(TURN, turn.clone());
 }
 
 fn failed(message: &str) -> HostError {
     HostError::new(message)
 }
 
-fn turn_start(entry: &Entry, view: &SharedView, session: &Arc<FakeSession>, slot: &Rc<RefCell<Option<Forward>>>) -> TurnStart {
+fn turn_start(entry: &Entry, turn: &Row, session: &Arc<FakeSession>, slot: &Rc<RefCell<Option<OnEvent>>>) -> TurnStart {
     let (s, held) = (session.clone(), slot.clone());
     TurnStart {
         entry: entry.clone(),
-        view: view.clone(),
+        row: turn.clone(),
         written: None,
         thread_id: THREAD.into(),
         turn_id: TURN.into(),
@@ -81,15 +86,13 @@ fn turn_start(entry: &Entry, view: &SharedView, session: &Arc<FakeSession>, slot
         scope_device_id: None,
         outcome: SessionStartOutcome::Started,
         opening: Opening { prompt: "write it".into(), ..Opening::default() },
-        asked: None,
         resume: None,
-        turn_live: None,
         images_dir: None,
         snapshot: None,
         reports_edits: false,
         waiting: None,
         keep: None,
-        open: Box::new(move |f: Forward| {
+        open: Box::new(move |f: OnEvent| {
             *held.borrow_mut() = Some(f);
             Ok(s as Arc<dyn HarnessSession>)
         }),
@@ -98,9 +101,9 @@ fn turn_start(entry: &Entry, view: &SharedView, session: &Arc<FakeSession>, slot
 
 struct Rig {
     host: Rc<FakeHost>,
-    view: SharedView,
+    turn: Row,
     session: Arc<FakeSession>,
-    forward: Forward,
+    forward: OnEvent,
     handle: Rc<dyn SessionHandle>,
 }
 
@@ -108,42 +111,54 @@ impl Rig {
     fn send(&self, doc: Value) {
         (self.forward)(adapter_event(doc))
     }
-    fn row(&self) -> SessionEntry {
+    fn row(&self) -> Row {
         self.host.rows.borrow().get(SESS).cloned().expect("the turn's row under its session id")
     }
+    fn snapshot(&self) -> Option<String> {
+        self.row().borrow().snapshot.clone()
+    }
+    fn token(&self) -> Option<String> {
+        self.row().borrow().turn_token.clone()
+    }
+    fn pid(&self) -> Option<u32> {
+        self.row().borrow().pid
+    }
+    fn calls_open(&self) -> usize {
+        self.row().borrow().calls.as_ref().expect("calls").len()
+    }
     fn end(&self, reason: &str, by_stop: bool, unreached: bool) {
-        let end = self.row().end.expect("the row's end");
+        let end = self.row().borrow().end.clone().expect("the row's end");
         end(reason, Some(by_stop), Some(unreached))
     }
 }
 
-fn rig_on(host: &Rc<FakeHost>, entry: &Entry, session: Arc<FakeSession>, view: SharedView, tweak: impl FnOnce(&mut TurnStart)) -> Rig {
-    let slot: Rc<RefCell<Option<Forward>>> = Rc::new(RefCell::new(None));
-    let mut t = turn_start(entry, &view, &session, &slot);
+fn rig_on(host: &Rc<FakeHost>, entry: &Entry, session: Arc<FakeSession>, turn: Row, tweak: impl FnOnce(&mut TurnStart)) -> Rig {
+    let slot: Rc<RefCell<Option<OnEvent>>> = Rc::new(RefCell::new(None));
+    let mut t = turn_start(entry, &turn, &session, &slot);
     tweak(&mut t);
     let handle = TurnsArea::new(host.clone()).run_turn(t).ok().expect("the turn opens");
     let forward = slot.borrow().clone().expect("open handed the forward over");
-    Rig { host: host.clone(), view, session, forward, handle }
+    Rig { host: host.clone(), turn, session, forward, handle }
 }
 
 fn rig() -> Rig {
     let (host, entry) = world();
-    let view = turn_view(json!({}));
-    launching(&host, &view);
-    rig_on(&host, &entry, FakeSession::new(SESS), view, |_| {})
+    let turn = turn_row(json!({}));
+    launching(&host, &turn);
+    rig_on(&host, &entry, FakeSession::new(SESS), turn, |_| {})
 }
 
 fn rig_with(session: Arc<FakeSession>, tweak: impl FnOnce(&mut TurnStart)) -> Rig {
     let (host, entry) = world();
-    let view = turn_view(json!({}));
-    launching(&host, &view);
-    rig_on(&host, &entry, session, view, tweak)
+    let turn = turn_row(json!({}));
+    launching(&host, &turn);
+    rig_on(&host, &entry, session, turn, tweak)
 }
 
 /// A turn's state with no session behind it, for the methods that need none.
-fn state_on(host: &Rc<FakeHost>, entry: &Entry, view: &SharedView, tweak: impl FnOnce(&mut TurnStart)) -> Rc<TurnState> {
-    let slot: Rc<RefCell<Option<Forward>>> = Rc::new(RefCell::new(None));
-    let mut t = turn_start(entry, view, &FakeSession::new(SESS), &slot);
+fn state_on(host: &Rc<FakeHost>, entry: &Entry, turn: &Row, tweak: impl FnOnce(&mut TurnStart)) -> Rc<TurnState> {
+    let slot: Rc<RefCell<Option<OnEvent>>> = Rc::new(RefCell::new(None));
+    let mut t = turn_start(entry, turn, &FakeSession::new(SESS), &slot);
     tweak(&mut t);
     TurnState::new(host.clone(), &t)
 }
@@ -245,12 +260,12 @@ impl KeptAgent for FakeKept {
     fn next(&self, _turn: KeptTurn) -> Result<Arc<dyn HarnessSession>, AdapterError> {
         Err(AdapterError("no next turn here".into()))
     }
-    fn close(&self, now: bool) -> BoxFuture<'static, ()> {
+    fn close(&self, now: bool) -> LocalBoxFuture<'static, ()> {
         self.closes.lock().unwrap().push(now);
-        futures::future::ready(()).boxed()
+        futures::future::ready(()).boxed_local()
     }
     fn exited(&self) -> SharedFuture<()> {
-        futures::future::ready(()).boxed().shared()
+        futures::future::ready(()).boxed_local().shared()
     }
 }
 
@@ -266,28 +281,27 @@ fn a_new_turn_holds_one_row_under_the_sessions_id_and_drops_its_turn_key() {
     run_local(async {
         let (host, entry) = world();
         host.add_row("other", row(view("other", W, json!({ "threadId": "t0" })), "turn-0"));
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let asked = Rc::new(RefCell::new(TurnAsked { prompt: "write it".into(), effort: Some("high".into()), typed: None, request_id: None, owed: None, awaits_prompt: None }));
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let asked = TurnAsked { prompt: "write it".into(), effort: Some("high".into()), typed: None, request_id: None, owed: None, awaits_prompt: None };
+        turn.borrow_mut().asked = Some(asked.clone());
         let session = FakeSession::with(SESS, |s| {
             s.run = Some("run-1".into());
             s.from = Some(40);
         });
-        let a = asked.clone();
-        let r = rig_on(&host, &entry, session, view.clone(), |t| {
+        let r = rig_on(&host, &entry, session, turn.clone(), |t| {
             t.notify = Some(vec!["thr_lead".into()]);
             t.notify_by = Some(scope());
             t.notify_road = Some(WorkspaceOrigin::Paired);
             t.turn_token = Some("tok-1".into());
             t.scope_device_id = Some("dev-1".into());
-            t.asked = Some(a);
             t.snapshot = Some(TurnSnapshot { from: SnapshotFrom::Known(Some("c0".into())), cwd: "/work/w1".into() });
         });
         settle().await;
         assert_eq!(host.rows.borrow().keys().cloned().collect::<Vec<_>>(), vec!["other".to_string(), SESS.to_string()]);
-        let held = r.row();
+        assert!(Rc::ptr_eq(&r.row(), &turn));
+        let held = turn.borrow();
         assert_eq!(held.turn_id, TURN);
-        assert!(Rc::ptr_eq(&held.view, &view));
         assert_eq!(held.notify, Some(vec!["thr_lead".to_string()]));
         assert_eq!(held.notify_by, Some(scope()));
         assert_eq!(held.notify_road, Some(WorkspaceOrigin::Paired));
@@ -295,14 +309,15 @@ fn a_new_turn_holds_one_row_under_the_sessions_id_and_drops_its_turn_key() {
         assert_eq!(held.scope_device_id.as_deref(), Some("dev-1"));
         assert_eq!(held.run.as_deref(), Some("run-1"));
         assert_eq!(held.from, Some(40));
-        assert!(Rc::ptr_eq(held.asked.as_ref().expect("asked"), &asked));
+        assert_eq!(held.asked, Some(asked));
         assert_eq!(held.snapshot.as_deref(), Some("c0"));
         assert_eq!(held.pid, None);
-        assert_eq!(held.handle.as_ref().expect("the handle").id(), SESS);
+        assert_eq!(held.handle.clone().expect("the handle").id(), SESS);
         assert!(held.end.is_some() && held.calls.is_some());
-        assert_eq!(*held.turn_live.as_ref().expect("a live cell").borrow(), TurnLive::default());
+        assert_eq!(held.turn_live, Some(TurnLive::default()));
         assert!(held.launch.is_none() && held.replaces.is_none() && !held.unanswered && !held.queued);
-        assert_eq!(json_of(&view), doc(SESS, json!({})));
+        drop(held);
+        assert_eq!(json_of(&turn), doc(SESS, json!({})));
         assert_eq!((r.handle.id(), r.handle.workspace_id(), r.handle.turn_id(), r.handle.outcome()), (SESS.to_string(), W.to_string(), TURN.to_string(), SessionStartOutcome::Started));
         assert_eq!(host.hooks.calls(), vec!["idle_hold(w1)", "arm_disk_watch", "port_roots_moved(w1)", "persist_sessions(w1)"]);
     });
@@ -313,19 +328,19 @@ fn a_new_turn_holds_one_row_under_the_sessions_id_and_drops_its_turn_key() {
 fn the_row_rides_the_live_cell_the_turn_was_handed() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let live: SharedLive = Rc::new(RefCell::new(TurnLive { reply: Some(TurnStatus::Completed), told: Some(1), waited: num(5_000), ..TurnLive::default() }));
-        let l = live.clone();
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |t| t.turn_live = Some(l));
-        assert!(Rc::ptr_eq(r.row().turn_live.as_ref().expect("a live cell"), &live));
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let live = TurnLive { reply: Some(TurnStatus::Completed), told: Some(1), waited: num(5_000), ..TurnLive::default() };
+        turn.borrow_mut().turn_live = Some(live.clone());
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |_| {});
+        assert_eq!(r.row().borrow().turn_live, Some(live));
         r.send(ask_event("ask_1"));
         host.clock.advance(2_000);
         r.send(close_event("ask_1", "allowed"));
-        assert_eq!(live.borrow().waited, num(7_000), "the span adds to what the cell already held");
-        assert_eq!(live.borrow().waiting_since, None);
-        assert_eq!(live.borrow().reply, Some(TurnStatus::Completed));
-        assert_eq!(live.borrow().told, Some(1));
+        assert_eq!(live_of(&turn).waited, num(7_000), "the span adds to what the cell already held");
+        assert_eq!(live_of(&turn).waiting_since, None);
+        assert_eq!(live_of(&turn).reply, Some(TurnStatus::Completed));
+        assert_eq!(live_of(&turn).told, Some(1));
     });
 }
 
@@ -335,20 +350,20 @@ fn a_reopened_row_keeps_the_id_a_client_holds() {
     run_local(async {
         let (host, entry) = world();
         host.add_row("a", row(view("a", W, json!({ "threadId": "t0" })), "turn-0"));
-        let mut old = row(view("client-id", W, json!({ "threadId": THREAD })), "turn-1");
-        old.turn_token = Some("old-token".into());
+        let old = row(view("client-id", W, json!({ "threadId": THREAD })), "turn-1");
+        old.borrow_mut().turn_token = Some("old-token".into());
         host.add_row("client-id", old);
         host.add_row("z", row(view("z", W, json!({ "threadId": "t9" })), "turn-9"));
-        let view = turn_view(json!({ "id": "client-id" }));
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |t| t.written = Some(TurnWritten::default()));
+        let turn = turn_row(json!({ "id": "client-id" }));
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |t| t.written = Some(TurnWritten::default()));
         settle().await;
         assert_eq!(host.rows.borrow().keys().cloned().collect::<Vec<_>>(), vec!["a", "client-id", "z"], "the row replaced the old one in its place");
         let held = host.rows.borrow()["client-id"].clone();
-        assert!(Rc::ptr_eq(&held.view, &view));
-        assert_eq!(held.turn_token, None, "the old row is replaced whole");
-        assert_eq!(held.turn_id, TURN);
+        assert!(Rc::ptr_eq(&held, &turn));
+        assert_eq!(held.borrow().turn_token, None, "the old row is replaced whole");
+        assert_eq!(held.borrow().turn_id, TURN);
         assert_eq!(r.handle.id(), "client-id");
-        assert_eq!(json_of(&view)["id"], "client-id");
+        assert_eq!(json_of(&turn)["id"], "client-id");
     });
 }
 
@@ -358,14 +373,14 @@ fn a_view_with_no_id_or_the_turns_own_takes_the_sessions_id() {
     for id in ["", TURN] {
         run_local(async move {
             let (host, entry) = world();
-            let view = turn_view(json!({ "id": id }));
+            let turn = turn_row(json!({ "id": id }));
             if id == TURN {
-                launching(&host, &view);
+                launching(&host, &turn);
             }
-            let r = rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |_| {});
+            let r = rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |_| {});
             assert_eq!(host.rows.borrow().keys().cloned().collect::<Vec<_>>(), vec![SESS.to_string()], "view id {id:?}");
             assert_eq!(r.handle.id(), SESS);
-            assert_eq!(json_of(&view)["id"], SESS);
+            assert_eq!(json_of(&turn)["id"], SESS);
         });
     }
 }
@@ -376,12 +391,12 @@ fn a_resumed_turn_takes_over_its_rows_opener_prompt_and_cost() {
     run_local(async {
         let (host, entry) = world();
         host.add_row(SESS, row(view(SESS, W, json!({ "threadId": THREAD, "startedBy": "person", "prompt": "the first brief", "costUsd": 0.5 })), "turn-0"));
-        let view = turn_view(json!({ "startedBy": "cli", "prompt": "go on" }));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |t| t.resume = Some(SESS.into()));
-        assert_eq!(json_of(&view), doc(SESS, json!({ "startedBy": "person", "prompt": "the first brief", "costUsd": 0.5 })));
+        let turn = turn_row(json!({ "startedBy": "cli", "prompt": "go on" }));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |t| t.resume = Some(SESS.into()));
+        assert_eq!(json_of(&turn), doc(SESS, json!({ "startedBy": "person", "prompt": "the first brief", "costUsd": 0.5 })));
         assert_eq!(host.rows.borrow().keys().cloned().collect::<Vec<_>>(), vec![SESS.to_string()]);
-        assert!(Rc::ptr_eq(&r.row().view, &view), "the new row took the old one's place");
+        assert!(Rc::ptr_eq(&r.row(), &turn), "the new row took the old one's place");
     });
 }
 
@@ -391,10 +406,10 @@ fn a_resumed_row_that_names_nothing_leaves_the_view_alone() {
     run_local(async {
         let (host, entry) = world();
         host.add_row(SESS, row(view(SESS, W, json!({ "threadId": THREAD })), "turn-0"));
-        let view = turn_view(json!({ "startedBy": "cli", "prompt": "go on" }));
-        launching(&host, &view);
-        rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |t| t.resume = Some(SESS.into()));
-        assert_eq!(json_of(&view), doc(SESS, json!({ "startedBy": "cli", "prompt": "go on" })));
+        let turn = turn_row(json!({ "startedBy": "cli", "prompt": "go on" }));
+        launching(&host, &turn);
+        rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |t| t.resume = Some(SESS.into()));
+        assert_eq!(json_of(&turn), doc(SESS, json!({ "startedBy": "cli", "prompt": "go on" })));
     });
 }
 
@@ -404,10 +419,10 @@ fn a_turn_that_does_not_resume_takes_over_nothing() {
     run_local(async {
         let (host, entry) = world();
         host.add_row(SESS, row(view(SESS, W, json!({ "threadId": THREAD, "startedBy": "person", "prompt": "the first brief", "costUsd": 0.5 })), "turn-0"));
-        let view = turn_view(json!({ "startedBy": "cli", "prompt": "go on" }));
-        launching(&host, &view);
-        rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |_| {});
-        assert_eq!(json_of(&view), doc(SESS, json!({ "startedBy": "cli", "prompt": "go on" })));
+        let turn = turn_row(json!({ "startedBy": "cli", "prompt": "go on" }));
+        launching(&host, &turn);
+        rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |_| {});
+        assert_eq!(json_of(&turn), doc(SESS, json!({ "startedBy": "cli", "prompt": "go on" })));
     });
 }
 
@@ -418,15 +433,15 @@ fn a_turn_that_does_not_resume_takes_over_nothing() {
 fn a_launch_that_throws_releases_the_idle_hold_and_fails() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({}));
-        launching(&host, &view);
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
         let waiting = Rc::new(Cell::new(true));
         let seen: Rc<Cell<Option<bool>>> = Rc::new(Cell::new(None));
         let slot = Rc::new(RefCell::new(None));
-        let mut t = turn_start(&entry, &view, &FakeSession::new(SESS), &slot);
+        let mut t = turn_start(&entry, &turn, &FakeSession::new(SESS), &slot);
         t.waiting = Some(waiting.clone());
         let (s, w) = (seen.clone(), waiting.clone());
-        t.open = Box::new(move |_f: Forward| {
+        t.open = Box::new(move |_f: OnEvent| {
             s.set(Some(w.get()));
             Err(HostError::with_kind("the launch was refused", Kind::Usage))
         });
@@ -436,7 +451,7 @@ fn a_launch_that_throws_releases_the_idle_hold_and_fails() {
         assert_eq!(seen.get(), Some(false), "the waiting box was read again before the launch");
         assert_eq!(host.hooks.calls(), vec!["idle_hold(w1)", "idle_release(w1)"]);
         assert_eq!(host.rows.borrow().keys().cloned().collect::<Vec<_>>(), vec![TURN.to_string()]);
-        assert_eq!(json_of(&view)["id"], TURN);
+        assert_eq!(json_of(&turn)["id"], TURN);
     });
 }
 
@@ -465,9 +480,9 @@ fn a_disk_that_does_not_read_after_the_turn_is_warned() {
             "TurnsCtx::read_disk",
             Rc::new(|_e: &Entry| async { Err(failed("the disk is full")) }.boxed_local()),
         );
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |_| {});
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |_| {});
         finish(&r, json!({ "status": "completed" }));
         settle().await;
         assert_eq!(lines.lines(), vec!["disk of w1 not read after its turn: the disk is full".to_string()]);
@@ -479,11 +494,11 @@ fn a_disk_that_does_not_read_after_the_turn_is_warned() {
 fn a_kept_process_that_still_says_waiting_reads_the_box_again() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({}));
-        launching(&host, &view);
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
         let waiting = Rc::new(Cell::new(true));
         let w = waiting.clone();
-        rig_on(&host, &entry, FakeSession::new(SESS), view, |t| t.waiting = Some(w));
+        rig_on(&host, &entry, FakeSession::new(SESS), turn, |t| t.waiting = Some(w));
         assert!(!waiting.get());
     });
 }
@@ -495,37 +510,34 @@ fn a_kept_process_that_still_says_waiting_reads_the_box_again() {
 fn an_open_ask_marks_the_row_asking_and_counts_the_time_on_the_person() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({ "claudeSessionId": "agent-sess" }));
+        let turn = turn_row(json!({ "claudeSessionId": "agent-sess" }));
         let waiting = Rc::new(Cell::new(false));
-        let live: SharedLive = Rc::new(RefCell::new(TurnLive::default()));
-        let (w, l) = (waiting.clone(), live.clone());
-        let state = state_on(&host, &entry, &view, |t| {
-            t.waiting = Some(w);
-            t.turn_live = Some(l);
-        });
+        turn.borrow_mut().turn_live = Some(TurnLive::default());
+        let w = waiting.clone();
+        let state = state_on(&host, &entry, &turn, |t| t.waiting = Some(w));
         state.forward(adapter_event(ask_event("ask_1")));
         settle().await;
-        assert_eq!(view.borrow().asking, Some(asking(&ask_doc("ask_1"))));
+        assert_eq!(turn.borrow().view.asking, Some(asking(&ask_doc("ask_1"))));
         let lead = host.lead_asks.borrow()[THREAD].clone();
         let mut named = ask_doc("ask_1");
         named["options"][2]["label"] = json!(permission_mode_option_label("acceptEdits"));
         assert_eq!(serde_json::to_value(&lead).unwrap(), named);
         assert!(waiting.get());
-        assert_eq!((live.borrow().waiting_since, live.borrow().waited), (num(T0), num(0)));
+        assert_eq!((live_of(&turn).waiting_since, live_of(&turn).waited), (num(T0), num(0)));
         assert_eq!(host.hooks.called("persist_sessions").len(), 1);
 
         host.clock.advance(3 * MIN);
         state.forward(adapter_event(ask_event("ask_2")));
-        assert_eq!(view.borrow().asking, Some(asking(&ask_doc("ask_1"))), "the oldest open ask leads");
-        assert_eq!(live.borrow().waiting_since, num(T0), "the span began at the first open");
+        assert_eq!(turn.borrow().view.asking, Some(asking(&ask_doc("ask_1"))), "the oldest open ask leads");
+        assert_eq!(live_of(&turn).waiting_since, num(T0), "the span began at the first open");
         host.clock.advance(2 * MIN);
         state.close_ask("ask_1", PermissionOutcome::Allowed, Some("allow"));
         state.close_ask("ask_1", PermissionOutcome::Allowed, Some("allow"));
         settle().await;
-        assert_eq!(view.borrow().asking, Some(asking(&ask_doc("ask_2"))));
+        assert_eq!(turn.borrow().view.asking, Some(asking(&ask_doc("ask_2"))));
         assert_eq!(host.lead_asks.borrow()[THREAD].ask_id, "ask_2");
         assert!(waiting.get());
-        assert_eq!(live.borrow().waiting_since, num(T0));
+        assert_eq!(live_of(&turn).waiting_since, num(T0));
         assert_eq!(host.recorded_of("session.permission.closed"), vec![closed_row("ask_1", "allowed", Some("allow"))], "a closed ask closes once");
 
         host.clock.advance(15 * MIN);
@@ -535,10 +547,10 @@ fn an_open_ask_marks_the_row_asking_and_counts_the_time_on_the_person() {
 
         state.close_ask("ask_2", PermissionOutcome::Cancelled, None);
         settle().await;
-        assert_eq!(view.borrow().asking, None);
+        assert_eq!(turn.borrow().view.asking, None);
         assert!(host.lead_asks.borrow().get(THREAD).is_none());
         assert!(!waiting.get());
-        assert_eq!((live.borrow().waited, live.borrow().waiting_since), (num(20 * MIN), None));
+        assert_eq!((live_of(&turn).waited, live_of(&turn).waiting_since), (num(20 * MIN), None));
         assert_eq!(host.recorded_of("session.permission.closed"), vec![closed_row("ask_1", "allowed", Some("allow")), closed_row("ask_2", "cancelled", None)]);
         assert_eq!(host.hooks.called("persist_sessions").len(), 4, "one write for each open and each close");
         host.clock.advance(10 * MIN);
@@ -551,8 +563,8 @@ fn an_open_ask_marks_the_row_asking_and_counts_the_time_on_the_person() {
 fn a_reply_carries_waited_ms_only_where_the_turn_waited() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({}));
-        let state = state_on(&host, &entry, &view, |_| {});
+        let turn = turn_row(json!({}));
+        let state = state_on(&host, &entry, &turn, |_| {});
         let reply = result(json!({ "status": "completed", "text": "ok" }));
         assert_eq!(state.waited_so_far(), 0.0);
         assert_eq!(state.with_waited(reply.clone()), reply);
@@ -564,16 +576,15 @@ fn a_reply_carries_waited_ms_only_where_the_turn_waited() {
 fn a_span_open_at_the_restart_is_counted_from_where_it_began() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({}));
-        let live: SharedLive = Rc::new(RefCell::new(TurnLive { waited: num(1_000), waiting_since: num(T0 - 4_000), ..TurnLive::default() }));
-        let l = live.clone();
-        let state = state_on(&host, &entry, &view, |t| t.turn_live = Some(l));
+        let turn = turn_row(json!({}));
+        turn.borrow_mut().turn_live = Some(TurnLive { waited: num(1_000), waiting_since: num(T0 - 4_000), ..TurnLive::default() });
+        let state = state_on(&host, &entry, &turn, |_| {});
         assert_eq!(state.waited_so_far(), 5_000.0);
         state.forward(adapter_event(ask_event("ask_1")));
-        assert_eq!(live.borrow().waiting_since, num(T0 - 4_000), "an open span is kept, not restarted");
+        assert_eq!(live_of(&turn).waiting_since, num(T0 - 4_000), "an open span is kept, not restarted");
         host.clock.advance(1_000);
         state.close_ask("ask_1", PermissionOutcome::Denied, Some("deny"));
-        assert_eq!((live.borrow().waited, live.borrow().waiting_since), (num(6_000), None));
+        assert_eq!((live_of(&turn).waited, live_of(&turn).waiting_since), (num(6_000), None));
     });
 }
 
@@ -586,8 +597,8 @@ fn a_mode_option_reads_the_catalogs_label() {
             "TurnsCtx::mode_label",
             Rc::new(|h: &str, m: &str| if (h, m) == ("claude", "acceptEdits") { Some("Accept edits".to_string()) } else { None }),
         );
-        let view = turn_view(json!({}));
-        let state = state_on(&host, &entry, &view, |_| {});
+        let turn = turn_row(json!({}));
+        let state = state_on(&host, &entry, &turn, |_| {});
         let mut ask = ask_doc("ask_1");
         ask["options"] = json!([
             { "id": "allow", "label": "Allow", "effect": "allow" },
@@ -696,8 +707,8 @@ fn answer_naming_no_option_is_no_option() {
 fn an_open_ask_with_no_harness_road_is_gone_after_its_option_is_picked() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({}));
-        let state = state_on(&host, &entry, &view, |_| {});
+        let turn = turn_row(json!({}));
+        let state = state_on(&host, &entry, &turn, |_| {});
         state.forward(adapter_event(ask_event("ask_1")));
         assert_eq!(state.answer("ask_1", "nope", None).await, answered(SessionAnswerOutcome::NoOption));
         assert_eq!(state.answer("ask_1", "allow", None).await, answered(SessionAnswerOutcome::Gone));
@@ -709,21 +720,21 @@ fn an_open_ask_with_no_harness_road_is_gone_after_its_option_is_picked() {
 fn an_ask_raised_while_the_session_opens_is_answered_through_its_road() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({}));
-        launching(&host, &view);
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
         let waiting = Rc::new(Cell::new(false));
         let session = FakeSession::with(SESS, |s| s.answers = true);
         let slot = Rc::new(RefCell::new(None));
-        let mut t = turn_start(&entry, &view, &session, &slot);
+        let mut t = turn_start(&entry, &turn, &session, &slot);
         t.waiting = Some(waiting.clone());
         let s = session.clone();
-        t.open = Box::new(move |f: Forward| {
+        t.open = Box::new(move |f: OnEvent| {
             f(adapter_event(ask_event("ask_1")));
             Ok(s as Arc<dyn HarnessSession>)
         });
         let handle = TurnsArea::new(host.clone()).run_turn(t).ok().expect("the turn opens");
         assert!(waiting.get(), "the ask raised in the launch holds the box");
-        assert_eq!(view.borrow().asking, Some(asking(&ask_doc("ask_1"))));
+        assert_eq!(turn.borrow().view.asking, Some(asking(&ask_doc("ask_1"))));
         let got = handle.answer("ask_1".into(), "allow".into(), None).expect("a road").await;
         assert_eq!(got.ok(), Some(answered(SessionAnswerOutcome::Answered)));
         assert_eq!(session.calls(), vec![format!("answer(ask_1, allow, Allowed, {}, \"\")", denied_line(None))]);
@@ -735,10 +746,10 @@ fn an_ask_raised_while_the_session_opens_is_answered_through_its_road() {
 fn work_still_running_holds_the_waiting_box_like_an_open_ask() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({}));
+        let turn = turn_row(json!({}));
         let waiting = Rc::new(Cell::new(false));
         let w = waiting.clone();
-        let state = state_on(&host, &entry, &view, |t| t.waiting = Some(w));
+        let state = state_on(&host, &entry, &turn, |t| t.waiting = Some(w));
         state.forward(adapter_event(json!({ "type": "turn.tasks", "sessionId": SESS, "running": 2 })));
         assert!(waiting.get());
         state.forward(adapter_event(ask_event("ask_1")));
@@ -753,9 +764,9 @@ fn work_still_running_holds_the_waiting_box_like_an_open_ask() {
 
 fn told_state(told: Option<ToldAs>) -> (Rc<FakeHost>, Rc<TurnState>) {
     let (host, entry) = world();
-    let view = turn_view(json!({}));
-    let live: SharedLive = Rc::new(RefCell::new(TurnLive { told_as: told, ..TurnLive::default() }));
-    let state = state_on(&host, &entry, &view, |t| t.turn_live = Some(live));
+    let turn = turn_row(json!({}));
+    turn.borrow_mut().turn_live = Some(TurnLive { told_as: told, ..TurnLive::default() });
+    let state = state_on(&host, &entry, &turn, |_| {});
     (host, state)
 }
 
@@ -844,8 +855,8 @@ fn the_handle_reads_the_row_as_it_stands_and_finishes_with_the_session() {
         let r = rig();
         let mut copy = r.handle.view();
         copy.prompt = Some("changed in the copy".into());
-        assert_eq!(r.view.borrow().prompt, None, "view() hands a copy");
-        r.view.borrow_mut().claude_session_id = Some("agent-1".into());
+        assert_eq!(r.turn.borrow().view.prompt, None, "view() hands a copy");
+        r.turn.borrow_mut().view.claude_session_id = Some("agent-1".into());
         assert_eq!(r.handle.view().claude_session_id.as_deref(), Some("agent-1"));
         let done = result(json!({ "status": "completed", "text": "ok" }));
         r.session.finish(done.clone());
@@ -899,27 +910,27 @@ fn interrupt_marks_the_turn_stopped_and_reaches_the_session() {
 fn end_closes_open_asks_settles_the_cut_and_interrupts_once() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({}));
-        launching(&host, &view);
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
         let waiting = Rc::new(Cell::new(false));
         let w = waiting.clone();
-        let r = rig_on(&host, &entry, FakeSession::with(SESS, |s| s.answers = true), view.clone(), |t| {
+        let r = rig_on(&host, &entry, FakeSession::with(SESS, |s| s.answers = true), turn.clone(), |t| {
             t.waiting = Some(w);
             t.snapshot = Some(TurnSnapshot { from: SnapshotFrom::Known(Some("c0".into())), cwd: "/work/w1".into() });
         });
         r.send(ask_event("ask_1"));
         r.send(ask_event("ask_2"));
         settle().await;
-        assert_eq!(r.row().snapshot.as_deref(), Some("c0"));
+        assert_eq!(r.snapshot().as_deref(), Some("c0"));
         let mark = host.hooks.calls().len();
 
         r.end("the machine is paused", true, true);
         settle().await;
         assert_eq!(host.recorded_of("session.permission.closed"), vec![closed_row("ask_1", "cancelled", None), closed_row("ask_2", "cancelled", None)]);
-        assert_eq!(view.borrow().asking, None);
+        assert_eq!(turn.borrow().view.asking, None);
         assert!(host.lead_asks.borrow().get(THREAD).is_none());
         assert!(!waiting.get());
-        assert_eq!(r.row().snapshot, None, "the launch's commit comes off the row");
+        assert_eq!(r.snapshot(), None, "the launch's commit comes off the row");
         assert_eq!(r.session.calls(), vec!["interrupt"]);
         let calls = after(&host, mark);
         assert_eq!(only(&host, &["settle_cut"]), vec!["settle_cut(the machine is paused, true, true)"]);
@@ -928,7 +939,7 @@ fn end_closes_open_asks_settles_the_cut_and_interrupts_once() {
         assert_eq!(calls.iter().filter(|c| *c == "keep_checkpoint").count(), 1);
 
         r.send(ask_event("ask_3"));
-        assert_eq!(view.borrow().asking, None, "once ended the turn's events are dropped");
+        assert_eq!(turn.borrow().view.asking, None, "once ended the turn's events are dropped");
         let mark = host.hooks.calls().len();
         r.end("again", false, false);
         settle().await;
@@ -937,7 +948,7 @@ fn end_closes_open_asks_settles_the_cut_and_interrupts_once() {
 
         finish(&r, json!({ "status": "interrupted" }));
         settle().await;
-        assert_eq!(view.borrow().status, SessionStatus::Running, "an end here leaves the status to the cut");
+        assert_eq!(turn.borrow().view.status, SessionStatus::Running, "an end here leaves the status to the cut");
         assert_eq!(only(&host, &["send_back"]), vec!["send_back(true)"]);
     });
 }
@@ -949,7 +960,7 @@ fn end_after_the_turn_settled_does_nothing() {
         let r = rig();
         finish(&r, json!({ "status": "completed", "text": "ok" }));
         settle().await;
-        assert_eq!(r.view.borrow().status, SessionStatus::Completed);
+        assert_eq!(r.turn.borrow().view.status, SessionStatus::Completed);
         let mark = r.host.hooks.calls().len();
         r.end("late", true, false);
         settle().await;
@@ -957,7 +968,7 @@ fn end_after_the_turn_settled_does_nothing() {
         assert_eq!(r.session.calls(), Vec::<String>::new());
 
         let other = rig();
-        other.view.borrow_mut().status = SessionStatus::Interrupted;
+        other.turn.borrow_mut().view.status = SessionStatus::Interrupted;
         let mark = other.host.hooks.calls().len();
         other.end("late", true, false);
         settle().await;
@@ -972,33 +983,34 @@ fn end_hands_settle_cut_the_turns_own_row_fields() {
     run_local(async {
         for with_all in [true, false] {
             let (host, entry) = world();
-            let cut: Rc<RefCell<Vec<TurnRow>>> = Rc::default();
+            let cut: Rc<RefCell<Vec<Row>>> = Rc::default();
             let c = cut.clone();
-            host.hooks.set::<dyn Fn(TurnRow, &str, bool, bool) -> ()>("TurnsCtx::settle_cut", Rc::new(move |row: TurnRow, _r: &str, _s: bool, _u: bool| c.borrow_mut().push(row)));
-            let view = turn_view(json!({}));
-            launching(&host, &view);
-            let asked = Rc::new(RefCell::new(TurnAsked { prompt: "write it".into(), effort: None, typed: None, request_id: None, owed: None, awaits_prompt: None }));
-            let a = asked.clone();
-            let r = rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |t| {
+            host.hooks.set::<dyn Fn(&Row, &str, bool, bool) -> ()>("TurnsCtx::settle_cut", Rc::new(move |row: &Row, _r: &str, _s: bool, _u: bool| c.borrow_mut().push(row.clone())));
+            let turn = turn_row(json!({}));
+            launching(&host, &turn);
+            let asked = TurnAsked { prompt: "write it".into(), effort: None, typed: None, request_id: None, owed: None, awaits_prompt: None };
+            if with_all {
+                turn.borrow_mut().asked = Some(asked.clone());
+            }
+            let r = rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |t| {
                 if with_all {
                     t.notify = Some(vec!["thr_lead".into()]);
                     t.notify_by = Some(scope());
                     t.notify_road = Some(WorkspaceOrigin::Relayed);
-                    t.asked = Some(a);
                 }
             });
             r.end("cut", false, false);
             let rows = cut.borrow();
             assert_eq!(rows.len(), 1);
-            let row = &rows[0];
-            assert!(Rc::ptr_eq(&row.view, &view));
+            assert!(Rc::ptr_eq(&rows[0], &turn));
+            let row = rows[0].borrow();
             assert_eq!(row.turn_id, TURN);
-            assert!(Rc::ptr_eq(row.turn_live.as_ref().expect("the turn's live cell"), r.row().turn_live.as_ref().unwrap()));
+            assert!(row.turn_live.is_some(), "the turn's live state");
             if with_all {
                 assert_eq!(row.notify, Some(vec!["thr_lead".to_string()]));
                 assert_eq!(row.notify_by, Some(scope()));
                 assert_eq!(row.notify_road, Some(WorkspaceOrigin::Relayed));
-                assert!(Rc::ptr_eq(row.asked.as_ref().expect("asked"), &asked));
+                assert_eq!(row.asked, Some(asked));
             } else {
                 assert_eq!((row.notify.clone(), row.notify_by.clone(), row.notify_road), (None, None, None));
                 assert!(row.asked.is_none());
@@ -1023,14 +1035,14 @@ fn the_turns_end_drops_every_undo_on_its_workspace_and_says_so() {
         host.add_record("t3", "w2", thread_record(rewound()));
         host.add_record("t4", W, thread_record(json!({ "harness": "claude" })));
         host.add_record("t2", W, thread_record(rewound()));
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |_| {});
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |_| {});
         settle().await;
         let mark = host.hooks.calls().len();
         r.send(session_end());
         settle().await;
-        let rewound_of = |t: &str| host.records.borrow()[t].record.rewound.clone();
+        let rewound_of = |t: &str| host.records.borrow()[t].rewound.clone();
         assert_eq!((rewound_of("t1"), rewound_of("t2"), rewound_of("t4")), (None, None, None));
         assert!(rewound_of("t3").is_some(), "another workspace's undo stays");
         assert_eq!(host.emitted.borrow().clone(), vec![json!({ "type": "thread.marked", "workspaceId": W, "threadIds": ["t1", "t2"] })]);
@@ -1038,9 +1050,9 @@ fn the_turns_end_drops_every_undo_on_its_workspace_and_says_so() {
 
         let (host, entry) = world();
         host.add_record("t4", W, thread_record(json!({ "harness": "claude" })));
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |_| {});
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |_| {});
         settle().await;
         let mark = host.hooks.calls().len();
         r.send(session_end());
@@ -1082,9 +1094,9 @@ fn the_turns_end_keeps_a_checkpoint_and_writes_what_the_agent_held() {
                 l.clone()
             }),
         );
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |_| {});
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |_| {});
         assert_eq!(host.held_at_close.borrow().len(), 1, "the turn holds a close-time write while it runs");
         r.send(json!({ "type": "turn.usage", "sessionId": SESS, "tokens": 1200, "context": 5000, "window": 200000 }));
         r.send(json!({ "type": "turn.anchor", "sessionId": SESS, "anchor": "a-1", "kept": "cannot cut" }));
@@ -1116,9 +1128,9 @@ fn a_checkpoint_another_turn_replaced_stays_when_the_first_lands() {
         let landing: Joined = rx.map(|_| ()).boxed_local().shared();
         let l = landing.clone();
         host.hooks.set::<dyn Fn(&Entry, CheckpointAsk) -> Joined>("TurnsCtx::keep_checkpoint", Rc::new(move |_e: &Entry, _a: CheckpointAsk| l.clone()));
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |_| {});
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |_| {});
         r.send(session_end());
         let (_other_tx, other_rx) = oneshot::channel::<()>();
         let other: Joined = other_rx.map(|_| ()).boxed_local().shared();
@@ -1143,9 +1155,9 @@ fn a_turn_with_nothing_held_and_no_anchor_keeps_a_bare_checkpoint() {
                 done()
             }),
         );
-        let view = turn_view(json!({ "claudeSessionId": "agent-1" }));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |_| {});
+        let turn = turn_row(json!({ "claudeSessionId": "agent-1" }));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |_| {});
         r.send(session_end());
         settle().await;
         assert_eq!(
@@ -1197,11 +1209,11 @@ fn a_shared_daemon_turn_names_its_group() {
     run_local(async {
         let (host, entry) = world();
         host.hooks.set::<dyn Fn(&Entry) -> bool>("TurnsCtx::shared_daemon", Rc::new(|_e: &Entry| true));
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::with(SESS, |s| s.pid = Some(4321)), view, |_| {});
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::with(SESS, |s| s.pid = Some(4321)), turn, |_| {});
         settle().await;
-        assert_eq!(r.row().pid, Some(4321));
+        assert_eq!(r.pid(), Some(4321));
         assert_eq!(
             host.hooks.calls(),
             vec!["idle_hold(w1)", "arm_disk_watch", "shared_daemon", "arm_roots_recheck", "port_roots_moved(w1)", "persist_sessions(w1)"]
@@ -1212,7 +1224,7 @@ fn a_shared_daemon_turn_names_its_group() {
         groups.insert(W.to_string(), group.clone());
         assert_eq!(*host.turn_groups.borrow(), groups);
 
-        let second = turn_view(json!({ "id": "turn-2", "threadId": "t2" }));
+        let second = turn_row(json!({ "id": "turn-2", "threadId": "t2" }));
         let slot = Rc::new(RefCell::new(None));
         let session = FakeSession::with("sess-2", |s| s.pid = Some(77));
         let mut t = turn_start(&entry, &second, &session, &slot);
@@ -1236,20 +1248,20 @@ fn a_turn_on_a_private_daemon_or_with_no_pid_names_no_group() {
 
         let (host, entry) = world();
         host.hooks.set::<dyn Fn(&Entry) -> bool>("TurnsCtx::shared_daemon", Rc::new(|_e: &Entry| true));
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        rig_on(&host, &entry, FakeSession::new(SESS), view, |_| {});
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        rig_on(&host, &entry, FakeSession::new(SESS), turn, |_| {});
         settle().await;
         assert_eq!(host.hooks.calls(), vec!["idle_hold(w1)", "arm_disk_watch", "port_roots_moved(w1)", "persist_sessions(w1)"]);
         assert!(host.turn_groups.borrow().is_empty());
     });
 }
 
-fn changes_hook(host: &FakeHost, asks: &Rc<RefCell<Vec<ChangesAsk>>>, answer: Rc<RefCell<Option<oneshot::Receiver<bool>>>>) {
+fn changes_hook(host: &FakeHost, asks: &Rc<RefCell<Vec<TurnChangesAsk>>>, answer: Rc<RefCell<Option<oneshot::Receiver<bool>>>>) {
     let a = asks.clone();
-    host.hooks.set::<dyn Fn(&Entry, ChangesAsk) -> LocalBoxFuture<'static, Result<bool, HostError>>>(
+    host.hooks.set::<dyn Fn(&Entry, TurnChangesAsk) -> LocalBoxFuture<'static, Result<bool, HostError>>>(
         "TurnsCtx::read_turn_changes",
-        Rc::new(move |_e: &Entry, ask: ChangesAsk| {
+        Rc::new(move |_e: &Entry, ask: TurnChangesAsk| {
             a.borrow_mut().push(ask);
             let rx = answer.borrow_mut().take();
             async move {
@@ -1269,8 +1281,8 @@ fn taking() -> (oneshot::Sender<Option<String>>, TurnSnapshot) {
     (tx, TurnSnapshot { from: SnapshotFrom::Taking(from), cwd: "/work/w1".into() })
 }
 
-fn changes_ask(from: &str, started_at: f64, wrote: Option<Vec<String>>) -> ChangesAsk {
-    ChangesAsk { session_id: SESS.into(), turn_id: TURN.into(), thread_id: THREAD.into(), cwd: "/work/w1".into(), from: from.into(), started_at, wrote }
+fn changes_ask(from: &str, started_at: i64, wrote: Option<BTreeSet<String>>) -> TurnChangesAsk {
+    TurnChangesAsk { session_id: SESS.into(), turn_id: TURN.into(), thread_id: THREAD.into(), cwd: "/work/w1".into(), from: from.into(), started_at, wrote }
 }
 
 // N15, N19, N20: turn-changes.test.ts:170, 483
@@ -1278,39 +1290,39 @@ fn changes_ask(from: &str, started_at: f64, wrote: Option<Vec<String>>) -> Chang
 fn the_snapshot_rides_the_row_until_the_changes_are_read() {
     run_local(async {
         let (host, entry) = world();
-        let asks: Rc<RefCell<Vec<ChangesAsk>>> = Rc::default();
+        let asks: Rc<RefCell<Vec<TurnChangesAsk>>> = Rc::default();
         let (read_tx, read_rx) = oneshot::channel::<bool>();
         changes_hook(&host, &asks, Rc::new(RefCell::new(Some(read_rx))));
         let (snap_tx, snapshot) = taking();
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |t| {
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |t| {
             t.snapshot = Some(snapshot);
             t.turn_token = Some("tok-1".into());
         });
         settle().await;
-        assert_eq!(r.row().snapshot, None, "no commit on the row while the snapshot is still being taken");
+        assert_eq!(r.snapshot(), None, "no commit on the row while the snapshot is still being taken");
         let persists = host.hooks.called("persist_sessions").len();
         snap_tx.send(Some("c1".into())).unwrap();
         settle().await;
-        assert_eq!(r.row().snapshot.as_deref(), Some("c1"));
+        assert_eq!(r.snapshot().as_deref(), Some("c1"));
         assert_eq!(host.hooks.called("persist_sessions").len(), persists + 1);
 
         r.send(done_event(json!({ "status": "completed", "text": "ok" })));
         settle().await;
-        assert_eq!(asks.borrow().clone(), vec![changes_ask("c1", T0 as f64, None)]);
+        assert_eq!(asks.borrow().clone(), vec![changes_ask("c1", T0, None)]);
         r.send(session_end());
         settle().await;
         assert_eq!(asks.borrow().len(), 1, "the changes are read once");
 
         finish(&r, json!({ "status": "completed", "text": "ok" }));
         settle().await;
-        assert_eq!(r.row().snapshot.as_deref(), Some("c1"), "the commit stays while the read is out");
-        assert_eq!(r.row().turn_token, None, "the token goes with the exit");
+        assert_eq!(r.snapshot().as_deref(), Some("c1"), "the commit stays while the read is out");
+        assert_eq!(r.token(), None, "the token goes with the exit");
         let persists = host.hooks.called("persist_sessions").len();
         read_tx.send(false).unwrap();
         settle().await;
-        assert_eq!(r.row().snapshot, None, "a read that lands after the end takes the commit off");
+        assert_eq!(r.snapshot(), None, "a read that lands after the end takes the commit off");
         assert_eq!(host.hooks.called("persist_sessions").len(), persists + 1);
     });
 }
@@ -1320,18 +1332,18 @@ fn the_snapshot_rides_the_row_until_the_changes_are_read() {
 fn the_commit_comes_off_at_the_end_when_the_read_was_already_in() {
     run_local(async {
         let (host, entry) = world();
-        let asks: Rc<RefCell<Vec<ChangesAsk>>> = Rc::default();
+        let asks: Rc<RefCell<Vec<TurnChangesAsk>>> = Rc::default();
         changes_hook(&host, &asks, Rc::default());
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |t| t.snapshot = Some(TurnSnapshot { from: SnapshotFrom::Known(Some("c1".into())), cwd: "/work/w1".into() }));
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |t| t.snapshot = Some(TurnSnapshot { from: SnapshotFrom::Known(Some("c1".into())), cwd: "/work/w1".into() }));
         r.send(done_event(json!({ "status": "completed" })));
         settle().await;
         assert_eq!(asks.borrow().len(), 1);
-        assert_eq!(r.row().snapshot.as_deref(), Some("c1"), "a read that lands before the end leaves the row alone");
+        assert_eq!(r.snapshot().as_deref(), Some("c1"), "a read that lands before the end leaves the row alone");
         finish(&r, json!({ "status": "completed" }));
         settle().await;
-        assert_eq!(r.row().snapshot, None);
+        assert_eq!(r.snapshot(), None);
     });
 }
 
@@ -1341,12 +1353,12 @@ fn a_read_that_fails_as_the_host_closes_leaves_the_commit_on_disk() {
     run_local(async {
         for (read, closing, written) in [(false, true, false), (true, true, true), (false, false, true)] {
             let (host, entry) = world();
-            let asks: Rc<RefCell<Vec<ChangesAsk>>> = Rc::default();
+            let asks: Rc<RefCell<Vec<TurnChangesAsk>>> = Rc::default();
             let (read_tx, read_rx) = oneshot::channel::<bool>();
             changes_hook(&host, &asks, Rc::new(RefCell::new(Some(read_rx))));
-            let view = turn_view(json!({}));
-            launching(&host, &view);
-            let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |t| t.snapshot = Some(TurnSnapshot { from: SnapshotFrom::Known(Some("c1".into())), cwd: "/work/w1".into() }));
+            let turn = turn_row(json!({}));
+            launching(&host, &turn);
+            let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |t| t.snapshot = Some(TurnSnapshot { from: SnapshotFrom::Known(Some("c1".into())), cwd: "/work/w1".into() }));
             r.send(done_event(json!({ "status": "completed" })));
             finish(&r, json!({ "status": "completed" }));
             settle().await;
@@ -1370,11 +1382,11 @@ fn no_changes_are_read_without_a_snapshot_or_where_they_were_written() {
             (Some(TurnSnapshot { from: SnapshotFrom::Known(Some("c1".into())), cwd: "/work/w1".into() }), true),
         ] {
             let (host, entry) = world();
-            let asks: Rc<RefCell<Vec<ChangesAsk>>> = Rc::default();
+            let asks: Rc<RefCell<Vec<TurnChangesAsk>>> = Rc::default();
             changes_hook(&host, &asks, Rc::default());
-            let view = turn_view(json!({}));
-            launching(&host, &view);
-            let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |t| {
+            let turn = turn_row(json!({}));
+            launching(&host, &turn);
+            let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |t| {
                 t.snapshot = snapshot;
                 if written {
                     t.written = Some(TurnWritten { changes: true, ..TurnWritten::default() });
@@ -1392,21 +1404,21 @@ fn no_changes_are_read_without_a_snapshot_or_where_they_were_written() {
 #[test]
 fn the_changes_ask_names_the_start_and_the_edits_only_where_the_harness_reports_them() {
     run_local(async {
-        for (reports, expected_wrote) in [(true, Some(Vec::<String>::new())), (false, None)] {
+        for (reports, expected_wrote) in [(true, Some(BTreeSet::<String>::new())), (false, None)] {
             let (host, entry) = world();
-            let asks: Rc<RefCell<Vec<ChangesAsk>>> = Rc::default();
+            let asks: Rc<RefCell<Vec<TurnChangesAsk>>> = Rc::default();
             changes_hook(&host, &asks, Rc::default());
-            let view = turn_view(json!({}));
-            view.borrow_mut().started_at = None;
-            launching(&host, &view);
+            let turn = turn_row(json!({}));
+            turn.borrow_mut().view.started_at = None;
+            launching(&host, &turn);
             host.clock.advance(5_000);
-            let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |t| {
+            let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |t| {
                 t.reports_edits = reports;
                 t.snapshot = Some(TurnSnapshot { from: SnapshotFrom::Known(Some("c1".into())), cwd: "/work/w1".into() });
             });
             r.send(done_event(json!({ "status": "completed" })));
             settle().await;
-            assert_eq!(asks.borrow().clone(), vec![changes_ask("c1", (T0 + 5_000) as f64, expected_wrote)], "reports edits {reports}: a view with no start reads the clock");
+            assert_eq!(asks.borrow().clone(), vec![changes_ask("c1", T0 + 5_000, expected_wrote)], "reports edits {reports}: a view with no start reads the clock");
         }
     });
 }
@@ -1417,31 +1429,31 @@ fn a_snapshot_that_answers_nothing_or_after_the_row_moved_on_writes_nothing() {
     run_local(async {
         let (host, entry) = world();
         let (tx, snapshot) = taking();
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |t| t.snapshot = Some(snapshot));
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |t| t.snapshot = Some(snapshot));
         settle().await;
         let persists = host.hooks.called("persist_sessions").len();
         tx.send(None).unwrap();
         settle().await;
-        assert_eq!((r.row().snapshot, host.hooks.called("persist_sessions").len()), (None, persists));
+        assert_eq!((r.snapshot(), host.hooks.called("persist_sessions").len()), (None, persists));
 
         for stale in ["not running", "another turn"] {
             let (host, entry) = world();
             let (tx, snapshot) = taking();
-            let view = turn_view(json!({}));
-            launching(&host, &view);
-            let r = rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |t| t.snapshot = Some(snapshot));
+            let turn = turn_row(json!({}));
+            launching(&host, &turn);
+            let r = rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |t| t.snapshot = Some(snapshot));
             settle().await;
             if stale == "not running" {
-                view.borrow_mut().status = SessionStatus::Completed;
+                turn.borrow_mut().view.status = SessionStatus::Completed;
             } else {
-                host.rows.borrow_mut()[SESS].turn_id = "turn-2".into();
+                host.rows.borrow()[SESS].borrow_mut().turn_id = "turn-2".into();
             }
             let persists = host.hooks.called("persist_sessions").len();
             tx.send(Some("c1".into())).unwrap();
             settle().await;
-            assert_eq!((r.row().snapshot, host.hooks.called("persist_sessions").len()), (None, persists), "{stale}");
+            assert_eq!((r.snapshot(), host.hooks.called("persist_sessions").len()), (None, persists), "{stale}");
         }
     });
 }
@@ -1451,35 +1463,35 @@ fn a_snapshot_that_answers_nothing_or_after_the_row_moved_on_writes_nothing() {
 fn a_row_another_turn_took_over_keeps_its_snapshot_and_token() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |t| {
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |t| {
             t.turn_token = Some("tok-1".into());
             t.snapshot = Some(TurnSnapshot { from: SnapshotFrom::Known(Some("c1".into())), cwd: "/work/w1".into() });
         });
         {
-            let mut rows = host.rows.borrow_mut();
-            let row = &mut rows[SESS];
+            let rows = host.rows.borrow();
+            let mut row = rows[SESS].borrow_mut();
             row.turn_id = "turn-2".into();
             row.turn_token = Some("tok-2".into());
             row.snapshot = Some("c9".into());
         }
         finish(&r, json!({ "status": "completed" }));
         settle().await;
-        assert_eq!((r.row().turn_token, r.row().snapshot), (Some("tok-2".to_string()), Some("c9".to_string())));
+        assert_eq!((r.token(), r.snapshot()), (Some("tok-2".to_string()), Some("c9".to_string())));
     });
 }
 
 // ---- the exit (N21-N26) ------------------------------------------------------------------------------------------
 
-type Holds = Rc<RefCell<Vec<(String, KeptHold)>>>;
+type Holds = Rc<RefCell<Vec<(String, KeptHand)>>>;
 
 fn hold_hook(host: &FakeHost, takes: bool) -> Holds {
     let holds: Holds = Rc::default();
     let h = holds.clone();
-    host.hooks.set::<dyn Fn(&str, KeptHold) -> Option<KeptHold>>(
+    host.hooks.set::<dyn Fn(&str, KeptHand) -> Option<KeptHand>>(
         "TurnsCtx::hold_kept",
-        Rc::new(move |thread: &str, hold: KeptHold| {
+        Rc::new(move |thread: &str, hold: KeptHand| {
             if !takes {
                 return Some(hold);
             }
@@ -1505,11 +1517,11 @@ fn a_kept_agent_keeps_its_token_and_device() {
         let (host, entry) = world();
         let holds = hold_hook(&host, true);
         let closes = Arc::new(Mutex::new(Vec::new()));
-        let view = turn_view(json!({ "claudeSessionId": "agent-1" }));
-        launching(&host, &view);
+        let turn = turn_row(json!({ "claudeSessionId": "agent-1" }));
+        launching(&host, &turn);
         let waiting = Rc::new(Cell::new(false));
         let w = waiting.clone();
-        let r = rig_on(&host, &entry, keeping(&closes, Some(99)), view, |t| {
+        let r = rig_on(&host, &entry, keeping(&closes, Some(99)), turn, |t| {
             t.keep = Some(kept_launch());
             t.turn_token = Some("tok-1".into());
             t.scope_device_id = Some("dev-1".into());
@@ -1523,14 +1535,14 @@ fn a_kept_agent_keeps_its_token_and_device() {
         assert_eq!(thread, THREAD);
         assert_eq!(hold.workspace_id, W);
         assert_eq!(hold.launch, kept_launch());
-        assert_eq!(hold.session, "agent-1");
+        assert_eq!(hold.session.as_deref(), Some("agent-1"));
         assert_eq!(hold.turn_token, "tok-1");
         assert_eq!(hold.pid, Some(99));
         assert_eq!(hold.scope_device_id.as_deref(), Some("dev-1"));
         assert!(Rc::ptr_eq(&hold.waiting, &waiting));
         assert_eq!(*closes.lock().unwrap(), Vec::<bool>::new(), "a kept agent is not closed");
         assert_eq!(host.hooks.called("revoke_device"), Vec::<String>::new(), "a kept agent keeps its device");
-        assert_eq!(r.row().turn_token, None, "the row no longer names the token");
+        assert_eq!(r.token(), None, "the row no longer names the token");
     });
 }
 
@@ -1541,9 +1553,9 @@ fn a_kept_agent_with_no_pid_or_no_waiting_box_is_offered_with_a_fresh_box() {
         let (host, entry) = world();
         let holds = hold_hook(&host, true);
         let closes = Arc::new(Mutex::new(Vec::new()));
-        let view = turn_view(json!({ "claudeSessionId": "agent-1" }));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, keeping(&closes, None), view, |t| {
+        let turn = turn_row(json!({ "claudeSessionId": "agent-1" }));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, keeping(&closes, None), turn, |t| {
             t.keep = Some(kept_launch());
             t.turn_token = Some("tok-1".into());
         });
@@ -1563,9 +1575,9 @@ fn an_agent_not_kept_is_closed_and_its_device_revoked() {
         let (host, entry) = world();
         let holds = hold_hook(&host, false);
         let closes = Arc::new(Mutex::new(Vec::new()));
-        let view = turn_view(json!({ "claudeSessionId": "agent-1" }));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, keeping(&closes, None), view, |t| {
+        let turn = turn_row(json!({ "claudeSessionId": "agent-1" }));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, keeping(&closes, None), turn, |t| {
             t.keep = Some(kept_launch());
             t.turn_token = Some("tok-1".into());
             t.scope_device_id = Some("dev-1".into());
@@ -1582,9 +1594,9 @@ fn an_agent_not_kept_is_closed_and_its_device_revoked() {
             let (host, entry) = world();
             let holds = hold_hook(&host, true);
             let closes = Arc::new(Mutex::new(Vec::new()));
-            let view = turn_view(if variant == "no session" { json!({}) } else { json!({ "claudeSessionId": "agent-1" }) });
-            launching(&host, &view);
-            let r = rig_on(&host, &entry, keeping(&closes, None), view, |t| {
+            let turn = turn_row(if variant == "no session" { json!({}) } else { json!({ "claudeSessionId": "agent-1" }) });
+            launching(&host, &turn);
+            let r = rig_on(&host, &entry, keeping(&closes, None), turn, |t| {
                 t.keep = Some(kept_launch());
                 t.scope_device_id = Some("dev-1".into());
                 if variant != "no token" {
@@ -1610,9 +1622,9 @@ fn a_turn_launched_with_no_keep_leaves_the_agent_alone_and_revokes_its_device() 
         let (host, entry) = world();
         let holds = hold_hook(&host, true);
         let closes = Arc::new(Mutex::new(Vec::new()));
-        let view = turn_view(json!({ "claudeSessionId": "agent-1" }));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, keeping(&closes, None), view, |t| {
+        let turn = turn_row(json!({ "claudeSessionId": "agent-1" }));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, keeping(&closes, None), turn, |t| {
             t.turn_token = Some("tok-1".into());
             t.scope_device_id = Some("dev-1".into());
         });
@@ -1635,9 +1647,9 @@ fn a_device_that_will_not_go_is_warned() {
             "TurnsCtx::revoke_device",
             Rc::new(|_d: &str| async { Err(failed("the door is shut")) }.boxed_local()),
         );
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |t| t.scope_device_id = Some("dev-1".into()));
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |t| t.scope_device_id = Some("dev-1".into()));
         finish(&r, json!({ "status": "completed" }));
         settle().await;
         assert_eq!(lines.lines(), vec![format!("the token of thread {} was not taken away: the door is shut", thread_word(THREAD))]);
@@ -1649,16 +1661,16 @@ fn a_device_that_will_not_go_is_warned() {
 fn the_turns_token_comes_off_its_row_at_the_exit_and_a_later_ones_stays() {
     run_local(async {
         let r = rig_with(FakeSession::new(SESS), |t| t.turn_token = Some("tok-1".into()));
-        assert_eq!(r.row().turn_token.as_deref(), Some("tok-1"));
+        assert_eq!(r.token().as_deref(), Some("tok-1"));
         finish(&r, json!({ "status": "completed" }));
         settle().await;
-        assert_eq!(r.row().turn_token, None);
+        assert_eq!(r.token(), None);
 
         let r = rig_with(FakeSession::new(SESS), |t| t.turn_token = Some("tok-1".into()));
-        r.host.rows.borrow_mut()[SESS].turn_token = Some("tok-2".into());
+        r.host.rows.borrow()[SESS].borrow_mut().turn_token = Some("tok-2".into());
         finish(&r, json!({ "status": "completed" }));
         settle().await;
-        assert_eq!(r.row().turn_token.as_deref(), Some("tok-2"));
+        assert_eq!(r.token().as_deref(), Some("tok-2"));
     });
 }
 
@@ -1667,13 +1679,13 @@ fn the_turns_token_comes_off_its_row_at_the_exit_and_a_later_ones_stays() {
 fn a_process_that_exits_with_no_result_reads_its_status_words() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |_| {});
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |_| {});
         r.send(json!({ "type": "turn.delta", "sessionId": SESS, "kind": "tool_use", "text": "{}", "toolName": "Bash", "toolUseId": "toolu_1" }));
         let ask: PermissionAsk = serde_json::from_value(ask_doc("ask_1")).unwrap();
         host.lead_asks.borrow_mut().insert(THREAD.to_string(), ask);
-        assert_eq!(r.row().calls.expect("calls").borrow().len(), 1);
+        assert_eq!(r.calls_open(), 1);
         settle().await;
         let mark = host.hooks.calls().len();
         host.clock.advance(9_000);
@@ -1684,9 +1696,9 @@ fn a_process_that_exits_with_no_result_reads_its_status_words() {
         for (k, v) in serde_json::to_value(&lines).unwrap().as_object().unwrap() {
             expected[k] = v.clone();
         }
-        assert_eq!(json_of(&view), expected);
+        assert_eq!(json_of(&turn), expected);
         assert!(lines.failure.is_some());
-        assert_eq!(r.row().calls.expect("calls").borrow().len(), 0, "its own calls follow nobody now");
+        assert_eq!(r.calls_open(), 0, "its own calls follow nobody now");
         assert!(host.lead_asks.borrow().get(THREAD).is_none(), "nobody waits behind it any more");
         let calls = after(&host, mark);
         assert_eq!(calls.iter().filter(|c| *c == "end_snooze_for").count(), 1, "a failure ends the snooze");
@@ -1703,7 +1715,7 @@ fn only_a_failed_exit_ends_a_snooze_and_every_status_is_the_views() {
             let r = rig();
             finish(&r, json!({ "status": status }));
             settle().await;
-            assert_eq!(json_of(&r.view)["status"], status);
+            assert_eq!(json_of(&r.turn)["status"], status);
             assert_eq!(r.host.hooks.called("end_snooze_for").len(), usize::from(status == "failed"), "{status}");
         }
     });
@@ -1716,7 +1728,7 @@ fn a_reply_given_before_the_exit_keeps_its_lines_at_the_settle() {
         let r = rig();
         let reply = json!({ "status": "completed", "text": "Fixed it.\nAll files written." });
         r.send(done_event(reply.clone()));
-        let before = json_of(&r.view);
+        let before = json_of(&r.turn);
         finish(&r, reply.clone());
         settle().await;
         let lines = turn_lines(&result(reply), None);
@@ -1724,7 +1736,7 @@ fn a_reply_given_before_the_exit_keeps_its_lines_at_the_settle() {
         let mut expected = before;
         expected["status"] = json!("completed");
         expected["endedAt"] = json!(T0);
-        assert_eq!(json_of(&r.view), expected, "the lines the reply wrote stay as they were");
+        assert_eq!(json_of(&r.turn), expected, "the lines the reply wrote stay as they were");
         assert_eq!(expected["lastLine"], json!(lines.last_line.unwrap()));
     });
 }
@@ -1734,13 +1746,13 @@ fn a_reply_given_before_the_exit_keeps_its_lines_at_the_settle() {
 fn an_end_time_already_set_is_not_set_again() {
     run_local(async {
         let (host, entry) = world();
-        let view = turn_view(json!({ "endedAt": T0 + 1 }));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |_| {});
+        let turn = turn_row(json!({ "endedAt": T0 + 1 }));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |_| {});
         host.clock.advance(9_000);
         finish(&r, json!({ "status": "completed" }));
         settle().await;
-        assert_eq!(json_of(&view)["endedAt"], json!(T0 + 1));
+        assert_eq!(json_of(&turn)["endedAt"], json!(T0 + 1));
     });
 }
 
@@ -1750,22 +1762,22 @@ fn a_pick_landed_on_the_record_rides_the_ended_row() {
     run_local(async {
         let (host, entry) = world();
         host.add_record(THREAD, W, thread_record(json!({ "harness": "claude", "permissionMode": "dontAsk" })));
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |_| {});
-        assert_eq!(view.borrow().permission_mode.as_deref(), Some("bypassPermissions"));
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |_| {});
+        assert_eq!(turn.borrow().view.permission_mode.as_deref(), Some("bypassPermissions"));
         finish(&r, json!({ "status": "completed" }));
         settle().await;
-        assert_eq!(view.borrow().permission_mode.as_deref(), Some("dontAsk"));
+        assert_eq!(turn.borrow().view.permission_mode.as_deref(), Some("dontAsk"));
 
         let (host, entry) = world();
         host.add_record(THREAD, W, thread_record(json!({ "harness": "claude" })));
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |_| {});
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |_| {});
         finish(&r, json!({ "status": "completed" }));
         settle().await;
-        assert_eq!(view.borrow().permission_mode.as_deref(), Some("bypassPermissions"), "a record with no mode changes nothing");
+        assert_eq!(turn.borrow().view.permission_mode.as_deref(), Some("bypassPermissions"), "a record with no mode changes nothing");
     });
 }
 
@@ -1803,14 +1815,14 @@ fn the_root_workspace_settles_again_when_its_pull_request_is_not_open() {
             host.add_row("root-sess", row(view("root-sess", "w2", json!({ "threadId": "root-1", "startedAt": T0 })), "turn-r"));
             host.hooks.set::<dyn Fn(&Entry) -> Option<String>>(
                 "TurnsCtx::pull_request_state",
-                Rc::new(move |e: &Entry| if root.is_some() && e.id() == "w1" { Some("open".to_string()) } else { state.map(String::from) }),
+                Rc::new(move |e: &Entry| if root.is_some() && id_of(e) == "w1" { Some("open".to_string()) } else { state.map(String::from) }),
             );
             let settled: Rc<RefCell<Vec<String>>> = Rc::default();
             let s = settled.clone();
             host.hooks.set::<dyn Fn(&Entry) -> LocalBoxFuture<'static, Result<(), HostError>>>(
                 "TurnsCtx::settle_tree",
                 Rc::new(move |e: &Entry| {
-                    s.borrow_mut().push(e.id());
+                    s.borrow_mut().push(id_of(e));
                     async { Ok(()) }.boxed_local()
                 }),
             );
@@ -1818,9 +1830,9 @@ fn the_root_workspace_settles_again_when_its_pull_request_is_not_open() {
                 Some(id) => json!({ "rootThreadId": id }),
                 None => json!({}),
             };
-            let view = turn_view(extra);
-            launching(&host, &view);
-            let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |_| {});
+            let turn = turn_row(extra);
+            launching(&host, &turn);
+            let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |_| {});
             finish(&r, json!({ "status": "completed" }));
             settle().await;
             assert_eq!(*settled.borrow(), settles.iter().map(|s| s.to_string()).collect::<Vec<_>>(), "pr {state:?}, root {root:?}");
@@ -1828,8 +1840,12 @@ fn the_root_workspace_settles_again_when_its_pull_request_is_not_open() {
     });
 }
 
-fn entry_for(id: &str) -> Rc<FakeEntry> {
+fn entry_for(id: &str) -> Entry {
     entry(id, json!({}))
+}
+
+fn id_of(e: &Entry) -> String {
+    e.borrow().record.borrow().id.clone()
 }
 
 // N24: turns.ts:716-722
@@ -1842,9 +1858,9 @@ fn a_failed_branch_read_is_warned_and_the_rest_of_the_chain_stops() {
             "TurnsCtx::read_checkout",
             Rc::new(|_e: &Entry, _f: bool| async { Err(failed("git is gone")) }.boxed_local()),
         );
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |_| {});
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |_| {});
         finish(&r, json!({ "status": "completed" }));
         settle().await;
         assert_eq!(only(&host, CHAIN), vec!["refresh_title(true)", "read_checkout(true)", "pull_request_state"], "the settle-again check still runs");
@@ -1862,8 +1878,8 @@ fn a_turn_ended_here_reads_no_title_and_no_branch() {
         settle().await;
         assert_eq!(only(&r.host, CHAIN), Vec::<String>::new());
         assert_eq!(r.host.hooks.called("take_review"), Vec::<String>::new(), "a turn ended here takes no review");
-        assert_eq!(json_of(&r.view)["status"], "running", "the status is the cut's to set");
-        assert_eq!(json_of(&r.view)["endedAt"], json!(T0), "the end time is set all the same");
+        assert_eq!(json_of(&r.turn)["status"], "running", "the status is the cut's to set");
+        assert_eq!(json_of(&r.turn)["endedAt"], json!(T0), "the end time is set all the same");
     });
 }
 
@@ -1920,9 +1936,9 @@ fn a_review_that_does_not_read_is_warned() {
             "TurnsCtx::take_review",
             Rc::new(|_e: &Entry, _t: &str, _x: &str| async { Err(failed("the host went")) }.boxed_local()),
         );
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view, |_| {});
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn, |_| {});
         finish(&r, json!({ "status": "completed", "text": "ok" }));
         settle().await;
         assert_eq!(lines.lines(), vec!["the review in w1 was not read: the host went".to_string()]);
@@ -1936,7 +1952,7 @@ fn a_failed_finish_settles_failed() {
         let r = rig();
         r.session.fail();
         settle().await;
-        assert_eq!(json_of(&r.view)["status"], "failed");
+        assert_eq!(json_of(&r.turn)["status"], "failed");
         assert_eq!(only(&r.host, &["end_snooze_for", "send_back", "take_review"]), vec!["end_snooze_for", "send_back(false)"]);
     });
 }
@@ -1946,14 +1962,15 @@ fn a_failed_finish_settles_failed() {
 fn send_back_carries_the_unread_ids_and_whether_the_turn_was_stopped_and_only_the_turns_own_row() {
     run_local(async {
         let (host, entry) = world();
-        let sent: Rc<RefCell<Vec<(TurnRow, Vec<String>, bool)>>> = Rc::default();
+        let sent: Rc<RefCell<Vec<(Row, Vec<String>, bool)>>> = Rc::default();
         let s = sent.clone();
-        host.hooks.set::<dyn Fn(TurnRow, Vec<String>, bool) -> ()>("TurnsCtx::send_back", Rc::new(move |row: TurnRow, unread: Vec<String>, stopped: bool| s.borrow_mut().push((row, unread, stopped))));
-        let view = turn_view(json!({}));
-        launching(&host, &view);
-        let r = rig_on(&host, &entry, FakeSession::new(SESS), view.clone(), |t| {
+        host.hooks.set::<dyn Fn(&Row, Vec<String>, bool) -> ()>("TurnsCtx::send_back", Rc::new(move |row: &Row, unread: Vec<String>, stopped: bool| s.borrow_mut().push((row.clone(), unread, stopped))));
+        let turn = turn_row(json!({}));
+        launching(&host, &turn);
+        let asked = TurnAsked { prompt: "x".into(), effort: None, typed: None, request_id: None, owed: None, awaits_prompt: None };
+        turn.borrow_mut().asked = Some(asked.clone());
+        let r = rig_on(&host, &entry, FakeSession::new(SESS), turn.clone(), |t| {
             t.notify = Some(vec!["thr_lead".into()]);
-            t.asked = Some(Rc::new(RefCell::new(TurnAsked { prompt: "x".into(), effort: None, typed: None, request_id: None, owed: None, awaits_prompt: None })));
         });
         r.send(json!({ "type": "turn.unread", "sessionId": SESS, "ids": ["m1", "m2"] }));
         r.handle.interrupt().await;
@@ -1963,10 +1980,10 @@ fn send_back_carries_the_unread_ids_and_whether_the_turn_was_stopped_and_only_th
         assert_eq!(sent.len(), 1);
         let (row, unread, stopped) = &sent[0];
         assert_eq!((unread.clone(), *stopped), (vec!["m1".to_string(), "m2".to_string()], true));
-        assert!(Rc::ptr_eq(&row.view, &view));
-        assert_eq!(row.turn_id, TURN);
-        assert!(Rc::ptr_eq(row.turn_live.as_ref().expect("live"), r.row().turn_live.as_ref().unwrap()));
-        assert_eq!((row.notify.clone(), row.notify_by.clone(), row.notify_road), (None, None, None));
-        assert!(row.asked.is_none());
+        assert!(Rc::ptr_eq(row, &turn));
+        assert!(Rc::ptr_eq(row, &r.row()));
+        assert_eq!(row.borrow().turn_id, TURN);
+        assert!(row.borrow().turn_live.is_some());
+        assert_eq!((row.borrow().notify.clone(), row.borrow().asked.clone()), (Some(vec!["thr_lead".to_string()]), Some(asked)), "the row is the turn's whole row");
     });
 }

@@ -3,6 +3,7 @@
 //! host/test/activity.test.ts:264-330 (delete with processes), box-panels.test.ts (the group and the shells),
 //! owed-box.test.ts and box-stop.test.ts (a held send). Every effect is a hook that writes one line to `Rig::log`, so
 //! each case asserts the whole order of what a delete did.
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::{Cell, RefCell};
@@ -226,7 +227,7 @@ impl Rig {
     }
 
     fn rows_of(&self, thread: &str) -> Vec<String> {
-        self.host.rows.borrow().iter().filter(|(_, r)| r.view.borrow().thread_id.as_deref() == Some(thread)).map(|(k, _)| k.clone()).collect()
+        self.host.rows.borrow().iter().filter(|(_, r)| r.borrow().view.thread_id.as_deref() == Some(thread)).map(|(k, _)| k.clone()).collect()
     }
 
     fn has_record(&self, thread: &str) -> bool {
@@ -300,9 +301,9 @@ fn a_thread_nobody_holds_is_not_found_after_the_guard_ran() {
         r.untouched();
         // A caller the workspace does not reach reads as absent too.
         *r.guard.borrow_mut() = None;
-        r.host.hooks.set::<dyn Fn(Option<&str>, &str, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+        r.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
             "SessionsCtx::entry_of_row",
-            Rc::new(|_t: Option<&str>, _w: &str, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()),
+            Rc::new(|_at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()),
         );
         let e = r.delete(T, DeleteThreadAsk::default()).await.unwrap_err();
         assert_eq!(said(&e), said(&not_found_refusal(&format!("no thread {}", thread_word(T)))));
@@ -412,7 +413,7 @@ fn the_last_thread_takes_its_worktree() {
 fn a_thread_with_only_a_record_still_holds_the_worktree() {
     run_local(async {
         let r = Rig::new(worktree());
-        r.host.rows.borrow_mut().retain(|_, row| row.view.borrow().thread_id.as_deref() != Some(B));
+        r.host.rows.borrow_mut().retain(|_, row| row.borrow().view.thread_id.as_deref() != Some(B));
         // B has a record and no row, as one whose rows fell off the index cap does.
         let got = r.delete(T, DeleteThreadAsk::default()).await.unwrap();
         assert_eq!(got, deleted(None, None));
@@ -433,7 +434,7 @@ fn a_worktree_somebody_else_made_or_gone_is_never_taken() {
     run_local(async {
         for tree in [json!({ "path": WORKTREE, "made": false }), json!({ "path": WORKTREE, "made": true, "gone": true })] {
             let r = Rig::new(json!({ "worktree": tree }));
-            r.host.rows.borrow_mut().retain(|_, row| row.view.borrow().thread_id.as_deref() == Some(T));
+            r.host.rows.borrow_mut().retain(|_, row| row.borrow().view.thread_id.as_deref() == Some(T));
             r.host.records.borrow_mut().shift_remove(B);
             let got = r.delete(T, DeleteThreadAsk::default()).await.unwrap();
             assert_eq!(got, deleted(None, None));
@@ -450,7 +451,7 @@ fn a_worktree_somebody_else_made_or_gone_is_never_taken() {
 fn a_worktree_with_a_turn_running_is_busy() {
     run_local(async {
         let r = Rig::new(worktree());
-        r.host.rows.borrow_mut().retain(|_, row| row.view.borrow().thread_id.as_deref() == Some(T));
+        r.host.rows.borrow_mut().retain(|_, row| row.borrow().view.thread_id.as_deref() == Some(T));
         r.host.records.borrow_mut().shift_remove(B);
         r.turn_runs.set(true);
         let e = r.delete(T, DeleteThreadAsk::default()).await.unwrap_err();
@@ -473,7 +474,7 @@ fn a_worktree_with_a_turn_running_is_busy() {
 fn a_working_thread_is_refused() {
     run_local(async {
         let r = Rig::new(json!({}));
-        r.host.rows.borrow()["a-2"].view.borrow_mut().status = SessionStatus::Running;
+        r.host.rows.borrow()["a-2"].borrow_mut().view.status = SessionStatus::Running;
         let e = r.delete(T, DeleteThreadAsk::default()).await.unwrap_err();
         assert_eq!(said(&e), conflict(THREAD_WORKING_LINE));
         // A check is refused the same way, and processes are never asked about first.
@@ -482,8 +483,8 @@ fn a_working_thread_is_refused() {
         assert_eq!(r.log(), vec![format!("lead_of_sub Some(\"{W}\")"), "spawn_guard delete".to_string(), format!("lead_of_sub Some(\"{W}\")"), "spawn_guard delete".to_string()]);
         assert_eq!(r.meets.seen.borrow().len(), 0);
         // A thread beside it that works is none of this delete's business.
-        r.host.rows.borrow()["a-2"].view.borrow_mut().status = SessionStatus::Completed;
-        r.host.rows.borrow()["b-1"].view.borrow_mut().status = SessionStatus::Running;
+        r.host.rows.borrow()["a-2"].borrow_mut().view.status = SessionStatus::Completed;
+        r.host.rows.borrow()["b-1"].borrow_mut().view.status = SessionStatus::Running;
         r.delete(T, DeleteThreadAsk::default()).await.unwrap();
         assert_eq!(r.rows_of(B), vec!["b-1"]);
     });
@@ -499,7 +500,7 @@ fn check_reads_and_changes_nothing() {
         r.untouched();
         // On a worktree that would go, the check names it.
         let r = Rig::new(worktree());
-        r.host.rows.borrow_mut().retain(|_, row| row.view.borrow().thread_id.as_deref() == Some(T));
+        r.host.rows.borrow_mut().retain(|_, row| row.borrow().view.thread_id.as_deref() == Some(T));
         r.host.records.borrow_mut().shift_remove(B);
         assert_eq!(r.delete(T, DeleteThreadAsk { processes: None, check: Some(true) }).await.unwrap(), deleted(Some(WORKTREE), None));
         assert!(!r.log().iter().any(|l| l.starts_with("delete_workspace") || l.starts_with("end_thread")));
@@ -575,7 +576,7 @@ fn delete_meets_processes_unless_none_asked_and_names_what_ended() {
 fn a_worktree_delete_names_what_ended_too() {
     run_local(async {
         let r = Rig::new(worktree());
-        r.host.rows.borrow_mut().retain(|_, row| row.view.borrow().thread_id.as_deref() == Some(T));
+        r.host.rows.borrow_mut().retain(|_, row| row.borrow().view.thread_id.as_deref() == Some(T));
         r.host.records.borrow_mut().shift_remove(B);
         *r.meets.ended.borrow_mut() = vec![ended_one()];
         let got = r.delete(T, DeleteThreadAsk { processes: Some(ProcessesAsk::Ask), check: None }).await.unwrap();
@@ -595,7 +596,7 @@ fn keep_leaves_the_processes_and_the_shells() {
         assert_eq!(r.log(), expected, "no group end and no shell end, and the slate is told to keep");
         // The same with the worktree: the workspace still goes, the group and the shells stay.
         let r = Rig::new(worktree());
-        r.host.rows.borrow_mut().retain(|_, row| row.view.borrow().thread_id.as_deref() == Some(T));
+        r.host.rows.borrow_mut().retain(|_, row| row.borrow().view.thread_id.as_deref() == Some(T));
         r.host.records.borrow_mut().shift_remove(B);
         r.delete(T, DeleteThreadAsk { processes: Some(ProcessesAsk::Keep), check: None }).await.unwrap();
         assert_eq!(
@@ -627,14 +628,12 @@ fn a_kind_with_no_group_end_ends_no_group() {
 /// A thread's held send: a row still running with no handle, waiting for its launch, which ends once it is given up.
 fn held_send(r: &Rig) -> (Rc<Cell<u32>>, oneshot::Sender<()>) {
     let v = view("held-1", W, json!({ "threadId": T, "claudeSessionId": "S-held", "status": "running", "startedAt": T0 + 5000 }));
-    let shared = shared(v);
     let (tx, rx) = oneshot::channel::<()>();
-    let mut held = row(shared.borrow().clone(), "turn-held");
-    held.view = shared.clone();
-    held.launch = Some(rx.map(|_| ()).boxed_local().shared());
-    r.host.add_row("held-1", held);
+    let held = row(v, "turn-held");
+    held.borrow_mut().launch = Some(rx.map(|_| ()).boxed_local().shared());
+    r.host.add_row("held-1", held.clone());
     let given = Rc::new(Cell::new(0u32));
-    let (g, l, v) = (given.clone(), r.log.clone(), shared);
+    let (g, l, v) = (given.clone(), r.log.clone(), held.clone());
     let line = send_given_up_line("aws-box");
     r.area.stops.borrow_mut().held_sends.insert(
         "held-1".to_string(),
@@ -643,7 +642,7 @@ fn held_send(r: &Rig) -> (Rc<Cell<u32>>, oneshot::Sender<()>) {
             give_up: Rc::new(move || {
                 g.set(g.get() + 1);
                 l.borrow_mut().push("give_up held-1".to_string());
-                v.borrow_mut().status = SessionStatus::Failed;
+                v.borrow_mut().view.status = SessionStatus::Failed;
                 line.clone()
             }),
         },
@@ -693,7 +692,7 @@ fn a_held_send_is_left_waiting_by_a_check_and_by_a_refusal() {
         assert_eq!(given.get(), 0);
         assert!(r.host.rows.borrow().contains_key("held-1"));
         // A turn that is not held is the thread working, though a held send is not.
-        r.host.rows.borrow()["a-2"].view.borrow_mut().status = SessionStatus::Running;
+        r.host.rows.borrow()["a-2"].borrow_mut().view.status = SessionStatus::Running;
         let e = r.delete(T, DeleteThreadAsk::default()).await.unwrap_err();
         assert_eq!(said(&e), conflict(THREAD_WORKING_LINE));
         assert_eq!(given.get(), 0, "refused before the sends are given up");
@@ -741,11 +740,11 @@ fn a_transcript_that_does_not_read_refuses_a_delete_before_anything_is_dropped()
 
 fn never_ran(r: &Rig) {
     // A thread whose one turn the agent refused before it began: no agent session, so no turn that ran.
-    r.host.rows.borrow_mut().retain(|_, row| row.view.borrow().thread_id.as_deref() != Some(T));
+    r.host.rows.borrow_mut().retain(|_, row| row.borrow().view.thread_id.as_deref() != Some(T));
     let v = view("junk-1", W, json!({ "threadId": T, "status": "failed", "startedAt": T0 + 500, "endedAt": T0 + 600 }));
     r.host.add_row("junk-1", row(v, "turn-junk"));
     // The record a launch that never began leaves says no turn worked.
-    r.host.records.borrow_mut().get_mut(T).unwrap().record.worked = Some(false);
+    r.host.records.borrow_mut().get_mut(T).unwrap().worked = Some(false);
 }
 
 fn forgotten(thread: &str, rows: &[&str]) -> Vec<String> {
@@ -780,8 +779,8 @@ fn forget_takes_a_thread_that_never_worked() {
 fn forget_takes_a_record_alone_that_says_it_never_worked() {
     run_local(async {
         let r = Rig::new(json!({}));
-        r.host.rows.borrow_mut().retain(|_, row| row.view.borrow().thread_id.as_deref() != Some(T));
-        r.host.records.borrow_mut().insert(T.to_string(), HeldThread { workspace_id: W.to_string(), record: thread_record(json!({ "harness": "claude", "worked": false })) });
+        r.host.rows.borrow_mut().retain(|_, row| row.borrow().view.thread_id.as_deref() != Some(T));
+        r.host.records.borrow_mut().insert(T.to_string(), ThreadRecord { workspace_id: W.to_string(), ..thread_record(json!({ "harness": "claude", "worked": false })) });
         r.forget(T, false).await.unwrap();
         assert_eq!(r.log(), forgotten(T, &[]));
         assert!(!r.has_record(T));
@@ -800,14 +799,14 @@ fn forget_refuses_a_thread_that_worked() {
         // A row still running is a turn that ran.
         let r = Rig::new(json!({}));
         never_ran(&r);
-        r.host.rows.borrow()["junk-1"].view.borrow_mut().status = SessionStatus::Running;
+        r.host.rows.borrow()["junk-1"].borrow_mut().view.status = SessionStatus::Running;
         let e = r.forget(T, false).await.unwrap_err();
         assert_eq!(said(&e), (thread_forget_refusal(T), None, Some(Kind::Conflict)));
         // One worked row among rows that did not is enough, and the record's word does not reverse it.
         let r = Rig::new(json!({}));
         never_ran(&r);
         r.host.add_row("worked-1", row(view("worked-1", W, json!({ "threadId": T, "claudeSessionId": "S-w", "status": "completed" })), "turn-worked"));
-        r.host.records.borrow_mut().get_mut(T).unwrap().record.worked = Some(false);
+        r.host.records.borrow_mut().get_mut(T).unwrap().worked = Some(false);
         let e = r.forget(T, false).await.unwrap_err();
         assert_eq!(said(&e), (thread_forget_refusal(T), None, Some(Kind::Conflict)));
         assert_eq!(r.log(), Vec::<String>::new());
@@ -821,8 +820,8 @@ fn forget_refuses_where_the_record_says_it_worked() {
         // Rows fell off the index cap: the record stands alone, and an absent `worked` reads as worked.
         for record in [json!({ "harness": "claude" }), json!({ "harness": "claude", "worked": true })] {
             let r = Rig::new(json!({}));
-            r.host.rows.borrow_mut().retain(|_, row| row.view.borrow().thread_id.as_deref() != Some(T));
-            r.host.records.borrow_mut().insert(T.to_string(), HeldThread { workspace_id: W.to_string(), record: thread_record(record) });
+            r.host.rows.borrow_mut().retain(|_, row| row.borrow().view.thread_id.as_deref() != Some(T));
+            r.host.records.borrow_mut().insert(T.to_string(), ThreadRecord { workspace_id: W.to_string(), ..thread_record(record) });
             let e = r.forget(T, false).await.unwrap_err();
             assert_eq!(said(&e), (thread_forget_refusal(T), None, Some(Kind::Conflict)));
             assert_eq!(r.log(), Vec::<String>::new());
@@ -831,7 +830,7 @@ fn forget_refuses_where_the_record_says_it_worked() {
         // Rows that never ran with a record that says they did: refused all the same.
         let r = Rig::new(json!({}));
         never_ran(&r);
-        r.host.records.borrow_mut().get_mut(T).unwrap().record.worked = None;
+        r.host.records.borrow_mut().get_mut(T).unwrap().worked = None;
         let e = r.forget(T, false).await.unwrap_err();
         assert_eq!(said(&e), (thread_forget_refusal(T), None, Some(Kind::Conflict)));
         assert_eq!(r.rows_of(T), vec!["junk-1"]);
@@ -847,11 +846,11 @@ fn a_turn_refused_for_want_of_a_sign_in_ran_nothing() {
         // The session id is on the row, since the announce landed; the refusal is what says nothing ran.
         {
             let rows = r.host.rows.borrow();
-            let mut v = rows["junk-1"].view.borrow_mut();
-            v.claude_session_id = Some("S-refused".to_string());
-            v.refusal = Some(serde_json::from_value(json!("sign-in")).expect("a refusal"));
+            let mut v = rows["junk-1"].borrow_mut();
+            v.view.claude_session_id = Some("S-refused".to_string());
+            v.view.refusal = Some(serde_json::from_value(json!("sign-in")).expect("a refusal"));
         }
-        r.host.records.borrow_mut().get_mut(T).unwrap().record.worked = Some(false);
+        r.host.records.borrow_mut().get_mut(T).unwrap().worked = Some(false);
         r.forget(T, false).await.unwrap();
         assert_eq!(r.log(), forgotten(T, &["junk-1"]));
         // Once a later turn did work, the thread ran.
@@ -859,12 +858,12 @@ fn a_turn_refused_for_want_of_a_sign_in_ran_nothing() {
         never_ran(&r);
         {
             let rows = r.host.rows.borrow();
-            let mut v = rows["junk-1"].view.borrow_mut();
-            v.claude_session_id = Some("S-refused".to_string());
-            v.refusal = Some(serde_json::from_value(json!("sign-in")).expect("a refusal"));
+            let mut v = rows["junk-1"].borrow_mut();
+            v.view.claude_session_id = Some("S-refused".to_string());
+            v.view.refusal = Some(serde_json::from_value(json!("sign-in")).expect("a refusal"));
         }
         r.host.add_row("later-1", row(view("later-1", W, json!({ "threadId": T, "claudeSessionId": "S-refused", "status": "completed", "startedAt": T0 + 900 })), "turn-later"));
-        r.host.records.borrow_mut().get_mut(T).unwrap().record.worked = Some(false);
+        r.host.records.borrow_mut().get_mut(T).unwrap().worked = Some(false);
         let e = r.forget(T, false).await.unwrap_err();
         assert_eq!(said(&e), (thread_forget_refusal(T), None, Some(Kind::Conflict)));
     });
@@ -879,9 +878,9 @@ fn forget_of_a_thread_nobody_holds_is_not_found() {
         assert_eq!(e.message, "no thread thr_nobo");
         assert_eq!(said(&e), said(&not_found_refusal(&format!("no thread {}", thread_word("thr_nobody")))));
         // A caller the workspace does not reach reads the same absence, not the refusal past this gate.
-        r.host.hooks.set::<dyn Fn(Option<&str>, &str, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+        r.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
             "SessionsCtx::entry_of_row",
-            Rc::new(|_t: Option<&str>, _w: &str, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()),
+            Rc::new(|_at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()),
         );
         let e = r.forget(T, false).await.unwrap_err();
         assert_eq!(said(&e), said(&not_found_refusal(&format!("no thread {}", thread_word(T)))));

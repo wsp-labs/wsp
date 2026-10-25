@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! spec/sessions_settle.md. TS cases: settle-tree.test.ts, thread-marks.test.ts, replaces.test.ts, and
 //! host/test/activity.test.ts:225 (settle with processes).
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::RefCell;
@@ -123,7 +124,7 @@ impl World {
             "SessionsCtx::settled_now",
             Rc::new(move |id: &str, ms: Option<f64>| {
                 asked.borrow_mut().push(ms);
-                recs.borrow().get(id).map(|h| h.record.settled_at.is_some()).unwrap_or(false)
+                recs.borrow().get(id).map(|h| h.settled_at.is_some()).unwrap_or(false)
             }),
         );
         let p = prefs.clone();
@@ -145,7 +146,7 @@ impl World {
                 let mut records = recs.borrow_mut();
                 for (id, stamp) in &given {
                     let Some(held) = records.get_mut(id) else { continue };
-                    let mut doc = serde_json::to_value(&held.record).expect("a record serializes");
+                    let mut doc = serde_json::to_value(&*held).expect("a record serializes");
                     for (k, v) in stamp.as_object().expect("stamps are an object") {
                         if v.is_null() {
                             doc.as_object_mut().expect("a record is an object").remove(k);
@@ -153,7 +154,7 @@ impl World {
                             doc[k] = v.clone();
                         }
                     }
-                    held.record = serde_json::from_value(doc).expect("a record the stamps leave");
+                    *held = serde_json::from_value(doc).expect("a record the stamps leave");
                 }
                 calls.borrow_mut().push(MarkCall { ids: ids.to_vec(), stamps: given, origin: origin.cloned() });
                 async { Ok::<(), HostError>(()) }.boxed_local()
@@ -193,7 +194,7 @@ impl World {
     }
 
     fn record(&self, id: &str) -> ThreadRecord {
-        self.host.records.borrow()[id].record.clone()
+        self.host.records.borrow()[id].clone()
     }
 
     fn is_settled(&self, id: &str) -> bool {
@@ -322,7 +323,7 @@ fn settle_reads_answers_busy_settled_finished_and_titled() {
             "prompt": { "askId": "ask_2", "toolName": "Bash", "input": "{}", "options": [] },
         });
         w.thread("stopped-1", "interrupted", "stopped");
-        w.host.records.borrow_mut()[PARSER].record.settled_at = Some(JsNumber(5.0));
+        w.host.records.borrow_mut()[PARSER].settled_at = Some(JsNumber(5.0));
         let reads = w.area.settle_reads(&ids(&[LEAD, PARSER]), None).await.unwrap();
         assert_eq!(
             [LEAD, PARSER, PRINTER, LINKER, "asking-01", "waiting-1", "stopped-1"].map(|id| (reads.busy)(id)),

@@ -4,6 +4,7 @@
 //! The TS drives the command line over a fake daemon; here `Activity::new(host)` runs over the `FakeHost`'s
 //! `ActivityCtx` and a fake daemon of this file (a port of host/test/fake-procs.ts) answers each channel the host
 //! opens, logging every frame it got in order and whether the channel was closed.
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::{Cell, RefCell};
@@ -11,6 +12,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use support::*;
+use wsp_account::account::core_types::AccountError;
+use wsp_core::types::internal::DaemonRefusal;
 use wsp_wire::views::activity::{
     box_behind_activity_line, box_end_line, end_reused_line, not_joined_activity_fix, not_read_line, not_started_line, not_threads_line, LeftThread,
     BOX_BEHIND_ACTIVITY_FIX, BOX_END_FIX, CLOUD_ACTIVITY_FIX, END_AGAIN_FIX, END_GRACE_MS, NOT_READ_FIX, NOT_STARTED_FIX, NOT_THREADS_FIX,
@@ -54,12 +57,12 @@ struct Daemon {
     lists: Cell<bool>,
     modes: Cell<bool>,
     stubborn: RefCell<Vec<u32>>,
-    list_error: RefCell<Option<AskFailure>>,
-    ports_error: RefCell<Option<AskFailure>>,
+    list_error: RefCell<Option<AccountError>>,
+    ports_error: RefCell<Option<AccountError>>,
     watch_events: RefCell<Option<Vec<Value>>>,
     after_read: RefCell<Option<Box<dyn FnOnce(&Daemon)>>>,
-    pty_kill: RefCell<Rc<dyn Fn(&Daemon, &str) -> Result<Map<String, Value>, AskFailure>>>,
-    kill_reply: RefCell<Option<Result<Map<String, Value>, AskFailure>>>,
+    pty_kill: RefCell<Rc<dyn Fn(&Daemon, &str) -> Result<Map<String, Value>, AccountError>>>,
+    kill_reply: RefCell<Option<Result<Map<String, Value>, AccountError>>>,
     hold_kills: Cell<usize>,
     first_answer_saw: Cell<Option<usize>>,
     kills: RefCell<Vec<Value>>,
@@ -72,11 +75,11 @@ struct Daemon {
 struct Chan {
     d: Rc<Daemon>,
     idx: usize,
-    sink: EventSink,
+    sink: DaemonEventListener,
 }
 
 impl DaemonAsk for Chan {
-    fn ask(&self, frame: Value) -> LocalBoxFuture<'static, Result<Map<String, Value>, AskFailure>> {
+    fn ask(&self, frame: Value) -> LocalBoxFuture<'static, Result<Map<String, Value>, AccountError>> {
         self.d.chans.borrow_mut()[self.idx].frames.push(frame.clone());
         self.d.seq.borrow_mut().push(format!("c{}:{}", self.idx, frame["op"].as_str().unwrap_or("")));
         self.d.answer(&frame, Some(&self.sink))
@@ -97,8 +100,8 @@ fn reply(payload: Value) -> Map<String, Value> {
     m
 }
 
-fn refused(code: Option<&str>, message: impl Into<String>) -> AskFailure {
-    AskFailure { refusal: true, code: code.map(String::from), message: message.into() }
+fn refused(code: Option<&str>, message: impl Into<String>) -> AccountError {
+    AccountError::Refusal(DaemonRefusal { code: code.map(String::from), message: message.into() })
 }
 
 impl Daemon {
@@ -136,7 +139,7 @@ impl Daemon {
         *self.ports.borrow_mut() = Value::Array(ports.iter().map(|(port, pid)| json!({ "port": port, "pid": pid, "uid": 0, "loopback": false })).collect());
     }
 
-    fn open(self: &Rc<Self>, sink: EventSink, guarded: bool) -> Rc<dyn DaemonAsk> {
+    fn open(self: &Rc<Self>, sink: DaemonEventListener, guarded: bool) -> Rc<dyn DaemonAsk> {
         let idx = self.chans.borrow().len();
         self.chans.borrow_mut().push(ChanLog { guarded, frames: Vec::new(), closed: false });
         Rc::new(Chan { d: self.clone(), idx, sink })
@@ -172,15 +175,15 @@ impl Daemon {
     }
 
     /// A frame sent outside any channel (the host's `withDaemon` on a box).
-    fn ask_direct(self: &Rc<Self>, frame: Value) -> LocalBoxFuture<'static, Result<Map<String, Value>, AskFailure>> {
+    fn ask_direct(self: &Rc<Self>, frame: Value) -> LocalBoxFuture<'static, Result<Map<String, Value>, AccountError>> {
         self.direct.borrow_mut().push(frame.clone());
         self.seq.borrow_mut().push(format!("direct:{}", frame["op"].as_str().unwrap_or("")));
         self.answer(&frame, None)
     }
 
-    fn answer(self: &Rc<Self>, frame: &Value, sink: Option<&EventSink>) -> LocalBoxFuture<'static, Result<Map<String, Value>, AskFailure>> {
+    fn answer(self: &Rc<Self>, frame: &Value, sink: Option<&DaemonEventListener>) -> LocalBoxFuture<'static, Result<Map<String, Value>, AccountError>> {
         let op = frame["op"].as_str().unwrap_or("").to_string();
-        let result: Result<Map<String, Value>, AskFailure> = match op.as_str() {
+        let result: Result<Map<String, Value>, AccountError> = match op.as_str() {
             "ports.watch" => match self.ports_error.borrow().clone() {
                 Some(e) => Err(e),
                 None => Ok(reply(json!({ "ports": self.ports.borrow().clone() }))),
@@ -244,7 +247,7 @@ impl Daemon {
         futures::future::ready(result).boxed_local()
     }
 
-    fn kill(&self, frame: &Value) -> Result<Map<String, Value>, AskFailure> {
+    fn kill(&self, frame: &Value) -> Result<Map<String, Value>, AccountError> {
         self.kills.borrow_mut().push(frame.clone());
         if let Some(scripted) = self.kill_reply.borrow().clone() {
             return scripted;
@@ -285,8 +288,11 @@ impl Daemon {
     }
 }
 
-fn host_err(e: AskFailure) -> HostError {
-    HostError::new(e.message)
+fn host_err(e: AccountError) -> HostError {
+    match e {
+        AccountError::Host(h) => h,
+        AccountError::Refusal(r) => HostError::new(r.message),
+    }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -476,9 +482,9 @@ impl Lab {
         let boxd = Daemon::new(&host.clock);
         host.hooks.set::<dyn Fn() -> bool>("ActivityCtx::has_local_daemon", Rc::new(|| true));
         let d = here.clone();
-        host.hooks.set::<dyn Fn(EventSink, bool) -> LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>(
+        host.hooks.set::<dyn Fn(DaemonEventListener, bool) -> LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>(
             "ActivityCtx::local_channel",
-            Rc::new(move |sink: EventSink, guarded: bool| {
+            Rc::new(move |sink: DaemonEventListener, guarded: bool| {
                 let c = d.open(sink, guarded);
                 async move { Ok(c) }.boxed_local()
             }),
@@ -527,9 +533,9 @@ impl Lab {
         h.set::<dyn Fn(&str) -> bool>("ActivityCtx::joined", Rc::new(|p: &str| p == "box"));
         h.set::<dyn Fn(&str) -> bool>("ActivityCtx::has_link", Rc::new(|p: &str| p == "box"));
         let d = self.boxd.clone();
-        h.set::<dyn Fn(&str, EventSink) -> Option<LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>>(
+        h.set::<dyn Fn(&str, DaemonEventListener) -> Option<LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>>(
             "ActivityCtx::box_channel",
-            Rc::new(move |_p: &str, sink: EventSink| {
+            Rc::new(move |_p: &str, sink: DaemonEventListener| {
                 let c = d.open(sink, false);
                 Some(async move { Ok(c) }.boxed_local())
             }),
@@ -692,7 +698,7 @@ fn a_running_turns_agent_pid_names_its_agent_to_the_read() {
         std::fs::write(format!("{}.agent", run.display()), format!("{mine}\n")).expect("the agent file");
         let lab = Lab::new();
         lab.local_thread(T1, "w1", "go", STARTED, "running");
-        lab.host.rows.borrow_mut()[&format!("s-{T1}")].run = Some(run.display().to_string());
+        lab.host.rows.borrow()[&format!("s-{T1}")].borrow_mut().run = Some(run.display().to_string());
         lab.here.set_procs(vec![proc_row(mine, json!({ "comm": "agent-x", "cmdline": "agent-x" }))]);
         let view = view_of(lab.read(ActivityAsk::default(), None).await);
         assert_eq!(view["threads"], json!([thread_json(T1, "go", "w1", 1_000_000, 0, vec![shown(mine, 1, 0, STARTED, "agent", "agent-x", "agent-x", 1_000_000, 0, &[])])]));
@@ -1246,7 +1252,7 @@ fn a_box_with_no_link_or_no_channel_is_away() {
         let away = ("hetzner is away".to_string(), None, None);
         assert_eq!(said_of(lab.read(ask_of(None, Some("hetzner")), None).await), away);
         lab.host.hooks.set::<dyn Fn(&str) -> bool>("ActivityCtx::has_link", Rc::new(|_p: &str| true));
-        lab.host.hooks.set::<dyn Fn(&str, EventSink) -> Option<LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>>("ActivityCtx::box_channel", Rc::new(|_p: &str, _s: EventSink| None));
+        lab.host.hooks.set::<dyn Fn(&str, DaemonEventListener) -> Option<LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>>("ActivityCtx::box_channel", Rc::new(|_p: &str, _s: DaemonEventListener| None));
         assert_eq!(said_of(lab.read(ask_of(None, Some("hetzner")), None).await), away);
         assert_eq!(lab.boxd.chans(), vec![]);
     });
@@ -1304,7 +1310,7 @@ fn end_frees_a_kept_agent_and_signals_nothing() {
 fn a_running_threads_agent_is_not_kept_and_its_end_is_refused() {
     run_local(async {
         let lab = Lab::main();
-        lab.host.rows.borrow()[&format!("s-{T1}")].view.borrow_mut().status = serde_json::from_value(json!("running")).unwrap();
+        lab.host.rows.borrow()[&format!("s-{T1}")].borrow_mut().view.status = serde_json::from_value(json!("running")).unwrap();
         lab.scopes(vec![json!({ "thread": T1, "agents": [4100] })]);
         lab.kept(T1, 4100);
         let said = said_of(lab.end(4100, STARTED, None).await);

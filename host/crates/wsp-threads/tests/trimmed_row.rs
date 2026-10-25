@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! spec/trimmed_row.md. TS cases: thread-keeps-agent.test.ts:108 and :133, thread-lines.test.ts:170 (a thread listed
 //! off its record once its rows fell off the cap).
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::rc::Rc;
@@ -10,8 +11,8 @@ use wsp_wire::types::js_number::JsNumber;
 
 const THREAD: &str = "thr_1";
 
-fn held(record: Value) -> HeldThread {
-    HeldThread { workspace_id: "w1".into(), record: thread_record(record) }
+fn held(record: Value) -> ThreadRecord {
+    ThreadRecord { workspace_id: "w1".into(), ..thread_record(record) }
 }
 
 fn words(first: Option<&str>, last: f64) -> ThreadWords {
@@ -166,7 +167,7 @@ fn the_records_root_access_and_fork_ride_the_row() {
 #[test]
 fn the_workspace_is_the_records_and_every_read_asks_it() {
     let host = FakeHost::new();
-    let other = HeldThread { workspace_id: "w7".into(), record: thread_record(json!({ "harness": "claude" })) };
+    let other = ThreadRecord { workspace_id: "w7".into(), ..thread_record(json!({ "harness": "claude" })) };
     let row = serde_json::to_value(trimmed_row(&*host, "thr_9", &other, None)).unwrap();
     assert_eq!(row, json!({ "id": "thr_9", "threadId": "thr_9", "workspaceId": "w7", "harness": "claude", "status": "completed" }));
     assert_eq!(host.hooks.calls(), vec!["started_as(w7, thr_9)", "thread_words(w7, thr_9)"]);

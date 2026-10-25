@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! spec/sessions_reads.md. TS cases: thread-cap.test.ts, session-title.test.ts, runtime-history.test.ts,
 //! thread-head.test.ts, session-images.test.ts, session-search.test.ts (the whole-runtime cases, ported at the seam).
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::RefCell;
@@ -75,10 +76,26 @@ type TreeStandsOn = dyn Fn(&str, Option<&Caller>, Option<TreeTalk>) -> bool;
 type ReachesRow = dyn Fn(&SessionView, Option<&Caller>, Option<TreeTalk>) -> bool;
 type DrivesThread = dyn Fn(Option<&str>, Option<&Caller>) -> bool;
 type OpenTranscript = dyn Fn(&str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>;
+/// A read window as the page reader takes it, comparable: `limit` is `None` for the unbounded read.
+#[derive(Clone, Debug, PartialEq)]
+struct ReadWindow {
+    before: Option<i64>,
+    limit: Option<usize>,
+    bytes: u64,
+    strict: bool,
+    head_shape: bool,
+}
+
+impl From<ThreadRead> for ReadWindow {
+    fn from(r: ThreadRead) -> ReadWindow {
+        ReadWindow { before: r.before, limit: (r.limit != usize::MAX).then_some(r.limit), bytes: r.bytes, strict: r.strict, head_shape: r.shape.is_some() }
+    }
+}
+
 type OpenThread = dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>;
-type ReadPage = dyn Fn(&str, &str, ReadWindow) -> LocalBoxFuture<'static, Result<HistoryPage, HostError>>;
-type EntryOfWith = dyn Fn(&str, Option<&Caller>, bool, bool) -> LocalBoxFuture<'static, Result<Entry, HostError>>;
-type EntryOfRow = dyn Fn(Option<&str>, &str, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>;
+type ReadPage = dyn Fn(&str, &str, ThreadRead) -> LocalBoxFuture<'static, Result<HistoryPage, HostError>>;
+type EntryOfWith = dyn Fn(&str, Option<&Caller>, EntryAsk) -> LocalBoxFuture<'static, Result<Entry, HostError>>;
+type EntryOfRow = dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>;
 
 fn drives_only(threads: &'static [&'static str]) -> Rc<DrivesThread> {
     Rc::new(move |t: Option<&str>, _o: Option<&Caller>| t.map(|t| threads.contains(&t)).unwrap_or(false))
@@ -152,7 +169,7 @@ fn a_thread_whose_rows_fell_off_is_listed_off_its_record() {
     run_local(async {
         let (host, area) = host();
         put_row(&host, "r1", "w1", json!({ "threadId": "t1", "status": "completed" }));
-        let held = |doc: Value| HeldThread { workspace_id: "w1".into(), record: thread_record(doc) };
+        let held = |doc: Value| ThreadRecord { workspace_id: "w1".into(), ..thread_record(doc) };
         let records = vec![
             ("t1".to_string(), held(json!({ "harness": "claude" }))),
             ("t8".to_string(), held(json!({ "harness": "codex", "permissionMode": "read-only", "parentThreadId": "t1", "rootThreadId": "t1", "ended": "failed" }))),
@@ -161,7 +178,7 @@ fn a_thread_whose_rows_fell_off_is_listed_off_its_record() {
         ];
         let talks: Rc<RefCell<Vec<TreeTalk>>> = Rc::default();
         let seen = talks.clone();
-        host.hooks.set::<dyn Fn(Option<&Caller>, TreeTalk, Option<&str>) -> Vec<(String, HeldThread)>>(
+        host.hooks.set::<dyn Fn(Option<&Caller>, TreeTalk, Option<&str>) -> Vec<(String, ThreadRecord)>>(
             "SessionsCtx::tree_records",
             Rc::new(move |_o: Option<&Caller>, talk: TreeTalk, _w: Option<&str>| {
                 seen.borrow_mut().push(talk);
@@ -298,8 +315,8 @@ fn history_of_a_workspace_the_tree_does_not_stand_on_is_read_through_entry_of() 
         let seen = asked.clone();
         host.hooks.set::<EntryOfWith>(
             "SessionsCtx::entry_of_with",
-            Rc::new(move |w: &str, _o: Option<&Caller>, being_made: bool, now: bool| {
-                seen.borrow_mut().push((w.to_string(), being_made, now));
+            Rc::new(move |w: &str, _o: Option<&Caller>, ask: EntryAsk| {
+                seen.borrow_mut().push((w.to_string(), ask.being_made, ask.now));
                 async move { Err(refusal("no such workspace w9", Some(Kind::NotFound))) }.boxed_local()
             }),
         );
@@ -380,8 +397,8 @@ fn a_page_reads_two_hundred_events_and_four_hundred_kib() {
         let answer = page.clone();
         host.hooks.set::<ReadPage>(
             "SessionsCtx::read_page",
-            Rc::new(move |w: &str, t: &str, window: ReadWindow| {
-                seen.borrow_mut().push((w.to_string(), t.to_string(), window));
+            Rc::new(move |w: &str, t: &str, window: ThreadRead| {
+                seen.borrow_mut().push((w.to_string(), t.to_string(), window.into()));
                 let answer = answer.clone();
                 async move { Ok(answer) }.boxed_local()
             }),
@@ -394,7 +411,7 @@ fn a_page_reads_two_hundred_events_and_four_hundred_kib() {
         assert_eq!(
             *windows.borrow(),
             vec![
-                ("w1".to_string(), "t1".to_string(), ReadWindow { before: None, limit: Some(HISTORY_PAGE_EVENTS), bytes: HISTORY_PAGE_BYTES, strict: false, head_shape: false }),
+                ("w1".to_string(), "t1".to_string(), ReadWindow { before: None, limit: Some(HISTORY_PAGE_EVENTS as usize), bytes: HISTORY_PAGE_BYTES, strict: false, head_shape: false }),
                 ("w1".to_string(), "t1".to_string(), ReadWindow { before: Some(500), limit: Some(1000), bytes: HISTORY_PAGE_BYTES, strict: false, head_shape: false }),
             ]
         );
@@ -422,8 +439,8 @@ fn head_leaves_the_events_what_the_facts_leave() {
         let seen = reads.clone();
         host.hooks.set::<ReadPage>(
             "SessionsCtx::read_page",
-            Rc::new(move |w: &str, t: &str, window: ReadWindow| {
-                seen.borrow_mut().push((w.to_string(), t.to_string(), window));
+            Rc::new(move |w: &str, t: &str, window: ThreadRead| {
+                seen.borrow_mut().push((w.to_string(), t.to_string(), window.into()));
                 async move { Ok(head_page()) }.boxed_local()
             }),
         );
@@ -431,8 +448,8 @@ fn head_leaves_the_events_what_the_facts_leave() {
         let seen = reached.clone();
         host.hooks.set::<EntryOfRow>(
             "SessionsCtx::entry_of_row",
-            Rc::new(move |t: Option<&str>, w: &str, _o: Option<&Caller>, talk: Option<TreeTalk>, being_made: bool| {
-                seen.borrow_mut().push((t.map(String::from), w.to_string(), talk, being_made));
+            Rc::new(move |at: &RowAt, _o: Option<&Caller>, talk: Option<TreeTalk>, being_made: bool| {
+                seen.borrow_mut().push((at.thread_id.clone(), at.workspace_id.clone(), talk, being_made));
                 async move { Ok(Some(entry("w1", json!({})) as Entry)) }.boxed_local()
             }),
         );
@@ -470,7 +487,7 @@ fn head_reads_the_facts_after_the_read_where_asked() {
         let seen = reads.clone();
         host.hooks.set::<ReadPage>(
             "SessionsCtx::read_page",
-            Rc::new(move |w: &str, t: &str, _window: ReadWindow| {
+            Rc::new(move |w: &str, t: &str, _window: ThreadRead| {
                 seen.borrow_mut().push((w.to_string(), t.to_string()));
                 async move { Ok(head_page()) }.boxed_local()
             }),
@@ -495,7 +512,7 @@ fn head_of_a_thread_not_reached_is_not_found() {
         host.hooks.set::<dyn Fn(&str) -> Option<ThreadFacts>>("SessionsCtx::thread_facts", Rc::new(|t: &str| Some(facts(t, "w1", json!({})))));
         host.hooks.set::<EntryOfRow>(
             "SessionsCtx::entry_of_row",
-            Rc::new(|_t: Option<&str>, _w: &str, _o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| async move { Ok(None) }.boxed_local()),
+            Rc::new(|_at: &RowAt, _o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| async move { Ok(None) }.boxed_local()),
         );
         let unreached = area.head_of("no-such-thread-xyz", Some(scoped("t1")), false).await.expect_err("a thread the caller cannot reach");
         assert_eq!(said(&unreached), said(&want()));
@@ -595,8 +612,8 @@ fn search_trims_and_lowercases_and_answers_newest_first() {
         let seen = entries.clone();
         host.hooks.set::<EntryOfWith>(
             "SessionsCtx::entry_of_with",
-            Rc::new(move |w: &str, _o: Option<&Caller>, being_made: bool, now: bool| {
-                seen.borrow_mut().push((w.to_string(), being_made, now));
+            Rc::new(move |w: &str, _o: Option<&Caller>, ask: EntryAsk| {
+                seen.borrow_mut().push((w.to_string(), ask.being_made, ask.now));
                 let refused = w == "w2";
                 async move { if refused { Err(refusal("no such workspace w2", Some(Kind::NotFound))) } else { Ok(entry("w3", json!({})) as Entry) } }.boxed_local()
             }),

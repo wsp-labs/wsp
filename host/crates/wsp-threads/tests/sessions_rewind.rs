@@ -3,6 +3,7 @@
 //! to turns_run, the harness catalog and THREAD_OPS cases to their own units). The daemon is the `git_restore` hook,
 //! the harness is `FakeAdapter` below, the transcript is the fake's recorded events with `drop_from_transcript`
 //! cutting them as the host's own does.
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::{Cell, RefCell};
@@ -108,21 +109,21 @@ impl HarnessAdapter for FakeAdapter {
     fn steers(&self) -> bool {
         false
     }
-    fn revert(&self, ask: RevertAsk) -> Option<BoxFuture<'static, Result<Reverted, String>>> {
+    fn revert(&self, ask: RevertAsk) -> Option<LocalBoxFuture<'static, Result<Reverted, String>>> {
         let answer = self.revert.clone()?;
         self.log.lock().unwrap().push("revert".to_string());
         self.reverted.lock().unwrap().push(ask);
-        Some(futures::future::ready(answer).boxed())
+        Some(futures::future::ready(answer).boxed_local())
     }
-    fn fork_session(&self, session: String, turn: ForkTurn) -> Option<BoxFuture<'static, Result<ForkedSession, String>>> {
+    fn fork_session(&self, session: String, turn: ForkTurn) -> Option<LocalBoxFuture<'static, Result<ForkedSession, String>>> {
         let answer = self.fork.clone()?;
         self.log.lock().unwrap().push("fork_session".to_string());
         self.forked.lock().unwrap().push((session.clone(), turn));
         let made = answer.map(|copy| match copy {
-            Some(resume) => ForkedSession::Resume { resume, drop: Box::new(|| futures::future::ready(Ok(())).boxed()) },
+            Some(resume) => ForkedSession::Resume { resume, drop: Box::new(|| futures::future::ready(Ok(())).boxed_local()) },
             None => ForkedSession::Fork { session, turn: "t".to_string() },
         });
-        Some(futures::future::ready(made).boxed())
+        Some(futures::future::ready(made).boxed_local())
     }
 }
 
@@ -302,9 +303,10 @@ impl Rig {
         );
         let l = log.clone();
         let h = host.clone();
-        host.hooks.set::<dyn Fn(Value) -> ()>(
+        host.hooks.set::<dyn Fn(EventUnion) -> ()>(
             "SessionsCtx::emit",
-            Rc::new(move |event: Value| {
+            Rc::new(move |event: EventUnion| {
+                let event = serde_json::to_value(&event).expect("an event serializes");
                 l.lock().unwrap().push(format!("emit {}", event["type"].as_str().unwrap_or("")));
                 h.emitted.borrow_mut().push(event);
             }),
@@ -349,7 +351,7 @@ impl Rig {
     }
 
     fn rewound(&self) -> Option<Rewound> {
-        self.host.records.borrow().get(T).and_then(|h| h.record.rewound.clone())
+        self.host.records.borrow().get(T).and_then(|h| h.rewound.clone())
     }
 
     fn reverted(&self) -> Vec<RevertAsk> {
@@ -404,9 +406,9 @@ fn a_thread_nobody_holds_is_not_found() {
         let e = r.area.rewind_thread("thr_nobody", RewindAsk { turn_id: Some(turn(1)), files: Some(true), undo: None }, None).await.unwrap_err();
         assert_eq!(said(&e), said(&not_found_refusal(&format!("no thread {}", thread_word("thr_nobody")))));
         // A caller that does not reach the thread's workspace reads the same absence.
-        r.host.hooks.set::<dyn Fn(Option<&str>, &str, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+        r.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
             "SessionsCtx::entry_of_row",
-            Rc::new(|_t: Option<&str>, _w: &str, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()),
+            Rc::new(|_at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()),
         );
         let e = r.to(1, true).await.unwrap_err();
         assert_eq!(said(&e), said(&not_found_refusal(&format!("no thread {}", thread_word(T)))));
@@ -438,7 +440,7 @@ fn the_workspace_is_the_first_rows_else_the_records() {
 fn a_running_thread_is_not_rewound() {
     run_local(async {
         let r = Rig::new(Shape::new(Cuts::Copy));
-        r.host.rows.borrow()[&turn(3)].view.borrow_mut().status = serde_json::from_value(json!("running")).unwrap();
+        r.host.rows.borrow()[&turn(3)].borrow_mut().view.status = serde_json::from_value(json!("running")).unwrap();
         let e = r.to(1, true).await.unwrap_err();
         assert_eq!(said(&e), conflict(REWIND_WORKING_LINE));
         assert_eq!(r.log(), Vec::<String>::new(), "no file moved and no row written");
@@ -459,7 +461,7 @@ fn a_running_child_is_named() {
         assert_eq!(r.host.hooks.called("reap_kept"), vec![format!("reap_kept({T})")], "the thread's own kept agent is reaped before the children are read");
         assert_eq!(r.log(), Vec::<String>::new());
         // Stopped, it stands in the way of nothing.
-        r.host.rows.borrow()["child-1"].view.borrow_mut().status = serde_json::from_value(json!("interrupted")).unwrap();
+        r.host.rows.borrow()["child-1"].borrow_mut().view.status = serde_json::from_value(json!("interrupted")).unwrap();
         assert_eq!(r.to(1, false).await.unwrap(), answer(json!({ "turns": 2 })));
     });
 }
@@ -547,7 +549,7 @@ fn undo_is_refused_while_another_thread_works() {
         let e = r.undo().await.unwrap_err();
         assert_eq!(said(&e), conflict(&rewind_beside_line("move the pricing table")));
         assert_eq!(r.log(), Vec::<String>::new(), "no file moved, nothing woken");
-        r.host.rows.borrow()["beside-1"].view.borrow_mut().status = serde_json::from_value(json!("interrupted")).unwrap();
+        r.host.rows.borrow()["beside-1"].borrow_mut().view.status = serde_json::from_value(json!("interrupted")).unwrap();
         assert_eq!(r.undo().await.unwrap(), answer(json!({ "turns": 0, "files": 2 })));
     });
 }
@@ -681,8 +683,8 @@ fn files_another_thread_touched_stay_and_the_answer_says_so() {
         assert_eq!(r.rewound(), None);
         assert_eq!(r.texts(), vec!["reply 1", "reply 2"], "the conversation still goes");
         // Its turn is over, and it still ended after every checkpoint this thread holds.
-        r.host.rows.borrow()["beside-1"].view.borrow_mut().status = serde_json::from_value(json!("completed")).unwrap();
-        r.host.rows.borrow()["beside-1"].view.borrow_mut().ended_at = Some(JsNumber((T0 + 9000) as f64));
+        r.host.rows.borrow()["beside-1"].borrow_mut().view.status = serde_json::from_value(json!("completed")).unwrap();
+        r.host.rows.borrow()["beside-1"].borrow_mut().view.ended_at = Some(JsNumber((T0 + 9000) as f64));
         assert_eq!(r.to(1, true).await.unwrap(), answer(json!({ "turns": 1, "kept": REWIND_SHARED_LINE })));
         assert_eq!(r.restores(), Vec::<String>::new());
     });
@@ -925,7 +927,7 @@ fn a_thread_with_no_agent_session_is_cut_in_the_transcript_alone() {
     run_local(async {
         let r = Rig::new(Shape::new(Cuts::Revert));
         for n in 1..=3 {
-            r.host.rows.borrow()[&turn(n)].view.borrow_mut().claude_session_id = None;
+            r.host.rows.borrow()[&turn(n)].borrow_mut().view.claude_session_id = None;
         }
         assert_eq!(r.to(1, false).await.unwrap(), answer(json!({ "turns": 2 })));
         assert_eq!(r.reverted(), Vec::new(), "no session to cut");
@@ -968,17 +970,17 @@ fn a_copy_pays_off_the_cut_owed_and_the_rewind_is_recorded() {
         let r = Rig::new(shape);
         r.to(1, true).await.unwrap();
         let held = r.host.records.borrow()[T].clone();
-        assert_eq!(held.record.cut_owed, None);
+        assert_eq!(held.cut_owed, None);
         assert_eq!(held.workspace_id, W);
-        assert_eq!(norm(&serde_json::to_value(&held.record.rewound).unwrap()), norm(&json!({ "before": format!("{}-before-1", checkpoint_ref(1)), "at": T0 })));
+        assert_eq!(norm(&serde_json::to_value(&held.rewound).unwrap()), norm(&json!({ "before": format!("{}-before-1", checkpoint_ref(1)), "at": T0 })));
         // A harness that cuts by itself leaves the owed cut where it was; no files moved, no rewound mark.
         let mut shape = Shape::new(Cuts::Revert);
         shape.record = Some(json!({ "harness": "claude", "cutOwed": "owed-turn" }));
         let r = Rig::new(shape);
         r.to(1, false).await.unwrap();
         let held = r.host.records.borrow()[T].clone();
-        assert_eq!(held.record.cut_owed, Some("owed-turn".to_string()));
-        assert_eq!(held.record.rewound, None);
+        assert_eq!(held.cut_owed, Some("owed-turn".to_string()));
+        assert_eq!(held.rewound, None);
     });
 }
 
@@ -992,8 +994,8 @@ fn a_thread_with_rows_and_no_record_gets_one() {
         r.to(1, true).await.unwrap();
         let held = r.host.records.borrow()[T].clone();
         assert_eq!(held.workspace_id, W);
-        assert_eq!(held.record.harness, "claude");
-        assert_eq!(held.record.rewound.map(|w| w.before), Some(format!("{}-before-1", checkpoint_ref(1))));
+        assert_eq!(held.harness, "claude");
+        assert_eq!(held.rewound.map(|w| w.before), Some(format!("{}-before-1", checkpoint_ref(1))));
     });
 }
 
@@ -1092,7 +1094,7 @@ fn the_row_lists_the_turn_now_last() {
         let mut shape = Shape::new(Cuts::Copy);
         shape.ends = vec![(1, json!({ "status": "failed", "error": "API Error: 529 overloaded\nretry" }))];
         let r = Rig::new(shape);
-        let latest = || r.host.rows.borrow()[&turn(3)].view.borrow().clone();
+        let latest = || r.host.rows.borrow()[&turn(3)].borrow().view.clone();
         assert_eq!(latest().last_line, Some("reply 3".to_string()));
         r.to(2, false).await.unwrap();
         assert_eq!((latest().last_line, latest().failure), (Some("reply 2".to_string()), None));

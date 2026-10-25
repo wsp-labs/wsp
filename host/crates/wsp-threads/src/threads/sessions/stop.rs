@@ -3,12 +3,13 @@
 //! Spec: spec/sessions_stop.md.
 use std::rc::Rc;
 
+use wsp_core::context::Joined;
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::runtime::{SessionInterruptOutcome, SessionInterruptResult};
 use wsp_words::exit::HostError;
 
 use super::SessionsArea;
-use crate::pending::{Joined, SessionEntry};
+use crate::threads::threads::Row;
 
 /// What `end_turn` answers (sessions.ts:151).
 #[derive(Clone, Debug, PartialEq)]
@@ -34,7 +35,7 @@ impl SessionsArea {
     }
 
     /// sessions.ts:151. `row_of` reads the row again by its key. Rules K10-K16.
-    pub async fn end_turn(&self, row: SessionEntry, origin: Option<&Caller>, row_of: Rc<dyn Fn() -> Option<SessionEntry>>) -> Result<Ended, HostError> {
+    pub async fn end_turn(&self, row: Row, origin: Option<&Caller>, row_of: Rc<dyn Fn() -> Option<Row>>) -> Result<Ended, HostError> {
         todo!()
     }
 
