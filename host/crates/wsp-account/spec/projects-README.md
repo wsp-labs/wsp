@@ -38,6 +38,21 @@ The areas themselves are structs over `Rc<dyn ...Ctx>`: `Workspaces` implements 
 `Projects` implements `ProjectsApi`; the area handle traits of `wsp_core::context` (`FoldersArea`, `StartFromArea`,
 `WorkspacesArea`, `ProjectsArea`, `ProjectIconsArea`) stay empty and the structs carry the methods the other areas call.
 
+## Seams this slice adds, and why
+
+- The engine's workspace and machine calls (`entry.ws.wake`, `entry.machine.state`, `kill`, `exec`) and the engine's move
+  roads (`landBundle`, `importInto`, `exportFolder` and the rest) are context methods (`ws_*`, `machine_*`, `MoveRoads`).
+  The TS tests mock the engine the same way; the area's code stays line for line the TS's, and the wake still tells an
+  unanswered resume, a deleted disk and a missing machine apart, since those methods answer `EngineError`.
+- `project-landing.ts` and `project-sources.ts` are wsp-core's and empty there; `LandingRoad` and `ProjectSourceModule`
+  in `projects/add.rs` carry their shapes until wsp-core writes them. The same for the start picks' helpers
+  (`accessWordRefusal`, `pickRefusal`, `notRunRefused`, `harnessCatalog`, `smallestModel`), reached through `StartFromCtx`
+  and `GitCtx`.
+- Each workspaces unit has its own trait (`CreateCtx`, `PhasesCtx`, `GitCtx`, `ReviewCtx`) over `seam::Base`, so an
+  implementer's packet holds only its unit's; `WorkspacesCtx` is the four together.
+- `usage_reset::Resets` is `PlanResets` with a `spend_command` that may refuse (cross-crate finding: the wave 3 trait
+  cannot say the TS throw).
+
 ## Rules every unit holds
 
 - **One thread.** Rule 3.1: no lock; a `RefCell` borrow is never held across an `.await` or a call out (an `emit`, a
