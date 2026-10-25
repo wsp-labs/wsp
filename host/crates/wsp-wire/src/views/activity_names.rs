@@ -101,7 +101,12 @@ fn not_a_name(word: &str) -> bool {
 /// `pkg.replace(/(?<=.)@[^@/]*$/, "")`: a trailing `@version` goes, a leading `@scope` stays, and `.` is no line break.
 fn strip_version(pkg: &str) -> &str {
     match pkg.rfind('@') {
-        Some(at) if !pkg[at..].contains('/') && pkg[..at].chars().next_back().is_some_and(|c| !matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}')) => &pkg[..at],
+        Some(at)
+            if !pkg[at..].contains('/')
+                && pkg[..at].chars().next_back().is_some_and(|c| !matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}')) =>
+        {
+            &pkg[..at]
+        }
         _ => pkg,
     }
 }

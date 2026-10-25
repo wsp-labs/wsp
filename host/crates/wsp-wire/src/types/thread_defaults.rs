@@ -711,7 +711,10 @@ fn object_of<T: Serialize>(record: &T) -> serde_json::Map<String, serde_json::Va
     }
 }
 
-fn merged<P: Serialize>(mut next: serde_json::Map<String, serde_json::Value>, patch: &P) -> Option<serde_json::Map<String, serde_json::Value>> {
+fn merged<P: Serialize>(
+    mut next: serde_json::Map<String, serde_json::Value>,
+    patch: &P,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
     for (key, value) in object_of(patch) {
         match value {
             serde_json::Value::Null => {
