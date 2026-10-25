@@ -785,3 +785,84 @@ async fn plain_resume_resumes_the_original_by_its_id_and_never_forks() {
     assert!(!command.contains("--fork-session"), "{command}");
     assert!(!command.contains("--name"), "{command}");
 }
+
+// Rule S1: the rename script carries real line feeds where the TS template does, not `\n` escapes.
+#[test]
+fn the_rename_script_is_the_ts_bytes() {
+    assert_eq!(
+        rename_command("/c", "sid", "a \"q\"\nb"),
+        "f=$(ls -1td '/c/projects'/*/'sid.jsonl' 2>/dev/null | head -n 1); [ -n \"$f\" ] || { echo no-session; exit 0; }; [ -z \"$(tail -c 1 \"$f\")\" ] || printf '\n' >> \"$f\" 2>/dev/null; e=$({ printf '%s\n' '{\"type\":\"custom-title\",\"customTitle\":\"a \\\"q\\\"\\nb\",\"sessionId\":\"sid\"}' >> \"$f\"; } 2>&1) && echo wrote || printf '%s %s\n' failed \"$e\""
+    );
+}
+
+// Rule S2: each line is trimmed; `wrote` anywhere is written; the first line opening `failed ` gives the rest; else
+// every non-blank line joined by `; `.
+#[test]
+fn a_rename_reads_its_answer_line_by_line() {
+    let failed = |e: &str| SessionRenameWrite::Failed { error: e.into() };
+    let cases = [
+        ("wrote\nno-session", SessionRenameWrite::Written),
+        ("no-session\nwrote", SessionRenameWrite::Written),
+        ("  wrote  \r\n", SessionRenameWrite::Written),
+        ("Wrote", failed("Wrote")),
+        ("failed  two spaces", failed(" two spaces")),
+        ("wrote extra\nno-session extra", failed("wrote extra; no-session extra")),
+        ("a\n\nb\n", failed("a; b")),
+        ("\n\n", failed("the machine said nothing about the write")),
+        ("  failed trimmed lead\n", failed("trimmed lead")),
+        ("failed \n", failed("failed")),
+        ("failed x\nfailed y", failed("x")),
+    ];
+    for (stdout, want) in cases {
+        assert_eq!(parse_rename(stdout), want, "{stdout:?}");
+    }
+}
+
+// Rule S3: a title is blank by JS trim: U+FEFF alone is blank, so the generated title stands; U+0085 is a title.
+#[test]
+fn a_title_is_blank_by_javascript_trim() {
+    let custom = |t: &str| [json!({"type": "custom-title", "customTitle": t}).to_string(), json!({"type": "ai-title", "aiTitle": "gen"}).to_string()].join("\n");
+    assert_eq!(parse_session_title(&custom("\u{FEFF}")), Some("gen".into()));
+    assert_eq!(parse_session_title(&custom("\u{85}")), Some("\u{85}".into()));
+}
+
+// Rule S4: a folder key is each UTF-16 unit outside [A-Za-z0-9] as `-`, so an emoji is two; keys are deduplicated in
+// first-seen order and a pinned "" is kept.
+#[test]
+fn folder_keys_count_utf16_units() {
+    let cwds = ["/work/é", "/w/😀", "/", "", "/a b/c.d_e-f", "/a-b", "/a b", "/x/ü/日本"].map(String::from).to_vec();
+    assert_eq!(keys_for(&cwds, Some("")), vec!["-work--", "-w---", "-", "", "-a-b-c-d-e-f", "-a-b", "-x-----"]);
+}
+
+// Rule S5: runs of at most 64, in order.
+#[test]
+fn runs_hold_at_most_64() {
+    let sizes = |n: usize| wsp_adapters::claude::conversations::runs_of(&(0..n).collect::<Vec<_>>()).iter().map(Vec::len).collect::<Vec<_>>();
+    assert_eq!([0, 1, 64, 65, 128, 129].map(sizes).to_vec(), vec![vec![], vec![1], vec![64], vec![64, 1], vec![64, 64], vec![64, 64, 1]]);
+}
+
+// Rule S6: the live list is a JSON array after a trim, its non-empty string sessionIds once each in first-seen order;
+// anything else is None, an array of none an empty set.
+#[test]
+fn the_live_list_reads_only_a_whole_array() {
+    let read = |s: &str| parse_live(s).map(|set| set.into_iter().collect::<Vec<_>>());
+    assert_eq!(read(r#"[{"sessionId":"a"},{"sessionId":""},{"sessionId":1},null,[1],{"sessionId":"a"},"x",{"sessionId":"b"}]"#), Some(vec!["a".to_string(), "b".to_string()]));
+    for none in ["", "null", "{}", "[{\"sessionId\":\"a\"}]\ntrailing"] {
+        assert_eq!(read(none), None, "{none:?}");
+    }
+    assert_eq!(read("  []  "), Some(vec![]));
+    assert_eq!(read("[1,2]"), Some(vec![]));
+}
+
+// Rule S7: the presence check writes `\n` as two characters for printf to read, unlike the rename script.
+#[test]
+fn the_presence_check_is_the_ts_bytes() {
+    assert_eq!(wsp_adapters::claude::conversations::present_command("/r", &["a".to_string(), "b".to_string()], None), r#"cd '/r' 2>/dev/null && for d in 'a' 'b'; do [ -d "$d" ] && printf '%s\n' "$d"; done; true"#);
+}
+
+// Rule S8: the first result that is no error decides the title, even where it gives none.
+#[test]
+fn the_first_good_result_decides_the_title() {
+    let lines = [json!({"type": "result", "is_error": false, "result": "Sure!\nHere"}).to_string(), json!({"type": "result", "is_error": false, "result": "Good title"}).to_string()].join("\n");
+    assert_eq!(parse_title_for(&lines), None);
+}
