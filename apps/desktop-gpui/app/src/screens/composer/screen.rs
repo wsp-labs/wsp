@@ -400,7 +400,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use gpui_kit::component::Root;
-    use gpui_kit::{prelude::*, TestAppContext, VisualTestContext};
+    use gpui_kit::{TestAppContext, VisualTestContext};
     use serde_json::json;
 
     use super::*;
