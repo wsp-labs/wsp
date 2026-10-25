@@ -69,3 +69,47 @@ writer's (`usage_reset.rs`); this unit only wires them. TS tests: `test/usage.te
 
 Nothing of this unit's own: the ledger keeps its rows in the store (wsp-machines). The log stamp, sign-in hold and
 plan stamps are memory, so a restarted host reads logs and plans at its first ask.
+
+## Tests
+
+`tests/usage.rs` (30 tests). The expected values are the TS's: `oracle/usage.oracle.ts` runs `usageArea` at 65f6b89c7 on a
+scripted context (the ledger, alerts, account rows, plan scripts and reset spender are recorders) over the worlds it writes
+beside the answers in `tests/fixtures/oracle/usage.json`; `World` in the test file is the same context built from a world.
+Frames compare as JSON strings (key order counts), entries and readings as values with integral numbers read as integers.
+
+Interface changes made to write the tests (all in `src/account/usage.rs`): `UsageCtx::schedule(ms, f) -> Cancel` (the
+bound `bounded` puts on a read; the area writes its own `bounded`: `<what> was not answered in <ms/1000 rounded>s`);
+`agent_label` and `model_label` (the catalog's labels); `computer_name` split into `kept_computer_names` and a sync
+`computer_name(places, id, kept: Option<..>)`; `account_rows(limits, places, name_of)` and `account_names(limits,
+name_of)` take the limits and the namer the area passes; `NameOf` and `LabelOf` aliases (a bare `Rc<dyn Fn(&str)>` in an
+`async_trait` method takes the method's lifetime and cannot be called); `LimitReading.at` is `Option<f64>` (a plan's own
+read sets none); `account_of` takes `Option<&HarnessLimitAccount>` (the label rides it); `file_limit`'s before is
+`Value::Null` where the ledger held none.
+
+| Rule | Tests |
+|---|---|
+| U1 | `u1_away_line_table` |
+| U2 | `u2_row_reason_order` |
+| U3 | `u3_usage_stores_from_the_catalog` |
+| U4 | `u4_logs_off_when_switched_off`, `u4_logs_read_once_a_window` (59,999 ms no, 60,000 ms yes), `u4_the_stamp_is_set_before_the_read`, `u4_logs_skip_wsp_sessions`, `u4_logs_project_and_account` (the snapshot handed to `log_limit` keeps the reply's key order), `u4_targets_are_this_computer_then_linked_boxes`, `u4_an_old_daemon_is_quiet`, `u4_a_silent_computer_times_out_with_its_label` (29,999 ms no, 30,000 ms yes), `u4_a_read_that_filed_nothing_is_not_filed`, `u4_a_stale_reading_is_not_told_to_the_alerts` |
+| U5 | `u5_sign_ins_held_a_minute_and_dropped_on_change`, `u5_a_failed_or_absent_read_lists_none_and_is_held` |
+| U6 | `u6_accounts_add_this_computer` (also the order: places, kept names, sign-ins, limits, rows) |
+| U7 | `u7_reset_run_box_and_here` |
+| U8 | `u8_plan_road_table`, `u8_plan_places_table` |
+| U9 | `u9_plans_read_once_a_window`, `u9_plans_skip_a_vault_key_here`, `u9_a_failed_plan_read_warns_and_the_rest_go_on`, `u9_a_silent_plan_read_times_out_with_its_label`, `u9_one_plan_read_is_shared_while_it_is_out` |
+| U10 | `u10_reset_names_the_place` |
+| U11 | `u11_used_labels_table`, `u11_logs_are_read_where_outside_or_source_asks`, `u11_a_logs_failure_is_warned_and_used_answers` |
+| U12 | `u12_readings_frame_and_answer` |
+| U13 | `u13_fresh_accounts_read_the_plans` |
+
+Ported TS cases: `test/usage.test.ts:146` and `:152` (one name per account: the merge of the ledger's labels and the
+names read off the limits) in `u11_used_labels_table`; `:182` in `u6_accounts_add_this_computer`; `:207` and `:231` in
+`u5_sign_ins_held_a_minute_and_dropped_on_change`; `:274` in `u4_logs_project_and_account`, `u4_logs_off_when_switched_off`
+and `u11_logs_are_read_where_outside_or_source_asks`; `:308` in `u4_logs_project_and_account`; `:331` in
+`u11_logs_are_read_where_outside_or_source_asks`; `:361` in `u4_logs_skip_wsp_sessions`; `:406`, `:415`, `:422` in
+`u12_readings_frame_and_answer`; `:466` and `:494` in `u7_reset_run_box_and_here` and `u10_reset_names_the_place`;
+`test/usage-boxes.test.ts:48` in `u4_logs_project_and_account` and `u4_targets_are_this_computer_then_linked_boxes`;
+`:83` in `u4_logs_skip_wsp_sessions`; `:105` in `u4_targets_are_this_computer_then_linked_boxes` and
+`u4_a_stale_reading_is_not_told_to_the_alerts`; `test/usage-reset-joined.test.ts:18` in `u7_reset_run_box_and_here`;
+`:52` in `u9_plans_read_once_a_window` and `u13_fresh_accounts_read_the_plans`; `test/places-settings.test.ts:515` in
+`u8_plan_road_table` and `u7_reset_run_box_and_here`.
