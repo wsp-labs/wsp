@@ -241,7 +241,7 @@
               ]
             },
             {
-              "value": "claude-haiku-4-5-<id-1>",
+              "value": "claude-haiku-4-5-<id-1, 8 characters>",
               "label": "Haiku 4.5",
               "efforts": [],
               "contextWindows": []

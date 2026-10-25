@@ -26,17 +26,17 @@
     {
       "id": null,
       "ok": false,
-      "error": "a request is one JSON object, not a bare value or an array"
-    },
-    {
-      "id": null,
-      "ok": false,
-      "error": "a request is one JSON object, not a bare value or an array"
-    },
-    {
-      "id": null,
-      "ok": false,
       "error": "invalid json"
+    },
+    {
+      "id": null,
+      "ok": false,
+      "error": "a request is one JSON object, not a bare value or an array"
+    },
+    {
+      "id": null,
+      "ok": false,
+      "error": "a request is one JSON object, not a bare value or an array"
     }
   ]
 }

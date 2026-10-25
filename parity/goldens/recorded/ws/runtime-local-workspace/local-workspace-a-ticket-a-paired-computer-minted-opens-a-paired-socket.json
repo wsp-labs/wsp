@@ -16,7 +16,7 @@
     {
       "id": 3,
       "ok": true,
-      "ticket": "<id-2>",
+      "ticket": "<id-2, 32 characters>",
       "expiresAt": "<time+5m in ms>"
     }
   ],
