@@ -16,7 +16,8 @@ use serde_json::{json, Map, Value};
 
 use wsp_core::ids::Ids;
 use wsp_core::types::internal::{BuilderLife, EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad};
-use wsp_core::types::pending::{Clock, MachineExecOptions, PlaceDoor, ScopedRoad, TurnWaiting};
+use wsp_core::types::pending::{Clock, MachineExecOptions, ScopedRoad, TurnWaiting};
+use wsp_machines::places::types::PlaceDoor;
 use wsp_core::types::wiring::{
     CreateWorkspaceOptions, CreatedWorkspace, IdleWindow, LiveWorkspace, Local, ProjectImportOptions, StageReport, StageSaid, WorkspaceRecord,
     WorkspaceSpec,
@@ -380,9 +381,231 @@ impl KindModule for FakeModule {
     }
 }
 
-struct NoDoor;
+mod no_door {
+    //! A place door that is there and answers nothing: the create scenes only need a door present.
+    use wsp_machines::places::helpers::LinkSocket;
+    use wsp_machines::places::pane_ports::PanePorts;
+    use wsp_machines::places::types::*;
+    use std::rc::Rc;
+    
+    use async_trait::async_trait;
+    use indexmap::{IndexMap, IndexSet};
+    use wsp_engine::machine::{ExecResult, Machine, MachineBackend};
+    use wsp_engine::place_machine::PlaceFolderMachine;
+    use wsp_engine::provision::{EngineStep, ProvisionOn, ProvisionPlan, ProvisionStage, SetupRun};
+    use wsp_store::keys::{PlaceKeyPair, Seal};
+    use wsp_wire::types::agents_report::{AgentSignInState, AgentsSignInEvent, SignInLine};
+    use wsp_wire::types::recipe_file::{RecipeFile, RecipeFileFoldersValue};
+    use wsp_wire::views::place::{
+        PendingComputer, PlaceAddStep, PlaceApplied, PlaceBack, PlaceDialled, PlaceProvisionRow, PlaceRoad, PlaceSetAlso,
+        PlaceSetup, PlaceSetupStep, PlaceStageEvent, PlaceSync, PlaceAddJob,
+    };
+    use wsp_wire::views::place_more::{
+        MacKind, PlaceDial, PlaceHolds, PlaceRemoved, PlaceRemovedTook, PlaceSettingWord, PlaceSettings, PlaceSettingsAsk,
+        PlaceUpdateReply, PlaceView,
+    };
+    use wsp_wire::views::place_setup_words::PlaceEstimate;
+    use wsp_wire::wire::capabilities::WorkspaceSize;
+    use wsp_wire::wire::daemon_events::DaemonEvent;
+    use wsp_wire::wire::machine_link::{BackendFacts, SysSample};
+    use wsp_wire::wire::place_link::{
+        PlaceAuthRefusal, PlaceAuthReply, PlaceAuthRequest, PlaceJoinReply, PlaceJoinRequest, PlaceProveRequest, PlaceReport,
+    };
+    use wsp_words::exit::HostError;
+    
+    use wsp_core::types::pending::{Clock, DaemonChannel, DaemonReach, DeviceDoor, Store};
+    use wsp_core::types::wiring::{HereDaemon, PlaceBackends};
 
-impl PlaceDoor for NoDoor {}
+    pub struct NoDoor;
+
+    #[async_trait(?Send)]
+    impl PlaceDoor for NoDoor {
+        fn answer_challenge(&self, subject: &str, nonce: &str, ephemeral: Option<&str>) -> Option<PlaceChallenge> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn join(&self, req: PlaceJoinRequest, from: &str, now: u64) -> PlaceResult<Option<JoinAnswer>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn auth(&self, req: PlaceAuthRequest, now: u64) -> PlaceResult<AuthAnswer> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn host_key(&self) -> String {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn prove(&self, place_id: &str, req: PlaceProveRequest, expect: &[u8], from: &str, now: u64) -> PlaceResult<Proved> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn attach(&self, place_id: &str, socket: Rc<dyn LinkSocket>, report: PlaceReport, from: &str, now: u64, seal: Option<Seal>) -> PlaceResult<()> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn link(&self, place_id: &str) -> Option<Rc<dyn DaemonReach>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn channel(&self, place_id: &str, on_event: Rc<dyn Fn(serde_json::Map<String, serde_json::Value>)>) -> Option<Rc<dyn DaemonChannel>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn watch_sys(&self, place_id: &str, f: Rc<dyn Fn(SysSample)>) -> PlaceResult<Box<dyn FnOnce()>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn load(&self) -> PlaceResult<()> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn backend_of(&self, place_id: &str) -> Option<std::sync::Arc<dyn MachineBackend>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn folder_computer(&self, place_id: &str) -> Option<FolderComputer> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn joined(&self, place_id: &str) -> bool {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn forking_backend(&self, place_id: &str) -> PlaceResult<std::sync::Arc<dyn MachineBackend>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn name_of(&self, place_id: &str) -> String {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn settings_at(&self, place_id: &str) -> PlaceSettings {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn turn_limit_at(&self, place_id: &str) -> Option<Option<u64>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn threads_at(&self, place_id: &str) -> Option<u64> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn machines_at(&self, place_id: &str) -> Option<u64> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn sign_ins_at(&self, place_id: &str, agents: Option<&[String]>) -> Option<IndexMap<String, AgentSignInState>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn github_from_vault(&self, place_id: &str) -> bool {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn vault_at(&self, place_id: &str, vault: &IndexMap<String, String>) -> IndexMap<String, String> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn login_landed(&self, place_id: &str, agent: &str) -> PlaceResult<()> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn logins_again(&self, place_id: &str) -> PlaceResult<()> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn key_landed(&self, agent: &str) -> PlaceResult<()> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn gh_there(&self, place_id: &str, stage: ProvisionStage) -> PlaceResult<Vec<PlaceProvisionRow>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn offer_of(&self, place_id: &str) -> Option<String> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn forward(&self, place_id: &str, place_port: u16, o: ForwardAsk) -> PlaceResult<u16> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn pane_forwards(&self) -> Rc<PanePorts> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn place_for(&self, word: &str) -> PlaceResult<PlaceFor> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn default_place(&self) -> PlaceResult<PlaceFor> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn mark_used(&self, place_id: Option<&str>) -> PlaceResult<()> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn mark_default_if_none(&self, place_id: &str) -> PlaceResult<()> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn add(&self, req: AddAsk, now: u64) -> PlaceResult<PlaceAdded> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn set_up(&self, reference: &str, o: SetUpAsk) -> PlaceResult<PlaceSetUp> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn pending(&self) -> PlaceResult<Vec<PendingComputer>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn choose(&self, reference: &str, choices: RecipeFile, recipe: Option<String>) -> PlaceResult<PendingComputer> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn dial(&self, place_id: &str, now: u64) -> PlaceResult<PlaceDial> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn set(&self, place_id: &str, set: PlaceSettingsAsk, reset: Vec<PlaceSettingWord>, also: PlaceSetAlso) -> PlaceResult<PlaceView> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn road(&self, place_id: &str) -> PlaceResult<u16> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn exec(&self, place_id: &str, cmd: &str, opts: PlaceExecOpts) -> PlaceResult<ExecResult> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn report_of(&self, place_id: &str) -> PlaceResult<Option<PlaceReport>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn home_of(&self, place_id: &str) -> PlaceResult<Option<String>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn list(&self, now: u64) -> PlaceResult<Vec<PlaceView>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn rows(&self) -> PlaceResult<Vec<PlaceView>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn adds(&self) -> Vec<PlaceAddJob> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn update(&self, place_id: &str, ask: RemoveAsk) -> PlaceResult<PlaceUpdateReply> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn holds(&self, place_id: &str) -> PlaceResult<PlaceHolds> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn remove(&self, place_id: &str, ask: RemoveAsk) -> PlaceResult<PlaceRemoved> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn find(&self, reference: &str) -> PlaceResult<Vec<PlaceRecord>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn follow(&self, place_id: &str, recipe: &str) -> PlaceResult<PlaceView> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn recipe_changed(&self, slug: &str, after_ms: u64) -> PlaceResult<Vec<String>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn followers(&self) -> PlaceResult<IndexMap<String, Vec<String>>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn skip(&self, place_id: &str, row: &str) -> PlaceResult<PlaceView> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn setup_log(&self, place_id: &str, step: Option<PlaceSetupStep>) -> PlaceResult<Vec<String>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn estimate(&self, reference: &str, choices: RecipeFile) -> PlaceResult<PlaceEstimate> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn unfollow(&self, slug: &str) -> PlaceResult<Vec<String>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn picks_of(&self, place_id: &str) -> PlaceResult<Option<RecipeFile>> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn on(&self, f: Rc<dyn Fn(&PlaceEvent)>) -> u64 {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        fn off(&self, id: u64) {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+        async fn close(&self) -> PlaceResult<()> {
+            unimplemented!("the create scenes ask the place door nothing")
+        }
+    }
+}
+use no_door::NoDoor;
 
 /// A kind word the wire writes, as the provider kind the oracle calls "provider" is no `Kind`: it is no kind at all.
 pub fn kind_of(word: Option<&str>) -> Option<Kind> {

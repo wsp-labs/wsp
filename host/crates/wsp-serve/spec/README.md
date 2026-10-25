@@ -23,14 +23,16 @@ socket state), then serve_places, serve_workspaces and serve_ops in any order; r
 
 ## The seams
 
-**The runtime a socket serves** is `ServedRuntime` (`src/serve/served.rs`): wsp-core's `Runtime` trait
-(`wsp-core/src/types/api.rs`, which rule 1.5 moved down), plus the doors wsp-core still holds as empty handle
-traits (ruling 6400658264, 2), read typed: `place_door()` answers wsp-machines' `PlaceDoor`
-(`wsp-machines/src/places/types.rs`), `slate_door()` answers this crate's `SlateDoor` (the calls `answerSlate`
-makes, serve-slates.ts), `activity_door()` this crate's `ActivityOps` (serve-processes.ts), and the three
-per-socket roads wsp-core's empty `sys_socket.rs`, `sign_in_socket.rs` and `forwards.rs` will hold (ruling
-6402177374, 8 gave them a writer): `sys_ops`, `sign_in_ops`, `forwards`. When wsp-slates lands and wsp-core's
-pending traits get their methods, the join folds `ServedRuntime` into `Runtime`; no behaviour here changes.
+**The runtime a socket serves** is wsp-core's `Runtime` (`wsp-core/src/types/api.rs`, which rule 1.5 moved down),
+as `DynRuntime` (`src/serve/served.rs`): `dyn Runtime<Places = dyn PlaceDoor, Slates = dyn Slates, Activity = dyn
+ActivityDoor>`. wsp-core sits below wsp-machines, wsp-slates and wsp-threads and cannot name their traits, so
+`Runtime` says which they are through its associated types: `rt.places()` is wsp-machines' `PlaceDoor`
+(`wsp-machines/src/places/types.rs`), `rt.slates()` wsp-slates' `Slates`, `rt.activity()` wsp-threads' `ActivityDoor`.
+The three per-socket roads are wsp-core's real functions, not methods of the runtime: `sys_socket`
+(`sys_socket.rs`), `sign_in_socket` and `sign_in_op` (`sign_in_socket.rs`), and `forwards_of` (`forwards.rs`), each
+handed the runtime and the `Socket`, which implements `SocketSide`. A start is wsp-threads' `start_at` and
+`answered_start` (`threads/answered_start.rs`), called with `rt.workspaces()` and the start's closure. The panes'
+forwards are read from `rt.places()` at the first forwards op (`Served::forwards`), not at start.
 
 **One socket** is `Socket` (`src/serve/socket.rs`): what the door decided about it (`Road`: `stamped`,
 `paired_road`, `me`, `by`, serve.ts:505-555) and its transport, a `FrameSink` (send a text frame, close with a

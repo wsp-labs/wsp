@@ -7,46 +7,48 @@ use support::*;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::future::{LocalBoxFuture, Shared};
+use futures::FutureExt;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel, Frame};
 use wsp_core::devices::{DeviceDoor, HeldDevice};
 use wsp_core::types::api::*;
-use wsp_core::types::events::EventBus;
-use wsp_core::types::pending::{ActivityDoor, DeviceDoor as RuntimeDevices, Slates};
+use wsp_core::types::harness::StartPicksAsked;
+use wsp_core::forwards::{ForwardEvent, ForwardsSource};
 use wsp_core::types::wiring::{
-    EditorOpen, EditorRemote, FolderListAsk, HostEditor, HostFolders, HostSsh, HostTerminalConfig, InitDoor, LandRequest, LandedProject, PackedProject,
-    PackedState, ProjectBundler, ProjectLander, RecipeShelf, StateRequest, SweepResult, SysListener,
+    AccessMove, Detach, EditorOpen, EditorRemote, FolderListAsk, HostEditor, HostFolders, HostSsh, HostTerminalConfig, InitDoor, LandRequest, LandedProject,
+    PackedProject, PackedState, ProjectBundler, ProjectLander, SessionHandle, StateRequest, SteerTaken, Local,
 };
-use wsp_engine::machine::MachineBackend;
+use wsp_adapters::port::{TaskStop, TurnImage};
 use wsp_engine::vault::CacheRule;
-use wsp_frames::ProcKind;
 use wsp_serve::serve::door::Served;
-use wsp_serve::serve::served::{ForwardsSource, Payload, ServedRuntime, SocketHooks, SocketOps};
+use wsp_serve::serve::served::Payload;
 use wsp_serve::serve::socket::Socket;
 use wsp_serve::serve::{
     FailedFn, ReleaseDoor, RestartDoor, ServeOptions, Unlisten, NO_BUNDLER, NO_EDITOR, NO_FOLDERS, NO_INIT, NO_LANDER, NO_RELEASE, NO_SSH,
     NO_TERMINAL_CONFIG,
 };
 use wsp_serve::serve_broker::{BrokerDoor, CloudSignIn};
-use wsp_serve::serve_start::{AnswerFn, StartFn, StartFolder, StartRoads};
+use wsp_slates::pending::wire::{SlateEmpty, SlateView, SlateWriteAnswer};
 use wsp_wire::types::agents_report::{AGENTS_KEY_REFUSAL, SIGN_IN_LINE_REFUSAL};
 use wsp_wire::types::init_job::InitKeys;
+use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::types::release::{HOST_NO_RESTART_LINE, HOST_RESTART_TICKET_REFUSAL};
 use wsp_wire::types::thread_defaults::ENV_VALUE_REFUSAL;
+use wsp_wire::views::activity::ActivityEnded;
 use wsp_wire::views::place_more::{PlaceSpend, PlaceView};
 use wsp_wire::views::preferences::{editor_opens_here_line, ssh_copy_here_line, ssh_include_line, EditorChoice, EditorId, EDITOR_TICKET_REFUSAL, SSH_TICKET_REFUSAL};
-use wsp_wire::views::workspace::{Caller, ProjectView};
+use wsp_wire::views::workspace::ProjectView;
 use wsp_wire::views::workspace_more::{WorkspaceOrigin, WorkspaceView};
 use wsp_wire::wire::daemon_version::{place_behind_line, place_daemon_behind};
 use wsp_wire::wire::limits::PortForward;
 use wsp_wire::wire::machine_link::no_such_place_refusal;
 use wsp_wire::wire::place_link::{PlaceReport, PLACES_TICKET_REFUSAL};
-use wsp_wire::wire::runtime::SessionStartResult;
-use wsp_wire::wire::runtime_ops::RuntimeRequest;
+use wsp_wire::views::session::SessionView;
+use wsp_wire::wire::runtime::{SessionAnswerResult, SessionStartOutcome, SessionStartResult};
 use wsp_words::exit::{refusal, HostError, Kind};
 use wsp_words::place_word::{place_said, PlaceRef};
 use wsp_words::project_path::ssh_alias;
@@ -203,7 +205,7 @@ impl BrokerDoor for Broker {
 
 struct Forwards {
     open: RefCell<Vec<PortForward>>,
-    stops: RefCell<Vec<(String, u16)>>,
+    stops: RefCell<Vec<(String, i64)>>,
 }
 
 impl Forwards {
@@ -216,10 +218,10 @@ impl ForwardsSource for Forwards {
     fn list(&self) -> Vec<PortForward> {
         self.open.borrow().clone()
     }
-    fn stop(&self, workspace_id: &str, port: u16) -> bool {
+    fn stop(&self, workspace_id: &str, port: i64) -> bool {
         self.stops.borrow_mut().push((workspace_id.to_string(), port));
         let mut open = self.open.borrow_mut();
-        match open.iter().position(|f| f.workspace_id == workspace_id && f.port.get() == i64::from(port)) {
+        match open.iter().position(|f| f.workspace_id == workspace_id && f.port.get() == port) {
             Some(i) => {
                 open.remove(i);
                 true
@@ -227,7 +229,7 @@ impl ForwardsSource for Forwards {
             None => false,
         }
     }
-    fn on(&self, _f: Rc<dyn Fn(&Value)>) -> Box<dyn FnOnce()> {
+    fn on(&self, _f: Rc<dyn Fn(&ForwardEvent)>) -> Detach {
         Box::new(|| {})
     }
 }
@@ -341,7 +343,7 @@ impl InitDoor for Init {
         self.calls.borrow_mut().push(json!(["keys", provider, key]));
         let mut keys: InitKeys = from(json!({ "box": false, "solari": true }));
         if let Some(p) = &provider {
-            keys.insert(p.clone(), true);
+            keys.0.insert(p.clone(), true);
         }
         let mut s = setup();
         s["keys"] = serde_json::to_value(&keys).unwrap();
@@ -436,138 +438,6 @@ impl DaemonChannel for Link {
     }
 }
 
-/// A start road that answers what the test hands it and then stops.
-struct AnswerRoads {
-    answers: Vec<SessionStartResult>,
-    held_asked: Cell<Option<bool>>,
-}
-
-#[async_trait(?Send)]
-impl StartRoads for AnswerRoads {
-    async fn start_at(&self, _w: &dyn WorkspacesApi, _msg: &RuntimeRequest, _origin: Option<Caller>, _opens: bool) -> Result<StartFolder, HostError> {
-        Ok(StartFolder { workspace_id: "ws_1".into(), cwd: None, setup: None })
-    }
-    async fn answered_start(&self, answer_held: bool, _start: StartFn, answer: AnswerFn) -> Result<(), HostError> {
-        self.held_asked.set(Some(answer_held));
-        for a in &self.answers {
-            answer(a.clone());
-        }
-        Ok(())
-    }
-}
-
-/// The fake runtime with its start road swapped: every other call goes to the fake.
-struct WithRoads {
-    inner: Rc<FakeRuntime>,
-    roads: Rc<dyn StartRoads>,
-}
-
-#[async_trait(?Send)]
-impl Runtime for WithRoads {
-    fn events(&self) -> Rc<dyn EventBus> {
-        self.inner.events()
-    }
-    fn backend(&self) -> Arc<dyn MachineBackend> {
-        self.inner.backend()
-    }
-    fn places(&self) -> Option<Rc<dyn wsp_core::types::pending::PlaceDoor>> {
-        self.inner.places()
-    }
-    fn recipes(&self) -> Option<Rc<dyn RecipeShelf>> {
-        self.inner.recipes()
-    }
-    async fn here_channel(&self, on_event: DaemonEventListener) -> Result<Rc<dyn DaemonChannel>, HostError> {
-        self.inner.here_channel(on_event).await
-    }
-    fn place_kills(&self, channel: Rc<dyn DaemonChannel>) -> Rc<dyn DaemonChannel> {
-        self.inner.place_kills(channel)
-    }
-    async fn watch_place_sys(&self, place_id: &str, listener: SysListener) -> Result<wsp_core::types::wiring::Detach, HostError> {
-        self.inner.watch_place_sys(place_id, listener).await
-    }
-    fn own_process(&self, thread_id: &str, pid: u32, kind: ProcKind) -> wsp_core::types::wiring::Detach {
-        self.inner.own_process(thread_id, pid, kind)
-    }
-    fn agents(&self) -> &dyn AgentsApi {
-        self.inner.agents()
-    }
-    fn workspaces(&self) -> &dyn WorkspacesApi {
-        self.inner.workspaces()
-    }
-    fn projects(&self) -> &dyn ProjectsApi {
-        self.inner.projects()
-    }
-    fn sessions(&self) -> &dyn SessionsApi {
-        self.inner.sessions()
-    }
-    fn harnesses(&self) -> &dyn HarnessesApi {
-        self.inner.harnesses()
-    }
-    fn golden(&self) -> &dyn GoldenApi {
-        self.inner.golden()
-    }
-    fn image(&self) -> &dyn ImageApi {
-        self.inner.image()
-    }
-    fn status(&self) -> Rc<dyn wsp_core::types::wiring::OriginStatusApi> {
-        self.inner.status()
-    }
-    fn usage(&self) -> Rc<dyn wsp_core::types::wiring::UsageDoor> {
-        self.inner.usage()
-    }
-    fn conversations(&self) -> &dyn ConversationsApi {
-        self.inner.conversations()
-    }
-    fn slates(&self) -> Rc<dyn Slates> {
-        self.inner.slates()
-    }
-    fn activity(&self) -> Rc<dyn ActivityDoor> {
-        self.inner.activity()
-    }
-    fn devices(&self) -> Rc<dyn RuntimeDevices> {
-        self.inner.devices()
-    }
-    fn preferences(&self) -> &dyn PreferencesApi {
-        self.inner.preferences()
-    }
-    async fn owner(&self) -> Result<String, HostError> {
-        self.inner.owner().await
-    }
-    async fn reap(&self, older_than_ms: Option<u64>, say: Option<Rc<dyn Fn(&str)>>) -> Result<SweepResult, HostError> {
-        self.inner.reap(older_than_ms, say).await
-    }
-    async fn close(&self) -> Result<(), HostError> {
-        self.inner.close().await
-    }
-}
-
-impl ServedRuntime for WithRoads {
-    fn place_door(&self) -> Option<Rc<dyn wsp_machines::places::types::PlaceDoor>> {
-        self.inner.place_door()
-    }
-    fn slate_door(&self) -> Rc<dyn wsp_serve::serve_slates::SlateDoor> {
-        self.inner.slate_door()
-    }
-    fn activity_door(&self) -> Rc<dyn wsp_serve::serve_processes::ActivityOps> {
-        self.inner.activity_door()
-    }
-    fn sys_ops(&self, socket: SocketHooks) -> Rc<dyn SocketOps> {
-        self.inner.sys_ops(socket)
-    }
-    fn sign_in_ops(&self, socket: SocketHooks, cloud: Option<CloudSignIn>) -> Rc<dyn SocketOps> {
-        self.inner.sign_in_ops(socket, cloud)
-    }
-    fn is_sign_in_op(&self, msg: &RuntimeRequest) -> bool {
-        self.inner.is_sign_in_op(msg)
-    }
-    fn forwards(&self, host: Option<Rc<dyn ForwardsSource>>) -> Rc<dyn ForwardsSource> {
-        ServedRuntime::forwards(&*self.inner, host)
-    }
-    fn start_roads(&self) -> Rc<dyn StartRoads> {
-        self.roads.clone()
-    }
-}
-
 // ---------------------------------------------------------------------------------------------------------------
 // O1. The prefix ops.
 
@@ -579,9 +449,26 @@ fn prefix_ops_spread_their_helpers_answer() {
         let rt = &r.rt;
         let (host, sink) = r.host().await;
 
-        rt.script.once::<Result<Value, HostError>>("slates.get", Ok(json!({ "v": 2 })));
+        let view = SlateView {
+            thread_id: "t1".into(),
+            workspace_id: "ws_1".into(),
+            version: 2,
+            revision: 2,
+            document: None,
+            values: IndexMap::new(),
+            empty: Some(SlateEmpty::None),
+            comments: vec![],
+            approvals: IndexMap::new(),
+            asks: vec![],
+            problems: vec![],
+            shown_once: false,
+            can_undo: false,
+            updated_at: 0,
+        };
+        let shown = json!({ "id": 1, "ok": true, "slate": view.to_json() }).to_string();
+        rt.script.once::<Result<Option<SlateView>, HostError>>("slates.get", Ok(Some(view)));
         request(&host, &sink, 1, "slates.get", json!({ "threadId": "t1" })).await;
-        assert_eq!(sink.last_text(), r#"{"id":1,"ok":true,"slate":{"v":2}}"#);
+        assert_eq!(sink.last_text(), shown);
 
         rt.script.once::<Result<IndexMap<String, wsp_wire::types::thread_defaults::ThreadDefaults>, HostError>>("projects.defaults", Ok(IndexMap::new()));
         request(&host, &sink, 2, "projects.defaults", json!({})).await;
@@ -590,9 +477,9 @@ fn prefix_ops_spread_their_helpers_answer() {
         request(&host, &sink, 3, "appProcs.watch", json!({})).await;
         assert_eq!(sink.last_text(), r#"{"id":3,"ok":true,"procs":[]}"#, "the hub's answer, from the socket's own road");
 
-        rt.script.once::<Result<Payload, HostError>>("activity.end", Ok(payload(json!({ "ended": [4200] }))));
+        rt.script.once::<Result<ActivityEnded, HostError>>("activity.end", Ok(from(json!({ "pid": 4200, "ended": [], "forced": [], "left": [] }))));
         request(&host, &sink, 4, "activity.end", json!({ "pid": 4200, "startedAt": 7 })).await;
-        assert_eq!(sink.last_text(), r#"{"id":4,"ok":true,"ended":[4200]}"#);
+        assert_eq!(sink.last_text(), r#"{"id":4,"ok":true,"pid":4200,"ended":[],"forced":[],"left":[]}"#);
 
         rt.script.once::<Result<wsp_wire::types::conversations::ConversationsAnswer, HostError>>("conversations.list", Ok(from(json!({ "rows": [], "held": [] }))));
         request(&host, &sink, 5, "conversations.list", json!({})).await;
@@ -610,17 +497,16 @@ fn sign_in_ops_are_the_own_road() {
     block(async {
         let r = rig(|_| {});
         let (host, host_sink) = r.host().await;
-        let reply = request(&host, &host_sink, 1, "agents.signIns", json!({})).await;
-        assert_eq!(reply, json!({ "id": 1, "ok": true }));
-        assert_eq!(r.rt.script.calls_to("signIn.answer").len(), 1);
-        assert_eq!(args_of(&r.rt, "signIn.answer", 0)["op"], json!("agents.signIns"));
+        request(&host, &host_sink, 1, "agents.signIns", json!({})).await;
+        assert_eq!(r.rt.script.calls_to("agents.signIns").len(), 1, "the own road reaches the agents' sign-in runs");
 
         let (ticketed, ticket_sink) = r.ticketed().await;
         let refused = request(&ticketed, &ticket_sink, 1, "agents.signIns", json!({})).await;
         assert_eq!(refused, ticket_reply(1));
-        assert_eq!(r.rt.script.calls_to("signIn.answer").len(), 1, "a socket off the own road reaches no sign-in road");
+        assert_eq!(r.rt.script.calls_to("agents.signIns").len(), 1, "a socket off the own road reaches no sign-in road");
         let stop = request(&ticketed, &ticket_sink, 2, "agents.signInStop", json!({ "signInId": "si_1" })).await;
         assert_eq!(stop, ticket_reply(2));
+        assert!(r.rt.script.calls_to("agents.signInStop").is_empty() && r.rt.script.calls_to("agents.signIn").is_empty());
         assert!(r.failed.borrow().is_empty(), "a refusal the switch sends is not a failed op");
     })
 }
@@ -679,7 +565,7 @@ fn a_failure_carries_only_what_it_has() {
     block(async {
         let r = rig(|_| {});
         let (host, sink) = r.host().await;
-        r.rt.script.once::<Result<Payload, HostError>>("slates.write", Err(HostError::new("boom")));
+        r.rt.script.once::<Result<SlateWriteAnswer, HostError>>("slates.write", Err(HostError::new("boom")));
         let plain = request(&host, &sink, 1, "slates.write", json!({ "threadId": "t1", "text": "x" })).await;
         assert_eq!(plain.to_string(), json!({ "id": 1, "ok": false, "error": "boom" }).to_string());
 
@@ -688,7 +574,7 @@ fn a_failure_carries_only_what_it_has() {
             warnings: Some(vec![json!({ "path": "title", "said": "long" })]),
             ..HostError::new("the slate is not valid")
         };
-        r.rt.script.once::<Result<Payload, HostError>>("slates.write", Err(bad));
+        r.rt.script.once::<Result<SlateWriteAnswer, HostError>>("slates.write", Err(bad));
         let lists = request(&host, &sink, 2, "slates.write", json!({ "threadId": "t1", "text": "x" })).await;
         let expected = json!({
             "id": 2, "ok": false, "error": "the slate is not valid",
@@ -698,7 +584,7 @@ fn a_failure_carries_only_what_it_has() {
         assert_eq!(r.failed_ops(), vec!["slates.write", "slates.write"]);
 
         let not_left = HostError { left: Some(vec![json!({ "threadId": "t" })]), ..HostError::with_kind("no", Kind::Usage) };
-        r.rt.script.once::<Result<Payload, HostError>>("slates.write", Err(not_left));
+        r.rt.script.once::<Result<SlateWriteAnswer, HostError>>("slates.write", Err(not_left));
         let no_left = request(&host, &sink, 3, "slates.write", json!({ "threadId": "t1", "text": "x" })).await;
         assert!(no_left.get("left").is_none(), "left rides only on a processes-left refusal");
         assert_eq!(no_left["kind"], json!("usage"));
@@ -769,26 +655,76 @@ fn started(outcome: &str) -> SessionStartResult {
     }))
 }
 
+/// A started turn that answers the view, outcome and turn id of a canned start answer.
+struct Handle(SessionStartResult);
+
+impl SessionHandle for Handle {
+    fn id(&self) -> String {
+        self.0.session.id.clone()
+    }
+    fn workspace_id(&self) -> String {
+        self.0.session.workspace_id.clone()
+    }
+    fn finished(&self) -> Shared<LocalBoxFuture<'static, TurnResult>> {
+        futures::future::pending::<TurnResult>().boxed_local().shared()
+    }
+    fn turn_id(&self) -> String {
+        self.0.turn_id.clone()
+    }
+    fn outcome(&self) -> SessionStartOutcome {
+        self.0.outcome
+    }
+    fn notice(&self) -> Option<String> {
+        self.0.notice.clone()
+    }
+    fn view(&self) -> SessionView {
+        self.0.session.clone()
+    }
+    fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
+        async {}.boxed_local()
+    }
+    fn steer(&self, _prompt: String, _id: Option<String>, _images: Vec<TurnImage>) -> Option<Local<'static, SteerTaken>> {
+        None
+    }
+    fn tells_unread(&self) -> Option<bool> {
+        None
+    }
+    fn answer(&self, _ask_id: String, _option_id: String, _reason: Option<String>) -> Option<Local<'static, SessionAnswerResult>> {
+        None
+    }
+    fn set_access(&self, _mode: String) -> Option<Local<'static, AccessMove>> {
+        None
+    }
+    fn stop_task(&self, _task: String) -> Option<Local<'static, TaskStop>> {
+        None
+    }
+}
+
+fn folder(workspace_id: &str, cwd: Option<&str>) -> FolderFor {
+    FolderFor { workspace: workspace(workspace_id, "app", "local", "running", json!({})), cwd: cwd.map(String::from), setup: None }
+}
+
 // O4. serve.test.ts:634
 #[test]
 fn sessions_start_sends_every_answer_under_one_id() {
     block(async {
-        let rt = FakeRuntime::new();
-        let roads = Rc::new(AnswerRoads { answers: vec![started("held"), started("started")], held_asked: Cell::new(None) });
-        let wrapped = Rc::new(WithRoads { inner: rt.clone(), roads: roads.clone() });
-        let served = Served::new(wrapped, opts()).expect("a host token serves");
-        let (host, sink) = host_socket(&served).await;
+        let r = rig(|_| {});
+        let rt = &r.rt;
+        rt.script.once::<Result<FolderFor, HostError>>("workspaces.folderFor", Ok(folder("ws_1", None)));
+        rt.script.once::<Result<Rc<dyn SessionHandle>, HostError>>("sessions.start", Ok(Rc::new(Handle(started("started"))) as Rc<dyn SessionHandle>));
+        let (host, sink) = r.host().await;
         send(&host, json!({ "id": 7, "op": "sessions.start", "prompt": "go", "project": "app", "answerHeld": true })).await;
         let replies = sink.replies(7);
-        assert_eq!(replies.len(), 2, "held, then started");
-        assert_eq!(replies[0]["outcome"], json!("held"));
-        assert_eq!(replies[1]["outcome"], json!("started"));
+        assert_eq!(replies.len(), 1, "the start's one answer");
         for reply in &replies {
             assert_eq!(&keys(reply)[..2], ["id", "ok"]);
             assert_eq!(reply["ok"], json!(true));
+            assert_eq!(reply["outcome"], json!("started"));
             assert_eq!(reply["turnId"], json!("tu_1"));
         }
-        assert_eq!(roads.held_asked.get(), Some(true), "answerHeld rides to the start road");
+        let start = args_of(rt, "sessions.start", 0);
+        assert_eq!(start["workspaceId"], json!("ws_1"), "the folder found is the one started in");
+        assert_eq!(start["opts"]["onHeld"], json!(true), "answerHeld rides to the start road");
     })
 }
 
@@ -798,21 +734,27 @@ fn sessions_warm_strips_the_folder_fields() {
     block(async {
         let r = rig(|_| {});
         let rt = &r.rt;
-        rt.script.once::<Result<StartFolder, HostError>>("startRoads.startAt", Ok(StartFolder { workspace_id: "ws_1".into(), cwd: Some("/at".into()), setup: None }));
+        rt.script.once::<Result<FolderFor, HostError>>("workspaces.folderFor", Ok(folder("ws_1", Some("/at"))));
         rt.script.once::<Result<wsp_wire::wire::runtime::SessionWarmResult, HostError>>("sessions.warm", Ok(from(json!({ "warm": "started" }))));
         let (host, sink) = r.host().await;
-        let frame = json!({ "workspaceId": "ws_1", "project": "app", "cwd": "/ignored", "harness": "claude", "model": "opus", "fast": true });
+        let frame = json!({ "project": "app", "cwd": "/ignored", "harness": "claude", "model": "opus", "fast": true });
         let reply = request(&host, &sink, 1, "sessions.warm", frame.clone()).await;
         assert_eq!(reply.to_string(), r#"{"id":1,"ok":true,"warm":"started"}"#);
         let ask = WarmAsk { harness: Some("claude".into()), cwd: Some("/at".into()), model: Some("opus".into()), fast: Some(true), ..Default::default() };
         let warm = args_of(rt, "sessions.warm", 0);
         assert_eq!(warm["workspaceId"], json!("ws_1"));
         assert_eq!(warm["ask"], json!(format!("{ask:?}")), "the folder's cwd, not the frame's; no project");
-        let at = args_of(rt, "startRoads.startAt", 0);
-        assert_eq!(at["opens"], json!(false));
-        assert_eq!(at["msg"]["project"], json!("app"), "the folder is found from the frame as sent");
+        let at = args_of(rt, "workspaces.folderFor", 0)["ask"].clone();
+        let asked = FolderForAsk {
+            project: Some("app".into()),
+            cwd: Some("/ignored".into()),
+            picks: Some(StartPicksAsked { harness: Some("claude".into()), model: Some("opus".into()), fast: Some(true), ..Default::default() }),
+            opens: false,
+            ..Default::default()
+        };
+        assert_eq!(at, json!(format!("{asked:?}")), "the folder is found from the frame as sent, and a warm opens no setup");
 
-        rt.script.once::<Result<StartFolder, HostError>>("startRoads.startAt", Ok(StartFolder { workspace_id: "ws_2".into(), cwd: None, setup: None }));
+        rt.script.once::<Result<FolderFor, HostError>>("workspaces.folderFor", Ok(folder("ws_2", None)));
         rt.script.once::<Result<wsp_wire::wire::runtime::SessionWarmResult, HostError>>("sessions.warm", Ok(from(json!({ "warm": "none" }))));
         request(&host, &sink, 2, "sessions.warm", frame).await;
         let bare = WarmAsk { harness: Some("claude".into()), model: Some("opus".into()), fast: Some(true), ..Default::default() };
@@ -1498,7 +1440,7 @@ fn agents_ops_gates_and_sentences() {
         rt.script.once::<Result<wsp_wire::types::agents_report::SignInLine, HostError>>("agents.signInLine", Ok(from(json!({ "command": "wsp login claude" }))));
         let ok = request(&host, &sink, 1, "agents.signInLine", json!({ "target": t, "agent": "claude", "name": "srv" })).await;
         assert_eq!(ok["line"]["command"], json!("wsp login claude"));
-        let ask = wsp_core::types::pending::SignInAsk { agent: "claude".into(), server: Some("srv".into()), terminal: None };
+        let ask = wsp_core::types::pending::SignInAsk { agent: "claude".into(), server: Some("srv".into()), terminal: None, scope: None, project: None };
         assert_eq!(args_of(rt, "agents.signInLine", 0)["ask"], json!(format!("{ask:?}")), "name rides as server");
 
         // agents.key: host only; the key never comes back.

@@ -11,9 +11,10 @@ use serde_json::{json, Value};
 use support::{block, Script};
 use wsp_core::types::api::CatalogAt;
 use wsp_core::types::wiring::AdoptedMachine;
+use wsp_core::types::internal::BuilderLife;
 use wsp_engine::orphans::{ListedMachine, ReapFailure, ReapReason, ReapResult, ReapedMachine};
 use wsp_serve::runtime::public::{
-    close, harnesses_list, reap, status_history, status_list, BuilderLife, CloseStep, HarnessesCtx, MachineRead, PublicCtx, StatusCtx,
+    close, harnesses_list, reap, status_history, status_list, CloseStep, HarnessesCtx, MachineRead, PublicCtx, StatusCtx,
     SweepAnswer, SweptBuilder, SweptEntry, KEPT_CLOSE_WAIT_MS,
 };
 use wsp_wire::views::harness::HarnessCatalog;

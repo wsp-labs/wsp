@@ -10,7 +10,10 @@ use wsp_core::clock::Clock;
 use wsp_core::devices::{DeviceDoor, PairedDevice};
 use wsp_core::types::events::EventBus;
 use wsp_core::types::wiring::RuntimeOptions;
+use wsp_machines::images::builders::StageAt;
+use wsp_wire::types::recipe_file::RecipeFileFoldersValue;
 use wsp_wire::views::harness::McpServerSpec;
+use wsp_wire::views::preferences::ProjectLook;
 use wsp_wire::views::workspace::ProjectView;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::WorkspaceOrigin;
@@ -182,33 +185,6 @@ pub trait CoreCtx {
     fn place_away(&self, place_id: &str) -> bool;
 }
 
-/// A project's look: its icon and hue words, each where set. Written `icon` then `hue`.
-#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
-pub struct ProjectLook {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub icon: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hue: Option<String>,
-}
-
-/// A recipe's folder pick as `folderLook` reads it (`RecipeFile["folders"][string]`): icon, hue, image.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct FolderPick {
-    pub icon: Option<String>,
-    pub hue: Option<String>,
-    pub image: Option<String>,
-}
-
-/// One build's stage on a joined computer, kept so a gap in its link can say so (runtime.ts:836).
-#[derive(Clone, Debug, PartialEq)]
-pub struct StageAt {
-    pub place: String,
-    pub name: String,
-    pub named: bool,
-    /// The whole `golden.stage` frame it last sent.
-    pub frame: serde_json::Value,
-}
-
 /// The core's timers and readings over a `CoreCtx` (runtime.ts:860-939). One per runtime.
 pub struct Core {
     pub(crate) ctx: Rc<dyn CoreCtx>,
@@ -273,7 +249,7 @@ impl Core {
         todo!()
     }
     /// `folderLook(projectId, was, now)` (spec C21).
-    pub async fn folder_look(&self, project_id: &str, was: &FolderPick, now: &FolderPick) -> Result<(), HostError> {
+    pub async fn folder_look(&self, project_id: &str, was: &RecipeFileFoldersValue, now: &RecipeFileFoldersValue) -> Result<(), HostError> {
         todo!()
     }
     /// The bus listeners `runtimeCore` adds (spec C23, C26): a `place.setup` with an end keeps that place's copy

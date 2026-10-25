@@ -17,10 +17,12 @@ use serde_json::Value;
 
 use wsp_core::clock::Clock;
 use wsp_core::types::internal::ThreadRecord;
+use wsp_core::types::wiring::Detach;
 use wsp_engine::machine::Machine;
 use wsp_engine::target_line::TargetLogin;
 use wsp_store::store::Store;
 use wsp_wire::types::agents_report::{AgentsProject, AgentsTarget};
+use wsp_frames::ProcKind;
 use wsp_wire::types::slate_wire::SessionSlateEvent;
 use wsp_words::exit::HostError;
 
@@ -84,12 +86,12 @@ pub trait SlatesAreaCtx {
     fn wake(&self, workspace: &str) -> LocalBoxFuture<'static, Result<(), HostError>>;
     fn ready(&self) -> LocalBoxFuture<'static, Result<(), HostError>>;
     /// `ctx.settledNow`: whether the thread is settled by the sidebar's rule at this window (`None` is never).
-    fn settled_now(&self, thread: &str, ms: Option<u64>) -> bool;
+    fn settled_now(&self, thread: &str, ms: Option<f64>) -> bool;
     /// The settle preference's key: `15m`, `1h`, `2h`, `1d` or `never`.
     fn settle_after(&self) -> LocalBoxFuture<'static, String>;
     fn tree_under(&self, lead: &str) -> Vec<String>;
     fn thread_of_token(&self, token: &str) -> Result<String, HostError>;
-    fn own_process(&self, thread: &str, pid: u32, kind: &str) -> Rc<dyn Fn()>;
+    fn own_process(&self, thread: &str, pid: u32, kind: ProcKind) -> Detach;
     fn daemon_image(&self, entry: &Entry, path: String) -> LocalBoxFuture<'static, Result<Value, String>>;
     fn daemon_hash(&self, entry: &Entry, root: String, paths: Vec<String>) -> LocalBoxFuture<'static, Result<Value, String>>;
     fn agents_server(&self, target: AgentsTarget, agent: &str, name: &str) -> LocalBoxFuture<'static, Result<ReadServer, ServerReadError>>;
@@ -268,7 +270,7 @@ pub fn parse_hash_reply(reply: Value) -> Result<HashRead, String> {
 }
 
 /// `SETTLE_MS` (protocol general-prefs.ts:38): none for `never` or an unknown key.
-pub fn settle_ms(key: &str) -> Option<u64> {
+pub fn settle_ms(key: &str) -> Option<f64> {
     todo!()
 }
 

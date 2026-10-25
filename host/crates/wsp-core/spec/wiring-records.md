@@ -61,5 +61,6 @@ the broker never ready) are applied in `createRuntime` (wsp-serve), not here.
 exec options, the status tracker, the devices door, the GitHub cache and the store (wsp-core's and wsp-store's
 other slices), the engine's `BuildGoldenOptions`, `Builder`, `CacheRule`, `Copier`, `GoldenDelta`, `GoldenImport`,
 `ImportLedger`, `KillConfirm`, `Sighting` and `GUEST_USER_ENV`, and the area types rule 1.5 moves down from the
-crates above (`PlaceDoor`, `PlaceWiring`, `Slates`, `ActivityDoor`, the agents readers and acts, `SignInAsk`,
-`SkillAsk`). Each becomes a `pub use` of its home when that lands; nothing else changes.
+crates above (`PlaceWiring`, the agents readers and acts, `SignInAsk`, `SkillAsk`). `PlaceDoor`, `Slates` and
+`ActivityDoor` are not here: `Runtime` names them as its associated types `Places`, `Slates` and `Activity`, which the
+host fixes to wsp-machines', wsp-slates' and wsp-threads' traits. Each becomes a `pub use` of its home when that lands; nothing else changes.

@@ -13,5 +13,5 @@ pub mod serve_slates;
 pub mod serve_start;
 
 pub use runtime::{create_runtime, AssembledRuntime};
-pub use serve::{serve_runtime, Authed, RuntimeServer, ServeOptions, ServedRuntime};
+pub use serve::{serve_runtime, Authed, DynRuntime, RuntimeServer, ServeOptions};
 pub use wsp_wire::wire::limits::HOST_STOPPING_CLOSE;

@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use futures::channel::{mpsc, oneshot};
-use futures::future::BoxFuture;
-use futures::stream::BoxStream;
+use futures::future::LocalBoxFuture;
+use futures::stream::LocalBoxStream;
 use futures::{FutureExt, StreamExt};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Map, Value};
@@ -26,12 +26,13 @@ use wsp_core::types::api::*;
 use wsp_core::types::events::Since;
 use wsp_core::types::wiring::{CreatedWorkspace, RunningExec, SizeAsk};
 use wsp_serve::serve::door::Served;
-use wsp_serve::serve::served::ForwardsSource;
+use wsp_core::forwards::{ForwardEvent, ForwardsSource};
+use wsp_core::types::wiring::Detach;
 use wsp_serve::serve::socket::Socket;
 use wsp_serve::serve::workspaces::NO_SUCH_CHANNEL;
 use wsp_serve::serve::{PlaceDoctor, ReleaseDoor, ServeOptions, Unlisten};
 use wsp_wire::types::release::{ReleaseChangedEvent, ReleaseView};
-use wsp_wire::views::place::DoctorLineEvent;
+use wsp_wire::views::place::{DoctorLineEvent, ForwardCloseEvent, ForwardOpenEvent};
 use wsp_wire::views::place_more::PlaceView;
 use wsp_wire::views::workspace::{PortProbeView, PortReachView};
 use wsp_wire::views::workspace_events::WorkspaceCreatingEvent;
@@ -137,7 +138,7 @@ fn frames_of(sink: &RecordingSink, id: u64) -> Vec<Value> {
 
 /// A forwards source the host holds: its listeners are the test's to call.
 struct FakeForwards {
-    listeners: Rc<RefCell<Vec<(u64, Rc<dyn Fn(&Value)>)>>>,
+    listeners: Rc<RefCell<Vec<(u64, Rc<dyn Fn(&ForwardEvent)>)>>>,
     next: Cell<u64>,
 }
 
@@ -145,8 +146,8 @@ impl FakeForwards {
     fn new() -> Rc<FakeForwards> {
         Rc::new(FakeForwards { listeners: Rc::new(RefCell::new(Vec::new())), next: Cell::new(0) })
     }
-    fn emit(&self, e: &Value) {
-        let heard: Vec<Rc<dyn Fn(&Value)>> = self.listeners.borrow().iter().map(|(_, f)| f.clone()).collect();
+    fn emit(&self, e: &ForwardEvent) {
+        let heard: Vec<Rc<dyn Fn(&ForwardEvent)>> = self.listeners.borrow().iter().map(|(_, f)| f.clone()).collect();
         for f in heard {
             f(e);
         }
@@ -157,10 +158,10 @@ impl ForwardsSource for FakeForwards {
     fn list(&self) -> Vec<PortForward> {
         Vec::new()
     }
-    fn stop(&self, _workspace_id: &str, _port: u16) -> bool {
+    fn stop(&self, _workspace_id: &str, _port: i64) -> bool {
         false
     }
-    fn on(&self, f: Rc<dyn Fn(&Value)>) -> Box<dyn FnOnce()> {
+    fn on(&self, f: Rc<dyn Fn(&ForwardEvent)>) -> Detach {
         let id = self.next.get() + 1;
         self.next.set(id);
         self.listeners.borrow_mut().push((id, f));
@@ -514,16 +515,15 @@ fn forward_events_reach_subscribers_and_die_with_the_socket() {
     support::block(async {
         let rt = FakeRuntime::new();
         let source = FakeForwards::new();
-        *rt.forwards.borrow_mut() = Some(source.clone() as Rc<dyn ForwardsSource>);
-        let served = served_with(&rt, base(&rt));
+        let served = served_with(&rt, ServeOptions { forwards: Some(source.clone() as Rc<dyn ForwardsSource>), ..base(&rt) });
         let (sub, sub_sink) = host_socket(&served).await;
         let (_quiet, quiet_sink) = host_socket(&served).await;
         request(&sub, &sub_sink, 1, "events.subscribe", json!({})).await;
         let f = json!({ "workspaceId": "ws_1", "port": 8123, "startedAt": "2026-09-04T10:00:00.000Z", "name": "api", "kind": "url" });
         let open = json!({ "type": "forward.open", "forward": f });
         let close = json!({ "type": "forward.close", "workspaceId": "ws_1", "port": 8123 });
-        source.emit(&open);
-        source.emit(&close);
+        source.emit(&ForwardEvent::Open(ForwardOpenEvent { forward: serde_json::from_value(f).expect("a forward") }));
+        source.emit(&ForwardEvent::Close(ForwardCloseEvent { workspace_id: "ws_1".into(), port: serde_json::from_value(json!(8123)).expect("a port") }));
         assert_eq!(sub_sink.pushes(), vec![open, close]);
         assert!(quiet_sink.pushes().is_empty());
         assert_eq!(source.listeners.borrow().len(), 1);
@@ -1201,23 +1201,23 @@ impl ExecHandle {
 fn fake_exec() -> (Arc<FakeExec>, ExecHandle) {
     let (lines_tx, lines_rx) = mpsc::unbounded();
     let (exit_tx, exit_rx) = oneshot::channel::<Option<i32>>();
-    let exited = async move { exit_rx.await.unwrap_or(None) }.boxed().shared();
+    let exited = async move { exit_rx.await.unwrap_or(None) }.boxed_local().shared();
     (Arc::new(FakeExec { lines: Mutex::new(Some(lines_rx)), exited, torn: AtomicUsize::new(0) }), ExecHandle { lines: lines_tx, exit: Some(exit_tx) })
 }
 
 impl ExecStream for FakeExec {
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
         match self.lines.lock().unwrap().take() {
-            Some(rx) => rx.boxed(),
-            None => futures::stream::empty().boxed(),
+            Some(rx) => rx.boxed_local(),
+            None => futures::stream::empty().boxed_local(),
         }
     }
     fn teardown(&self) {
         self.torn.fetch_add(1, Ordering::SeqCst);
     }
     fn kill(&self) {}
-    fn write(&self, _line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
-        async { Ok(WriteOutcome::Written) }.boxed()
+    fn write(&self, _line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+        async { Ok(WriteOutcome::Written) }.boxed_local()
     }
     fn close_input(&self) {}
     fn exited(&self) -> SharedFuture<Option<i32>> {

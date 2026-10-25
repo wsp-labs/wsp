@@ -10,7 +10,8 @@ use wsp_core::types::api::{
     WorkspacesApi,
 };
 use wsp_core::types::events::EventBus;
-use wsp_core::types::pending::{ActivityDoor, DaemonChannel, DeviceDoor, PlaceDoor, Slates};
+use wsp_core::types::internal::BuilderLife;
+use wsp_core::types::pending::{DaemonChannel, DeviceDoor};
 use wsp_core::types::wiring::{Detach, OriginStatusApi, RecipeShelf, SysListener, UsageDoor};
 use wsp_engine::machine::MachineBackend;
 use wsp_frames::ProcKind;
@@ -34,15 +35,6 @@ pub struct SweptBuilder {
     /// The place it was made at; the wired place where none.
     pub place: Option<String>,
     pub heartbeat_held: bool,
-}
-
-/// `LiveBuilder.life`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BuilderLife {
-    Own,
-    Reusable,
-    Stale,
-    Foreign,
 }
 
 /// A live record as the sweep reads it (runtime.ts:1171-1191).
@@ -206,8 +198,8 @@ pub async fn status_history(ctx: &dyn StatusCtx, workspace_id: &str, origin: Opt
 /// What `watchPlaceSys` refuses this computer with when it reads nothing of itself (runtime.ts:1053).
 pub const NO_SAMPLES_HERE: &str = "this host reads nothing of the computer it runs on";
 
-/// The assembled runtime: the core, every area, and the public members over them. Implements wsp-core's `Runtime`
-/// and this crate's `ServedRuntime` (spec U1).
+/// The assembled runtime: the core, every area, and the public members over them. Implements wsp-core's `Runtime`,
+/// the one a socket serves (spec U1).
 pub struct AssembledRuntime {
     pub(crate) core: Rc<super::core::Core>,
 }
@@ -215,13 +207,16 @@ pub struct AssembledRuntime {
 
 #[async_trait(?Send)]
 impl wsp_core::types::api::Runtime for AssembledRuntime {
+    type Places = dyn wsp_machines::places::types::PlaceDoor;
+    type Slates = dyn wsp_slates::slates::Slates;
+    type Activity = dyn wsp_threads::activity::ActivityDoor;
     fn events(&self) -> Rc<dyn EventBus> {
         todo!()
     }
     fn backend(&self) -> std::sync::Arc<dyn MachineBackend> {
         todo!()
     }
-    fn places(&self) -> Option<Rc<dyn PlaceDoor>> {
+    fn places(&self) -> Option<Rc<Self::Places>> {
         todo!()
     }
     fn recipes(&self) -> Option<Rc<dyn RecipeShelf>> {
@@ -269,10 +264,10 @@ impl wsp_core::types::api::Runtime for AssembledRuntime {
     fn conversations(&self) -> &dyn ConversationsApi {
         todo!()
     }
-    fn slates(&self) -> Rc<dyn Slates> {
+    fn slates(&self) -> Rc<Self::Slates> {
         todo!()
     }
-    fn activity(&self) -> Rc<dyn ActivityDoor> {
+    fn activity(&self) -> Rc<Self::Activity> {
         todo!()
     }
     fn devices(&self) -> Rc<dyn DeviceDoor> {
@@ -288,33 +283,6 @@ impl wsp_core::types::api::Runtime for AssembledRuntime {
         todo!()
     }
     async fn close(&self) -> Result<(), HostError> {
-        todo!()
-    }
-}
-
-impl crate::serve::ServedRuntime for AssembledRuntime {
-    fn place_door(&self) -> Option<Rc<dyn wsp_machines::places::types::PlaceDoor>> {
-        todo!()
-    }
-    fn slate_door(&self) -> Rc<dyn crate::serve_slates::SlateDoor> {
-        todo!()
-    }
-    fn activity_door(&self) -> Rc<dyn crate::serve_processes::ActivityOps> {
-        todo!()
-    }
-    fn sys_ops(&self, socket: crate::serve::served::SocketHooks) -> Rc<dyn crate::serve::served::SocketOps> {
-        todo!()
-    }
-    fn sign_in_ops(&self, socket: crate::serve::served::SocketHooks, cloud: Option<crate::serve_broker::CloudSignIn>) -> Rc<dyn crate::serve::served::SocketOps> {
-        todo!()
-    }
-    fn is_sign_in_op(&self, msg: &wsp_wire::wire::runtime_ops::RuntimeRequest) -> bool {
-        todo!()
-    }
-    fn forwards(&self, host: Option<Rc<dyn crate::serve::served::ForwardsSource>>) -> Rc<dyn crate::serve::served::ForwardsSource> {
-        todo!()
-    }
-    fn start_roads(&self) -> Rc<dyn crate::serve_start::StartRoads> {
         todo!()
     }
 }

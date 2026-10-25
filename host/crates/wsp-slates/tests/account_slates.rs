@@ -14,12 +14,14 @@ use tokio::task::LocalSet;
 
 use wsp_core::clock::FakeClock;
 use wsp_core::types::internal::ThreadRecord;
+use wsp_core::types::wiring::Detach;
 use wsp_engine::target_line::{Platform, TargetLogin};
 use wsp_slates::account::slates::*;
 use wsp_slates::slate_mcp::{McpHttpAnswer, McpHttpRequest, McpPipeEvents, McpPost, McpServerSpec, McpSignIn, McpTransport, ToolAsks};
 use wsp_slates::slate_mcp_on::StdioRoad;
 use wsp_slates::slate_sources::context::{AccountRow, SessionView};
 use wsp_slates::slates::{Delivered, Delivery, DeliveryOutcome, SlateEmit, SlateThreadFacts, SlatesDeps};
+use wsp_frames::ProcKind;
 use wsp_store::store::{memory_store, Store};
 use wsp_wire::types::agents_report::{AgentsProject, AgentsTarget, AgentsTargetV0, AgentsTargetV1};
 use wsp_wire::types::slate_wire::SessionSlateEvent;
@@ -104,7 +106,7 @@ struct Fake {
     woken: RefCell<Vec<String>>,
     boot_waits: RefCell<Vec<String>>,
     settle: String,
-    settled: RefCell<Vec<(String, Option<u64>)>>,
+    settled: RefCell<Vec<(String, Option<f64>)>>,
     rows: HashMap<String, Vec<SessionView>>,
     transcripts: HashMap<String, Vec<Value>>,
     accounts: Vec<Value>,
@@ -205,7 +207,7 @@ impl SlatesAreaCtx for Fake {
     fn ready(&self) -> LocalBoxFuture<'static, Result<(), HostError>> {
         async { Ok(()) }.boxed_local()
     }
-    fn settled_now(&self, thread: &str, ms: Option<u64>) -> bool {
+    fn settled_now(&self, thread: &str, ms: Option<f64>) -> bool {
         self.settled.borrow_mut().push((thread.to_string(), ms));
         false
     }
@@ -219,8 +221,8 @@ impl SlatesAreaCtx for Fake {
     fn thread_of_token(&self, token: &str) -> Result<String, HostError> {
         (token == "tok").then(|| "t1".to_string()).ok_or_else(|| HostError::new(format!("no turn carries the token {token}")))
     }
-    fn own_process(&self, _thread: &str, _pid: u32, _kind: &str) -> Rc<dyn Fn()> {
-        Rc::new(|| {})
+    fn own_process(&self, _thread: &str, _pid: u32, _kind: ProcKind) -> Detach {
+        Box::new(|| {})
     }
     fn daemon_image(&self, _entry: &Entry, path: String) -> LocalBoxFuture<'static, Result<Value, String>> {
         async move { Ok(json!({ "size": 3, "mediaType": "image/png", "content": "AAAA", "path": path })) }.boxed_local()
@@ -671,7 +673,7 @@ async fn settled_reads_the_settle_preference() {
     LocalSet::new()
         .run_until(async {
             for (key, ms) in
-                [("15m", Some(900_000)), ("1h", Some(3_600_000)), ("2h", Some(7_200_000)), ("1d", Some(86_400_000)), ("never", None)]
+                [("15m", Some(900_000.0)), ("1h", Some(3_600_000.0)), ("2h", Some(7_200_000.0)), ("1d", Some(86_400_000.0)), ("never", None)]
             {
                 let mut f = Fake::default();
                 f.settle = key.into();

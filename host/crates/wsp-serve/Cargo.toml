@@ -31,6 +31,9 @@ wsp-engine = { path = "../wsp-engine" }
 wsp-adapters = { path = "../wsp-adapters" }
 wsp-core = { path = "../wsp-core" }
 wsp-machines = { path = "../wsp-machines" }
+wsp-account = { path = "../wsp-account" }
+wsp-threads = { path = "../wsp-threads" }
+wsp-slates = { path = "../wsp-slates" }
 
 [dev-dependencies]
 base64 = "0.22"

@@ -7,7 +7,7 @@ use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::runtime_ops::RuntimeRequest;
 use wsp_words::exit::HostError;
 
-use crate::serve::served::{Payload, ServedRuntime};
+use crate::serve::served::{DynRuntime, Payload};
 
 /// `msg.op.startsWith("projects.")`.
 pub fn is_project_request(msg: &RuntimeRequest) -> bool {
@@ -21,6 +21,6 @@ pub async fn answer_project(projects: &dyn ProjectsApi, msg: &RuntimeRequest, or
 
 /// `threadPlaces(rt, origin, now)`: every cloud, and for a thread in a folder each computer holding a project it may
 /// start work on; each row less its road, a provider's labelled. serve-projects.ts:35-44, spec H20.
-pub async fn thread_places(rt: &dyn ServedRuntime, origin: Option<Caller>, now: i64) -> Result<Vec<PlaceView>, HostError> {
+pub async fn thread_places(rt: &DynRuntime, origin: Option<Caller>, now: i64) -> Result<Vec<PlaceView>, HostError> {
     todo!()
 }
