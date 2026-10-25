@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 
 use icu_collator::options::CollatorOptions;
 use icu_collator::{Collator, CollatorBorrowed};
+use icu_locale_core::subtags::{language, script};
 use icu_locale_core::Locale;
 use serde_json::Value;
 
@@ -15,15 +16,36 @@ use crate::types::JsNumber;
 /// The locale node's `localeCompare` sorts in where no call names one: ICU's default, which node reads from `LC_ALL`,
 /// else `LC_MESSAGES`, else `LANG` (`LC_COLLATE` is never read). The first of the three that is set is the one, an empty
 /// one included, which is the root locale `und`. `C`, `C.UTF-8`, `POSIX` and no variable at all give `en-US`;
-/// `sv_SE.UTF-8` is `sv-SE`, its codeset and `@modifier` dropped; a value that is no locale gives `en-US`.
+/// `sv_SE.UTF-8` is `sv-SE`, its codeset and `@modifier` dropped; a value that is no locale gives `en-US`; a legacy
+/// language code is its current one (`iw_IL` is `he-IL`).
 pub fn locale_from_env(var: impl Fn(&str) -> Option<String>) -> String {
     let Some(said) = ["LC_ALL", "LC_MESSAGES", "LANG"].into_iter().find_map(var) else { return "en-US".to_string() };
     let name = said.split(['.', '@']).next().unwrap_or_default();
     match name {
         "" => "und".to_string(),
         "C" | "POSIX" => "en-US".to_string(),
-        _ => name.replace('_', "-").parse::<Locale>().map_or_else(|_| "en-US".to_string(), |locale| locale.to_string()),
+        _ => name.replace('_', "-").parse::<Locale>().map_or_else(|_| "en-US".to_string(), |locale| current_language(locale).to_string()),
     }
+}
+
+/// ICU's legacy language aliases, which node resolves before it collates: `iw` is `he`, `in` is `id`, `ji` is `yi`, `mo` is `ro`,
+/// `tl` is `fil`, `cmn` is `zh`, and `sh` is `sr-Latn`.
+fn current_language(mut locale: Locale) -> Locale {
+    let current = match locale.id.language.as_str() {
+        "iw" => language!("he"),
+        "in" => language!("id"),
+        "ji" => language!("yi"),
+        "mo" => language!("ro"),
+        "tl" => language!("fil"),
+        "cmn" => language!("zh"),
+        "sh" => {
+            locale.id.script.get_or_insert(script!("Latn"));
+            language!("sr")
+        }
+        _ => return locale,
+    };
+    locale.id.language = current;
+    locale
 }
 
 /// The collator `localeCompare` is in `locale`: ICU4X's, at tertiary strength with nothing ignored, the options a call

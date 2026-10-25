@@ -35,6 +35,19 @@ The adapters and the views share both, so neither re-implements them.
 2. `serde_json` reads with `float_roundtrip` (`check.md`, decision 3), so a long number reads as JavaScript reads it
    before `json_stringify` writes it.
 
+3. Han characters sort as ICU4X's root orders them: by code point within a block and block by block (core, extension A,
+   B ...). Node's ICU 78.3 orders them by radical and stroke across blocks. Of 16,200 random Han pairs, the root
+   order agreed on all but 32 of 6,000 within the core block (U+4E00 to U+9FFF), about half of the core-against-extension-A
+   pairs and of the core-against-extension-B pairs, and 205 of 500 extension-A-against-compatibility pairs.
+   `CollationType::Unihan` (`-u-co-unihan`) answers as the root does and `zh` is pinyin order, so neither closes it; the
+   data to close it is the Unihan radical-stroke table, which `icu_collator`'s compiled data does not hold.
+   `tests/text_known_gaps.rs` pins the Rust answer; `review_views.rs::han_characters_sort_by_radical_and_stroke_as_node_sorts_them`
+   stays red until the data is there.
+4. `locale_from_env` resolves ICU's legacy language codes as node does: `iw` is `he`, `in` is `id`, `ji` is `yi`, `mo` is
+   `ro`, `tl` is `fil`, `cmn` is `zh`, `sh` is `sr-Latn`. Still unlike node, because ICU4X has no rules to sort by: `yi`
+   (node puts Hebrew before Latin as it does for `he`; here `yi` sorts as the root), and the three-letter codes node
+   canonicalizes (`heb`, `ces`, `hrv`, `yid`, `scc`, `scr`, `prs`), which no `LANG` names.
+
 ## Rules pinned → tests (`tests/text.rs`)
 
 | Rule | Test |

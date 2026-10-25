@@ -54,9 +54,10 @@ meet, filling a new thread's from the marks.
 
 ## Behaviour nobody wrote down
 
-- `efforts_for` rebuilds the marked option with `isDefault` last (`{...rest, isDefault: true}`): the TS writes
-  `{value, label, description?, short?, isDefault}`, the struct writes `is_default` before `short`. Accepted
-  difference (spec/shapes.md, Decisions); the rules tests compare these as values.
+- `efforts_for` rebuilds the marked option with `isDefault` last (`{...rest, isDefault: true}`) and the others with no
+  `isDefault`: the TS writes `{value, label, description?, short?, isDefault}`, so it returns `Fields<HarnessOption>`,
+  which keeps that order and derefs to the option. With no default effort named it returns the catalog's options as
+  they stand.
 
 ## Decisions
 
