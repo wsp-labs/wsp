@@ -1,0 +1,892 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! What zod did beside the shape: the refinements a parse enforces (`.int()`, `.positive()`, `.max(n)`, `.regex()`,
+//! `.strict()`, a refine), and the issue a refused value answers with. Serde reads the shape; `Check` reads the rest.
+//! See spec/check.md.
+
+use indexmap::IndexMap;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::Value;
+
+use crate::types::js_number::JsNumber;
+
+/// One zod issue, as zod 3's `ZodError` carries it (chapter 05, rule 4.8): the first issue a parse found.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SchemaError {
+    /// zod's word: invalid_type, too_big, too_small, invalid_string, invalid_enum_value, invalid_literal,
+    /// invalid_union_discriminator, unrecognized_keys, custom.
+    pub code: String,
+    /// "key" strings and index numbers from the root, `[]` at the root.
+    pub path: Vec<Value>,
+    /// zod's wording where it can be matched.
+    pub message: String,
+    /// zod's other keys in zod's order: expected, received, options, keys, minimum, maximum, inclusive, exact, type,
+    /// validation.
+    pub detail: IndexMap<String, Value>,
+}
+
+impl SchemaError {
+    /// The issue as zod's `ZodError.message` writes a list of one: `JSON.stringify([issue], null, 2)`, the issue's
+    /// keys in zod's order (code, then detail's keys, then path, then message).
+    pub fn issue_text(&self) -> String {
+        let mut issue: IndexMap<String, Value> = IndexMap::new();
+        let code = self.code.as_str();
+        let detail = |keys: &[&str]| keys.iter().filter_map(|k| self.detail.get(*k).map(|v| (k.to_string(), v.clone()))).collect::<Vec<_>>();
+        let rest = |skip: &[&str]| self.detail.iter().filter(|(k, _)| !skip.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
+        let float = self.detail.get("received") == Some(&Value::from("float"));
+        let order: Vec<(String, Value)> = match code {
+            "invalid_enum_value" | "invalid_literal" => {
+                let mut o = detail(&["received"]);
+                o.push(("code".into(), Value::from(code)));
+                o.extend(rest(&["received"]));
+                o.push(("path".into(), Value::Array(self.path.clone())));
+                o.push(("message".into(), Value::from(self.message.as_str())));
+                o
+            }
+            "invalid_string" => {
+                let mut o = detail(&["validation"]);
+                o.push(("code".into(), Value::from(code)));
+                o.push(("message".into(), Value::from(self.message.as_str())));
+                o.push(("path".into(), Value::Array(self.path.clone())));
+                o
+            }
+            "too_small" | "too_big" | "custom" => {
+                let mut o = vec![("code".into(), Value::from(code))];
+                o.extend(rest(&[]));
+                o.push(("message".into(), Value::from(self.message.as_str())));
+                o.push(("path".into(), Value::Array(self.path.clone())));
+                o
+            }
+            "invalid_type" if self.detail.get("expected").is_some_and(|e| e.as_str().is_some_and(|e| e.starts_with('\''))) => {
+                let mut o = detail(&["expected", "received"]);
+                o.push(("code".into(), Value::from(code)));
+                o.push(("path".into(), Value::Array(self.path.clone())));
+                o.push(("message".into(), Value::from(self.message.as_str())));
+                o
+            }
+            "invalid_type" if float => {
+                let mut o = vec![("code".into(), Value::from(code))];
+                o.extend(rest(&[]));
+                o.push(("message".into(), Value::from(self.message.as_str())));
+                o.push(("path".into(), Value::Array(self.path.clone())));
+                o
+            }
+            _ => {
+                let mut o = vec![("code".into(), Value::from(code))];
+                o.extend(rest(&[]));
+                o.push(("path".into(), Value::Array(self.path.clone())));
+                o.push(("message".into(), Value::from(self.message.as_str())));
+                o
+            }
+        };
+        issue.extend(order);
+        serde_json::to_string_pretty(&Value::Array(vec![Value::Object(issue.into_iter().collect())])).expect("an issue writes as JSON")
+    }
+
+    /// The same issue one level down: `segment` goes in front of the path, so a struct's check names the field it
+    /// read.
+    pub fn under(self, segment: impl Into<Value>) -> SchemaError {
+        let mut path = self.path;
+        path.insert(0, segment.into());
+        SchemaError { path, ..self }
+    }
+}
+
+/// What zod calls the value a path reaches, for the issue a refused value answers with. `Word` is a plain type word,
+/// `Int` an `.int()` number, `Options` a `z.enum`'s words, `Tags` a tagged union's tag key and its tags, `Union` an
+/// untagged union, which answers `invalid_union` where it is missing or of no variant, and `Literal` a literal's one value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Zod {
+    Word(&'static str),
+    Int,
+    Options(&'static [&'static str]),
+    Tags(&'static str, &'static [&'static str]),
+    Union,
+    Literal(fn() -> Value),
+}
+
+/// The refinements of one type. A type with none keeps the default, which checks nothing; a struct's check runs the
+/// check of every field whose type has one, in field order, and answers the first issue with the field's key in front
+/// of its path.
+pub trait Check: DeserializeOwned {
+    fn check(&self) -> Result<(), SchemaError> {
+        Ok(())
+    }
+
+    /// zod's answer for `value` read as this type: every issue, in zod's order, found by the type's schema pass. None
+    /// where the type has no pass, and serde's read and `check` decide.
+    fn pass(_value: &Value) -> Option<Vec<SchemaError>>
+    where
+        Self: Sized,
+    {
+        None
+    }
+
+    /// What zod calls the value at `path` below this type, or None where the type does not say. A missing key, a wrong
+    /// type or an unknown tag names its expected word through this, since serde's error does not.
+    fn describe(_path: &[Value]) -> Option<Zod>
+    where
+        Self: Sized,
+    {
+        None
+    }
+}
+
+/// The word of a type that is one value and has no path below it.
+pub fn leaf(path: &[Value], zod: Zod) -> Option<Zod> {
+    path.is_empty().then_some(zod)
+}
+
+impl<T: Check> Check for Vec<T> {
+    fn check(&self) -> Result<(), SchemaError> {
+        for (i, item) in self.iter().enumerate() {
+            item.check().map_err(|e| e.under(i))?;
+        }
+        Ok(())
+    }
+
+    fn pass(value: &Value) -> Option<Vec<SchemaError>> {
+        let Value::Array(items) = value else { return None };
+        Some(items.iter().enumerate().flat_map(|(i, item)| issues_of::<T>(item).into_iter().map(move |e| e.under(i))).collect())
+    }
+
+    fn describe(path: &[Value]) -> Option<Zod> {
+        match path.split_first() {
+            None => Some(Zod::Word("array")),
+            Some((_, rest)) => T::describe(rest),
+        }
+    }
+}
+
+impl<T: Check> Check for Option<T> {
+    fn check(&self) -> Result<(), SchemaError> {
+        match self {
+            Some(v) => v.check(),
+            None => Ok(()),
+        }
+    }
+
+    fn pass(value: &Value) -> Option<Vec<SchemaError>> {
+        if value.is_null() {
+            return Some(Vec::new());
+        }
+        Some(issues_of::<T>(value))
+    }
+
+    fn describe(path: &[Value]) -> Option<Zod> {
+        T::describe(path)
+    }
+}
+
+impl<K: Check + Serialize + std::hash::Hash + Eq, V: Check> Check for IndexMap<K, V> {
+    fn check(&self) -> Result<(), SchemaError> {
+        for (k, v) in self {
+            let key = serde_json::to_value(k).expect("a map key writes as JSON");
+            k.check().map_err(|e| e.under(key.clone()))?;
+            v.check().map_err(|e| e.under(key))?;
+        }
+        Ok(())
+    }
+
+    fn pass(value: &Value) -> Option<Vec<SchemaError>> {
+        let Value::Object(map) = value else { return None };
+        let mut out = Vec::new();
+        for (key, item) in map {
+            out.extend(issues_of::<K>(&Value::String(key.clone())).into_iter().map(|e| e.under(key.as_str())));
+            out.extend(issues_of::<V>(item).into_iter().map(|e| e.under(key.as_str())));
+        }
+        Some(out)
+    }
+
+    fn describe(path: &[Value]) -> Option<Zod> {
+        match path.split_first() {
+            None => Some(Zod::Word("object")),
+            Some((_, rest)) => V::describe(rest),
+        }
+    }
+}
+
+impl Check for String {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Word("string"))
+    }
+}
+
+impl Check for bool {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Word("boolean"))
+    }
+}
+
+impl Check for i64 {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Int)
+    }
+}
+
+impl Check for u64 {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Int)
+    }
+}
+
+impl Check for u32 {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Int)
+    }
+}
+
+impl Check for usize {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Int)
+    }
+}
+
+impl Check for f64 {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Word("number"))
+    }
+}
+
+impl Check for Value {}
+
+fn bound(code: &str, minimum: Option<Value>, maximum: Option<Value>, ty: &str, inclusive: bool, exact: bool, message: String) -> SchemaError {
+    let mut detail = IndexMap::new();
+    if let Some(v) = minimum {
+        detail.insert("minimum".to_string(), v);
+    } else if let Some(v) = maximum {
+        detail.insert("maximum".to_string(), v);
+    }
+    detail.insert("type".to_string(), Value::from(ty));
+    detail.insert("inclusive".to_string(), Value::from(inclusive));
+    detail.insert("exact".to_string(), Value::from(exact));
+    SchemaError { code: code.into(), path: Vec::new(), message, detail }
+}
+
+fn num_json(n: f64) -> Value {
+    serde_json::to_value(JsNumber(n)).expect("a number writes as JSON")
+}
+
+/// zod's `.min(n)` on a number: `>= n` when inclusive, `> n` when not.
+pub fn num_at_least(v: f64, min: f64) -> Result<(), SchemaError> {
+    if v >= min {
+        return Ok(());
+    }
+    Err(bound("too_small", Some(num_json(min)), None, "number", true, false, format!("Number must be greater than or equal to {}", JsNumber(min).js_string())))
+}
+
+pub fn num_above(v: f64, min: f64) -> Result<(), SchemaError> {
+    if v > min {
+        return Ok(());
+    }
+    Err(bound("too_small", Some(num_json(min)), None, "number", false, false, format!("Number must be greater than {}", JsNumber(min).js_string())))
+}
+
+pub fn num_at_most(v: f64, max: f64) -> Result<(), SchemaError> {
+    if v <= max {
+        return Ok(());
+    }
+    Err(bound("too_big", None, Some(num_json(max)), "number", true, false, format!("Number must be less than or equal to {}", JsNumber(max).js_string())))
+}
+
+pub fn num_below(v: f64, max: f64) -> Result<(), SchemaError> {
+    if v < max {
+        return Ok(());
+    }
+    Err(bound("too_big", None, Some(num_json(max)), "number", false, false, format!("Number must be less than {}", JsNumber(max).js_string())))
+}
+
+/// zod's `.min(n)` on a string: its length in UTF-16 units.
+pub fn text_at_least(s: &str, min: usize) -> Result<(), SchemaError> {
+    if utf16_len(s) >= min {
+        return Ok(());
+    }
+    Err(bound("too_small", Some(Value::from(min)), None, "string", true, false, format!("String must contain at least {min} character(s)")))
+}
+
+pub fn text_at_most(s: &str, max: usize) -> Result<(), SchemaError> {
+    if utf16_len(s) <= max {
+        return Ok(());
+    }
+    Err(bound("too_big", None, Some(Value::from(max)), "string", true, false, format!("String must contain at most {max} character(s)")))
+}
+
+/// zod's `.length(n)` on a string: too short and too long both fail, as zod's exact issues.
+pub fn text_exactly(s: &str, n: usize) -> Result<(), SchemaError> {
+    let len = utf16_len(s);
+    if len < n {
+        return Err(bound("too_small", Some(Value::from(n)), None, "string", true, true, format!("String must contain exactly {n} character(s)")));
+    }
+    if len > n {
+        return Err(bound("too_big", None, Some(Value::from(n)), "string", true, true, format!("String must contain exactly {n} character(s)")));
+    }
+    Ok(())
+}
+
+pub fn items_at_least(len: usize, min: usize) -> Result<(), SchemaError> {
+    if len >= min {
+        return Ok(());
+    }
+    Err(bound("too_small", Some(Value::from(min)), None, "array", true, false, format!("Array must contain at least {min} element(s)")))
+}
+
+pub fn items_at_most(len: usize, max: usize) -> Result<(), SchemaError> {
+    if len <= max {
+        return Ok(());
+    }
+    Err(bound("too_big", None, Some(Value::from(max)), "array", true, false, format!("Array must contain at most {max} element(s)")))
+}
+
+pub fn items_exactly(len: usize, n: usize) -> Result<(), SchemaError> {
+    if len < n {
+        return Err(bound("too_small", Some(Value::from(n)), None, "array", true, true, format!("Array must contain exactly {n} element(s)")));
+    }
+    if len > n {
+        return Err(bound("too_big", None, Some(Value::from(n)), "array", true, true, format!("Array must contain exactly {n} element(s)")));
+    }
+    Ok(())
+}
+
+/// A zod `.refine(f, message)`: the message when `ok` is false.
+pub fn refine(ok: bool, message: &str) -> Result<(), SchemaError> {
+    if ok {
+        return Ok(());
+    }
+    Err(SchemaError { code: "custom".into(), path: Vec::new(), message: message.into(), detail: IndexMap::new() })
+}
+
+/// A zod `.regex(r)` that failed: zod's `invalid_string` with validation `regex`, and the message the rule gave.
+pub fn regex_check(ok: bool) -> Result<(), SchemaError> {
+    regex_check_with(ok, "Invalid")
+}
+
+pub fn regex_check_with(ok: bool, message: &str) -> Result<(), SchemaError> {
+    if ok {
+        return Ok(());
+    }
+    let mut detail = IndexMap::new();
+    detail.insert("validation".to_string(), Value::from("regex"));
+    Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: message.into(), detail })
+}
+
+/// zod's `.min(n, message)` on a string, which answers the rule's own words.
+pub fn text_at_least_with(s: &str, min: usize, message: &str) -> Result<(), SchemaError> {
+    if utf16_len(s) >= min {
+        return Ok(());
+    }
+    Err(bound("too_small", Some(Value::from(min)), None, "string", true, false, message.to_string()))
+}
+
+/// JavaScript's `\s`: the white space and line terminators a JavaScript regex and `String.prototype.trim` take. Rust's
+/// `char::is_whitespace` is another set: it has U+0085 and lacks U+FEFF.
+pub fn js_space(c: char) -> bool {
+    matches!(c, '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+}
+
+/// `/^[^/\s]+\/[^/\s]+$/`: one slash between two non-empty runs of non-space characters.
+pub fn tracker_repo(s: &str) -> bool {
+    let is_run = |p: &str| !p.is_empty() && !p.chars().any(|c| c == '/' || js_space(c));
+    s.split_once('/').is_some_and(|(a, b)| is_run(a) && is_run(b))
+}
+
+/// `/^[A-Za-z_][A-Za-z0-9_]*$/`
+pub fn env_name(s: &str) -> bool {
+    let mut chars = s.chars();
+    matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_') && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// `/^[0-9a-f]{64}$/`
+pub fn hex_64(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// `/^[^\n\r\0]*$/`
+pub fn no_line_breaks(s: &str) -> bool {
+    !s.contains(['\n', '\r', '\0'])
+}
+
+/// JavaScript's `String.prototype.trim`: the white space and line terminators it strips, which is not Rust's set.
+pub fn js_trim(s: &str) -> &str {
+    s.trim_matches(js_space)
+}
+
+/// A zod `.trim()` on a string: the value is trimmed as it is read, so it is written trimmed too.
+pub fn trimmed<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    String::deserialize(d).map(|s| js_trim(&s).to_string())
+}
+
+/// `.trim()` on a field zod reads as `.optional()`.
+pub fn trimmed_opt<'de, D: Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    Option::<String>::deserialize(d).map(|s| s.map(|s| js_trim(&s).to_string()))
+}
+
+/// `.trim()` on a field zod reads as `.optional().nullable()`, with `double_option`'s three states.
+pub mod double_option_trimmed {
+    use super::*;
+
+    pub use super::double_option::serialize;
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Option<String>>, D::Error> {
+        trimmed_opt(d).map(Some)
+    }
+}
+
+/// zod's `schema.safeParse(value)`: the first issue of `issues_of`, else the value serde reads.
+pub fn parse<T: DeserializeOwned + Check>(value: &Value) -> Result<T, SchemaError> {
+    read::<T>(value).map_err(|mut issues| issues.remove(0))
+}
+
+/// Every issue zod would find reading `value` as `T`, in zod's order: the type's schema pass, or with no pass serde's
+/// one error and then `check`.
+pub fn issues_of<T: DeserializeOwned + Check>(value: &Value) -> Vec<SchemaError> {
+    if let Some(issues) = T::pass(value) {
+        return issues;
+    }
+    rules_of::<T>(value)
+}
+
+/// The value serde reads as `T` and the first issue of its `check`, or serde's one error. The way a type with no
+/// pass is read, and the rules of a tagged union's member whose fields its pass has read clean.
+pub fn rules_of<T: DeserializeOwned + Check>(value: &Value) -> Vec<SchemaError> {
+    match serde_path_to_error::deserialize::<_, T>(value) {
+        Ok(read) => read.check().err().into_iter().collect(),
+        Err(e) => vec![serde_issue::<T>(&e.inner().to_string(), segments(e.path()), value)],
+    }
+}
+
+/// The value read as `T` when no issue is found, else the issues.
+pub fn read<T: DeserializeOwned + Check>(value: &Value) -> Result<T, Vec<SchemaError>> {
+    let issues = issues_of::<T>(value);
+    if !issues.is_empty() {
+        return Err(issues);
+    }
+    serde_path_to_error::deserialize::<_, T>(value).map_err(|e| vec![serde_issue::<T>(&e.inner().to_string(), segments(e.path()), value)])
+}
+
+/// A field zod reads as `.optional()` alone: a value is read, and `null` is refused.
+pub fn read_present<T: DeserializeOwned + Check>(value: &Value) -> Result<Option<T>, Vec<SchemaError>> {
+    if value.is_null() {
+        return Err(vec![null_issue::<T>()]);
+    }
+    read::<T>(value).map(Some)
+}
+
+/// A field zod reads as `.optional().nullable()`: `null` is `Some(None)`, a value `Some(Some(v))`.
+pub fn read_double<T: DeserializeOwned + Check>(value: &Value) -> Result<Option<Option<T>>, Vec<SchemaError>> {
+    if value.is_null() {
+        return Ok(Some(None));
+    }
+    read::<T>(value).map(|v| Some(Some(v)))
+}
+
+/// A string zod trims as it reads it (`.trim()`), so the value is kept trimmed.
+pub fn read_trimmed(value: &Value) -> Result<String, Vec<SchemaError>> {
+    match value {
+        Value::String(text) => Ok(js_trim(text).to_string()),
+        other => read::<String>(other),
+    }
+}
+
+pub fn read_trimmed_opt(value: &Value) -> Result<Option<String>, Vec<SchemaError>> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    read_trimmed(value).map(Some)
+}
+
+pub fn read_double_trimmed(value: &Value) -> Result<Option<Option<String>>, Vec<SchemaError>> {
+    if value.is_null() {
+        return Ok(Some(None));
+    }
+    read_trimmed(value).map(|v| Some(Some(v)))
+}
+
+/// A missing key zod reports at `key` ("Required", or the discriminator or literal words the key's type gives).
+pub fn missing<T: Check>(key: &str) -> SchemaError {
+    serde_issue::<T>(&format!("missing field `{key}`"), Vec::new(), &Value::Null)
+}
+
+/// A `null` where zod's type takes a value: invalid_type with the expected word of `T`.
+pub fn null_issue<T: Check>() -> SchemaError {
+    serde_issue::<T>("invalid type: null, expected a value", Vec::new(), &Value::Null)
+}
+
+/// A JSON value where zod reads an object: invalid_type, "Expected object, received <its word>".
+pub fn not_object(value: &Value) -> SchemaError {
+    let received = received_word(Some(value));
+    let mut detail = IndexMap::new();
+    detail.insert("expected".to_string(), Value::from("object"));
+    detail.insert("received".to_string(), Value::from(received));
+    SchemaError { code: "invalid_type".into(), path: Vec::new(), message: format!("Expected object, received {received}"), detail }
+}
+
+/// A discriminator zod cannot match: invalid_union_discriminator at `key`, with the tags of `T`.
+pub fn unknown_tag<T: Check>(key: &str, value: &Value) -> SchemaError {
+    let text = match value {
+        Value::String(s) => s.clone(),
+        other => other.to_string(),
+    };
+    serde_issue::<T>(&format!("unknown variant `{text}`"), vec![Value::from(key)], value)
+}
+
+/// zod's issues that abort a parse, as opposed to the ones that leave a value dirty (its refinements and unknown keys).
+fn is_aborted(code: &str) -> bool {
+    matches!(code, "invalid_type" | "invalid_enum_value" | "invalid_literal" | "invalid_union" | "invalid_union_discriminator")
+}
+
+/// zod's z.union: the first member that reads clean wins; else the first member with issues that abort nothing answers
+/// with its issues; else the union answers invalid_union.
+pub fn union_answer(members: Vec<Vec<SchemaError>>) -> Vec<SchemaError> {
+    if members.iter().any(|issues| issues.is_empty()) {
+        return Vec::new();
+    }
+    for issues in members.iter() {
+        if !issues.iter().any(|e| is_aborted(&e.code)) {
+            return issues.clone();
+        }
+    }
+    vec![SchemaError { code: "invalid_union".into(), path: Vec::new(), message: "Invalid input".into(), detail: IndexMap::new() }]
+}
+
+pub fn unrecognized(path: Vec<Value>, keys: Vec<String>) -> SchemaError {
+    let message = format!("Unrecognized key(s) in object: {}", keys.iter().map(|k| format!("'{k}'")).collect::<Vec<_>>().join(", "));
+    let mut detail = IndexMap::new();
+    detail.insert("keys".to_string(), Value::Array(keys.into_iter().map(Value::from).collect()));
+    SchemaError { code: "unrecognized_keys".into(), path, message, detail }
+}
+
+fn segments(path: &serde_path_to_error::Path) -> Vec<Value> {
+    path.iter()
+        .filter_map(|s| match s {
+            serde_path_to_error::Segment::Seq { index } => Some(Value::from(*index)),
+            serde_path_to_error::Segment::Map { key } => Some(Value::from(key.as_str())),
+            serde_path_to_error::Segment::Enum { variant } => Some(Value::from(variant.as_str())),
+            serde_path_to_error::Segment::Unknown => None,
+        })
+        .collect()
+}
+
+fn remove(work: &mut Value, path: &[Value], key: &str) -> bool {
+    let mut at = work;
+    for seg in path {
+        let next = match seg {
+            Value::String(k) => at.get_mut(k.as_str()),
+            Value::Number(i) => at.get_mut(i.as_u64().unwrap_or(0) as usize),
+            _ => None,
+        };
+        match next {
+            Some(v) => at = v,
+            None => return false,
+        }
+    }
+    match at {
+        Value::Object(map) => map.shift_remove(key).is_some(),
+        _ => false,
+    }
+}
+
+fn value_at<'a>(value: &'a Value, path: &[Value]) -> Option<&'a Value> {
+    path.iter().try_fold(value, |at, seg| match seg {
+        Value::String(k) => at.get(k.as_str()),
+        Value::Number(i) => at.get(i.as_u64()? as usize),
+        _ => None,
+    })
+}
+
+/// zod's type word of a JSON value.
+fn received_word(value: Option<&Value>) -> &'static str {
+    match value {
+        None => "undefined",
+        Some(Value::Null) => "null",
+        Some(Value::Bool(_)) => "boolean",
+        Some(Value::Number(n)) if n.is_f64() && n.as_f64().is_some_and(|f| f.fract() != 0.0) => "float",
+        Some(Value::Number(_)) => "number",
+        Some(Value::String(_)) => "string",
+        Some(Value::Array(_)) => "array",
+        Some(Value::Object(_)) => "object",
+    }
+}
+
+fn options_text(options: &[&str]) -> String {
+    options.iter().map(|o| format!("'{o}'")).collect::<Vec<_>>().join(" | ")
+}
+
+fn options_value(options: &[&str]) -> Value {
+    Value::Array(options.iter().map(|o| Value::from(*o)).collect())
+}
+
+/// A required key that is absent, worded as zod words the type the key holds: "Required" for a plain type, the
+/// discriminator words for a tagged union, `invalid_union` for a union and `invalid_literal` for a literal.
+fn missing_issue(at: Vec<Value>, zod: Option<Zod>) -> SchemaError {
+    match zod {
+        Some(Zod::Tags(key, tags)) => discriminator(at, key, tags),
+        Some(Zod::Union) => invalid_union(at),
+        Some(Zod::Literal(word)) => invalid_literal(at, None, word()),
+        zod => {
+            let expected = match zod {
+                Some(Zod::Options(o)) => options_text(o),
+                Some(Zod::Word(w)) => w.to_string(),
+                Some(Zod::Int) => "number".to_string(),
+                _ => "unknown".to_string(),
+            };
+            let mut detail = IndexMap::new();
+            detail.insert("expected".to_string(), Value::from(expected));
+            detail.insert("received".to_string(), Value::from("undefined"));
+            SchemaError { code: "invalid_type".into(), path: at, message: "Required".into(), detail }
+        }
+    }
+}
+
+/// The key `key` is absent where `T` is required: the issue `missing` answers for a struct's own key, for a key of a
+/// tagged union's member, where the member has no type of its own to ask.
+pub fn required<T: Check>(key: &str) -> SchemaError {
+    missing_issue(vec![Value::from(key)], T::describe(&[]))
+}
+
+/// What a tagged union's `describe` says: the tag key holds one of `tags`, and nothing below the union is worded here,
+/// since each member's field is read as the type it holds.
+pub fn tag_describe(path: &[Value], key: &'static str, tags: &'static [&'static str]) -> Option<Zod> {
+    match path {
+        [only] if only.as_str() == Some(key) => Some(Zod::Tags(key, tags)),
+        _ => None,
+    }
+}
+
+/// The issue for one serde error, by the words serde gives: a missing field, an unknown variant, a value of the wrong
+/// type, a literal, an untagged union with no variant. Anything else answers as a `custom` issue with serde's words.
+fn serde_issue<T: Check>(msg: &str, path: Vec<Value>, work: &Value) -> SchemaError {
+    let quoted = |s: &str| s.split('`').nth(1).unwrap_or_default().to_string();
+    if msg.starts_with("missing field `") {
+        let mut at = path;
+        at.push(Value::from(quoted(msg)));
+        let zod = T::describe(&at);
+        return missing_issue(at, zod);
+    }
+    if msg.starts_with("unknown variant `") {
+        let got = quoted(msg);
+        let options = match T::describe(&path) {
+            Some(Zod::Tags(key, tags)) => return discriminator(path, key, tags),
+            Some(Zod::Union) => return invalid_union(path),
+            Some(Zod::Options(o)) => o.iter().map(|w| w.to_string()).collect(),
+            _ => match variant_names(msg) {
+                Some(names) => names,
+                None => return custom(path, msg),
+            },
+        };
+        let words: Vec<&str> = options.iter().map(String::as_str).collect();
+        let mut detail = IndexMap::new();
+        detail.insert("received".to_string(), Value::from(got.as_str()));
+        detail.insert("options".to_string(), Value::Array(options.iter().map(|o| Value::from(o.as_str())).collect()));
+        return SchemaError {
+            code: "invalid_enum_value".into(),
+            path,
+            message: format!("Invalid enum value. Expected {}, received '{got}'", options_text(&words)),
+            detail,
+        };
+    }
+    if msg.starts_with("invalid type: ") || msg.starts_with("invalid value: ") {
+        let at = value_at(work, &path);
+        return match T::describe(&path) {
+            Some(Zod::Tags(key, tags)) => discriminator(path, key, tags),
+            Some(Zod::Union) => invalid_union(path),
+            Some(Zod::Literal(word)) => invalid_literal(path, Some(at.cloned().unwrap_or(Value::Null)), word()),
+            zod => {
+                let (expected, received) = match zod {
+                    Some(Zod::Int) if received_word(at) == "float" => ("integer".to_string(), "float"),
+                    Some(Zod::Int) => ("number".to_string(), received_word(at)),
+                    Some(Zod::Word(w)) => (w.to_string(), received_word(at)),
+                    Some(Zod::Options(o)) => (options_text(o), received_word(at)),
+                    _ => ("unknown".to_string(), received_word(at)),
+                };
+                let mut detail = IndexMap::new();
+                detail.insert("expected".to_string(), Value::from(expected.as_str()));
+                detail.insert("received".to_string(), Value::from(received));
+                SchemaError { code: "invalid_type".into(), path, message: format!("Expected {expected}, received {received}"), detail }
+            }
+        };
+    }
+    if let Some(literal) = msg.strip_prefix("Invalid literal value, expected ") {
+        let expected: Value = serde_json::from_str(literal).unwrap_or(Value::Null);
+        let received = value_at(work, &path).cloned().unwrap_or(Value::Null);
+        return invalid_literal(path, Some(received), expected);
+    }
+    if let Some(word) = msg.strip_prefix("expected ").filter(|word| matches!(*word, "true" | "false")) {
+        let received = value_at(work, &path).cloned().unwrap_or(Value::Null);
+        return invalid_literal(path, Some(received), Value::Bool(word == "true"));
+    }
+    if msg.starts_with("data did not match any variant") {
+        return invalid_union(path);
+    }
+    custom(path, msg)
+}
+
+/// The words serde lists after `expected` in an unknown-variant message: `` `a` ``, `` `a` or `b` ``, or
+/// `` one of `a`, `b` ``.
+fn variant_names(msg: &str) -> Option<Vec<String>> {
+    let tail = msg.split_once("expected ")?.1;
+    let names: Vec<String> = tail.split('`').skip(1).step_by(2).map(str::to_string).collect();
+    (!names.is_empty()).then_some(names)
+}
+
+/// zod's `invalid_literal`. `received` is None where the value is absent: zod's `undefined` is left out of its JSON.
+fn invalid_literal(path: Vec<Value>, received: Option<Value>, expected: Value) -> SchemaError {
+    let mut detail = IndexMap::new();
+    if let Some(received) = received {
+        detail.insert("received".to_string(), received);
+    }
+    detail.insert("expected".to_string(), expected.clone());
+    SchemaError { code: "invalid_literal".into(), path, message: format!("Invalid literal value, expected {expected}"), detail }
+}
+
+fn discriminator(path: Vec<Value>, _key: &str, tags: &[&str]) -> SchemaError {
+    let mut detail = IndexMap::new();
+    detail.insert("options".to_string(), options_value(tags));
+    SchemaError {
+        code: "invalid_union_discriminator".into(),
+        path,
+        message: format!("Invalid discriminator value. Expected {}", options_text(tags)),
+        detail,
+    }
+}
+
+fn invalid_union(path: Vec<Value>) -> SchemaError {
+    SchemaError { code: "invalid_union".into(), path, message: "Invalid input".into(), detail: IndexMap::new() }
+}
+
+fn custom(path: Vec<Value>, msg: &str) -> SchemaError {
+    SchemaError { code: "custom".into(), path, message: msg.to_string(), detail: IndexMap::new() }
+}
+
+/// A zod `.default(v)` value, written in the generated code as the JSON the TS default holds.
+pub fn from_json<T: DeserializeOwned>(json: &str) -> T {
+    serde_json::from_str(json).expect("a generated default is valid JSON for its type")
+}
+
+/// A JavaScript string's `.length`: its UTF-16 code units, the unit zod's `.max(n)` and `.length(n)` count.
+pub fn utf16_len(s: &str) -> usize {
+    s.encode_utf16().count()
+}
+
+/// A record as a JavaScript object writes it, which zod's ZodRecord does through `for in`: array-index keys first in
+/// ascending order, then the rest in their own order.
+struct JsRecord<'a, K, V>(&'a IndexMap<K, V>);
+
+impl<K: Serialize, V: Serialize> Serialize for JsRecord<'_, K, V> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut entries: Vec<(String, &V)> = self
+            .0
+            .iter()
+            .map(|(k, v)| match serde_json::to_value(k).expect("a map key writes as JSON") {
+                Value::String(text) => (text, v),
+                other => (other.to_string(), v),
+            })
+            .collect();
+        let is_index = |k: &str| {
+            !k.is_empty() && k.bytes().all(|b| b.is_ascii_digit()) && (k == "0" || !k.starts_with('0')) && k.parse::<u64>().is_ok_and(|n| n < 4_294_967_295)
+        };
+        entries.sort_by_key(|(k, _)| if is_index(k) { (0, k.parse::<u64>().unwrap_or(0)) } else { (1, 0) });
+        let mut map = s.serialize_map(Some(entries.len()))?;
+        for (k, v) in &entries {
+            map.serialize_entry(k, v)?;
+        }
+        map.end()
+    }
+}
+
+/// A record field, written as JavaScript writes its object.
+pub fn js_record<K: Serialize, V: Serialize, S: Serializer>(map: &IndexMap<K, V>, s: S) -> Result<S::Ok, S::Error> {
+    JsRecord(map).serialize(s)
+}
+
+/// An optional record field, written as JavaScript writes its object.
+pub fn js_record_opt<K: Serialize, V: Serialize, S: Serializer>(map: &Option<IndexMap<K, V>>, s: S) -> Result<S::Ok, S::Error> {
+    match map {
+        Some(m) => s.serialize_some(&JsRecord(m)),
+        None => s.serialize_none(),
+    }
+}
+
+/// A field zod reads as `.optional()` alone: absent is None (the field's default), a value is read, and `null` is refused,
+/// since `.optional()` takes only undefined.
+pub fn present<'de, T: Deserialize<'de>, D: Deserializer<'de>>(d: D) -> Result<Option<T>, D::Error> {
+    use serde::de::Error;
+    match Option::<T>::deserialize(d)? {
+        Some(v) => Ok(Some(v)),
+        None => Err(D::Error::invalid_type(serde::de::Unexpected::Unit, &"a value")),
+    }
+}
+
+/// A field zod reads as `.nullable()` and not optional: `null` is `None`, and the key must be there. serde would read a
+/// missing `Option` field as `None`; with this as its `deserialize_with` a missing key is a `missing field` error, as
+/// zod's `invalid_type` (received undefined) is.
+pub fn nullable<'de, T: Deserialize<'de>, D: Deserializer<'de>>(d: D) -> Result<Option<T>, D::Error> {
+    Option::<T>::deserialize(d)
+}
+
+/// A field zod reads as `.optional().nullable()` (or the other way round): absent is `None`, `null` is `Some(None)`,
+/// a value is `Some(Some(v))`, and each writes back as it was read.
+pub mod double_option {
+    use super::*;
+
+    pub fn serialize<T: Serialize, S: Serializer>(value: &Option<Option<T>>, s: S) -> Result<S::Ok, S::Error> {
+        match value {
+            Some(inner) => inner.serialize(s),
+            None => s.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, T: Deserialize<'de>, D: Deserializer<'de>>(d: D) -> Result<Option<Option<T>>, D::Error> {
+        Option::<T>::deserialize(d).map(Some)
+    }
+}
+
+/// The literal `true` the ok envelope carries: a bool serde reads, and zod reads as `z.literal(true)`.
+impl Check for wsp_frames::True {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Literal(|| Value::Bool(true)))
+    }
+}
+
+/// The literal `false` the error envelope carries.
+impl Check for wsp_frames::False {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Literal(|| Value::Bool(false)))
+    }
+}
+
+/// The request id: zod's `z.union([z.string(), z.number()])`, which answers invalid_union where it is neither.
+impl Check for wsp_frames::RequestId {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Union)
+    }
+}
+
+/// wsp-frames' process kind, read by its camelCase words (proc-owner.ts).
+impl Check for wsp_frames::ProcKind {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Options(&["agent", "tool", "dev", "test", "build", "slate", "terminal", "tab", "app", "wsp", "other"]))
+    }
+}
+
+/// wsp-frames' process owner, read by its camelCase words.
+impl Check for wsp_frames::ProcOwnedBy {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Options(&["root", "fork", "group", "env", "cgroup", "folder", "coalition"]))
+    }
+}
+
+
+/// wsp-frames' kill signal, read by its two words.
+impl Check for wsp_frames::ProcSignal {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Options(&["TERM", "KILL"]))
+    }
+}
+
+/// wsp-frames' kill mode, read by its two words.
+impl Check for wsp_frames::KillMode {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Options(&["pid", "tree"]))
+    }
+}

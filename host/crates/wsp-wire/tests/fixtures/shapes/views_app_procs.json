@@ -1,0 +1,2431 @@
+[
+ {
+  "type": "AppProc",
+  "case": "full",
+  "input": {
+   "pid": 7,
+   "kind": "helper",
+   "origins": [
+    "text é"
+   ],
+   "contents": [
+    7
+   ]
+  },
+  "output": "{\"pid\":7,\"kind\":\"helper\",\"origins\":[\"text é\"],\"contents\":[7]}"
+ },
+ {
+  "type": "AppProc",
+  "case": "minimal",
+  "input": {
+   "pid": 7,
+   "kind": "main"
+  },
+  "output": "{\"pid\":7,\"kind\":\"main\"}"
+ },
+ {
+  "type": "AppProc",
+  "case": "nulls",
+  "input": {
+   "pid": 7,
+   "kind": "main",
+   "origins": [],
+   "contents": []
+  },
+  "output": "{\"pid\":7,\"kind\":\"main\",\"origins\":[],\"contents\":[]}"
+ },
+ {
+  "type": "AppProc",
+  "case": "missing pid",
+  "input": {
+   "kind": "helper",
+   "origins": [
+    "text é"
+   ],
+   "contents": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AppProc",
+  "case": "pid: not an integer",
+  "input": {
+   "pid": 2.5,
+   "kind": "helper",
+   "origins": [
+    "text é"
+   ],
+   "contents": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AppProc",
+  "case": "pid: under 0",
+  "input": {
+   "pid": 0,
+   "kind": "helper",
+   "origins": [
+    "text é"
+   ],
+   "contents": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pid"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "AppProc",
+  "case": "kind: not one of its values",
+  "input": {
+   "pid": 7,
+   "kind": "not-a-value",
+   "origins": [
+    "text é"
+   ],
+   "contents": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AppProc",
+  "case": "origins: more than 20 items",
+  "input": {
+   "pid": 7,
+   "kind": "helper",
+   "origins": [
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é",
+    "text é"
+   ],
+   "contents": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "origins"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "AppProc",
+  "case": "origins: an item longer than 256",
+  "input": {
+   "pid": 7,
+   "kind": "helper",
+   "origins": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   ],
+   "contents": [
+    7
+   ]
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "origins",
+    0
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "AppProc",
+  "case": "contents: more than 20 items",
+  "input": {
+   "pid": 7,
+   "kind": "helper",
+   "origins": [
+    "text é"
+   ],
+   "contents": [
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7
+   ]
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "contents"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "AppProcKind",
+  "case": "full",
+  "input": "helper",
+  "output": "\"helper\""
+ },
+ {
+  "type": "AppProcKind",
+  "case": "minimal",
+  "input": "main",
+  "output": "\"main\""
+ },
+ {
+  "type": "AppProcKind",
+  "case": "value gpu",
+  "input": "gpu",
+  "output": "\"gpu\""
+ },
+ {
+  "type": "AppProcKind",
+  "case": "value network",
+  "input": "network",
+  "output": "\"network\""
+ },
+ {
+  "type": "AppProcKind",
+  "case": "value renderer",
+  "input": "renderer",
+  "output": "\"renderer\""
+ },
+ {
+  "type": "AppProcKind",
+  "case": "value tab",
+  "input": "tab",
+  "output": "\"tab\""
+ },
+ {
+  "type": "AppProcKind",
+  "case": "value frame",
+  "input": "frame",
+  "output": "\"frame\""
+ },
+ {
+  "type": "AppProcKind",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AppProcList",
+  "case": "full",
+  "input": [
+   {
+    "pid": 7,
+    "kind": "helper",
+    "origins": [
+     "text é"
+    ],
+    "contents": [
+     7
+    ]
+   }
+  ],
+  "output": "[{\"pid\":7,\"kind\":\"helper\",\"origins\":[\"text é\"],\"contents\":[7]}]"
+ },
+ {
+  "type": "AppProcList",
+  "case": "minimal",
+  "input": [],
+  "output": "[]"
+ },
+ {
+  "type": "AppProcsEvent",
+  "case": "full",
+  "input": {
+   "type": "app.procs",
+   "procs": [
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    }
+   ]
+  },
+  "output": "{\"procs\":[{\"pid\":7,\"kind\":\"helper\",\"origins\":[\"text é\"],\"contents\":[7]}]}",
+  "tag": {
+   "key": "type",
+   "value": "app.procs"
+  }
+ },
+ {
+  "type": "AppProcsEvent",
+  "case": "minimal",
+  "input": {
+   "type": "app.procs",
+   "procs": []
+  },
+  "output": "{\"procs\":[]}",
+  "tag": {
+   "key": "type",
+   "value": "app.procs"
+  }
+ },
+ {
+  "type": "AppProcsEvent",
+  "case": "missing procs",
+  "input": {
+   "type": "app.procs"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "procs"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AppProcsEvent",
+  "case": "procs: more than 200 items",
+  "input": {
+   "type": "app.procs",
+   "procs": [
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    },
+    {
+     "pid": 7,
+     "kind": "helper",
+     "origins": [
+      "text é"
+     ],
+     "contents": [
+      7
+     ]
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "procs"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "AppProcsWantedEvent",
+  "case": "full",
+  "input": {
+   "type": "app.procs.wanted",
+   "wanted": true
+  },
+  "output": "{\"wanted\":true}",
+  "tag": {
+   "key": "type",
+   "value": "app.procs.wanted"
+  }
+ },
+ {
+  "type": "AppProcsWantedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "app.procs.wanted",
+   "wanted": false
+  },
+  "output": "{\"wanted\":false}",
+  "tag": {
+   "key": "type",
+   "value": "app.procs.wanted"
+  }
+ },
+ {
+  "type": "AppProcsWantedEvent",
+  "case": "missing wanted",
+  "input": {
+   "type": "app.procs.wanted"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "wanted"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AppProcsWantedEvent",
+  "case": "wanted: not a boolean",
+  "input": {
+   "type": "app.procs.wanted",
+   "wanted": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "wanted"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

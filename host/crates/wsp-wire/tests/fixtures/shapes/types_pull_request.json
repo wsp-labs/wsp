@@ -1,0 +1,5987 @@
+[
+ {
+  "type": "CheckState",
+  "case": "full",
+  "input": "cancelled",
+  "output": "\"cancelled\""
+ },
+ {
+  "type": "CheckState",
+  "case": "minimal",
+  "input": "pass",
+  "output": "\"pass\""
+ },
+ {
+  "type": "CheckState",
+  "case": "value fail",
+  "input": "fail",
+  "output": "\"fail\""
+ },
+ {
+  "type": "CheckState",
+  "case": "value pending",
+  "input": "pending",
+  "output": "\"pending\""
+ },
+ {
+  "type": "CheckState",
+  "case": "value skipped",
+  "input": "skipped",
+  "output": "\"skipped\""
+ },
+ {
+  "type": "CheckState",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "FixOutcome",
+  "case": "full",
+  "input": "updated",
+  "output": "\"updated\""
+ },
+ {
+  "type": "FixOutcome",
+  "case": "minimal",
+  "input": "steered",
+  "output": "\"steered\""
+ },
+ {
+  "type": "FixOutcome",
+  "case": "value queued",
+  "input": "queued",
+  "output": "\"queued\""
+ },
+ {
+  "type": "FixOutcome",
+  "case": "value started",
+  "input": "started",
+  "output": "\"started\""
+ },
+ {
+  "type": "FixOutcome",
+  "case": "value held",
+  "input": "held",
+  "output": "\"held\""
+ },
+ {
+  "type": "FixOutcome",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "FixResult",
+  "case": "full",
+  "input": {
+   "outcome": "updated",
+   "base": "text é"
+  },
+  "output": "{\"outcome\":\"updated\",\"base\":\"text é\"}"
+ },
+ {
+  "type": "FixResult",
+  "case": "minimal",
+  "input": {
+   "outcome": "steered",
+   "threadId": "s",
+   "base": "s",
+   "agent": "s"
+  },
+  "output": "{\"outcome\":\"steered\",\"threadId\":\"s\",\"base\":\"s\",\"agent\":\"s\"}"
+ },
+ {
+  "type": "FixResult",
+  "case": "variant 0",
+  "input": {
+   "outcome": "held",
+   "threadId": "text é",
+   "check": "text é",
+   "child": "text é",
+   "base": "text é",
+   "agent": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   }
+  },
+  "output": "{\"outcome\":\"held\",\"threadId\":\"text é\",\"check\":\"text é\",\"child\":\"text é\",\"base\":\"text é\",\"agent\":\"text é\",\"capped\":{\"placeId\":\"text é\",\"place\":\"text é\",\"running\":7,\"atOnce\":7,\"why\":\"minute\"}}"
+ },
+ {
+  "type": "GitPrMergeReply",
+  "case": "full",
+  "input": {
+   "merged": true,
+   "autoArmed": true
+  },
+  "output": "{\"merged\":true,\"autoArmed\":true}"
+ },
+ {
+  "type": "GitPrMergeReply",
+  "case": "minimal",
+  "input": {
+   "merged": false,
+   "autoArmed": false
+  },
+  "output": "{\"merged\":false,\"autoArmed\":false}"
+ },
+ {
+  "type": "GitPrMergeReply",
+  "case": "missing merged",
+  "input": {
+   "autoArmed": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "merged"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrMergeReply",
+  "case": "merged: not a boolean",
+  "input": {
+   "merged": "yes",
+   "autoArmed": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "merged"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrMergeReply",
+  "case": "autoArmed: not a boolean",
+  "input": {
+   "merged": true,
+   "autoArmed": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "autoArmed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrReactReply",
+  "case": "full",
+  "input": {
+   "subject": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "output": "{\"subject\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]}"
+ },
+ {
+  "type": "GitPrReactReply",
+  "case": "minimal",
+  "input": {
+   "subject": "s",
+   "reactions": []
+  },
+  "output": "{\"subject\":\"s\",\"reactions\":[]}"
+ },
+ {
+  "type": "GitPrReactReply",
+  "case": "missing subject",
+  "input": {
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "subject"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrReadReply",
+  "case": "full",
+  "input": {
+   "pr": {
+    "number": 7,
+    "url": "text é",
+    "state": "closed",
+    "host": "text é",
+    "draft": true,
+    "base": "text é",
+    "branch": "text é",
+    "headOid": "text é",
+    "headSubject": "text é",
+    "mergeable": "unknown",
+    "mergeState": "text é",
+    "review": "required",
+    "checks": [
+     {
+      "name": "text é",
+      "workflow": "text é",
+      "state": "cancelled",
+      "run": {
+       "runId": 7,
+       "jobId": 7
+      },
+      "link": "text é",
+      "description": "text é",
+      "startedAt": "text é",
+      "completedAt": "text é"
+     }
+    ],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7,
+    "behindBase": 7,
+    "author": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    },
+    "autoMerge": {
+     "method": "rebase",
+     "by": "text é"
+    }
+   },
+   "seen": "text é",
+   "unchanged": true
+  },
+  "output": "{\"pr\":{\"number\":7,\"url\":\"text é\",\"state\":\"closed\",\"host\":\"text é\",\"draft\":true,\"base\":\"text é\",\"branch\":\"text é\",\"headOid\":\"text é\",\"headSubject\":\"text é\",\"mergeable\":\"unknown\",\"mergeState\":\"text é\",\"review\":\"required\",\"checks\":[{\"name\":\"text é\",\"workflow\":\"text é\",\"state\":\"cancelled\",\"run\":{\"runId\":7,\"jobId\":7},\"link\":\"text é\",\"description\":\"text é\",\"startedAt\":\"text é\",\"completedAt\":\"text é\"}],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"behindBase\":7,\"author\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true},\"autoMerge\":{\"method\":\"rebase\",\"by\":\"text é\"}},\"seen\":\"text é\",\"unchanged\":true}"
+ },
+ {
+  "type": "GitPrReadReply",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "GitPrReadReply",
+  "case": "nulls",
+  "input": {
+   "pr": {
+    "number": 7,
+    "url": "s",
+    "state": "open",
+    "host": "s",
+    "draft": false,
+    "base": "s",
+    "branch": "s",
+    "headOid": "s",
+    "headSubject": "s",
+    "mergeable": "mergeable",
+    "mergeState": "s",
+    "review": "none",
+    "checks": [],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7
+   },
+   "seen": "s",
+   "unchanged": false
+  },
+  "output": "{\"pr\":{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"host\":\"s\",\"draft\":false,\"base\":\"s\",\"branch\":\"s\",\"headOid\":\"s\",\"headSubject\":\"s\",\"mergeable\":\"mergeable\",\"mergeState\":\"s\",\"review\":\"none\",\"checks\":[],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7},\"seen\":\"s\",\"unchanged\":false}"
+ },
+ {
+  "type": "GitPrReadReply",
+  "case": "unchanged: not a boolean",
+  "input": {
+   "pr": {
+    "number": 7,
+    "url": "text é",
+    "state": "closed",
+    "host": "text é",
+    "draft": true,
+    "base": "text é",
+    "branch": "text é",
+    "headOid": "text é",
+    "headSubject": "text é",
+    "mergeable": "unknown",
+    "mergeState": "text é",
+    "review": "required",
+    "checks": [
+     {
+      "name": "text é",
+      "workflow": "text é",
+      "state": "cancelled",
+      "run": {
+       "runId": 7,
+       "jobId": 7
+      },
+      "link": "text é",
+      "description": "text é",
+      "startedAt": "text é",
+      "completedAt": "text é"
+     }
+    ],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7,
+    "behindBase": 7,
+    "author": "text é",
+    "fork": {
+     "owner": "text é",
+     "pushable": true
+    },
+    "autoMerge": {
+     "method": "rebase",
+     "by": "text é"
+    }
+   },
+   "seen": "text é",
+   "unchanged": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "unchanged"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrReplyReply",
+  "case": "full",
+  "input": {
+   "comment": {
+    "id": 7,
+    "nodeId": "text é",
+    "author": "text é",
+    "association": "text é",
+    "bot": true,
+    "avatar": "text é",
+    "body": "text é",
+    "url": "text é",
+    "at": "text é",
+    "reactions": [
+     {
+      "content": "eyes",
+      "count": 7,
+      "mine": true
+     }
+    ]
+   },
+   "reviewComment": {
+    "id": 7,
+    "nodeId": "text é",
+    "path": "text é",
+    "line": 7,
+    "side": "text é",
+    "author": "text é",
+    "association": "text é",
+    "bot": true,
+    "avatar": "text é",
+    "body": "text é",
+    "url": "text é",
+    "at": "text é",
+    "hunk": "text é",
+    "replyTo": 7,
+    "reviewId": 7,
+    "resolved": true,
+    "threadId": "text é",
+    "reactions": [
+     {
+      "content": "eyes",
+      "count": 7,
+      "mine": true
+     }
+    ]
+   }
+  },
+  "output": "{\"comment\":{\"id\":7,\"nodeId\":\"text é\",\"author\":\"text é\",\"association\":\"text é\",\"bot\":true,\"avatar\":\"text é\",\"body\":\"text é\",\"url\":\"text é\",\"at\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]},\"reviewComment\":{\"id\":7,\"nodeId\":\"text é\",\"path\":\"text é\",\"line\":7,\"side\":\"text é\",\"author\":\"text é\",\"association\":\"text é\",\"bot\":true,\"avatar\":\"text é\",\"body\":\"text é\",\"url\":\"text é\",\"at\":\"text é\",\"hunk\":\"text é\",\"replyTo\":7,\"reviewId\":7,\"resolved\":true,\"threadId\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]}}"
+ },
+ {
+  "type": "GitPrReplyReply",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "GitPrReplyReply",
+  "case": "nulls",
+  "input": {
+   "comment": {
+    "id": 7,
+    "author": "s",
+    "bot": false,
+    "body": "s",
+    "url": "s",
+    "at": "s"
+   },
+   "reviewComment": {
+    "id": 7,
+    "path": "s",
+    "author": "s",
+    "bot": false,
+    "body": "s",
+    "url": "s",
+    "at": "s"
+   }
+  },
+  "output": "{\"comment\":{\"id\":7,\"author\":\"s\",\"bot\":false,\"body\":\"s\",\"url\":\"s\",\"at\":\"s\"},\"reviewComment\":{\"id\":7,\"path\":\"s\",\"author\":\"s\",\"bot\":false,\"body\":\"s\",\"url\":\"s\",\"at\":\"s\"}}"
+ },
+ {
+  "type": "GitPrResolveReply",
+  "case": "full",
+  "input": {
+   "threadId": "text é",
+   "resolved": true
+  },
+  "output": "{\"threadId\":\"text é\",\"resolved\":true}"
+ },
+ {
+  "type": "GitPrResolveReply",
+  "case": "minimal",
+  "input": {
+   "threadId": "s",
+   "resolved": false
+  },
+  "output": "{\"threadId\":\"s\",\"resolved\":false}"
+ },
+ {
+  "type": "GitPrResolveReply",
+  "case": "missing threadId",
+  "input": {
+   "resolved": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "threadId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrResolveReply",
+  "case": "resolved: not a boolean",
+  "input": {
+   "threadId": "text é",
+   "resolved": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "resolved"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitPrViewReply",
+  "case": "full",
+  "input": {
+   "title": "text é",
+   "body": "text é",
+   "author": "text é",
+   "createdAt": "text é",
+   "updatedAt": "text é",
+   "closedAt": "text é",
+   "mergedAt": "text é",
+   "mergedBy": "text é",
+   "mergeCommit": "text é",
+   "labels": [
+    {
+     "name": "text é",
+     "color": "text é",
+     "description": "text é"
+    }
+   ],
+   "reviewRequests": [
+    {
+     "name": "text é",
+     "team": true
+    }
+   ],
+   "latestReviews": [
+    {
+     "author": "text é",
+     "state": "text é",
+     "at": "text é"
+    }
+   ],
+   "assignees": [
+    "text é"
+   ],
+   "commits": [
+    {
+     "oid": "text é",
+     "subject": "text é",
+     "body": "text é",
+     "at": "text é",
+     "author": "text é",
+     "parents": 7,
+     "additions": 7,
+     "deletions": 7,
+     "check": "cancelled"
+    }
+   ],
+   "reviews": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "author": "text é",
+     "association": "text é",
+     "state": "text é",
+     "body": "text é",
+     "at": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "comments": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "author": "text é",
+     "association": "text é",
+     "bot": true,
+     "avatar": "text é",
+     "body": "text é",
+     "url": "text é",
+     "at": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "reviewComments": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "path": "text é",
+     "line": 7,
+     "side": "text é",
+     "author": "text é",
+     "association": "text é",
+     "bot": true,
+     "avatar": "text é",
+     "body": "text é",
+     "url": "text é",
+     "at": "text é",
+     "hunk": "text é",
+     "replyTo": 7,
+     "reviewId": 7,
+     "resolved": true,
+     "threadId": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "files": [
+    {
+     "path": "text é",
+     "additions": 7,
+     "deletions": 7
+    }
+   ],
+   "cut": {
+    "commits": true,
+    "reviews": true,
+    "threads": true,
+    "comments": true
+   }
+  },
+  "output": "{\"title\":\"text é\",\"body\":\"text é\",\"author\":\"text é\",\"createdAt\":\"text é\",\"updatedAt\":\"text é\",\"closedAt\":\"text é\",\"mergedAt\":\"text é\",\"mergedBy\":\"text é\",\"mergeCommit\":\"text é\",\"labels\":[{\"name\":\"text é\",\"color\":\"text é\",\"description\":\"text é\"}],\"reviewRequests\":[{\"name\":\"text é\",\"team\":true}],\"latestReviews\":[{\"author\":\"text é\",\"state\":\"text é\",\"at\":\"text é\"}],\"assignees\":[\"text é\"],\"commits\":[{\"oid\":\"text é\",\"subject\":\"text é\",\"body\":\"text é\",\"at\":\"text é\",\"author\":\"text é\",\"parents\":7,\"additions\":7,\"deletions\":7,\"check\":\"cancelled\"}],\"reviews\":[{\"id\":7,\"nodeId\":\"text é\",\"author\":\"text é\",\"association\":\"text é\",\"state\":\"text é\",\"body\":\"text é\",\"at\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]}],\"comments\":[{\"id\":7,\"nodeId\":\"text é\",\"author\":\"text é\",\"association\":\"text é\",\"bot\":true,\"avatar\":\"text é\",\"body\":\"text é\",\"url\":\"text é\",\"at\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]}],\"reviewComments\":[{\"id\":7,\"nodeId\":\"text é\",\"path\":\"text é\",\"line\":7,\"side\":\"text é\",\"author\":\"text é\",\"association\":\"text é\",\"bot\":true,\"avatar\":\"text é\",\"body\":\"text é\",\"url\":\"text é\",\"at\":\"text é\",\"hunk\":\"text é\",\"replyTo\":7,\"reviewId\":7,\"resolved\":true,\"threadId\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]}],\"files\":[{\"path\":\"text é\",\"additions\":7,\"deletions\":7}],\"cut\":{\"commits\":true,\"reviews\":true,\"threads\":true,\"comments\":true}}"
+ },
+ {
+  "type": "GitPrViewReply",
+  "case": "minimal",
+  "input": {
+   "title": "s",
+   "body": "s",
+   "author": "s",
+   "createdAt": "s",
+   "updatedAt": "s",
+   "labels": [],
+   "reviewRequests": [],
+   "latestReviews": [],
+   "assignees": [],
+   "commits": [],
+   "reviews": [],
+   "comments": [],
+   "reviewComments": [],
+   "files": []
+  },
+  "output": "{\"title\":\"s\",\"body\":\"s\",\"author\":\"s\",\"createdAt\":\"s\",\"updatedAt\":\"s\",\"labels\":[],\"reviewRequests\":[],\"latestReviews\":[],\"assignees\":[],\"commits\":[],\"reviews\":[],\"comments\":[],\"reviewComments\":[],\"files\":[]}"
+ },
+ {
+  "type": "GitPrViewReply",
+  "case": "nulls",
+  "input": {
+   "title": "s",
+   "body": "s",
+   "author": "s",
+   "createdAt": "s",
+   "updatedAt": "s",
+   "closedAt": "s",
+   "mergedAt": "s",
+   "mergedBy": "s",
+   "mergeCommit": "s",
+   "labels": [],
+   "reviewRequests": [],
+   "latestReviews": [],
+   "assignees": [],
+   "commits": [],
+   "reviews": [],
+   "comments": [],
+   "reviewComments": [],
+   "files": [],
+   "cut": {}
+  },
+  "output": "{\"title\":\"s\",\"body\":\"s\",\"author\":\"s\",\"createdAt\":\"s\",\"updatedAt\":\"s\",\"closedAt\":\"s\",\"mergedAt\":\"s\",\"mergedBy\":\"s\",\"mergeCommit\":\"s\",\"labels\":[],\"reviewRequests\":[],\"latestReviews\":[],\"assignees\":[],\"commits\":[],\"reviews\":[],\"comments\":[],\"reviewComments\":[],\"files\":[],\"cut\":{}}"
+ },
+ {
+  "type": "GitPrViewReply",
+  "case": "missing title",
+  "input": {
+   "body": "text é",
+   "author": "text é",
+   "createdAt": "text é",
+   "updatedAt": "text é",
+   "closedAt": "text é",
+   "mergedAt": "text é",
+   "mergedBy": "text é",
+   "mergeCommit": "text é",
+   "labels": [
+    {
+     "name": "text é",
+     "color": "text é",
+     "description": "text é"
+    }
+   ],
+   "reviewRequests": [
+    {
+     "name": "text é",
+     "team": true
+    }
+   ],
+   "latestReviews": [
+    {
+     "author": "text é",
+     "state": "text é",
+     "at": "text é"
+    }
+   ],
+   "assignees": [
+    "text é"
+   ],
+   "commits": [
+    {
+     "oid": "text é",
+     "subject": "text é",
+     "body": "text é",
+     "at": "text é",
+     "author": "text é",
+     "parents": 7,
+     "additions": 7,
+     "deletions": 7,
+     "check": "cancelled"
+    }
+   ],
+   "reviews": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "author": "text é",
+     "association": "text é",
+     "state": "text é",
+     "body": "text é",
+     "at": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "comments": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "author": "text é",
+     "association": "text é",
+     "bot": true,
+     "avatar": "text é",
+     "body": "text é",
+     "url": "text é",
+     "at": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "reviewComments": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "path": "text é",
+     "line": 7,
+     "side": "text é",
+     "author": "text é",
+     "association": "text é",
+     "bot": true,
+     "avatar": "text é",
+     "body": "text é",
+     "url": "text é",
+     "at": "text é",
+     "hunk": "text é",
+     "replyTo": 7,
+     "reviewId": 7,
+     "resolved": true,
+     "threadId": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "files": [
+    {
+     "path": "text é",
+     "additions": 7,
+     "deletions": 7
+    }
+   ],
+   "cut": {
+    "commits": true,
+    "reviews": true,
+    "threads": true,
+    "comments": true
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "title"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitRepoReadReply",
+  "case": "full",
+  "input": {
+   "methods": [
+    "rebase"
+   ],
+   "defaultMethod": "rebase",
+   "autoMerge": true
+  },
+  "output": "{\"methods\":[\"rebase\"],\"defaultMethod\":\"rebase\",\"autoMerge\":true}"
+ },
+ {
+  "type": "GitRepoReadReply",
+  "case": "minimal",
+  "input": {
+   "methods": [],
+   "defaultMethod": "merge",
+   "autoMerge": false
+  },
+  "output": "{\"methods\":[],\"defaultMethod\":\"merge\",\"autoMerge\":false}"
+ },
+ {
+  "type": "GitRepoReadReply",
+  "case": "missing methods",
+  "input": {
+   "defaultMethod": "rebase",
+   "autoMerge": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "methods"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitRepoReadReply",
+  "case": "defaultMethod: not one of its values",
+  "input": {
+   "methods": [
+    "rebase"
+   ],
+   "defaultMethod": "not-a-value",
+   "autoMerge": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "defaultMethod"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitRepoReadReply",
+  "case": "autoMerge: not a boolean",
+  "input": {
+   "methods": [
+    "rebase"
+   ],
+   "defaultMethod": "rebase",
+   "autoMerge": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "autoMerge"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitRunLogReply",
+  "case": "full",
+  "input": {
+   "lines": [
+    "text é"
+   ],
+   "truncated": true
+  },
+  "output": "{\"lines\":[\"text é\"],\"truncated\":true}"
+ },
+ {
+  "type": "GitRunLogReply",
+  "case": "minimal",
+  "input": {
+   "lines": [],
+   "truncated": false
+  },
+  "output": "{\"lines\":[],\"truncated\":false}"
+ },
+ {
+  "type": "GitRunLogReply",
+  "case": "missing lines",
+  "input": {
+   "truncated": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "lines"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitRunLogReply",
+  "case": "truncated: not a boolean",
+  "input": {
+   "lines": [
+    "text é"
+   ],
+   "truncated": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "truncated"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitUpdateReply",
+  "case": "full",
+  "input": {
+   "base": "text é",
+   "merged": true,
+   "commits": 7,
+   "conflicts": [
+    "text é"
+   ]
+  },
+  "output": "{\"base\":\"text é\",\"merged\":true,\"commits\":7,\"conflicts\":[\"text é\"]}"
+ },
+ {
+  "type": "GitUpdateReply",
+  "case": "minimal",
+  "input": {
+   "base": "s",
+   "merged": false,
+   "commits": 7,
+   "conflicts": []
+  },
+  "output": "{\"base\":\"s\",\"merged\":false,\"commits\":7,\"conflicts\":[]}"
+ },
+ {
+  "type": "GitUpdateReply",
+  "case": "missing base",
+  "input": {
+   "merged": true,
+   "commits": 7,
+   "conflicts": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "base"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitUpdateReply",
+  "case": "merged: not a boolean",
+  "input": {
+   "base": "text é",
+   "merged": "yes",
+   "commits": 7,
+   "conflicts": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "merged"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitUpdateReply",
+  "case": "commits: not an integer",
+  "input": {
+   "base": "text é",
+   "merged": true,
+   "commits": 2.5,
+   "conflicts": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitUpdateReply",
+  "case": "commits: under 0",
+  "input": {
+   "base": "text é",
+   "merged": true,
+   "commits": -1,
+   "conflicts": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "MergeMethod",
+  "case": "full",
+  "input": "rebase",
+  "output": "\"rebase\""
+ },
+ {
+  "type": "MergeMethod",
+  "case": "minimal",
+  "input": "merge",
+  "output": "\"merge\""
+ },
+ {
+  "type": "MergeMethod",
+  "case": "value squash",
+  "input": "squash",
+  "output": "\"squash\""
+ },
+ {
+  "type": "MergeMethod",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MergeResult",
+  "case": "full",
+  "input": {
+   "number": 7,
+   "method": "rebase",
+   "merged": true,
+   "autoArmed": true
+  },
+  "output": "{\"number\":7,\"method\":\"rebase\",\"merged\":true,\"autoArmed\":true}"
+ },
+ {
+  "type": "MergeResult",
+  "case": "minimal",
+  "input": {
+   "number": 7,
+   "method": "merge",
+   "merged": false,
+   "autoArmed": false
+  },
+  "output": "{\"number\":7,\"method\":\"merge\",\"merged\":false,\"autoArmed\":false}"
+ },
+ {
+  "type": "MergeResult",
+  "case": "missing number",
+  "input": {
+   "method": "rebase",
+   "merged": true,
+   "autoArmed": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MergeResult",
+  "case": "number: not an integer",
+  "input": {
+   "number": 2.5,
+   "method": "rebase",
+   "merged": true,
+   "autoArmed": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MergeResult",
+  "case": "number: under 0",
+  "input": {
+   "number": -1,
+   "method": "rebase",
+   "merged": true,
+   "autoArmed": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "MergeResult",
+  "case": "method: not one of its values",
+  "input": {
+   "number": 7,
+   "method": "not-a-value",
+   "merged": true,
+   "autoArmed": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "method"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MergeResult",
+  "case": "merged: not a boolean",
+  "input": {
+   "number": 7,
+   "method": "rebase",
+   "merged": "yes",
+   "autoArmed": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "merged"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MergeResult",
+  "case": "autoArmed: not a boolean",
+  "input": {
+   "number": 7,
+   "method": "rebase",
+   "merged": true,
+   "autoArmed": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "autoArmed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "Mergeable",
+  "case": "full",
+  "input": "unknown",
+  "output": "\"unknown\""
+ },
+ {
+  "type": "Mergeable",
+  "case": "minimal",
+  "input": "mergeable",
+  "output": "\"mergeable\""
+ },
+ {
+  "type": "Mergeable",
+  "case": "value conflicting",
+  "input": "conflicting",
+  "output": "\"conflicting\""
+ },
+ {
+  "type": "Mergeable",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "full",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "output": "{\"number\":7,\"url\":\"text é\",\"state\":\"closed\",\"host\":\"text é\",\"draft\":true,\"base\":\"text é\",\"branch\":\"text é\",\"headOid\":\"text é\",\"headSubject\":\"text é\",\"mergeable\":\"unknown\",\"mergeState\":\"text é\",\"review\":\"required\",\"checks\":[{\"name\":\"text é\",\"workflow\":\"text é\",\"state\":\"cancelled\",\"run\":{\"runId\":7,\"jobId\":7},\"link\":\"text é\",\"description\":\"text é\",\"startedAt\":\"text é\",\"completedAt\":\"text é\"}],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"behindBase\":7,\"author\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true},\"autoMerge\":{\"method\":\"rebase\",\"by\":\"text é\"}}"
+ },
+ {
+  "type": "PullRequest",
+  "case": "minimal",
+  "input": {
+   "number": 7,
+   "url": "s",
+   "state": "open",
+   "host": "s",
+   "draft": false,
+   "base": "s",
+   "branch": "s",
+   "headOid": "s",
+   "headSubject": "s",
+   "mergeable": "mergeable",
+   "mergeState": "s",
+   "review": "none",
+   "checks": [],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7
+  },
+  "output": "{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"host\":\"s\",\"draft\":false,\"base\":\"s\",\"branch\":\"s\",\"headOid\":\"s\",\"headSubject\":\"s\",\"mergeable\":\"mergeable\",\"mergeState\":\"s\",\"review\":\"none\",\"checks\":[],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7}"
+ },
+ {
+  "type": "PullRequest",
+  "case": "nulls",
+  "input": {
+   "number": 7,
+   "url": "s",
+   "state": "open",
+   "host": "s",
+   "draft": false,
+   "base": "s",
+   "branch": "s",
+   "headOid": "s",
+   "headSubject": "s",
+   "mergeable": "mergeable",
+   "mergeState": "s",
+   "review": "none",
+   "checks": [],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "s",
+   "fork": {
+    "owner": "s",
+    "pushable": false
+   },
+   "autoMerge": {
+    "method": "merge"
+   }
+  },
+  "output": "{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"host\":\"s\",\"draft\":false,\"base\":\"s\",\"branch\":\"s\",\"headOid\":\"s\",\"headSubject\":\"s\",\"mergeable\":\"mergeable\",\"mergeState\":\"s\",\"review\":\"none\",\"checks\":[],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"behindBase\":7,\"author\":\"s\",\"fork\":{\"owner\":\"s\",\"pushable\":false},\"autoMerge\":{\"method\":\"merge\"}}"
+ },
+ {
+  "type": "PullRequest",
+  "case": "missing number",
+  "input": {
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "number: not an integer",
+  "input": {
+   "number": 2.5,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "number: under 0",
+  "input": {
+   "number": -1,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "state: not one of its values",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "not-a-value",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "draft: not a boolean",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": "yes",
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "draft"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "mergeable: not one of its values",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "not-a-value",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "mergeable"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "review: not one of its values",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "not-a-value",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "review"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "additions: not an integer",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 2.5,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "additions"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "additions: under 0",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": -1,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "additions"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "deletions: not an integer",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 2.5,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "deletions"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "deletions: under 0",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": -1,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "deletions"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "changedFiles: not an integer",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 2.5,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "changedFiles"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "changedFiles: under 0",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": -1,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "changedFiles"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "commits: not an integer",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 2.5,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "commits: under 0",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": -1,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "behindBase: not an integer",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 2.5,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "behindBase"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequest",
+  "case": "behindBase: under 0",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": -1,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "behindBase"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestCheck",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "workflow": "text é",
+   "state": "cancelled",
+   "run": {
+    "runId": 7,
+    "jobId": 7
+   },
+   "link": "text é",
+   "description": "text é",
+   "startedAt": "text é",
+   "completedAt": "text é"
+  },
+  "output": "{\"name\":\"text é\",\"workflow\":\"text é\",\"state\":\"cancelled\",\"run\":{\"runId\":7,\"jobId\":7},\"link\":\"text é\",\"description\":\"text é\",\"startedAt\":\"text é\",\"completedAt\":\"text é\"}"
+ },
+ {
+  "type": "PullRequestCheck",
+  "case": "minimal",
+  "input": {
+   "name": "s",
+   "state": "pass"
+  },
+  "output": "{\"name\":\"s\",\"state\":\"pass\"}"
+ },
+ {
+  "type": "PullRequestCheck",
+  "case": "nulls",
+  "input": {
+   "name": "s",
+   "workflow": "s",
+   "state": "pass",
+   "run": {
+    "runId": 7,
+    "jobId": 7
+   },
+   "link": "s",
+   "description": "s",
+   "startedAt": "s",
+   "completedAt": "s"
+  },
+  "output": "{\"name\":\"s\",\"workflow\":\"s\",\"state\":\"pass\",\"run\":{\"runId\":7,\"jobId\":7},\"link\":\"s\",\"description\":\"s\",\"startedAt\":\"s\",\"completedAt\":\"s\"}"
+ },
+ {
+  "type": "PullRequestCheck",
+  "case": "missing name",
+  "input": {
+   "workflow": "text é",
+   "state": "cancelled",
+   "run": {
+    "runId": 7,
+    "jobId": 7
+   },
+   "link": "text é",
+   "description": "text é",
+   "startedAt": "text é",
+   "completedAt": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestCheck",
+  "case": "state: not one of its values",
+  "input": {
+   "name": "text é",
+   "workflow": "text é",
+   "state": "not-a-value",
+   "run": {
+    "runId": 7,
+    "jobId": 7
+   },
+   "link": "text é",
+   "description": "text é",
+   "startedAt": "text é",
+   "completedAt": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestComment",
+  "case": "full",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "output": "{\"id\":7,\"nodeId\":\"text é\",\"author\":\"text é\",\"association\":\"text é\",\"bot\":true,\"avatar\":\"text é\",\"body\":\"text é\",\"url\":\"text é\",\"at\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]}"
+ },
+ {
+  "type": "PullRequestComment",
+  "case": "minimal",
+  "input": {
+   "id": 7,
+   "author": "s",
+   "bot": false,
+   "body": "s",
+   "url": "s",
+   "at": "s"
+  },
+  "output": "{\"id\":7,\"author\":\"s\",\"bot\":false,\"body\":\"s\",\"url\":\"s\",\"at\":\"s\"}"
+ },
+ {
+  "type": "PullRequestComment",
+  "case": "nulls",
+  "input": {
+   "id": 7,
+   "nodeId": "s",
+   "author": "s",
+   "association": "s",
+   "bot": false,
+   "avatar": "s",
+   "body": "s",
+   "url": "s",
+   "at": "s",
+   "reactions": []
+  },
+  "output": "{\"id\":7,\"nodeId\":\"s\",\"author\":\"s\",\"association\":\"s\",\"bot\":false,\"avatar\":\"s\",\"body\":\"s\",\"url\":\"s\",\"at\":\"s\",\"reactions\":[]}"
+ },
+ {
+  "type": "PullRequestComment",
+  "case": "missing id",
+  "input": {
+   "nodeId": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestComment",
+  "case": "id: not an integer",
+  "input": {
+   "id": 2.5,
+   "nodeId": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestComment",
+  "case": "id: under 0",
+  "input": {
+   "id": -1,
+   "nodeId": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestComment",
+  "case": "bot: not a boolean",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": "yes",
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "bot"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestCommit",
+  "case": "full",
+  "input": {
+   "oid": "text é",
+   "subject": "text é",
+   "body": "text é",
+   "at": "text é",
+   "author": "text é",
+   "parents": 7,
+   "additions": 7,
+   "deletions": 7,
+   "check": "cancelled"
+  },
+  "output": "{\"oid\":\"text é\",\"subject\":\"text é\",\"body\":\"text é\",\"at\":\"text é\",\"author\":\"text é\",\"parents\":7,\"additions\":7,\"deletions\":7,\"check\":\"cancelled\"}"
+ },
+ {
+  "type": "PullRequestCommit",
+  "case": "minimal",
+  "input": {
+   "oid": "s",
+   "subject": "s",
+   "body": "s",
+   "at": "s",
+   "author": "s"
+  },
+  "output": "{\"oid\":\"s\",\"subject\":\"s\",\"body\":\"s\",\"at\":\"s\",\"author\":\"s\"}"
+ },
+ {
+  "type": "PullRequestCommit",
+  "case": "nulls",
+  "input": {
+   "oid": "s",
+   "subject": "s",
+   "body": "s",
+   "at": "s",
+   "author": "s",
+   "parents": 7,
+   "additions": 7,
+   "deletions": 7,
+   "check": "pass"
+  },
+  "output": "{\"oid\":\"s\",\"subject\":\"s\",\"body\":\"s\",\"at\":\"s\",\"author\":\"s\",\"parents\":7,\"additions\":7,\"deletions\":7,\"check\":\"pass\"}"
+ },
+ {
+  "type": "PullRequestCommit",
+  "case": "missing oid",
+  "input": {
+   "subject": "text é",
+   "body": "text é",
+   "at": "text é",
+   "author": "text é",
+   "parents": 7,
+   "additions": 7,
+   "deletions": 7,
+   "check": "cancelled"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "oid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestCommit",
+  "case": "parents: not an integer",
+  "input": {
+   "oid": "text é",
+   "subject": "text é",
+   "body": "text é",
+   "at": "text é",
+   "author": "text é",
+   "parents": 2.5,
+   "additions": 7,
+   "deletions": 7,
+   "check": "cancelled"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "parents"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestCommit",
+  "case": "parents: under 0",
+  "input": {
+   "oid": "text é",
+   "subject": "text é",
+   "body": "text é",
+   "at": "text é",
+   "author": "text é",
+   "parents": -1,
+   "additions": 7,
+   "deletions": 7,
+   "check": "cancelled"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "parents"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestCommit",
+  "case": "additions: not an integer",
+  "input": {
+   "oid": "text é",
+   "subject": "text é",
+   "body": "text é",
+   "at": "text é",
+   "author": "text é",
+   "parents": 7,
+   "additions": 2.5,
+   "deletions": 7,
+   "check": "cancelled"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "additions"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestCommit",
+  "case": "additions: under 0",
+  "input": {
+   "oid": "text é",
+   "subject": "text é",
+   "body": "text é",
+   "at": "text é",
+   "author": "text é",
+   "parents": 7,
+   "additions": -1,
+   "deletions": 7,
+   "check": "cancelled"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "additions"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestCommit",
+  "case": "deletions: not an integer",
+  "input": {
+   "oid": "text é",
+   "subject": "text é",
+   "body": "text é",
+   "at": "text é",
+   "author": "text é",
+   "parents": 7,
+   "additions": 7,
+   "deletions": 2.5,
+   "check": "cancelled"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "deletions"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestCommit",
+  "case": "deletions: under 0",
+  "input": {
+   "oid": "text é",
+   "subject": "text é",
+   "body": "text é",
+   "at": "text é",
+   "author": "text é",
+   "parents": 7,
+   "additions": 7,
+   "deletions": -1,
+   "check": "cancelled"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "deletions"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestCommit",
+  "case": "check: not one of its values",
+  "input": {
+   "oid": "text é",
+   "subject": "text é",
+   "body": "text é",
+   "at": "text é",
+   "author": "text é",
+   "parents": 7,
+   "additions": 7,
+   "deletions": 7,
+   "check": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "check"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "full",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "output": "{\"number\":7,\"url\":\"text é\",\"state\":\"closed\",\"host\":\"text é\",\"draft\":true,\"base\":\"text é\",\"branch\":\"text é\",\"headOid\":\"text é\",\"headSubject\":\"text é\",\"mergeable\":\"unknown\",\"mergeState\":\"text é\",\"review\":\"required\",\"checks\":[{\"name\":\"text é\",\"workflow\":\"text é\",\"state\":\"cancelled\",\"run\":{\"runId\":7,\"jobId\":7},\"link\":\"text é\",\"description\":\"text é\",\"startedAt\":\"text é\",\"completedAt\":\"text é\"}],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"behindBase\":7,\"author\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true},\"autoMerge\":{\"method\":\"rebase\",\"by\":\"text é\"},\"readAt\":2.5}"
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "minimal",
+  "input": {
+   "number": 7,
+   "url": "s",
+   "state": "open",
+   "host": "s",
+   "draft": false,
+   "base": "s",
+   "branch": "s",
+   "headOid": "s",
+   "headSubject": "s",
+   "mergeable": "mergeable",
+   "mergeState": "s",
+   "review": "none",
+   "checks": [],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "readAt": 3
+  },
+  "output": "{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"host\":\"s\",\"draft\":false,\"base\":\"s\",\"branch\":\"s\",\"headOid\":\"s\",\"headSubject\":\"s\",\"mergeable\":\"mergeable\",\"mergeState\":\"s\",\"review\":\"none\",\"checks\":[],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"readAt\":3}"
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "nulls",
+  "input": {
+   "number": 7,
+   "url": "s",
+   "state": "open",
+   "host": "s",
+   "draft": false,
+   "base": "s",
+   "branch": "s",
+   "headOid": "s",
+   "headSubject": "s",
+   "mergeable": "mergeable",
+   "mergeState": "s",
+   "review": "none",
+   "checks": [],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "s",
+   "fork": {
+    "owner": "s",
+    "pushable": false
+   },
+   "autoMerge": {
+    "method": "merge"
+   },
+   "readAt": 3
+  },
+  "output": "{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"host\":\"s\",\"draft\":false,\"base\":\"s\",\"branch\":\"s\",\"headOid\":\"s\",\"headSubject\":\"s\",\"mergeable\":\"mergeable\",\"mergeState\":\"s\",\"review\":\"none\",\"checks\":[],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"behindBase\":7,\"author\":\"s\",\"fork\":{\"owner\":\"s\",\"pushable\":false},\"autoMerge\":{\"method\":\"merge\"},\"readAt\":3}"
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "missing number",
+  "input": {
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "number: not an integer",
+  "input": {
+   "number": 2.5,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "number: under 0",
+  "input": {
+   "number": -1,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "state: not one of its values",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "not-a-value",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "draft: not a boolean",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": "yes",
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "draft"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "mergeable: not one of its values",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "not-a-value",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "mergeable"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "review: not one of its values",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "not-a-value",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "review"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "additions: not an integer",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 2.5,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "additions"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "additions: under 0",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": -1,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "additions"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "deletions: not an integer",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 2.5,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "deletions"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "deletions: under 0",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": -1,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "deletions"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "changedFiles: not an integer",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 2.5,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "changedFiles"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "changedFiles: under 0",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": -1,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "changedFiles"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "commits: not an integer",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 2.5,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "commits: under 0",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": -1,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "behindBase: not an integer",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 2.5,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "behindBase"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestFact",
+  "case": "behindBase: under 0",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": -1,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "behindBase"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestItem",
+  "case": "full",
+  "input": {
+   "kind": "reviewComment",
+   "id": 7
+  },
+  "output": "{\"kind\":\"reviewComment\",\"id\":7}"
+ },
+ {
+  "type": "PullRequestItem",
+  "case": "minimal",
+  "input": {
+   "kind": "comment",
+   "id": 7
+  },
+  "output": "{\"kind\":\"comment\",\"id\":7}"
+ },
+ {
+  "type": "PullRequestItem",
+  "case": "missing kind",
+  "input": {
+   "id": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestItem",
+  "case": "kind: not one of its values",
+  "input": {
+   "kind": "not-a-value",
+   "id": 7
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestItem",
+  "case": "id: not an integer",
+  "input": {
+   "kind": "reviewComment",
+   "id": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestItem",
+  "case": "id: under 0",
+  "input": {
+   "kind": "reviewComment",
+   "id": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestKept",
+  "case": "full",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "base": "text é",
+   "branch": "text é",
+   "mergedAt": 2.5,
+   "closedAt": 2.5,
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "readAt": 2.5
+  },
+  "output": "{\"number\":7,\"url\":\"text é\",\"state\":\"closed\",\"base\":\"text é\",\"branch\":\"text é\",\"mergedAt\":2.5,\"closedAt\":2.5,\"checks\":[{\"name\":\"text é\",\"workflow\":\"text é\",\"state\":\"cancelled\",\"run\":{\"runId\":7,\"jobId\":7},\"link\":\"text é\",\"description\":\"text é\",\"startedAt\":\"text é\",\"completedAt\":\"text é\"}],\"readAt\":2.5}"
+ },
+ {
+  "type": "PullRequestKept",
+  "case": "minimal",
+  "input": {
+   "number": 7,
+   "url": "s",
+   "state": "open",
+   "base": "s",
+   "readAt": 3
+  },
+  "output": "{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"base\":\"s\",\"readAt\":3}"
+ },
+ {
+  "type": "PullRequestKept",
+  "case": "nulls",
+  "input": {
+   "number": 7,
+   "url": "s",
+   "state": "open",
+   "base": "s",
+   "branch": "s",
+   "mergedAt": 3,
+   "closedAt": 3,
+   "checks": [],
+   "readAt": 3
+  },
+  "output": "{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"base\":\"s\",\"branch\":\"s\",\"mergedAt\":3,\"closedAt\":3,\"checks\":[],\"readAt\":3}"
+ },
+ {
+  "type": "PullRequestKept",
+  "case": "missing number",
+  "input": {
+   "url": "text é",
+   "state": "closed",
+   "base": "text é",
+   "branch": "text é",
+   "mergedAt": 2.5,
+   "closedAt": 2.5,
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestKept",
+  "case": "number: not an integer",
+  "input": {
+   "number": 2.5,
+   "url": "text é",
+   "state": "closed",
+   "base": "text é",
+   "branch": "text é",
+   "mergedAt": 2.5,
+   "closedAt": 2.5,
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestKept",
+  "case": "number: under 0",
+  "input": {
+   "number": -1,
+   "url": "text é",
+   "state": "closed",
+   "base": "text é",
+   "branch": "text é",
+   "mergedAt": 2.5,
+   "closedAt": 2.5,
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestKept",
+  "case": "state: not one of its values",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "not-a-value",
+   "base": "text é",
+   "branch": "text é",
+   "mergedAt": 2.5,
+   "closedAt": 2.5,
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestLabel",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "color": "text é",
+   "description": "text é"
+  },
+  "output": "{\"name\":\"text é\",\"color\":\"text é\",\"description\":\"text é\"}"
+ },
+ {
+  "type": "PullRequestLabel",
+  "case": "minimal",
+  "input": {
+   "name": "s",
+   "color": "s"
+  },
+  "output": "{\"name\":\"s\",\"color\":\"s\"}"
+ },
+ {
+  "type": "PullRequestLabel",
+  "case": "nulls",
+  "input": {
+   "name": "s",
+   "color": "s",
+   "description": "s"
+  },
+  "output": "{\"name\":\"s\",\"color\":\"s\",\"description\":\"s\"}"
+ },
+ {
+  "type": "PullRequestLabel",
+  "case": "missing name",
+  "input": {
+   "color": "text é",
+   "description": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestPage",
+  "case": "full",
+  "input": {
+   "title": "text é",
+   "body": "text é",
+   "author": "text é",
+   "createdAt": "text é",
+   "updatedAt": "text é",
+   "closedAt": "text é",
+   "mergedAt": "text é",
+   "mergedBy": "text é",
+   "mergeCommit": "text é",
+   "labels": [
+    {
+     "name": "text é",
+     "color": "text é",
+     "description": "text é"
+    }
+   ],
+   "reviewRequests": [
+    {
+     "name": "text é",
+     "team": true
+    }
+   ],
+   "latestReviews": [
+    {
+     "author": "text é",
+     "state": "text é",
+     "at": "text é"
+    }
+   ],
+   "assignees": [
+    "text é"
+   ],
+   "commits": [
+    {
+     "oid": "text é",
+     "subject": "text é",
+     "body": "text é",
+     "at": "text é",
+     "author": "text é",
+     "parents": 7,
+     "additions": 7,
+     "deletions": 7,
+     "check": "cancelled"
+    }
+   ],
+   "reviews": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "author": "text é",
+     "association": "text é",
+     "state": "text é",
+     "body": "text é",
+     "at": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "comments": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "author": "text é",
+     "association": "text é",
+     "bot": true,
+     "avatar": "text é",
+     "body": "text é",
+     "url": "text é",
+     "at": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "reviewComments": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "path": "text é",
+     "line": 7,
+     "side": "text é",
+     "author": "text é",
+     "association": "text é",
+     "bot": true,
+     "avatar": "text é",
+     "body": "text é",
+     "url": "text é",
+     "at": "text é",
+     "hunk": "text é",
+     "replyTo": 7,
+     "reviewId": 7,
+     "resolved": true,
+     "threadId": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "files": [
+    {
+     "path": "text é",
+     "additions": 7,
+     "deletions": 7
+    }
+   ],
+   "cut": {
+    "commits": true,
+    "reviews": true,
+    "threads": true,
+    "comments": true
+   },
+   "merge": {
+    "methods": [
+     "rebase"
+    ],
+    "defaultMethod": "rebase",
+    "autoMerge": true
+   },
+   "sent": [
+    {
+     "kind": "reviewComment",
+     "id": 7,
+     "at": 2.5
+    }
+   ],
+   "postsAsYou": true
+  },
+  "output": "{\"title\":\"text é\",\"body\":\"text é\",\"author\":\"text é\",\"createdAt\":\"text é\",\"updatedAt\":\"text é\",\"closedAt\":\"text é\",\"mergedAt\":\"text é\",\"mergedBy\":\"text é\",\"mergeCommit\":\"text é\",\"labels\":[{\"name\":\"text é\",\"color\":\"text é\",\"description\":\"text é\"}],\"reviewRequests\":[{\"name\":\"text é\",\"team\":true}],\"latestReviews\":[{\"author\":\"text é\",\"state\":\"text é\",\"at\":\"text é\"}],\"assignees\":[\"text é\"],\"commits\":[{\"oid\":\"text é\",\"subject\":\"text é\",\"body\":\"text é\",\"at\":\"text é\",\"author\":\"text é\",\"parents\":7,\"additions\":7,\"deletions\":7,\"check\":\"cancelled\"}],\"reviews\":[{\"id\":7,\"nodeId\":\"text é\",\"author\":\"text é\",\"association\":\"text é\",\"state\":\"text é\",\"body\":\"text é\",\"at\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]}],\"comments\":[{\"id\":7,\"nodeId\":\"text é\",\"author\":\"text é\",\"association\":\"text é\",\"bot\":true,\"avatar\":\"text é\",\"body\":\"text é\",\"url\":\"text é\",\"at\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]}],\"reviewComments\":[{\"id\":7,\"nodeId\":\"text é\",\"path\":\"text é\",\"line\":7,\"side\":\"text é\",\"author\":\"text é\",\"association\":\"text é\",\"bot\":true,\"avatar\":\"text é\",\"body\":\"text é\",\"url\":\"text é\",\"at\":\"text é\",\"hunk\":\"text é\",\"replyTo\":7,\"reviewId\":7,\"resolved\":true,\"threadId\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]}],\"files\":[{\"path\":\"text é\",\"additions\":7,\"deletions\":7}],\"cut\":{\"commits\":true,\"reviews\":true,\"threads\":true,\"comments\":true},\"merge\":{\"methods\":[\"rebase\"],\"defaultMethod\":\"rebase\",\"autoMerge\":true},\"sent\":[{\"kind\":\"reviewComment\",\"id\":7,\"at\":2.5}],\"postsAsYou\":true}"
+ },
+ {
+  "type": "PullRequestPage",
+  "case": "minimal",
+  "input": {
+   "title": "s",
+   "body": "s",
+   "author": "s",
+   "createdAt": "s",
+   "updatedAt": "s",
+   "labels": [],
+   "reviewRequests": [],
+   "latestReviews": [],
+   "assignees": [],
+   "commits": [],
+   "reviews": [],
+   "comments": [],
+   "reviewComments": [],
+   "files": [],
+   "sent": []
+  },
+  "output": "{\"title\":\"s\",\"body\":\"s\",\"author\":\"s\",\"createdAt\":\"s\",\"updatedAt\":\"s\",\"labels\":[],\"reviewRequests\":[],\"latestReviews\":[],\"assignees\":[],\"commits\":[],\"reviews\":[],\"comments\":[],\"reviewComments\":[],\"files\":[],\"sent\":[]}"
+ },
+ {
+  "type": "PullRequestPage",
+  "case": "nulls",
+  "input": {
+   "title": "s",
+   "body": "s",
+   "author": "s",
+   "createdAt": "s",
+   "updatedAt": "s",
+   "closedAt": "s",
+   "mergedAt": "s",
+   "mergedBy": "s",
+   "mergeCommit": "s",
+   "labels": [],
+   "reviewRequests": [],
+   "latestReviews": [],
+   "assignees": [],
+   "commits": [],
+   "reviews": [],
+   "comments": [],
+   "reviewComments": [],
+   "files": [],
+   "cut": {},
+   "merge": {
+    "methods": [],
+    "defaultMethod": "merge",
+    "autoMerge": false
+   },
+   "sent": [],
+   "postsAsYou": false
+  },
+  "output": "{\"title\":\"s\",\"body\":\"s\",\"author\":\"s\",\"createdAt\":\"s\",\"updatedAt\":\"s\",\"closedAt\":\"s\",\"mergedAt\":\"s\",\"mergedBy\":\"s\",\"mergeCommit\":\"s\",\"labels\":[],\"reviewRequests\":[],\"latestReviews\":[],\"assignees\":[],\"commits\":[],\"reviews\":[],\"comments\":[],\"reviewComments\":[],\"files\":[],\"cut\":{},\"merge\":{\"methods\":[],\"defaultMethod\":\"merge\",\"autoMerge\":false},\"sent\":[],\"postsAsYou\":false}"
+ },
+ {
+  "type": "PullRequestPage",
+  "case": "missing title",
+  "input": {
+   "body": "text é",
+   "author": "text é",
+   "createdAt": "text é",
+   "updatedAt": "text é",
+   "closedAt": "text é",
+   "mergedAt": "text é",
+   "mergedBy": "text é",
+   "mergeCommit": "text é",
+   "labels": [
+    {
+     "name": "text é",
+     "color": "text é",
+     "description": "text é"
+    }
+   ],
+   "reviewRequests": [
+    {
+     "name": "text é",
+     "team": true
+    }
+   ],
+   "latestReviews": [
+    {
+     "author": "text é",
+     "state": "text é",
+     "at": "text é"
+    }
+   ],
+   "assignees": [
+    "text é"
+   ],
+   "commits": [
+    {
+     "oid": "text é",
+     "subject": "text é",
+     "body": "text é",
+     "at": "text é",
+     "author": "text é",
+     "parents": 7,
+     "additions": 7,
+     "deletions": 7,
+     "check": "cancelled"
+    }
+   ],
+   "reviews": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "author": "text é",
+     "association": "text é",
+     "state": "text é",
+     "body": "text é",
+     "at": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "comments": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "author": "text é",
+     "association": "text é",
+     "bot": true,
+     "avatar": "text é",
+     "body": "text é",
+     "url": "text é",
+     "at": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "reviewComments": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "path": "text é",
+     "line": 7,
+     "side": "text é",
+     "author": "text é",
+     "association": "text é",
+     "bot": true,
+     "avatar": "text é",
+     "body": "text é",
+     "url": "text é",
+     "at": "text é",
+     "hunk": "text é",
+     "replyTo": 7,
+     "reviewId": 7,
+     "resolved": true,
+     "threadId": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "files": [
+    {
+     "path": "text é",
+     "additions": 7,
+     "deletions": 7
+    }
+   ],
+   "cut": {
+    "commits": true,
+    "reviews": true,
+    "threads": true,
+    "comments": true
+   },
+   "merge": {
+    "methods": [
+     "rebase"
+    ],
+    "defaultMethod": "rebase",
+    "autoMerge": true
+   },
+   "sent": [
+    {
+     "kind": "reviewComment",
+     "id": 7,
+     "at": 2.5
+    }
+   ],
+   "postsAsYou": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "title"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestPage",
+  "case": "postsAsYou: not a boolean",
+  "input": {
+   "title": "text é",
+   "body": "text é",
+   "author": "text é",
+   "createdAt": "text é",
+   "updatedAt": "text é",
+   "closedAt": "text é",
+   "mergedAt": "text é",
+   "mergedBy": "text é",
+   "mergeCommit": "text é",
+   "labels": [
+    {
+     "name": "text é",
+     "color": "text é",
+     "description": "text é"
+    }
+   ],
+   "reviewRequests": [
+    {
+     "name": "text é",
+     "team": true
+    }
+   ],
+   "latestReviews": [
+    {
+     "author": "text é",
+     "state": "text é",
+     "at": "text é"
+    }
+   ],
+   "assignees": [
+    "text é"
+   ],
+   "commits": [
+    {
+     "oid": "text é",
+     "subject": "text é",
+     "body": "text é",
+     "at": "text é",
+     "author": "text é",
+     "parents": 7,
+     "additions": 7,
+     "deletions": 7,
+     "check": "cancelled"
+    }
+   ],
+   "reviews": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "author": "text é",
+     "association": "text é",
+     "state": "text é",
+     "body": "text é",
+     "at": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "comments": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "author": "text é",
+     "association": "text é",
+     "bot": true,
+     "avatar": "text é",
+     "body": "text é",
+     "url": "text é",
+     "at": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "reviewComments": [
+    {
+     "id": 7,
+     "nodeId": "text é",
+     "path": "text é",
+     "line": 7,
+     "side": "text é",
+     "author": "text é",
+     "association": "text é",
+     "bot": true,
+     "avatar": "text é",
+     "body": "text é",
+     "url": "text é",
+     "at": "text é",
+     "hunk": "text é",
+     "replyTo": 7,
+     "reviewId": 7,
+     "resolved": true,
+     "threadId": "text é",
+     "reactions": [
+      {
+       "content": "eyes",
+       "count": 7,
+       "mine": true
+      }
+     ]
+    }
+   ],
+   "files": [
+    {
+     "path": "text é",
+     "additions": 7,
+     "deletions": 7
+    }
+   ],
+   "cut": {
+    "commits": true,
+    "reviews": true,
+    "threads": true,
+    "comments": true
+   },
+   "merge": {
+    "methods": [
+     "rebase"
+    ],
+    "defaultMethod": "rebase",
+    "autoMerge": true
+   },
+   "sent": [
+    {
+     "kind": "reviewComment",
+     "id": 7,
+     "at": 2.5
+    }
+   ],
+   "postsAsYou": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "postsAsYou"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReaction",
+  "case": "full",
+  "input": {
+   "content": "eyes",
+   "count": 7,
+   "mine": true
+  },
+  "output": "{\"content\":\"eyes\",\"count\":7,\"mine\":true}"
+ },
+ {
+  "type": "PullRequestReaction",
+  "case": "minimal",
+  "input": {
+   "content": "+1",
+   "count": 7,
+   "mine": false
+  },
+  "output": "{\"content\":\"+1\",\"count\":7,\"mine\":false}"
+ },
+ {
+  "type": "PullRequestReaction",
+  "case": "missing content",
+  "input": {
+   "count": 7,
+   "mine": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "content"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReaction",
+  "case": "content: not one of its values",
+  "input": {
+   "content": "not-a-value",
+   "count": 7,
+   "mine": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "content"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReaction",
+  "case": "count: not an integer",
+  "input": {
+   "content": "eyes",
+   "count": 2.5,
+   "mine": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "count"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReaction",
+  "case": "count: under 0",
+  "input": {
+   "content": "eyes",
+   "count": -1,
+   "mine": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "count"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestReaction",
+  "case": "mine: not a boolean",
+  "input": {
+   "content": "eyes",
+   "count": 7,
+   "mine": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "mine"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestRecord",
+  "case": "full",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "base": "text é",
+   "branch": "text é",
+   "mergedAt": 2.5,
+   "closedAt": 2.5,
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ]
+  },
+  "output": "{\"number\":7,\"url\":\"text é\",\"state\":\"closed\",\"base\":\"text é\",\"branch\":\"text é\",\"mergedAt\":2.5,\"closedAt\":2.5,\"checks\":[{\"name\":\"text é\",\"workflow\":\"text é\",\"state\":\"cancelled\",\"run\":{\"runId\":7,\"jobId\":7},\"link\":\"text é\",\"description\":\"text é\",\"startedAt\":\"text é\",\"completedAt\":\"text é\"}]}"
+ },
+ {
+  "type": "PullRequestRecord",
+  "case": "minimal",
+  "input": {
+   "number": 7,
+   "url": "s",
+   "state": "open",
+   "base": "s"
+  },
+  "output": "{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"base\":\"s\"}"
+ },
+ {
+  "type": "PullRequestRecord",
+  "case": "nulls",
+  "input": {
+   "number": 7,
+   "url": "s",
+   "state": "open",
+   "base": "s",
+   "branch": "s",
+   "mergedAt": 3,
+   "closedAt": 3,
+   "checks": []
+  },
+  "output": "{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"base\":\"s\",\"branch\":\"s\",\"mergedAt\":3,\"closedAt\":3,\"checks\":[]}"
+ },
+ {
+  "type": "PullRequestRecord",
+  "case": "missing number",
+  "input": {
+   "url": "text é",
+   "state": "closed",
+   "base": "text é",
+   "branch": "text é",
+   "mergedAt": 2.5,
+   "closedAt": 2.5,
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestRecord",
+  "case": "number: not an integer",
+  "input": {
+   "number": 2.5,
+   "url": "text é",
+   "state": "closed",
+   "base": "text é",
+   "branch": "text é",
+   "mergedAt": 2.5,
+   "closedAt": 2.5,
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestRecord",
+  "case": "number: under 0",
+  "input": {
+   "number": -1,
+   "url": "text é",
+   "state": "closed",
+   "base": "text é",
+   "branch": "text é",
+   "mergedAt": 2.5,
+   "closedAt": 2.5,
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestRecord",
+  "case": "state: not one of its values",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "not-a-value",
+   "base": "text é",
+   "branch": "text é",
+   "mergedAt": 2.5,
+   "closedAt": 2.5,
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReview",
+  "case": "full",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "author": "text é",
+   "association": "text é",
+   "state": "text é",
+   "body": "text é",
+   "at": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "output": "{\"id\":7,\"nodeId\":\"text é\",\"author\":\"text é\",\"association\":\"text é\",\"state\":\"text é\",\"body\":\"text é\",\"at\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]}"
+ },
+ {
+  "type": "PullRequestReview",
+  "case": "minimal",
+  "input": {
+   "author": "s",
+   "state": "s",
+   "body": "s",
+   "at": "s"
+  },
+  "output": "{\"author\":\"s\",\"state\":\"s\",\"body\":\"s\",\"at\":\"s\"}"
+ },
+ {
+  "type": "PullRequestReview",
+  "case": "nulls",
+  "input": {
+   "id": 7,
+   "nodeId": "s",
+   "author": "s",
+   "association": "s",
+   "state": "s",
+   "body": "s",
+   "at": "s",
+   "reactions": []
+  },
+  "output": "{\"id\":7,\"nodeId\":\"s\",\"author\":\"s\",\"association\":\"s\",\"state\":\"s\",\"body\":\"s\",\"at\":\"s\",\"reactions\":[]}"
+ },
+ {
+  "type": "PullRequestReview",
+  "case": "missing author",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "association": "text é",
+   "state": "text é",
+   "body": "text é",
+   "at": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "author"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReview",
+  "case": "id: not an integer",
+  "input": {
+   "id": 2.5,
+   "nodeId": "text é",
+   "author": "text é",
+   "association": "text é",
+   "state": "text é",
+   "body": "text é",
+   "at": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReview",
+  "case": "id: under 0",
+  "input": {
+   "id": -1,
+   "nodeId": "text é",
+   "author": "text é",
+   "association": "text é",
+   "state": "text é",
+   "body": "text é",
+   "at": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "full",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": 7,
+   "reviewId": 7,
+   "resolved": true,
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "output": "{\"id\":7,\"nodeId\":\"text é\",\"path\":\"text é\",\"line\":7,\"side\":\"text é\",\"author\":\"text é\",\"association\":\"text é\",\"bot\":true,\"avatar\":\"text é\",\"body\":\"text é\",\"url\":\"text é\",\"at\":\"text é\",\"hunk\":\"text é\",\"replyTo\":7,\"reviewId\":7,\"resolved\":true,\"threadId\":\"text é\",\"reactions\":[{\"content\":\"eyes\",\"count\":7,\"mine\":true}]}"
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "minimal",
+  "input": {
+   "id": 7,
+   "path": "s",
+   "author": "s",
+   "bot": false,
+   "body": "s",
+   "url": "s",
+   "at": "s"
+  },
+  "output": "{\"id\":7,\"path\":\"s\",\"author\":\"s\",\"bot\":false,\"body\":\"s\",\"url\":\"s\",\"at\":\"s\"}"
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "nulls",
+  "input": {
+   "id": 7,
+   "nodeId": "s",
+   "path": "s",
+   "line": 7,
+   "side": "s",
+   "author": "s",
+   "association": "s",
+   "bot": false,
+   "avatar": "s",
+   "body": "s",
+   "url": "s",
+   "at": "s",
+   "hunk": "s",
+   "replyTo": 7,
+   "reviewId": 7,
+   "resolved": false,
+   "threadId": "s",
+   "reactions": []
+  },
+  "output": "{\"id\":7,\"nodeId\":\"s\",\"path\":\"s\",\"line\":7,\"side\":\"s\",\"author\":\"s\",\"association\":\"s\",\"bot\":false,\"avatar\":\"s\",\"body\":\"s\",\"url\":\"s\",\"at\":\"s\",\"hunk\":\"s\",\"replyTo\":7,\"reviewId\":7,\"resolved\":false,\"threadId\":\"s\",\"reactions\":[]}"
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "missing id",
+  "input": {
+   "nodeId": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": 7,
+   "reviewId": 7,
+   "resolved": true,
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "id: not an integer",
+  "input": {
+   "id": 2.5,
+   "nodeId": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": 7,
+   "reviewId": 7,
+   "resolved": true,
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "id: under 0",
+  "input": {
+   "id": -1,
+   "nodeId": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": 7,
+   "reviewId": 7,
+   "resolved": true,
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "line: not an integer",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "path": "text é",
+   "line": 2.5,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": 7,
+   "reviewId": 7,
+   "resolved": true,
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "line: under 0",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "path": "text é",
+   "line": -1,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": 7,
+   "reviewId": 7,
+   "resolved": true,
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "bot: not a boolean",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": "yes",
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": 7,
+   "reviewId": 7,
+   "resolved": true,
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "bot"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "replyTo: not an integer",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": 2.5,
+   "reviewId": 7,
+   "resolved": true,
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "replyTo"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "replyTo: under 0",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": -1,
+   "reviewId": 7,
+   "resolved": true,
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "replyTo"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "reviewId: not an integer",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": 7,
+   "reviewId": 2.5,
+   "resolved": true,
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "reviewId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "reviewId: under 0",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": 7,
+   "reviewId": -1,
+   "resolved": true,
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "reviewId"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestReviewComment",
+  "case": "resolved: not a boolean",
+  "input": {
+   "id": 7,
+   "nodeId": "text é",
+   "path": "text é",
+   "line": 7,
+   "side": "text é",
+   "author": "text é",
+   "association": "text é",
+   "bot": true,
+   "avatar": "text é",
+   "body": "text é",
+   "url": "text é",
+   "at": "text é",
+   "hunk": "text é",
+   "replyTo": 7,
+   "reviewId": 7,
+   "resolved": "yes",
+   "threadId": "text é",
+   "reactions": [
+    {
+     "content": "eyes",
+     "count": 7,
+     "mine": true
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "resolved"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReviewRequest",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "team": true
+  },
+  "output": "{\"name\":\"text é\",\"team\":true}"
+ },
+ {
+  "type": "PullRequestReviewRequest",
+  "case": "minimal",
+  "input": {
+   "name": "s",
+   "team": false
+  },
+  "output": "{\"name\":\"s\",\"team\":false}"
+ },
+ {
+  "type": "PullRequestReviewRequest",
+  "case": "missing name",
+  "input": {
+   "team": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestReviewRequest",
+  "case": "team: not a boolean",
+  "input": {
+   "name": "text é",
+   "team": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "team"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestSeen",
+  "case": "full",
+  "input": {
+   "why": "text é",
+   "readAt": 2.5
+  },
+  "output": "{\"why\":\"text é\",\"readAt\":2.5}"
+ },
+ {
+  "type": "PullRequestSeen",
+  "case": "minimal",
+  "input": {
+   "number": 7,
+   "url": "s",
+   "state": "open",
+   "host": "s",
+   "draft": false,
+   "base": "s",
+   "branch": "s",
+   "headOid": "s",
+   "headSubject": "s",
+   "mergeable": "mergeable",
+   "mergeState": "s",
+   "review": "none",
+   "checks": [],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "readAt": 3
+  },
+  "output": "{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"host\":\"s\",\"draft\":false,\"base\":\"s\",\"branch\":\"s\",\"headOid\":\"s\",\"headSubject\":\"s\",\"mergeable\":\"mergeable\",\"mergeState\":\"s\",\"review\":\"none\",\"checks\":[],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"readAt\":3}"
+ },
+ {
+  "type": "PullRequestSeen",
+  "case": "variant 0",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "host": "text é",
+   "draft": true,
+   "base": "text é",
+   "branch": "text é",
+   "headOid": "text é",
+   "headSubject": "text é",
+   "mergeable": "unknown",
+   "mergeState": "text é",
+   "review": "required",
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "additions": 7,
+   "deletions": 7,
+   "changedFiles": 7,
+   "commits": 7,
+   "behindBase": 7,
+   "author": "text é",
+   "fork": {
+    "owner": "text é",
+    "pushable": true
+   },
+   "autoMerge": {
+    "method": "rebase",
+    "by": "text é"
+   },
+   "readAt": 2.5
+  },
+  "output": "{\"number\":7,\"url\":\"text é\",\"state\":\"closed\",\"host\":\"text é\",\"draft\":true,\"base\":\"text é\",\"branch\":\"text é\",\"headOid\":\"text é\",\"headSubject\":\"text é\",\"mergeable\":\"unknown\",\"mergeState\":\"text é\",\"review\":\"required\",\"checks\":[{\"name\":\"text é\",\"workflow\":\"text é\",\"state\":\"cancelled\",\"run\":{\"runId\":7,\"jobId\":7},\"link\":\"text é\",\"description\":\"text é\",\"startedAt\":\"text é\",\"completedAt\":\"text é\"}],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"behindBase\":7,\"author\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true},\"autoMerge\":{\"method\":\"rebase\",\"by\":\"text é\"},\"readAt\":2.5}"
+ },
+ {
+  "type": "PullRequestSeen",
+  "case": "variant 1",
+  "input": {
+   "number": 7,
+   "url": "text é",
+   "state": "closed",
+   "base": "text é",
+   "branch": "text é",
+   "mergedAt": 2.5,
+   "closedAt": 2.5,
+   "checks": [
+    {
+     "name": "text é",
+     "workflow": "text é",
+     "state": "cancelled",
+     "run": {
+      "runId": 7,
+      "jobId": 7
+     },
+     "link": "text é",
+     "description": "text é",
+     "startedAt": "text é",
+     "completedAt": "text é"
+    }
+   ],
+   "readAt": 2.5
+  },
+  "output": "{\"number\":7,\"url\":\"text é\",\"state\":\"closed\",\"base\":\"text é\",\"branch\":\"text é\",\"mergedAt\":2.5,\"closedAt\":2.5,\"checks\":[{\"name\":\"text é\",\"workflow\":\"text é\",\"state\":\"cancelled\",\"run\":{\"runId\":7,\"jobId\":7},\"link\":\"text é\",\"description\":\"text é\",\"startedAt\":\"text é\",\"completedAt\":\"text é\"}],\"readAt\":2.5}"
+ },
+ {
+  "type": "PullRequestSendResult",
+  "case": "full",
+  "input": {
+   "outcome": "held",
+   "threadId": "text é",
+   "agent": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "sent": [
+    {
+     "kind": "reviewComment",
+     "id": 7,
+     "at": 2.5
+    }
+   ]
+  },
+  "output": "{\"outcome\":\"held\",\"threadId\":\"text é\",\"agent\":\"text é\",\"capped\":{\"placeId\":\"text é\",\"place\":\"text é\",\"running\":7,\"atOnce\":7,\"why\":\"minute\"},\"sent\":[{\"kind\":\"reviewComment\",\"id\":7,\"at\":2.5}]}"
+ },
+ {
+  "type": "PullRequestSendResult",
+  "case": "minimal",
+  "input": {
+   "outcome": "steered",
+   "threadId": "s",
+   "agent": "s",
+   "sent": []
+  },
+  "output": "{\"outcome\":\"steered\",\"threadId\":\"s\",\"agent\":\"s\",\"sent\":[]}"
+ },
+ {
+  "type": "PullRequestSendResult",
+  "case": "nulls",
+  "input": {
+   "outcome": "steered",
+   "threadId": "s",
+   "agent": "s",
+   "capped": {
+    "placeId": "s",
+    "place": "s",
+    "running": 7,
+    "atOnce": 7
+   },
+   "sent": []
+  },
+  "output": "{\"outcome\":\"steered\",\"threadId\":\"s\",\"agent\":\"s\",\"capped\":{\"placeId\":\"s\",\"place\":\"s\",\"running\":7,\"atOnce\":7},\"sent\":[]}"
+ },
+ {
+  "type": "PullRequestSendResult",
+  "case": "missing outcome",
+  "input": {
+   "threadId": "text é",
+   "agent": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "sent": [
+    {
+     "kind": "reviewComment",
+     "id": 7,
+     "at": 2.5
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "outcome"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestSendResult",
+  "case": "outcome: not one of its values",
+  "input": {
+   "outcome": "not-a-value",
+   "threadId": "text é",
+   "agent": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "sent": [
+    {
+     "kind": "reviewComment",
+     "id": 7,
+     "at": 2.5
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "outcome"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestSent",
+  "case": "full",
+  "input": {
+   "kind": "reviewComment",
+   "id": 7,
+   "at": 2.5
+  },
+  "output": "{\"kind\":\"reviewComment\",\"id\":7,\"at\":2.5}"
+ },
+ {
+  "type": "PullRequestSent",
+  "case": "minimal",
+  "input": {
+   "kind": "comment",
+   "id": 7,
+   "at": 3
+  },
+  "output": "{\"kind\":\"comment\",\"id\":7,\"at\":3}"
+ },
+ {
+  "type": "PullRequestSent",
+  "case": "missing kind",
+  "input": {
+   "id": 7,
+   "at": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestSent",
+  "case": "kind: not one of its values",
+  "input": {
+   "kind": "not-a-value",
+   "id": 7,
+   "at": 2.5
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestSent",
+  "case": "id: not an integer",
+  "input": {
+   "kind": "reviewComment",
+   "id": 2.5,
+   "at": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestSent",
+  "case": "id: under 0",
+  "input": {
+   "kind": "reviewComment",
+   "id": -1,
+   "at": 2.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PullRequestState",
+  "case": "full",
+  "input": "closed",
+  "output": "\"closed\""
+ },
+ {
+  "type": "PullRequestState",
+  "case": "minimal",
+  "input": "open",
+  "output": "\"open\""
+ },
+ {
+  "type": "PullRequestState",
+  "case": "value merged",
+  "input": "merged",
+  "output": "\"merged\""
+ },
+ {
+  "type": "PullRequestState",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PullRequestUnread",
+  "case": "full",
+  "input": {
+   "why": "text é",
+   "readAt": 2.5
+  },
+  "output": "{\"why\":\"text é\",\"readAt\":2.5}"
+ },
+ {
+  "type": "PullRequestUnread",
+  "case": "minimal",
+  "input": {
+   "why": "s",
+   "readAt": 3
+  },
+  "output": "{\"why\":\"s\",\"readAt\":3}"
+ },
+ {
+  "type": "PullRequestUnread",
+  "case": "missing why",
+  "input": {
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "why"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReactionContent",
+  "case": "full",
+  "input": "eyes",
+  "output": "\"eyes\""
+ },
+ {
+  "type": "ReactionContent",
+  "case": "minimal",
+  "input": "+1",
+  "output": "\"+1\""
+ },
+ {
+  "type": "ReactionContent",
+  "case": "value -1",
+  "input": "-1",
+  "output": "\"-1\""
+ },
+ {
+  "type": "ReactionContent",
+  "case": "value laugh",
+  "input": "laugh",
+  "output": "\"laugh\""
+ },
+ {
+  "type": "ReactionContent",
+  "case": "value hooray",
+  "input": "hooray",
+  "output": "\"hooray\""
+ },
+ {
+  "type": "ReactionContent",
+  "case": "value confused",
+  "input": "confused",
+  "output": "\"confused\""
+ },
+ {
+  "type": "ReactionContent",
+  "case": "value heart",
+  "input": "heart",
+  "output": "\"heart\""
+ },
+ {
+  "type": "ReactionContent",
+  "case": "value rocket",
+  "input": "rocket",
+  "output": "\"rocket\""
+ },
+ {
+  "type": "ReactionContent",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReviewState",
+  "case": "full",
+  "input": "required",
+  "output": "\"required\""
+ },
+ {
+  "type": "ReviewState",
+  "case": "minimal",
+  "input": "none",
+  "output": "\"none\""
+ },
+ {
+  "type": "ReviewState",
+  "case": "value approved",
+  "input": "approved",
+  "output": "\"approved\""
+ },
+ {
+  "type": "ReviewState",
+  "case": "value changes_asked",
+  "input": "changes_asked",
+  "output": "\"changes_asked\""
+ },
+ {
+  "type": "ReviewState",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ }
+]

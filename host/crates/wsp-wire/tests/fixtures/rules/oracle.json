@@ -1,0 +1,10150 @@
+{
+ "proc_name": [
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "cargo",
+     "cmdline": "cargo test -p wsp-wire",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "cargo test"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "pnpm",
+     "cmdline": "pnpm dev",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "pnpm dev"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "pnpm",
+     "cmdline": "pnpm --filter web dev",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "pnpm dev"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "pnpm",
+     "cmdline": "pnpm dlx create-vite@5.1 app",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "create-vite"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npx",
+     "cmdline": "npx -y @modelcontextprotocol/server-github@0.6.2",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "@modelcontextprotocol/server-github"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npx",
+     "cmdline": "npx --package foo@1 bar",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "bar"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "uv",
+     "cmdline": "/opt/homebrew/bin/uv tool uvx mcp-search-console",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "mcp-search-console"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "uv",
+     "cmdline": "uv tool run --from git+https://x/y.git y",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "y"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "uvx",
+     "cmdline": "uvx --python 3.12 ruff check",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "ruff"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npm",
+     "cmdline": "npm exec -- tsc",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "tsc"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npm",
+     "cmdline": "npm run build",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "npm run"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npm",
+     "cmdline": "npm x https://example.com/pkg.tgz",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "npm x"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "yarn",
+     "cmdline": "yarn",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "yarn"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "go",
+     "cmdline": "go test ./...",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "go test"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "bunx",
+     "cmdline": "bunx v1.2.3",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "bunx v1.2.3"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node /lab/node_modules/.bin/vite",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "vite"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node /usr/local/lib/node_modules/@openai/codex/bin/codex.js app",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "codex"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node dist/index.js serve --port 3",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "index serve"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node --inspect /a/b/cli.mjs",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "b"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "node"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "python3",
+     "cmdline": "python3 -m http.server",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "http.server"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "python3",
+     "cmdline": "/usr/bin/python3 /srv/feed.py",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "python3 feed.py"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "python3.13",
+     "cmdline": "/home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "mcp-search-console"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "2.1.296",
+     "cmdline": "claude -p --input-format stream-json",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "2.1.296"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "",
+     "cmdline": "/usr/bin/vim notes.md",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "vim"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "",
+     "cmdline": "",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": ""
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "bash",
+     "cmdline": "bash runs/53af26c40316.sh",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "bash"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "deno",
+     "cmdline": "deno run -A main.ts",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "run"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "ruby",
+     "cmdline": "ruby bin/rails server",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "rails"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "bun",
+     "cmdline": "bun lib/index.ts",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "index"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node /x/node_modules/.bin/index.js",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "x"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "cargo",
+     "cmdline": "cargo",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "cargo"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "pnpm",
+     "cmdline": "pnpm exec @scope/tool@2",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "@scope/tool"
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npm",
+     "cmdline": "npm exec -c 'echo hi'",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": "hi'"
+  }
+ ],
+ "proc_bins": [
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "cargo",
+     "cmdline": "cargo test -p wsp-wire",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "cargo",
+    "cargo"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "pnpm",
+     "cmdline": "pnpm dev",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "pnpm",
+    "pnpm"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "pnpm",
+     "cmdline": "pnpm --filter web dev",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "pnpm",
+    "pnpm"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "pnpm",
+     "cmdline": "pnpm dlx create-vite@5.1 app",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "pnpm",
+    "pnpm"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npx",
+     "cmdline": "npx -y @modelcontextprotocol/server-github@0.6.2",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "npx",
+    "npx"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npx",
+     "cmdline": "npx --package foo@1 bar",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "npx",
+    "npx"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "uv",
+     "cmdline": "/opt/homebrew/bin/uv tool uvx mcp-search-console",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "uv",
+    "uv"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "uv",
+     "cmdline": "uv tool run --from git+https://x/y.git y",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "uv",
+    "uv"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "uvx",
+     "cmdline": "uvx --python 3.12 ruff check",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "uvx",
+    "uvx"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npm",
+     "cmdline": "npm exec -- tsc",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "npm",
+    "npm"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npm",
+     "cmdline": "npm run build",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "npm",
+    "npm"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npm",
+     "cmdline": "npm x https://example.com/pkg.tgz",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "npm",
+    "npm"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "yarn",
+     "cmdline": "yarn",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "yarn",
+    "yarn"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "go",
+     "cmdline": "go test ./...",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "go",
+    "go"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "bunx",
+     "cmdline": "bunx v1.2.3",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "bunx",
+    "bunx"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node /lab/node_modules/.bin/vite",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "node",
+    "node",
+    "vite"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node /usr/local/lib/node_modules/@openai/codex/bin/codex.js app",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "node",
+    "node",
+    "codex.js"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node dist/index.js serve --port 3",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "node",
+    "node",
+    "index.js"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node --inspect /a/b/cli.mjs",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "node",
+    "node",
+    "cli.mjs"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "node",
+    "node"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "python3",
+     "cmdline": "python3 -m http.server",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "python3",
+    "python3",
+    "http.server"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "python3",
+     "cmdline": "/usr/bin/python3 /srv/feed.py",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "python3",
+    "python3",
+    "feed.py"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "python3.13",
+     "cmdline": "/home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "python3.13",
+    "python",
+    "mcp-search-console"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "2.1.296",
+     "cmdline": "claude -p --input-format stream-json",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "2.1.296",
+    "claude"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "",
+     "cmdline": "/usr/bin/vim notes.md",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "vim"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "",
+     "cmdline": "",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": []
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "bash",
+     "cmdline": "bash runs/53af26c40316.sh",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "bash",
+    "bash"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "deno",
+     "cmdline": "deno run -A main.ts",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "deno",
+    "deno",
+    "run"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "ruby",
+     "cmdline": "ruby bin/rails server",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "ruby",
+    "ruby",
+    "rails"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "bun",
+     "cmdline": "bun lib/index.ts",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "bun",
+    "bun",
+    "index.ts"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node /x/node_modules/.bin/index.js",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "node",
+    "node",
+    "index.js"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "cargo",
+     "cmdline": "cargo",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "cargo",
+    "cargo"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "pnpm",
+     "cmdline": "pnpm exec @scope/tool@2",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "pnpm",
+    "pnpm"
+   ]
+  },
+  {
+   "args": [
+    {
+     "pid": 1,
+     "ppid": 0,
+     "user": "ada",
+     "state": "S",
+     "comm": "npm",
+     "cmdline": "npm exec -c 'echo hi'",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000001
+    }
+   ],
+   "want": [
+    "npm",
+    "npm"
+   ]
+  }
+ ],
+ "agent_by_bin": [
+  {
+   "args": [
+    {
+     "pid": 5,
+     "ppid": 1,
+     "user": "ada",
+     "state": "S",
+     "comm": "2.1.296",
+     "cmdline": "claude -p",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000005
+    },
+    [
+     {
+      "id": "claude",
+      "bin": "claude"
+     },
+     {
+      "id": "cursor",
+      "bin": "cursor-agent"
+     },
+     {
+      "id": "codex",
+      "bin": "codex"
+     }
+    ]
+   ],
+   "want": "claude"
+  },
+  {
+   "args": [
+    {
+     "pid": 5,
+     "ppid": 1,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "/usr/local/bin/cursor-agent --print",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000005
+    },
+    [
+     {
+      "id": "claude",
+      "bin": "claude"
+     },
+     {
+      "id": "cursor",
+      "bin": "cursor-agent"
+     },
+     {
+      "id": "codex",
+      "bin": "codex"
+     }
+    ]
+   ],
+   "want": "cursor"
+  },
+  {
+   "args": [
+    {
+     "pid": 5,
+     "ppid": 1,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node /opt/homebrew/bin/codex exec",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000005
+    },
+    [
+     {
+      "id": "claude",
+      "bin": "claude"
+     },
+     {
+      "id": "cursor",
+      "bin": "cursor-agent"
+     },
+     {
+      "id": "codex",
+      "bin": "codex"
+     }
+    ]
+   ],
+   "want": "codex"
+  },
+  {
+   "args": [
+    {
+     "pid": 5,
+     "ppid": 1,
+     "user": "ada",
+     "state": "S",
+     "comm": "zsh",
+     "cmdline": "-zsh",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000005
+    },
+    [
+     {
+      "id": "claude",
+      "bin": "claude"
+     },
+     {
+      "id": "cursor",
+      "bin": "cursor-agent"
+     },
+     {
+      "id": "codex",
+      "bin": "codex"
+     }
+    ]
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    {
+     "pid": 5,
+     "ppid": 1,
+     "user": "ada",
+     "state": "S",
+     "comm": "claude",
+     "cmdline": "",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000005
+    },
+    [
+     {
+      "id": "claude",
+      "bin": "claude"
+     },
+     {
+      "id": "cursor",
+      "bin": "cursor-agent"
+     },
+     {
+      "id": "codex",
+      "bin": "codex"
+     }
+    ]
+   ],
+   "want": "claude"
+  }
+ ],
+ "activity_name": [
+  {
+   "args": [
+    {
+     "pid": 60,
+     "ppid": 1,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node /x/vite.js",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000060
+    },
+    {
+     "daemon": 60,
+     "host": 50
+    }
+   ],
+   "want": "Daemon"
+  },
+  {
+   "args": [
+    {
+     "pid": 50,
+     "ppid": 1,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node /x/vite.js",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000050
+    },
+    {
+     "daemon": 60,
+     "host": 50
+    }
+   ],
+   "want": "Host"
+  },
+  {
+   "args": [
+    {
+     "pid": 60,
+     "ppid": 1,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node /x/vite.js",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000060
+    },
+    {
+     "daemon": 60,
+     "agent": "Claude Code"
+    }
+   ],
+   "want": "Claude Code"
+  },
+  {
+   "args": [
+    {
+     "pid": 7,
+     "ppid": 1,
+     "user": "ada",
+     "state": "S",
+     "comm": "node",
+     "cmdline": "node /x/vite.js",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000007
+    },
+    {}
+   ],
+   "want": "vite"
+  }
+ ],
+ "is_turn_plumbing": [
+  {
+   "args": [
+    "bash runs/53af26c40316.sh"
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "bash /tmp/lab/runs/3d518f162d41.sh"
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "bash /tmp/runs/3d518f162d4.sh"
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    "bash /tmp/runs/3D518F162D41.sh"
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    "tail -n +1 -f /tmp/lab/runs/3d518f162d41.in"
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "tail -n +1 -f /tmp/notes.in"
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    "bash /tmp/runs/3d518f162d41.sh --x"
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    " bash /a/3d518f162d41.sh"
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    "bash 3d518f162d41.sh"
+   ],
+   "want": false
+  }
+ ],
+ "in_cgroup": [
+  {
+   "args": [
+    null,
+    "/wsp-threads/a"
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    "/wsp-threads/a",
+    "/wsp-threads/a"
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "/wsp-threads/a/b",
+    "/wsp-threads/a"
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "/wsp-threads/ab",
+    "/wsp-threads/a"
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    "",
+    ""
+   ],
+   "want": true
+  }
+ ],
+ "cgroup_memory": [
+  {
+   "args": [
+    [
+     {
+      "cgroup": "/a",
+      "memory": 5
+     },
+     {
+      "cgroup": "/a",
+      "memory": 9
+     },
+     {
+      "cgroup": "/b",
+      "memory": 7
+     }
+    ],
+    "/a"
+   ],
+   "want": 5
+  },
+  {
+   "args": [
+    [
+     {
+      "cgroup": "/a",
+      "memory": 5
+     },
+     {
+      "cgroup": "/a",
+      "memory": 9
+     },
+     {
+      "cgroup": "/b",
+      "memory": 7
+     }
+    ],
+    "/c"
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    null,
+    "/a"
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    [
+     {
+      "cgroup": "/a",
+      "memory": 5
+     },
+     {
+      "cgroup": "/a",
+      "memory": 9
+     },
+     {
+      "cgroup": "/b",
+      "memory": 7
+     }
+    ],
+    null
+   ],
+   "want": null
+  }
+ ],
+ "boxEndLine": [
+  {
+   "args": [
+    "lab-box"
+   ],
+   "want": "lab-box is a box, and wsp activity end ends processes on this computer:"
+  },
+  {
+   "args": [
+    "ü box"
+   ],
+   "want": "ü box is a box, and wsp activity end ends processes on this computer:"
+  }
+ ],
+ "notJoinedActivityFix": [
+  {
+   "args": [
+    "lab-box"
+   ],
+   "want": "add lab-box again with wsp add, then read its processes."
+  },
+  {
+   "args": [
+    "ü box"
+   ],
+   "want": "add ü box again with wsp add, then read its processes."
+  }
+ ],
+ "boxBehindActivityLine": [
+  {
+   "args": [
+    "lab-box"
+   ],
+   "want": "lab-box is behind: its daemon reads no processes in one read; wsp add lab-box --update puts this wsp's daemon on it, so wsp activity reads nothing there:"
+  },
+  {
+   "args": [
+    "ü box"
+   ],
+   "want": "ü box is behind: its daemon reads no processes in one read; wsp add ü box --update puts this wsp's daemon on it, so wsp activity reads nothing there:"
+  }
+ ],
+ "notReadLine": [
+  {
+   "args": [
+    "lab-box"
+   ],
+   "want": "lab-box is no box this host joined, and wsp activity reads this computer's processes and a box's:"
+  },
+  {
+   "args": [
+    "ü box"
+   ],
+   "want": "ü box is no box this host joined, and wsp activity reads this computer's processes and a box's:"
+  }
+ ],
+ "endGoneSaid": [
+  {
+   "args": [
+    0
+   ],
+   "want": "nothing was signalled: the process listed as 0 is gone"
+  },
+  {
+   "args": [
+    42
+   ],
+   "want": "nothing was signalled: the process listed as 42 is gone"
+  },
+  {
+   "args": [
+    -1
+   ],
+   "want": "nothing was signalled: the process listed as -1 is gone"
+  }
+ ],
+ "endGoneLine": [
+  {
+   "args": [
+    0
+   ],
+   "want": "no process 0 is running on this computer:"
+  },
+  {
+   "args": [
+    42
+   ],
+   "want": "no process 42 is running on this computer:"
+  },
+  {
+   "args": [
+    -1
+   ],
+   "want": "no process -1 is running on this computer:"
+  }
+ ],
+ "wspOwnLine": [
+  {
+   "args": [
+    0
+   ],
+   "want": "0 is wsp's own process on this computer, which wsp stop and the app end:"
+  },
+  {
+   "args": [
+    42
+   ],
+   "want": "42 is wsp's own process on this computer, which wsp stop and the app end:"
+  },
+  {
+   "args": [
+    -1
+   ],
+   "want": "-1 is wsp's own process on this computer, which wsp stop and the app end:"
+  }
+ ],
+ "notThreadsLine": [
+  {
+   "args": [
+    0
+   ],
+   "want": "0 is not a process of this thread or a thread under it:"
+  },
+  {
+   "args": [
+    42
+   ],
+   "want": "42 is not a process of this thread or a thread under it:"
+  },
+  {
+   "args": [
+    -1
+   ],
+   "want": "-1 is not a process of this thread or a thread under it:"
+  }
+ ],
+ "notStartedLine": [
+  {
+   "args": [
+    0
+   ],
+   "want": "wsp did not start 0, and it ends only what a thread or wsp started:"
+  },
+  {
+   "args": [
+    42
+   ],
+   "want": "wsp did not start 42, and it ends only what a thread or wsp started:"
+  },
+  {
+   "args": [
+    -1
+   ],
+   "want": "wsp did not start -1, and it ends only what a thread or wsp started:"
+  }
+ ],
+ "endReusedLine": [
+  {
+   "args": [
+    200,
+    {
+     "pid": 200,
+     "ppid": 1,
+     "user": "ada",
+     "state": "S",
+     "comm": "vite",
+     "cmdline": "vite",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 1760000000200
+    },
+    1759999940000
+   ],
+   "want": "pid 200 names another process now, vite started 2025-10-09T08:53:20.200Z, not the one started 2025-10-09T08:52:20.000Z:"
+  },
+  {
+   "args": [
+    7,
+    {
+     "pid": 7,
+     "ppid": 1,
+     "user": "ada",
+     "state": "S",
+     "comm": "x",
+     "cmdline": "x",
+     "cpu": 1,
+     "rss": 1000,
+     "startedAt": 0
+    },
+    1
+   ],
+   "want": "pid 7 names another process now, x started 1970-01-01T00:00:00.000Z, not the one started 1970-01-01T00:00:00.001Z:"
+  }
+ ],
+ "processesLeftFix": [
+  {
+   "args": [
+    "settle",
+    []
+   ],
+   "want": "settle it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line)."
+  },
+  {
+   "args": [
+    "settle",
+    [
+     400,
+     12
+    ]
+   ],
+   "want": "a thread ends only what it and the threads under it started, so ask the person to end 400 12, or settle it again with processes keep to leave them running (--processes on the command line)."
+  },
+  {
+   "args": [
+    "delete",
+    []
+   ],
+   "want": "delete it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line)."
+  },
+  {
+   "args": [
+    "delete",
+    [
+     400,
+     12
+    ]
+   ],
+   "want": "a thread ends only what it and the threads under it started, so ask the person to end 400 12, or delete it again with processes keep to leave them running (--processes on the command line)."
+  }
+ ],
+ "on_npm_bin": [
+  {
+   "args": [
+    null,
+    "/usr/bin"
+   ],
+   "want": "/usr/bin"
+  },
+  {
+   "args": [
+    "/home/a/.npm/bin",
+    "/usr/bin:/bin"
+   ],
+   "want": "/opt/wsp-agents/bin:/home/a/.npm/bin:/usr/bin:/bin"
+  },
+  {
+   "args": [
+    "",
+    "/x"
+   ],
+   "want": "/opt/wsp-agents/bin::/x"
+  }
+ ],
+ "agent_of_row": [
+  {
+   "args": [
+    "agents/claude"
+   ],
+   "want": "claude"
+  },
+  {
+   "args": [
+    "agents/mcp/github"
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    "agents/"
+   ],
+   "want": ""
+  },
+  {
+   "args": [
+    "tools/brew/jq"
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    "agents"
+   ],
+   "want": null
+  }
+ ],
+ "package_of": [
+  {
+   "args": [
+    "tools/brew/jq"
+   ],
+   "want": "jq"
+  },
+  {
+   "args": [
+    "tools/brew/hashicorp/tap/terraform"
+   ],
+   "want": "hashicorp/tap/terraform"
+  },
+  {
+   "args": [
+    "tools/npm"
+   ],
+   "want": ""
+  },
+  {
+   "args": [
+    "tools/npm/"
+   ],
+   "want": ""
+  },
+  {
+   "args": [
+    "x"
+   ],
+   "want": ""
+  }
+ ],
+ "tool_row_id": [
+  {
+   "args": [
+    "brew",
+    "jq"
+   ],
+   "want": "tools/brew/jq"
+  },
+  {
+   "args": [
+    "npm",
+    "@scope/x"
+   ],
+   "want": "tools/npm/@scope/x"
+  },
+  {
+   "args": [
+    "",
+    ""
+   ],
+   "want": "tools//"
+  }
+ ],
+ "command_check": [
+  {
+   "args": [
+    "jq"
+   ],
+   "want": "command -v 'jq'"
+  },
+  {
+   "args": [
+    "it's"
+   ],
+   "want": "command -v 'it'\\''s'"
+  },
+  {
+   "args": [
+    "a b"
+   ],
+   "want": "command -v 'a b'"
+  }
+ ],
+ "recipe_pins": [
+  {
+   "args": [
+    {
+     "ticks": [
+      {
+       "id": "tools/brew/zz",
+       "pin": {
+        "tag": "1.0",
+        "sha256": "aa"
+       }
+      },
+      {
+       "id": "tools/brew/Ab",
+       "pin": {
+        "tag": "2.0",
+        "latest": true
+       },
+       "road": "brew"
+      },
+      {
+       "id": "tools/npm/ab",
+       "pin": {
+        "tag": "3"
+       }
+      },
+      {
+       "id": "tools/npm/b",
+       "road": "npm"
+      },
+      {
+       "id": "agents/claude",
+       "pin": {
+        "tag": "4",
+        "arch": "aarch64"
+       }
+      },
+      {
+       "id": "tools/brew/é",
+       "pin": {
+        "tag": "5"
+       }
+      },
+      {
+       "id": "tools/brew/e",
+       "pin": {
+        "tag": "6"
+       }
+      },
+      {
+       "id": "tools/brew/_x",
+       "pin": {
+        "tag": "7"
+       }
+      },
+      {
+       "id": "tools/brew/10",
+       "pin": {
+        "tag": "8"
+       }
+      },
+      {
+       "id": "tools/brew/9",
+       "pin": {
+        "tag": "9"
+       }
+      }
+     ],
+     "files": []
+    },
+    null
+   ],
+   "want": [
+    {
+     "id": "agents/claude",
+     "tag": "4",
+     "arch": "aarch64"
+    },
+    {
+     "id": "tools/brew/_x",
+     "tag": "7"
+    },
+    {
+     "id": "tools/brew/10",
+     "tag": "8"
+    },
+    {
+     "id": "tools/brew/9",
+     "tag": "9"
+    },
+    {
+     "id": "tools/brew/Ab",
+     "tag": "2.0",
+     "latest": true,
+     "road": "brew"
+    },
+    {
+     "id": "tools/brew/e",
+     "tag": "6"
+    },
+    {
+     "id": "tools/brew/é",
+     "tag": "5"
+    },
+    {
+     "id": "tools/brew/zz",
+     "tag": "1.0",
+     "sha256": "aa"
+    },
+    {
+     "id": "tools/npm/ab",
+     "tag": "3"
+    }
+   ]
+  },
+  {
+   "args": [
+    {
+     "ticks": [
+      {
+       "id": "tools/brew/zz",
+       "pin": {
+        "tag": "1.0",
+        "sha256": "aa"
+       }
+      },
+      {
+       "id": "tools/brew/Ab",
+       "pin": {
+        "tag": "2.0",
+        "latest": true
+       },
+       "road": "brew"
+      },
+      {
+       "id": "tools/npm/ab",
+       "pin": {
+        "tag": "3"
+       }
+      },
+      {
+       "id": "tools/npm/b",
+       "road": "npm"
+      },
+      {
+       "id": "agents/claude",
+       "pin": {
+        "tag": "4",
+        "arch": "aarch64"
+       }
+      },
+      {
+       "id": "tools/brew/é",
+       "pin": {
+        "tag": "5"
+       }
+      },
+      {
+       "id": "tools/brew/e",
+       "pin": {
+        "tag": "6"
+       }
+      },
+      {
+       "id": "tools/brew/_x",
+       "pin": {
+        "tag": "7"
+       }
+      },
+      {
+       "id": "tools/brew/10",
+       "pin": {
+        "tag": "8"
+       }
+      },
+      {
+       "id": "tools/brew/9",
+       "pin": {
+        "tag": "9"
+       }
+      }
+     ],
+     "files": []
+    },
+    "prefix"
+   ],
+   "want": [
+    {
+     "id": "p/agents/claude",
+     "tag": "4",
+     "arch": "aarch64"
+    },
+    {
+     "id": "p/tools/brew/_x",
+     "tag": "7"
+    },
+    {
+     "id": "p/tools/brew/10",
+     "tag": "8"
+    },
+    {
+     "id": "p/tools/brew/9",
+     "tag": "9"
+    },
+    {
+     "id": "p/tools/brew/Ab",
+     "tag": "2.0",
+     "latest": true,
+     "road": "brew"
+    },
+    {
+     "id": "p/tools/brew/e",
+     "tag": "6"
+    },
+    {
+     "id": "p/tools/brew/é",
+     "tag": "5"
+    },
+    {
+     "id": "p/tools/brew/zz",
+     "tag": "1.0",
+     "sha256": "aa"
+    },
+    {
+     "id": "p/tools/npm/ab",
+     "tag": "3"
+    }
+   ]
+  }
+ ],
+ "golden_head": [
+  {
+   "args": [
+    null
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    {
+     "head": 2,
+     "versions": [
+      {
+       "version": 1,
+       "snapshotId": "s1",
+       "baseTemplate": "b",
+       "setupSha": "x",
+       "createdAt": "t",
+       "smoke": {
+        "cmd": "true",
+        "exitCode": 0
+       }
+      },
+      {
+       "version": 2,
+       "snapshotId": "s2",
+       "templateId": "tpl",
+       "baseTemplate": "b",
+       "setupSha": "x",
+       "createdAt": "t",
+       "smoke": {
+        "cmd": "true",
+        "exitCode": 0
+       }
+      }
+     ]
+    }
+   ],
+   "want": {
+    "version": 2,
+    "snapshotId": "s2",
+    "templateId": "tpl",
+    "baseTemplate": "b",
+    "setupSha": "x",
+    "createdAt": "t",
+    "smoke": {
+     "cmd": "true",
+     "exitCode": 0
+    }
+   }
+  },
+  {
+   "args": [
+    {
+     "head": 3,
+     "versions": [
+      {
+       "version": 1,
+       "snapshotId": "s1",
+       "baseTemplate": "b",
+       "setupSha": "x",
+       "createdAt": "t",
+       "smoke": {
+        "cmd": "true",
+        "exitCode": 0
+       }
+      },
+      {
+       "version": 2,
+       "snapshotId": "s2",
+       "templateId": "tpl",
+       "baseTemplate": "b",
+       "setupSha": "x",
+       "createdAt": "t",
+       "smoke": {
+        "cmd": "true",
+        "exitCode": 0
+       }
+      }
+     ]
+    }
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    {
+     "head": 1,
+     "versions": []
+    }
+   ],
+   "want": null
+  }
+ ],
+ "golden_image": [
+  {
+   "args": [
+    {
+     "version": 1,
+     "snapshotId": "s1",
+     "baseTemplate": "b",
+     "setupSha": "x",
+     "createdAt": "t",
+     "smoke": {
+      "cmd": "true",
+      "exitCode": 0
+     }
+    }
+   ],
+   "want": {
+    "spec": {
+     "fromSnapshot": "s1"
+    },
+    "marks": [
+     "volatile"
+    ]
+   }
+  },
+  {
+   "args": [
+    {
+     "version": 2,
+     "snapshotId": "s2",
+     "templateId": "tpl",
+     "baseTemplate": "b",
+     "setupSha": "x",
+     "createdAt": "t",
+     "smoke": {
+      "cmd": "true",
+      "exitCode": 0
+     }
+    }
+   ],
+   "want": {
+    "spec": {
+     "template": "tpl"
+    },
+    "marks": []
+   }
+  }
+ ],
+ "catalog": [
+  {
+   "args": [],
+   "want": {
+    "harness": "claude",
+    "label": "Claude Code",
+    "source": "harness",
+    "version": "2.1.296",
+    "models": [
+     {
+      "value": "opus",
+      "label": "Opus",
+      "isDefault": true,
+      "efforts": [
+       "high",
+       "low"
+      ],
+      "defaultEffort": "low"
+     },
+     {
+      "value": "sonnet",
+      "label": "Sonnet",
+      "contextWindows": [
+       "1m"
+      ]
+     },
+     {
+      "value": "haiku",
+      "label": "Haiku",
+      "fast": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "opus-old",
+      "label": "Opus old"
+     }
+    ],
+    "hiddenModels": [
+     {
+      "value": "secret",
+      "label": "Secret"
+     }
+    ],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low"
+     },
+     {
+      "value": "medium",
+      "label": "Medium"
+     },
+     {
+      "value": "high",
+      "label": "High",
+      "isDefault": true,
+      "short": "Hi"
+     }
+    ],
+    "contextWindows": [
+     {
+      "value": "200k",
+      "label": "200k"
+     },
+     {
+      "value": "1m",
+      "label": "1M"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "Ask"
+     },
+     {
+      "value": "bypassPermissions",
+      "label": "Full",
+      "isDefault": true
+     }
+    ],
+    "steers": true,
+    "renames": false,
+    "images": true,
+    "mcpServers": true
+   }
+  }
+ ],
+ "model_of": [
+  {
+   "args": [
+    null
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    "opus"
+   ],
+   "want": {
+    "value": "opus",
+    "label": "Opus",
+    "isDefault": true,
+    "efforts": [
+     "high",
+     "low"
+    ],
+    "defaultEffort": "low"
+   }
+  },
+  {
+   "args": [
+    "sonnet"
+   ],
+   "want": {
+    "value": "sonnet",
+    "label": "Sonnet",
+    "contextWindows": [
+     "1m"
+    ]
+   }
+  },
+  {
+   "args": [
+    "nope"
+   ],
+   "want": {
+    "value": "nope",
+    "label": "nope"
+   }
+  }
+ ],
+ "efforts_for": [
+  {
+   "args": [
+    null
+   ],
+   "want": [
+    {
+     "value": "low",
+     "label": "Low"
+    },
+    {
+     "value": "medium",
+     "label": "Medium"
+    },
+    {
+     "value": "high",
+     "label": "High",
+     "isDefault": true,
+     "short": "Hi"
+    }
+   ]
+  },
+  {
+   "args": [
+    "opus"
+   ],
+   "want": [
+    {
+     "value": "low",
+     "label": "Low",
+     "isDefault": true
+    },
+    {
+     "value": "high",
+     "label": "High",
+     "short": "Hi"
+    }
+   ]
+  },
+  {
+   "args": [
+    "sonnet"
+   ],
+   "want": [
+    {
+     "value": "low",
+     "label": "Low"
+    },
+    {
+     "value": "medium",
+     "label": "Medium"
+    },
+    {
+     "value": "high",
+     "label": "High",
+     "isDefault": true,
+     "short": "Hi"
+    }
+   ]
+  },
+  {
+   "args": [
+    "nope"
+   ],
+   "want": [
+    {
+     "value": "low",
+     "label": "Low"
+    },
+    {
+     "value": "medium",
+     "label": "Medium"
+    },
+    {
+     "value": "high",
+     "label": "High",
+     "isDefault": true,
+     "short": "Hi"
+    }
+   ]
+  }
+ ],
+ "context_windows_for": [
+  {
+   "args": [
+    null
+   ],
+   "want": []
+  },
+  {
+   "args": [
+    "opus"
+   ],
+   "want": [
+    {
+     "value": "200k",
+     "label": "200k"
+    },
+    {
+     "value": "1m",
+     "label": "1M"
+    }
+   ]
+  },
+  {
+   "args": [
+    "sonnet"
+   ],
+   "want": [
+    {
+     "value": "1m",
+     "label": "1M"
+    }
+   ]
+  },
+  {
+   "args": [
+    "nope"
+   ],
+   "want": [
+    {
+     "value": "200k",
+     "label": "200k"
+    },
+    {
+     "value": "1m",
+     "label": "1M"
+    }
+   ]
+  }
+ ],
+ "every_model": [
+  {
+   "args": [],
+   "want": [
+    {
+     "value": "opus",
+     "label": "Opus",
+     "isDefault": true,
+     "efforts": [
+      "high",
+      "low"
+     ],
+     "defaultEffort": "low"
+    },
+    {
+     "value": "sonnet",
+     "label": "Sonnet",
+     "contextWindows": [
+      "1m"
+     ]
+    },
+    {
+     "value": "haiku",
+     "label": "Haiku",
+     "fast": true
+    },
+    {
+     "value": "opus-old",
+     "label": "Opus old"
+    },
+    {
+     "value": "secret",
+     "label": "Secret"
+    }
+   ]
+  }
+ ],
+ "marked_default": [
+  {
+   "args": [
+    "efforts"
+   ],
+   "want": {
+    "value": "high",
+    "label": "High",
+    "isDefault": true,
+    "short": "Hi"
+   }
+  },
+  {
+   "args": [
+    "permissionModes"
+   ],
+   "want": {
+    "value": "bypassPermissions",
+    "label": "Full",
+    "isDefault": true
+   }
+  },
+  {
+   "args": [
+    "models"
+   ],
+   "want": {
+    "value": "opus",
+    "label": "Opus",
+    "isDefault": true,
+    "efforts": [
+     "high",
+     "low"
+    ],
+    "defaultEffort": "low"
+   }
+  },
+  {
+   "args": [
+    "contextWindows"
+   ],
+   "want": null
+  }
+ ],
+ "listed_pick": [
+  {
+   "args": [
+    null
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    "high"
+   ],
+   "want": "high"
+  },
+  {
+   "args": [
+    "nope"
+   ],
+   "want": null
+  }
+ ],
+ "model_picks": [
+  {
+   "args": [
+    "opus[1m]",
+    null
+   ],
+   "want": {
+    "model": "opus",
+    "contextWindow": "1m"
+   }
+  },
+  {
+   "args": [
+    "opus[1m]",
+    "200k"
+   ],
+   "want": {
+    "model": "opus",
+    "contextWindow": "200k"
+   }
+  },
+  {
+   "args": [
+    "opus",
+    null
+   ],
+   "want": {
+    "model": "opus"
+   }
+  },
+  {
+   "args": [
+    "opus[1m]x",
+    null
+   ],
+   "want": {
+    "model": "opus[1m]x"
+   }
+  },
+  {
+   "args": [
+    "[1m]",
+    null
+   ],
+   "want": {
+    "model": "",
+    "contextWindow": "1m"
+   }
+  }
+ ],
+ "recorded_picks": [
+  {
+   "args": [
+    [
+     {
+      "id": "a",
+      "workspaceId": "w",
+      "harness": "claude",
+      "status": "completed",
+      "model": "opus[1m]",
+      "effort": "high"
+     },
+     {
+      "id": "b",
+      "workspaceId": "w",
+      "harness": "claude",
+      "status": "completed",
+      "permissionMode": "default"
+     },
+     {
+      "id": "c",
+      "workspaceId": "w",
+      "harness": "claude",
+      "status": "completed",
+      "model": "sonnet",
+      "contextWindow": "200k"
+     }
+    ]
+   ],
+   "want": {
+    "model": "sonnet",
+    "contextWindow": "200k",
+    "effort": "high",
+    "permissionMode": "default"
+   }
+  },
+  {
+   "args": [
+    []
+   ],
+   "want": {}
+  },
+  {
+   "args": [
+    [
+     {
+      "id": "b",
+      "workspaceId": "w",
+      "harness": "claude",
+      "status": "completed",
+      "permissionMode": "default"
+     }
+    ]
+   ],
+   "want": {
+    "permissionMode": "default"
+   }
+  },
+  {
+   "args": [
+    [
+     {
+      "id": "c",
+      "workspaceId": "w",
+      "harness": "claude",
+      "status": "completed",
+      "model": "sonnet",
+      "contextWindow": "200k"
+     },
+     {
+      "id": "a",
+      "workspaceId": "w",
+      "harness": "claude",
+      "status": "completed",
+      "model": "opus[1m]",
+      "effort": "high"
+     }
+    ]
+   ],
+   "want": {
+    "model": "opus",
+    "contextWindow": "1m",
+    "effort": "high"
+   }
+  }
+ ],
+ "kept_picks": [
+  {
+   "args": [
+    null,
+    {
+     "model": "opus",
+     "effort": "high",
+     "contextWindow": "1m"
+    },
+    {}
+   ],
+   "want": {
+    "model": "opus",
+    "effort": "high",
+    "contextWindow": "1m"
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "model": "opus"
+    },
+    {
+     "effort": "low"
+    }
+   ],
+   "want": {
+    "model": "opus",
+    "effort": "low"
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "model": "opus",
+     "effort": "high"
+    },
+    {}
+   ],
+   "want": {
+    "model": "opus",
+    "effort": "high"
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "model": "opus",
+     "effort": "medium"
+    },
+    {}
+   ],
+   "want": {
+    "model": "opus"
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "model": "sonnet",
+     "contextWindow": "1m"
+    },
+    {
+     "effort": "high"
+    }
+   ],
+   "want": {
+    "model": "sonnet",
+    "effort": "high",
+    "contextWindow": "1m"
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "model": "gone",
+     "effort": "high"
+    },
+    {}
+   ],
+   "want": {
+    "effort": "high"
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "model": "opus",
+     "effort": "high"
+    },
+    {
+     "model": "sonnet"
+    }
+   ],
+   "want": {
+    "model": "sonnet",
+    "effort": "high"
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "model": "sonnet",
+     "contextWindow": "1m"
+    },
+    {
+     "contextWindow": "200k"
+    }
+   ],
+   "want": {
+    "contextWindow": "200k"
+   }
+  }
+ ],
+ "start_picks": [
+  {
+   "args": [
+    "catalog",
+    {},
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "opus",
+     "effort": "low",
+     "permissionMode": "bypassPermissions"
+    }
+   }
+  },
+  {
+   "args": [
+    null,
+    {},
+    true,
+    null
+   ],
+   "want": {
+    "ok": {}
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {},
+    false,
+    null
+   ],
+   "want": {
+    "ok": {}
+   }
+  },
+  {
+   "args": [
+    null,
+    {},
+    false,
+    null
+   ],
+   "want": {
+    "ok": {}
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "model": "sonnet"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "sonnet",
+     "effort": "high",
+     "permissionMode": "bypassPermissions"
+    }
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "model": "sonnet"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "sonnet"
+    }
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "model": "secret"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "secret",
+     "effort": "high",
+     "permissionMode": "bypassPermissions"
+    }
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "model": "secret"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "secret"
+    }
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "model": "nope"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "err": {
+     "message": "model \"nope\" is not one claude takes; one of: Opus (opus), Sonnet (sonnet), Haiku (haiku); legacy: Opus old (opus-old)",
+     "kind": "usage"
+    }
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "model": "nope"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "nope"
+    }
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "effort": "max"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "err": {
+     "message": "effort \"max\" is not one Opus takes; one of: Low (low), High (high)",
+     "kind": "usage"
+    }
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "effort": "max"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "effort": "max"
+    }
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "permissionMode": "plan"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "err": {
+     "message": "access mode \"plan\" is not one claude takes; one of: Ask (default), Full (bypassPermissions)",
+     "kind": "usage"
+    }
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "permissionMode": "plan"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "permissionMode": "plan"
+    }
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "fast": true
+    },
+    true,
+    null
+   ],
+   "want": {
+    "err": {
+     "message": "Opus has no fast mode; pick a model that offers it, or send without it",
+     "kind": "invalid"
+    }
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "fast": true
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "fast": true
+    }
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "fast": true,
+     "model": "haiku"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "haiku",
+     "effort": "high",
+     "permissionMode": "bypassPermissions",
+     "fast": true
+    }
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "fast": true,
+     "model": "haiku"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "haiku",
+     "fast": true
+    }
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "fast": true
+    },
+    false,
+    "haiku"
+   ],
+   "want": {
+    "ok": {
+     "fast": true
+    }
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "fast": true
+    },
+    false,
+    "haiku"
+   ],
+   "want": {
+    "ok": {
+     "fast": true
+    }
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "fast": false,
+     "model": "haiku"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "haiku",
+     "effort": "high",
+     "permissionMode": "bypassPermissions"
+    }
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "fast": false,
+     "model": "haiku"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "haiku"
+    }
+   }
+  },
+  {
+   "args": [
+    "catalog",
+    {
+     "effort": "high",
+     "model": "opus"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "opus",
+     "effort": "high",
+     "permissionMode": "bypassPermissions"
+    }
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "effort": "high",
+     "model": "opus"
+    },
+    true,
+    null
+   ],
+   "want": {
+    "ok": {
+     "model": "opus",
+     "effort": "high"
+    }
+   }
+  }
+ ],
+ "mcp_servers_blocked": [
+  {
+   "args": [
+    null,
+    false
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    {},
+    false
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    {
+     "gh": {
+      "command": "gh",
+      "args": []
+     }
+    },
+    false
+   ],
+   "want": "cursor takes no MCP server with a launch, so its thread would run without them; open the thread on an agent that takes them"
+  },
+  {
+   "args": [
+    {
+     "gh": {
+      "command": "gh",
+      "args": []
+     }
+    },
+    true
+   ],
+   "want": null
+  }
+ ],
+ "no_mcp_servers_line": [
+  {
+   "args": [
+    "cursor"
+   ],
+   "want": "cursor takes no MCP server with a launch, so its thread would run without them; open the thread on an agent that takes them"
+  }
+ ],
+ "keeps_rename": [
+  {
+   "args": [
+    null
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "catalog"
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    "table"
+   ],
+   "want": true
+  }
+ ],
+ "reads_images": [
+  {
+   "args": [
+    null
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "catalog"
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "table"
+   ],
+   "want": true
+  }
+ ],
+ "takes_mcp_servers": [
+  {
+   "args": [
+    null
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    "catalog"
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "table"
+   ],
+   "want": true
+  }
+ ],
+ "no_fast_line": [
+  {
+   "args": [
+    "Opus"
+   ],
+   "want": "Opus has no fast mode; pick a model that offers it, or send without it"
+  }
+ ],
+ "shell_quote": [
+  {
+   "args": [
+    ""
+   ],
+   "want": "''"
+  },
+  {
+   "args": [
+    "a"
+   ],
+   "want": "'a'"
+  },
+  {
+   "args": [
+    "it's"
+   ],
+   "want": "'it'\\''s'"
+  },
+  {
+   "args": [
+    "''"
+   ],
+   "want": "''\\'''\\'''"
+  },
+  {
+   "args": [
+    "a b"
+   ],
+   "want": "'a b'"
+  },
+  {
+   "args": [
+    "$HOME"
+   ],
+   "want": "'$HOME'"
+  },
+  {
+   "args": [
+    "é"
+   ],
+   "want": "'é'"
+  },
+  {
+   "args": [
+    "\n"
+   ],
+   "want": "'\n'"
+  }
+ ],
+ "shell_line": [
+  {
+   "args": [
+    []
+   ],
+   "want": ""
+  },
+  {
+   "args": [
+    [
+     ""
+    ]
+   ],
+   "want": "''"
+  },
+  {
+   "args": [
+    [
+     "a",
+     "b c"
+    ]
+   ],
+   "want": "a 'b c'"
+  },
+  {
+   "args": [
+    [
+     "--flag=1",
+     "x@y:z",
+     "~/x",
+     "a*"
+    ]
+   ],
+   "want": "--flag=1 x@y:z '~/x' 'a*'"
+  },
+  {
+   "args": [
+    [
+     "it's"
+    ]
+   ],
+   "want": "'it'\\''s'"
+  }
+ ],
+ "in_folder": [
+  {
+   "args": [
+    null,
+    "ls"
+   ],
+   "want": "cd ~ && ls"
+  },
+  {
+   "args": [
+    "/a b",
+    "ls"
+   ],
+   "want": "cd '/a b' && ls"
+  },
+  {
+   "args": [
+    "",
+    "ls"
+   ],
+   "want": "cd '' && ls"
+  }
+ ],
+ "mac_kind_of": [
+  {
+   "args": [
+    "MacBook Pro"
+   ],
+   "want": "macbook"
+  },
+  {
+   "args": [
+    "Mac mini"
+   ],
+   "want": "mac-mini"
+  },
+  {
+   "args": [
+    "iMac"
+   ],
+   "want": "imac"
+  },
+  {
+   "args": [
+    "Mac Studio"
+   ],
+   "want": "mac-studio"
+  },
+  {
+   "args": [
+    "Mac Pro"
+   ],
+   "want": "mac-pro"
+  },
+  {
+   "args": [
+    "macbookair"
+   ],
+   "want": "macbook"
+  },
+  {
+   "args": [
+    "Mac\tmini"
+   ],
+   "want": "mac-mini"
+  },
+  {
+   "args": [
+    "Studio"
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    ""
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    "MacBook"
+   ],
+   "want": "macbook"
+  }
+ ],
+ "sign_in_of_row": [
+  {
+   "args": [
+    "signins/claude"
+   ],
+   "want": "claude"
+  },
+  {
+   "args": [
+    "github"
+   ],
+   "want": "gh"
+  },
+  {
+   "args": [
+    "signins/"
+   ],
+   "want": ""
+  },
+  {
+   "args": [
+    "gh"
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    "tools/x"
+   ],
+   "want": null
+  }
+ ],
+ "sign_in_row_id": [
+  {
+   "args": [
+    "codex"
+   ],
+   "want": "signins/codex"
+  }
+ ],
+ "provision_counts": [
+  {
+   "args": [
+    []
+   ],
+   "want": {}
+  },
+  {
+   "args": [
+    [
+     {
+      "id": "a",
+      "label": "a",
+      "outcome": "installed",
+      "kind": "server"
+     },
+     {
+      "id": "b",
+      "label": "b",
+      "outcome": "installed"
+     },
+     {
+      "id": "c",
+      "label": "c",
+      "outcome": "installed",
+      "kind": "file"
+     },
+     {
+      "id": "d",
+      "label": "d",
+      "outcome": "installed",
+      "kind": "server"
+     }
+    ]
+   ],
+   "want": {
+    "server": 2,
+    "tool": 1,
+    "file": 1
+   }
+  }
+ ],
+ "with_place_stage": [
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ]
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "check",
+     "state": "done",
+     "ms": 5
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "running",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "done",
+      "ms": 5
+     }
+    ]
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ],
+     "said": "kept"
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "check",
+     "state": "done",
+     "ms": 5
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "running",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "done",
+      "ms": 5
+     }
+    ],
+    "said": "kept"
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ]
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "root",
+     "state": "running",
+     "note": "n"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "running",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "running"
+     },
+     {
+      "step": "root",
+      "state": "running",
+      "note": "n"
+     }
+    ]
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ],
+     "said": "kept"
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "root",
+     "state": "running",
+     "note": "n"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "running",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "running"
+     },
+     {
+      "step": "root",
+      "state": "running",
+      "note": "n"
+     }
+    ],
+    "said": "kept"
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ]
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "join",
+     "state": "done",
+     "placeId": "p1"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "done",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "running"
+     },
+     {
+      "step": "join",
+      "state": "done"
+     }
+    ],
+    "placeId": "p1"
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ],
+     "said": "kept"
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "join",
+     "state": "done",
+     "placeId": "p1"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "done",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "running"
+     },
+     {
+      "step": "join",
+      "state": "done"
+     }
+    ],
+    "said": "kept",
+    "placeId": "p1"
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ]
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "join",
+     "state": "done"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "done",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "running"
+     },
+     {
+      "step": "join",
+      "state": "done"
+     }
+    ]
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ],
+     "said": "kept"
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "join",
+     "state": "done"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "done",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "running"
+     },
+     {
+      "step": "join",
+      "state": "done"
+     }
+    ],
+    "said": "kept"
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ]
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "check",
+     "state": "failed",
+     "note": "no ssh"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "failed",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "failed",
+      "note": "no ssh"
+     }
+    ],
+    "said": "no ssh"
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ],
+     "said": "kept"
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "check",
+     "state": "failed",
+     "note": "no ssh"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "failed",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "failed",
+      "note": "no ssh"
+     }
+    ],
+    "said": "kept"
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ]
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "check",
+     "state": "failed"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "failed",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "failed"
+     }
+    ]
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ],
+     "said": "kept"
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "check",
+     "state": "failed"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "failed",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "done",
+      "ms": 3
+     },
+     {
+      "step": "check",
+      "state": "failed"
+     }
+    ],
+    "said": "kept"
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ]
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "connect",
+     "state": "running",
+     "note": "again",
+     "placeId": "zz"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "running",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "running",
+      "note": "again"
+     },
+     {
+      "step": "check",
+      "state": "running"
+     }
+    ]
+   }
+  },
+  {
+   "args": [
+    {
+     "addId": "a1",
+     "address": "box",
+     "startedAt": "t",
+     "state": "running",
+     "steps": [
+      {
+       "step": "connect",
+       "state": "done",
+       "ms": 3
+      },
+      {
+       "step": "check",
+       "state": "running"
+      }
+     ],
+     "said": "kept"
+    },
+    {
+     "type": "place.stage",
+     "addId": "a1",
+     "step": "connect",
+     "state": "running",
+     "note": "again",
+     "placeId": "zz"
+    }
+   ],
+   "want": {
+    "addId": "a1",
+    "address": "box",
+    "startedAt": "t",
+    "state": "running",
+    "steps": [
+     {
+      "step": "connect",
+      "state": "running",
+      "note": "again"
+     },
+     {
+      "step": "check",
+      "state": "running"
+     }
+    ],
+    "said": "kept"
+   }
+  }
+ ],
+ "place_forgets_only": [
+  {
+   "args": [
+    {
+     "forks": [],
+     "projects": [],
+     "unsaved": []
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "forks": [
+      {
+       "name": "f",
+       "threads": 1
+      }
+     ],
+     "projects": [],
+     "unsaved": [],
+     "away": true
+    }
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    {
+     "forks": [],
+     "projects": [],
+     "unsaved": [],
+     "away": true
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "forks": [],
+     "projects": [
+      {
+       "name": "p",
+       "threads": 0
+      }
+     ],
+     "unsaved": [],
+     "away": true
+    }
+   ],
+   "want": true
+  }
+ ],
+ "thread_key_of": [
+  {
+   "args": [
+    {
+     "id": "s",
+     "workspaceId": "w",
+     "harness": "claude",
+     "status": "completed",
+     "threadId": "t"
+    }
+   ],
+   "want": "t"
+  },
+  {
+   "args": [
+    {
+     "id": "s",
+     "workspaceId": "w",
+     "harness": "claude",
+     "status": "completed"
+    }
+   ],
+   "want": "s"
+  }
+ ],
+ "thread_ran": [
+  {
+   "args": [
+    []
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    [
+     {
+      "id": "s",
+      "workspaceId": "w",
+      "harness": "claude",
+      "status": "running"
+     }
+    ]
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    [
+     {
+      "id": "s",
+      "workspaceId": "w",
+      "harness": "claude",
+      "status": "completed",
+      "claudeSessionId": "c"
+     }
+    ]
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    [
+     {
+      "id": "s",
+      "workspaceId": "w",
+      "harness": "claude",
+      "status": "completed",
+      "claudeSessionId": "c",
+      "refusal": "sign-in"
+     }
+    ]
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    [
+     {
+      "id": "s",
+      "workspaceId": "w",
+      "harness": "claude",
+      "status": "completed"
+     },
+     {
+      "id": "s",
+      "workspaceId": "w",
+      "harness": "claude",
+      "status": "completed",
+      "claudeSessionId": "c"
+     }
+    ]
+   ],
+   "want": true
+  }
+ ],
+ "host_from_env": [
+  {
+   "args": [
+    {}
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    {
+     "WSP_HOST_URL": " http://x ",
+     "WSP_HOST_TOKEN": "t"
+    }
+   ],
+   "want": {
+    "url": "http://x",
+    "token": "t"
+   }
+  },
+  {
+   "args": [
+    {
+     "WSP_HOST_URL": "u",
+     "WSP_HOST_TOKEN": "  "
+    }
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    {
+     "WSP_HOST_URL": "﻿u ",
+     "WSP_HOST_TOKEN": "t",
+     "WSP_HOST_KEY": " k "
+    }
+   ],
+   "want": {
+    "url": "u",
+    "token": "t",
+    "hostKey": "k"
+   }
+  },
+  {
+   "args": [
+    {
+     "WSP_HOST_URL": "u",
+     "WSP_HOST_TOKEN": "t",
+     "WSP_HOST_KEY": ""
+    }
+   ],
+   "want": {
+    "url": "u",
+    "token": "t"
+   }
+  }
+ ],
+ "turn_token_of": [
+  {
+   "args": [
+    {}
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    {
+     "WSP_TURN": ""
+    }
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    {
+     "WSP_TURN": " t "
+    }
+   ],
+   "want": " t "
+  },
+  {
+   "args": [
+    {
+     "WSP_TURN": "t"
+    }
+   ],
+   "want": "t"
+  }
+ ],
+ "is_session_event": [
+  {
+   "args": [
+    "session.start"
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "thread.waited"
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "session.slate"
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    "workspace.created"
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    "session"
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    ""
+   ],
+   "want": false
+  }
+ ],
+ "agent_starting_line": [
+  {
+   "args": [
+    "Claude Code",
+    true
+   ],
+   "want": "Claude Code installs on first run"
+  },
+  {
+   "args": [
+    "Codex",
+    false
+   ],
+   "want": "Starting Codex"
+  }
+ ],
+ "wsp_package_in": [
+  {
+   "args": [
+    "/opt/wsp"
+   ],
+   "want": "/opt/wsp/wsp"
+  },
+  {
+   "args": [
+    ""
+   ],
+   "want": "/wsp"
+  },
+  {
+   "args": [
+    "/a/"
+   ],
+   "want": "/a//wsp"
+  }
+ ],
+ "wsp_bin_in": [
+  {
+   "args": [
+    "/opt/wsp"
+   ],
+   "want": "/opt/wsp/wsp/dist/bin.js"
+  },
+  {
+   "args": [
+    ""
+   ],
+   "want": "/wsp/dist/bin.js"
+  },
+  {
+   "args": [
+    "/a/"
+   ],
+   "want": "/a//wsp/dist/bin.js"
+  }
+ ],
+ "sub_spawning": [
+  {
+   "args": [
+    null
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "startedAt": 1,
+     "log": []
+    }
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    {
+     "startedAt": 1,
+     "log": [],
+     "readyAt": 2
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "startedAt": 1,
+     "log": [],
+     "failed": {
+      "step": "machine",
+      "said": "x"
+     }
+    }
+   ],
+   "want": false
+  }
+ ],
+ "sub_all_pushed": [
+  {
+   "args": [
+    {
+     "branch": "b",
+     "pushedSha": null,
+     "commits": 0,
+     "unpushed": 0,
+     "changed": 0,
+     "readAt": "t"
+    }
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    {
+     "branch": "b",
+     "pushedSha": null,
+     "commits": 0,
+     "unpushed": 1,
+     "changed": 0,
+     "readAt": "t"
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "branch": "b",
+     "pushedSha": null,
+     "commits": 0,
+     "unpushed": 0,
+     "changed": 2,
+     "readAt": "t"
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "branch": "b",
+     "pushedSha": null,
+     "commits": 0,
+     "unpushed": 0,
+     "changed": 0,
+     "readAt": "t",
+     "readFailed": "x"
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "branch": "b",
+     "pushedSha": null,
+     "commits": 0,
+     "unpushed": 0,
+     "changed": 0,
+     "readAt": "t",
+     "readFailed": ""
+    }
+   ],
+   "want": false
+  }
+ ],
+ "sub_turn_gone": [
+  {
+   "args": [
+    null,
+    5
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    10,
+    null
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    10,
+    5
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    10,
+    10
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    10,
+    11
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    0,
+    -1
+   ],
+   "want": true
+  }
+ ],
+ "agents_from": [
+  {
+   "args": [
+    null,
+    {}
+   ],
+   "want": {
+    "spawn": true,
+    "maxMachines": 3,
+    "maxDepth": 2
+   }
+  },
+  {
+   "args": [
+    {
+     "spawn": false,
+     "maxMachines": 1,
+     "maxDepth": 1
+    },
+    {
+     "maxDepth": 4
+    }
+   ],
+   "want": {
+    "spawn": false,
+    "maxMachines": 1,
+    "maxDepth": 4
+   }
+  },
+  {
+   "args": [
+    null,
+    {
+     "spawn": false
+    }
+   ],
+   "want": {
+    "spawn": false,
+    "maxMachines": 3,
+    "maxDepth": 2
+   }
+  }
+ ],
+ "editorOpensHereLine": [
+  {
+   "args": [
+    "lab-box"
+   ],
+   "want": "These files are on lab-box, so they open here."
+  }
+ ],
+ "sshIncludeLine": [
+  {
+   "args": [
+    "lab-box"
+   ],
+   "want": "lab-box opens in your editor over ssh, which needs one line at the top of ~/.ssh/config."
+  }
+ ],
+ "sshCopyHereLine": [
+  {
+   "args": [
+    "lab-box"
+   ],
+   "want": "lab-box is a copy on this computer, so its folder opens here with no ssh."
+  }
+ ],
+ "sshBehindLine": [
+  {
+   "args": [
+    "lab-box"
+   ],
+   "want": "lab-box's computer runs an older wsp; it updates when its running turn ends, then Open works."
+  }
+ ],
+ "serverIconsLeftLine": [
+  {
+   "args": [
+    "/x/icons",
+    "EBUSY"
+   ],
+   "want": "Server icons are off, but /x/icons could not be deleted: EBUSY. Delete it by hand."
+  }
+ ],
+ "labs_from_env": [
+  {
+   "args": [
+    {}
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "WSP_LABS": "1",
+     "WSP_CLOUD": "1"
+    }
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    {
+     "WSP_LABS": "0",
+     "WSP_CLOUD": "0"
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "WSP_LABS": "true",
+     "WSP_CLOUD": "true"
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "WSP_LABS": " 1",
+     "WSP_CLOUD": " 1"
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "WSP_LABS": "",
+     "WSP_CLOUD": ""
+    }
+   ],
+   "want": false
+  }
+ ],
+ "cloud_from_env": [
+  {
+   "args": [
+    {}
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "WSP_LABS": "1",
+     "WSP_CLOUD": "1"
+    }
+   ],
+   "want": true
+  },
+  {
+   "args": [
+    {
+     "WSP_LABS": "0",
+     "WSP_CLOUD": "0"
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "WSP_LABS": "true",
+     "WSP_CLOUD": "true"
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "WSP_LABS": " 1",
+     "WSP_CLOUD": " 1"
+    }
+   ],
+   "want": false
+  },
+  {
+   "args": [
+    {
+     "WSP_LABS": "",
+     "WSP_CLOUD": ""
+    }
+   ],
+   "want": false
+  }
+ ],
+ "default_preferences_text": [
+  {
+   "args": [],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false}"
+  }
+ ],
+ "preferences_from_text": [
+  {
+   "args": [
+    "absent"
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false}"
+  },
+  {
+   "args": [
+    null
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false}"
+  },
+  {
+   "args": [
+    {}
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false}"
+  },
+  {
+   "args": [
+    {
+     "sidebarMode": "spaces",
+     "labs": true,
+     "projectIcon": {
+      "p": {
+       "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+     }
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false}"
+  },
+  {
+   "args": [
+    {
+     "sidebarMode": "nope"
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false}"
+  },
+  {
+   "args": [
+    "corrupt"
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false}"
+  },
+  {
+   "args": [
+    []
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false}"
+  },
+  {
+   "args": [
+    {
+     "terminalZoom": {
+      "a": 2,
+      "b": 1
+     },
+     "sidebarWidth": 300,
+     "editor": "zed"
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"a\":2,\"b\":1},\"access\":{},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"sidebarWidth\":300,\"editor\":\"zed\"}"
+  },
+  {
+   "args": [
+    {
+     "unknownKey": 1,
+     "theme": "dark"
+    }
+   ],
+   "want": "{\"theme\":\"dark\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false}"
+  }
+ ],
+ "apply_preferences_patch_text": [
+  {
+   "args": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "a": 1,
+      "b": 2
+     },
+     "access": {
+      "a": "plan"
+     },
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 280,
+     "target": {
+      "workspace": "w"
+     },
+     "textSize": 14
+    },
+    {}
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"a\":1,\"b\":2},\"access\":{\"a\":\"plan\"},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"sidebarWidth\":280,\"target\":{\"workspace\":\"w\"},\"textSize\":14}"
+  },
+  {
+   "args": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "a": 1,
+      "b": 2
+     },
+     "access": {
+      "a": "plan"
+     },
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 280,
+     "target": {
+      "workspace": "w"
+     },
+     "textSize": 14
+    },
+    {
+     "terminalZoom": {
+      "a": null
+     }
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"b\":2},\"access\":{\"a\":\"plan\"},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"sidebarWidth\":280,\"target\":{\"workspace\":\"w\"},\"textSize\":14}"
+  },
+  {
+   "args": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "a": 1,
+      "b": 2
+     },
+     "access": {
+      "a": "plan"
+     },
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 280,
+     "target": {
+      "workspace": "w"
+     },
+     "textSize": 14
+    },
+    {
+     "terminalZoom": {
+      "a": null,
+      "c": 3
+     }
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"b\":2,\"c\":3},\"access\":{\"a\":\"plan\"},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"sidebarWidth\":280,\"target\":{\"workspace\":\"w\"},\"textSize\":14}"
+  },
+  {
+   "args": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "a": 1,
+      "b": 2
+     },
+     "access": {
+      "a": "plan"
+     },
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 280,
+     "target": {
+      "workspace": "w"
+     },
+     "textSize": 14
+    },
+    {
+     "terminalZoom": {
+      "b": 5,
+      "a": 9
+     }
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"a\":9,\"b\":5},\"access\":{\"a\":\"plan\"},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"sidebarWidth\":280,\"target\":{\"workspace\":\"w\"},\"textSize\":14}"
+  },
+  {
+   "args": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "a": 1,
+      "b": 2
+     },
+     "access": {
+      "a": "plan"
+     },
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 280,
+     "target": {
+      "workspace": "w"
+     },
+     "textSize": 14
+    },
+    {
+     "sidebarWidth": null
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"a\":1,\"b\":2},\"access\":{\"a\":\"plan\"},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"target\":{\"workspace\":\"w\"},\"textSize\":14}"
+  },
+  {
+   "args": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "a": 1,
+      "b": 2
+     },
+     "access": {
+      "a": "plan"
+     },
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 280,
+     "target": {
+      "workspace": "w"
+     },
+     "textSize": 14
+    },
+    {
+     "target": null
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"a\":1,\"b\":2},\"access\":{\"a\":\"plan\"},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"sidebarWidth\":280,\"textSize\":14}"
+  },
+  {
+   "args": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "a": 1,
+      "b": 2
+     },
+     "access": {
+      "a": "plan"
+     },
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 280,
+     "target": {
+      "workspace": "w"
+     },
+     "textSize": 14
+    },
+    {
+     "textSize": null,
+     "codeSize": 12
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"a\":1,\"b\":2},\"access\":{\"a\":\"plan\"},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"sidebarWidth\":280,\"target\":{\"workspace\":\"w\"},\"codeSize\":12}"
+  },
+  {
+   "args": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "a": 1,
+      "b": 2
+     },
+     "access": {
+      "a": "plan"
+     },
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 280,
+     "target": {
+      "workspace": "w"
+     },
+     "textSize": 14
+    },
+    {
+     "agentDefaults": {
+      "claude": {
+       "model": "opus"
+      }
+     }
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"a\":1,\"b\":2},\"access\":{\"a\":\"plan\"},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{\"claude\":{\"model\":\"opus\"}},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"sidebarWidth\":280,\"target\":{\"workspace\":\"w\"},\"textSize\":14}"
+  },
+  {
+   "args": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "a": 1,
+      "b": 2
+     },
+     "access": {
+      "a": "plan"
+     },
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 280,
+     "target": {
+      "workspace": "w"
+     },
+     "textSize": 14
+    },
+    {
+     "threadsShut": {
+      "t": true
+     }
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"a\":1,\"b\":2},\"access\":{\"a\":\"plan\"},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"sidebarWidth\":280,\"target\":{\"workspace\":\"w\"},\"textSize\":14,\"threadsShut\":{\"t\":true}}"
+  },
+  {
+   "args": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "a": 1,
+      "b": 2
+     },
+     "access": {
+      "a": "plan"
+     },
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 280,
+     "target": {
+      "workspace": "w"
+     },
+     "textSize": 14
+    },
+    {
+     "threadsShut": {
+      "t": null
+     }
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"a\":1,\"b\":2},\"access\":{\"a\":\"plan\"},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"sidebarWidth\":280,\"target\":{\"workspace\":\"w\"},\"textSize\":14,\"threadsShut\":{}}"
+  },
+  {
+   "args": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "a": 1,
+      "b": 2
+     },
+     "access": {
+      "a": "plan"
+     },
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 280,
+     "target": {
+      "workspace": "w"
+     },
+     "textSize": 14
+    },
+    {
+     "sendWith": "mod-enter",
+     "planAlerts": false
+    }
+   ],
+   "want": "{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{\"a\":1,\"b\":2},\"access\":{\"a\":\"plan\"},\"projectLook\":{},\"projectIcon\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"mod-enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":false,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"current\",\"labs\":false,\"sidebarWidth\":280,\"target\":{\"workspace\":\"w\"},\"textSize\":14}"
+  }
+ ],
+ "patch_refused": [
+  {
+   "args": [
+    {
+     "recipeLook": {
+      "r": {
+       "icon": "x"
+      }
+     }
+    }
+   ],
+   "want": "invalid_enum_value"
+  }
+ ],
+ "zoom_dropped_then_set_text": [
+  {
+   "args": [],
+   "want": "{\"b\":2,\"a\":4}"
+  }
+ ],
+ "patched_fields": [
+  {
+   "args": [
+    null,
+    {
+     "model": "opus"
+    }
+   ],
+   "want": {
+    "model": "opus"
+   }
+  },
+  {
+   "args": [
+    {
+     "model": "opus",
+     "effort": "high"
+    },
+    {
+     "model": null
+    }
+   ],
+   "want": {
+    "effort": "high"
+   }
+  },
+  {
+   "args": [
+    {
+     "model": "opus"
+    },
+    {
+     "model": null
+    }
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    {
+     "effort": "high"
+    },
+    {
+     "model": "opus"
+    }
+   ],
+   "want": {
+    "effort": "high",
+    "model": "opus"
+   }
+  },
+  {
+   "args": [
+    null,
+    {}
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    {
+     "model": "opus"
+    },
+    {}
+   ],
+   "want": {
+    "model": "opus"
+   }
+  }
+ ],
+ "general_defaults": [
+  {
+   "args": [],
+   "want": {
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current"
+   }
+  }
+ ],
+ "patched_general": [
+  {
+   "args": [
+    {
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current"
+    },
+    {
+     "onQuit": "stop",
+     "askDelete": false
+    }
+   ],
+   "want": {
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": false,
+    "onQuit": "stop",
+    "newThreadIn": "current"
+   }
+  }
+ ],
+ "place_procs": [
+  {
+   "args": [
+    "a thread from its root, its pump, a zombie, wsp's own, a parent loop, the slate folder and the kinds by line",
+    {
+     "procs": [
+      {
+       "pid": 1,
+       "ppid": 0,
+       "user": "ada",
+       "state": "S",
+       "comm": "launchd",
+       "cmdline": "/sbin/launchd",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000001
+      },
+      {
+       "pid": 100,
+       "ppid": 50,
+       "user": "ada",
+       "state": "S",
+       "comm": "bash",
+       "cmdline": "bash runs/53af26c40316.sh",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000100,
+       "pgid": 100
+      },
+      {
+       "pid": 101,
+       "ppid": 100,
+       "user": "ada",
+       "state": "S",
+       "comm": "bash",
+       "cmdline": "bash",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000101,
+       "pgid": 100
+      },
+      {
+       "pid": 102,
+       "ppid": 101,
+       "user": "ada",
+       "state": "S",
+       "comm": "2.1.296",
+       "cmdline": "claude -p --input-format stream-json",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000102,
+       "pgid": 100
+      },
+      {
+       "pid": 200,
+       "ppid": 102,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node /lab/node_modules/.bin/vite",
+       "cpu": 9,
+       "rss": 1000,
+       "startedAt": 1760000000200
+      },
+      {
+       "pid": 201,
+       "ppid": 200,
+       "user": "ada",
+       "state": "S",
+       "comm": "esbuild",
+       "cmdline": "esbuild --service",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000201
+      },
+      {
+       "pid": 202,
+       "ppid": 102,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node /x/mcp/server.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000202
+      },
+      {
+       "pid": 203,
+       "ppid": 202,
+       "user": "ada",
+       "state": "S",
+       "comm": "zsh",
+       "cmdline": "zsh -c ls",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000203
+      },
+      {
+       "pid": 150,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "tail",
+       "cmdline": "tail -n +1 -f /tmp/runs/53af26c40316.in",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000150,
+       "pgid": 100
+      },
+      {
+       "pid": 160,
+       "ppid": 1,
+       "user": "ada",
+       "state": "Z",
+       "comm": "node",
+       "cmdline": "node zombie.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000160,
+       "owner": {
+        "by": "fork",
+        "thread": "lab-thread-1"
+       }
+      },
+      {
+       "pid": 400,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node detached.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000400,
+       "owner": {
+        "by": "fork",
+        "thread": "lab-thread-1"
+       }
+      },
+      {
+       "pid": 50,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node wsp host",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000050
+      },
+      {
+       "pid": 60,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "wsp-daemon",
+       "cmdline": "wsp-daemon serve",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000060
+      },
+      {
+       "pid": 70,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "zsh",
+       "cmdline": "-zsh",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000070
+      },
+      {
+       "pid": 80,
+       "ppid": 80,
+       "user": "ada",
+       "state": "S",
+       "comm": "init",
+       "cmdline": "init",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000080
+      },
+      {
+       "pid": 90,
+       "ppid": 91,
+       "user": "ada",
+       "state": "S",
+       "comm": "a",
+       "cmdline": "loop a",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000090
+      },
+      {
+       "pid": 91,
+       "ppid": 90,
+       "user": "ada",
+       "state": "S",
+       "comm": "b",
+       "cmdline": "loop b",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000091
+      },
+      {
+       "pid": 95,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "vim",
+       "cmdline": "vim x",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000095,
+       "owner": {
+        "by": "coalition"
+       }
+      },
+      {
+       "pid": 96,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "python3",
+       "cmdline": "python3 /state/slates/lab-thread-1/feed.py",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000096
+      },
+      {
+       "pid": 97,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "python3",
+       "cmdline": "python3 /state/slates/other/feed.py",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000097
+      },
+      {
+       "pid": 98,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node /x/vitest run",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000098,
+       "pty": "pty_9"
+      },
+      {
+       "pid": 99,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "cargo",
+       "cmdline": "cargo build --release",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000099
+      }
+     ],
+     "daemon": 60,
+     "host": 50,
+     "threads": [
+      {
+       "id": "lab-thread-1",
+       "roots": [
+        100
+       ]
+      }
+     ],
+     "agentBins": [
+      "claude"
+     ],
+     "listening": [
+      200
+     ]
+    }
+   ],
+   "want": {
+    "procs": [
+     1,
+     100,
+     101,
+     102,
+     200,
+     201,
+     202,
+     203,
+     150,
+     400,
+     50,
+     60,
+     70,
+     80,
+     90,
+     91,
+     95,
+     96,
+     97,
+     98,
+     99
+    ],
+    "whose": [
+     [
+      100,
+      {
+       "thread": "lab-thread-1"
+      }
+     ],
+     [
+      101,
+      {
+       "thread": "lab-thread-1"
+      }
+     ],
+     [
+      102,
+      {
+       "thread": "lab-thread-1"
+      }
+     ],
+     [
+      200,
+      {
+       "thread": "lab-thread-1"
+      }
+     ],
+     [
+      201,
+      {
+       "thread": "lab-thread-1"
+      }
+     ],
+     [
+      202,
+      {
+       "thread": "lab-thread-1"
+      }
+     ],
+     [
+      203,
+      {
+       "thread": "lab-thread-1"
+      }
+     ],
+     [
+      150,
+      {
+       "thread": "lab-thread-1"
+      }
+     ],
+     [
+      400,
+      {
+       "thread": "lab-thread-1"
+      }
+     ],
+     [
+      50,
+      "wsp"
+     ],
+     [
+      60,
+      "wsp"
+     ],
+     [
+      95,
+      "loose"
+     ],
+     [
+      96,
+      {
+       "thread": "lab-thread-1"
+      }
+     ],
+     [
+      97,
+      "loose"
+     ],
+     [
+      98,
+      "loose"
+     ]
+    ],
+    "agent": [
+     [
+      102,
+      "lab-thread-1"
+     ]
+    ],
+    "foldsInto": [
+     [
+      100,
+      102
+     ],
+     [
+      101,
+      102
+     ],
+     [
+      150,
+      102
+     ]
+    ],
+    "rootOf": [
+     [
+      102,
+      100
+     ],
+     [
+      100,
+      100
+     ],
+     [
+      101,
+      100
+     ],
+     [
+      150,
+      100
+     ]
+    ],
+    "kinds": [
+     [
+      1,
+      "other"
+     ],
+     [
+      100,
+      "agent"
+     ],
+     [
+      101,
+      "agent"
+     ],
+     [
+      102,
+      "agent"
+     ],
+     [
+      200,
+      "dev"
+     ],
+     [
+      201,
+      "dev"
+     ],
+     [
+      202,
+      "tool"
+     ],
+     [
+      203,
+      "other"
+     ],
+     [
+      150,
+      "agent"
+     ],
+     [
+      400,
+      "other"
+     ],
+     [
+      50,
+      "wsp"
+     ],
+     [
+      60,
+      "wsp"
+     ],
+     [
+      70,
+      "other"
+     ],
+     [
+      80,
+      "other"
+     ],
+     [
+      90,
+      "other"
+     ],
+     [
+      91,
+      "other"
+     ],
+     [
+      95,
+      "other"
+     ],
+     [
+      96,
+      "slate"
+     ],
+     [
+      97,
+      "slate"
+     ],
+     [
+      98,
+      "terminal"
+     ],
+     [
+      99,
+      "build"
+     ]
+    ],
+    "needed": [
+     [
+      1,
+      false
+     ],
+     [
+      100,
+      false
+     ],
+     [
+      101,
+      false
+     ],
+     [
+      102,
+      false
+     ],
+     [
+      200,
+      false
+     ],
+     [
+      201,
+      false
+     ],
+     [
+      202,
+      false
+     ],
+     [
+      203,
+      false
+     ],
+     [
+      150,
+      false
+     ],
+     [
+      400,
+      false
+     ],
+     [
+      50,
+      true
+     ],
+     [
+      60,
+      true
+     ],
+     [
+      70,
+      false
+     ],
+     [
+      80,
+      false
+     ],
+     [
+      90,
+      false
+     ],
+     [
+      91,
+      false
+     ],
+     [
+      95,
+      false
+     ],
+     [
+      96,
+      false
+     ],
+     [
+      97,
+      false
+     ],
+     [
+      98,
+      false
+     ],
+     [
+      99,
+      false
+     ]
+    ],
+    "endable": [
+     [
+      1,
+      false
+     ],
+     [
+      100,
+      false
+     ],
+     [
+      101,
+      false
+     ],
+     [
+      102,
+      false
+     ],
+     [
+      200,
+      true
+     ],
+     [
+      201,
+      true
+     ],
+     [
+      202,
+      true
+     ],
+     [
+      203,
+      true
+     ],
+     [
+      150,
+      false
+     ],
+     [
+      400,
+      true
+     ],
+     [
+      50,
+      false
+     ],
+     [
+      60,
+      false
+     ],
+     [
+      70,
+      false
+     ],
+     [
+      80,
+      false
+     ],
+     [
+      90,
+      false
+     ],
+     [
+      91,
+      false
+     ],
+     [
+      95,
+      false
+     ],
+     [
+      96,
+      true
+     ],
+     [
+      97,
+      false
+     ],
+     [
+      98,
+      false
+     ],
+     [
+      99,
+      false
+     ]
+    ],
+    "reachOf": [
+     [
+      1,
+      null
+     ],
+     [
+      100,
+      "lab-thread-1"
+     ],
+     [
+      101,
+      "lab-thread-1"
+     ],
+     [
+      102,
+      "lab-thread-1"
+     ],
+     [
+      200,
+      "lab-thread-1"
+     ],
+     [
+      201,
+      "lab-thread-1"
+     ],
+     [
+      202,
+      "lab-thread-1"
+     ],
+     [
+      203,
+      "lab-thread-1"
+     ],
+     [
+      150,
+      "lab-thread-1"
+     ],
+     [
+      400,
+      "lab-thread-1"
+     ],
+     [
+      50,
+      null
+     ],
+     [
+      60,
+      null
+     ],
+     [
+      70,
+      null
+     ],
+     [
+      80,
+      null
+     ],
+     [
+      90,
+      null
+     ],
+     [
+      91,
+      null
+     ],
+     [
+      95,
+      null
+     ],
+     [
+      96,
+      "lab-thread-1"
+     ],
+     [
+      97,
+      null
+     ],
+     [
+      98,
+      null
+     ],
+     [
+      99,
+      null
+     ]
+    ],
+    "kidsOf": [
+     [
+      1,
+      [
+       150,
+       400,
+       50,
+       60,
+       70,
+       95,
+       96,
+       97,
+       98,
+       99
+      ]
+     ],
+     [
+      100,
+      [
+       101
+      ]
+     ],
+     [
+      101,
+      [
+       102
+      ]
+     ],
+     [
+      102,
+      [
+       200,
+       202
+      ]
+     ],
+     [
+      200,
+      [
+       201
+      ]
+     ],
+     [
+      201,
+      []
+     ],
+     [
+      202,
+      [
+       203
+      ]
+     ],
+     [
+      203,
+      []
+     ],
+     [
+      150,
+      []
+     ],
+     [
+      400,
+      []
+     ],
+     [
+      50,
+      [
+       100
+      ]
+     ],
+     [
+      60,
+      []
+     ],
+     [
+      70,
+      []
+     ],
+     [
+      80,
+      []
+     ],
+     [
+      90,
+      [
+       91
+      ]
+     ],
+     [
+      91,
+      [
+       90
+      ]
+     ],
+     [
+      95,
+      []
+     ],
+     [
+      96,
+      []
+     ],
+     [
+      97,
+      []
+     ],
+     [
+      98,
+      []
+     ],
+     [
+      99,
+      []
+     ]
+    ]
+   }
+  },
+  {
+   "args": [
+    "the same with no thread at all",
+    {
+     "procs": [
+      {
+       "pid": 1,
+       "ppid": 0,
+       "user": "ada",
+       "state": "S",
+       "comm": "launchd",
+       "cmdline": "/sbin/launchd",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000001
+      },
+      {
+       "pid": 100,
+       "ppid": 50,
+       "user": "ada",
+       "state": "S",
+       "comm": "bash",
+       "cmdline": "bash runs/53af26c40316.sh",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000100,
+       "pgid": 100
+      },
+      {
+       "pid": 101,
+       "ppid": 100,
+       "user": "ada",
+       "state": "S",
+       "comm": "bash",
+       "cmdline": "bash",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000101,
+       "pgid": 100
+      },
+      {
+       "pid": 102,
+       "ppid": 101,
+       "user": "ada",
+       "state": "S",
+       "comm": "2.1.296",
+       "cmdline": "claude -p --input-format stream-json",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000102,
+       "pgid": 100
+      },
+      {
+       "pid": 200,
+       "ppid": 102,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node /lab/node_modules/.bin/vite",
+       "cpu": 9,
+       "rss": 1000,
+       "startedAt": 1760000000200
+      },
+      {
+       "pid": 201,
+       "ppid": 200,
+       "user": "ada",
+       "state": "S",
+       "comm": "esbuild",
+       "cmdline": "esbuild --service",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000201
+      },
+      {
+       "pid": 202,
+       "ppid": 102,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node /x/mcp/server.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000202
+      },
+      {
+       "pid": 203,
+       "ppid": 202,
+       "user": "ada",
+       "state": "S",
+       "comm": "zsh",
+       "cmdline": "zsh -c ls",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000203
+      },
+      {
+       "pid": 150,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "tail",
+       "cmdline": "tail -n +1 -f /tmp/runs/53af26c40316.in",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000150,
+       "pgid": 100
+      },
+      {
+       "pid": 160,
+       "ppid": 1,
+       "user": "ada",
+       "state": "Z",
+       "comm": "node",
+       "cmdline": "node zombie.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000160,
+       "owner": {
+        "by": "fork",
+        "thread": "lab-thread-1"
+       }
+      },
+      {
+       "pid": 400,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node detached.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000400,
+       "owner": {
+        "by": "fork",
+        "thread": "lab-thread-1"
+       }
+      },
+      {
+       "pid": 50,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node wsp host",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000050
+      },
+      {
+       "pid": 60,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "wsp-daemon",
+       "cmdline": "wsp-daemon serve",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000060
+      },
+      {
+       "pid": 70,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "zsh",
+       "cmdline": "-zsh",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000070
+      },
+      {
+       "pid": 80,
+       "ppid": 80,
+       "user": "ada",
+       "state": "S",
+       "comm": "init",
+       "cmdline": "init",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000080
+      },
+      {
+       "pid": 90,
+       "ppid": 91,
+       "user": "ada",
+       "state": "S",
+       "comm": "a",
+       "cmdline": "loop a",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000090
+      },
+      {
+       "pid": 91,
+       "ppid": 90,
+       "user": "ada",
+       "state": "S",
+       "comm": "b",
+       "cmdline": "loop b",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000091
+      },
+      {
+       "pid": 95,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "vim",
+       "cmdline": "vim x",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000095,
+       "owner": {
+        "by": "coalition"
+       }
+      },
+      {
+       "pid": 96,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "python3",
+       "cmdline": "python3 /state/slates/lab-thread-1/feed.py",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000096
+      },
+      {
+       "pid": 97,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "python3",
+       "cmdline": "python3 /state/slates/other/feed.py",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000097
+      },
+      {
+       "pid": 98,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node /x/vitest run",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000098,
+       "pty": "pty_9"
+      },
+      {
+       "pid": 99,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "cargo",
+       "cmdline": "cargo build --release",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000099
+      }
+     ],
+     "daemon": 60,
+     "host": 50,
+     "threads": [],
+     "agentBins": [
+      "claude"
+     ],
+     "listening": []
+    }
+   ],
+   "want": {
+    "procs": [
+     1,
+     100,
+     101,
+     102,
+     200,
+     201,
+     202,
+     203,
+     150,
+     400,
+     50,
+     60,
+     70,
+     80,
+     90,
+     91,
+     95,
+     96,
+     97,
+     98,
+     99
+    ],
+    "whose": [
+     [
+      50,
+      "wsp"
+     ],
+     [
+      100,
+      "wsp"
+     ],
+     [
+      101,
+      "wsp"
+     ],
+     [
+      102,
+      "wsp"
+     ],
+     [
+      200,
+      "wsp"
+     ],
+     [
+      201,
+      "wsp"
+     ],
+     [
+      202,
+      "wsp"
+     ],
+     [
+      203,
+      "wsp"
+     ],
+     [
+      400,
+      "loose"
+     ],
+     [
+      60,
+      "wsp"
+     ],
+     [
+      95,
+      "loose"
+     ],
+     [
+      96,
+      "loose"
+     ],
+     [
+      97,
+      "loose"
+     ],
+     [
+      98,
+      "loose"
+     ]
+    ],
+    "agent": [],
+    "foldsInto": [],
+    "rootOf": [],
+    "kinds": [
+     [
+      1,
+      "other"
+     ],
+     [
+      100,
+      "other"
+     ],
+     [
+      101,
+      "other"
+     ],
+     [
+      102,
+      "agent"
+     ],
+     [
+      200,
+      "dev"
+     ],
+     [
+      201,
+      "dev"
+     ],
+     [
+      202,
+      "tool"
+     ],
+     [
+      203,
+      "other"
+     ],
+     [
+      150,
+      "other"
+     ],
+     [
+      400,
+      "other"
+     ],
+     [
+      50,
+      "wsp"
+     ],
+     [
+      60,
+      "wsp"
+     ],
+     [
+      70,
+      "other"
+     ],
+     [
+      80,
+      "other"
+     ],
+     [
+      90,
+      "other"
+     ],
+     [
+      91,
+      "other"
+     ],
+     [
+      95,
+      "other"
+     ],
+     [
+      96,
+      "slate"
+     ],
+     [
+      97,
+      "slate"
+     ],
+     [
+      98,
+      "terminal"
+     ],
+     [
+      99,
+      "build"
+     ]
+    ],
+    "needed": [
+     [
+      1,
+      false
+     ],
+     [
+      100,
+      false
+     ],
+     [
+      101,
+      false
+     ],
+     [
+      102,
+      false
+     ],
+     [
+      200,
+      false
+     ],
+     [
+      201,
+      false
+     ],
+     [
+      202,
+      false
+     ],
+     [
+      203,
+      false
+     ],
+     [
+      150,
+      false
+     ],
+     [
+      400,
+      false
+     ],
+     [
+      50,
+      true
+     ],
+     [
+      60,
+      true
+     ],
+     [
+      70,
+      false
+     ],
+     [
+      80,
+      false
+     ],
+     [
+      90,
+      false
+     ],
+     [
+      91,
+      false
+     ],
+     [
+      95,
+      false
+     ],
+     [
+      96,
+      false
+     ],
+     [
+      97,
+      false
+     ],
+     [
+      98,
+      false
+     ],
+     [
+      99,
+      false
+     ]
+    ],
+    "endable": [
+     [
+      1,
+      false
+     ],
+     [
+      100,
+      false
+     ],
+     [
+      101,
+      false
+     ],
+     [
+      102,
+      false
+     ],
+     [
+      200,
+      false
+     ],
+     [
+      201,
+      false
+     ],
+     [
+      202,
+      false
+     ],
+     [
+      203,
+      false
+     ],
+     [
+      150,
+      false
+     ],
+     [
+      400,
+      true
+     ],
+     [
+      50,
+      false
+     ],
+     [
+      60,
+      false
+     ],
+     [
+      70,
+      false
+     ],
+     [
+      80,
+      false
+     ],
+     [
+      90,
+      false
+     ],
+     [
+      91,
+      false
+     ],
+     [
+      95,
+      false
+     ],
+     [
+      96,
+      false
+     ],
+     [
+      97,
+      false
+     ],
+     [
+      98,
+      false
+     ],
+     [
+      99,
+      false
+     ]
+    ],
+    "reachOf": [
+     [
+      1,
+      null
+     ],
+     [
+      100,
+      null
+     ],
+     [
+      101,
+      null
+     ],
+     [
+      102,
+      null
+     ],
+     [
+      200,
+      null
+     ],
+     [
+      201,
+      null
+     ],
+     [
+      202,
+      null
+     ],
+     [
+      203,
+      null
+     ],
+     [
+      150,
+      null
+     ],
+     [
+      400,
+      null
+     ],
+     [
+      50,
+      null
+     ],
+     [
+      60,
+      null
+     ],
+     [
+      70,
+      null
+     ],
+     [
+      80,
+      null
+     ],
+     [
+      90,
+      null
+     ],
+     [
+      91,
+      null
+     ],
+     [
+      95,
+      null
+     ],
+     [
+      96,
+      null
+     ],
+     [
+      97,
+      null
+     ],
+     [
+      98,
+      null
+     ],
+     [
+      99,
+      null
+     ]
+    ],
+    "kidsOf": [
+     [
+      1,
+      [
+       150,
+       400,
+       50,
+       60,
+       70,
+       95,
+       96,
+       97,
+       98,
+       99
+      ]
+     ],
+     [
+      100,
+      [
+       101
+      ]
+     ],
+     [
+      101,
+      [
+       102
+      ]
+     ],
+     [
+      102,
+      [
+       200,
+       202
+      ]
+     ],
+     [
+      200,
+      [
+       201
+      ]
+     ],
+     [
+      201,
+      []
+     ],
+     [
+      202,
+      [
+       203
+      ]
+     ],
+     [
+      203,
+      []
+     ],
+     [
+      150,
+      []
+     ],
+     [
+      400,
+      []
+     ],
+     [
+      50,
+      [
+       100
+      ]
+     ],
+     [
+      60,
+      []
+     ],
+     [
+      70,
+      []
+     ],
+     [
+      80,
+      []
+     ],
+     [
+      90,
+      [
+       91
+      ]
+     ],
+     [
+      91,
+      [
+       90
+      ]
+     ],
+     [
+      95,
+      []
+     ],
+     [
+      96,
+      []
+     ],
+     [
+      97,
+      []
+     ],
+     [
+      98,
+      []
+     ],
+     [
+      99,
+      []
+     ]
+    ]
+   }
+  },
+  {
+   "args": [
+    "a box thread named by its cgroup alone, its heads the roots",
+    {
+     "procs": [
+      {
+       "pid": 500,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "bash",
+       "cmdline": "bash /r/aaaaaaaaaaaa.sh",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000500,
+       "cgroup": "/wsp-threads/t"
+      },
+      {
+       "pid": 501,
+       "ppid": 500,
+       "user": "ada",
+       "state": "S",
+       "comm": "claude",
+       "cmdline": "claude -p",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000501,
+       "cgroup": "/wsp-threads/t"
+      },
+      {
+       "pid": 502,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node srv.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000502,
+       "cgroup": "/wsp-threads/t/x"
+      },
+      {
+       "pid": 503,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node other.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000503,
+       "cgroup": "/wsp-threads/tt"
+      },
+      {
+       "pid": 60,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "wsp-daemon",
+       "cmdline": "wsp-daemon serve",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000060
+      }
+     ],
+     "daemon": 60,
+     "threads": [
+      {
+       "id": "t",
+       "roots": [],
+       "cgroup": "/wsp-threads/t"
+      }
+     ],
+     "agentBins": [
+      "claude"
+     ]
+    }
+   ],
+   "want": {
+    "procs": [
+     500,
+     501,
+     502,
+     503,
+     60
+    ],
+    "whose": [
+     [
+      500,
+      {
+       "thread": "t"
+      }
+     ],
+     [
+      501,
+      {
+       "thread": "t"
+      }
+     ],
+     [
+      502,
+      {
+       "thread": "t"
+      }
+     ],
+     [
+      60,
+      "wsp"
+     ]
+    ],
+    "agent": [
+     [
+      501,
+      "t"
+     ]
+    ],
+    "foldsInto": [
+     [
+      500,
+      501
+     ]
+    ],
+    "rootOf": [
+     [
+      501,
+      500
+     ],
+     [
+      500,
+      500
+     ]
+    ],
+    "kinds": [
+     [
+      500,
+      "agent"
+     ],
+     [
+      501,
+      "agent"
+     ],
+     [
+      502,
+      "other"
+     ],
+     [
+      503,
+      "other"
+     ],
+     [
+      60,
+      "wsp"
+     ]
+    ],
+    "needed": [
+     [
+      500,
+      false
+     ],
+     [
+      501,
+      false
+     ],
+     [
+      502,
+      false
+     ],
+     [
+      503,
+      false
+     ],
+     [
+      60,
+      true
+     ]
+    ],
+    "endable": [
+     [
+      500,
+      false
+     ],
+     [
+      501,
+      false
+     ],
+     [
+      502,
+      true
+     ],
+     [
+      503,
+      false
+     ],
+     [
+      60,
+      false
+     ]
+    ],
+    "reachOf": [
+     [
+      500,
+      "t"
+     ],
+     [
+      501,
+      "t"
+     ],
+     [
+      502,
+      "t"
+     ],
+     [
+      503,
+      null
+     ],
+     [
+      60,
+      null
+     ]
+    ],
+    "kidsOf": [
+     [
+      500,
+      [
+       501
+      ]
+     ],
+     [
+      501,
+      []
+     ],
+     [
+      502,
+      []
+     ],
+     [
+      503,
+      []
+     ],
+     [
+      60,
+      []
+     ]
+    ]
+   }
+  },
+  {
+   "args": [
+    "the app's own parts and a tab a thread's pane holds",
+    {
+     "procs": [
+      {
+       "pid": 10,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "Electron",
+       "cmdline": "/A/wsp",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000010
+      },
+      {
+       "pid": 11,
+       "ppid": 10,
+       "user": "ada",
+       "state": "S",
+       "comm": "Electron Helper (Renderer)",
+       "cmdline": "x --type=renderer",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000011
+      },
+      {
+       "pid": 12,
+       "ppid": 10,
+       "user": "ada",
+       "state": "S",
+       "comm": "Electron Helper (Renderer)",
+       "cmdline": "x --type=renderer",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000012
+      },
+      {
+       "pid": 13,
+       "ppid": 10,
+       "user": "ada",
+       "state": "S",
+       "comm": "Electron Helper (GPU)",
+       "cmdline": "x --type=gpu",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000013
+      },
+      {
+       "pid": 60,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "wsp-daemon",
+       "cmdline": "wsp-daemon serve",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000060
+      }
+     ],
+     "daemon": 60,
+     "host": 99,
+     "threads": [
+      {
+       "id": "t1",
+       "roots": [],
+       "tabs": [
+        11,
+        13
+       ]
+      },
+      {
+       "id": "t2",
+       "roots": [],
+       "tabs": [
+        11
+       ]
+      }
+     ],
+     "agentBins": [],
+     "app": [
+      [
+       11,
+       "tab"
+      ],
+      [
+       12,
+       "tab"
+      ],
+      [
+       13,
+       "app"
+      ],
+      [
+       10,
+       "app"
+      ]
+     ]
+    }
+   ],
+   "want": {
+    "procs": [
+     10,
+     11,
+     12,
+     13,
+     60
+    ],
+    "whose": [
+     [
+      10,
+      "wsp"
+     ],
+     [
+      11,
+      {
+       "thread": "t1"
+      }
+     ],
+     [
+      12,
+      "wsp"
+     ],
+     [
+      13,
+      "wsp"
+     ],
+     [
+      60,
+      "wsp"
+     ]
+    ],
+    "agent": [],
+    "foldsInto": [],
+    "rootOf": [],
+    "kinds": [
+     [
+      10,
+      "app"
+     ],
+     [
+      11,
+      "tab"
+     ],
+     [
+      12,
+      "tab"
+     ],
+     [
+      13,
+      "app"
+     ],
+     [
+      60,
+      "wsp"
+     ]
+    ],
+    "needed": [
+     [
+      10,
+      true
+     ],
+     [
+      11,
+      false
+     ],
+     [
+      12,
+      false
+     ],
+     [
+      13,
+      true
+     ],
+     [
+      60,
+      true
+     ]
+    ],
+    "endable": [
+     [
+      10,
+      false
+     ],
+     [
+      11,
+      false
+     ],
+     [
+      12,
+      false
+     ],
+     [
+      13,
+      false
+     ],
+     [
+      60,
+      false
+     ]
+    ],
+    "reachOf": [
+     [
+      10,
+      null
+     ],
+     [
+      11,
+      "t1"
+     ],
+     [
+      12,
+      null
+     ],
+     [
+      13,
+      null
+     ],
+     [
+      60,
+      null
+     ]
+    ],
+    "kidsOf": [
+     [
+      10,
+      [
+       11,
+       12,
+       13
+      ]
+     ],
+     [
+      11,
+      []
+     ],
+     [
+      12,
+      []
+     ],
+     [
+      13,
+      []
+     ],
+     [
+      60,
+      []
+     ]
+    ]
+   }
+  },
+  {
+   "args": [
+    "a recorded agent pid wins over a name, and a named child of it joins the stretch",
+    {
+     "procs": [
+      {
+       "pid": 700,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "bash",
+       "cmdline": "bash /r/bbbbbbbbbbbb.sh",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000700
+      },
+      {
+       "pid": 701,
+       "ppid": 700,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node /usr/local/bin/codex app",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000701
+      },
+      {
+       "pid": 702,
+       "ppid": 701,
+       "user": "ada",
+       "state": "S",
+       "comm": "codex",
+       "cmdline": "/v/codex app-server",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000702
+      },
+      {
+       "pid": 703,
+       "ppid": 702,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node tool.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000703
+      }
+     ],
+     "daemon": 60,
+     "threads": [
+      {
+       "id": "c",
+       "roots": [
+        700
+       ],
+       "agents": [
+        701
+       ],
+       "bin": "codex"
+      }
+     ],
+     "agentBins": [
+      "codex"
+     ]
+    }
+   ],
+   "want": {
+    "procs": [
+     700,
+     701,
+     702,
+     703
+    ],
+    "whose": [
+     [
+      700,
+      {
+       "thread": "c"
+      }
+     ],
+     [
+      701,
+      {
+       "thread": "c"
+      }
+     ],
+     [
+      702,
+      {
+       "thread": "c"
+      }
+     ],
+     [
+      703,
+      {
+       "thread": "c"
+      }
+     ]
+    ],
+    "agent": [
+     [
+      702,
+      "c"
+     ]
+    ],
+    "foldsInto": [
+     [
+      700,
+      702
+     ],
+     [
+      701,
+      702
+     ]
+    ],
+    "rootOf": [
+     [
+      702,
+      700
+     ],
+     [
+      700,
+      700
+     ],
+     [
+      701,
+      700
+     ]
+    ],
+    "kinds": [
+     [
+      700,
+      "agent"
+     ],
+     [
+      701,
+      "agent"
+     ],
+     [
+      702,
+      "agent"
+     ],
+     [
+      703,
+      "tool"
+     ]
+    ],
+    "needed": [
+     [
+      700,
+      false
+     ],
+     [
+      701,
+      false
+     ],
+     [
+      702,
+      false
+     ],
+     [
+      703,
+      false
+     ]
+    ],
+    "endable": [
+     [
+      700,
+      false
+     ],
+     [
+      701,
+      false
+     ],
+     [
+      702,
+      false
+     ],
+     [
+      703,
+      true
+     ]
+    ],
+    "reachOf": [
+     [
+      700,
+      "c"
+     ],
+     [
+      701,
+      "c"
+     ],
+     [
+      702,
+      "c"
+     ],
+     [
+      703,
+      "c"
+     ]
+    ],
+    "kidsOf": [
+     [
+      700,
+      [
+       701
+      ]
+     ],
+     [
+      701,
+      [
+       702
+      ]
+     ],
+     [
+      702,
+      [
+       703
+      ]
+     ],
+     [
+      703,
+      []
+     ]
+    ]
+   }
+  },
+  {
+   "args": [
+    "a root the daemon stamped as an agent stands for the agent until it shows",
+    {
+     "procs": [
+      {
+       "pid": 800,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "bash",
+       "cmdline": "bash /r/cccccccccccc.sh",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000800,
+       "kind": "agent",
+       "owner": {
+        "by": "root",
+        "thread": "s"
+       }
+      },
+      {
+       "pid": 801,
+       "ppid": 800,
+       "user": "ada",
+       "state": "S",
+       "comm": "sleep",
+       "cmdline": "sleep 5",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000801
+      }
+     ],
+     "daemon": 60,
+     "threads": [
+      {
+       "id": "s",
+       "roots": []
+      }
+     ],
+     "agentBins": [
+      "claude"
+     ]
+    }
+   ],
+   "want": {
+    "procs": [
+     800,
+     801
+    ],
+    "whose": [
+     [
+      800,
+      {
+       "thread": "s"
+      }
+     ],
+     [
+      801,
+      {
+       "thread": "s"
+      }
+     ]
+    ],
+    "agent": [
+     [
+      800,
+      "s"
+     ]
+    ],
+    "foldsInto": [],
+    "rootOf": [
+     [
+      800,
+      800
+     ]
+    ],
+    "kinds": [
+     [
+      800,
+      "agent"
+     ],
+     [
+      801,
+      "tool"
+     ]
+    ],
+    "needed": [
+     [
+      800,
+      false
+     ],
+     [
+      801,
+      false
+     ]
+    ],
+    "endable": [
+     [
+      800,
+      false
+     ],
+     [
+      801,
+      true
+     ]
+    ],
+    "reachOf": [
+     [
+      800,
+      "s"
+     ],
+     [
+      801,
+      "s"
+     ]
+    ],
+    "kidsOf": [
+     [
+      800,
+      [
+       801
+      ]
+     ],
+     [
+      801,
+      []
+     ]
+    ]
+   }
+  },
+  {
+   "args": [
+    "a mark by env alone reaches only through a stretch, a cgroup or a parent",
+    {
+     "procs": [
+      {
+       "pid": 900,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node a.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000900,
+       "owner": {
+        "by": "env",
+        "thread": "m"
+       }
+      },
+      {
+       "pid": 901,
+       "ppid": 900,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node b.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000901,
+       "owner": {
+        "by": "env",
+        "thread": "m"
+       }
+      },
+      {
+       "pid": 902,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node c.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000902,
+       "owner": {
+        "by": "group",
+        "thread": "m"
+       }
+      },
+      {
+       "pid": 903,
+       "ppid": 902,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node d.js",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000903,
+       "owner": {
+        "by": "env",
+        "thread": "m"
+       }
+      }
+     ],
+     "daemon": 60,
+     "threads": [
+      {
+       "id": "m",
+       "roots": []
+      }
+     ],
+     "agentBins": []
+    }
+   ],
+   "want": {
+    "procs": [
+     900,
+     901,
+     902,
+     903
+    ],
+    "whose": [
+     [
+      900,
+      {
+       "thread": "m"
+      }
+     ],
+     [
+      901,
+      {
+       "thread": "m"
+      }
+     ],
+     [
+      902,
+      {
+       "thread": "m"
+      }
+     ],
+     [
+      903,
+      {
+       "thread": "m"
+      }
+     ]
+    ],
+    "agent": [],
+    "foldsInto": [],
+    "rootOf": [],
+    "kinds": [
+     [
+      900,
+      "other"
+     ],
+     [
+      901,
+      "other"
+     ],
+     [
+      902,
+      "other"
+     ],
+     [
+      903,
+      "other"
+     ]
+    ],
+    "needed": [
+     [
+      900,
+      false
+     ],
+     [
+      901,
+      false
+     ],
+     [
+      902,
+      false
+     ],
+     [
+      903,
+      false
+     ]
+    ],
+    "endable": [
+     [
+      900,
+      true
+     ],
+     [
+      901,
+      true
+     ],
+     [
+      902,
+      true
+     ],
+     [
+      903,
+      true
+     ]
+    ],
+    "reachOf": [
+     [
+      900,
+      null
+     ],
+     [
+      901,
+      null
+     ],
+     [
+      902,
+      "m"
+     ],
+     [
+      903,
+      "m"
+     ]
+    ],
+    "kidsOf": [
+     [
+      900,
+      [
+       901
+      ]
+     ],
+     [
+      901,
+      []
+     ],
+     [
+      902,
+      [
+       903
+      ]
+     ],
+     [
+      903,
+      []
+     ]
+    ]
+   }
+  }
+ ],
+ "activity_of": [
+  {
+   "args": [
+    "siblings busiest first, ties by pid, a missing parent a head, an empty command line the comm",
+    {
+     "computer": "lab",
+     "at": 1760000000000,
+     "procs": [
+      {
+       "pid": 100,
+       "ppid": 50,
+       "user": "ada",
+       "state": "S",
+       "comm": "bash",
+       "cmdline": "bash runs/53af26c40316.sh",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000100
+      },
+      {
+       "pid": 101,
+       "ppid": 100,
+       "user": "ada",
+       "state": "S",
+       "comm": "claude",
+       "cmdline": "claude -p",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000101
+      },
+      {
+       "pid": 110,
+       "ppid": 101,
+       "user": "ada",
+       "state": "S",
+       "comm": "a",
+       "cmdline": "",
+       "cpu": 2,
+       "rss": 1000,
+       "startedAt": 1760000000110
+      },
+      {
+       "pid": 111,
+       "ppid": 101,
+       "user": "ada",
+       "state": "S",
+       "comm": "b",
+       "cmdline": "b",
+       "cpu": 2,
+       "rss": 1000,
+       "startedAt": 1760000000111
+      },
+      {
+       "pid": 112,
+       "ppid": 101,
+       "user": "ada",
+       "state": "S",
+       "comm": "c",
+       "cmdline": "c",
+       "cpu": 5.5,
+       "rss": 1000,
+       "startedAt": 1760000000112
+      },
+      {
+       "pid": 113,
+       "ppid": 999,
+       "user": "ada",
+       "state": "S",
+       "comm": "d",
+       "cmdline": "d",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000113,
+       "owner": {
+        "by": "fork",
+        "thread": "t"
+       }
+      },
+      {
+       "pid": 50,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "node",
+       "cmdline": "node wsp host",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000050
+      },
+      {
+       "pid": 60,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "wsp-daemon",
+       "cmdline": "wsp-daemon serve",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000060
+      }
+     ],
+     "daemon": 60,
+     "host": 50,
+     "scopes": [
+      {
+       "threadId": "t",
+       "title": "T",
+       "workspaceId": "w",
+       "roots": [
+        100
+       ]
+      },
+      {
+       "threadId": "empty",
+       "title": "E",
+       "workspaceId": "w",
+       "roots": []
+      }
+     ],
+     "agentBins": [
+      "claude"
+     ],
+     "ports": {
+      "110": [
+       5173,
+       24678
+      ],
+      "111": []
+     }
+    }
+   ],
+   "want": {
+    "computer": "lab",
+    "at": 1760000000000,
+    "threads": [
+     {
+      "threadId": "t",
+      "title": "T",
+      "workspaceId": "w",
+      "memory": 6000,
+      "cpu": 12.5,
+      "processes": [
+       {
+        "pid": 100,
+        "ppid": 50,
+        "depth": 0,
+        "startedAt": 1760000000100,
+        "kind": "agent",
+        "name": "bash",
+        "command": "bash runs/53af26c40316.sh",
+        "memory": 1000,
+        "cpu": 1,
+        "ports": []
+       },
+       {
+        "pid": 101,
+        "ppid": 100,
+        "depth": 1,
+        "startedAt": 1760000000101,
+        "kind": "agent",
+        "name": "claude",
+        "command": "claude -p",
+        "memory": 1000,
+        "cpu": 1,
+        "ports": []
+       },
+       {
+        "pid": 112,
+        "ppid": 101,
+        "depth": 2,
+        "startedAt": 1760000000112,
+        "kind": "tool",
+        "name": "c",
+        "command": "c",
+        "memory": 1000,
+        "cpu": 5.5,
+        "ports": []
+       },
+       {
+        "pid": 110,
+        "ppid": 101,
+        "depth": 2,
+        "startedAt": 1760000000110,
+        "kind": "dev",
+        "name": "a",
+        "command": "a",
+        "memory": 1000,
+        "cpu": 2,
+        "ports": [
+         5173,
+         24678
+        ]
+       },
+       {
+        "pid": 111,
+        "ppid": 101,
+        "depth": 2,
+        "startedAt": 1760000000111,
+        "kind": "tool",
+        "name": "b",
+        "command": "b",
+        "memory": 1000,
+        "cpu": 2,
+        "ports": []
+       },
+       {
+        "pid": 113,
+        "ppid": 999,
+        "depth": 0,
+        "startedAt": 1760000000113,
+        "kind": "other",
+        "name": "d",
+        "command": "d",
+        "memory": 1000,
+        "cpu": 1,
+        "ports": []
+       }
+      ]
+     }
+    ],
+    "wsp": [
+     {
+      "pid": 50,
+      "ppid": 1,
+      "depth": 0,
+      "startedAt": 1760000000050,
+      "kind": "wsp",
+      "name": "node",
+      "command": "node wsp host",
+      "memory": 1000,
+      "cpu": 1,
+      "ports": []
+     },
+     {
+      "pid": 60,
+      "ppid": 1,
+      "depth": 0,
+      "startedAt": 1760000000060,
+      "kind": "wsp",
+      "name": "wsp-daemon",
+      "command": "wsp-daemon serve",
+      "memory": 1000,
+      "cpu": 1,
+      "ports": []
+     }
+    ],
+    "unowned": []
+   }
+  },
+  {
+   "args": [
+    "a box thread's memory is its cgroup's where the daemon read one",
+    {
+     "computer": "box",
+     "at": 1.5,
+     "procs": [
+      {
+       "pid": 500,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "bash",
+       "cmdline": "bash /r/aaaaaaaaaaaa.sh",
+       "cpu": 1,
+       "rss": 10,
+       "startedAt": 1760000000500,
+       "cgroup": "/wsp-threads/t"
+      },
+      {
+       "pid": 501,
+       "ppid": 500,
+       "user": "ada",
+       "state": "S",
+       "comm": "claude",
+       "cmdline": "claude -p",
+       "cpu": 1,
+       "rss": 20,
+       "startedAt": 1760000000501,
+       "cgroup": "/wsp-threads/t"
+      },
+      {
+       "pid": 60,
+       "ppid": 1,
+       "user": "ada",
+       "state": "S",
+       "comm": "wsp-daemon",
+       "cmdline": "wsp-daemon serve",
+       "cpu": 1,
+       "rss": 1000,
+       "startedAt": 1760000000060
+      }
+     ],
+     "daemon": 60,
+     "host": 0,
+     "scopes": [
+      {
+       "threadId": "t",
+       "title": "T",
+       "workspaceId": "w",
+       "roots": [],
+       "cgroup": "/wsp-threads/t"
+      },
+      {
+       "threadId": "u",
+       "title": "U",
+       "workspaceId": "w",
+       "roots": [
+        500
+       ]
+      }
+     ],
+     "agentBins": [
+      "claude"
+     ],
+     "cgroups": [
+      {
+       "cgroup": "/wsp-threads/x",
+       "memory": 1
+      },
+      {
+       "cgroup": "/wsp-threads/t",
+       "memory": 4096
+      }
+     ],
+     "ports": null
+    }
+   ],
+   "want": {
+    "computer": "box",
+    "at": 1.5,
+    "threads": [
+     {
+      "threadId": "u",
+      "title": "U",
+      "workspaceId": "w",
+      "memory": 30,
+      "cpu": 2,
+      "processes": [
+       {
+        "pid": 500,
+        "ppid": 1,
+        "depth": 0,
+        "startedAt": 1760000000500,
+        "kind": "agent",
+        "name": "bash",
+        "command": "bash /r/aaaaaaaaaaaa.sh",
+        "memory": 10,
+        "cpu": 1,
+        "ports": []
+       },
+       {
+        "pid": 501,
+        "ppid": 500,
+        "depth": 1,
+        "startedAt": 1760000000501,
+        "kind": "agent",
+        "name": "claude",
+        "command": "claude -p",
+        "memory": 20,
+        "cpu": 1,
+        "ports": []
+       }
+      ]
+     }
+    ],
+    "wsp": [
+     {
+      "pid": 60,
+      "ppid": 1,
+      "depth": 0,
+      "startedAt": 1760000000060,
+      "kind": "wsp",
+      "name": "wsp-daemon",
+      "command": "wsp-daemon serve",
+      "memory": 1000,
+      "cpu": 1,
+      "ports": []
+     }
+    ],
+    "unowned": []
+   }
+  }
+ ],
+ "processes_left": [
+  {
+   "args": [
+    {
+     "computer": "lab",
+     "at": 1760000000000,
+     "threads": [
+      {
+       "threadId": "lab-thread-1",
+       "title": "L",
+       "workspaceId": "w",
+       "memory": 10000,
+       "cpu": 18,
+       "processes": [
+        {
+         "pid": 96,
+         "ppid": 1,
+         "depth": 0,
+         "startedAt": 1760000000096,
+         "kind": "slate",
+         "name": "python3",
+         "command": "python3 /state/slates/lab-thread-1/feed.py",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 100,
+         "ppid": 50,
+         "depth": 0,
+         "startedAt": 1760000000100,
+         "kind": "agent",
+         "name": "bash",
+         "command": "bash runs/53af26c40316.sh",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 101,
+         "ppid": 100,
+         "depth": 1,
+         "startedAt": 1760000000101,
+         "kind": "agent",
+         "name": "bash",
+         "command": "bash",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 102,
+         "ppid": 101,
+         "depth": 2,
+         "startedAt": 1760000000102,
+         "kind": "agent",
+         "name": "2.1.296",
+         "command": "claude -p --input-format stream-json",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 200,
+         "ppid": 102,
+         "depth": 3,
+         "startedAt": 1760000000200,
+         "kind": "dev",
+         "name": "node",
+         "command": "node /lab/node_modules/.bin/vite",
+         "memory": 1000,
+         "cpu": 9,
+         "ports": []
+        },
+        {
+         "pid": 201,
+         "ppid": 200,
+         "depth": 4,
+         "startedAt": 1760000000201,
+         "kind": "dev",
+         "name": "esbuild",
+         "command": "esbuild --service",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 202,
+         "ppid": 102,
+         "depth": 3,
+         "startedAt": 1760000000202,
+         "kind": "tool",
+         "name": "node",
+         "command": "node /x/mcp/server.js",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 203,
+         "ppid": 202,
+         "depth": 4,
+         "startedAt": 1760000000203,
+         "kind": "other",
+         "name": "zsh",
+         "command": "zsh -c ls",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 150,
+         "ppid": 1,
+         "depth": 0,
+         "startedAt": 1760000000150,
+         "kind": "agent",
+         "name": "tail",
+         "command": "tail -n +1 -f /tmp/runs/53af26c40316.in",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 400,
+         "ppid": 1,
+         "depth": 0,
+         "startedAt": 1760000000400,
+         "kind": "other",
+         "name": "node",
+         "command": "node detached.js",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        }
+       ]
+      }
+     ],
+     "wsp": [
+      {
+       "pid": 50,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000050,
+       "kind": "wsp",
+       "name": "node",
+       "command": "node wsp host",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      },
+      {
+       "pid": 60,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000060,
+       "kind": "wsp",
+       "name": "wsp-daemon",
+       "command": "wsp-daemon serve",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      }
+     ],
+     "unowned": [
+      {
+       "pid": 95,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000095,
+       "kind": "other",
+       "name": "vim",
+       "command": "vim x",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      },
+      {
+       "pid": 97,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000097,
+       "kind": "slate",
+       "name": "python3",
+       "command": "python3 /state/slates/other/feed.py",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      },
+      {
+       "pid": 98,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000098,
+       "kind": "terminal",
+       "name": "node",
+       "command": "node /x/vitest run",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      }
+     ]
+    },
+    [
+     "lab-thread-1"
+    ]
+   ],
+   "want": [
+    {
+     "threadId": "lab-thread-1",
+     "title": "L",
+     "workspaceId": "w",
+     "memory": 10000,
+     "cpu": 18,
+     "processes": [
+      {
+       "pid": 96,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000096,
+       "kind": "slate",
+       "name": "python3",
+       "command": "python3 /state/slates/lab-thread-1/feed.py",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      },
+      {
+       "pid": 400,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000400,
+       "kind": "other",
+       "name": "node",
+       "command": "node detached.js",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "args": [
+    {
+     "computer": "lab",
+     "at": 1760000000000,
+     "threads": [
+      {
+       "threadId": "lab-thread-1",
+       "title": "L",
+       "workspaceId": "w",
+       "memory": 10000,
+       "cpu": 18,
+       "processes": [
+        {
+         "pid": 96,
+         "ppid": 1,
+         "depth": 0,
+         "startedAt": 1760000000096,
+         "kind": "slate",
+         "name": "python3",
+         "command": "python3 /state/slates/lab-thread-1/feed.py",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 100,
+         "ppid": 50,
+         "depth": 0,
+         "startedAt": 1760000000100,
+         "kind": "agent",
+         "name": "bash",
+         "command": "bash runs/53af26c40316.sh",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 101,
+         "ppid": 100,
+         "depth": 1,
+         "startedAt": 1760000000101,
+         "kind": "agent",
+         "name": "bash",
+         "command": "bash",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 102,
+         "ppid": 101,
+         "depth": 2,
+         "startedAt": 1760000000102,
+         "kind": "agent",
+         "name": "2.1.296",
+         "command": "claude -p --input-format stream-json",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 200,
+         "ppid": 102,
+         "depth": 3,
+         "startedAt": 1760000000200,
+         "kind": "dev",
+         "name": "node",
+         "command": "node /lab/node_modules/.bin/vite",
+         "memory": 1000,
+         "cpu": 9,
+         "ports": []
+        },
+        {
+         "pid": 201,
+         "ppid": 200,
+         "depth": 4,
+         "startedAt": 1760000000201,
+         "kind": "dev",
+         "name": "esbuild",
+         "command": "esbuild --service",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 202,
+         "ppid": 102,
+         "depth": 3,
+         "startedAt": 1760000000202,
+         "kind": "tool",
+         "name": "node",
+         "command": "node /x/mcp/server.js",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 203,
+         "ppid": 202,
+         "depth": 4,
+         "startedAt": 1760000000203,
+         "kind": "other",
+         "name": "zsh",
+         "command": "zsh -c ls",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 150,
+         "ppid": 1,
+         "depth": 0,
+         "startedAt": 1760000000150,
+         "kind": "agent",
+         "name": "tail",
+         "command": "tail -n +1 -f /tmp/runs/53af26c40316.in",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        },
+        {
+         "pid": 400,
+         "ppid": 1,
+         "depth": 0,
+         "startedAt": 1760000000400,
+         "kind": "other",
+         "name": "node",
+         "command": "node detached.js",
+         "memory": 1000,
+         "cpu": 1,
+         "ports": []
+        }
+       ]
+      }
+     ],
+     "wsp": [
+      {
+       "pid": 50,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000050,
+       "kind": "wsp",
+       "name": "node",
+       "command": "node wsp host",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      },
+      {
+       "pid": 60,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000060,
+       "kind": "wsp",
+       "name": "wsp-daemon",
+       "command": "wsp-daemon serve",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      }
+     ],
+     "unowned": [
+      {
+       "pid": 95,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000095,
+       "kind": "other",
+       "name": "vim",
+       "command": "vim x",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      },
+      {
+       "pid": 97,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000097,
+       "kind": "slate",
+       "name": "python3",
+       "command": "python3 /state/slates/other/feed.py",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      },
+      {
+       "pid": 98,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000098,
+       "kind": "terminal",
+       "name": "node",
+       "command": "node /x/vitest run",
+       "memory": 1000,
+       "cpu": 1,
+       "ports": []
+      }
+     ]
+    },
+    [
+     "nobody"
+    ]
+   ],
+   "want": []
+  }
+ ],
+ "standing_after_stop": [
+  {
+   "args": [
+    [
+     {
+      "pid": 1,
+      "ended": [
+       {
+        "pid": 96,
+        "ppid": 1,
+        "depth": 0,
+        "startedAt": 1760000000096,
+        "kind": "slate",
+        "name": "python3",
+        "command": "python3 /state/slates/lab-thread-1/feed.py",
+        "memory": 1000,
+        "cpu": 1,
+        "ports": []
+       },
+       {
+        "pid": 100,
+        "ppid": 50,
+        "depth": 0,
+        "startedAt": 1760000000100,
+        "kind": "agent",
+        "name": "bash",
+        "command": "bash runs/53af26c40316.sh",
+        "memory": 1000,
+        "cpu": 1,
+        "ports": []
+       }
+      ],
+      "forced": [],
+      "left": [
+       100
+      ]
+     },
+     {
+      "pid": 2,
+      "ended": [
+       {
+        "pid": 101,
+        "ppid": 100,
+        "depth": 1,
+        "startedAt": 1760000000101,
+        "kind": "agent",
+        "name": "bash",
+        "command": "bash",
+        "memory": 1000,
+        "cpu": 1,
+        "ports": []
+       }
+      ],
+      "forced": [
+       7
+      ],
+      "left": [
+       999,
+       101
+      ]
+     }
+    ]
+   ],
+   "want": [
+    {
+     "pid": 100,
+     "ppid": 50,
+     "depth": 0,
+     "startedAt": 1760000000100,
+     "kind": "agent",
+     "name": "bash",
+     "command": "bash runs/53af26c40316.sh",
+     "memory": 1000,
+     "cpu": 1,
+     "ports": []
+    },
+    {
+     "pid": 101,
+     "ppid": 100,
+     "depth": 1,
+     "startedAt": 1760000000101,
+     "kind": "agent",
+     "name": "bash",
+     "command": "bash",
+     "memory": 1000,
+     "cpu": 1,
+     "ports": []
+    }
+   ]
+  }
+ ],
+ "end_heads": [
+  {
+   "args": [
+    [
+     {
+      "pid": 5,
+      "ppid": 4
+     },
+     {
+      "pid": 4,
+      "ppid": 1
+     },
+     {
+      "pid": 6,
+      "ppid": 5
+     },
+     {
+      "pid": 7,
+      "ppid": 7
+     },
+     {
+      "pid": 8,
+      "ppid": 9
+     }
+    ]
+   ],
+   "want": [
+    {
+     "pid": 4,
+     "ppid": 1
+    },
+    {
+     "pid": 8,
+     "ppid": 9
+    }
+   ]
+  }
+ ],
+ "agent_path": [
+  {
+   "args": [
+    [
+     {
+      "pid": 1,
+      "ppid": 0,
+      "user": "ada",
+      "state": "S",
+      "comm": "init",
+      "cmdline": "i",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000001
+     },
+     {
+      "pid": 2,
+      "ppid": 1,
+      "user": "ada",
+      "state": "S",
+      "comm": "bash",
+      "cmdline": "bash",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000002
+     },
+     {
+      "pid": 3,
+      "ppid": 1,
+      "user": "ada",
+      "state": "S",
+      "comm": "bash",
+      "cmdline": "bash",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000003
+     },
+     {
+      "pid": 4,
+      "ppid": 2,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000004
+     },
+     {
+      "pid": 5,
+      "ppid": 3,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000005
+     },
+     {
+      "pid": 6,
+      "ppid": 4,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000006
+     },
+     {
+      "pid": 7,
+      "ppid": 6,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000007
+     },
+     {
+      "pid": 8,
+      "ppid": 7,
+      "user": "ada",
+      "state": "S",
+      "comm": "x",
+      "cmdline": "x",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000008
+     },
+     {
+      "pid": 9,
+      "ppid": 7,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000009
+     }
+    ],
+    1,
+    "claude"
+   ],
+   "want": [
+    1,
+    2,
+    4,
+    6,
+    7
+   ]
+  },
+  {
+   "args": [
+    [
+     {
+      "pid": 1,
+      "ppid": 0,
+      "user": "ada",
+      "state": "S",
+      "comm": "init",
+      "cmdline": "i",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000001
+     },
+     {
+      "pid": 2,
+      "ppid": 1,
+      "user": "ada",
+      "state": "S",
+      "comm": "bash",
+      "cmdline": "bash",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000002
+     },
+     {
+      "pid": 3,
+      "ppid": 1,
+      "user": "ada",
+      "state": "S",
+      "comm": "bash",
+      "cmdline": "bash",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000003
+     },
+     {
+      "pid": 4,
+      "ppid": 2,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000004
+     },
+     {
+      "pid": 5,
+      "ppid": 3,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000005
+     },
+     {
+      "pid": 6,
+      "ppid": 4,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000006
+     },
+     {
+      "pid": 7,
+      "ppid": 6,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000007
+     },
+     {
+      "pid": 8,
+      "ppid": 7,
+      "user": "ada",
+      "state": "S",
+      "comm": "x",
+      "cmdline": "x",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000008
+     },
+     {
+      "pid": 9,
+      "ppid": 7,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000009
+     }
+    ],
+    2,
+    "claude"
+   ],
+   "want": [
+    2,
+    4,
+    6,
+    7
+   ]
+  },
+  {
+   "args": [
+    [
+     {
+      "pid": 1,
+      "ppid": 0,
+      "user": "ada",
+      "state": "S",
+      "comm": "init",
+      "cmdline": "i",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000001
+     },
+     {
+      "pid": 2,
+      "ppid": 1,
+      "user": "ada",
+      "state": "S",
+      "comm": "bash",
+      "cmdline": "bash",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000002
+     },
+     {
+      "pid": 3,
+      "ppid": 1,
+      "user": "ada",
+      "state": "S",
+      "comm": "bash",
+      "cmdline": "bash",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000003
+     },
+     {
+      "pid": 4,
+      "ppid": 2,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000004
+     },
+     {
+      "pid": 5,
+      "ppid": 3,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000005
+     },
+     {
+      "pid": 6,
+      "ppid": 4,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000006
+     },
+     {
+      "pid": 7,
+      "ppid": 6,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000007
+     },
+     {
+      "pid": 8,
+      "ppid": 7,
+      "user": "ada",
+      "state": "S",
+      "comm": "x",
+      "cmdline": "x",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000008
+     },
+     {
+      "pid": 9,
+      "ppid": 7,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000009
+     }
+    ],
+    3,
+    "claude"
+   ],
+   "want": [
+    3,
+    5
+   ]
+  },
+  {
+   "args": [
+    [
+     {
+      "pid": 1,
+      "ppid": 0,
+      "user": "ada",
+      "state": "S",
+      "comm": "init",
+      "cmdline": "i",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000001
+     },
+     {
+      "pid": 2,
+      "ppid": 1,
+      "user": "ada",
+      "state": "S",
+      "comm": "bash",
+      "cmdline": "bash",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000002
+     },
+     {
+      "pid": 3,
+      "ppid": 1,
+      "user": "ada",
+      "state": "S",
+      "comm": "bash",
+      "cmdline": "bash",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000003
+     },
+     {
+      "pid": 4,
+      "ppid": 2,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000004
+     },
+     {
+      "pid": 5,
+      "ppid": 3,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000005
+     },
+     {
+      "pid": 6,
+      "ppid": 4,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000006
+     },
+     {
+      "pid": 7,
+      "ppid": 6,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000007
+     },
+     {
+      "pid": 8,
+      "ppid": 7,
+      "user": "ada",
+      "state": "S",
+      "comm": "x",
+      "cmdline": "x",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000008
+     },
+     {
+      "pid": 9,
+      "ppid": 7,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000009
+     }
+    ],
+    8,
+    "claude"
+   ],
+   "want": null
+  },
+  {
+   "args": [
+    [
+     {
+      "pid": 1,
+      "ppid": 0,
+      "user": "ada",
+      "state": "S",
+      "comm": "init",
+      "cmdline": "i",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000001
+     },
+     {
+      "pid": 2,
+      "ppid": 1,
+      "user": "ada",
+      "state": "S",
+      "comm": "bash",
+      "cmdline": "bash",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000002
+     },
+     {
+      "pid": 3,
+      "ppid": 1,
+      "user": "ada",
+      "state": "S",
+      "comm": "bash",
+      "cmdline": "bash",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000003
+     },
+     {
+      "pid": 4,
+      "ppid": 2,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000004
+     },
+     {
+      "pid": 5,
+      "ppid": 3,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000005
+     },
+     {
+      "pid": 6,
+      "ppid": 4,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000006
+     },
+     {
+      "pid": 7,
+      "ppid": 6,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000007
+     },
+     {
+      "pid": 8,
+      "ppid": 7,
+      "user": "ada",
+      "state": "S",
+      "comm": "x",
+      "cmdline": "x",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000008
+     },
+     {
+      "pid": 9,
+      "ppid": 7,
+      "user": "ada",
+      "state": "S",
+      "comm": "claude",
+      "cmdline": "claude",
+      "cpu": 1,
+      "rss": 1000,
+      "startedAt": 1760000000009
+     }
+    ],
+    42,
+    "claude"
+   ],
+   "want": null
+  }
+ ]
+}
