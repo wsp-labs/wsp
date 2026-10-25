@@ -83,11 +83,6 @@ import {
   MINT_JOIN_REFUSAL,
   SSH_HOSTS_REFUSAL,
   issuesLine,
-  redacted,
-  markedCut,
-  requestSecrets,
-  SCANNED_SECRETS,
-  RUNTIME_OPS,
   EDITOR_TICKET_REFUSAL,
   editorOpensHereLine,
   sshAlias,
@@ -132,6 +127,7 @@ import { answerProject, isProjectRequest, threadPlaces } from "./serve-projects.
 import { answerConversations, isConversationsRequest } from "./serve-conversations.js";
 import { answerSlate, isSlateRequest, type SlateHolds } from "./serve-slates.js";
 import { serveStart } from "./serve-start.js";
+import { refusedLine } from "./refused-line.js";
 import { tapeOf } from "./tape.js";
 export type { ForwardsSource };
 
@@ -355,23 +351,6 @@ function doorFrom<K extends keyof ServeOptions>(opts: ServeOptions, key: K, miss
     if (door === undefined) throw new Error(missing);
     return door as NonNullable<ServeOptions[K]>;
   };
-}
-
-const DECLARED_OPS = new Set(RUNTIME_OPS);
-
-/** The log line of one refused frame: an op the protocol declares, else `frame`, since the frame may be a stranger's;
- * the kind; and the sentence's first line with the request's secrets blanked, then cut. Blanked before the cut, since
- * a cut through a secret would leave its head where the blanking no longer matches it. */
-function refusedLine(frame: unknown, payload: Record<string, unknown>, said?: string): string {
-  const asked = isObjectFrame(frame) ? frame["op"] : undefined;
-  const op = typeof asked === "string" && DECLARED_OPS.has(asked) ? asked : "frame";
-  const kind = typeof payload["kind"] === "string" ? payload["kind"] : "none";
-  const secrets = [...new Set(requestSecrets(frame))];
-  if (secrets.length > SCANNED_SECRETS) return `refused ${op} kind=${kind}: (sentence withheld, ${secrets.length} secret values)`;
-  const text = said ?? String(payload["error"]);
-  const end = text.indexOf("\n");
-  const first = redacted(end === -1 ? text : text.slice(0, end), secrets);
-  return `refused ${op} kind=${kind}: ${markedCut(first)}`;
 }
 
 /** Every workspace a verb answers with goes through here on its way out. The record's view holds the display stream

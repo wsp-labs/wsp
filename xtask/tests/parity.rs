@@ -117,9 +117,9 @@ fn every_tape_block_in_a_spec_file_is_read_as_a_tape() {
             "# Workspaces\n\nA list on a fresh host is empty.\n\n",
             "```tape\n",
             "{\"in\": {\"id\": 1, \"op\": \"auth\", \"token\": \"<redacted>\"}}\n",
-            "{\"out\": {\"id\": 1, \"ok\": true, \"asked\": \"auth\", \"at\": \"<time>\", \"workspaceId\": \"<id:1>\"}}\n",
+            "{\"out\": {\"id\": 1, \"ok\": true, \"asked\": \"auth\", \"at\": \"<time>\", \"workspaceId\": \"<ws-1>\"}}\n",
             "{\"in\": {\"id\": 2, \"op\": \"workspaces.list\"}}\n",
-            "{\"out\": {\"id\": 2, \"ok\": true, \"asked\": \"workspaces.list\", \"at\": \"<time>\", \"workspaceId\": \"<id:1>\"}}\n",
+            "{\"out\": {\"id\": 2, \"ok\": true, \"asked\": \"workspaces.list\", \"at\": \"<time>\", \"workspaceId\": \"<ws-1>\"}}\n",
             "{\"out\": {\"type\": \"status.changed\"}}\n",
             "```\n\nNot a tape:\n\n```json\n{\"in\": {\"op\": \"nothing\"}}\n```\n\n",
             "```tape\n{\"meta\": {\"door\": \"cli\"}}\n{\"in\": {\"argv\": [\"projects\", \"--json\"]}}\n```\n",
@@ -178,21 +178,51 @@ fn a_seeded_replay_that_breaks_says_its_seed_and_the_same_seed_draws_the_same_or
 #[test]
 fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
     let mut facts = Facts::default();
-    facts.add("/tmp/wsp-parity-abc", "<tmp>");
+    facts.add_folder("/tmp/wsp-parity-abc", "<tmp>");
     facts.add("lab-box", "<computer>");
     let replies = [
         json!({ "id": 1, "workspaceId": "ws_9f8e7d6c", "home": "/tmp/wsp-parity-abc/home", "at": 1_761_382_800_000_u64, "name": "lab-box" }),
         json!({ "id": 2, "line": "ws_9f8e7d6c and 123e4567-e89b-12d3-a456-426614174000 at 2026-10-25T09:00:00Z", "diskFreeBytes": 7 }),
+        json!({ "id": 3, "hostPublicKey": "MCowBQYDK2VwAyEAspCWzRXZPeML+erN7EBimqx0zAKlhQt0JqljKMWhAWM=", "bin": "/usr/local/lib/node_modules/wsp/dist/bin.js" }),
+        json!({
+            "id": 4,
+            "line": "wsp join http://127.0.0.1:38729 --code 6K1A-YZD5.SHA256:4V/2FMknEFkP6jIF7509y/JUeWWkhyIlp1bnAsKCXeI",
+            "code": "BYB7YQKX",
+            "port": 38753,
+            "ssh": { "port": 2222, "url": "http://127.0.0.1:4400" },
+            "exit": { "code": 0 },
+            "warn": "(node:257409) ExperimentalWarning",
+            "defaults": { "pr_1a9e73bb": 1 },
+            "memoryDir": "/x/-tmp-wsp-parity-abc-scratch/memory",
+            "ephemeral": "YAXNDdzLsQUIvQVHrmiGLyab+fuchUyNDr+xfMlDgXs=",
+            "table": "here  8      31 GB   163.1 GB   none\nup 502ms",
+            "stdout": "{\"diskFreeBytes\":1,\"name\":\"lab-box\"}\n{\"ok\":true}\n",
+        }),
     ];
     let got = canonical(&replies, &[json!({ "workspaceId": "ws_00000000" })], &facts);
     assert_eq!(
         got,
         json!({
             "replies": [
-                { "id": 1, "workspaceId": "<id:1>", "home": "<tmp>/home", "at": "<time>", "name": "<computer>" },
-                { "id": 2, "line": "<id:1> and <id:2> at <time>", "diskFreeBytes": "<machine>" },
+                { "id": 1, "workspaceId": "<ws-1>", "home": "<tmp>/home", "at": "<time>", "name": "<computer>" },
+                { "id": 2, "line": "<ws-1> and <uuid-1> at <time>", "diskFreeBytes": "<machine>" },
+                { "id": 3, "hostPublicKey": "<id-1>", "bin": "/usr/local/lib/node_modules/wsp/dist/bin.js" },
+                {
+                    "id": 4,
+                    "line": "wsp join http://127.0.0.1:<port> --code <id-2>.<id-3>",
+                    "code": "<code>",
+                    "port": "<port>",
+                    "ssh": { "port": 2222, "url": "http://127.0.0.1:4400" },
+                    "exit": { "code": 0 },
+                    "warn": "(node:<pid>) ExperimentalWarning",
+                    "defaults": { "<pr-1>": 1 },
+                    "memoryDir": "/x/<tmp-dashed>-scratch/memory",
+                    "ephemeral": "<id-4>",
+                    "table": "here  8  <reading>  <reading>  none\nup <reading>",
+                    "stdout": { "jsonLines": [{ "diskFreeBytes": "<machine>", "name": "<computer>" }, { "ok": true }] },
+                },
             ],
-            "events": [{ "workspaceId": "<id>" }],
+            "events": [{ "workspaceId": "<ws>" }],
         })
     );
     let _: Value = got;
