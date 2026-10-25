@@ -22,8 +22,8 @@ use crate::errors::{far_end_answered, is_missing, EngineError, Result};
 use crate::labels::NAME_LABEL;
 use crate::machine::{
     BackendOffers, BackendPricing, BaseTemplates, Capabilities, CloudLimits, Lifecycle, LifecycleBudgets, Machine, MachineBackend,
-    MachineKind, MachineListRow, MachineSpec, MachineState, NamedMachine, ProviderBoxState, RootDisk, Seen, Size, SnapshotRow,
-    TemplateRow, Waiting,
+    MachineKind, MachineListRow, MachineSpec, MachineState, NamedMachine, ProviderBoxState, RootDisk, Seen, Size, SnapshotRow, TemplateRow,
+    Waiting,
 };
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::wire::capabilities::{MachineSizeOffer, PauseMode, WorkspaceSize};
@@ -39,6 +39,9 @@ pub struct PostedCreate {
     pub sandbox: BoxView,
     pub lost: Option<String>,
 }
+
+/// A page reader's stop test: it has what it wanted once this answers true.
+type Enough<'a> = Option<&'a dyn Fn(&[Value]) -> bool>;
 
 impl BoxBackend {
     /// box-backend.ts:543. The classes the plan sells off the last read of /limits; every class before the first.
@@ -106,8 +109,8 @@ impl BoxBackend {
             match self.request("POST", "/sandboxes", opts).await {
                 Ok(answer) => {
                     let status = answer.get("status").and_then(Value::as_str).map(str::to_string);
-                    let sandbox: BoxView = serde_json::from_value(answer.get("sandbox").cloned().unwrap_or(Value::Null))
-                        .map_err(|e| other(e.to_string()))?;
+                    let sandbox: BoxView =
+                        serde_json::from_value(answer.get("sandbox").cloned().unwrap_or(Value::Null)).map_err(|e| other(e.to_string()))?;
                     return Ok(PostedCreate { status, sandbox, lost });
                 }
                 Err(e) => {
@@ -219,14 +222,7 @@ impl BoxBackend {
             self.request("PATCH", &path, RequestOpts { body: Some(json!({ "name": name })), ..RequestOpts::default() }).await?;
         }
         let seen = Seen { state, created_at: posted.sandbox.created_at.clone(), paused_at: None };
-        Ok(Some(BoxMachine::new(
-            self.clone(),
-            &posted.sandbox.id,
-            MachineKind::Sandbox,
-            box_labels(name.as_deref()),
-            Some(seen),
-            true,
-        )))
+        Ok(Some(BoxMachine::new(self.clone(), &posted.sandbox.id, MachineKind::Sandbox, box_labels(name.as_deref()), Some(seen), true)))
     }
 
     /// box-backend.ts:894.
@@ -237,7 +233,8 @@ impl BoxBackend {
             if !names.contains(name) || out.contains_key(&b.id) {
                 continue;
             }
-            let machine = NamedMachine { id: b.id.clone(), name: name.clone(), state: state_of(&b.state), created_at: b.created_at.clone() };
+            let machine =
+                NamedMachine { id: b.id.clone(), name: name.clone(), state: state_of(&b.state), created_at: b.created_at.clone() };
             out.insert(b.id.clone(), machine);
         }
         Ok(out.into_values().collect())
@@ -253,13 +250,7 @@ impl BoxBackend {
     }
 
     /// box-backend.ts:917. Every row of a cursor-paged listing, 200 a page, until no cursor or `enough` says so.
-    pub async fn pages(
-        &self,
-        path: &str,
-        rows_key: &str,
-        query: &[(&str, &str)],
-        enough: Option<&(dyn Fn(&[Value]) -> bool)>,
-    ) -> Result<Vec<Value>> {
+    pub async fn pages(&self, path: &str, rows_key: &str, query: &[(&str, &str)], enough: Enough<'_>) -> Result<Vec<Value>> {
         let mut out: Vec<Value> = Vec::new();
         let mut cursor: Option<String> = None;
         loop {
@@ -315,11 +306,11 @@ impl BoxBackend {
             Vec::new()
         } else {
             let seen = |read: &[Value]| {
-                wanted.as_ref().is_some_and(|w| {
-                    w.iter().all(|id| read.iter().any(|s| s.get("id").and_then(Value::as_str) == Some(id.as_str())))
-                })
+                wanted
+                    .as_ref()
+                    .is_some_and(|w| w.iter().all(|id| read.iter().any(|s| s.get("id").and_then(Value::as_str) == Some(id.as_str()))))
             };
-            let enough: Option<&dyn Fn(&[Value]) -> bool> = if wanted.is_some() { Some(&seen) } else { None };
+            let enough: Enough<'_> = if wanted.is_some() { Some(&seen) } else { None };
             self.pages("/snapshots", "snapshots", &[], enough).await?
         };
         let mut rows: Vec<SnapshotRow> = named

@@ -247,7 +247,9 @@ pub fn road_words(e: &EngineError) -> String {
 fn cause_code(e: &EngineError) -> Option<&str> {
     match e {
         EngineError::Road(r) => r.cause.as_ref().and_then(|c| c.code.as_deref()),
-        EngineError::MoveUnanswered { cause, .. } | EngineError::ResumeUnanswered { cause, .. } => cause.as_deref().and_then(EngineError::code),
+        EngineError::MoveUnanswered { cause, .. } | EngineError::ResumeUnanswered { cause, .. } => {
+            cause.as_deref().and_then(EngineError::code)
+        }
         EngineError::Unreached { cause, .. } => cause.code(),
         _ => None,
     }
@@ -666,15 +668,16 @@ impl BoxBackend {
     }
 
     /// box-backend.ts:757. Reads the box until `done`, at the poll pace, inside `budget_ms`.
+    #[allow(clippy::too_many_arguments)]
     pub async fn settle(
         &self,
         id: &str,
-        done: &(dyn Fn(&BoxView) -> bool),
+        done: &dyn Fn(&BoxView) -> bool,
         budget_ms: u64,
         what: &str,
         signal: Option<&Cancel>,
         name: Option<&str>,
-        seen: Option<&(dyn Fn(&BoxView))>,
+        seen: Option<&dyn Fn(&BoxView)>,
     ) -> Result<BoxView> {
         let started = self.shared.clock.now();
         loop {

@@ -13,10 +13,11 @@ use super::plan::{
     FILE_GET_MAX, FILE_PUT_MAX, FIREWALL_HOLD_MS, FIREWALL_WATCH_MS,
 };
 use super::request::{
-    encode_uri_component, still_restoring, stop_refusal_of, BoxBackend, BoxView, CommandView, NamedSnapshotView, RequestOpts, DISK_EXPIRED_CODE,
+    encode_uri_component, still_restoring, stop_refusal_of, BoxBackend, BoxView, CommandView, NamedSnapshotView, RequestOpts,
+    DISK_EXPIRED_CODE,
 };
 use crate::errors::{EngineError, ErrorKind, Result};
-use crate::exec_detached::{exec_detached, DEADLINE_EXIT, DAEMON_ENV_FILE, INLINE_EXEC_MS};
+use crate::exec_detached::{exec_detached, DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS};
 use crate::golden_seam::EXEC_ENV;
 use crate::labels::NAME_LABEL;
 use crate::machine::{
@@ -37,10 +38,7 @@ use wsp_words::words::units::BOAT_DISK_GONE_LINE;
 /// box-backend.ts:1054. The script that writes the daemon's environment file under /etc, mode 0600.
 pub fn env_landing_script(envs: &IndexMap<String, String>) -> String {
     let dir = utf16::slice(DAEMON_ENV_FILE, 0, DAEMON_ENV_FILE.rfind('/').map(|i| i as i64));
-    let mut lines = vec![
-        format!("mkdir -p {}", shell_quote(&dir)),
-        format!("cat > {} <<'WSP_ENV'", shell_quote(DAEMON_ENV_FILE)),
-    ];
+    let mut lines = vec![format!("mkdir -p {}", shell_quote(&dir)), format!("cat > {} <<'WSP_ENV'", shell_quote(DAEMON_ENV_FILE))];
     for (name, value) in envs {
         let escaped: String = value.chars().flat_map(|c| if c == '\\' || c == '"' { vec!['\\', c] } else { vec![c] }).collect();
         lines.push(format!("{name}=\"{escaped}\""));
@@ -111,9 +109,11 @@ fn state_word(state: MachineState) -> &'static str {
 
 /// The stderr the loader's EMFILE line sits on: `/^(bash|sudo): error while loading shared libraries: .*: Error 24/m`.
 fn loader_emfile(stderr: &str) -> bool {
-    stderr
-        .split(['\n', '\r', '\u{2028}', '\u{2029}'])
-        .any(|line| ["bash", "sudo"].iter().any(|p| line.strip_prefix(&format!("{p}: error while loading shared libraries: ")).is_some_and(|rest| rest.contains(": Error 24"))))
+    stderr.split(['\n', '\r', '\u{2028}', '\u{2029}']).any(|line| {
+        ["bash", "sudo"].iter().any(|p| {
+            line.strip_prefix(&format!("{p}: error while loading shared libraries: ")).is_some_and(|rest| rest.contains(": Error 24"))
+        })
+    })
 }
 
 /// box-backend.ts:1108.
@@ -150,12 +150,8 @@ impl BoxMachine {
     pub async fn exec_inline(&self, cmd: &str, timeout_ms: u64, signal: Option<&Cancel>) -> Result<ExecResult> {
         let timeout_s = (timeout_ms as f64 / 1000.0).ceil().max(1.0) as u64;
         let body = json!({ "command": sudo_command(cmd), "timeoutSeconds": timeout_s });
-        let opts = RequestOpts {
-            body: Some(body),
-            cap_ms: Some(timeout_s * 1000 + 30_000),
-            signal: signal.cloned(),
-            ..RequestOpts::default()
-        };
+        let opts =
+            RequestOpts { body: Some(body), cap_ms: Some(timeout_s * 1000 + 30_000), signal: signal.cloned(), ..RequestOpts::default() };
         let path = self.path("/commands");
         let raw = self
             .backend
@@ -234,7 +230,11 @@ impl BoxMachine {
         let opts = RequestOpts { body: Some(body), signal: signal.cloned(), ..RequestOpts::default() };
         if let Err(e) = self.backend.request("POST", &self.path("/resume"), opts).await {
             if e.code() == Some(DISK_EXPIRED_CODE) {
-                return Err(EngineError::DiskGone { machine_id: self.id.clone(), line: BOAT_DISK_GONE_LINE.to_string(), said: e.to_string() });
+                return Err(EngineError::DiskGone {
+                    machine_id: self.id.clone(),
+                    line: BOAT_DISK_GONE_LINE.to_string(),
+                    said: e.to_string(),
+                });
             }
             return Err(self.backend.start_refused(e, self.labels.as_ref().and_then(|l| l.get(NAME_LABEL)).map(String::as_str)).await);
         }
@@ -265,9 +265,10 @@ impl BoxMachine {
         let started = self.backend.clock().now();
         loop {
             self.backend.clock().sleep(budgets.poll_ms).await;
-            let raw = self.backend.request("GET", &format!("/named-snapshots/{}", encode_uri_component(&saved)), RequestOpts::default()).await?;
-            let snapshot: NamedSnapshotView =
-                serde_json::from_value(raw.get("snapshot").cloned().unwrap_or(Value::Null)).map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
+            let raw =
+                self.backend.request("GET", &format!("/named-snapshots/{}", encode_uri_component(&saved)), RequestOpts::default()).await?;
+            let snapshot: NamedSnapshotView = serde_json::from_value(raw.get("snapshot").cloned().unwrap_or(Value::Null))
+                .map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
             if snapshot.status == "ready" {
                 return Ok(saved);
             }
@@ -303,7 +304,8 @@ impl BoxMachine {
             }
             if view.state != "archiving" {
                 let said = stop_refusal_of(&view);
-                self.backend.warn(&format!("{}: pause did not take: the provider left it {} and refused the stop: {said}", self.id, view.state));
+                self.backend
+                    .warn(&format!("{}: pause did not take: the provider left it {} and refused the stop: {said}", self.id, view.state));
                 return Err(EngineError::stop_refused(&self.id, &said));
             }
             let elapsed = self.backend.clock().now() - started;
@@ -351,14 +353,15 @@ impl BoxMachine {
             self.backend.clock().sleep(wait).await;
         }
         let detail = if said.is_empty() { String::new() } else { format!(" ({said})") };
-        self.backend.warn(&format!("{}: the firewall did not hold a rule for port {port}{detail}; the route is minted without one", self.id));
+        self.backend
+            .warn(&format!("{}: the firewall did not hold a rule for port {port}{detail}; the route is minted without one", self.id));
         Ok(())
     }
 
     /// Whether the guest's firewall stands a rule for the port: one `ufw status` read, a failed read is not standing.
     async fn port_standing(&self, port: u16) -> bool {
         let cmd = format!("ufw status | grep -q '^{port}/tcp '");
-        self.exec(&cmd, ExecOptions::default()).await.map_or(false, |res| res.exit_code.get() == 0)
+        self.exec(&cmd, ExecOptions::default()).await.is_ok_and(|res| res.exit_code.get() == 0)
     }
 
     /// box-backend.ts:1393's straight road: one GET of the file, base64 as the endpoint answers it.
@@ -366,7 +369,8 @@ impl BoxMachine {
         let path = self.path(&format!("/files?path={}&encoding=base64", encode_uri_component(at)));
         let opts = RequestOpts { cap_ms: timeout_ms, ..RequestOpts::default() };
         let raw = self.backend.while_restoring(|| self.backend.request("GET", &path, opts.clone()), None).await?;
-        let read: CommandViewContent = serde_json::from_value(raw).map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
+        let read: CommandViewContent =
+            serde_json::from_value(raw).map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
         base64::engine::general_purpose::STANDARD
             .decode(read.content.unwrap_or_default())
             .map_err(|e| EngineError::Other { message: e.to_string(), code: None })
@@ -385,8 +389,21 @@ impl BoxMachine {
 /// box-backend.ts:1393's cut-and-join road for a file too big for one GET: cut into 4 MiB pieces under /tmp as root, each
 /// read back, the whole checked against the size. The caller removes the pieces either way.
 impl BoxMachine {
-    async fn read_pieces(&self, path: &str, size: f64, base: &str, names: &[String], quoted: &[String], timeout_ms: Option<u64>) -> Result<Vec<u8>> {
-        let cut_cmd = format!("split -b {FILE_GET_MAX} -d -a 4 {} {} && chmod 0644 {}", shell_quote(path), shell_quote(&format!("{base}.")), quoted.join(" "));
+    async fn read_pieces(
+        &self,
+        path: &str,
+        size: f64,
+        base: &str,
+        names: &[String],
+        quoted: &[String],
+        timeout_ms: Option<u64>,
+    ) -> Result<Vec<u8>> {
+        let cut_cmd = format!(
+            "split -b {FILE_GET_MAX} -d -a 4 {} {} && chmod 0644 {}",
+            shell_quote(path),
+            shell_quote(&format!("{base}.")),
+            quoted.join(" ")
+        );
         let cut = self.exec(&cut_cmd, ExecOptions::default()).await?;
         if cut.exit_code.get() != 0 {
             let detail = refusal_tail(&cut.stderr, &cut.stdout);
@@ -510,7 +527,10 @@ impl Machine for BoxMachine {
     }
     /// box-backend.ts:1423.
     async fn download_url(&self, _path: &str) -> Result<String> {
-        Err(EngineError::Other { message: "a box serves no signed download URL; its files come out through GET /files".to_string(), code: None })
+        Err(EngineError::Other {
+            message: "a box serves no signed download URL; its files come out through GET /files".to_string(),
+            code: None,
+        })
     }
     /// box-backend.ts:1427.
     async fn upload_url(&self, _path: &str) -> Result<String> {
@@ -631,5 +651,9 @@ fn random_hex(n: usize) -> String {
 /// `stderr.trim() || stdout.trim()`, the words a failed command names.
 fn refusal_tail(stderr: &str, stdout: &str) -> String {
     let err = js_trim(stderr);
-    if err.is_empty() { js_trim(stdout).to_string() } else { err.to_string() }
+    if err.is_empty() {
+        js_trim(stdout).to_string()
+    } else {
+        err.to_string()
+    }
 }
