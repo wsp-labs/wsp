@@ -693,15 +693,15 @@ impl Check for ThreadDefaults {
 /// A record with a patch's fields over it, read as JSON objects: a key the patch writes null is taken away, an absent
 /// one kept, any other value set (a key the record lacked goes after the ones it had). None when no key is left.
 /// `T` is the record (AgentDefaults, ProjectOverrides), `P` its patch (AgentDefaultsPatch, ProjectOverridesPatch),
-/// whose fields are double options so null and absent stay apart. A struct writes its own field order, so a record
-/// that must keep the order a patch left is a `Fields<T>` and goes through `Fields::patched`.
-pub fn patched_fields<T, P>(kept: Option<&T>, patch: &P) -> Option<T>
+/// whose fields are double options so null and absent stay apart. The result writes the keys in that order, where a
+/// struct would write its own.
+pub fn patched_fields<T, P>(kept: Option<&T>, patch: &P) -> Option<Fields<T>>
 where
     T: Serialize + serde::de::DeserializeOwned,
     P: Serialize,
 {
     let start = kept.map(|kept| object_of(kept)).unwrap_or_default();
-    serde_json::from_value(serde_json::Value::Object(merged(start, patch)?)).ok()
+    Fields::from_object(merged(start, patch)?)
 }
 
 fn object_of<T: Serialize>(record: &T) -> serde_json::Map<String, serde_json::Value> {
@@ -759,7 +759,10 @@ impl<T: Serialize + serde::de::DeserializeOwned> Fields<T> {
     /// `patchedFields` on a record: None when no key is left.
     pub fn patched<P: Serialize>(kept: Option<&Self>, patch: &P) -> Option<Self> {
         let start = kept.map(object_of).unwrap_or_default();
-        let next = merged(start, patch)?;
+        Self::from_object(merged(start, patch)?)
+    }
+
+    fn from_object(next: serde_json::Map<String, serde_json::Value>) -> Option<Self> {
         let keys = next.keys().cloned().collect();
         Some(Fields { value: serde_json::from_value(serde_json::Value::Object(next)).ok()?, keys })
     }
