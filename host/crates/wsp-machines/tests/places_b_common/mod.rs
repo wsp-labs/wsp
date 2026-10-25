@@ -595,6 +595,10 @@ impl LinkSocket for FakeSocket {
         0
     }
     fn off_close(&self, _id: u64) {}
+    /// Slice b's tests never attach a socket; a link they need goes in with `link()`.
+    fn connect(self: Rc<Self>, _seal: Option<wsp_store::keys::Seal>, _on_event: Rc<dyn Fn(&wsp_wire::wire::daemon_events::DaemonEvent)>) -> Rc<dyn DaemonReach> {
+        FakeReach::answering(vec![])
+    }
 }
 
 /// A link held for `place_id`, as places-a's attach leaves one; answers the socket and whether `seen` was cancelled.

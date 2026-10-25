@@ -23,7 +23,7 @@ use async_trait::async_trait;
 
 use super::context::PlaceDoorContext;
 use super::link::LinkRecords;
-use super::setup::SetupRecords;
+use super::setup::{RecordMove, SetupRecords};
 use super::types::{PlaceChallenge, PlaceLogin, PlaceRecord, PlaceResult, RowId, SudoVerb};
 
 /// A boxed local future: what a chain runs.
@@ -293,7 +293,7 @@ impl SetupRecords for PlaceRecordsArea {
     async fn record_of(&self, place_id: &str) -> PlaceResult<Option<PlaceRecord>> {
         todo!()
     }
-    async fn change(&self, place_id: &str, mv: Box<dyn FnOnce(&PlaceRecord) -> Option<PlaceRecord>>) -> PlaceResult<Option<PlaceRecord>> {
+    async fn change(&self, place_id: &str, mv: RecordMove) -> PlaceResult<Option<PlaceRecord>> {
         todo!()
     }
     async fn login_listed(&self, place_id: &str, agent: &str) -> PlaceResult<Option<PlaceRecord>> {
