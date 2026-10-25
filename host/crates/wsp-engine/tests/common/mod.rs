@@ -5,4 +5,5 @@
 pub mod fake_box;
 pub mod fake_clock;
 pub mod fake_machine;
+pub mod scene;
 pub mod warn;

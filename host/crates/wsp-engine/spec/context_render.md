@@ -26,7 +26,7 @@ The document, the short text, the skill, each agent's hooks, and the run that la
 
 ## apply_machine_context (:514). Never fails; nothing changes on the guest when it reports a failure.
 
-1. One exec of `probe_command(roots, path, shells)` with `timeout_ms = INLINE_EXEC_MS` (exec-detached, 30,000). An
+1. One exec of `probe_command(roots, path, shells)` with `timeout_ms = INLINE_EXEC_MS` (exec-detached, 20,000). An
    exec that fails: `failure = "probe failed: <message>"`. An answer without both markers:
    `"probe answered exit <code> without its markers"`. Either way `context` is empty and `summary` is
    `"not written (<failure>)"`.
