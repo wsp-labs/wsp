@@ -123,9 +123,8 @@ mod a_module_s_rebuild_on_a_branch_whose_lockfile_is_stale {
         assert_eq!(git(&app, &["status", "--porcelain"]), "");
     }
 
-    // Skipped in TS: it.skipIf(!onPath("cargo")), and cargo is not on the PATH of the shell the suite ran in.
+    // it.skipIf(!onPath("cargo")): the body returns early where cargo is not on PATH.
     #[test]
-    #[ignore = "skipped in TS when cargo is not on PATH"]
     fn cargo_s_refuses_it_and_leaves_cargo_lock_as_the_branch_holds_it() {
         let cargo = module("cargo");
         if !on_path("cargo") {

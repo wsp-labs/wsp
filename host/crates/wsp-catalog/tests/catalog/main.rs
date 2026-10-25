@@ -243,21 +243,9 @@ fn tool_row(name: &str, version: Option<&str>) -> ToolRow {
 }
 
 fn sentences(text: &str) -> Vec<String> {
-    let mut out = vec![];
-    let mut current = String::new();
-    for word in text.split(' ') {
-        if !current.is_empty() {
-            current.push(' ');
-        }
-        current.push_str(word);
-        if word.ends_with('.') {
-            out.push(std::mem::take(&mut current));
-        }
-    }
-    if !current.is_empty() {
-        out.push(current);
-    }
-    out
+    let parts: Vec<&str> = text.split(". ").collect();
+    let last = parts.len() - 1;
+    parts.iter().enumerate().map(|(i, p)| if i < last { format!("{p}.") } else { p.to_string() }).collect()
 }
 
 struct SeedFiles {
