@@ -10,7 +10,7 @@
       "id": 2,
       "ok": true,
       "code": "<code-1>",
-      "expiresAt": "<time+10m>",
+      "expiresAt": "<time+10m in ms>",
       "hostKey": "<id-1>"
     },
     {

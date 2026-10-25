@@ -1222,7 +1222,8 @@
             "commands": [],
             "signIns": []
           }
-        ]
+        ],
+        "layout": "<json>\n"
       },
       "stderr": "Reading this computer against the catalog and your agents' session histories. Nothing leaves this computer.\nClaude Code: no history here\nCodex: no history here\nGemini CLI: no reader for its history yet\nOpenCode: no reader for its history yet\nPi: no reader for its history yet\nHermes Agent: no history here\nCrush: no reader for its history yet\nQwen Code: no reader for its history yet\nGoose: no reader for its history yet\nAmp: no reader for its history yet\nCursor: no reader for its history yet\n"
     }

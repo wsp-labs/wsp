@@ -9,7 +9,7 @@
     {
       "id": 2,
       "ok": false,
-      "error": "no such workspace: <ws-1>",
+      "error": "no such workspace: ws_00000001",
       "kind": "not-found"
     }
   ],

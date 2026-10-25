@@ -9,7 +9,7 @@
     {
       "id": 2,
       "ok": false,
-      "error": "<p-1> is not answering; it connects on its own when it is on"
+      "error": "p_00000001 is not answering; it connects on its own when it is on"
     },
     {
       "id": 3,
@@ -29,7 +29,7 @@
     {
       "id": 6,
       "ok": false,
-      "error": "<p-1> is not answering; it connects on its own when it is on"
+      "error": "p_00000001 is not answering; it connects on its own when it is on"
     }
   ],
   "events": []

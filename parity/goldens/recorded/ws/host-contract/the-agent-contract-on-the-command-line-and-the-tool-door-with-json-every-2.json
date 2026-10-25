@@ -15,7 +15,7 @@
     {
       "id": 3,
       "ok": false,
-      "error": "no project \"<pr-1>\"",
+      "error": "no project \"pr_00000001\"",
       "kind": "usage"
     },
     {

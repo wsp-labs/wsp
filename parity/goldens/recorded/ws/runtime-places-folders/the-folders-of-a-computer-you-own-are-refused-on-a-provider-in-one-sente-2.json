@@ -21,7 +21,7 @@
     {
       "id": 4,
       "ok": false,
-      "error": "no place named <p-1>; you have <computer>",
+      "error": "no place named p_00000001; you have <computer>",
       "kind": "usage"
     }
   ],

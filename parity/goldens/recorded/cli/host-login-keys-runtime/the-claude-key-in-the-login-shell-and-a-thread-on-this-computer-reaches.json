@@ -3,7 +3,7 @@
     {
       "exit": 3,
       "stdout": "",
-      "stderr": "starting the host for <tmp>/scratch/wsp-login-keys-<temp>/home/state.json; its log is <tmp>/scratch/wsp-login-keys-<temp>/home/host.log, and wsp down stops it\nwsp exec: no thread <uuid-1>\n"
+      "stderr": "starting the host for <tmp>/scratch/wsp-login-keys-<temp>/home/state.json; its log is <tmp>/scratch/wsp-login-keys-<temp>/home/host.log, and wsp down stops it\nwsp exec: no thread 00000000-0000-4000-8000-000000000001\n"
     }
   ],
   "events": []

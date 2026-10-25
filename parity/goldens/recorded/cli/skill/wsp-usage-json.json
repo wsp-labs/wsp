@@ -12,108 +12,109 @@
               "rows": [],
               "series": [
                 {
-                  "t": "<day>",
+                  "t": "<day in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 01:00>",
+                  "t": "<day 01:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 02:00>",
+                  "t": "<day 02:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 03:00>",
+                  "t": "<day 03:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 04:00>",
+                  "t": "<day 04:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 05:00>",
+                  "t": "<day 05:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 06:00>",
+                  "t": "<day 06:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 07:00>",
+                  "t": "<day 07:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 08:00>",
+                  "t": "<day 08:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 09:00>",
+                  "t": "<day 09:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 10:00>",
+                  "t": "<day 10:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 11:00>",
+                  "t": "<day 11:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 12:00>",
+                  "t": "<day 12:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 13:00>",
+                  "t": "<day 13:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 14:00>",
+                  "t": "<day 14:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 15:00>",
+                  "t": "<day 15:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 16:00>",
+                  "t": "<day 16:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 17:00>",
+                  "t": "<day 17:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 18:00>",
+                  "t": "<day 18:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 19:00>",
+                  "t": "<day 19:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 20:00>",
+                  "t": "<day 20:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 21:00>",
+                  "t": "<day 21:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 22:00>",
+                  "t": "<day 22:00 in ms>",
                   "tokens": 0
                 },
                 {
-                  "t": "<day 23:00>",
+                  "t": "<day 23:00 in ms>",
                   "tokens": 0
                 }
               ],
               "lines": [],
-              "since": "<day>",
-              "until": "<day+1>"
+              "since": "<day in ms>",
+              "until": "<day+1 in ms>"
             }
           }
-        ]
+        ],
+        "layout": "<json>\n"
       },
       "stderr": ""
     }

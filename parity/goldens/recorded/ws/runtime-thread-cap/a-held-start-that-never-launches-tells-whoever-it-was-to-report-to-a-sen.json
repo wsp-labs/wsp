@@ -52,7 +52,7 @@
     {
       "id": 3,
       "ok": false,
-      "error": "no thread <uuid-1> in this folder"
+      "error": "no thread 00000000-0000-4000-8000-000000000001 in this folder"
     }
   ],
   "events": []

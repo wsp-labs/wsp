@@ -9,7 +9,7 @@
     {
       "id": 2,
       "ok": false,
-      "error": "no place named <p-1>; you have <computer>",
+      "error": "no place named p_00000001; you have <computer>",
       "kind": "usage"
     },
     {
@@ -21,14 +21,14 @@
     {
       "id": 4,
       "ok": false,
-      "error": "no place named <p-1>; you have <computer>",
+      "error": "no place named p_00000001; you have <computer>",
       "kind": "usage"
     },
     {
       "id": 5,
       "ok": true,
       "ticket": "<id-1>",
-      "expiresAt": "<time+5m>"
+      "expiresAt": "<time+5m in ms>"
     },
     {
       "id": 6,
@@ -49,19 +49,19 @@
       "id": 9,
       "ok": true,
       "code": "<code-1>",
-      "expiresAt": "<time+10m>",
+      "expiresAt": "<time+10m in ms>",
       "hostKey": "<id-2>"
     },
     {
       "id": 10,
       "ok": false,
-      "error": "no place named <p-1>; you have <computer>",
+      "error": "no place named p_00000001; you have <computer>",
       "kind": "usage"
     },
     {
       "id": 11,
       "ok": false,
-      "error": "no place named <p-1>; you have <computer>",
+      "error": "no place named p_00000001; you have <computer>",
       "kind": "usage"
     }
   ],

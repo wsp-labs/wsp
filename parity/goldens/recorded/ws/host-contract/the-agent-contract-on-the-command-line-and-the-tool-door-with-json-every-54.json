@@ -14,7 +14,7 @@
     {
       "id": 3,
       "ok": false,
-      "error": "no thread <id-1>",
+      "error": "no thread 00000000",
       "kind": "not-found"
     }
   ],

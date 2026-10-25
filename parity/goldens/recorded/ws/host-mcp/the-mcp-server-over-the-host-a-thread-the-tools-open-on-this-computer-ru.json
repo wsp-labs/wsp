@@ -15,7 +15,7 @@
     {
       "id": 3,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     },
     {
@@ -525,7 +525,7 @@
     {
       "id": 6,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     },
     {
@@ -537,7 +537,7 @@
     {
       "id": 8,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     },
     {
@@ -1041,7 +1041,7 @@
     {
       "id": 10,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     },
     {
@@ -1053,7 +1053,7 @@
     {
       "id": 12,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     },
     {
@@ -1557,7 +1557,7 @@
     {
       "id": 14,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     },
     {
@@ -1569,7 +1569,7 @@
     {
       "id": 16,
       "ok": false,
-      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "error": "no project \"pr_00000001\"; wsp add <folder> records one",
       "kind": "not-found"
     },
     {

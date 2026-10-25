@@ -14,19 +14,19 @@
     {
       "id": 3,
       "ok": false,
-      "error": "no such workspace: <ws-1>",
+      "error": "no such workspace: ws_00000001",
       "kind": "not-found"
     },
     {
       "id": 4,
       "ok": false,
-      "error": "no such workspace: <ws-1>",
+      "error": "no such workspace: ws_00000001",
       "kind": "not-found"
     },
     {
       "id": 5,
       "ok": false,
-      "error": "no such workspace: <ws-1>",
+      "error": "no such workspace: ws_00000001",
       "kind": "not-found"
     },
     {
@@ -38,7 +38,7 @@
     {
       "id": 7,
       "ok": false,
-      "error": "no such workspace: <ws-1>",
+      "error": "no such workspace: ws_00000001",
       "kind": "not-found"
     }
   ],
