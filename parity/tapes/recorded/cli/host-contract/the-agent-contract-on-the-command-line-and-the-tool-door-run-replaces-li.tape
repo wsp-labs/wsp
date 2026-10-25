@@ -1,2 +1,2 @@
 {"meta":{"door":"cli","source":"packages/host/test/contract.test.ts > the agent contract on the command line and the tool door > run --replaces links a restart to the thread it replaced and settles that one; a working thread and one a token does not reach exit 3"}}
-{"in":{"argv":["run","--beside","fd88e4dd-4e61-4157-8a68-7208b4be2beb","--detach","ask before running","--json","--state","<run>/wsp-contract-sZ6LIK/state/state.json"]}}
+{"in":{"argv":["run","--beside","00000000-0000-4000-8000-000000000001","--replaces","00000000-0000-4000-8000-000000000002","--detach","again","--json","--state","<run>/wsp-contract-000001/state/state.json"]}}

@@ -1,5 +1,3 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/box-panels.test.ts > the readings of a computer the person joined, read by its page and a folder's panes at once > share the one watch with a channel to that computer, whose sys.unwatch never goes up the link under another reader"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"placeId":"p_250acdeacc9d8407","id":2,"op":"daemon.open"}}
-{"in":{"channel":"a06ea4157c11","frame":{"op":"sys.watch"},"id":3,"op":"daemon.send"}}
-{"in":{"channel":"a06ea4157c11","frame":{"op":"sys.unwatch"},"id":4,"op":"daemon.send"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/box-panels.test.ts > the readings of a computer the person joined, read by its page and a folder's panes at once > stop with sys.unwatch on a daemon a version behind this host, which takes it"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAFQ8laxwSnPsEi4nW06fYwv/pK6wcKTUJy5WSJRdVsh4=","nonce":"8HNkCG2aQUUjtSoVrheNN0j7MQHkMXhiezIa/27gBaU=","ephemeral":"2qx60IUUhe8tiarowO0cZNI2zyvUC+gMIbhmKekxuWo=","id":1,"op":"place.join"}}
+{"in":{"signature":"X02HcbRftzHoIbaQXmX/T/xrUj7c1zT/7xgoflTAHofpD/wMrx7JBoavSTC2DicIHWDWgUk5zU6e4Yg8thjqBg==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":166,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}

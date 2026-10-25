@@ -2,4 +2,4 @@
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"in":{"id":2,"op":"sessions.list"}}
 {"in":{"id":3,"op":"workspaces.list"}}
-{"in":{"threadId":"5cd3f30c-ff49-4825-9b23-ee6b1c67c9ec","processes":"ask","check":true,"id":4,"op":"sessions.delete"}}
+{"in":{"threadId":"00000000-0000-4000-8000-000000000019","processes":"ask","check":true,"id":4,"op":"sessions.delete"}}

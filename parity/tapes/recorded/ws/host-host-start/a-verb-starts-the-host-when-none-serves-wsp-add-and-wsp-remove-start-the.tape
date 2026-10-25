@@ -2,4 +2,4 @@
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"in":{"id":2,"op":"places.list"}}
 {"in":{"id":3,"op":"events.subscribe"}}
-{"in":{"source":"<run>/wsp-start-repo-NvYTZw","id":4,"op":"projects.add"}}
+{"in":{"source":"<run>/wsp-start-repo-000001","id":4,"op":"projects.add"}}

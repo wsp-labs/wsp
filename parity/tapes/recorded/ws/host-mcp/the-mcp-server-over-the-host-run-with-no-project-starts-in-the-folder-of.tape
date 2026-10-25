@@ -3,4 +3,4 @@
 {"in":{"id":2,"op":"projects.list"}}
 {"in":{"id":3,"op":"harnesses.list"}}
 {"in":{"id":4,"op":"events.subscribe"}}
-{"in":{"project":"pr_64dad8fb","prompt":"hello from the repo","followed":true,"startedBy":"agent","requestId":"e5a0ccfe-d68d-4b8a-a4bb-9e5054e09d14","answerHeld":true,"id":5,"op":"sessions.start"}}
+{"in":{"project":"pr_00000002","prompt":"hello from the repo","followed":true,"startedBy":"agent","requestId":"00000000-0000-4000-8000-000000000002","answerHeld":true,"id":5,"op":"sessions.start"}}

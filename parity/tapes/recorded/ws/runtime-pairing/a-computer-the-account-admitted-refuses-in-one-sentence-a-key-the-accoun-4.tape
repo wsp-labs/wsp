@@ -1,3 +1,3 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > refuses in one sentence a key the account does not list, a computer no admission names, an admission signed by a key it does not trust and one whose signature does not stand"}}
-{"in":{"nonce":"48IkcJ36Uboz1JnatB5l2Uics7dK7adsR2dG79cYMs8=","ephemeral":"YDHQq9luVHzXgfbdIcbg+w1tqaQu4yWIEtbCzCVvJ3A=","id":1,"op":"seal.open"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEApTv9kgmIntS3MwV8KeCeRqCjLXF3+ORVPfaNDc+8jU4=","name":"the mac","signature":"qCxxR84BIaztAikTxgQOB53eiv2bAMF8y7e6yaoY/nBbhQcUaU+2ti+ia2HNmMEyrfwyVQQ1e/YiaoIwP3KfAw==","id":2,"op":"device.auth"}}
+{"in":{"nonce":"cV6Qp9YN8Tt4ewltio4hPGLjJ2a5D+waoxL1/j+INs8=","ephemeral":"vQUMV+rpOnWM4kS9hCUg6Ga7TFUfsdDwy52CXpPIKg4=","id":1,"op":"seal.open"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAxFmotHu7nXiKuoT4vNsLVj+Zw7qHbNEM1jI4OvPO8jQ=","name":"the mac","signature":"Hbr9mHhHOS+nHfkvcERJ3C15MwHLB6QjRXjy0WSmNdDJVltFJtx6XNfQaTxUlf6QuPUH1ki190dS38no+Yz+Cw==","id":2,"op":"device.auth"}}

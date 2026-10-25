@@ -2,4 +2,4 @@
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"in":{"id":2,"op":"harnesses.list"}}
 {"in":{"id":3,"op":"events.subscribe"}}
-{"in":{"prompt":"look around","startedBy":"cli","requestId":"5be40681-9a53-4bd2-a621-5ef26bb1cfbf","answerHeld":true,"id":4,"op":"sessions.start"}}
+{"in":{"prompt":"look around","startedBy":"cli","requestId":"00000000-0000-4000-8000-000000000002","answerHeld":true,"id":4,"op":"sessions.start"}}

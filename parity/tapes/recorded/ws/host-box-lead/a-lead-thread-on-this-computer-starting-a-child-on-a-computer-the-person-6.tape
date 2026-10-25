@@ -1,4 +1,3 @@
-{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > the lead naming its child there to commit or exec is told that thread works in a folder it cannot act on, with the message road, never as no such workspace"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"id":2,"op":"sessions.list"}}
-{"in":{"workspaceId":"ws_47f6badd","threadId":"8ccdd5d1-410b-44ac-9fcb-7f874064ff63","id":3,"op":"workspaces.get"}}
+{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > wsp run on the project of its repository there opens the child in that project's folder, under the lead, lists it, and wakes the lead at its end"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAaIoRANfL/d+qlMKj6lefKQUyrt3+Ke38herTAP0slQU=","nonce":"xvS4B2gzv2el+3CbpqiV9hrD9Clo7S3QDkjTwUYDoGU=","ephemeral":"dURDTZ64WqsOALCnZon+1C5s95eNst6C1me7O6TEZy8=","id":1,"op":"place.join"}}
+{"in":{"signature":"s8SKh2IwKbmowTk97H2r1BxQf0rZBuX3CT020Hf/5RvQHwOVY5eDMNEzM6pNYKMIZfNoVWJprjbDUUYen/UYBA==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}

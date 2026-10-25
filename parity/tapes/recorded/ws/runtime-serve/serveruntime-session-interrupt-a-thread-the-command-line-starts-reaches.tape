@@ -2,5 +2,5 @@
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"in":{"id":2,"op":"events.subscribe"}}
 {"in":{"source":"https://github.com/wsp/wire-10.git","on":"default","id":3,"op":"projects.add"}}
-{"in":{"project":"pr_d7720ae1","name":"x","golden":"snap_g","id":4,"op":"workspaces.create"}}
-{"in":{"workspaceId":"ws_f3cc9bf6","id":5,"op":"sessions.list"}}
+{"in":{"project":"pr_00000001","name":"x","golden":"snap_g","id":4,"op":"workspaces.create"}}
+{"in":{"workspaceId":"ws_00000002","id":5,"op":"sessions.list"}}

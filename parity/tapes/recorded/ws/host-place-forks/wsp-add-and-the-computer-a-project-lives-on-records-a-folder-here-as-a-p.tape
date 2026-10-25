@@ -2,4 +2,4 @@
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"in":{"id":2,"op":"places.list"}}
 {"in":{"id":3,"op":"events.subscribe"}}
-{"in":{"source":"<run>/wsp-place-here-PrLzwd","id":4,"op":"projects.add"}}
+{"in":{"source":"<run>/wsp-place-here-000002","id":4,"op":"projects.add"}}
