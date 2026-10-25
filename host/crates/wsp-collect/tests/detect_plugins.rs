@@ -332,10 +332,10 @@ async fn peeks_a_folders_names_two_levels_down_and_a_files_text_and_nothing_of_w
 mod pins {
     use super::*;
     use crate::common::fake_host::*;
-    use wsp_catalog::pending::{PluginBrings, PluginScope};
     use wsp_catalog::plugins::Peeked;
     use wsp_catalog::plugins::{FoundPlugin, PluginProject, PluginSkillDirs, RootsFrom};
     use wsp_collect::detect::plugins::{peek_line, peek_records, plugin_row, PEEK};
+    use wsp_wire::types::agents_report::{PluginBrings, PluginScope};
 
     fn groups() -> Vec<PeekGroup> {
         vec![

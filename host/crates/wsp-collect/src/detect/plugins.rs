@@ -5,10 +5,10 @@
 use futures::future::join_all;
 use indexmap::{IndexMap, IndexSet};
 use wsp_catalog::catalog::{catalog_agents, harness_line, AgentEntry};
-use wsp_catalog::pending::HostError;
 use wsp_catalog::plugins::{join_path, FoundPlugin, PeekGroup, Peeked, PluginIo, PluginProject, PluginShelf, PluginsFound};
-use wsp_wire::types::agents_report::{AgentsProject, PluginBrings, PluginMissing, PluginRow, PluginScope};
+use wsp_wire::types::agents_report::{AgentsProject, PluginRow};
 use wsp_wire::types::shell_quote::shell_quote;
+use wsp_words::exit::HostError;
 use wsp_words::js::js_trim_end;
 
 use crate::detect::tools::argv;
@@ -156,42 +156,13 @@ impl PluginIo for HostPluginIo<'_> {
         false
     }
     async fn edit(&self, _file: &str, _base: &str, _change: &dyn Fn(Option<&str>) -> Result<String, HostError>) -> Result<(), HostError> {
-        Err(HostError::plain("a plugin read never edits a file"))
+        Err(HostError::new("a plugin read never edits a file"))
     }
 }
 
 /// The module's view of the computer, for one agent: its files, and its lines run pointed at its store.
 pub fn plugin_io<'a>(host: &'a Host, agent: &str) -> HostPluginIo<'a> {
     HostPluginIo { host, agent: agent.to_string() }
-}
-
-fn wire_scope(s: wsp_catalog::pending::PluginScope) -> PluginScope {
-    match s {
-        wsp_catalog::pending::PluginScope::User => PluginScope::User,
-        wsp_catalog::pending::PluginScope::Project => PluginScope::Project,
-        wsp_catalog::pending::PluginScope::Local => PluginScope::Local,
-    }
-}
-
-fn wire_missing(m: wsp_catalog::pending::PluginMissing) -> PluginMissing {
-    match m {
-        wsp_catalog::pending::PluginMissing::Folder => PluginMissing::Folder,
-        wsp_catalog::pending::PluginMissing::Marketplace => PluginMissing::Marketplace,
-        wsp_catalog::pending::PluginMissing::Unlisted => PluginMissing::Unlisted,
-        wsp_catalog::pending::PluginMissing::Uninstalled => PluginMissing::Uninstalled,
-    }
-}
-
-fn wire_brings(b: &wsp_catalog::pending::PluginBrings) -> PluginBrings {
-    PluginBrings {
-        skills: b.skills.clone(),
-        commands: b.commands.clone(),
-        subagents: b.subagents.clone(),
-        hooks: b.hooks.clone(),
-        servers: b.servers.clone(),
-        lsp: b.lsp.clone(),
-        apps: b.apps.clone(),
-    }
 }
 
 /// The row's keys: `agent`, then the found plugin's own in its order less `skills`, with `project`, `path` and `setIn`
@@ -203,12 +174,12 @@ pub fn plugin_row(home: &str, agent: &str, p: &FoundPlugin) -> PluginRow {
         name: p.name.clone(),
         marketplace: p.marketplace.clone(),
         version: p.version.clone(),
-        scope: wire_scope(p.scope),
+        scope: p.scope,
         on: p.on,
-        missing: p.missing.map(wire_missing),
+        missing: p.missing,
         description: p.description.clone(),
         source: p.source.clone(),
-        brings: wire_brings(&p.brings),
+        brings: p.brings.clone(),
         project: p.project.as_ref().map(|pr| AgentsProject { id: pr.id.clone(), name: pr.name.clone(), path: tilde(home, &pr.path) }),
         path: p.path.as_deref().map(|x| tilde(home, x)),
         set_in: p.set_in.as_deref().map(|x| tilde(home, x)),
