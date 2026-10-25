@@ -78,11 +78,11 @@ mod a_machine_that_stopped_answering_with_its_memory_near_full {
         let offers = offers();
         assert_eq!(
             bigger_size_line(&size(json!({ "cpu": 2, "memMb": 4096 })), &offers),
-            "A thread on 2 vCPU, 8 GB ($0.15/hr) fits more; pick it when you start the next one",
+            "A thread on 2\u{a0}vCPU,\u{a0}8\u{a0}GB ($0.15/hr) fits more; pick it when you start the next one",
         );
         assert_eq!(
             bigger_size_line(&size(json!({ "cpu": 2, "memMb": 8192 })), &offers),
-            "A thread on 4 vCPU, 16 GB ($0.30/hr) fits more; pick it when you start the next one",
+            "A thread on 4\u{a0}vCPU,\u{a0}16\u{a0}GB ($0.30/hr) fits more; pick it when you start the next one",
         );
         assert_eq!(
             bigger_size_line(&size(json!({ "cpu": 4, "memMb": 16384 })), &offers),
@@ -92,7 +92,7 @@ mod a_machine_that_stopped_answering_with_its_memory_near_full {
         let mut reversed = offers.clone();
         reversed.reverse();
         let line = bigger_size_line(&size(json!({ "cpu": 2, "memMb": 4096 })), &reversed);
-        assert!(line.contains("2 vCPU, 8 GB"), "{line}");
+        assert!(line.contains("2\u{a0}vCPU,\u{a0}8\u{a0}GB"), "{line}");
     }
 }
 
@@ -441,6 +441,14 @@ mod pinned {
         serde_json::from_value(v).unwrap()
     }
 
+    fn catalog(v: serde_json::Value) -> wsp_wire::views::harness::HarnessCatalog {
+        let mut base = json!({ "models": [], "efforts": [], "contextWindows": [], "permissionModes": [], "steers": false, "renames": false, "images": false });
+        for (k, v) in v.as_object().unwrap() {
+            base[k] = v.clone();
+        }
+        wire(base)
+    }
+
     fn taken(names: &[&str]) -> indexmap::IndexSet<String> {
         names.iter().map(|n| n.to_string()).collect()
     }
@@ -495,16 +503,16 @@ mod pinned {
     fn codex_and_catalog_lines() {
         assert_eq!(codex_not_signed_in_line("codex login"), "Codex is not signed in where this thread runs; run codex login there"); // codexNotSignedInLine("codex login")
         assert_eq!(codex_missing_env_line("OPENAI_KEY"), "Codex's model provider reads its key from the environment variable OPENAI_KEY, which is not set on this machine"); // codexMissingEnvLine("OPENAI_KEY")
-        assert_eq!(catalog_source_line(&wire(json!({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"})), "spoo"), "Codex 0.153.0 on spoo"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"}, "spoo")
-        assert_eq!(no_models_line(&wire(json!({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"}))), "Codex reported no models"); // noModelsLine({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"})
-        assert_eq!(catalog_source_line(&wire(json!({"harness":"codex","label":"Codex","source":"harness","version":null})), "spoo"), "Codex on spoo"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"harness","version":null}, "spoo")
-        assert_eq!(no_models_line(&wire(json!({"harness":"codex","label":"Codex","source":"harness","version":null}))), "Codex reported no models"); // noModelsLine({"harness":"codex","label":"Codex","source":"harness","version":null})
-        assert_eq!(catalog_source_line(&wire(json!({"harness":"codex","label":"Codex","source":"table","version":null})), "spoo"), "codex table"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":null}, "spoo")
-        assert_eq!(no_models_line(&wire(json!({"harness":"codex","label":"Codex","source":"table","version":null}))), "No model in the Codex table"); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":null})
-        assert_eq!(catalog_source_line(&wire(json!({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"})), "spoo"), "codex gave nothing, pinned 0.150"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"}, "spoo")
-        assert_eq!(no_models_line(&wire(json!({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"}))), "No model in the Codex table"); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"})
-        assert_eq!(catalog_source_line(&wire(json!({"harness":"codex","label":"Codex","source":"table","version":"0.150"})), "spoo"), "codex table, 0.150"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":"0.150"}, "spoo")
-        assert_eq!(no_models_line(&wire(json!({"harness":"codex","label":"Codex","source":"table","version":"0.150"}))), "No model in the Codex table"); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":"0.150"})
+        assert_eq!(catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"})), "spoo"), "Codex 0.153.0 on spoo"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"}, "spoo")
+        assert_eq!(no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"}))), "Codex reported no models"); // noModelsLine({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"})
+        assert_eq!(catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":null})), "spoo"), "Codex on spoo"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"harness","version":null}, "spoo")
+        assert_eq!(no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":null}))), "Codex reported no models"); // noModelsLine({"harness":"codex","label":"Codex","source":"harness","version":null})
+        assert_eq!(catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":null})), "spoo"), "codex table"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":null}, "spoo")
+        assert_eq!(no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":null}))), "No model in the Codex table"); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":null})
+        assert_eq!(catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"})), "spoo"), "codex gave nothing, pinned 0.150"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"}, "spoo")
+        assert_eq!(no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"}))), "No model in the Codex table"); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"})
+        assert_eq!(catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":"0.150"})), "spoo"), "codex table, 0.150"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":"0.150"}, "spoo")
+        assert_eq!(no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":"0.150"}))), "No model in the Codex table"); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":"0.150"})
         assert_eq!(codex_reconnect_line(185000.0), "stopped after 3m 05s of Codex reconnecting to its model provider with no answer"); // codexReconnectLine(185000)
     }
 

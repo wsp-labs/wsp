@@ -13,7 +13,7 @@ use wsp_words::pull_request::*;
 
 fn fact() -> PullRequestFact {
     PullRequestFact {
-        number: 12,
+        number: 12.into(),
         url: "https://github.com/o/r/pull/12".to_string(),
         state: PullRequestState::Open,
         host: "github.com".to_string(),
@@ -26,10 +26,10 @@ fn fact() -> PullRequestFact {
         merge_state: "clean".to_string(),
         review: ReviewState::None,
         checks: vec![],
-        additions: 120,
-        deletions: 30,
-        changed_files: 9,
-        commits: 4,
+        additions: 120.into(),
+        deletions: 30.into(),
+        changed_files: 9.into(),
+        commits: 4.into(),
         behind_base: None,
         author: None,
         fork: None,
@@ -114,7 +114,7 @@ mod the_one_word_a_pull_request_reads_as {
     #[test]
     fn reads_merged_or_closed_off_what_the_record_kept_of_a_settled_one_which_is_no_fac() {
         let kept = PullRequestKept {
-            number: 12,
+            number: 12.into(),
             url: fact().url,
             state: PullRequestState::Merged,
             base: "main".to_string(),
@@ -274,7 +274,7 @@ mod the_message_that_asks_the_agent_to_fix_a_conflict_and_the_verbs_lines {
     #[test]
     fn says_what_each_verb_did_in_one_line() {
         // The TS object leaves autoArmed out; the wire type requires it.
-        let result = |merged: bool| MergeResult { number: 12, method: MergeMethod::Squash, merged, auto_armed: false };
+        let result = |merged: bool| MergeResult { number: 12.into(), method: MergeMethod::Squash, merged, auto_armed: false };
         assert_eq!(merged_line("pr-lab", &result(true)), "pr-lab: merged #12 (squash)");
         assert_eq!(merged_line("pr-lab", &result(false)), "pr-lab: #12 merges when its checks pass");
         assert_eq!(updated_line("pr-lab", "main", 4.0), "pr-lab: updated from main, 4 commits");
