@@ -45,8 +45,36 @@ impl FetchResponse {
     }
 }
 
+/// A response whose body is read chunk by chunk (vault.ts's download). `body` is `None` where fetch's `res.body` is
+/// null.
+pub struct FetchStream {
+    pub status: u16,
+    pub headers: Vec<(String, String)>,
+    pub body: Option<futures::stream::BoxStream<'static, Result<Vec<u8>, RoadError>>>,
+}
+
+impl FetchStream {
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
+    }
+    pub fn ok(&self) -> bool {
+        (200..300).contains(&self.status)
+    }
+}
+
 /// A fetch that rejects answers a [`RoadError`]: "fetch failed" with its cause, or a TimeoutError or AbortError.
 #[async_trait]
 pub trait Fetch: Send + Sync {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError>;
+    /// The same request with the body as a stream; by default the whole body as one chunk.
+    async fn fetch_stream(&self, req: FetchRequest) -> Result<FetchStream, RoadError> {
+        let res = self.fetch(req).await?;
+        let chunk: Result<Vec<u8>, RoadError> = Ok(res.body);
+        Ok(FetchStream { status: res.status, headers: res.headers, body: Some(Box::pin(futures::stream::iter(vec![chunk]))) })
+    }
+}
+
+/// `globalThis.fetch`: the platform's own HTTP client.
+pub fn platform_fetch() -> std::sync::Arc<dyn Fetch> {
+    todo!()
 }

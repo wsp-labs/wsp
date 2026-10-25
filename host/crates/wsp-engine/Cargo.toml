@@ -8,13 +8,18 @@ publish = false
 description = "The roads that build, fork and run machines: the backends, the errors they answer, and the lifecycle the runtime drives"
 
 [dependencies]
+aes-gcm = "0.10"
 async-trait = "0.1"
 base64 = "0.22"
 flate2 = "1"
 futures = "0.3"
 hex = "0.4"
+hkdf = "0.12"
 indexmap = { version = "2", features = ["serde"] }
+jiff = "0.2"
+libc = "0.2"
 rand = "0.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
@@ -22,6 +27,7 @@ thiserror = "2"
 tokio = { version = "1", features = ["process", "time", "io-util", "fs", "rt", "rt-multi-thread", "macros", "sync"] }
 tokio-util = "0.7"
 url = "2"
+x25519-dalek = { version = "2", features = ["static_secrets"] }
 wsp-catalog = { path = "../wsp-catalog" }
 wsp-wire = { path = "../wsp-wire" }
 wsp-words = { path = "../wsp-words" }

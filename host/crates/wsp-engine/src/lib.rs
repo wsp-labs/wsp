@@ -12,6 +12,7 @@ pub mod dotfiles_presets;
 pub mod drop_template;
 pub mod errors;
 pub mod fetch;
+pub mod golden_seam;
 pub mod exec_detached;
 pub mod fake_backend;
 pub mod key_check;

@@ -1,0 +1,244 @@
+{
+ "reads": {
+  "OS_READ": [
+   "printf \"pretty %s\\n\" \"$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release 2>/dev/null | head -1 | tr -d '\"')\"",
+   "printf \"mac %s\\n\" \"$(sw_vers -productVersion 2>/dev/null)\"",
+   "printf \"kernel %s %s\\n\" \"$(uname -s)\" \"$(uname -r)\""
+  ],
+  "UPTIME_READ": [
+   "printf \"uptime %s\\n\" \"$(cut -d' ' -f1 /proc/uptime 2>/dev/null)\"",
+   "printf \"boot %s\\n\" \"$(sysctl -n kern.boottime 2>/dev/null)\""
+  ],
+  "HOME_READ": "printf \"home %s\\n\" \"$HOME\"",
+  "SYSTEM_READ": "printf \"system %s\\n\" \"$(uname -s)\"",
+  "ARCH_READ": "printf \"arch %s\\n\" \"$(uname -m)\"",
+  "MEM_READ": "printf \"memkb %s\\n\" \"$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1024 )))\"",
+  "SHELL_READ": "shell=$(getent passwd \"$(id -un)\" 2>/dev/null | cut -d: -f7); shell=${shell##*/}; shell=${shell:-${SHELL##*/}}; shell=${shell:-bash}"
+ },
+ "readValues": [
+  {
+   "in": "",
+   "values": [],
+   "lists": []
+  },
+  {
+   "in": "kernel Linux 6.8.0\n",
+   "values": [
+    [
+     "kernel",
+     "Linux 6.8.0"
+    ]
+   ],
+   "lists": [
+    [
+     "kernel",
+     [
+      "Linux 6.8.0"
+     ]
+    ]
+   ]
+  },
+  {
+   "in": "a 1\na 2\nb \n b x\nnospace\n\nc  spaced  \r\n",
+   "values": [
+    [
+     "a",
+     "2"
+    ],
+    [
+     "b",
+     ""
+    ],
+    [
+     "c",
+     "spaced"
+    ]
+   ],
+   "lists": [
+    [
+     "a",
+     [
+      "1",
+      "2"
+     ]
+    ],
+    [
+     "b",
+     [
+      ""
+     ]
+    ],
+    [
+     "c",
+     [
+      "spaced"
+     ]
+    ]
+   ]
+  },
+  {
+   "in": "identityfile ~/.ssh/a\nidentityfile ~/.ssh/b\nuser x\n",
+   "values": [
+    [
+     "identityfile",
+     "~/.ssh/b"
+    ],
+    [
+     "user",
+     "x"
+    ]
+   ],
+   "lists": [
+    [
+     "identityfile",
+     [
+      "~/.ssh/a",
+      "~/.ssh/b"
+     ]
+    ],
+    [
+     "user",
+     [
+      "x"
+     ]
+    ]
+   ]
+  }
+ ],
+ "memMbOf": [
+  {
+   "in": "4128768",
+   "out": 4032
+  },
+  {
+   "in": "8060000",
+   "out": 7871
+  },
+  {
+   "in": "",
+   "out": null
+  },
+  {
+   "in": "0",
+   "out": null
+  },
+  {
+   "in": "-5",
+   "out": null
+  },
+  {
+   "in": "1e3",
+   "out": 1
+  },
+  {
+   "in": "0x10",
+   "out": 0
+  },
+  {
+   "in": "Infinity",
+   "out": null
+  },
+  {
+   "in": " 2048 ",
+   "out": 2
+  },
+  {
+   "in": "1536",
+   "out": 2
+  },
+  {
+   "in": "512",
+   "out": 1
+  },
+  {
+   "in": "abc",
+   "out": null
+  },
+  {
+   "in": "4128768.4",
+   "out": 4032
+  }
+ ],
+ "uptimeMsOf": [
+  {
+   "uptime": "96521.42",
+   "boot": "{ sec = 100, usec = 0 }",
+   "now": 200000,
+   "out": 96521420
+  },
+  {
+   "uptime": "",
+   "boot": "{ sec = 100, usec = 0 }",
+   "now": 200000,
+   "out": 100000
+  },
+  {
+   "uptime": "0",
+   "boot": "{ sec = 100, usec = 0 }",
+   "now": 200000,
+   "out": 0
+  },
+  {
+   "uptime": "  ",
+   "boot": "{ sec = 100, usec = 0 }",
+   "now": 200000,
+   "out": 0
+  },
+  {
+   "uptime": "abc",
+   "boot": "{ sec = 100, usec = 0 }",
+   "now": 200000,
+   "out": 100000
+  },
+  {
+   "uptime": "1e2",
+   "boot": "{ sec = 100, usec = 0 }",
+   "now": 200000,
+   "out": 100000
+  },
+  {
+   "uptime": "-3",
+   "boot": "{ sec = 100, usec = 0 }",
+   "now": 200000,
+   "out": -3000
+  },
+  {
+   "uptime": null,
+   "boot": "{ sec = 1789041249, usec = 855807 } Thu",
+   "now": 1789041249005,
+   "out": 5
+  },
+  {
+   "uptime": null,
+   "boot": "",
+   "now": 1789041249005,
+   "out": null
+  },
+  {
+   "uptime": null,
+   "boot": "sec = 0",
+   "now": 1789041249005,
+   "out": 1789041249005
+  },
+  {
+   "uptime": null,
+   "boot": "garbage",
+   "now": 1789041249005,
+   "out": null
+  }
+ ],
+ "archOf": [
+  {
+   "in": "",
+   "out": null
+  },
+  {
+   "in": "x86_64",
+   "out": "x86_64"
+  },
+  {
+   "in": null,
+   "out": null
+  }
+ ]
+}
