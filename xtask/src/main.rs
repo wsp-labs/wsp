@@ -96,6 +96,9 @@ const WRITABLE_ENV: &str = "WSP_PARITY_WRITABLE";
 const ROOT_ENV: &str = "WSP_PARITY_ROOT";
 /// The caller's folder, entered again inside once the mounts are made, so a path given relative to it still holds.
 const CWD_ENV: &str = "WSP_PARITY_CWD";
+/// What else the run reads in a folder the sandbox covers, split by colons: git's own folder, the held-back folder, the
+/// host it replays against.
+const KEEP_ENV: &str = "WSP_PARITY_KEEP";
 
 /// Whether this is the copy inside the sandbox.
 fn inside() -> bool {
@@ -179,7 +182,7 @@ fn node() -> Result<String, String> {
 /// the whole disk is read-only but `writable`, no socket of the computer answers, a frame that would reach a provider, a
 /// box or the relay is refused the same way every time, no process outside the run can be signalled, and everything the
 /// run started ends with it. Where there are no namespaces the run is refused unless --no-sandbox says to run here as is.
-fn sandboxed(root: &Path, no_sandbox: bool, writable: &[PathBuf]) -> Result<Option<ExitCode>, String> {
+fn sandboxed(root: &Path, no_sandbox: bool, writable: &[PathBuf], keep: &[PathBuf]) -> Result<Option<ExitCode>, String> {
     if inside() {
         return Ok(None);
     }
@@ -202,6 +205,10 @@ fn sandboxed(root: &Path, no_sandbox: bool, writable: &[PathBuf]) -> Result<Opti
     let mut cmd = Command::new("unshare");
     cmd.args(&flags).args(["--", "/bin/sh", "-c", xtask::sandbox::SCRIPT]).arg(exe).args(std::env::args_os().skip(1));
     cmd.env(SANDBOX_ENV, "1").env(ROOT_ENV, root).env(CWD_ENV, std::env::current_dir().map_err(|e| e.to_string())?);
+    let git = Command::new("git").args(["rev-parse", "--path-format=absolute", "--git-common-dir"]).current_dir(root).output();
+    let git = git.ok().filter(|o| o.status.success()).map(|o| PathBuf::from(String::from_utf8_lossy(&o.stdout).trim()));
+    let keep: Vec<String> = keep.iter().chain(&git).map(|p| p.display().to_string()).collect();
+    cmd.env(KEEP_ENV, keep.join(":"));
     if writable.is_empty() {
         cmd.env_remove(WRITABLE_ENV);
     } else {
@@ -211,6 +218,12 @@ fn sandboxed(root: &Path, no_sandbox: bool, writable: &[PathBuf]) -> Result<Opti
     Ok(Some(ExitCode::from(status.code().unwrap_or(2) as u8)))
 }
 
+/// The held-back folder and each path the --host line names, which the run reads wherever they sit.
+fn kept(run: &Run, opts: &Options) -> Vec<PathBuf> {
+    let host = run.host.iter().flat_map(|h| h.split_whitespace()).map(PathBuf::from).filter(|p| p.is_absolute());
+    opts.held.iter().cloned().chain(host).collect()
+}
+
 /// Said before a run with no sandbox and again after it, so it cannot scroll away.
 fn unsandboxed() {
     eprintln!("parity: NO SANDBOX. Every tape's commands run on this computer as this user, wsp leave among them, which takes what wsp installed off it.");
@@ -218,7 +231,7 @@ fn unsandboxed() {
 
 fn parity(root: &Path, run: &Run) -> Result<ExitCode, String> {
     let opts = options(run)?;
-    if let Some(code) = sandboxed(root, run.no_sandbox, &[])? {
+    if let Some(code) = sandboxed(root, run.no_sandbox, &[], &kept(run, &opts))? {
         return Ok(code);
     }
     let host = host(root, run)?;
@@ -239,7 +252,7 @@ fn record(root: &Path, run: &Run, move_here: bool) -> Result<ExitCode, String> {
     let opts = Options { move_here, ..options(run)? };
     let mut writable = vec![root.join("parity")];
     writable.extend(opts.held.clone());
-    if let Some(code) = sandboxed(root, run.no_sandbox, &writable)? {
+    if let Some(code) = sandboxed(root, run.no_sandbox, &writable, &kept(run, &opts))? {
         return Ok(code);
     }
     let host = host(root, run)?;
@@ -304,7 +317,7 @@ fn ts_ops(root: &Path) -> Result<Vec<String>, String> {
 
 fn collect(root: &Path, no_sandbox: bool) -> Result<ExitCode, String> {
     // The suites write inside their checkout (vite bundles its config beside it); outside it all stays read-only.
-    if let Some(code) = sandboxed(root, no_sandbox, &[root.to_path_buf()])? {
+    if let Some(code) = sandboxed(root, no_sandbox, &[root.to_path_buf()], &[])? {
         return Ok(code);
     }
     let status = Command::new(node()?).arg(root.join("parity/record/collect.mjs")).current_dir(root).status().map_err(|e| e.to_string())?;
@@ -368,7 +381,7 @@ fn unit(root: &Path, name: &str, base: Option<String>, run: &Run) -> Result<Exit
     }
     // The unit's own tests run inside the sandbox too: a port of place.leave brings tests that sweep real paths.
     let writable = if inside() { Vec::new() } else { vec![xtask::unit::target_dir(root, unit)?] };
-    if let Some(code) = sandboxed(root, run.no_sandbox, &writable)? {
+    if let Some(code) = sandboxed(root, run.no_sandbox, &writable, &kept(run, &options(run)?))? {
         return Ok(code);
     }
     let base = match base {

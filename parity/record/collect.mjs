@@ -70,7 +70,9 @@ function runSuites() {
   const report = join(tapes, "..", `${tapes.split("/").pop()}-report.json`);
   const files = [...suites(), "parity/record/cli-lines.record.ts"];
   const started = Date.now();
-  spawnSync("pnpm", ["exec", "vitest", "run", "--workspace", "parity/record/vitest.tape.ts", "--minWorkers=1", "--maxWorkers=2", "--reporter=dot", "--reporter=json", `--outputFile.json=${report}`, ...files], {
+  // node_modules is read-only in the sandbox, where vitest keeps its cache, and pnpm may sit in a folder root with no
+  // capability cannot enter.
+  spawnSync(process.execPath, [join(root, "node_modules/vitest/vitest.mjs"), "run", "--no-cache", "--workspace", "parity/record/vitest.tape.ts", "--minWorkers=1", "--maxWorkers=2", "--reporter=dot", "--reporter=json", `--outputFile.json=${report}`, ...files], {
     cwd: root,
     env: { ...process.env, PARITY_TAPE_DIR: tapes },
     stdio: "ignore",
