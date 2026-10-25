@@ -144,6 +144,15 @@ pub(crate) struct Held {
     pub(crate) stamped: bool,
 }
 
+impl SqliteStore {
+    /// `pragma <name>` on the store's own connection, opening it as any call does: what the tests read the
+    /// per-connection pragmas of rule 2.25 through (`busy_timeout`, `synchronous`, `wal_autocheckpoint`,
+    /// `journal_size_limit`, `journal_mode`). A number answers as a JSON number, text as a string.
+    pub fn pragma(&self, name: &str) -> Result<Value, HostError> {
+        todo!()
+    }
+}
+
 impl SqliteInner {
     /// `ready()` (sqlite-store.ts:289-337): the connection, opened and checked at the first call, and the shape checked
     /// again whenever another connection wrote since.
