@@ -39,3 +39,31 @@ fn nesting_past_128_reads_and_a_runaway_one_is_refused() {
     let runaway = format!("{}{}", "[".repeat(100_000), "]".repeat(100_000));
     assert_eq!(parse_json(&runaway).unwrap_err().message, "Maximum call stack size exceeded");
 }
+
+mod writing_back_a_file_that_holds_a_lone_surrogate {
+    use super::*;
+    use wsp_catalog::mcp::{McpMergeScope, MCP_SERVERS_JSON};
+
+    fn same(s: &str, _command: bool) -> String {
+        s.to_string()
+    }
+
+    #[test]
+    fn a_merge_keeps_the_escape_where_it_stands_and_writes_one_that_travelled_as_an_escape() {
+        let own = "{\n  \"history\": [{\"display\": \"cut \\ud83d\"}],\n  \"mcpServers\": {\n    \"a\": {\"command\": \"x\"}\n  }\n}\n";
+        let travelled = r#"{"mcpServers":{"b":{"command":"y","env":{"K":"half \ude00"}}}}"#;
+        let scope = McpMergeScope { keep: vec!["b".into()], drop: vec![], project: None, replace: vec![] };
+        let merged = MCP_SERVERS_JSON.merge(&same, &scope, Some(own), travelled).unwrap();
+        assert!(merged.text.starts_with("{\n  \"history\": [{\"display\": \"cut \\ud83d\"}],\n"), "{}", merged.text);
+        assert!(merged.text.contains(r#""K": "half \ude00""#), "{}", merged.text);
+        assert_eq!(parse_json(&merged.text).unwrap()["mcpServers"]["b"]["command"], "y");
+    }
+
+    #[test]
+    fn an_edit_leaves_every_byte_but_the_one_it_changes() {
+        let own = "{\"history\": [\"\\ud800\"], \"mcpServers\": {\"a\": {\"command\": \"x\"}, \"b\": {\"command\": \"y\"}}}";
+        let scope = wsp_catalog::mcp::McpEditScope { keep: vec!["b".into()], drop: vec!["a".into()], project: None };
+        let edited = MCP_SERVERS_JSON.edit(&same, &scope, own).unwrap();
+        assert_eq!(edited.text, "{\"history\": [\"\\ud800\"], \"mcpServers\": {\"b\": {\"command\": \"y\"}}}");
+    }
+}

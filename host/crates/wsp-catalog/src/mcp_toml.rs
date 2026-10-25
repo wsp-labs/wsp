@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 use indexmap::IndexMap;
 use regex::Regex;
 
+use crate::json_parse::string_of_units;
 use crate::jsonc::js_string;
 use crate::mcp::{
     EditOutcome, McpEditResult, McpEditScope, McpEdited, McpMergeResult, McpMergeScope, McpMerged, McpReads, McpServer, McpServerScope,
@@ -57,19 +58,37 @@ fn string_re() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r#""((?:[^"\\]|\\.)*)"|'([^']*)'"#).expect("a fixed pattern"))
 }
 
-fn decode_toml(s: &str) -> String {
+/// `decodeToml` (mcp.ts:1292): the escapes of a basic string. A `\u` or `\U` without its hex digits, or a code point past
+/// U+10FFFF, throws as `String.fromCodePoint` does; two surrogate escapes in a row make one character.
+fn decode_toml(s: &str) -> Result<String, HostError> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"\\(u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|.)").expect("a fixed pattern"));
-    re.replace_all(s, |caps: &regex::Captures<'_>| {
-        let whole = caps.get(0).map_or("", |m| m.as_str());
+    let mut units: Vec<u16> = Vec::with_capacity(s.len());
+    let mut last = 0;
+    for caps in re.captures_iter(s) {
+        let whole = caps.get(0).expect("group 0 always matches");
+        units.extend(s[last..whole.start()].encode_utf16());
+        last = whole.end();
         let e = caps.get(1).map_or("", |m| m.as_str());
-        let decoded = match e.chars().next() {
-            Some('u') | Some('U') => u32::from_str_radix(&e[1..], 16).ok().and_then(char::from_u32).map(String::from),
-            _ => toml_escape(e).map(String::from),
-        };
-        decoded.unwrap_or_else(|| whole.to_string())
-    })
-    .into_owned()
+        match e.chars().next() {
+            Some('u' | 'U') => {
+                let value = u32::from_str_radix(&e[1..], 16).map_err(|_| HostError::new("Invalid code point NaN"))?;
+                if value > 0x10FFFF {
+                    return Err(HostError::new(format!("Invalid code point {value}")));
+                }
+                match char::from_u32(value) {
+                    Some(c) => units.extend(c.encode_utf16(&mut [0; 2]).iter()),
+                    None => units.push(value as u16),
+                }
+            }
+            _ => match toml_escape(e) {
+                Some(c) => units.push(c as u16),
+                None => units.extend(whole.as_str().encode_utf16()),
+            },
+        }
+    }
+    units.extend(s[last..].encode_utf16());
+    Ok(string_of_units(&units))
 }
 
 /// The character a backslash and one escape letter stand for (mcp.ts:1288).
@@ -112,12 +131,12 @@ fn encode_toml(s: &str) -> String {
 }
 
 /// Every string in the text, basic strings decoded (mcp.ts:1306).
-pub fn toml_strings(s: &str) -> Vec<String> {
+pub fn toml_strings(s: &str) -> Result<Vec<String>, HostError> {
     string_re()
         .captures_iter(s)
         .map(|m| match m.get(1) {
             Some(basic) => decode_toml(basic.as_str()),
-            None => m.get(2).map_or_else(String::new, |g| g.as_str().to_string()),
+            None => Ok(m.get(2).map_or_else(String::new, |g| g.as_str().to_string())),
         })
         .collect()
 }
@@ -136,11 +155,11 @@ pub enum TomlValue {
 }
 
 /// Nothing for any other value (mcp.ts:1316).
-pub fn toml_value(raw: &str) -> Option<TomlValue> {
+pub fn toml_value(raw: &str) -> Result<Option<TomlValue>, HostError> {
     static TABLE: OnceLock<Regex> = OnceLock::new();
     let s = js_trim(raw);
     if s.starts_with('[') {
-        return Some(TomlValue::List(toml_strings(s)));
+        return Ok(Some(TomlValue::List(toml_strings(s)?)));
     }
     if s.starts_with('{') {
         let re = TABLE.get_or_init(|| {
@@ -149,15 +168,18 @@ pub fn toml_value(raw: &str) -> Option<TomlValue> {
         let mut out = IndexMap::new();
         for m in re.captures_iter(js_slice_inner(s)) {
             let name = m.get(1).or(m.get(2)).or(m.get(3)).map_or("", |g| g.as_str());
-            let value = m.get(4).and_then(|v| toml_strings(v.as_str()).into_iter().next()).unwrap_or_default();
+            let value = match m.get(4) {
+                Some(v) => toml_strings(v.as_str())?.into_iter().next().unwrap_or_default(),
+                None => String::new(),
+            };
             out.insert(name.to_string(), value);
         }
-        return Some(TomlValue::Table(out));
+        return Ok(Some(TomlValue::Table(out)));
     }
     if s.starts_with('"') || s.starts_with('\'') {
-        return toml_strings(s).into_iter().next().map(TomlValue::Str);
+        return Ok(toml_strings(s)?.into_iter().next().map(TomlValue::Str));
     }
-    None
+    Ok(None)
 }
 
 /// `s.slice(1, -1)`: the text without its first and last character.
@@ -183,7 +205,7 @@ pub fn toml_inline(d: &IndexMap<String, String>) -> String {
 }
 
 /// A line with every string on it put through `to`, re-encoded only where changed (mcp.ts:1423).
-pub fn rewrite_toml_line(line: &str, to: &dyn Fn(&str) -> String) -> String {
+pub fn rewrite_toml_line(line: &str, to: &dyn Fn(&str) -> String) -> Result<String, HostError> {
     let code = uncomment_toml(line);
     let mut out = String::new();
     let mut last = 0;
@@ -201,7 +223,7 @@ pub fn rewrite_toml_line(line: &str, to: &dyn Fn(&str) -> String) -> String {
                 }
             }
             (basic, None) => {
-                let value = decode_toml(basic.map_or("", |b| b.as_str()));
+                let value = decode_toml(basic.map_or("", |b| b.as_str()))?;
                 let rewritten = to(&value);
                 if rewritten == value {
                     out.push_str(whole.as_str());
@@ -213,7 +235,7 @@ pub fn rewrite_toml_line(line: &str, to: &dyn Fn(&str) -> String) -> String {
     }
     out.push_str(&code[last..]);
     out.push_str(&line[code.len()..]);
-    out
+    Ok(out)
 }
 
 /// The server each line belongs to (mcp.ts:1440).
@@ -248,20 +270,20 @@ fn codex_entry(lines: &[&str]) -> String {
 }
 
 /// The command one server's tables name, as the machine will run it (mcp.ts:1469).
-fn codex_command(lines: &[&str]) -> Option<String> {
+fn codex_command(lines: &[&str]) -> Result<Option<String>, HostError> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"^\s*command\s*=\s*").expect("a fixed pattern"));
     for line in lines {
         let code = uncomment_toml(line);
         if let Some(m) = re.find(&code) {
-            return toml_strings(&code[m.end()..]).into_iter().next();
+            return Ok(toml_strings(&code[m.end()..])?.into_iter().next());
         }
     }
-    None
+    Ok(None)
 }
 
 /// A kept server's line with every string on it as the machine reads it (mcp.ts:1479).
-fn codex_rewrite(lib: RewriteString<'_>, line: &str) -> String {
+fn codex_rewrite(lib: RewriteString<'_>, line: &str) -> Result<String, HostError> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"^\s*command\s*=").expect("a fixed pattern"));
     let command = re.is_match(&uncomment_toml(line));
@@ -335,7 +357,14 @@ struct CodexTable {
 }
 
 /// The `[mcp_servers.*]` tables and their sub-tables, in file order (mcp.ts:1339).
+/// A string that cannot be decoded throws in the TS, and the one caller that reads Codex servers for a person takes a
+/// throw as no server: so does this.
 pub fn read_codex(text: &str) -> Vec<McpServer> {
+    try_read_codex(text).unwrap_or_default()
+}
+
+/// `read_codex` where the error a bad escape throws is told.
+pub fn try_read_codex(text: &str) -> Result<Vec<McpServer>, HostError> {
     let lines: Vec<&str> = text.split('\n').collect();
     let mut tables: IndexMap<String, CodexTable> = IndexMap::new();
     let mut current: Option<(String, Option<String>)> = None;
@@ -369,7 +398,7 @@ pub fn read_codex(text: &str) -> Vec<McpServer> {
         if sub.is_none() && key == "enabled" && value == "false" {
             table.disabled = true;
         }
-        let Some(parsed) = toml_value(&value) else {
+        let Some(parsed) = toml_value(&value)? else {
             continue;
         };
         match sub.as_deref() {
@@ -440,7 +469,7 @@ pub fn read_codex(text: &str) -> Vec<McpServer> {
             });
         }
     }
-    out
+    Ok(out)
 }
 
 /// A key with its quotes taken off where the whole key is one quoted string (mcp.ts:1297).
@@ -474,7 +503,7 @@ fn table_of(v: Option<&TomlValue>) -> IndexMap<String, String> {
 }
 
 /// The editor (mcp.ts:1484).
-pub fn codex_editor(lib: RewriteString<'_>, scope: &McpEditScope, before: &str) -> McpEdited {
+pub fn codex_editor(lib: RewriteString<'_>, scope: &McpEditScope, before: &str) -> Result<McpEdited, HostError> {
     let lines: Vec<&str> = before.split('\n').collect();
     let owner = codex_owners(&lines);
     let keep: HashSet<&str> = scope.keep.iter().map(String::as_str).collect();
@@ -487,7 +516,7 @@ pub fn codex_editor(lib: RewriteString<'_>, scope: &McpEditScope, before: &str) 
             continue;
         }
         let kept = o.as_deref().is_some_and(|n| keep.contains(n));
-        out.push(if kept { codex_rewrite(lib, line) } else { line.to_string() });
+        out.push(if kept { codex_rewrite(lib, line)? } else { line.to_string() });
         out_owner.push(o);
     }
     let mut results = Vec::new();
@@ -498,12 +527,12 @@ pub fn codex_editor(lib: RewriteString<'_>, scope: &McpEditScope, before: &str) 
         }
         let mine: Vec<&str> =
             out.iter().zip(&out_owner).filter(|(_, o)| o.as_deref() == Some(name.as_str())).map(|(l, _)| l.as_str()).collect();
-        results.push(McpEditResult { name: name.clone(), outcome: EditOutcome::Written, command: codex_command(&mine) });
+        results.push(McpEditResult { name: name.clone(), outcome: EditOutcome::Written, command: codex_command(&mine)? });
     }
     for name in &scope.drop {
         results.push(McpEditResult { name: name.clone(), outcome: EditOutcome::Dropped, command: None });
     }
-    McpEdited { text: out.join("\n"), results }
+    Ok(McpEdited { text: out.join("\n"), results })
 }
 
 /// The block in place of the lines it stands on, which for an empty block is those lines taken out (mcp.ts:1521).
@@ -521,7 +550,7 @@ fn over(lines: &mut Vec<String>, at: &[usize], block: &[String]) {
 }
 
 /// The merge (mcp.ts:1512).
-pub fn codex_merge(lib: RewriteString<'_>, scope: &McpMergeScope, own: Option<&str>, travelled: &str) -> McpMerged {
+pub fn codex_merge(lib: RewriteString<'_>, scope: &McpMergeScope, own: Option<&str>, travelled: &str) -> Result<McpMerged, HostError> {
     let from: Vec<&str> = travelled.split('\n').collect();
     let replace: HashSet<&str> = scope.replace.iter().map(String::as_str).collect();
     let mut lines: Vec<String> = own.map_or_else(Vec::new, |t| t.split('\n').map(str::to_string).collect());
@@ -533,9 +562,9 @@ pub fn codex_merge(lib: RewriteString<'_>, scope: &McpMergeScope, own: Option<&s
             results.push(McpMergeResult { name: name.clone(), outcome: MergeOutcome::Missing, command: None });
             continue;
         }
-        let block: Vec<String> = at.iter().map(|&i| codex_rewrite(lib, from[i])).collect();
+        let block: Vec<String> = at.iter().map(|&i| codex_rewrite(lib, from[i])).collect::<Result<_, _>>()?;
         let block_refs: Vec<&str> = block.iter().map(String::as_str).collect();
-        let command = codex_command(&block_refs);
+        let command = codex_command(&block_refs)?;
         let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
         let here = codex_block(&refs, name, true);
         let outcome = if here.is_empty() {
@@ -582,7 +611,7 @@ pub fn codex_merge(lib: RewriteString<'_>, scope: &McpMergeScope, own: Option<&s
         results.push(McpMergeResult { name: name.clone(), outcome: MergeOutcome::Dropped, command: None });
     }
     let text = if wrote { lines.join("\n") } else { own.unwrap_or("").to_string() };
-    McpMerged { text, results }
+    Ok(McpMerged { text, results })
 }
 
 /// The remove (mcp.ts:1564).

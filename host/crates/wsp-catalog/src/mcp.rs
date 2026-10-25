@@ -237,7 +237,7 @@ impl McpFormat {
         if self.is_json() {
             mcp_json::edit(self, lib, scope, text)
         } else {
-            Ok(codex_editor(lib, scope, text))
+            codex_editor(lib, scope, text)
         }
     }
 
@@ -255,7 +255,7 @@ impl McpFormat {
         if self.is_json() {
             mcp_json::merge(self, lib, scope, own, travelled)
         } else {
-            Ok(codex_merge(lib, scope, own, travelled))
+            codex_merge(lib, scope, own, travelled)
         }
     }
 
