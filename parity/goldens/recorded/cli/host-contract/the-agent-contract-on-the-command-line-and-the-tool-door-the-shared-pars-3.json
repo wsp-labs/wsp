@@ -8,7 +8,8 @@
           "error": "Unknown option '--json' for wsp status: it answers in prose. That flag belongs to wsp init, wsp add, wsp remove, and to every verb.",
           "class": "usage",
           "exit": 3
-        }
+        },
+        "layout": "compact, a newline after"
       }
     }
   ],

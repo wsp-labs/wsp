@@ -8,31 +8,9 @@
     },
     {
       "id": 2,
-      "ok": true,
-      "setup": {
-        "keys": {
-          "box": false
-        },
-        "home": "<tmp>/home",
-        "agents": [
-          {
-            "id": "claude",
-            "name": "Claude Code",
-            "configured": false,
-            "takesTools": true
-          },
-          {
-            "id": "codex",
-            "name": "Codex",
-            "configured": false,
-            "takesTools": true
-          }
-        ],
-        "pricing": null,
-        "forksOn": "none",
-        "buildRefusal": "no place here runs workspaces, so there is nowhere to build your image; join a computer that runs them with wsp add, or save a provider key",
-        "job": null
-      }
+      "ok": false,
+      "error": "There is no plugin frontend@official for Claude Code there, so nothing was switched.",
+      "kind": "usage"
     }
   ],
   "events": []

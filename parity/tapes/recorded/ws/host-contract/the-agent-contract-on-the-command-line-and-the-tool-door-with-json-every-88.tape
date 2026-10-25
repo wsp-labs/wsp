@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/host/test/contract.test.ts > the agent contract on the command line and the tool door > with --json every command-line verb prints JSON alone on stdout and its last object is the one its MCP tool answers with","outs":"recorded"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
-{"in":{"patch":{"agentDefaults":{"claude":{"model":null,"access":null,"models":null}}},"id":2,"op":"preferences.set"}}
-{"out":{"id":2,"ok":true,"preferences":{"theme":"system","lightTheme":"paper","darkTheme":"graphite","sidebarMode":"list","terminalSize":"app","terminalZoom":{},"access":{},"projectLook":{},"projectIcon":{},"computerLook":{},"serverIcons":true,"agentVersions":true,"usageLogs":true,"productUsage":true,"keepAwake":true,"transparency":true,"projectOrder":[],"keybindings":{},"appFont":"","codeFont":"","agentDefaults":{},"projectDefaults":{},"sendWith":"enter","midTurn":"queue","notifyNeeds":"notify-sound","notifyDone":"notify","planAlerts":true,"settleAfter":"2h","askDelete":true,"onQuit":"ask","newThreadIn":"current","labs":false,"target":{"workspace":"ws_00000001"},"defaultAgent":"claude"}}}
+{"in":{"target":{"placeId":"here"},"agent":"codex","name":"acme","on":false,"id":2,"op":"servers.toggle"}}
+{"out":{"id":2,"ok":true,"file":"~/.codex/config.toml"}}

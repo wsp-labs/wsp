@@ -6,8 +6,8 @@
       "placeId": "<p-1>",
       "hostPublicKey": "<id-1>",
       "nonce": "<id-2>",
-      "signature": "<id-3>",
-      "ephemeral": "<id-4>",
+      "signature": "<the host's key signed this>",
+      "ephemeral": "<id-3>",
       "hostName": "<computer>"
     },
     {

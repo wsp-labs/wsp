@@ -25,8 +25,8 @@
     {
       "id": 5,
       "ok": true,
-      "code": "<code>",
-      "expiresAt": "<time>",
+      "code": "<code-1>",
+      "expiresAt": "<time+10m>",
       "hostKey": "<id-1>"
     },
     {

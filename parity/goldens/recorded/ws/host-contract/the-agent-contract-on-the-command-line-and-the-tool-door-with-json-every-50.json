@@ -19,13 +19,13 @@
     {
       "id": 4,
       "ok": false,
-      "error": "no thread 00000000",
+      "error": "no thread <id-1>",
       "kind": "not-found"
     },
     {
       "id": 5,
       "ok": false,
-      "error": "no thread 00000000",
+      "error": "no thread <id-1>",
       "kind": "not-found"
     }
   ],

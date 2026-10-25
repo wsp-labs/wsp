@@ -11,11 +11,11 @@
       "ok": true,
       "joins": [
         {
-          "url": "http://127.0.0.1:<port>",
-          "line": "wsp join http://127.0.0.1:<port> --code <id-1>.<id-2>"
+          "url": "http://127.0.0.1:<door-port>",
+          "line": "wsp join http://127.0.0.1:<door-port> --code <id-1>.<id-2>"
         }
       ],
-      "expiresAt": "<time>"
+      "expiresAt": "<time+10m>"
     }
   ],
   "events": []

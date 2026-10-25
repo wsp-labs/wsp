@@ -9,8 +9,7 @@
     {
       "id": 2,
       "ok": false,
-      "error": "There is no plugin frontend@official for Claude Code there, so nothing was switched.",
-      "kind": "usage"
+      "error": "skills.sh did not answer: fetch failed"
     }
   ],
   "events": []

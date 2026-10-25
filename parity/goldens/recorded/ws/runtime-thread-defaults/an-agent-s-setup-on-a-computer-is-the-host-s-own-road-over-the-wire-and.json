@@ -13,7 +13,7 @@
         "id": "claude",
         "name": "Claude Code",
         "installed": true,
-        "version": "<version>",
+        "version": "2.1.296",
         "pinned": "2.1.296",
         "road": "own",
         "path": "/usr/bin/claude",
@@ -32,7 +32,7 @@
       "id": 3,
       "ok": true,
       "ticket": "<id-1>",
-      "expiresAt": "<time>"
+      "expiresAt": "<time+5m>"
     }
   ],
   "events": []

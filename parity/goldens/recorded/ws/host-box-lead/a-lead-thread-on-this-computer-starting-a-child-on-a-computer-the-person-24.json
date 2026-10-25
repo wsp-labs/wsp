@@ -2,23 +2,20 @@
   "replies": [
     {
       "id": 1,
-      "ok": true,
-      "placeId": "<p-1>",
-      "hostPublicKey": "<id-1>",
-      "nonce": "<id-2>",
-      "signature": "<id-3>",
-      "ephemeral": "<id-4>",
-      "hostName": "<computer>"
+      "ok": false,
+      "error": "unauthorized",
+      "kind": "auth"
     },
     {
       "parity": "no reply",
       "id": "2"
+    },
+    {
+      "parity": "no reply",
+      "id": "3"
     }
   ],
   "events": [
-    {
-      "binary": 61
-    },
     {
       "close": {
         "code": 4401,

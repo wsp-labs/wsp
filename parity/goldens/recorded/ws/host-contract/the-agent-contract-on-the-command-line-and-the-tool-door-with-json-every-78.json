@@ -9,7 +9,8 @@
     {
       "id": 2,
       "ok": false,
-      "error": "skills.sh did not answer: fetch failed"
+      "error": "There is no skill named memo there.",
+      "kind": "usage"
     }
   ],
   "events": []

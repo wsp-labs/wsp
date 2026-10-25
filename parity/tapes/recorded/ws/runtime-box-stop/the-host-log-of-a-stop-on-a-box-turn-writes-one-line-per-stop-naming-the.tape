@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/box-stop.test.ts > the host log of a stop on a box turn > writes one line per stop naming the thread and its answer, the away sentence the transcript carries too","outs":"recorded"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEAL0CP8XUS5Cf/cTtJ+APmMCc/XWIQ7NHdNr4mJn82nEA=","nonce":"BdH+mLKNUMdfaZ13suViGmr0gvAhTK1E8ywP2oJCV2c=","ephemeral":"A2xVKqzSf9eKiADsmDGbrAc3S66S3xH68nqz2zbaeGU=","id":1,"op":"place.join"}}
-{"out":{"id":1,"ok":true,"placeId":"p_00000001","hostPublicKey":"MCowBQYDK2VwAyEAZbfjtUS9N3qroD8ZDsEVGSKyXlA1THrh/bUX42mxCXM=","nonce":"ocWGM2QGA+USPIiA4VMdm1DgWJSHB2sxgXp2+/U9y94=","signature":"I0krNu04WQ+NwRD1qXktsI8t16ljT1d/rJM3TH6y0zzQS26yrTuqKsGec831EnmpFLcMUIxVifEPGh1ecXEsDQ==","ephemeral":"fhwSHEUjlCwiTkOq5mfe7N/0n3b/HPAab5AgmOpxwWY=","hostName":"zingzys-mac"}}
-{"in":{"signature":"yRDDWFburKeDTvyQNfWk2wBO289qtUUc7R8q7mRah+c2oi7TOMnGLXv/i8v5kCy4zgT/7KGaPSDJIPQs2PSmAw==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}
-{"out":{"id":2,"ok":true}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true}}
+{"in":{"id":2,"op":"pair.issue"}}
+{"out":{"id":2,"ok":true,"code":"<redacted-1>","expiresAt":1792951095971,"hostKey":"SHA256:TUk9LO8ESc8Up2hW5nfxi0zdN5oWHwY5ucUUk49sJOg"}}

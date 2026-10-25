@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/serve-sys.test.ts > the readings of the workspace that is this computer > reach a page that names this computer off the same sampler the workspace's panes ride","outs":"recorded"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/serve-sys.test.ts > the readings of the workspace that is this computer > reach a page that names this computer off the same sampler the workspace's panes ride","outs":"recorded","computer":"ip-172-31-35-82"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"here","id":2,"op":"sys.subscribe"}}

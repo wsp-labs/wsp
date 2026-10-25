@@ -12,7 +12,7 @@
       "error": {
         "json": [
           {
-            "code": "<code>",
+            "code": "invalid_type",
             "expected": "string",
             "received": "undefined",
             "path": [
@@ -21,7 +21,7 @@
             "message": "Required"
           },
           {
-            "code": "<code>",
+            "code": "invalid_type",
             "expected": "string",
             "received": "undefined",
             "path": [
@@ -29,7 +29,8 @@
             ],
             "message": "Required"
           }
-        ]
+        ],
+        "layout": "indented"
       }
     },
     {

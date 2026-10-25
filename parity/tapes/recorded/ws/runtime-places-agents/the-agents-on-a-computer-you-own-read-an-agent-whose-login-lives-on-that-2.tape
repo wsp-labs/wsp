@@ -16,4 +16,4 @@
 {"out":{"type":"agents.signIn","signInId":"si_00000004","state":"signed-in"}}
 {"out":{"type":"agents.changed","target":{"placeId":"p_00000001"},"seq":5}}
 {"in":{"target":{"placeId":"p_00000001"},"id":6,"op":"agents.read"}}
-{"out":{"id":6,"ok":true,"report":{"target":{"placeId":"p_00000001"},"home":"/home/maya","user":"maya","readAt":"2026-10-25T15:21:33.702Z","agents":[],"skills":[],"servers":[],"refused":[],"reach":"none"}}}
+{"out":{"id":6,"ok":true,"report":{"target":{"placeId":"p_00000001"},"home":"/home/maya","user":"maya","readAt":"2026-10-25T17:47:16.029Z","agents":[],"skills":[],"servers":[],"refused":[],"reach":"none"}}}

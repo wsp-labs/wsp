@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > admits a computer an already admitted one signed for, and never one signed by a key it has not seen","outs":"recorded"}}
-{"in":{"nonce":"jLnGqSjxGbOtn0nTxguqh5huGTsOk5JgPXE1BjAi8rc=","ephemeral":"RvEdkYQeKDAS/zd8egx0INMfzvWQ/Wk0WadPQHlM1hM=","id":1,"op":"seal.open"}}
-{"out":{"id":1,"ok":true,"nonce":"WIQh/EXKvFmkgtruiU/Qn9JB5r1/ao4ldv6EM9rggf0=","hostPublicKey":"MCowBQYDK2VwAyEA8Y2EHym3NakrBbhzX0mHeXZGR82VTtZBMezYrF/IDPc=","signature":"cXhfET/WCl6IvwHxcMB4kWkPtLJjDoKFhNRuVANvrqM5AkBFmKL310Ngiq5tKzjUyoO7H8hNdjO2BlLs7XHZAw==","ephemeral":"G52KFv40tmnoiAzGOA2k17P5qrGZyDFPkF3C0ud56jM="}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEA3/iOt4nTomUxaqX/KIV8r7xPozewOOBsOYbzG2xUuWA=","name":"the desk","signature":"R4ad7N9Ak6tgj16MeIvU81gE4LccSAMkBsBkmBe6LDmmyl9R2BM1xTE0hbYStIUkD1v6yy2nw86msYhPeogBAg==","id":2,"op":"device.auth"}}
-{"out":{"id":2,"ok":true,"deviceId":"d_00000001","deviceToken":"nJa-OvJsAsJnz7di4OrDjCllvlXsKJhz"}}
+{"in":{"nonce":"ZH4IRnauUS+rfmZBn8fg1HVu7gSoXc4AHEkKjokRAYo=","ephemeral":"KcEblEAdykOJ83zdaba5FdMfLjbb1G5qzoY/EEEuYiE=","id":1,"op":"seal.open"}}
+{"out":{"id":1,"ok":true,"nonce":"un6xU2OYc2WoF6WvgOYVvYQzznomfeHhG05TNzJd+Xw=","hostPublicKey":"MCowBQYDK2VwAyEAJ2btoge2f7cYGx0CrDy3UgbOlYtm/StTaNNmAHJk8Uc=","signature":"s5A5ZqN2Zl97NFU1VcwVoVCFKklkjX47DMqJljvJ+hsT/Jv5btzYeO3pvdjwpJHBvpiZReiDhtdotJCQ/uh0AA==","ephemeral":"gjW9K49KC9dneyjaQhWa5gwcfkeX5EhG0qcppTDPP0I="}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEATTdZsrcSNV4aRKatqgjRHrdvSGTau7udBc1dJ1hpdaI=","name":"the desk","signature":"41cb5+WDofyaEjjsqs2TSbbrsEFr9Ig1UgVgqy2VLCkF2BRJ9lw82Cr4c/RVYEnOPLD3r6NdKY+nzsYAXkvmCQ==","id":2,"op":"device.auth"}}
+{"out":{"id":2,"ok":true,"deviceId":"d_00000001","deviceToken":"<redacted-1>"}}

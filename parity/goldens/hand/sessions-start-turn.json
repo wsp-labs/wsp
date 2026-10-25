@@ -1,0 +1,378 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "project": {
+        "id": "<pr-1>",
+        "name": "scratch",
+        "computer": "here",
+        "source": {
+          "kind": "folder",
+          "path": "<tmp>/scratch"
+        },
+        "path": "<tmp>/scratch",
+        "remote": "",
+        "defaultBranch": "main",
+        "memoryKey": "<tmp-dashed>-scratch",
+        "memoryDir": "<tmp>/home/.claude/projects/<tmp-dashed>-scratch/memory",
+        "createdAt": "<time>"
+      }
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "agent": {
+        "id": "claude",
+        "name": "Claude Code",
+        "installed": true,
+        "version": "2.1.296",
+        "pinned": "2.1.296",
+        "road": "own",
+        "path": "/usr/bin/claude",
+        "signIn": "none",
+        "signInRoad": "token",
+        "wspTools": false,
+        "setup": {
+          "on": true,
+          "program": "/bin/sh",
+          "args": [
+            "-c",
+            "all=\" $0 $* \"\ncase \"$all\" in\n  *\" --version \"*) echo \"2.1.300 (Claude Code)\"; exit 0 ;;\n  *\" --help \"*) echo '--permission-mode <mode>  (choices: \"default\", \"bypassPermissions\")'; exit 0 ;;\n  *\" --bare \"*) read -r _; echo '{\"type\":\"control_response\",\"response\":{\"subtype\":\"success\",\"request_id\":\"init\",\"response\":{\"models\":[{\"value\":\"default\",\"resolvedModel\":\"claude-haiku-5-5\"},{\"value\":\"claude-haiku-5-5\",\"displayName\":\"Haiku\",\"supportedEffortLevels\":[\"low\",\"high\"]}]}}}'; exit 0 ;;\n  *\" --input-format stream-json \"*) ;;\n  *) exit 1 ;;\nesac\nsession=\"\"; prev=\"\"\nfor a in \"$0\" \"$@\"; do [ \"$prev\" = \"--session-id\" ] && session=$a; prev=$a; done\nwhile IFS= read -r _; do\n  printf '{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"%s\",\"model\":\"claude-haiku-5-5\",\"cwd\":\"/\",\"tools\":[]}\\n' \"$session\"\n  printf '{\"type\":\"assistant\",\"session_id\":\"%s\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"ok\"}]}}\\n' \"$session\"\n  printf '{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"result\":\"ok\",\"session_id\":\"%s\"}\\n' \"$session\"\ndone\n"
+          ],
+          "envNames": []
+        }
+      }
+    },
+    {
+      "id": 4,
+      "ok": true,
+      "seq": 2,
+      "stream": "<uuid-1>"
+    },
+    {
+      "id": 5,
+      "ok": true,
+      "session": {
+        "id": "<uuid-2>",
+        "workspaceId": "<ws-1>",
+        "harness": "claude",
+        "status": "running",
+        "startedBy": "person",
+        "threadId": "<uuid-3>",
+        "prompt": "hi",
+        "startedAt": "<time>",
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "permissionMode": "bypassPermissions",
+        "cwd": "<tmp>/scratch"
+      },
+      "outcome": "started",
+      "turnId": "<uuid-4>"
+    }
+  ],
+  "events": [
+    {
+      "type": "preferences.changed",
+      "preferences": {
+        "theme": "system",
+        "lightTheme": "paper",
+        "darkTheme": "graphite",
+        "sidebarMode": "list",
+        "terminalSize": "app",
+        "terminalZoom": {},
+        "access": {},
+        "projectLook": {},
+        "projectIcon": {},
+        "computerLook": {},
+        "serverIcons": true,
+        "agentVersions": true,
+        "usageLogs": true,
+        "productUsage": true,
+        "keepAwake": true,
+        "transparency": true,
+        "projectOrder": [],
+        "keybindings": {},
+        "appFont": "",
+        "codeFont": "",
+        "agentDefaults": {},
+        "projectDefaults": {},
+        "sendWith": "enter",
+        "midTurn": "queue",
+        "notifyNeeds": "notify-sound",
+        "notifyDone": "notify",
+        "planAlerts": true,
+        "settleAfter": "2h",
+        "askDelete": true,
+        "onQuit": "ask",
+        "newThreadIn": "current",
+        "labs": false,
+        "target": {
+          "workspace": "<ws-1>"
+        }
+      },
+      "seq": 6
+    },
+    {
+      "type": "session.delta",
+      "workspaceId": "<ws-1>",
+      "sessionId": "<uuid-2>",
+      "turnId": "<uuid-4>",
+      "threadId": "<uuid-3>",
+      "line": 1,
+      "kind": "text",
+      "text": "ok",
+      "at": "<time>",
+      "pos": 2,
+      "seq": 10
+    },
+    {
+      "type": "session.done",
+      "workspaceId": "<ws-1>",
+      "sessionId": "<uuid-2>",
+      "turnId": "<uuid-4>",
+      "threadId": "<uuid-3>",
+      "result": {
+        "status": "completed",
+        "text": "ok",
+        "model": "claude-haiku-5-5"
+      },
+      "at": "<time>",
+      "pos": 3,
+      "seq": 11
+    },
+    {
+      "type": "session.end",
+      "workspaceId": "<ws-1>",
+      "sessionId": "<uuid-2>",
+      "turnId": "<uuid-4>",
+      "threadId": "<uuid-3>",
+      "exitCode": 0,
+      "sawResult": true,
+      "at": "<time>",
+      "pos": 4,
+      "seq": 12
+    },
+    {
+      "type": "session.held",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "seq": 5
+    },
+    {
+      "type": "session.row",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "id": "<uuid-2>",
+      "row": {
+        "id": "<uuid-2>",
+        "workspaceId": "<ws-1>",
+        "harness": "claude",
+        "status": "completed",
+        "startedBy": "person",
+        "threadId": "<uuid-3>",
+        "prompt": "hi",
+        "startedAt": "<time>",
+        "model": "claude-haiku-5-5",
+        "effort": "high",
+        "permissionMode": "bypassPermissions",
+        "cwd": "/",
+        "claudeSessionId": "<uuid-2>",
+        "lastLine": "ok",
+        "endedAt": "<time>",
+        "readAt": "<time>",
+        "project": {
+          "id": "<pr-1>",
+          "name": "scratch"
+        },
+        "computerName": "<computer>"
+      },
+      "seq": 13
+    },
+    {
+      "type": "session.row",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "id": "<uuid-2>",
+      "row": {
+        "id": "<uuid-2>",
+        "workspaceId": "<ws-1>",
+        "harness": "claude",
+        "status": "running",
+        "startedBy": "person",
+        "threadId": "<uuid-3>",
+        "prompt": "hi",
+        "startedAt": "<time>",
+        "model": "claude-haiku-5-5",
+        "effort": "high",
+        "permissionMode": "bypassPermissions",
+        "cwd": "/",
+        "claudeSessionId": "<uuid-2>",
+        "pid": "<moving>",
+        "agentPid": "<moving>",
+        "readAt": "<time>",
+        "project": {
+          "id": "<pr-1>",
+          "name": "scratch"
+        },
+        "computerName": "<computer>"
+      },
+      "seq": 13
+    },
+    {
+      "type": "session.row",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "id": "<uuid-4>",
+      "row": {
+        "id": "<uuid-4>",
+        "workspaceId": "<ws-1>",
+        "harness": "claude",
+        "status": "running",
+        "startedBy": "person",
+        "threadId": "<uuid-3>",
+        "prompt": "hi",
+        "startedAt": "<time>",
+        "readAt": "<time>",
+        "project": {
+          "id": "<pr-1>",
+          "name": "scratch"
+        },
+        "computerName": "<computer>"
+      },
+      "seq": 6
+    },
+    {
+      "type": "session.row",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "id": "<uuid-4>",
+      "seq": 9
+    },
+    {
+      "type": "session.start",
+      "workspaceId": "<ws-1>",
+      "sessionId": "<uuid-2>",
+      "turnId": "<uuid-4>",
+      "threadId": "<uuid-3>",
+      "prompt": "hi",
+      "opensThread": true,
+      "startedBy": "person",
+      "model": "claude-haiku-5-5",
+      "cwd": "/",
+      "permissionMode": "bypassPermissions",
+      "effort": "high",
+      "agent": "claude",
+      "tools": [],
+      "at": "<time>",
+      "pos": 1,
+      "seq": 8
+    },
+    {
+      "type": "session.starting",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "harness": "claude",
+      "seq": 7
+    },
+    {
+      "type": "thread.head",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "facts": {
+        "id": "<uuid-3>",
+        "threadId": "<uuid-3>",
+        "workspaceId": "<ws-1>",
+        "harness": "claude",
+        "startedBy": "person",
+        "status": "completed",
+        "title": "hi",
+        "sessionId": "<uuid-2>",
+        "claudeSessionId": "<uuid-2>",
+        "startedAt": "<time>",
+        "endedAt": "<time>",
+        "cwd": "/",
+        "lastLine": "ok",
+        "readAt": "<time>",
+        "permissionMode": "bypassPermissions",
+        "turns": 1,
+        "ran": true,
+        "model": "claude-haiku-5-5",
+        "effort": "high"
+      },
+      "pos": 4,
+      "seq": 13
+    },
+    {
+      "type": "thread.head",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "facts": {
+        "id": "<uuid-3>",
+        "threadId": "<uuid-3>",
+        "workspaceId": "<ws-1>",
+        "harness": "claude",
+        "startedBy": "person",
+        "status": "running",
+        "title": "hi",
+        "sessionId": "<uuid-2>",
+        "claudeSessionId": "<uuid-2>",
+        "startedAt": "<time>",
+        "cwd": "/",
+        "pid": "<moving>",
+        "agentPid": "<moving>",
+        "readAt": "<time>",
+        "permissionMode": "bypassPermissions",
+        "turns": 1,
+        "ran": true,
+        "model": "claude-haiku-5-5",
+        "effort": "high",
+        "turnId": "<uuid-4>"
+      },
+      "pos": 1,
+      "seq": 9
+    },
+    {
+      "type": "workspace.cost",
+      "workspaceId": "<ws-1>",
+      "phase": "running",
+      "rateUsdPerHour": 0,
+      "awakeMs": "<moving>",
+      "accruedUsd": 0,
+      "at": "<time>",
+      "seq": 4
+    },
+    {
+      "type": "workspace.created",
+      "workspace": {
+        "folder": "<tmp>/scratch",
+        "home": "<tmp>/home",
+        "id": "<ws-1>",
+        "name": "scratch",
+        "machineId": "local",
+        "phase": "running",
+        "kind": "local",
+        "golden": "",
+        "createdAt": "<time>",
+        "project": {
+          "id": "<pr-1>",
+          "name": "scratch",
+          "path": "<tmp>/scratch",
+          "computer": "here"
+        },
+        "agents": {
+          "spawn": true,
+          "maxMachines": 3,
+          "maxDepth": 2
+        }
+      },
+      "seq": 3
+    }
+  ]
+}

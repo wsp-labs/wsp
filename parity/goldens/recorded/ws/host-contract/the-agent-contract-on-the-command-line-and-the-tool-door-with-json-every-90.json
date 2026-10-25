@@ -8,23 +8,9 @@
     },
     {
       "id": 2,
-      "ok": true,
-      "agent": {
-        "id": "claude",
-        "name": "Claude Code",
-        "installed": true,
-        "version": "<version>",
-        "pinned": "2.1.296",
-        "road": "own",
-        "path": "/usr/bin/claude",
-        "signIn": "none",
-        "signInRoad": "token",
-        "wspTools": false,
-        "setup": {
-          "on": true,
-          "envNames": []
-        }
-      }
+      "ok": false,
+      "error": "There is no server named acme in ~/.codex/config.toml.",
+      "kind": "usage"
     }
   ],
   "events": []

@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a place's turn limit > reads off on a computer the person owns and six hours on a cloud, and takes a set and a reset on either","outs":"recorded"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a place's turn limit > reads off on a computer the person owns and six hours on a cloud, and takes a set and a reset on either","outs":"recorded","computer":"ip-172-31-35-82"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"here","turnLimitMs":7200000,"id":2,"op":"places.set"}}

@@ -15,7 +15,7 @@
       "id": 3,
       "ok": true,
       "ticket": "<id-1>",
-      "expiresAt": "<time>"
+      "expiresAt": "<time+5m>"
     }
   ],
   "events": []

@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > asks the host for one more beat when the key is not on the list yet, and admits what that beat learned","outs":"recorded"}}
-{"in":{"nonce":"bY/0/yzQUm9keVhBElRXHCdkZBU/9UvfmS3WCA7Mx3M=","ephemeral":"x4KsKImwhjiw4l2QL92Zh6YIyYjIbvczJX3p1LN+CDM=","id":1,"op":"seal.open"}}
-{"out":{"id":1,"ok":true,"nonce":"0+0wMKDbva50NTwHTnxuoFOtpXYZSqpS6Atx3H48v6E=","hostPublicKey":"MCowBQYDK2VwAyEA8Y2EHym3NakrBbhzX0mHeXZGR82VTtZBMezYrF/IDPc=","signature":"wWtYHMIwKAo/cNEcsDTJHCnrLeA6FUd7l+GXEbvtH7AdpLf3YuIbKUjbmvv3TuQbEqZKKlr9dfWPEk5YGle+Dg==","ephemeral":"5TQNmzqiZlrM6DvJTnXF4FpHrxgcscmku2Dqkt34sx4="}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEAm66C7rigvjswvuozG+JVyWSSlL5atfeHl8P9Awx4ifo=","name":"the laptop","signature":"BR3ePdleqCWC8rgjGuFKx14eEukbzHez6VlmTZ3Utlj4aMHZSKY6oC+Jgh2H4TKxdfPYdiXA22g5LBzQMimKDw==","id":2,"op":"device.auth"}}
-{"out":{"id":2,"ok":true,"deviceId":"d_00000001","deviceToken":"yzKVDsD_2iLmifS1VhtooZ4eQEINHlzx"}}
+{"in":{"nonce":"wgStEQiQYxQChdKH4/9z6HKzweFvcL0t1uzOBjUZp+s=","ephemeral":"qTfOR6R+0xFl+BXTVv9tIAdVSw64FJOqtKkQL6JRWmw=","id":1,"op":"seal.open"}}
+{"out":{"id":1,"ok":true,"nonce":"t7pa4C0RtVa/r/Gju3dPMLngzT2hXNTu/8aweM7QAw8=","hostPublicKey":"MCowBQYDK2VwAyEAJ2btoge2f7cYGx0CrDy3UgbOlYtm/StTaNNmAHJk8Uc=","signature":"34EbENw/EtSyCe1nxWHLgNu1x0cDFWFatGyO2Qf4cinZmqBV2W7q0hpp4BOJwGdzNZItHQyQq8qHLKqpHRjIBw==","ephemeral":"zMjdo5FQ5KvybC7Kq17oPXc8re9e3uS62tZiS62G7AA="}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAxYstHBDTkOvYuR0W0Z1X4aUhbnKrZBJrutR/f4uyf8s=","name":"the laptop","signature":"h4Xa5C9myC7S/P2UY86prPAbaGs8mXBU6RgQ+0oGzAl2x5BLW4K+paDRg+gpfJyjoFPEoinVVinIBJYNy6DfCA==","id":2,"op":"device.auth"}}
+{"out":{"id":2,"ok":true,"deviceId":"d_00000001","deviceToken":"<redacted-1>"}}

@@ -4,6 +4,6 @@
 {"in":{"id":2,"op":"places.sshHosts"}}
 {"out":{"id":2,"ok":true,"hosts":[{"alias":"hetzner","hostName":"65.21.4.12","user":"root","from":"config"}]}}
 {"in":{"id":3,"op":"pair.issue"}}
-{"out":{"id":3,"ok":true,"code":"<redacted>","expiresAt":1792942414912,"hostKey":"SHA256:KrkhQMj+wAamIltgWr5jwkzQOkLZqyeHsicdrE3sEG8"}}
+{"out":{"id":3,"ok":true,"code":"<redacted-1>","expiresAt":1792951158348,"hostKey":"SHA256:S3gOaqNkpM65gMWSEftU06fD+TsKa+Xrdjqhx35fdeY"}}
 {"in":{"purpose":"relay","id":4,"op":"ticket.issue"}}
-{"out":{"id":4,"ok":true,"ticket":"<redacted>","expiresAt":1792942114912}}
+{"out":{"id":4,"ok":true,"ticket":"<redacted-2>","expiresAt":1792950858349}}

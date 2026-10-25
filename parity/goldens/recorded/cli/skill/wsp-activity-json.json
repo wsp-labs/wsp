@@ -8,7 +8,8 @@
           "error": "the daemon for this computer did not start, so its terminal, files and processes have nothing to dial: wsp-daemon binary missing: <repo>/packages/wspx/daemon/aarch64-unknown-linux-musl/wsp-daemon",
           "class": "provider",
           "exit": 1
-        }
+        },
+        "layout": "compact, a newline after"
       }
     }
   ],

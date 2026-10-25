@@ -9,12 +9,13 @@
     {
       "id": 2,
       "ok": true,
-      "workspaces": []
+      "sessions": []
     },
     {
       "id": 3,
-      "ok": true,
-      "sessions": []
+      "ok": false,
+      "error": "no thread <id-1>",
+      "kind": "not-found"
     }
   ],
   "events": []

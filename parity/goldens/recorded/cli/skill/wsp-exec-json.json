@@ -8,7 +8,8 @@
           "error": "wsp exec takes a thread, then -- and the command. usage: wsp exec <thread> [--cwd <dir>] -- <command...>",
           "class": "usage",
           "exit": 3
-        }
+        },
+        "layout": "compact, a newline after"
       }
     }
   ],

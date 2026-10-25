@@ -9,43 +9,8 @@
     {
       "id": 2,
       "ok": true,
-      "preferences": {
-        "theme": "light",
-        "lightTheme": "paper",
-        "darkTheme": "graphite",
-        "sidebarMode": "list",
-        "terminalSize": "app",
-        "terminalZoom": {
-          "ws_a": 2
-        },
-        "access": {},
-        "projectLook": {},
-        "projectIcon": {},
-        "computerLook": {},
-        "serverIcons": true,
-        "agentVersions": true,
-        "usageLogs": true,
-        "productUsage": true,
-        "keepAwake": true,
-        "transparency": true,
-        "projectOrder": [],
-        "keybindings": {},
-        "appFont": "",
-        "codeFont": "",
-        "agentDefaults": {},
-        "projectDefaults": {},
-        "sendWith": "enter",
-        "midTurn": "queue",
-        "notifyNeeds": "notify-sound",
-        "notifyDone": "notify",
-        "planAlerts": true,
-        "settleAfter": "2h",
-        "askDelete": true,
-        "onQuit": "ask",
-        "newThreadIn": "current",
-        "labs": false,
-        "sidebarWidth": 312
-      }
+      "seq": 0,
+      "stream": "<uuid-1>"
     }
   ],
   "events": []

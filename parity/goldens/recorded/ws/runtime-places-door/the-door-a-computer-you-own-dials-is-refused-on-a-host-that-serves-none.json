@@ -10,8 +10,10 @@
       "id": 2,
       "ok": true,
       "door": {
-        "port": "<port>",
-        "addresses": "<machine>",
+        "port": "<door-port>",
+        "addresses": [
+          "http://127.0.0.1:<door-port>"
+        ],
         "hostKey": "<id-1>"
       }
     }

@@ -2,4 +2,4 @@
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"id":2,"op":"devices.list"}}
-{"out":{"id":2,"ok":true,"devices":[{"id":"d_00000001","name":"one","createdAt":"2026-10-25T15:21:50.541Z","lastSeenAt":"2026-10-25T15:21:50.541Z"}]}}
+{"out":{"id":2,"ok":true,"devices":[{"id":"d_00000001","name":"one","createdAt":"2026-10-25T17:47:34.318Z","lastSeenAt":"2026-10-25T17:47:34.318Z"}]}}

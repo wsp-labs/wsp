@@ -14,13 +14,19 @@
     {
       "id": 3,
       "ok": false,
-      "error": "no thread 00000000",
+      "error": "no such workspace: <ws-1>",
       "kind": "not-found"
     },
     {
       "id": 4,
       "ok": false,
-      "error": "no thread 00000000",
+      "error": "no such workspace: <ws-1>",
+      "kind": "not-found"
+    },
+    {
+      "id": 5,
+      "ok": false,
+      "error": "no such workspace: <ws-1>",
       "kind": "not-found"
     }
   ],

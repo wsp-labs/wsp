@@ -25,7 +25,8 @@
             "text": {
               "json": {
                 "threads": []
-              }
+              },
+              "layout": "indented"
             }
           }
         ],

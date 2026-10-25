@@ -13,7 +13,7 @@
         "json": [
           {
             "received": "toaster",
-            "code": "<code>",
+            "code": "invalid_enum_value",
             "options": [
               "laptop",
               "desktop",
@@ -35,7 +35,8 @@
             ],
             "message": "Invalid enum value. Expected 'laptop' | 'desktop' | 'mac-mini' | 'mac-studio' | 'tower' | 'server' | 'cloud' | 'cpu' | 'drive' | 'container' | 'home', received 'toaster'"
           }
-        ]
+        ],
+        "layout": "indented"
       }
     }
   ],

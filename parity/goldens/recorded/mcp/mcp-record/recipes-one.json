@@ -25,7 +25,8 @@
             "text": {
               "json": {
                 "recipes": []
-              }
+              },
+              "layout": "indented"
             }
           }
         ],

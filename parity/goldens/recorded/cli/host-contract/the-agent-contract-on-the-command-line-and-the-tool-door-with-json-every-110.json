@@ -8,7 +8,8 @@
           "error": "Remove acme from the codex config? There is no terminal to answer on. Pass --yes to say yes.",
           "class": "usage",
           "exit": 3
-        }
+        },
+        "layout": "compact, a newline after"
       }
     }
   ],
