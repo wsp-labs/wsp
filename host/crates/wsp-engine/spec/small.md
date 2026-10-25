@@ -62,12 +62,28 @@ Source at `a4033dc34`: `packages/engine/src/key-check.ts` (42), `key-fingerprint
 
 The slot holds its module in memory only (a host restart builds it again); nothing else here keeps state.
 
+## Pinned since (K-rules, values from running the TS)
+
+- K1. `open` and `sealed_image_of` authenticate the header line's raw bytes up to and including its `\n` as the
+  additional data, never a re-serialised header: a header with keys out of schema order, an unknown image key (dropped
+  from the answer), spaces, a tab or a `\r` before the `\n` still opens. Header validity is the zod schema's (hash 64
+  hex, version and usedBytes non-negative integers, `to` `key`); a key derivation that fails comes before the length
+  check; a body of 15 bytes is `the sealed vault is shorter than its own tag`, of 16 a tag failure.
+- K2. `install_script`'s log folder is the log less `/[^/]+$`: `/c.log` gives `''`, `logs/` stays `logs/`, `/a//c.log`
+  gives `/a/`, no slash keeps the whole log.
+- K3. `drop_template(Some(""))` deletes `""`; only `None` asks nothing.
+- `ProviderSlot` forwards every `MachineBackend` method, defaults included (26 in all), to the module current at the
+  call; a call in flight keeps its module after a swap, and `swap` never waits on one.
+
 ## Rules and their tests
 
 Files: `small.rs` (ported), `key_check.rs` (key), `small_hard.rs` (hard).
 
 | Rule | Tests |
 |---|---|
+| K1 | small_hard.rs: `open_authenticates_the_header_bytes_as_they_came` |
+| K2 | small_hard.rs: `the_install_logs_folder_is_the_log_less_its_last_name` |
+| K3 | small_hard.rs: `an_empty_template_id_is_still_dropped` |
 | B1, B2 | key `asks_the_template_table_the_cheapest_read_the_key_opens_and_nothing_else`, `reads_a_refusal_as_the_providers_own_status_and_word_under_our_sentence`, `a_plan_that_may_not_read_the_account_is_the_same_refusal_the_key_alone_will_not_do`, `a_road_that_never_left_this_computer_says_so_instead_of_blaming_the_key`, `a_gateway_status_answered_about_the_gateway_not_the_key`, `a_backend_that_holds_no_key_has_none_to_check` |
 | B3 | ported `is_the_word_every_ssh_tool_prints_for_the_same_key`, `wears_that_one_form_for_a_place_link_key_too_which_travels_as_spki_der_rather_than_an_ssh_blob`; hard `fingerprints_decode_base64_as_node_does` |
 | B4 | hard `apt_and_prelude_write_the_ts_text` |

@@ -119,3 +119,19 @@ fn brew_shared_scripts_match_the_ts_byte_for_byte() {
         assert_eq!(brew_shared_check(&formulae), c["check"].as_str().unwrap(), "{formulae:?}");
     }
 }
+
+/// spec/tool_sizes.md K1: an id with no `/` is looked up whole (`indexOf` is -1, so the slice is the whole id); `parse_du`
+/// keeps an empty key (the path `/` cut to `""`), reads sizes as f64, and drops a negative or fractional block count.
+#[test]
+fn an_agent_id_without_a_slash_is_looked_up_whole_and_du_keeps_an_empty_key() {
+    use wsp_engine::golden_seam::RecipeEntry;
+    use wsp_engine::tool_sizes::{agent_size, parse_du};
+    let e = |id: &str| RecipeEntry { rung: "agents".into(), id: id.into() };
+    assert_eq!(agent_size(&e("claude")), agent_size(&e("agents/claude")));
+    assert!(agent_size(&e("claude")).is_some());
+    assert_eq!(agent_size(&e("agents/")), None);
+    assert_eq!(agent_size(&e("")), None);
+    assert_eq!(agent_size(&e("agents/mcp/claude/x")), None);
+    let du = parse_du("12\t/\n0\t/a\n-5\t/n\n1.5\t/f\n99999999999999999999\t/big\n", None);
+    assert_eq!(du.into_iter().collect::<Vec<_>>(), vec![(String::new(), 12_288.0), ("a".to_string(), 0.0), ("big".to_string(), 1.024e23)]);
+}

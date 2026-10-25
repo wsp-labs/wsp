@@ -1090,3 +1090,152 @@ fn a_host_outside_the_class_the_provider_takes_is_refused_rather_than_written_in
         assert!(err.to_string().contains(words), "{err}");
     }
 }
+
+// ---- K-rules (spec/sweeps.md K1 to K4), values from running orphans.ts and snapshot-names.ts at a4033dc34
+
+fn listed_row(state: MachineState, labels: IndexMap<String, String>) -> MachineListRow {
+    MachineListRow { id: "m".into(), state, labels, size: None }
+}
+
+/// K1: a lost workspace is running or paused, `wsp` exactly `1`, owned by this owner, not a builder or smoke fork by the
+/// value `1`, and of no readable age or at least a minute old (60000 in, 59999 out, a future stamp out).
+#[test]
+fn a_lost_workspace_is_read_label_by_label() {
+    let own = |extra: &[(&str, &str)], at: Option<String>| {
+        let mut l = lab(&[("wsp", "1"), ("wsp-owner", "me")]);
+        l.extend(lab(extra));
+        if let Some(a) = at {
+            l.insert("createdAt".into(), a);
+        }
+        l
+    };
+    let lost = |state: MachineState, labels: IndexMap<String, String>| wsp_engine::orphans::lost_workspace(&listed_row(state, labels), "me", NOW);
+    for (state, labels, want) in [
+        (MachineState::Running, own(&[], None), true),
+        (MachineState::Paused, own(&[], None), true),
+        (MachineState::Starting, own(&[], None), false),
+        (MachineState::Gone, own(&[], None), false),
+        (MachineState::Running, own(&[], Some(iso(NOW - 60_000))), true),
+        (MachineState::Running, own(&[], Some(iso(NOW - 59_999))), false),
+        (MachineState::Running, own(&[], Some(iso(NOW + 1_000))), false),
+        (MachineState::Running, own(&[], Some("yesterday".into())), true),
+        (MachineState::Running, own(&[], Some(String::new())), true),
+        (MachineState::Running, own(&[("wsp-owner", "other")], None), false),
+        (MachineState::Running, lab(&[("wsp", "1")]), false),
+        (MachineState::Running, own(&[("wsp-owner", "")], None), false),
+        (MachineState::Running, own(&[("wsp", "0")], None), false),
+        (MachineState::Running, own(&[("wsp-builder", "1")], None), false),
+        (MachineState::Running, own(&[("wsp-builder", "true")], None), true),
+        (MachineState::Running, own(&[("wsp-builder", "0")], None), true),
+        (MachineState::Running, own(&[("wsp-smoke", "1")], None), false),
+        (MachineState::Running, own(&[("wsp-smoke", "")], None), true),
+        (MachineState::Running, own(&[("poc", "")], None), false),
+    ] {
+        assert_eq!(lost(state, labels.clone()), want, "{state:?} {labels:?}");
+    }
+}
+
+/// K2: a stray is not gone, not known, not asked, and at least ten minutes old by a stamp `Date.parse` reads (600000 in,
+/// 599999 out; paused counts; a date-only stamp is UTC midnight; a future or empty stamp is out), in row order.
+#[test]
+fn strays_are_ten_minutes_old_by_a_readable_stamp() {
+    let m = |id: &str, state: MachineState, at: Option<String>, name: &str| wsp_engine::machine::NamedMachine { id: id.into(), name: name.into(), state, created_at: at };
+    let rows = vec![
+        m("a", MachineState::Running, Some(iso(NOW - 600_000)), "wsp-h1-default"),
+        m("b", MachineState::Running, Some(iso(NOW - 599_999)), "wsp-h1-default"),
+        m("c", MachineState::Gone, Some(iso(NOW - 6_000_000)), "wsp-h1-default"),
+        m("d", MachineState::Running, None, "wsp-h1-default"),
+        m("e", MachineState::Running, Some("garbage".into()), "wsp-h1-default"),
+        m("f", MachineState::Running, Some(iso(NOW - 6_000_000)), "asked-name"),
+        m("g", MachineState::Running, Some(iso(NOW - 6_000_000)), "wsp-h1-default"),
+        m("h", MachineState::Paused, Some(iso(NOW - 7_000_000)), "wsp-h1-default"),
+        m("i", MachineState::Running, Some(iso(NOW + 5_000)), "wsp-h1-default"),
+        m("j", MachineState::Running, Some(String::new()), "wsp-h1-default"),
+        m("k", MachineState::Running, Some("2026-09-01".into()), "wsp-h1-default"),
+    ];
+    let read = wsp_engine::orphans::StrayRead { known: ["g".to_string()].into(), asked: ["asked-name".to_string()].into(), now: NOW };
+    let got: Vec<(String, i64)> = wsp_engine::orphans::strays(&rows, &read).into_iter().map(|(r, age)| (r.id, age)).collect();
+    assert_eq!(got, vec![("a".to_string(), 600_000), ("h".to_string(), 7_000_000), ("k".to_string(), 43_200_000)]);
+}
+
+/// K3: reap compares label values exactly: an empty owner is a foreign owner (spared, never killed); `wsp` other than
+/// `1` is passed over; `wsp-builder` other than `1` is not a builder (ten-minute backstop, killed as an orphan).
+#[tokio::test]
+async fn reap_reads_label_values_exactly() {
+    let hour = iso(NOW - 3_600_000);
+    let backend = StubBackend::new(vec![
+        row("empty-owner", lab(&[("wsp", "1"), ("wsp-owner", ""), ("createdAt", &hour)])),
+        row("wsp-true", lab(&[("wsp", "true"), ("createdAt", &hour)])),
+        row("wsp-empty", lab(&[("wsp", ""), ("createdAt", &hour)])),
+        row("builder-true", lab(&[("wsp", "1"), ("wsp-builder", "true"), ("createdAt", &hour)])),
+        row("builder-0", lab(&[("wsp", "1"), ("wsp-builder", "0"), ("createdAt", &hour)])),
+        row("builder-1", lab(&[("wsp", "1"), ("wsp-builder", "1"), ("createdAt", &hour)])),
+    ]);
+    let result = reap(opts(&backend, "me", vec![])).await.unwrap();
+    assert_eq!(backend.killed(), strs(&["builder-true", "builder-0"]));
+    assert_eq!(result.reaped.iter().map(|r| (r.id.clone(), r.reason, r.builder)).collect::<Vec<_>>(), vec![
+        ("builder-true".to_string(), ReapReason::Orphan, false),
+        ("builder-0".to_string(), ReapReason::Orphan, false),
+    ]);
+    let spared: Vec<(String, Whose, Option<String>, i64, Option<i64>)> =
+        result.spared.iter().map(|s| (s.id.clone(), s.whose, s.owner.clone(), s.backstop_ms, s.age_ms)).collect();
+    assert_eq!(spared, vec![
+        ("empty-owner".to_string(), Whose::Foreign, Some(String::new()), 600_000, Some(3_600_000)),
+        ("builder-1".to_string(), Whose::None, None, 21_600_000, Some(3_600_000)),
+    ]);
+}
+
+/// K4: an age is never clamped (a future own stamp is spared at a negative age); `older_than_ms: Some(0)` is a value
+/// (age 0 dies, a future stamp lives with backstop 0); a given empty listing is never re-read, and the known ids are
+/// read exactly once.
+#[tokio::test]
+async fn reap_keeps_negative_ages_takes_zero_as_a_value_and_reads_known_ids_once() {
+    let backend = StubBackend::new(vec![row("future-own", lab(&[("wsp", "1"), ("wsp-owner", "me"), ("createdAt", &iso(NOW + 300_000))]))]);
+    let result = reap(opts(&backend, "me", vec![])).await.unwrap();
+    assert_eq!(result.spared.iter().map(|s| (s.age_ms, s.backstop_ms)).collect::<Vec<_>>(), vec![(Some(-300_000), 60_000)]);
+    let backend = StubBackend::new(vec![
+        row("aged-1s", lab(&[("wsp", "1"), ("createdAt", &iso(NOW - 1_000))])),
+        row("aged-0", lab(&[("wsp", "1"), ("createdAt", &iso(NOW))])),
+        row("future", lab(&[("wsp", "1"), ("createdAt", &iso(NOW + 1_000))])),
+    ]);
+    let result = reap(ReapOptions { older_than_ms: Some(0), ..opts(&backend, "me", vec![]) }).await.unwrap();
+    assert_eq!(backend.killed(), strs(&["aged-1s", "aged-0"]));
+    assert_eq!(result.spared.iter().map(|s| (s.id.clone(), s.age_ms, s.backstop_ms)).collect::<Vec<_>>(), vec![("future".to_string(), Some(-1_000), 0)]);
+    let backend = StubBackend::new(vec![row("x", lab(&[("wsp", "1"), ("createdAt", &old())]))]);
+    let reads = Arc::new(Mutex::new(0));
+    let counted = reads.clone();
+    let result = reap(ReapOptions {
+        listing: Some(vec![]),
+        known_ids: Box::new(move || {
+            *counted.lock().unwrap() += 1;
+            vec![]
+        }),
+        ..opts(&backend, "me", vec![])
+    })
+    .await
+    .unwrap();
+    assert!(result.reaped.is_empty() && result.spared.is_empty());
+    assert_eq!((backend.listed(), *reads.lock().unwrap()), (0, 1));
+}
+
+/// K5: JS `.` refuses `\n`, `\r`, U+2028 and U+2029, so a name holding any of them has no owner (foreign, never an
+/// orphan to delete); the owner mark is `[a-z0-9]+` and nothing is trimmed.
+#[test]
+fn a_name_with_any_js_line_break_has_no_owner() {
+    for (name, want) in [
+        ("wsp-h1-a\n", None),
+        ("wsp-h1-a\rb", None),
+        ("wsp-h1-a\u{2028}b", None),
+        ("wsp-h1-a\u{2029}b", None),
+        ("wsp-h1-\r", None),
+        ("wsp-h1-é", Some("h1")),
+        ("wsp-h1--v1", Some("h1")),
+        ("wsp-0-x", Some("0")),
+        ("wsp-h1_2-x", None),
+        ("WSP-h1-x", None),
+        (" wsp-h1-x", None),
+        ("wsp-h1-x ", Some("h1")),
+    ] {
+        assert_eq!(name_owner(Some(name)).as_deref(), want, "{name:?}");
+    }
+}

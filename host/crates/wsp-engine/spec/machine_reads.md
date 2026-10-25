@@ -61,12 +61,38 @@ Oracle: `login.json`, `small.json` (`diskUse`).
 
 Nothing is kept; every read asks the machine again.
 
+## Pinned since (K-rules, values from running the TS)
+
+- K1. A failure's words take `(stderr || stdout)` before the trim: a blank stderr wins and names nothing; the first
+  `\n` line keeps a `\r` and inner trailing spaces. `first_line` falls to `exit <code>` only when that line is empty.
+- K2. `dirname(dest)` is node's `posix.dirname`: trailing slashes cut, then cut at the last `/` with nothing collapsed
+  (`a//b` is `a/`, `/a/./b` is `/a/.`), `.` where no slash is left (`plain.txt`, `x/`, `""`), `/` or `//` for a root
+  cut. `Path::parent` differs on four of these.
+- K3. `stores_reached` with a login handed to keeps a store equal to the home or starting `<home>/`, by plain string,
+  in map order (`/home/ada/../x` is kept; a home with a trailing slash reaches only stores under `<home>//`); with
+  none handed to, every store. `under_project("", "")` holds, so an empty home reaches an empty store.
+- K4. `login_shell_path` takes the last `\n` line, then trims: `/usr/bin\r` is `/usr/bin`, `/usr/bin\r\n` is `None`.
+- K5. disk-sync's multiline `^`/`$` break at `\n`, `\r`, U+2028 and U+2029 (the `regex` crate's `(?m)` knows only
+  `\n`); `\d` is ASCII (`(?-u:\d)` or `[0-9]`); the first match wins; a counter is `Number(...)`, so one past f64's
+  range (400 nines) is no reading. `disk_use_of` takes the first line that is exactly two ASCII numbers.
+- K6. `preview_is_fresh` is `expires_at - now > 600000` strictly; `refresh_preview_token` answers a fresh `current` as
+  it is without asking (a machine with no preview road included) and refuses a stale or absent one there with
+  `machine <id> is on a backend without preview URLs`.
+- Also read (not pinned here): `land_bytes` lands on 200 to 299 only (300 to 399 fail `<path> did not land on <id>:
+  HTTP <status>`); `timeout_ms: Some(0)` is forwarded as 0 to every exec and to `put_bytes`.
+
 ## Rules and their tests
 
 Files: `machine_reads.rs` (ported), `machine_reads_hard.rs` (hard).
 
 | Rule | Tests |
 |---|---|
+| K1 | machine_reads_more.rs: `a_failure_names_the_first_line_of_stderr_chosen_before_the_trim` |
+| K2 | machine_reads_more.rs: `the_landing_line_makes_nodes_dirname_of_the_dest` |
+| K3 | machine_reads_more.rs: `the_stores_a_login_reaches_are_a_plain_prefix_test` |
+| K4 | machine_reads_more.rs: `the_login_shells_path_is_the_last_line_so_crlf_reads_none` |
+| K5 | machine_reads_more.rs: `disk_sync_breaks_lines_as_js_does` |
+| K6 | machine_reads_more.rs: `the_preview_boundary_is_strict_and_a_fresh_reach_needs_no_road` |
 | V1, V2 | hard `probes_write_the_ts_lines_byte_for_byte`; ported `reads_the_owner_of_the_folder_a_linked_home_points_at_not_of_the_link` |
 | V3 | ported `a_root_daemon_hands_every_line_to_the_owner_of_the_home_never_to_root_with_the_home_and_path_reported`, `a_mac_a_login_that_is_not_root_and_a_fork_whose_home_is_roots_own_run_the_line_as_it_is`, `refuses_to_read_at_all_where_the_road_is_root_the_home_is_somebody_elses_and_there_is_no_runuser`, `refuses_where_a_root_road_names_a_home_that_is_not_there_rather_than_running_as_root` |
 | V4, V5 | ported `the_wrapped_line_runs_in_bash_as_the_logins_own_quoting_and_all`; hard `as_login_writes_the_ts_lines` |
