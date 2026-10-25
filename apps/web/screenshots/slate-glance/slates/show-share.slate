@@ -1,0 +1,13 @@
+<slate title="What landed on main since 1 October">
+  <value name="kinds" start={[
+    {name: "fix", n: 387},
+    {name: "feat", n: 119},
+    {name: "test", n: 50},
+    {name: "docs", n: 20},
+    {name: "Everything else", n: 59}
+  ]} />
+  <column>
+    <donut label="635 commits by kind" items={$kinds} name={item.name} value={item.n} format="integer" />
+    <text value="Three fixes landed for every feature." />
+  </column>
+</slate>

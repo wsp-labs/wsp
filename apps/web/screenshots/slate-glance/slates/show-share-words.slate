@@ -1,0 +1,13 @@
+<slate title="What landed on main since 1 October">
+  <column>
+    <facts>
+      <fact label="Commits" value="635" />
+      <fact label="fix" value="387, 61%" />
+      <fact label="feat" value="119, 19%" />
+      <fact label="test" value="50, 8%" />
+      <fact label="docs" value="20, 3%" />
+      <fact label="Everything else" value="59, 9%" />
+    </facts>
+    <text value="Three fixes landed for every feature." />
+  </column>
+</slate>

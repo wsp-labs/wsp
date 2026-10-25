@@ -1,0 +1,16 @@
+<slate title="How a slate's image reaches the window">
+  <column>
+    <diagram label="One image piece, from the slate to the panel">
+flowchart TD
+  ask([Window asks]) -->|path| read[(Read here)]
+  ask -->|remote path| daemon[Its daemon]
+  ask -->|address| fetch[Fetch if allowed]
+  read --> check{{Image under the cap?}}
+  daemon --> check
+  fetch --> check
+  check -->|yes| shown([Bytes shown])
+  check -->|no| refused([One muted line])
+    </diagram>
+    <text value="The window never fetches an image itself; the host answers unchanged for a version the window already holds." />
+  </column>
+</slate>

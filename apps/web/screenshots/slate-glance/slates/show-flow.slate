@@ -1,0 +1,14 @@
+<slate title="Add Boat, step by step">
+  <value name="steps" start={[
+    {src: "shots/boat-setup-1-key-empty.jpg", caption: "1 Paste a key"},
+    {src: "shots/boat-setup-2-key-works.jpg", caption: "2 The key works"},
+    {src: "shots/boat-setup-3-tools.jpg", caption: "3 Pick the CLIs"},
+    {src: "shots/boat-setup-4-summary.jpg", caption: "4 Summary"},
+    {src: "shots/boat-setup-5-building.jpg", caption: "5 Building"},
+    {src: "shots/boat-setup-6-ready.jpg", caption: "6 Ready in 6m 1s"}
+  ]} />
+  <column>
+    <images layout="strip" items={$steps} src={item.src} caption={item.caption} />
+    <text value="Five dialog steps, then the build. Scroll the strip to the end." />
+  </column>
+</slate>

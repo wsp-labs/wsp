@@ -1,0 +1,25 @@
+<slate title="Where ~/wsp-work's 261 GB went">
+  <value name="folders" start={[
+    {name: "gpui-fix-target", group: "Rust build targets", bytes: 56961155072},
+    {name: "gpui-check-target", group: "Rust build targets", bytes: 30294691840},
+    {name: "gpui-benchfix-target", group: "Rust build targets", bytes: 2414346240},
+    {name: "gpui-gate-target", group: "Rust build targets", bytes: 2414112768},
+    {name: "coord", group: "Coordinator and scratch", bytes: 47342555136},
+    {name: "scratch", group: "Coordinator and scratch", bytes: 23744401408},
+    {name: "ui-home", group: "Dev app home", bytes: 18517602304},
+    {name: "land-wt", group: "Worktrees and the rest", bytes: 7691862016},
+    {name: "main", group: "Worktrees and the rest", bytes: 4085678080},
+    {name: "gpui-2366-mac", group: "Worktrees and the rest", bytes: 4072939520},
+    {name: "protos", group: "Worktrees and the rest", bytes: 3871170560},
+    {name: "ui", group: "Worktrees and the rest", bytes: 3352686592},
+    {name: "gpui-check", group: "Worktrees and the rest", bytes: 2815672320},
+    {name: "229 more folders", group: "Worktrees and the rest", bytes: 73021464576}
+  ]} />
+  <column>
+    <stats>
+      <stat label="Free on the disk" value={19} unit="GB" window="of 926 GB" tone="bad" />
+      <stat label="Two Rust targets" value={81} unit="GB" window="gpui-fix and gpui-check" tone="warning" />
+    </stats>
+    <treemap label="~/wsp-work by folder" items={$folders} name={item.name} value={item.bytes} group={item.group} format="bytes" />
+  </column>
+</slate>

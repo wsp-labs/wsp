@@ -3,6 +3,8 @@
 // &three=pairs for three stat tiles two a row in a narrow panel.
 // The slate's text comes from slates/ here or the glance test's own files, its values from the glance test's.
 // ?runs=<name> draws a cold writer's slate (cold/written/) with its runs.json as the runs' results instead.
+// An image or images piece reads files/<the src's last segment>; they ride the bundle as data URLs because a page
+// opened from file:// can neither fetch a file beside it nor read a file:// picture's bytes off a canvas.
 import { createRoot } from "react-dom/client";
 import { parseSlate, slateStartValues, type SlateJson } from "@wsp/protocol/slate";
 import "../../src/index.css";
@@ -20,6 +22,7 @@ const texts = {
   ...import.meta.glob("./slates/*.slate", { query: "?raw", import: "default", eager: true }),
   ...import.meta.glob("./cold/written/*.slate", { query: "?raw", import: "default", eager: true }),
 } as Record<string, string>;
+const files = import.meta.glob("./files/*", { query: "?url", import: "default", eager: true }) as Record<string, string>;
 const written = import.meta.glob("./cold/written/*.runs.json", { import: "default", eager: true }) as Record<string, Record<string, unknown>>;
 const at = new URLSearchParams(location.search);
 const name = at.get("slate") ?? "before";
@@ -55,6 +58,13 @@ if (parsed?.document === undefined) {
     revoke: async () => ({ ok: true }),
     consent: () => {},
     fill: () => {},
+    image: async src => {
+      const url = Object.entries(files).find(([path]) => path.endsWith(`/${src.split("/").pop()}`))?.[1];
+      if (url === undefined) return { problem: { code: "R903", name: "source-unavailable", message: `${src} is not in the harness's files` } };
+      const blob = await (await fetch(url)).blob();
+      const read = await new Promise<string>(done => { const r = new FileReader(); r.onload = () => done(String(r.result)); r.readAsDataURL(blob); });
+      return { mediaType: blob.type, bytes: read.slice(read.indexOf(",") + 1), version: "1" };
+    },
   };
   const sender = new StateSender(engine, () => link);
   const runner = new ActionRunner(engine, () => link);

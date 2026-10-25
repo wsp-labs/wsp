@@ -1,0 +1,10 @@
+[
+  {"slate": "show-compare", "words": "show-compare-words", "title": "UI change", "why": "A visual fix is judged by eye, and the slider puts before and after in one frame"},
+  {"slate": "show-failures", "words": "show-failures-words", "title": "Failed checks", "why": "Each failure's screenshot shows what broke before anyone reads the assertion"},
+  {"slate": "show-flow", "words": "show-flow-words", "title": "Setup flow", "why": "A flow is a run of screens, and a strip reads left to right as the person will"},
+  {"slate": "show-ci", "words": "show-ci-words", "title": "CI run", "why": "Jobs on a clock show the one shard that failed and ran again after the rest had ended"},
+  {"slate": "show-disk", "words": "show-disk-words", "title": "Disk", "why": "Nested boxes show at once which folders hold the disk, and which group they belong to"},
+  {"slate": "show-share", "words": "show-share-words", "title": "Share", "why": "The question is how one whole splits, and a donut answers it in one look"},
+  {"slate": "show-ci-time", "words": "show-ci-time-words", "title": "CI time", "why": "Two lines over twelve days show the slow days at once; twelve rows of minutes do not"},
+  {"slate": "show-request", "words": "show-request-words", "title": "Request flow", "why": "Branches are hard to follow in a list, and the drawing tints each decision and store by shape"}
+]
