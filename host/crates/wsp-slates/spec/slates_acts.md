@@ -67,3 +67,34 @@ revoke of a standing approval; a cancel; an image read.
 
 ## After the port
 - None.
+
+## Tests
+
+24 tests name this unit. Rule or TS case, then the test.
+
+| Pins | Test |
+|---|---|
+| slates_acts Edge case: slates.test.ts:484 | `slates_acts::takes_five_of_the_person_s_events_a_second_answers_a_resend_of_one_it_took_an` |
+| slates_acts Behaviour 1: the bucket refills five a second, and a refusal is not remembered | `slates_acts::the_event_bucket_refills_five_a_second_and_a_refused_press_is_new_when_pressed_again` |
+| slates_acts Behaviour 1: request ids older than 600,000 ms are forgotten | `slates_acts::a_request_id_is_remembered_for_600000_ms_and_then_the_press_is_new` |
+| slates_acts Behaviour 1: at 500 held ids the oldest is dropped | `slates_acts::at_500_held_request_ids_the_oldest_is_dropped_and_pressed_again_is_new` |
+| slates_acts Behaviour 1: a piece the document lacks is gone, and the refusal is forgotten | `slates_acts::a_press_on_a_piece_the_host_s_document_lacks_refuses_and_a_press_again_is_new` |
+| slates_acts Behaviour 1: a row action the piece lacks | `slates_acts::a_row_action_the_piece_lacks_is_refused_with_the_redraw_fix` |
+| slates_acts Behaviour 1: a scoped event's item is the host's own row of the piece's items | `slates_acts::a_row_event_reads_the_item_off_the_host_s_list_not_the_window_s_copy` |
+| slates_acts Behaviour 1 / Edge case: slates.test.ts:705 | `slates_acts::a_press_that_sends_starts_the_agent_s_turn_with_the_text_and_the_slate_line` |
+| slates_acts Behaviour 1: the outcome a delivery came to is what the press answers | `slates_acts::a_press_answers_steered_and_queued_with_what_each_reads_as` |
+| slates_acts Behaviour 1: a send that cannot be delivered refuses with its kind, or conflict, and is forgotten | `slates_acts::a_press_whose_send_cannot_be_delivered_refuses_with_its_kind_or_conflict` |
+| slates_acts Behaviour 1: a press that starts an unapproved command answers held with the sheet | `slates_acts::a_press_that_starts_an_unapproved_command_answers_held_with_the_ask` |
+| slates_acts Behaviour 1: a press that changes a value and holds nothing is done with nothing said | `slates_acts::a_press_that_only_sets_a_value_answers_done_with_nothing_said` |
+| slates_acts Behaviour 1: an event needs a slate | `slates_acts::an_event_cancel_image_or_approval_on_a_thread_with_no_slate_refuses_z802` |
+| slates_acts Behaviour 2: a key that names no declared command | `slates_acts::approving_a_key_no_command_declares_refuses_and_names_the_fix` |
+| slates_acts Behaviour 2: Not now keeps the refusal, and the run is denied | `slates_acts::not_now_keeps_the_refusal_by_run_and_command_and_nothing_runs` |
+| slates_acts Behaviour 2: Run once keeps nothing, Always in this thread keeps the approval with its run and command | `slates_acts::run_once_keeps_no_approval_and_always_keeps_one_with_its_run_and_command` |
+| slates_acts Behaviour 2: the slate's permission to message the agent | `slates_acts::the_send_key_allows_or_refuses_the_slate_messaging_the_agent_and_a_revoke_drops_it` |
+| slates_acts Edge case: slates.test.ts:476 | `slates_acts::keeps_a_link_s_domain_the_person_allowed_for_the_thread_and_refuses_a_key_tha` |
+| slates_acts Behaviour 2: once keeps nothing of a domain, refuse deletes it | `slates_acts::a_domain_allowed_once_keeps_nothing_and_a_refused_one_is_deleted` |
+| slates_acts Edge case: slates.test.ts:447 | `slates_acts::the_person_revokes_an_approval_its_run_stops_and_leaves_its_timer_and_the_nex` |
+| slates_acts Behaviour 4: a cancel stops the run | `slates_acts::a_cancel_stops_a_running_command_and_reads_cancelled` |
+| slates_acts Edge case: slates.test.ts:1175 | `slates_acts::a_held_run_whose_command_the_agent_rewrote_asks_again_for_the_new_one_and_run` |
+| slates_acts Edge case: slates.test.ts:1210 | `slates_acts::a_second_press_on_a_confirmed_run_still_running_leaves_it_running_and_don_t_d` |
+| slates_acts Edge case: slates.test.ts:1020 | `slates_acts::an_image_piece_reads_a_file_from_any_path_and_under_the_thread_s_folder_and_f` |

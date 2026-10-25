@@ -84,3 +84,32 @@ and pushes, and the thread's lifecycle: a turn's snapshot, a rewind, a forget, a
 ## After the port
 - `allow` and `revoke` save without waiting, so a failed save is lost silently (:320, 326).
 - `requests` (the press ids) are not dropped by `forget`.
+
+## Tests
+
+22 tests name this unit. Rule or TS case, then the test.
+
+| Pins | Test |
+|---|---|
+| invariant 3, slates_access Behaviour 7: slates.test.ts:915 | `slates_access::targets::invariant_3_a_thread_another_thread_started_has_no_slate_every_tool_refuses_it` |
+| invariant 3, slates_access Behaviour 7: a token writes its own slate whatever thread is sent (slates.ts:488-490) | `slates_access::targets::invariant_3_a_token_writes_only_its_own_thread_s_slate` |
+| invariant 3, slates_access Behaviour 7: a token reads only the threads under it (slates.ts:491) | `slates_access::targets::invariant_3_a_token_reads_a_thread_under_it_and_no_other` |
+| slates_access Behaviour 7: with no token, a known thread id, a turn token, or a refusal (slates.ts:494-499) | `slates_access::targets::with_no_token_the_thread_is_named_by_id_or_by_a_turn_token` |
+| slates_access Behaviour 8: a thread with no slate refuses what needs one with Z802 (slates.ts:508-511) | `slates_access::targets::a_thread_with_no_slate_refuses_what_needs_one` |
+| slates_access Behaviour 9: a write at a version the slate is not at is refused as a conflict (slates.ts:519-521) | `slates_access::targets::a_write_at_a_version_behind_is_refused` |
+| invariant 2, rule R7, slates_access Behaviour 6: slates.test.ts:189-216 | `slates_access::targets::restart::invariant_2_a_run_the_restart_cut_off_fails_once_and_its_done_fires_once` |
+| rule R7, slates_access Behaviour 5: only schema 2 is loaded, and revision reads as version where absent (slates.ts:433) | `slates_access::targets::restart::ready_loads_schema_2_records_and_reads_a_missing_revision_as_the_version` |
+| slates_access Behaviour 4, 6: slates.test.ts:930 (a timer that ticks as the host boots runs in the thread's folder) | `slates_access::targets::restart::a_timer_that_ticks_as_the_host_boots_starts_its_run_in_the_thread_s_folder` |
+| slates_access Behaviour 4, 14: slates.test.ts:886 (a settled thread's timers wait for a window) | `slates_access::targets::restart::a_settled_thread_stops_its_timed_runs_and_opening_its_slate_starts_them_at_once` |
+| slates_access Behaviour 14, 6: slates.test.ts:794 (a timed run whose last result failed runs again when shown) | `slates_access::targets::restart::a_timed_run_whose_last_result_failed_runs_again_the_moment_it_is_shown` |
+| slates_access Behaviour 11, 12: slates.test.ts:219 (a rewind restores the turn's snapshot) | `slates_access::targets::restart::turns::a_rewind_restores_the_turn_s_snapshot_cancels_a_run_in_flight_with_no_reaction` |
+| slates_access Behaviour 11, slates_model Behaviour 2: a turn's snapshot is a copy, and a turn ending again moves last | `slates_access::targets::restart::turns::a_turn_s_snapshot_is_a_copy_and_a_turn_ending_again_moves_to_the_end` |
+| slates_access Behaviour 11: a turn of a thread with no slate writes nothing | `slates_access::targets::restart::turns::a_turn_of_a_thread_with_no_slate_writes_nothing` |
+| slates_access Behaviour 14, 10: slates.test.ts:270 (a timer fires at once when shown, its ticks move no version) | `slates_access::targets::restart::turns::windows::a_timer_fires_at_once_when_shown_and_its_ticks_move_no_version` |
+| slates_access Behaviour 14: a release runs once, and the last hold's release tells both tables not shown | `slates_access::targets::restart::turns::windows::a_release_runs_once_and_holds_count_per_source` |
+| slates_access Behaviour 18: a document naming pr.checks watches the pull request | `slates_access::targets::restart::turns::windows::a_slate_that_binds_the_pull_request_s_checks_watches_it` |
+| slates_access Behaviour 15: shown sets shownOnce once | `slates_access::targets::restart::turns::windows::shown_marks_the_slate_seen_once` |
+| slates_access Behaviour 13: slates.test.ts:1136 (deleting a thread deletes its slate, folder and runs) | `slates_access::targets::restart::turns::windows::forget::deleting_a_thread_deletes_its_slate_its_folder_and_its_runs_a_running_one_killed` |
+| slates_access Behaviour 13: forget drops the write budget too: the next write is a first | `slates_access::targets::restart::turns::windows::forget::a_forgotten_thread_s_write_budget_starts_again` |
+| slates_access Behaviour 16, 17: settled answers with nothing queued, and close twice is harmless to the caller | `slates_access::settled_answers_at_once_with_nothing_queued` |
+| slates_batch Behaviour 5-10: slates.test.ts:104-187 (the restart half is slates_access') | `slates_batch::runs_the_setup_chain_without_the_agent_and_keeps_the_secret_from_it` |

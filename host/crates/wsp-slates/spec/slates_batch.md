@@ -81,3 +81,23 @@ approval covers.
 
 ## After the port
 - None.
+
+## Tests
+
+13 tests name this unit. Rule or TS case, then the test.
+
+| Pins | Test |
+|---|---|
+| slates_batch Behaviour 5-10: slates.test.ts:104-187 (the restart half is slates_access') | `slates_batch::runs_the_setup_chain_without_the_agent_and_keeps_the_secret_from_it` |
+| slates_batch Behaviour 5, 6, 8: slates.test.ts:749 (a run that starts again keeps its last result) | `slates_batch::a_run_that_starts_again_keeps_its_last_result_marked_refreshing_across_a_restart` |
+| slates_batch Behaviour 5, rule R1: slates.test.ts:1194 (the agent's own starts meet the start budget) | `slates_batch::the_agent_s_own_starts_meet_the_start_budget_however_many_calls_carry_them` |
+| slates_batch Behaviour 4, 5: slates.test.ts:851 (a run starts in the thread's own folder, across a restart) | `slates_batch::a_run_starts_in_the_thread_s_own_folder_and_slate_dir_is_outside_it` |
+| slates_batch Behaviour 5: a cmd run of a thread with no folder fails at once with NO_FOLDER (slates.ts:833) | `slates_batch::a_command_of_a_thread_with_no_folder_fails_without_starting` |
+| slates_batch Behaviour 1, 8: slates.test.ts:426 (an Always covers the scripts a command names) | `slates_batch::an_always_covers_the_scripts_a_command_names_an_edit_asks_again_and_names_it` |
+| slates_batch Behaviour 5: slates.test.ts:574 (a confirm formula reaches the sheet as its text) | `slates_batch::a_confirm_formula_reaches_the_sheet_as_its_text_read_when_the_run_is_held` |
+| slates_batch Behaviour 9: a message past 20,000 units cuts its longest value to fit, marked (slates.ts:997-1002) | `slates_batch::the_message::a_message_past_its_cap_cuts_the_longest_value_to_fit` |
+| slates_batch Behaviour 9, rule 12 (injection): a carried line that reads as a second slate: line is defanged | `slates_batch::the_message::a_carried_value_that_reads_as_a_slate_line_is_made_harmless` |
+| slates_batch Behaviour 8: a press's second send within 2 s is refused, and not remembered (slates.ts:946-947) | `slates_batch::the_message::a_second_press_send_within_two_seconds_is_refused` |
+| slates_batch Behaviour 8: a reaction's second send within a minute is skipped and kept as R912 (slates.ts:948-949) | `slates_batch::the_message::a_reaction_send_within_a_minute_of_the_last_is_skipped_and_kept_as_a_problem` |
+| slates_batch Behaviour 9: a label over 80 units is cut, and a send with no with carries none (slates.ts:977, 992) | `slates_batch::the_message::the_label_is_cut_to_80_units_and_a_send_with_nothing_carries_no_with` |
+| slates_batch Behaviour 8: values past 256 KiB keep S500 and leave the values as they were (slates.ts:923-927) | `slates_batch::values_past_the_cap_keep_a_problem_and_change_nothing` |

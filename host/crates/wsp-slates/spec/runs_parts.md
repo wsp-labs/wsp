@@ -74,3 +74,60 @@ approval key of a command, and how a value becomes a command's text.
 
 ## After the port
 - None in these lines.
+
+## Tests
+
+50 tests name this unit. Rule or TS case, then the test.
+
+| Pins | Test |
+|---|---|
+| runs_parts Edge case: slate-runs.test.ts:377 (the record half, restartedRecord and rewoundRecord) | `runs_parts::process_lifetime::stopall_quiet_drops_completions_and_writes_nothing_restart_and_rewind_rewrite_ru` |
+| runs_parts Behaviour 7: slate-runs.test.ts:395 (the key lines: then is part of the key) | `runs_parts::process_lifetime::then::reshapes_the_output_into_json_keeps_out_raw_is_part_of_the_key_and_shows_on_the` |
+| runs_parts Behaviour 1: the six states name themselves, and parse back | `runs_parts::run_state_names_and_parses_the_six_states` |
+| runs_parts Behaviour 1: who started a run names itself | `runs_parts::run_by_names_each_starter` |
+| runs_parts Behaviour 1: the getters read state, runs (0 when absent), why and startedAt | `runs_parts::a_record_reads_its_state_runs_why_and_start` |
+| runs_parts Behaviour 1: a record comes from a stored object whose state is a string and runs a number | `runs_parts::a_record_is_read_from_a_stored_object_and_written_back_in_its_order` |
+| runs_parts Behaviour 3: a running record keeps its result only when refreshing is true, in RESULT_FIELDS order | `runs_parts::last_result_of_a_refreshing_running_record_is_its_result_fields_in_order` |
+| runs_parts Behaviour 3: a running record that is not refreshing keeps nothing | `runs_parts::last_result_of_a_running_record_that_is_not_refreshing_is_none` |
+| runs_parts Behaviour 3: done, failed and cancelled keep their result when they have startedAt | `runs_parts::last_result_of_a_finished_record_with_a_start_is_its_result_fields` |
+| runs_parts Behaviour 3: a finished record that never started keeps nothing | `runs_parts::last_result_of_a_finished_record_without_a_start_is_none` |
+| runs_parts Behaviour 3: a held, idle or never-started record keeps nothing, whatever else it holds | `runs_parts::last_result_of_a_held_or_idle_record_is_none` |
+| runs_parts Behaviour 3: a finished record with no result field answers an empty result, not none | `runs_parts::last_result_of_a_finished_record_with_no_result_field_is_empty` |
+| runs_parts Behaviour 2: a key holding null counts as present | `runs_parts::last_result_keeps_a_null_exit_and_a_null_json` |
+| runs_parts Behaviour 2: the result fields and their order | `runs_parts::the_result_fields_are_these_eight_in_this_order` |
+| runs_parts Behaviour 1: running without a kept result is state, runs, startedAt | `runs_parts::running_record_without_a_result_is_state_runs_started_at` |
+| runs_parts Behaviour 1: running with a kept result is the result, then state, runs, startedAt, refreshing | `runs_parts::running_record_with_a_result_keeps_it_then_state_runs_started_at_refreshing` |
+| runs_parts Behaviour 1: an empty kept result still marks the record refreshing | `runs_parts::running_record_with_an_empty_result_is_still_refreshing` |
+| runs_parts Behaviour 1: ended from outside is state, why, exit null, runs, startedAt, endedAt | `runs_parts::ended_record_drops_the_kept_result_and_keeps_the_start` |
+| runs_parts Behaviour 1: a record with no startedAt ends without one | `runs_parts::ended_record_without_a_start_has_no_started_at` |
+| runs_parts Behaviour 4: a running record drops its kept result when the host restarted | `runs_parts::restarted_record_drops_the_kept_result_of_a_refreshing_record` |
+| runs_parts Behaviour 4: any other record comes back unchanged | `runs_parts::restarted_record_leaves_every_other_state_as_it_is` |
+| runs_parts Behaviour 4: a rewind makes a running record cancelled, saying so | `runs_parts::rewound_record_makes_a_running_record_cancelled` |
+| runs_parts Behaviour 4: a rewind leaves every other record as it is | `runs_parts::rewound_record_leaves_every_other_state_as_it_is` |
+| runs_parts Edge case: oracle spent | `runs_parts::spent_keeps_the_stamps_under_a_minute_and_refuses_past_twelve` |
+| runs_parts Behaviour 5: under twelve the stamp is appended, and the twelfth stamp fills the budget | `runs_parts::spent_appends_the_stamp_until_twelve_are_kept` |
+| runs_parts Behaviour 5: a stamp exactly 60,000 ms old has aged out | `runs_parts::spent_drops_a_stamp_that_is_exactly_a_minute_old` |
+| runs_parts Behaviour 6: oracle stableJson | `runs_parts::stable_json_sorts_object_keys_and_keeps_array_order` |
+| runs_parts Behaviour 6: oracle stableJson.undefined | `runs_parts::stable_json_of_nothing_is_null` |
+| runs_parts Behaviour 6: numbers are written as JS writes them | `runs_parts::stable_json_writes_numbers_as_js_does` |
+| runs_parts Behaviour 6: strings and keys are written as JSON.stringify writes them | `runs_parts::stable_json_escapes_strings_and_keys` |
+| runs_parts Behaviour 6 / Rule 8.8: keys sort by UTF-16 units, so a character past U+FFFF sorts before U+FF5E | `runs_parts::stable_json_sorts_keys_by_utf16_units` |
+| runs_parts Edge case: oracle key.plain | `runs_parts::run_key_of_a_plain_command_is_the_oracles_hash` |
+| runs_parts Edge case: oracle key.env | `runs_parts::run_key_with_an_env_binding_is_the_oracles_hash` |
+| runs_parts Edge case: oracle key.full | `runs_parts::run_key_of_the_full_declaration_is_the_oracles_hash` |
+| runs_parts Edge case: oracle key.timeout60_same_as_absent | `runs_parts::run_key_of_timeout_60_is_the_key_of_no_timeout` |
+| runs_parts Edge case: oracle key.on_thread_same_as_absent | `runs_parts::run_key_of_on_thread_is_the_key_of_no_on` |
+| runs_parts Edge case: oracle key.confirm_not_in_key | `runs_parts::run_key_does_not_move_with_confirm` |
+| runs_parts Behaviour 7: a literal null stdin differs from no stdin | `runs_parts::run_key_keeps_a_null_stdin_apart_from_none` |
+| runs_parts Behaviour 7 / Rule 3.11: the env names are sorted for the key, the expressions are not | `runs_parts::run_key_sorts_env_names_and_not_args` |
+| runs_parts Behaviour 7: every part the key lists moves it | `runs_parts::run_key_moves_with_each_part_it_lists` |
+| runs_parts Behaviour 7: stream, always and once count only when true | `runs_parts::run_key_counts_stream_always_and_once_only_when_true` |
+| runs_parts Edge case: oracle asText | `runs_parts::as_text_writes_each_kind_of_value` |
+| runs_parts Behaviour 8: a bool, a whole number and an empty string | `runs_parts::as_text_writes_false_whole_numbers_and_the_empty_string` |
+| runs_parts Behaviour 9: every string through the function, keys untouched | `runs_parts::map_strings_passes_every_string_through_and_leaves_keys_and_the_rest` |
+| runs_parts Edge case: oracle timeoutOf | `runs_parts::timeout_of_clamps_to_one_and_600_and_keeps_fractions` |
+| runs_parts Behaviour 11: env name `^[A-Za-z_][A-Za-z0-9_]*$` | `runs_parts::is_env_name_follows_the_pattern` |
+| runs_parts slate-runs.ts:458: the sentence a failed files write gives | `runs_parts::files_unwritten_names_the_cause` |
+| runs_parts Behaviour 11: the constants | `runs_parts::the_constants_have_the_ts_text_and_values` |
+| runs_table Behaviour 12: slate-runs.test.ts:377 (the stop_all half; the records half is runs_parts') | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::stop_all_quiet_drops_completions_and_writes_nothing` |
+| runs_table Behaviour 8: slate-runs.test.ts:395 (the run half; the key lines are runs_parts') | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::reshapes_the_output_into_json_keeps_out_raw_and_shows_on_the_sheet` |
