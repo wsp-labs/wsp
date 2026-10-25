@@ -923,6 +923,9 @@ pub enum Followed {
     NotServing,
     /// A host serves and was left as it is, for the reason given in words a person reads.
     Left(String),
+    /// A host, or the files the wsp command runs, of a newer release than this app's, left as it is: this app opens on
+    /// it, and the words say why it was not restarted.
+    Newer(String),
 }
 
 /// `ensureService`'s rewrite of a unit that runs another program, npm's wsp: the host it runs is stopped and the unit
