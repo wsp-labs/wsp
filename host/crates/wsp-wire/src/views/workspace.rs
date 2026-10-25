@@ -985,13 +985,18 @@ pub enum Caller {
 // views/workspace.ts:297 at a3b870a6e
 // export const roadOf = (caller: Caller | undefined): WorkspaceOrigin | undefined => (typeof caller === "string" ? caller : caller?.origin);
 pub fn road_of(caller: Option<&Caller>) -> Option<WorkspaceOrigin> {
-    todo!()
+    caller.map(|caller| match caller {
+        Caller::Road(origin) | Caller::Scoped { origin, .. } => origin.clone(),
+    })
 }
 
 // views/workspace.ts:300 at a3b870a6e
 // export const scopeOf = (caller: Caller | undefined): ThreadScope | undefined => (typeof caller === "string" ? undefined : caller?.by);
 pub fn scope_of(caller: Option<&Caller>) -> Option<ThreadScope> {
-    todo!()
+    match caller? {
+        Caller::Road(_) => None,
+        Caller::Scoped { by, .. } => Some(by.clone()),
+    }
 }
 
 // views/workspace.ts:450 at a3b870a6e
@@ -1000,7 +1005,12 @@ pub fn scope_of(caller: Option<&Caller>) -> Option<ThreadScope> {
 // }
 /// The held setting (crate::types::place_state's AGENTS_ON where none is held) with each field the patch names over it.
 pub fn agents_from(held: Option<&WorkspaceAgents>, patch: &WorkspaceAgentsPatch) -> WorkspaceAgents {
-    todo!()
+    let base = held.cloned().unwrap_or(crate::types::place_state::AGENTS_ON);
+    WorkspaceAgents {
+        spawn: patch.spawn.unwrap_or(base.spawn),
+        max_machines: patch.max_machines.unwrap_or(base.max_machines),
+        max_depth: patch.max_depth.unwrap_or(base.max_depth),
+    }
 }
 
 /// A patch of WorkspaceAgents: an absent field keeps the held one.

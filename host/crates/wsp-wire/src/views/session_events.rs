@@ -1073,10 +1073,17 @@ pub use super::session_events_more::*;
 
 use std::collections::HashMap;
 
+use crate::types::check::js_trim;
+use crate::types::env::{HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV};
+
 // views/session-events.ts:321 at a3b870a6e
 // export const agentStartingLine = (agent: string, installs: boolean): string => (installs ? `${agent} ${FIRST_RUN_WORD}` : `Starting ${agent}`);
 pub fn agent_starting_line(agent: &str, installs: bool) -> String {
-    todo!()
+    if installs {
+        format!("{agent} {FIRST_RUN_WORD}")
+    } else {
+        format!("Starting {agent}")
+    }
 }
 
 /// What `host_from_env` reads.
@@ -1098,19 +1105,23 @@ pub struct HostFromEnv {
 /// The host a process inside a turn reaches: HOST_URL_ENV, HOST_TOKEN_ENV and HOST_KEY_ENV, each trimmed as
 /// JavaScript's `trim` does; None where the url or the token is missing or empty, and no key where it is.
 pub fn host_from_env(env: &HashMap<String, String>) -> Option<HostFromEnv> {
-    todo!()
+    let trimmed = |name: &str| env.get(name).map(|v| js_trim(v).to_string());
+    let url = trimmed(HOST_URL_ENV).filter(|v| !v.is_empty())?;
+    let token = trimmed(HOST_TOKEN_ENV).filter(|v| !v.is_empty())?;
+    let host_key = trimmed(HOST_KEY_ENV).filter(|v| !v.is_empty());
+    Some(HostFromEnv { url, token, host_key })
 }
 
 // views/session-events.ts:355 at a3b870a6e
 // export const wspPackageIn = (dir: string): string => `${dir}/wsp`;
 pub fn wsp_package_in(dir: &str) -> String {
-    todo!()
+    format!("{dir}/wsp")
 }
 
 // views/session-events.ts:356 at a3b870a6e
 // export const wspBinIn = (dir: string): string => `${wspPackageIn(dir)}/dist/bin.js`;
 pub fn wsp_bin_in(dir: &str) -> String {
-    todo!()
+    format!("{}/dist/bin.js", wsp_package_in(dir))
 }
 
 // views/session-events.ts:365 at a3b870a6e
@@ -1120,19 +1131,37 @@ pub fn wsp_bin_in(dir: &str) -> String {
 // }
 /// TURN_TOKEN_ENV as it is, untrimmed; None where it is missing or empty.
 pub fn turn_token_of(env: &HashMap<String, String>) -> Option<String> {
-    todo!()
+    env.get(TURN_TOKEN_ENV).filter(|token| !token.is_empty()).cloned()
 }
 
 // views/session-events.ts:665 at a3b870a6e
 // export const copiedFromOf = (e: SessionEvent): string | undefined => ("copiedFrom" in e ? e.copiedFrom : undefined);
 /// The `copiedFrom` of an event whose type carries that key, None for any other.
 pub fn copied_from_of(e: &SessionEvent) -> Option<String> {
-    todo!()
+    match e {
+        SessionEvent::SessionSubagentEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionPlanEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionCompactedEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionRetryEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionContextEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionPermissionEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionPermissionClosedEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionCheckpointEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionMovedEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionBehindEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionNoticeEvent(e) => e.copied_from.clone(),
+        SessionEvent::ThreadWaitedEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionEarlierEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionCappedEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionUncappedEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionRunEvent(e) => e.copied_from.clone(),
+        _ => None,
+    }
 }
 
 // views/session-events.ts:673 at a3b870a6e
 // export const isSessionEvent = (e: { type: string }): e is SessionEvent => SESSION_EVENT_TYPES.has(e.type as SessionEvent["type"]);
 /// Whether an event type is one of SESSION_EVENT_TYPES.
 pub fn is_session_event(event_type: &str) -> bool {
-    todo!()
+    SESSION_EVENT_TYPES.contains(&event_type)
 }

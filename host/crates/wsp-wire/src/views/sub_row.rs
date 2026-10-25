@@ -401,13 +401,13 @@ impl Check for SubRow {
 // views/sub-row.ts:58 at a3b870a6e
 // export const subSpawning = (spawn: SubSpawn | undefined): boolean => spawn !== undefined && spawn.readyAt === undefined && spawn.failed === undefined;
 pub fn sub_spawning(spawn: Option<&SubSpawn>) -> bool {
-    todo!()
+    spawn.is_some_and(|s| s.ready_at.is_none() && s.failed.is_none())
 }
 
 // views/sub-row.ts:93 at a3b870a6e
 // export const subAllPushed = (r: SubResult): boolean => r.readFailed === undefined && r.unpushed === 0 && r.changed === 0;
 pub fn sub_all_pushed(r: &SubResult) -> bool {
-    todo!()
+    r.read_failed.is_none() && r.unpushed == 0 && r.changed == 0
 }
 
 // views/sub-row.ts:97 at a3b870a6e
@@ -415,5 +415,5 @@ pub fn sub_all_pushed(r: &SubResult) -> bool {
 //   sub?.releasedAt !== undefined && (startedAt === undefined || startedAt < sub.releasedAt);
 /// `released_at` is the sub-thread's, where there is one; `started_at` the turn's start.
 pub fn sub_turn_gone(released_at: Option<f64>, started_at: Option<f64>) -> bool {
-    todo!()
+    released_at.is_some_and(|released| started_at.map_or(true, |started| started < released))
 }

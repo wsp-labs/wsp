@@ -65,13 +65,7 @@ pub fn efforts_for(catalog: &HarnessCatalog, model: Option<&HarnessModel>) -> Ve
     let Some(own) = model.and_then(|m| m.default_effort.as_deref()) else {
         return options;
     };
-    options
-        .into_iter()
-        .map(|o| HarnessOption {
-            is_default: (o.value == own).then_some(true),
-            ..o
-        })
-        .collect()
+    options.into_iter().map(|o| HarnessOption { is_default: (o.value == own).then_some(true), ..o }).collect()
 }
 
 // harness-picks.ts:30 at a3b870a6e
@@ -147,11 +141,7 @@ pub struct RanPicks {
 /// The model with a trailing `[1m]` taken off, and the window: the one given, else `1m` where that suffix was there.
 pub fn model_picks(model: &str, context_window: Option<&str>) -> RanPicks {
     let window = context_window.map(String::from).or_else(|| model.ends_with(ONE_M).then(|| "1m".to_string()));
-    RanPicks {
-        model: Some(model.strip_suffix(ONE_M).unwrap_or(model).to_string()),
-        context_window: window,
-        ..RanPicks::default()
-    }
+    RanPicks { model: Some(model.strip_suffix(ONE_M).unwrap_or(model).to_string()), context_window: window, ..RanPicks::default() }
 }
 
 /// `Object.assign(picks, named)`: each key the reader names overwrites the one held, and the rest stay.
@@ -238,20 +228,22 @@ pub fn kept_picks(catalog: Option<&HarnessCatalog>, ran: &RanPicks, named: &Kept
         };
     };
     let takes = |model: Option<&HarnessModel>| {
-        let effort_ok = named.effort.is_none() || catalog.efforts.is_empty() || listed_pick(&efforts_for(catalog, model), named.effort.as_deref()).is_some();
-        let window_ok = named.context_window.is_none() || listed_pick(&context_windows_for(catalog, model), named.context_window.as_deref()).is_some();
+        let effort_ok = named.effort.is_none()
+            || catalog.efforts.is_empty()
+            || listed_pick(&efforts_for(catalog, model), named.effort.as_deref()).is_some();
+        let window_ok =
+            named.context_window.is_none() || listed_pick(&context_windows_for(catalog, model), named.context_window.as_deref()).is_some();
         effort_ok && window_ok
     };
     let own = model_of(catalog, listed_pick(&every_model(catalog), ran.model.as_deref()).as_deref());
-    let chosen = if named.model.is_some() {
-        model_of(catalog, named.model.as_deref())
-    } else {
-        own.filter(|m| takes(Some(m)))
-    };
+    let chosen = if named.model.is_some() { model_of(catalog, named.model.as_deref()) } else { own.filter(|m| takes(Some(m))) };
     let model = chosen.as_ref();
     KeptPicks {
         model: model.map(|m| m.value.clone()),
         effort: named.effort.clone().or_else(|| listed_pick(&efforts_for(catalog, model), ran.effort.as_deref())),
-        context_window: named.context_window.clone().or_else(|| listed_pick(&context_windows_for(catalog, model), ran.context_window.as_deref())),
+        context_window: named
+            .context_window
+            .clone()
+            .or_else(|| listed_pick(&context_windows_for(catalog, model), ran.context_window.as_deref())),
     }
 }

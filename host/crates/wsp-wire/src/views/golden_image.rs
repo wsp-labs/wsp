@@ -1462,7 +1462,10 @@ impl Check for SealedVaultHeader {
 // export const onNpmBin = (npmBin: string | undefined, path: string): string => (npmBin === undefined ? path : `${AGENTS_BIN}:${npmBin}:${path}`);
 /// `path` alone without an npm bin; else `AGENTS_BIN:<npm bin>:<path>`.
 pub fn on_npm_bin(npm_bin: Option<&str>, path: &str) -> String {
-    todo!()
+    match npm_bin {
+        None => path.to_string(),
+        Some(bin) => format!("{AGENTS_BIN}:{bin}:{path}"),
+    }
 }
 
 // views/golden-image.ts:103 at a3b870a6e
@@ -1471,13 +1474,14 @@ pub fn on_npm_bin(npm_bin: Option<&str>, path: &str) -> String {
 // }
 /// The version whose number equals the manifest's head; None without a manifest or with no such version.
 pub fn golden_head(manifest: Option<&GoldenManifest>) -> Option<&GoldenVersion> {
-    todo!()
+    let manifest = manifest?;
+    manifest.versions.iter().find(|v| v.version.0 == manifest.head.0)
 }
 
 // views/golden-image.ts:110 at a3b870a6e
 // export const holdsNothing = (golden: GoldenManifest | undefined, workspaces: readonly unknown[]): boolean => goldenHead(golden) === undefined && workspaces.length === 0;
 pub fn holds_nothing(golden: Option<&GoldenManifest>, workspaces: usize) -> bool {
-    todo!()
+    golden_head(golden).is_none() && workspaces == 0
 }
 
 /// What a fork boots from: the version's template where it has one, else its snapshot.
@@ -1499,7 +1503,10 @@ pub struct GoldenImage {
 //   return v.templateId !== undefined ? { spec: { template: v.templateId }, marks: [] } : { spec: { fromSnapshot: v.snapshotId }, marks: ["volatile"] };
 // }
 pub fn golden_image(v: &GoldenVersion) -> GoldenImage {
-    todo!()
+    match &v.template_id {
+        Some(template) => GoldenImage { spec: ImageSpec::Template(template.clone()), marks: Vec::new() },
+        None => GoldenImage { spec: ImageSpec::FromSnapshot(v.snapshot_id.clone()), marks: vec!["volatile"] },
+    }
 }
 
 // views/golden-image.ts:245 at a3b870a6e
@@ -1507,7 +1514,7 @@ pub fn golden_image(v: &GoldenVersion) -> GoldenImage {
 //   return recipe.custom ?? [];
 // }
 pub fn custom_rows(recipe: &Recipe) -> Vec<RecipeCustomRow> {
-    todo!()
+    recipe.custom.clone().unwrap_or_default()
 }
 
 // views/golden-image.ts:250 at a3b870a6e
@@ -1516,7 +1523,7 @@ pub fn custom_rows(recipe: &Recipe) -> Vec<RecipeCustomRow> {
 // }
 /// `command -v <bin quoted by crate::types::shell_quote::shell_quote>`.
 pub fn command_check(bin: &str) -> String {
-    todo!()
+    format!("command -v {}", crate::types::shell_quote::shell_quote(bin))
 }
 
 // views/golden-image.ts:355 at a3b870a6e
@@ -1529,7 +1536,66 @@ pub fn command_check(bin: &str) -> String {
 /// own keys, then `road` where the tick has one; sorted by id as `String.prototype.localeCompare` orders them
 /// (`crate::text::collate`, which the merge brings down from wsp-words).
 pub fn recipe_pins(digest: &RecipeDigest, key: Option<&dyn Fn(&str) -> String>) -> Vec<SealedPin> {
-    todo!()
+    let mut pins: Vec<SealedPin> = digest
+        .ticks
+        .iter()
+        .filter_map(|tick| {
+            let pin = tick.pin.as_ref()?;
+            let id = key.map_or_else(|| tick.id.clone(), |key| key(&tick.id));
+            Some(SealedPin {
+                tag: pin.tag.clone(),
+                sha256: pin.sha256.clone(),
+                arch: pin.arch.clone(),
+                latest: pin.latest,
+                id,
+                road: tick.road.clone(),
+            })
+        })
+        .collect();
+    pins.sort_by(|a, b| collate(&a.id, &b.id));
+    pins
+}
+
+/// Stands in for `crate::text::collate`, the words crate's `localeCompare`, which is not in this crate yet. It is ICU's
+/// root order for the characters an id holds: punctuation before digits, digits before letters; letters by base letter,
+/// then accent, then case with lower case first. Other scripts fall back to code point order.
+fn collate(a: &str, b: &str) -> std::cmp::Ordering {
+    fn levels(s: &str) -> Vec<(u8, char, bool, bool)> {
+        s.chars()
+            .map(|c| {
+                let lower = c.to_lowercase().next().unwrap_or(c);
+                let (base, accented) = strip_accent(lower);
+                let class = if base.is_ascii_digit() {
+                    2
+                } else if base.is_alphabetic() {
+                    3
+                } else {
+                    1
+                };
+                (class, base, accented, c != lower)
+            })
+            .collect()
+    }
+    let (a, b) = (levels(a), levels(b));
+    let primary = |v: &[(u8, char, bool, bool)]| v.iter().map(|k| (k.0, k.1)).collect::<Vec<_>>();
+    primary(&a)
+        .cmp(&primary(&b))
+        .then_with(|| a.iter().map(|k| k.2).cmp(b.iter().map(|k| k.2)))
+        .then_with(|| a.iter().map(|k| k.3).cmp(b.iter().map(|k| k.3)))
+}
+
+fn strip_accent(c: char) -> (char, bool) {
+    match c {
+        'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' => ('a', true),
+        'ç' => ('c', true),
+        'è' | 'é' | 'ê' | 'ë' => ('e', true),
+        'ì' | 'í' | 'î' | 'ï' => ('i', true),
+        'ñ' => ('n', true),
+        'ò' | 'ó' | 'ô' | 'õ' | 'ö' => ('o', true),
+        'ù' | 'ú' | 'û' | 'ü' => ('u', true),
+        'ý' | 'ÿ' => ('y', true),
+        _ => (c, false),
+    }
 }
 
 // views/golden-image.ts:442 at a3b870a6e (private)
@@ -1540,24 +1606,27 @@ const AGENTS_PREFIX: &str = "agents/";
 // export const agentOfRow = (e: { id: string }): string | undefined => (e.id.startsWith(AGENTS_PREFIX) && !e.id.startsWith(MCP_ID_PREFIX) ? e.id.slice(AGENTS_PREFIX.length) : undefined);
 /// The agent an `agents/<id>` row is, never an `agents/mcp/` one.
 pub fn agent_of_row(id: &str) -> Option<String> {
-    todo!()
+    if id.starts_with(MCP_ID_PREFIX) {
+        return None;
+    }
+    id.strip_prefix(AGENTS_PREFIX).map(String::from)
 }
 
 // views/golden-image.ts:448 at a3b870a6e
 // export const toolRowPrefix = (manager: string): string => `tools/${manager}/`;
 pub fn tool_row_prefix(manager: &str) -> String {
-    todo!()
+    format!("tools/{manager}/")
 }
 
 // views/golden-image.ts:451 at a3b870a6e
 // export const toolRowId = (manager: string, pkg: string): string => `${toolRowPrefix(manager)}${pkg}`;
 pub fn tool_row_id(manager: &str, pkg: &str) -> String {
-    todo!()
+    format!("{}{pkg}", tool_row_prefix(manager))
 }
 
 // views/golden-image.ts:456 at a3b870a6e
 // export const packageOf = (e: { id: string }): string => e.id.split("/").slice(2).join("/");
 /// Everything after the second `/` of the id, slashes kept; "" where there is none.
 pub fn package_of(id: &str) -> String {
-    todo!()
+    id.split('/').skip(2).collect::<Vec<_>>().join("/")
 }

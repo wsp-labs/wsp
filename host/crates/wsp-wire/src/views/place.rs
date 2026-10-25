@@ -1340,7 +1340,30 @@ pub use super::place_more::*;
 /// a done `join` ends the job done (taking the event's place id where it has one); a failed line ends it failed, its
 /// note becoming the job's `said` only where the job has none yet.
 pub fn with_place_stage(job: &PlaceAddJob, e: &PlaceStageEvent) -> PlaceAddJob {
-    todo!()
+    let state = match e.state {
+        PlaceStageEventState::Running => PlaceAddJobStepsItemState::Running,
+        PlaceStageEventState::Done => PlaceAddJobStepsItemState::Done,
+        PlaceStageEventState::Failed => PlaceAddJobStepsItemState::Failed,
+    };
+    let line = PlaceAddJobStepsItem { step: e.step, state, note: e.note.clone(), ms: e.ms };
+    let mut steps = job.steps.clone();
+    match steps.iter().position(|s| s.step == e.step) {
+        Some(at) => steps[at] = line,
+        None => steps.push(line),
+    }
+    let mut next = PlaceAddJob { steps, ..job.clone() };
+    if e.step == PlaceAddStep::Join && e.state == PlaceStageEventState::Done {
+        next.state = PlaceAddJobState::Done;
+        if let Some(place_id) = &e.place_id {
+            next.place_id = Some(place_id.clone());
+        }
+    } else if e.state == PlaceStageEventState::Failed {
+        next.state = PlaceAddJobState::Failed;
+        if let (None, Some(note)) = (&job.said, &e.note) {
+            next.said = Some(note.clone());
+        }
+    }
+    next
 }
 
 // views/place.ts:254 at a3b870a6e (private)
@@ -1350,13 +1373,17 @@ const SIGN_IN_ROW: &str = "signins/";
 // views/place.ts:256 at a3b870a6e
 // export const signInRowId = (agent: string): string => `${SIGN_IN_ROW}${agent}`;
 pub fn sign_in_row_id(agent: &str) -> String {
-    todo!()
+    format!("{SIGN_IN_ROW}{agent}")
 }
 
 // views/place.ts:258 at a3b870a6e
 // export const signInOfRow = (id: string): string | undefined => (id.startsWith(SIGN_IN_ROW) ? id.slice(SIGN_IN_ROW.length) : id === GITHUB_ROW ? GITHUB_CLI : undefined);
 pub fn sign_in_of_row(id: &str) -> Option<String> {
-    todo!()
+    match id.strip_prefix(SIGN_IN_ROW) {
+        Some(agent) => Some(agent.to_string()),
+        None if id == GITHUB_ROW => Some(GITHUB_CLI.to_string()),
+        None => None,
+    }
 }
 
 // views/place.ts:261 at a3b870a6e
@@ -1370,7 +1397,11 @@ pub fn sign_in_of_row(id: &str) -> Option<String> {
 // }
 /// How many rows of each kind (an absent kind counts as `tool`), keys in the order each kind is first met.
 pub fn provision_counts(rows: &[PlaceProvisionRow]) -> indexmap::IndexMap<PlaceProvisionKind, i64> {
-    todo!()
+    let mut counts = indexmap::IndexMap::new();
+    for row in rows {
+        *counts.entry(row.kind.unwrap_or(PlaceProvisionKind::Tool)).or_insert(0) += 1;
+    }
+    counts
 }
 
 // views/place.ts:502 at a3b870a6e
@@ -1385,7 +1416,21 @@ pub fn provision_counts(rows: &[PlaceProvisionRow]) -> indexmap::IndexMap<PlaceP
 // }
 /// Read with every whitespace character taken out and lower-cased.
 pub fn mac_kind_of(said: &str) -> Option<MacKind> {
-    todo!()
+    let is_js_space = |c: char| (c.is_whitespace() && c != '\u{85}') || c == '\u{feff}';
+    let word = said.chars().filter(|c| !is_js_space(*c)).collect::<String>().to_lowercase();
+    if word.starts_with("macbook") {
+        Some(MacKind::Macbook)
+    } else if word.starts_with("imac") {
+        Some(MacKind::Imac)
+    } else if word.starts_with("macmini") {
+        Some(MacKind::MacMini)
+    } else if word.starts_with("macstudio") {
+        Some(MacKind::MacStudio)
+    } else if word.starts_with("macpro") {
+        Some(MacKind::MacPro)
+    } else {
+        None
+    }
 }
 
 // views/place.ts:462 at a3b870a6e
@@ -1408,5 +1453,5 @@ pub struct PlaceSetAlso {
 // views/place.ts:702 at a3b870a6e
 // export const placeForgetsOnly = (holds: PlaceHolds): boolean => holds.away === true && (holds.forks.length > 0 || holds.projects.length > 0);
 pub fn place_forgets_only(holds: &PlaceHolds) -> bool {
-    todo!()
+    holds.away.is_some() && (!holds.forks.is_empty() || !holds.projects.is_empty())
 }
