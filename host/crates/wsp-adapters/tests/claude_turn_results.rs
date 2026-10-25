@@ -128,10 +128,8 @@ fn close(actual: Option<JsNumber>, expected: f64, digits: i32) {
     assert!((got - expected).abs() < 10f64.powi(-digits) / 2.0, "{got} is not within 10^-{digits}/2 of {expected}");
 }
 
-// INTERFACE GAP: signInRefusalLine({ kind: "local" }) has no Rust form and wsp-wire has no THIS_COMPUTER word; the
-// local road is written out here, the cloud one is built from wsp-wire's CLOUD_SIGN_IN_ROAD.
 fn sign_in_local() -> String {
-    "sign in from a terminal on this computer, then send again".to_string()
+    wsp_adapters::pending::sign_in_refusal_line(true)
 }
 
 fn sign_in_cloud() -> String {
