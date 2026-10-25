@@ -77,14 +77,18 @@ checkout of `main` on a computer with the Solari key in `.env`.
    a prerelease and is never latest. Read the notes on the release page and
    paste the doctor table from step 3 under them. If a runner is
    down, the same bundles come from a Mac by hand:
-   `apps/desktop-gpui/scripts/package.sh --target mac`, then the disk image and
+   `PUBLIC_BUILD=1 apps/desktop-gpui/scripts/package.sh --target mac` (without
+   `PUBLIC_BUILD=1` the app carries Solari), then the disk image and
    the zip it left in `apps/desktop-gpui/dist`, already named
    `wsp-<version>-mac.dmg` and `wsp-<version>-mac.zip`, the disk image copied
    to `wsp-mac.dmg`, all attached to the draft by hand.
-   A Mac whose login keychain holds the Developer ID Application certificate
-   signs them with it, and notarizes when `APPLE_ID`,
-   `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` are set in the shell;
-   any other Mac signs them ad hoc.
+   The script signs with the Developer ID only from `CSC_LINK` (the exported
+   `.p12`, as a path or its base64) and `CSC_KEY_PASSWORD` set in the shell,
+   the two secrets the release reads; it never looks in the login keychain.
+   With those two it notarizes when `APPLE_ID`,
+   `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` are set too. Without them
+   it signs ad hoc, and installed apps refuse an ad hoc build, so never attach
+   one to a release.
 8. **Check from outside.** Download a bundle from the release page as a
    stranger would, open it on a computer that never built wsp, and reach the
    app. Read the README on GitHub once more: the install command, the

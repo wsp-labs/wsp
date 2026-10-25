@@ -77,6 +77,9 @@ describe("package.sh --dry-run", () => {
     expect(value("CFBundleShortVersionString")).toBe("0.3.9");
     expect(value("CFBundleVersion")).toBe("0.3.9");
     expect(plist).toMatch(/<key>CFBundleURLSchemes<\/key>\s*<array>\s*<string>wsp<\/string>\s*<\/array>/);
+    // The browser pane opens plain http as today's app does, and only its web content is let past ATS.
+    expect(plist).toMatch(/<key>NSAppTransportSecurity<\/key>\s*<dict>\s*<key>NSAllowsArbitraryLoadsInWebContent<\/key>\s*<true\/>\s*<\/dict>/);
+    expect(plist).not.toContain("<key>NSAllowsArbitraryLoads</key>");
     // A check build under another bundle id claims no wsp:// link of the Mac it is built on.
     expect(written("$app/Contents/Info.plist", { bundle_id: "wsp.desktop.check", links: "" })).not.toContain("CFBundleURLTypes");
     expect(source).toContain("bundle_id=${WSP_GPUI_BUNDLE_ID:-wsp.desktop}\n");
@@ -106,6 +109,9 @@ describe("package.sh --dry-run", () => {
     at(out, /^skip {2}notarizing: /m);
     at(out, /^\+ codesign --force --options runtime --sign - dist\/wsp\.app$/m);
     expect(out).not.toMatch(/--timestamp|security import|notarytool|stapler/);
+    const node = at(out, /^\+ codesign --force --options runtime --entitlements \S+ --sign - dist\/wsp\.app\/Contents\/MacOS\/node$/m);
+    expect(at(out, /^\+ strip -x dist\/wsp\.app\/Contents\/MacOS\/node$/m)).toBeLessThan(node);
+    expect(node, "Node runs with the signature strip -x broke").toBeLessThan(at(out, /^\+ dist\/wsp\.app\/Contents\/MacOS\/node \S+cli\.mjs --version$/m));
   });
 
   it("carries one Node for both chips out of the pinned archives, and signs it and each Mac daemon before the bundle", () => {
@@ -126,6 +132,7 @@ describe("package.sh --dry-run", () => {
     const daemon = at(out, /^\+ codesign --force --options runtime --timestamp .*dist\/wsp\.app\/Contents\/Resources\/app\/assets\/daemon\/x86_64-apple-darwin\/wsp-daemon$/m);
     const bundle = at(out, /^\+ codesign --force --options runtime --timestamp .*--sign .*dist\/wsp\.app$/m);
     expect(strip).toBeLessThan(node);
+    expect(node, "Node runs with the signature strip -x broke").toBeLessThan(at(out, /^\+ dist\/wsp\.app\/Contents\/MacOS\/node \S+cli\.mjs --version$/m));
     expect(node).toBeLessThan(bundle);
     expect(daemon).toBeLessThan(bundle);
   });
@@ -146,11 +153,23 @@ describe("package.sh --dry-run", () => {
     const submit = at(out, /^\+ xcrun notarytool submit dist\/wsp-[\d.]+-mac\.dmg --apple-id '<hidden>' --team-id '<hidden>' --password '<hidden>' --wait$/m);
     const app = at(out, /^\+ xcrun stapler staple dist\/wsp\.app$/m);
     const dmg = at(out, /^\+ xcrun stapler staple dist\/wsp-[\d.]+-mac\.dmg$/m);
-    const zip = at(out, /^\+ ditto -c -k --sequesterRsrc --keepParent dist\/wsp\.app dist\/wsp-[\d.]+-mac\.zip$/m);
+    // Without --norsrc --noextattr, a file with an xattr adds a __MACOSX/ top, and both updaters refuse a zip of two.
+    const zip = at(out, /^\+ ditto -c -k --norsrc --noextattr --keepParent dist\/wsp\.app dist\/wsp-[\d.]+-mac\.zip$/m);
+    const live = readFileSync(fileURLToPath(new URL("../../../apps/desktop-gpui/scripts/update-live.sh", import.meta.url)), "utf8");
+    expect(live.match(/ditto -c .*/g), "the live update check zips as the release does").toEqual([expect.stringMatching(/^ditto -c -k --norsrc --noextattr --keepParent /)]);
     expect(submit).toBeLessThan(app);
     expect(app).toBeLessThan(zip);
     expect(dmg).toBeLessThan(zip);
     expect(out).not.toMatch(/^skip {2}notarizing/m);
+  });
+
+  it("with PUBLIC_BUILD=1 builds every app binary without its default features, the cloud feature Solari is in", () => {
+    for (const target of ["mac", "linux"] as const) {
+      const builds = [...dryRun(target, { PUBLIC_BUILD: "1" }).matchAll(/^\+ cargo build .*$/gm)].map(m => m[0]);
+      expect(builds.length).toBe(target === "mac" ? 2 : 1);
+      for (const line of builds) expect(line).toContain(" --no-default-features ");
+      expect(dryRun(target)).not.toContain("--no-default-features");
+    }
   });
 
   it("on Linux builds the binary and packs the AppImage behind the pinned runtime, with no Apple tool", () => {

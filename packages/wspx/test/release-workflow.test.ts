@@ -90,6 +90,9 @@ describe("the release workflow", () => {
     expect(workflow).toContain("if: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}");
     expect(npmJob).toContain("name: Publish\n        if: ${{ github.event_name == 'push' }}");
     expect(npmJob).toContain("needs.daemon.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success')");
+    // npm publishes nothing for a release an app job failed, which stays a draft.
+    expect(npmJob).toContain("needs: [draft, daemon, mac, linux, mac-classic, linux-classic]\n");
+    expect(npmJob).toContain("if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && ");
     // The mac and linux jobs build and check their bundles on a run by hand too, and only a pushed tag attaches them.
     for (const job of bundleJobs) {
       expect(job).toContain("needs.daemon.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success')");
@@ -163,7 +166,7 @@ describe("the release workflow", () => {
     for (const job of [...bundleJobs, npmJob]) {
       expect(job).toContain("pattern: wsp-daemon-*");
       expect(job).toContain("node packages/wspx/scripts/daemon-binary.mjs --from-artifacts daemon-bins");
-      expect(job).toContain("needs: [draft, daemon]");
+      expect(job).toMatch(/needs: \[draft, daemon[\],]/);
     }
     expect(npmJob).toContain("node packages/wspx/scripts/daemon-binary.mjs --check");
     // The release is the one place the daemon binaries are required of a build: each job that builds sets the
@@ -175,8 +178,9 @@ describe("the release workflow", () => {
 
   it("builds everything it ships public and reads each bundle for a cloud provider before it leaves the runner", () => {
     const roads = [
-      { job: macJob, build: "- name: Build the app\n", check: "node packages/wspx/scripts/public-check.mjs apps/desktop-gpui/dist/wsp.app/Contents/Resources/app\n", ships: "gh release upload" },
-      { job: linuxJob, build: "- name: Build the bundle\n", check: "node packages/wspx/scripts/public-check.mjs apps/desktop/build/app\n", ships: "gh release upload" },
+      // The GPUI apps are read whole, their own binary with them; the AppImage unpacked, since its squashfs is compressed.
+      { job: macJob, build: "- name: Build the app\n", check: "node packages/wspx/scripts/public-check.mjs apps/desktop-gpui/dist/wsp.app\n", ships: "gh release upload" },
+      { job: linuxJob, build: "- name: Build the bundle\n", check: '"$GITHUB_WORKSPACE"/apps/desktop-gpui/dist/*.AppImage --appimage-extract >/dev/null\n          node "$GITHUB_WORKSPACE"/packages/wspx/scripts/public-check.mjs squashfs-root\n', ships: "gh release upload" },
       { job: macClassicJob, build: "- name: Build the bundles\n", check: "node packages/wspx/scripts/public-check.mjs apps/desktop/build/app\n", ships: "gh release upload" },
       { job: linuxClassicJob, build: "- name: Build the bundle\n", check: "node packages/wspx/scripts/public-check.mjs apps/desktop/build/app\n", ships: "gh release upload" },
       { job: npmJob, build: "- name: Build, with every daemon binary required\n", check: 'node packages/wspx/scripts/public-check.mjs "$RUNNER_TEMP"/wsp-labs-wsp-*.tgz\n', ships: "npm publish" },
@@ -257,6 +261,8 @@ describe("the release workflow", () => {
     expect(checked.status, checked.stderr).toBe(0);
     const parsed = spawnSync("bash", ["-n", join(repo, "apps", "desktop-gpui", "scripts", "appimage-launch.sh")], { encoding: "utf8" });
     expect(parsed.status, parsed.stderr).toBe(0);
+    // The GPUI AppImage runs unpacked, as the classic one does, rather than mounted, which needs a FUSE the runner may lack.
+    expect(readFileSync(join(repo, "apps", "desktop-gpui", "scripts", "appimage-launch.sh"), "utf8")).toMatch(/^setsid env -i (?:.|\\\n)*? APPIMAGE_EXTRACT_AND_RUN=1 /m);
   });
 
   it("builds every package the app's staging copies from in build:deps, the only build the release runs first", () => {

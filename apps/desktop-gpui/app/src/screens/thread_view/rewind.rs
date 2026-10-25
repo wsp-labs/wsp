@@ -15,6 +15,7 @@ use crate::ui::{catalog, radio, ActivePalette, AlertDialog, Button, Glyph, Refus
 /// `COPIED_MS`: how long Copy stands as a check, held.
 const COPIED: Duration = Duration::from_millis(1_500);
 
+/// Embedded whole, comments too: a public build ships every word of the file, which the release's public check reads.
 const THREAD_WORDS: &str = include_str!("../../../../../../packages/protocol/src/words/thread.ts");
 
 /// The first `"..."` after `at` in thread.ts.

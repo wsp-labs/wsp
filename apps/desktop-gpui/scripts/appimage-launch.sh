@@ -9,12 +9,18 @@ image=$(readlink -f "${1:?usage: appimage-launch.sh <AppImage>}")
 [ -n "${DISPLAY-}" ] || { echo "refused: no DISPLAY; run this under xvfb-run" >&2; exit 2; }
 home=$(mktemp -d)
 log=$home/app.log
-# xvfb-run hands its display's cookie through XAUTHORITY, which the app needs to connect.
-env -i PATH=/usr/bin:/bin HOME="$home" DISPLAY="$DISPLAY" ${XAUTHORITY:+XAUTHORITY="$XAUTHORITY"} "$image" >"$log" 2>&1 &
+# xvfb-run hands its display's cookie through XAUTHORITY, which the app needs to connect. APPIMAGE_EXTRACT_AND_RUN
+# unpacks the image under TMPDIR instead of mounting it, which needs a FUSE a runner need not have.
+setsid env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$home" DISPLAY="$DISPLAY" ${XAUTHORITY:+XAUTHORITY="$XAUTHORITY"} \
+  APPIMAGE_EXTRACT_AND_RUN=1 "$image" >"$log" 2>&1 &
 pid=$!
+# The unpacking runtime runs the app as its child and leaves it running when killed alone, so its whole group goes.
 stop() {
-  kill "$pid" 2>/dev/null
-  wait "$pid" 2>/dev/null
+  kill -- -"$pid" 2>/dev/null
+  for _ in $(seq 50); do
+    kill -0 -- -"$pid" 2>/dev/null || break
+    sleep 0.1
+  done
   rm -rf "$home"
 }
 trap stop EXIT
