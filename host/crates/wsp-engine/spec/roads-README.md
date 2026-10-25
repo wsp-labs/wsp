@@ -25,8 +25,9 @@ each unit has hard tests in `tests/<unit>_hard.rs` that compare against the TS c
 
 - Every cap on words (`SSH_LINE_CAP` 300, `boxWord`'s 48, `missingKnownHostsLine`'s 48 and 72, `HELD_TAIL` 4096,
   the `slice(-N)` tails) counts UTF-16 code units, as JavaScript's `slice` does. A cut never panics on a char
-  boundary: where the cut would split a surrogate pair, the lone half is dropped (JavaScript would keep a lone
-  surrogate, which a Rust `String` cannot hold; an accepted difference).
+  boundary: where the cut would split a surrogate pair, the half that is left is written as U+FFFD, one unit in
+  its place (the coordinator's ruling on #2446, as on #2447: JavaScript keeps a lone surrogate, which a Rust
+  `String` cannot hold). So a cut keeps exactly N units: `box_word("ab😀", 3)` is `"ab\u{FFFD}"`.
 - `"…".trim()` is JavaScript's: it strips Unicode white space and line terminators (U+0009 to U+000D, U+0020,
   U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF). `str::trim` differs on U+FEFF
   and U+0085; use a JS-trim helper (wsp-words has `js`).

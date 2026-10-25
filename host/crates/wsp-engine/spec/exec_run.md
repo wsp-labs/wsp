@@ -72,3 +72,32 @@ kill the session's whole group; the unusable, stopped and missing paths leave th
 | launch twice starts once | `a_launch_posted_twice_under_one_base_starts_the_script_once` |
 | real commands, no files left | `runs_the_real_launch_poll_and_cleanup_commands` |
 | commands byte for byte, note placement | `launch_poll_kill_and_clean_commands_match_the_ts`, `parse_poll_reads_only_a_whole_block`, `the_note_goes_on_its_own_line` |
+
+## Pins (wave 2)
+
+Scenes in `oracle/roads_scenes.oracle.ts` (`runs`), replayed by `tests/roads_scenes.rs::<name>`: every command sent
+(the base masked), every line handed to `on_line`, and the answer, as the TS made them. Poll pace 1 ms, deadline
+60,000 unless a line says.
+
+- R-1 The exit line is read with JS `Number` after JS trim: `0x10` is 16 (`an_exit_in_hex_is_a_number`); `1.5` is not
+  an integer, so -1 with the note on its own line after the stderr so far
+  (`an_exit_with_a_fraction_is_minus_one_with_the_note`).
+- R-2 Within a poll stdout's complete lines go to the listener before stderr's; the tails with no newline go at the
+  end, stdout's then stderr's: polls of out `a\nb` err `c\n`, then out `` err `d` hand over `a`, `c`, `b`, `d`
+  (`lines_go_stdout_then_stderr_per_poll_and_the_tails_at_the_end`).
+- R-3 An empty line is never handed over; a `\r` stays on its line (`a_blank_line_is_not_handed_over_and_a_cr_is_kept`).
+- R-4 A full chunk is read again at once even when its poll carries an exit, and the exit is taken from the poll
+  after: stdout is the 262,144 bytes and `tail`, and the second poll asks from offset 262,144
+  (`a_full_chunk_with_an_exit_reads_again_before_the_exit`).
+- R-5 Past the deadline the last poll's streams are read and its exit line is ignored: the answer is 124 with no
+  note, and the commands are launch, kill, poll, clean (`past_the_deadline_the_last_polls_exit_is_ignored`, deadline
+  0 with a launch that takes 5 ms).
+- R-6 A block whose sixth line is not `WSP_POLL_END` is no answer, even with `WSP_POLL_END` later; the run pauses and
+  polls again (`a_block_closed_late_is_no_answer`).
+- R-7 The stream lines are base64 as Node reads it: no padding needed, and decoding stops at the first `=`, so `YQ`
+  is `a` and `Yg==Yw==` is `b` (`the_streams_decode_as_node_decodes_base64`).
+- R-8 A poll whose exec fails with any other error is no answer and is asked again with the same offsets
+  (`a_poll_that_rejects_is_no_answer_and_is_asked_again`).
+- R-9 A UTF-8 character split across two polls reaches the listener whole: bytes are held until `\n`, then the line
+  is decoded (`a_utf8_char_split_across_polls_reaches_the_listener_whole`).
+- R-10 The deadline and the pauses read the real clock (`Date.now()` and timers in the TS), not an injected one.
