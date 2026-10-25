@@ -214,3 +214,117 @@ pub fn picked_options(options: &[PermissionOption], picked: &str) -> Option<Vec<
 pub fn question_answer_input(tool_name: &str, input: &str, picked: &[String]) -> Option<Map<String, Value>> {
     todo!()
 }
+
+// Codex, OpenCode and Cursor (the others writer, #2447). Same rule as above: each goes once its wave-1 crate has it.
+
+/// PENDING(wsp-words): shell-quote.ts:4. One POSIX sh word: `'...'`, each `'` inside written `'\''`.
+pub fn shell_quote(value: &str) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-words): tool-result.ts:20. The hunks of a unified diff: one trailing `\n` dropped, split on `\n`, a
+/// line matching `^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@` opens a hunk (a missing count reads 1), every other
+/// line joins the last hunk, and lines before the first head are dropped.
+pub fn unified_hunks(diff: &str) -> Vec<PatchHunk> {
+    todo!()
+}
+
+/// PENDING(wsp-words): conversations.ts:164, through refusalLine.
+pub fn conversation_written_elsewhere_line(agent: &str, lets_go: Option<&str>) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-words): words/thread.ts:622.
+pub fn codex_not_signed_in_line(login: &str) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-words): words/thread.ts:627.
+pub fn codex_missing_env_line(name: &str) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-words): words/thread.ts:651, `fmtDuration(ms, "clock")` inside.
+pub fn codex_reconnect_line(elapsed_ms: f64) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-words): words/places.ts:323.
+pub fn codex_key_refused_line(key_env: &str, reason: &str, login: &str) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-words): words/thread.ts:504.
+pub const CODEX_LEGACY_HISTORY: &str = "a Codex older than 0.151.0 made this thread and keeps its history in a form thread/revert cannot cut";
+
+/// PENDING(wsp-words): words/thread.ts:508.
+pub const CODEX_FEWER_TURNS: &str = "codex lists fewer turns in this thread than the rewind would cut, so it cut nothing";
+
+/// PENDING(wsp-words): words/thread.ts:511.
+pub fn codex_no_turn_line(turn_id: &str) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-words): usage.ts:49. Up to 300 minutes the session, up to 10080 the week, else the month.
+pub fn limit_kind_of_minutes(minutes: f64) -> wsp_wire::types::usage::LimitKind {
+    todo!()
+}
+
+/// PENDING(wsp-wire): placeholders.ts:18, a TS interface the zod generator skipped.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CodexClaims {
+    pub account_id: String,
+    pub plan_type: Option<String>,
+    pub user_id: Option<String>,
+    pub fedramp: Option<bool>,
+}
+
+/// PENDING(wsp-catalog): codex-app-server.ts:17. How long the probe's reader waits for one more line, in seconds.
+pub const LINE_WAIT_S: u64 = 10;
+
+/// PENDING(wsp-catalog): codex-app-server.ts:19. `{"jsonrpc":"2.0","id":..,"method":..,"params":..}`.
+pub fn app_server_request(id: i64, method: &str, params: Map<String, Value>) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-catalog): codex-app-server.ts:21. `{"jsonrpc":"2.0","method":..,"params":{}}`.
+pub fn app_server_notification(method: &str) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-catalog): codex-app-server.ts:23. `initialize` with `clientInfo {name: "wsp", version: "0"}`.
+pub fn app_server_initialize(id: i64) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-catalog): codex-app-server.ts:26.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServerStage {
+    pub lines: Vec<String>,
+    pub answers: u32,
+}
+
+/// PENDING(wsp-catalog): codex-app-server.ts:32. The server under `codex` fed stage by stage through two fifos.
+pub fn app_server_script(codex: &str, stages: &[ServerStage]) -> String {
+    todo!()
+}
+
+/// PENDING(wsp-catalog): codex-app-server.ts:62.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ServerAnswer {
+    Result(Map<String, Value>),
+    Error { code: Option<f64>, message: String, data: Option<Map<String, Value>> },
+}
+
+/// PENDING(wsp-catalog): codex-app-server.ts:69. Each answer by its numeric id; a result is kept only when it is an object.
+pub fn answers_of(text: &str) -> IndexMap<i64, ServerAnswer> {
+    todo!()
+}
+
+/// PENDING(wsp-catalog): codex-app-server.ts:94.
+pub fn result_of(answers: &IndexMap<i64, ServerAnswer>, id: i64) -> Option<&Map<String, Value>> {
+    todo!()
+}
+
+/// PENDING(wsp-catalog): agents/codex.ts:25, the npm pin of codex's install road.
+pub const CODEX_PINNED_VERSION: &str = "0.155.1";
