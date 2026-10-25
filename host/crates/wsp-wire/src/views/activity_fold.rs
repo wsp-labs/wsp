@@ -3,6 +3,7 @@
 //! Activity page and `wsp activity` both draw. See spec/activity.md.
 
 use crate::views::activity::ActivityProc;
+use std::collections::HashMap;
 use wsp_frames::ProcEntry;
 
 /// A row with a pid and a parent pid, which is all the walk reads.
@@ -13,19 +14,19 @@ pub trait PidRow {
 
 impl PidRow for ActivityProc {
     fn pid(&self) -> i64 {
-        todo!()
+        self.pid
     }
     fn ppid(&self) -> i64 {
-        todo!()
+        self.ppid
     }
 }
 
 impl PidRow for ProcEntry {
     fn pid(&self) -> i64 {
-        todo!()
+        i64::from(self.pid)
     }
     fn ppid(&self) -> i64 {
-        todo!()
+        i64::from(self.ppid)
     }
 }
 
@@ -81,5 +82,39 @@ pub struct Folded<P> {
 /// The list's tree, in the list's order. `folds_into` names the row a process folds into; a target outside the list,
 /// or the pid itself, folds nothing.
 pub fn fold_tree<P: PidRow + Clone>(list: &[P], folds_into: impl Fn(i64) -> Option<i64>) -> Vec<Folded<P>> {
-    todo!()
+    let by_pid: HashMap<i64, &P> = list.iter().map(|p| (p.pid(), p)).collect();
+    let into = |pid: i64| folds_into(pid).filter(|&at| at != pid && by_pid.contains_key(&at));
+    let up = |p: &P| if p.ppid() != p.pid() { by_pid.get(&p.ppid()).copied() } else { None };
+    let parent_of = |p: &P| -> Option<i64> {
+        let mut at = up(p);
+        for _ in 0..=list.len() {
+            let a = at?;
+            match into(a.pid()) {
+                None => return Some(a.pid()),
+                Some(target) if target != p.pid() => return Some(target),
+                Some(_) => at = up(a),
+            }
+        }
+        None
+    };
+    let mut kids: HashMap<i64, Vec<&P>> = HashMap::new();
+    let mut held: HashMap<i64, Vec<&P>> = HashMap::new();
+    let mut heads: Vec<&P> = Vec::new();
+    for p in list {
+        match into(p.pid()) {
+            Some(target) => held.entry(target).or_default().push(p),
+            None => match parent_of(p) {
+                None => heads.push(p),
+                Some(parent) => kids.entry(parent).or_default().push(p),
+            },
+        }
+    }
+    fn build<P: PidRow + Clone>(p: &P, held: &HashMap<i64, Vec<&P>>, kids: &HashMap<i64, Vec<&P>>) -> Folded<P> {
+        Folded {
+            p: p.clone(),
+            held: held.get(&p.pid()).map(|rows| rows.iter().map(|r| (*r).clone()).collect()).unwrap_or_default(),
+            kids: kids.get(&p.pid()).map(|rows| rows.iter().map(|r| build(*r, held, kids)).collect()).unwrap_or_default(),
+        }
+    }
+    heads.iter().map(|p| build(*p, &held, &kids)).collect()
 }
