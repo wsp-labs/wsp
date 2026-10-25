@@ -14,6 +14,7 @@ use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
 
+use wsp_core::ids::Ids;
 use wsp_core::types::internal::{EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad};
 use wsp_core::types::pending::{Clock, MachineExecOptions, PlaceDoor, ScopedRoad, TurnWaiting};
 use wsp_core::types::wiring::{
@@ -21,13 +22,14 @@ use wsp_core::types::wiring::{
     WorkspaceSpec,
 };
 use wsp_engine::errors::Result as EngineResult;
+use wsp_engine::Cancel;
 use wsp_engine::lifecycle::{Workspace, WorkspaceHooks, WorkspaceInitial};
 use wsp_engine::machine::{
     BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind, MachineLife, MachineListRow, MachineOffers,
     MachineSpec, MachineState, RunOptions, Size, SnapshotOptions, SnapshotStoragePricing, Waiting,
 };
 use wsp_machines::machines::create::{CreateArea, CreateRuntime, KeptBuilder, LandingRoad, RecordBranchAsk};
-use wsp_machines::machines::machines::{Entry, Ids};
+use wsp_machines::machines::machines::Entry;
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::views::harness::McpServerSpec;
 use wsp_wire::views::place::MachineBind;
@@ -51,7 +53,7 @@ pub const NAMED_REPO: i64 = 41;
 pub const GIVEN_REPO: i64 = 42;
 
 pub fn err(message: &str) -> HostError {
-    HostError { message: message.to_string(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }
+    HostError::new(message)
 }
 
 pub fn norm(v: &Value) -> Value {
@@ -90,7 +92,7 @@ pub struct FakeMachine {
     pub daemon_answers: bool,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for FakeMachine {
     fn id(&self) -> &str {
         &self.id
@@ -116,7 +118,7 @@ impl Machine for FakeMachine {
     async fn pause(&self, _wait_ms: Option<u64>) -> EngineResult<()> {
         unimplemented!()
     }
-    async fn resume(&self, _signal: Option<tokio_util::sync::CancellationToken>) -> EngineResult<()> {
+    async fn resume(&self, _signal: Option<&Cancel>) -> EngineResult<()> {
         unimplemented!()
     }
     async fn kill(&self) -> EngineResult<()> {
@@ -150,7 +152,7 @@ impl BackendPricing for FakePricing {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for FakeBackend {
     fn capabilities(&self) -> Capabilities {
         let size = |cpu: f64, mem_mb: f64, rate: f64| MachineSizeOffer { cpu: JsNumber(cpu), mem_mb: JsNumber(mem_mb), rate_usd_per_hour: JsNumber(rate), name: None };
@@ -206,7 +208,7 @@ pub fn live_of(record: WorkspaceRecord, machine: Arc<dyn Machine>) -> LiveWorksp
     };
     let ws = Rc::new(Workspace::new(machine.clone(), hooks, WorkspaceInitial::default()));
     LiveWorkspace {
-        record,
+        record: Rc::new(RefCell::new(record)),
         opens_thread: None,
         of_record_held: false,
         ws,
@@ -280,7 +282,7 @@ struct FakeModule {
 }
 
 impl KindModule for FakeModule {
-    fn backend(&self, _record: &WorkspaceRecord) -> Arc<dyn MachineBackend> {
+    fn backend(&self, _record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
         unimplemented!()
     }
     fn exec_stream(&self, _entry: &LiveWorkspace, _opts: Option<MachineExecOptions>, _waiting: Option<TurnWaiting>) -> Arc<dyn wsp_adapters::port::ExecStreamFactory> {
@@ -311,7 +313,7 @@ impl KindModule for FakeModule {
         unimplemented!()
     }
     fn land_project(&self, entry: &LiveWorkspace, project: ProjectView, _report: StageReport) -> Local<'static, ()> {
-        let (log, kind, id, project_id, fails) = (self.log.clone(), self.kind.clone(), entry.record.id.clone(), project.id.clone(), self.land_fails);
+        let (log, kind, id, project_id, fails) = (self.log.clone(), self.kind.clone(), entry.record.borrow().id.clone(), project.id.clone(), self.land_fails);
         async move {
             log.push(json!(["landProject", kind, id, project_id]));
             if fails {
@@ -422,7 +424,7 @@ impl FakeRuntime {
     /// A refusal at the machine cap: the provider's word rides as the message, which is what the cap line reads as its
     /// `said`, and the kind is concurrency. `status` and `cause` have no field on a `HostError`.
     fn cap(said: &str) -> HostError {
-        HostError { kind: Some(Kind::Concurrency), ..err(said) }
+        HostError::with_kind(said, Kind::Concurrency)
     }
 }
 
@@ -579,7 +581,7 @@ impl CreateRuntime for FakeRuntime {
                         None => json!({"attached": false}),
                         Some(e) => {
                             let e = e.borrow();
-                            json!({"attached": true, "creating": e.creating, "opensThread": e.opens_thread, "ofRecordHeld": e.of_record_held, "machineId": e.record.machine_id})
+                            json!({"attached": true, "creating": e.creating, "opensThread": e.opens_thread, "ofRecordHeld": e.of_record_held, "machineId": e.record.borrow().machine_id.clone()})
                         }
                     }
                 };
@@ -628,12 +630,12 @@ impl CreateRuntime for FakeRuntime {
         Ok(())
     }
     async fn ping_daemon(&self, entry: &Entry) -> Option<String> {
-        let id = entry.borrow().record.id.clone();
+        let id = entry.borrow().record.borrow().id.clone();
         self.log.push(json!(["pingDaemon", id]));
         self.s.get("fault").and_then(Value::as_str).map(str::to_string)
     }
     fn sync_daemon(&self, entry: &Entry) {
-        let id = entry.borrow().record.id.clone();
+        let id = entry.borrow().record.borrow().id.clone();
         self.log.push(json!(["syncDaemon", id]));
     }
     async fn read_memory(&self, record: &mut WorkspaceRecord, _machine: &Arc<dyn Machine>, _sizes: &[WorkspaceSize]) -> bool {
@@ -650,7 +652,7 @@ impl CreateRuntime for FakeRuntime {
         Rc::new(FakeModule { log: self.log.clone(), kind: kind.to_string(), land_fails: self.s.get("landFails").and_then(Value::as_bool).unwrap_or(false) })
     }
     async fn write_daemon_roots(&self, entry: &Entry) -> Result<(), HostError> {
-        let id = entry.borrow().record.id.clone();
+        let id = entry.borrow().record.borrow().id.clone();
         self.log.push(json!(["writeDaemonRoots", id]));
         Ok(())
     }
@@ -704,14 +706,14 @@ pub fn options_of(o: &Value) -> CreateWorkspaceOptions {
     // The oracle's `agents` patch names `machines`; the Rust patch names `maxMachines`.
     let agents = o.get("agents").and_then(Value::as_object).map(|a| a.iter().map(|(k, v)| (if k == "machines" { "maxMachines".to_string() } else { k.clone() }, v.clone())).collect::<Map<String, Value>>());
     CreateWorkspaceOptions {
-        spec: WorkspaceSpec { cpu: o.get("cpu").and_then(Value::as_f64), mem_mb: o.get("memMb").and_then(Value::as_f64), envs: map("envs"), labels: map("labels"), binds: None, copy: None },
+        spec: WorkspaceSpec { cpu: o.get("cpu").and_then(Value::as_f64).map(JsNumber), mem_mb: o.get("memMb").and_then(Value::as_f64).map(JsNumber), envs: map("envs"), labels: map("labels"), binds: None, copy: None },
         project: "p_1".to_string(),
         golden: o.get("golden").and_then(Value::as_str).map(str::to_string),
         name: "w1".to_string(),
         sub: None,
         opens_thread: o.get("opensThread").and_then(Value::as_str).map(str::to_string),
         agents,
-        idle_window_ms: o.get("idleWindowMs").and_then(Value::as_f64).map(IdleWindow::Ms).unwrap_or_default(),
+        idle_window_ms: o.get("idleWindowMs").and_then(Value::as_f64).map(|n| IdleWindow::Ms(JsNumber(n))).unwrap_or_default(),
         parent: o.get("parent").and_then(Value::as_str).map(str::to_string),
         // The oracle's branch of record has no repository id; the Rust one needs one.
         branch_of_record: o.get("branchOfRecord").map(|b| BranchOfRecord {

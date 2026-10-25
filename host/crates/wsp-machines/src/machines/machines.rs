@@ -49,12 +49,7 @@ pub struct ThreadOn {
     pub record: ThreadRecord,
 }
 
-/// The ids seam (chapter 03, rule 3.16): `randomUUID()` and `randomBytes(n).toString("hex")`. Moves to wsp-core.
-pub trait Ids {
-    fn uuid(&self) -> String;
-    /// `n` random bytes as `2n` lowercase hex characters.
-    fn random_hex(&self, bytes: usize) -> String;
-}
+pub use wsp_core::ids::Ids;
 
 /// A refusal the provider stands on for one machine: `{ machineId, said }` (context.ts `napRefusals`, `stopRefusals`).
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -141,7 +141,7 @@ impl ThreadEndsDoor for FakeDoor {
         let answer = self.world.answers.borrow_mut().pop_front().unwrap_or(Answer::Exit(0, ""));
         match answer {
             Answer::Exit(code, stderr) => Ok(ExecResult { exit_code: JsInt::from(code), stdout: String::new(), stderr: stderr.to_string() }),
-            Answer::Throws => Err(HostError { message: "no answer".into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: Vec::new() }),
+            Answer::Throws => Err(HostError::new("no answer")),
             Answer::Hangs => std::future::pending::<Result<ExecResult, HostError>>().await,
         }
     }

@@ -15,18 +15,20 @@ use futures::FutureExt;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 
+use wsp_core::ids::Ids;
 use wsp_core::types::internal::{EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad};
 use wsp_core::types::pending::{Clock, MachineExecOptions, ScopedRoad, TurnWaiting};
 use wsp_core::types::wiring::{LiveWorkspace, Local, ProjectImportOptions, StageReport, WorkspaceRecord};
 use wsp_core::types::internal::SessionEntry;
 use wsp_engine::errors::Result as EngineResult;
+use wsp_engine::Cancel;
 use wsp_engine::lifecycle::{Workspace, WorkspaceHooks, WorkspaceInitial};
 use wsp_engine::machine::{
     BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind, MachineLife, MachineListRow, MachineOffers,
     MachineSpec, MachineState, RunOptions, Size, SnapshotOptions, SnapshotStoragePricing, Waiting,
 };
 use wsp_machines::machines::daemon::{DaemonArea, DaemonRuntime, DetachedSend, DetachedOutcome, DetachedStart, Started};
-use wsp_machines::machines::machines::{Entry, Ids, Row};
+use wsp_machines::machines::machines::{Entry, Row};
 use wsp_wire::views::harness::McpServerSpec;
 use wsp_wire::views::session::{SessionView, ThreadCapWait};
 use wsp_wire::views::workspace::{Caller, ProjectView, ReachState};
@@ -42,11 +44,11 @@ use crate::common::{self, FakeClock, FakeIds, Log, T0};
 const FILL: &str = "~fill~";
 
 pub fn err(message: &str) -> HostError {
-    HostError { message: message.to_string(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }
+    HostError::new(message)
 }
 
 pub fn err_kind(message: &str, kind: Kind) -> HostError {
-    HostError { kind: Some(kind), ..err(message) }
+    HostError::with_kind(message, kind)
 }
 
 pub fn marked(message: &str, mark: &str) -> HostError {
@@ -109,7 +111,7 @@ pub struct FakeMachine {
     pub put_bytes: bool,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for FakeMachine {
     fn id(&self) -> &str {
         &self.id
@@ -132,7 +134,7 @@ impl Machine for FakeMachine {
     async fn pause(&self, _wait_ms: Option<u64>) -> EngineResult<()> {
         unimplemented!()
     }
-    async fn resume(&self, _signal: Option<tokio_util::sync::CancellationToken>) -> EngineResult<()> {
+    async fn resume(&self, _signal: Option<&Cancel>) -> EngineResult<()> {
         unimplemented!()
     }
     async fn kill(&self) -> EngineResult<()> {
@@ -168,7 +170,7 @@ impl BackendPricing for FakePricing {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for FakeBackend {
     fn capabilities(&self) -> Capabilities {
         Capabilities {
@@ -223,7 +225,7 @@ pub fn live_of(record: WorkspaceRecord, machine: Arc<dyn Machine>) -> LiveWorksp
     };
     let ws = Rc::new(Workspace::new(machine.clone(), hooks, WorkspaceInitial::default()));
     LiveWorkspace {
-        record,
+        record: Rc::new(RefCell::new(record)),
         opens_thread: None,
         of_record_held: false,
         ws,
@@ -299,7 +301,7 @@ pub struct FakeModule {
 }
 
 impl KindModule for FakeModule {
-    fn backend(&self, _record: &WorkspaceRecord) -> Arc<dyn MachineBackend> {
+    fn backend(&self, _record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
         unimplemented!()
     }
     fn exec_stream(&self, _entry: &LiveWorkspace, _opts: Option<MachineExecOptions>, _waiting: Option<TurnWaiting>) -> Arc<dyn wsp_adapters::port::ExecStreamFactory> {
@@ -327,7 +329,7 @@ impl KindModule for FakeModule {
         unimplemented!()
     }
     fn roots(&self, entry: &LiveWorkspace, dests: &[String]) -> Local<'static, ()> {
-        let id = entry.record.id.clone();
+        let id = entry.record.borrow().id.clone();
         let dests = dests.to_vec();
         let log = self.log.clone();
         let fails = self.cfg.roots == "fails";
@@ -386,7 +388,7 @@ impl KindModule for FakeModule {
         unimplemented!()
     }
     fn has_daemon(&self, entry: &LiveWorkspace) -> bool {
-        self.log.push(json!(["hasDaemon", entry.record.id]));
+        self.log.push(json!(["hasDaemon", entry.record.borrow().id.clone()]));
         self.cfg.has_daemon
     }
     fn shared_daemon(&self) -> bool {
@@ -402,7 +404,7 @@ impl KindModule for FakeModule {
         unimplemented!()
     }
     fn daemon_version(&self, entry: &LiveWorkspace) -> Local<'static, Option<u32>> {
-        let id = entry.record.id.clone();
+        let id = entry.record.borrow().id.clone();
         let log = self.log.clone();
         let version = self.cfg.version.clone();
         let current = self.daemon_version;
@@ -424,7 +426,7 @@ impl KindModule for FakeModule {
         if self.cfg.deploy == "none" {
             return None;
         }
-        let id = entry.record.id.clone();
+        let id = entry.record.borrow().id.clone();
         let log = self.log.clone();
         let how = self.cfg.deploy.clone();
         let gates = self.gates.clone();
@@ -557,7 +559,7 @@ impl DaemonRuntime for FakeRuntime {
         }
     }
     async fn push_status(&self, entry: &Entry) -> Result<(), HostError> {
-        let id = entry.borrow().record.id.clone();
+        let id = entry.borrow().record.borrow().id.clone();
         let note = self.notes.borrow().get(&id).cloned();
         self.log.push(json!(["pushStatus", id, note]));
         Ok(())
@@ -567,7 +569,7 @@ impl DaemonRuntime for FakeRuntime {
         Ok(())
     }
     fn served_by_its_computer(&self, entry: &Entry) -> Option<String> {
-        let id = entry.borrow().record.id.clone();
+        let id = entry.borrow().record.borrow().id.clone();
         self.cfg_of(&id).filter(|c| c.served).map(|_| "computer".to_string())
     }
     fn module_of(&self, kind: &str) -> Rc<dyn KindModule> {
@@ -629,7 +631,7 @@ pub fn session_event(kind: &str, workspace_id: &str) -> (Value, Value) {
 }
 
 pub fn moments_json(map: &IndexMap<String, wsp_core::types::internal::MachineMoment>) -> Value {
-    Value::Array(map.iter().map(|(k, m)| json!([k, {"machineId": m.machine_id, "at": m.at as i64}])).collect())
+    Value::Array(map.iter().map(|(k, m)| json!([k, {"machineId": m.machine_id, "at": m.at.0 as i64}])).collect())
 }
 
 /// The oracle's `world(w)`: the runtime and the area over it.
@@ -756,11 +758,11 @@ impl World {
 
     /// The records in `live` order, as the fixture writes them.
     pub fn records(&self) -> Vec<Value> {
-        self.rt.live.borrow().values().map(|e| record_json(&e.borrow().record)).collect()
+        self.rt.live.borrow().values().map(|e| record_json(&e.borrow().record.borrow())).collect()
     }
 
     pub fn set_phase(&self, id: &str, phase: &str) {
-        self.entry(id).borrow_mut().record.phase = serde_json::from_value(json!(phase)).expect("a phase");
+        self.entry(id).borrow().record.borrow_mut().phase = serde_json::from_value(json!(phase)).expect("a phase");
     }
 
     pub fn set_session_status(&self, id: &str, status: &str) {
