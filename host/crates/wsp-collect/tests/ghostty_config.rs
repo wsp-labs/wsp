@@ -15,7 +15,7 @@ use wsp_wire::views::project_bundle::{
 
 fn rgb(hex: &str) -> TerminalRgb {
     let part = |at: usize| i64::from_str_radix(&hex[at..at + 2], 16).unwrap();
-    TerminalRgb { r: part(0), g: part(2), b: part(4) }
+    TerminalRgb { r: part(0).into(), g: part(2).into(), b: part(4).into() }
 }
 
 fn none() -> Vec<Option<TerminalRgb>> {
@@ -164,7 +164,7 @@ mouse-hide-while-typing = true
                 window_padding_x: Some(TerminalConfigWindowPaddingX { left: JsNumber(2.0), right: JsNumber(4.0) }),
                 window_padding_y: Some(TerminalConfigWindowPaddingY { top: JsNumber(6.0), bottom: JsNumber(6.0) }),
                 background_opacity: num(0.85),
-                background_blur: Some(20),
+                background_blur: Some(20.into()),
             }
         );
     }
@@ -178,7 +178,7 @@ mouse-hide-while-typing = true
             TerminalConfig {
                 font_family: strings(&["Iosevka"]),
                 foreground: Some(rgb("cdd6f4")),
-                background_blur: Some(20),
+                background_blur: Some(20.into()),
                 ..bare(&["/Users/dev/.config/ghostty/config"])
             }
         );
