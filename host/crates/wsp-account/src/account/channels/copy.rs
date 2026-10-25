@@ -12,7 +12,7 @@ use wsp_core::types::internal::ChildStart;
 use wsp_wire::views::workspace::{Caller, ProjectView};
 
 use super::ChannelsArea;
-use crate::account::core_types::{AccountResult, Frame, Live, Served};
+use crate::account::core_types::{AccountResult, Frame, Entry, Served};
 
 /// `"fork" | "run"`: the road a child starts by (channels.ts:845).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -30,22 +30,22 @@ pub struct ShellToken {
 
 impl ChannelsArea {
     /// C1-C5, channels.ts:587. `carries` is the client's frame list.
-    pub async fn served_channel(self: &Rc<Self>, entry: &Live, served: Served, on_event: Rc<dyn Fn(Value)>, carries: &[&str]) -> AccountResult<Rc<dyn DaemonChannel>> {
+    pub async fn served_channel(self: &Rc<Self>, entry: &Entry, served: Served, on_event: Rc<dyn Fn(Value)>, carries: &[&str]) -> AccountResult<Rc<dyn DaemonChannel>> {
         todo!()
     }
 
     /// C6, channels.ts:672. `named` is the frame's `thread` value, whatever its type.
-    pub async fn terminal_token(self: &Rc<Self>, entry: &Live, named: Option<&Value>) -> AccountResult<Option<ShellToken>> {
+    pub async fn terminal_token(self: &Rc<Self>, entry: &Entry, named: Option<&Value>) -> AccountResult<Option<ShellToken>> {
         todo!()
     }
 
     /// C7, channels.ts:685.
-    pub async fn shell_sign_ins(self: &Rc<Self>, entry: &Live, thread_id: &str, token: &str) -> IndexMap<String, String> {
+    pub async fn shell_sign_ins(self: &Rc<Self>, entry: &Entry, thread_id: &str, token: &str) -> IndexMap<String, String> {
         todo!()
     }
 
     /// C8, channels.ts:699.
-    pub async fn write_terminal(self: &Rc<Self>, entry: &Live, own: &str, line: &str) {
+    pub async fn write_terminal(self: &Rc<Self>, entry: &Entry, own: &str, line: &str) {
         todo!()
     }
 
@@ -75,17 +75,17 @@ impl ChannelsArea {
     }
 
     /// C10-C12, channels.ts:791.
-    pub async fn copy_channel(self: &Rc<Self>, entry: &Live, on_event: Rc<dyn Fn(Value)>, carries: &[&str]) -> AccountResult<Rc<dyn DaemonChannel>> {
+    pub async fn copy_channel(self: &Rc<Self>, entry: &Entry, on_event: Rc<dyn Fn(Value)>, carries: &[&str]) -> AccountResult<Rc<dyn DaemonChannel>> {
         todo!()
     }
 
     /// C13, channels.ts:845.
-    pub async fn lead_start(self: &Rc<Self>, lead: &Live, child: &str, road: ChildRoad) -> AccountResult<ChildStart> {
+    pub async fn lead_start(self: &Rc<Self>, lead: &Entry, child: &str, road: ChildRoad) -> AccountResult<ChildStart> {
         todo!()
     }
 
     /// C14, channels.ts:884.
-    pub async fn start_child_on(self: &Rc<Self>, child: &Live, branch: &str, lead: &str) -> AccountResult<String> {
+    pub async fn start_child_on(self: &Rc<Self>, child: &Entry, branch: &str, lead: &str) -> AccountResult<String> {
         todo!()
     }
 

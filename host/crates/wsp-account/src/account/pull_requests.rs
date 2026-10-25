@@ -15,7 +15,8 @@ use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::{Caller, ProjectView};
 use wsp_words::exit::HostError;
 
-use crate::account::core_types::{AccountError, AccountResult, Ask, Cancel, Frame, Live, Work};
+use wsp_core::clock::Cancel;
+use crate::account::core_types::{AccountError, AccountResult, Ask, Entry, Frame, Work};
 
 /// pull-requests.ts:278: how long a remote's repository settings are held.
 pub const REPO_SETTINGS_MS: i64 = 60 * 60_000;
@@ -48,22 +49,22 @@ pub trait PullRequestsCtx {
     fn cache_set(&self, key: &str, entry: CacheEntry);
     fn cache_delete(&self, key: &str);
     /// `live.get(id)`.
-    fn live(&self, workspace_id: &str) -> Option<Live>;
+    fn live(&self, workspace_id: &str) -> Option<Entry>;
     /// `sessions.values()`' views, in map order.
     fn session_views(&self) -> Vec<SessionView>;
     /// `ctx.onThisComputer((ask, home) => ...)` (channels_daemon D18).
     async fn on_this_computer(&self, work: Box<dyn FnOnce(Ask, String) -> futures::future::LocalBoxFuture<'static, AccountResult<Value>>>) -> AccountResult<Value>;
     /// `ctx.withDaemon(entry, ask => ...)` (channels_daemon D14).
-    async fn with_daemon(&self, entry: &Live, work: Work<Value>) -> AccountResult<Value>;
+    async fn with_daemon(&self, entry: &Entry, work: Work<Value>) -> AccountResult<Value>;
     fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError>;
-    async fn entry_of(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<Live, HostError>;
+    async fn entry_of(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<Entry, HostError>;
     fn project_held(&self, id: &str) -> Result<ProjectView, HostError>;
     /// `ctx.status.watched()`: a window is open.
     fn status_watched(&self) -> bool;
     async fn persist(&self, record: &WorkspaceRecord) -> AccountResult<()>;
-    async fn status_now(&self, entry: &Live);
+    async fn status_now(&self, entry: &Entry);
     /// `ctx.readCheckout(entry, force)`: the branch line, read or held.
-    async fn read_checkout(&self, entry: &Live, force: bool) -> AccountResult<Option<wsp_wire::types::changes::Checkout>>;
+    async fn read_checkout(&self, entry: &Entry, force: bool) -> AccountResult<Option<wsp_wire::types::changes::Checkout>>;
     /// `ctx.slates.watchesPr(id)`.
     fn slates_watch_pr(&self, workspace_id: &str) -> bool;
     /// `ctx.mark(threads, { readAt, settledAt }, undefined)`.
@@ -71,7 +72,7 @@ pub trait PullRequestsCtx {
     /// `ctx.pauses(record)` (rules R4).
     fn pauses(&self, record: &WorkspaceRecord) -> bool;
     async fn nap_with(&self, workspace_id: &str) -> AccountResult<()>;
-    fn read_lead_of(&self, child: &Live);
+    fn read_lead_of(&self, child: &Entry);
     /// `ctx.queued(id, work)`: the workspace's one-at-a-time queue.
     async fn queued(&self, workspace_id: &str, work: futures::future::LocalBoxFuture<'static, AccountResult<Value>>) -> AccountResult<Value>;
     fn spawn(&self, f: futures::future::LocalBoxFuture<'static, ()>);
@@ -93,12 +94,12 @@ impl PullRequestsArea {
     }
 
     /// Q1, pull-requests.ts:20: `parse` reads the reply into the caller's type.
-    pub async fn read_host<T: 'static>(self: &Rc<Self>, entry: &Live, frame: FrameFor, parse: Rc<dyn Fn(Frame) -> AccountResult<T>>) -> AccountResult<T> {
+    pub async fn read_host<T: 'static>(self: &Rc<Self>, entry: &Entry, frame: FrameFor, parse: Rc<dyn Fn(Frame) -> AccountResult<T>>) -> AccountResult<T> {
         todo!()
     }
 
     /// Q1, pull-requests.ts:25.
-    pub async fn read_host_on<T: 'static>(self: &Rc<Self>, entry: &Live, frame: FrameFor, parse: Rc<dyn Fn(Frame) -> AccountResult<T>>) -> AccountResult<ReadOn<T>> {
+    pub async fn read_host_on<T: 'static>(self: &Rc<Self>, entry: &Entry, frame: FrameFor, parse: Rc<dyn Fn(Frame) -> AccountResult<T>>) -> AccountResult<ReadOn<T>> {
         todo!()
     }
 
@@ -108,7 +109,7 @@ impl PullRequestsArea {
     }
 
     /// Q3, pull-requests.ts:50.
-    pub async fn pull_request_on(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(Live, String, i64), HostError> {
+    pub async fn pull_request_on(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(Entry, String, i64), HostError> {
         todo!()
     }
 
@@ -123,7 +124,7 @@ impl PullRequestsArea {
     }
 
     /// Q4, pull-requests.ts:61.
-    pub async fn read_page(self: &Rc<Self>, entry: &Live, remote: &str, number: i64, fresh: bool) -> AccountResult<ReadOn<GitPrViewReply>> {
+    pub async fn read_page(self: &Rc<Self>, entry: &Entry, remote: &str, number: i64, fresh: bool) -> AccountResult<ReadOn<GitPrViewReply>> {
         todo!()
     }
 
@@ -143,42 +144,42 @@ impl PullRequestsArea {
     }
 
     /// Q7, pull-requests.ts:99.
-    pub async fn read_pull_request(self: &Rc<Self>, entry: &Live, force: bool, whole: bool) -> Option<PullRequestSeen> {
+    pub async fn read_pull_request(self: &Rc<Self>, entry: &Entry, force: bool, whole: bool) -> Option<PullRequestSeen> {
         todo!()
     }
 
     /// Q9, pull-requests.ts:158.
-    pub fn left_branch(&self, entry: &Live) -> bool {
+    pub fn left_branch(&self, entry: &Entry) -> bool {
         todo!()
     }
 
     /// Q10, pull-requests.ts:171.
-    pub async fn drop_pull_request(self: &Rc<Self>, entry: &Live) -> AccountResult<()> {
+    pub async fn drop_pull_request(self: &Rc<Self>, entry: &Entry) -> AccountResult<()> {
         todo!()
     }
 
     /// Q11, pull-requests.ts:185.
-    pub async fn ran_on_branch(&self, entry: &Live, thread_id: &str) -> AccountResult<()> {
+    pub async fn ran_on_branch(&self, entry: &Entry, thread_id: &str) -> AccountResult<()> {
         todo!()
     }
 
     /// Q8, pull-requests.ts:203.
-    pub async fn take_pull_request(self: &Rc<Self>, entry: &Live, seen: Option<PullRequestSeen>) -> AccountResult<()> {
+    pub async fn take_pull_request(self: &Rc<Self>, entry: &Entry, seen: Option<PullRequestSeen>) -> AccountResult<()> {
         todo!()
     }
 
     /// Q12, pull-requests.ts:224. `from` defaults to now at the call sites that name none.
-    pub fn poll_pull_request(self: &Rc<Self>, entry: &Live, from: Option<i64>) {
+    pub fn poll_pull_request(self: &Rc<Self>, entry: &Entry, from: Option<i64>) {
         todo!()
     }
 
     /// Q16, pull-requests.ts:244.
-    pub async fn keep_tree(&self, child: &Live, kept: TreeRecord) -> AccountResult<()> {
+    pub async fn keep_tree(&self, child: &Entry, kept: TreeRecord) -> AccountResult<()> {
         todo!()
     }
 
     /// Q13, pull-requests.ts:256.
-    pub async fn settle_tree(self: &Rc<Self>, entry: &Live) {
+    pub async fn settle_tree(self: &Rc<Self>, entry: &Entry) {
         todo!()
     }
 
@@ -188,7 +189,7 @@ impl PullRequestsArea {
     }
 
     /// Q15, pull-requests.ts:289.
-    pub async fn update_copy(self: &Rc<Self>, entry: &Live) -> AccountResult<GitUpdateReply> {
+    pub async fn update_copy(self: &Rc<Self>, entry: &Entry) -> AccountResult<GitUpdateReply> {
         todo!()
     }
 }

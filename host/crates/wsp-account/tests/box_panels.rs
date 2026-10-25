@@ -18,7 +18,7 @@ use serde_json::{json, Value};
 
 use common::{live, oracle, record, run, settle};
 use wsp_account::account::box_panels::{named_watch_refusal, proc_watch_scope, BoxPanels, BoxPanelsCtx, BoxPanelsOpener, Placements, StartedRow, Watchers};
-use wsp_account::account::core_types::{AccountResult, Frame, Live, Release, Served};
+use wsp_account::account::core_types::{AccountResult, Frame, Entry, Release, Served};
 use wsp_wire::wire::daemon::ProcScope;
 
 type Reply = Rc<dyn Fn(&Frame) -> Option<Frame>>;
@@ -94,7 +94,7 @@ impl BoxPanelsCtx for World {
             .map(|t| serde_json::from_value(json!({ "thread": t, "workspace": "w1", "folder": "/srv/alpha", "cgroup": cgroup(t) })).unwrap())
             .collect()
     }
-    fn thread_env(&self, _entry: &Live) -> IndexMap<String, String> {
+    fn thread_env(&self, _entry: &Entry) -> IndexMap<String, String> {
         IndexMap::from([("WSP_THREAD_HOME".to_string(), "/srv/alpha".to_string()), ("PATH".to_string(), "/usr/bin".to_string())])
     }
     fn spawn(&self, f: LocalBoxFuture<'static, ()>) {

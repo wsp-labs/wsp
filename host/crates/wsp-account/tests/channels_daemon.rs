@@ -31,10 +31,14 @@ use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 
-use common::{error_json, live_with, oracle, plain, project, record, run, settle};
+use common::{error_json, live_with, oracle, plain, project, record, run, settle, FakeMachine};
+use std::sync::Arc;
+use wsp_engine::machine::MachineState;
 use wsp_account::account::box_panels::{BoxPanelsCtx, StartedRow};
-use wsp_account::account::channels::{ChannelRow, ChannelThread, ChannelsArea, ChannelsCtx, TerminalSignIn, ThreadLaunch, BLOCKED_READS, HELLO_WAIT_MS, OP_TOKEN_OPS, ORIGIN_READ_MS};
-use wsp_account::account::core_types::{AccountError, AccountResult, Ask, Cancel, EntryMachine, ExecAnswer, Frame, Live, Release, Served};
+use wsp_account::account::channels::{ChannelRow, ChannelsArea, ChannelsCtx, TerminalSignIn, ThreadLaunch, BLOCKED_READS, HELLO_WAIT_MS, OP_TOKEN_OPS, ORIGIN_READ_MS};
+use wsp_account::account::core_types::{AccountError, AccountResult, Ask, Frame, Entry, Release, Served};
+use wsp_core::clock::{Cancel, Clock, FakeClock};
+use wsp_core::types::internal::ThreadRecord;
 use wsp_account::account::proc_scopes::ProcScopesArea;
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel};
 use wsp_core::devices::{DeviceDoor, HeldDevice, IssuedCode, MintMore, PairedDevice, ScopedRoad};
@@ -52,46 +56,6 @@ use wsp_words::exit::HostError;
 // that answer by script, and a context holding every ctx member the TS reads. Nothing sleeps; spawned work runs when a
 // test calls `settle().await`.
 // ---------------------------------------------------------------------------------------------------------------------
-
-type Timer = (u64, i64, Rc<Cell<bool>>, Option<Box<dyn FnOnce()>>);
-
-/// A clock that moves only when a test says so; a timer fires when `advance` reaches its moment.
-#[derive(Default)]
-struct Clock {
-    now: Cell<i64>,
-    seq: Cell<u64>,
-    timers: RefCell<Vec<Timer>>,
-}
-
-impl Clock {
-    fn schedule(&self, ms: i64, f: Box<dyn FnOnce()>) -> Cancel {
-        let id = self.seq.get() + 1;
-        self.seq.set(id);
-        let off = Rc::new(Cell::new(false));
-        self.timers.borrow_mut().push((id, self.now.get() + ms, off.clone(), Some(f)));
-        Rc::new(move || off.set(true))
-    }
-    fn advance(&self, ms: i64) {
-        let target = self.now.get() + ms;
-        loop {
-            let next = {
-                let mut timers = self.timers.borrow_mut();
-                timers.retain(|t| !t.2.get());
-                let due = timers.iter().enumerate().filter(|(_, t)| t.1 <= target).min_by_key(|(_, t)| (t.1, t.0)).map(|(i, _)| i);
-                due.map(|i| timers.remove(i))
-            };
-            let Some((_, at, _, f)) = next else { break };
-            self.now.set(at.max(self.now.get()));
-            if let Some(f) = f {
-                f();
-            }
-        }
-        self.now.set(target);
-    }
-    fn pending(&self) -> usize {
-        self.timers.borrow().iter().filter(|t| !t.2.get()).count()
-    }
-}
 
 /// A store of documents that logs every call as the oracle's did: `["put", collection, id, value]`,
 /// `["delete", collection, id]`, and each read as `[collection, id]`. A put waits while `held` is set.
@@ -314,7 +278,7 @@ impl DaemonChannel for SharedChannel {
 
 /// The context of the channels area, every member the TS reads off its ctx.
 struct World {
-    clock: Clock,
+    clock: FakeClock,
     warns: RefCell<Vec<String>>,
     store: Rc<Store>,
     door: Rc<Door>,
@@ -323,7 +287,7 @@ struct World {
     cuts: RefCell<HashMap<(String, String), bool>>,
     facts: RefCell<HashMap<(String, String, String), String>>,
     rows: RefCell<Vec<ChannelRow>>,
-    threads: RefCell<IndexMap<String, ChannelThread>>,
+    threads: RefCell<IndexMap<String, ThreadRecord>>,
     // the kind's module
     home: RefCell<Option<String>>,
     road: RefCell<AccountResult<DaemonReachView>>,
@@ -382,7 +346,7 @@ fn unanswered() -> AccountError {
 impl World {
     fn new() -> Rc<World> {
         Rc::new(World {
-            clock: Clock::default(),
+            clock: FakeClock::new(0),
             warns: RefCell::default(),
             store: Rc::new(Store::default()),
             door: Rc::new(Door::default()),
@@ -488,7 +452,7 @@ impl BoxPanelsCtx for NoPanels {
     fn scopes_on(&self, _place_id: &str) -> Vec<wsp_wire::wire::daemon::ProcScope> {
         vec![]
     }
-    fn thread_env(&self, _entry: &Live) -> IndexMap<String, String> {
+    fn thread_env(&self, _entry: &Entry) -> IndexMap<String, String> {
         IndexMap::new()
     }
     fn spawn(&self, f: LocalBoxFuture<'static, ()>) {
@@ -510,7 +474,7 @@ impl ChannelsCtx for World {
     fn session_rows(&self) -> Vec<ChannelRow> {
         self.rows.borrow().clone()
     }
-    fn thread_record(&self, thread_id: &str) -> Option<ChannelThread> {
+    fn thread_record(&self, thread_id: &str) -> Option<ThreadRecord> {
         self.threads.borrow().get(thread_id).cloned()
     }
     fn thread_ids(&self) -> Vec<String> {
@@ -522,8 +486,8 @@ impl ChannelsCtx for World {
     fn home_dir(&self, _record: &WorkspaceRecord) -> Option<String> {
         self.home.borrow().clone()
     }
-    async fn daemon_road(&self, entry: &Live) -> AccountResult<DaemonReachView> {
-        self.roads_asked.borrow_mut().push(entry.record.borrow().id.clone());
+    async fn daemon_road(&self, entry: &Entry) -> AccountResult<DaemonReachView> {
+        self.roads_asked.borrow_mut().push(entry.borrow().record.borrow().id.clone());
         self.road.borrow().clone()
     }
     fn turn_road(&self, _kind: WorkspaceKind) -> Option<ScopedRoad> {
@@ -588,8 +552,8 @@ impl ChannelsCtx for World {
         self.local_roads_asked.set(self.local_roads_asked.get() + 1);
         self.local_road.borrow().clone()
     }
-    async fn adopt_pause(&self, entry: &Live) {
-        self.adopted.borrow_mut().push(entry.record.borrow().id.clone());
+    async fn adopt_pause(&self, entry: &Entry) {
+        self.adopted.borrow_mut().push(entry.borrow().record.borrow().id.clone());
     }
     fn broker_ready(&self) -> bool {
         self.broker.get()
@@ -676,28 +640,28 @@ impl ChannelsCtx for World {
     fn live_has(&self, workspace_id: &str) -> bool {
         self.live_ids.borrow().contains(workspace_id)
     }
-    async fn thread_launch(&self, _entry: &Live, _thread_id: &str, _root_thread_id: &str) -> AccountResult<ThreadLaunch> {
+    async fn thread_launch(&self, _entry: &Entry, _thread_id: &str, _root_thread_id: &str) -> AccountResult<ThreadLaunch> {
         unreachable!("the copy's acts are not read by these tests")
     }
-    fn brokered_env(&self, _token: &str, _entry: &Live) -> IndexMap<String, String> {
+    fn brokered_env(&self, _token: &str, _entry: &Entry) -> IndexMap<String, String> {
         unreachable!()
     }
-    fn terminal_sign_in(&self, _harness: &str, _entry: &Live, _token: &str) -> Option<TerminalSignIn> {
+    fn terminal_sign_in(&self, _harness: &str, _entry: &Entry, _token: &str) -> Option<TerminalSignIn> {
         unreachable!()
     }
     fn terminal_line(&self, _harness: &str, _program: &str) -> String {
         unreachable!()
     }
-    async fn thread_folder(&self, _entry: &Live) -> String {
+    async fn thread_folder(&self, _entry: &Entry) -> String {
         unreachable!()
     }
-    fn thread_env(&self, _entry: &Live) -> IndexMap<String, String> {
+    fn thread_env(&self, _entry: &Entry) -> IndexMap<String, String> {
         unreachable!()
     }
     async fn persist(&self, _record: &WorkspaceRecord) -> AccountResult<()> {
         unreachable!()
     }
-    fn read_checkout_soon(&self, _entry: &Live) {
+    fn read_checkout_soon(&self, _entry: &Entry) {
         unreachable!()
     }
     async fn delete_workspace(&self, _workspace_id: &str) -> AccountResult<()> {
@@ -707,10 +671,10 @@ impl ChannelsCtx for World {
         unreachable!()
     }
     fn now(&self) -> i64 {
-        self.clock.now.get()
+        self.clock.now()
     }
     fn schedule(&self, ms: i64, f: Box<dyn FnOnce()>) -> Cancel {
-        self.clock.schedule(ms, f)
+        self.clock.schedule(f, ms)
     }
     fn spawn(&self, f: LocalBoxFuture<'static, ()>) {
         tokio::task::spawn_local(f);
@@ -748,46 +712,18 @@ fn fx(name: &str) -> Value {
     oracle("channels_daemon")[name].clone()
 }
 
-/// A machine that answers what a test set: its daemon frames, its state, and how often it was asked its state.
-struct Machine {
-    served: RefCell<Option<Served>>,
-    state: RefCell<Result<String, String>>,
-    state_calls: Cell<usize>,
+/// A machine named `m1` that serves every daemon frame through `answer` and keeps each one it heard.
+fn serving(frames: Rc<RefCell<Vec<Value>>>, answer: impl Fn(&Frame) -> Frame + 'static) -> Arc<FakeMachine> {
+    let m = FakeMachine::new("m1");
+    *m.served.borrow_mut() = Some(Rc::new(move |fr: Frame| {
+        frames.borrow_mut().push(Value::Object(fr.clone()));
+        let reply = answer(&fr);
+        Box::pin(async move { Ok(reply) })
+    }));
+    m
 }
 
-impl Machine {
-    fn new() -> Rc<Machine> {
-        Rc::new(Machine { served: RefCell::new(None), state: RefCell::new(Ok("running".into())), state_calls: Cell::new(0) })
-    }
-    fn serving(frames: Rc<RefCell<Vec<Value>>>, answer: impl Fn(&Frame) -> Frame + 'static) -> Rc<Machine> {
-        let m = Machine::new();
-        *m.served.borrow_mut() = Some(Rc::new(move |fr: Frame| {
-            frames.borrow_mut().push(Value::Object(fr.clone()));
-            let reply = answer(&fr);
-            Box::pin(async move { Ok(reply) })
-        }));
-        m
-    }
-}
-
-#[async_trait(?Send)]
-impl EntryMachine for Machine {
-    fn id(&self) -> String {
-        "m1".into()
-    }
-    fn daemon_frame(&self) -> Option<Served> {
-        self.served.borrow().clone()
-    }
-    async fn state(&self) -> AccountResult<String> {
-        self.state_calls.set(self.state_calls.get() + 1);
-        self.state.borrow().clone().map_err(|m| plain(&m).into())
-    }
-    async fn exec(&self, _cmd: &str, _timeout_ms: i64) -> AccountResult<ExecAnswer> {
-        Ok(ExecAnswer::default())
-    }
-}
-
-fn entry(rec: &Value, m: &Rc<Machine>) -> Live {
+fn entry(rec: &Value, m: &Arc<FakeMachine>) -> Entry {
     live_with(record(rec), m.clone())
 }
 
@@ -886,7 +822,7 @@ fn facts_world() -> (Rc<World>, Value) {
         })
         .collect();
     for (th, t) in f["threads"].as_object().unwrap() {
-        w.threads.borrow_mut().insert(th.clone(), ChannelThread { workspace_id: "ws1".into(), permission_mode: t["permissionMode"].as_str().map(String::from), harness: None });
+        w.threads.borrow_mut().insert(th.clone(), ThreadRecord { workspace_id: "ws1".into(), permission_mode: t["permissionMode"].as_str().map(String::from), ..Default::default() });
     }
     (w, f)
 }
@@ -1111,7 +1047,7 @@ fn d9_computer_of_names_the_place_or_the_kind() {
             }
             let area = w.area();
             for c in f["cases"].as_array().unwrap() {
-                assert_eq!(json!(area.computer_of(&entry(&c["record"], &Machine::new()))), c[key], "{key}: {}", c["name"]);
+                assert_eq!(json!(area.computer_of(&entry(&c["record"], &FakeMachine::new("m1")))), c[key], "{key}: {}", c["name"]);
             }
         }
     });
@@ -1125,13 +1061,13 @@ fn d10_served_by_its_computer_is_the_machines_daemon_frame() {
         let w = World::new();
         let area = w.area();
         let heard: Rc<RefCell<Vec<Value>>> = Rc::default();
-        let m = Machine::serving(heard.clone(), |fr| frame(json!({ "ok": true, "id": fr["id"] })));
+        let m = serving(heard.clone(), |fr| frame(json!({ "ok": true, "id": fr["id"] })));
         let served = area.served_by_its_computer(&entry(&rec(json!({})), &m)).expect("a machine with a daemon frame is served");
         let reply = served(frame(json!({ "op": "git.status", "id": 4 }))).await.unwrap();
         assert_eq!(Value::Object(reply).to_string(), f["reply"].to_string());
         assert_eq!(json!(heard.borrow().clone()).to_string(), f["heard"].to_string());
         assert_eq!(f["with"], json!(true));
-        assert!(area.served_by_its_computer(&entry(&rec(json!({})), &Machine::new())).is_none());
+        assert!(area.served_by_its_computer(&entry(&rec(json!({})), &FakeMachine::new("m1"))).is_none());
         assert_eq!(f["without"], json!(false));
     });
 }
@@ -1172,12 +1108,12 @@ fn d12_a_failed_dial_adopts_a_pause() {
             let name = c["name"].as_str().unwrap();
             let w = World::new();
             let area = w.area();
-            let m = Machine::new();
+            let m = FakeMachine::new("m1");
             *m.state.borrow_mut() = match name {
                 n if n.contains("failed state read") => Err("no answer".into()),
-                n if n.contains("running machine") => Ok("running".into()),
-                n if n.contains("something else") => Ok("stopped".into()),
-                _ => Ok("paused".into()),
+                n if n.contains("running machine") => Ok(MachineState::Running),
+                n if n.contains("something else") => Ok(MachineState::Starting),
+                _ => Ok(MachineState::Paused),
             };
             *w.road.borrow_mut() = match c["roadError"].as_str() {
                 Some(why) => Err(plain(why).into()),
@@ -1253,7 +1189,7 @@ fn d14_with_daemon_three_roads() {
         let w = World::new();
         let area = w.area();
         let heard: Rc<RefCell<Vec<Value>>> = Rc::default();
-        let m = Machine::serving(heard.clone(), |fr| if fr["op"] == json!("git.diff") { frame(json!({ "ok": false, "code": "no-diff", "error": "nothing to diff" })) } else { frame(json!({ "ok": true, "id": null })) });
+        let m = serving(heard.clone(), |fr| if fr["op"] == json!("git.diff") { frame(json!({ "ok": false, "code": "no-diff", "error": "nothing to diff" })) } else { frame(json!({ "ok": true, "id": null })) });
         let got = area
             .with_daemon(
                 &entry(&rec(json!({})), &m),
@@ -1274,7 +1210,7 @@ fn d14_with_daemon_three_roads() {
         *w.road.borrow_mut() = Ok(reach());
         let d = Daemon::new(|fr| frame(json!({ "ok": true, "op": fr["op"] })));
         w.dials.borrow_mut().push_back(Ok(d.clone()));
-        let got = area.with_daemon(&entry(&rec(json!({})), &Machine::new()), work(|ask| async move { ask(frame(json!({ "op": "git.status" }))).await.map(Value::Object) })).await;
+        let got = area.with_daemon(&entry(&rec(json!({})), &FakeMachine::new("m1")), work(|ask| async move { ask(frame(json!({ "op": "git.status" }))).await.map(Value::Object) })).await;
         assert_eq!(outcome(got, |v| v), f["unbrokered"]["result"]);
         assert_eq!(json!(d.heard()), f["unbrokered"]["heard"]);
         assert_eq!(json!(w.dialled.borrow().iter().map(|(u, t)| json!({ "url": u, "token": t })).collect::<Vec<_>>()), f["unbrokered"]["dialled"]);
@@ -1295,7 +1231,7 @@ fn d15_brokered_table() {
                 w.joined.borrow_mut().insert(c["place"].as_str().unwrap().into());
             }
             let area = w.area();
-            let m = if c["served"] == json!(true) { Machine::serving(Rc::default(), |_| frame(json!({ "ok": true }))) } else { Machine::new() };
+            let m = if c["served"] == json!(true) { serving(Rc::default(), |_| frame(json!({ "ok": true }))) } else { FakeMachine::new("m1") };
             let mut r = rec(json!({ "kind": c["kind"] }));
             if let Some(p) = c["place"].as_str() {
                 r["place"] = json!(p);
@@ -1312,12 +1248,12 @@ async fn hello_case(c: &Value, now: i64) -> Value {
     w.broker.set(true);
     w.has_door.set(true);
     w.turn_road.set(Some(ScopedRoad::Relayed));
-    w.clock.now.set(now);
+    w.clock.advance(now);
     w.roots.borrow_mut().insert("th_new".into(), "th_root".into());
     *w.road.borrow_mut() = Ok(reach());
     if c["threads"] == json!(true) {
         for (th, ws) in [("th_old", "ws1"), ("th_new", "ws1"), ("th_other", "ws2")] {
-            w.threads.borrow_mut().insert(th.into(), ChannelThread { workspace_id: ws.into(), ..Default::default() });
+            w.threads.borrow_mut().insert(th.into(), ThreadRecord { workspace_id: ws.into(), ..Default::default() });
         }
     }
     let area = w.area();
@@ -1340,7 +1276,7 @@ async fn hello_case(c: &Value, now: i64) -> Value {
     let asked = ops.clone();
     let got = area
         .with_daemon(
-            &entry(&rec(json!({})), &Machine::new()),
+            &entry(&rec(json!({})), &FakeMachine::new("m1")),
             work(move |ask| async move {
                 let hello = heard_by.listeners.borrow()[0].clone();
                 hello(json!({ "type": "daemon.hello", "version": version }));
@@ -1450,12 +1386,12 @@ fn d16_hello_waits_two_seconds_on_the_clock() {
         w.broker.set(true);
         w.has_door.set(true);
         *w.road.borrow_mut() = Ok(reach());
-        w.threads.borrow_mut().insert("th_new".into(), ChannelThread { workspace_id: "ws1".into(), ..Default::default() });
+        w.threads.borrow_mut().insert("th_new".into(), ThreadRecord { workspace_id: "ws1".into(), ..Default::default() });
         let area = w.area();
         let d = Daemon::ok();
         w.dials.borrow_mut().push_back(Ok(d.clone()));
         let done = Rc::new(Cell::new(false));
-        let (flag, a, e) = (done.clone(), area.clone(), entry(&rec(json!({})), &Machine::new()));
+        let (flag, a, e) = (done.clone(), area.clone(), entry(&rec(json!({})), &FakeMachine::new("m1")));
         let task = tokio::task::spawn_local(async move {
             let r = a.with_daemon(&e, work(|ask| async move { ask(frame(json!({ "op": "git.push" }))).await.map(Value::Object) })).await;
             flag.set(true);
@@ -1482,13 +1418,13 @@ fn d16_a_failed_revoke_warns_and_the_reply_stands() {
         w.broker.set(true);
         w.has_door.set(true);
         w.turn_road.set(Some(ScopedRoad::Relayed));
-        w.clock.now.set(now_of(&f));
+        w.clock.advance(now_of(&f));
         w.door.fail_revoke.set(true);
         *w.road.borrow_mut() = Ok(reach());
-        w.threads.borrow_mut().insert("th_new".into(), ChannelThread { workspace_id: "ws1".into(), ..Default::default() });
+        w.threads.borrow_mut().insert("th_new".into(), ThreadRecord { workspace_id: "ws1".into(), ..Default::default() });
         let area = w.area();
         w.dials.borrow_mut().push_back(Ok(Daemon::new(|_| frame(json!({ "ok": true, "v": 1 })))));
-        let (a, e) = (area.clone(), entry(&rec(json!({ "name": "pricing" })), &Machine::new()));
+        let (a, e) = (area.clone(), entry(&rec(json!({ "name": "pricing" })), &FakeMachine::new("m1")));
         let task = tokio::task::spawn_local(async move { a.with_daemon(&e, work(|ask| async move { ask(frame(json!({ "op": "git.pr" }))).await.map(Value::Object) })).await });
         settle().await;
         let hello = w.listeners.borrow()[0].clone();
@@ -1505,7 +1441,7 @@ fn d16_thread_on_picks_the_named_thread_of_this_workspace_else_the_newest() {
     run(async {
         let w = World::new();
         for (th, ws) in [("th_old", "ws1"), ("th_new", "ws1"), ("th_other", "ws2")] {
-            w.threads.borrow_mut().insert(th.into(), ChannelThread { workspace_id: ws.into(), ..Default::default() });
+            w.threads.borrow_mut().insert(th.into(), ThreadRecord { workspace_id: ws.into(), ..Default::default() });
         }
         let area = w.area();
         assert_eq!(area.thread_on("ws1", Some(&json!("th_old"))), Some("th_old".into()), "a named thread of this workspace wins");
@@ -1546,7 +1482,7 @@ fn d17_stdio_road_table() {
             *w.road.borrow_mut() = Ok(reach());
             let d = Daemon::new(|fr| if fr["op"] == json!("stdio.fail") { frame(json!({ "ok": false, "code": "bad", "error": "the daemon refused" })) } else { frame(json!({ "ok": true, "op": fr["op"] })) });
             w.dials.borrow_mut().push_back(Ok(d.clone()));
-            let road = area.stdio_road(&entry(&rec(json!({})), &Machine::new()), default_need).await.expect("the road opens");
+            let road = area.stdio_road(&entry(&rec(json!({})), &FakeMachine::new("m1")), default_need).await.expect("the road opens");
             let (a, b): (Rc<RefCell<Vec<Value>>>, Rc<RefCell<Vec<Value>>>) = (Rc::default(), Rc::default());
             let off_a = (road.listen)(on_event(a.clone()));
             (road.listen)(on_event(b.clone()));
@@ -1588,7 +1524,7 @@ fn d17_stdio_road_table() {
             }
             let area = w.area();
             let frames: Rc<RefCell<Vec<Value>>> = Rc::default();
-            let m = Machine::serving(frames.clone(), serving_reply);
+            let m = serving(frames.clone(), serving_reply);
             let mut r = rec(json!({ "kind": "place" }));
             if let Some(p) = c["place"].as_str() {
                 r["place"] = json!(p);
@@ -1684,7 +1620,7 @@ fn d19_place_guard_refuses_at_the_limit() {
             let name = c["name"].as_str().unwrap();
             let w = World::new();
             w.has_door.set(c["door"] != json!(false));
-            w.clock.now.set(f["now"].as_i64().unwrap());
+            w.clock.advance(f["now"].as_i64().unwrap());
             *w.place_rows.borrow_mut() = f["rows"].as_array().unwrap().iter().map(|r| serde_json::from_value::<PlaceView>(r.clone()).unwrap()).collect();
             *w.spend.borrow_mut() = c["spend"].as_array().unwrap().iter().map(|s| (s["place"].as_str().unwrap().to_string(), s["todayUsd"].as_f64())).collect();
             let area = w.area();
@@ -1739,7 +1675,7 @@ fn d20_copy_blocked_skips_a_folder() {
             if let Some(p) = c["place"].as_str() {
                 r["place"] = json!(p);
             }
-            let got = host_outcome(area.copy_blocked(&entry(&r, &Machine::new())).await);
+            let got = host_outcome(area.copy_blocked(&entry(&r, &FakeMachine::new("m1"))).await);
             assert_eq!(got, c["result"], "{name}");
             assert_eq!(json!(w.reports_asked.borrow().clone()), c["reportsAsked"], "{name}: reports asked");
         }

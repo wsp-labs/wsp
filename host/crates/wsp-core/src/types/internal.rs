@@ -748,10 +748,14 @@ pub struct Rewound {
     pub at: JsNumber,
 }
 
-/// A thread's own record. internal.ts:772-818.
+/// A thread's own record. internal.ts:772-818. The runtime's map holds it as `ThreadRecord & { workspaceId }`
+/// (context.ts:213), `workspaceId` first as every literal that makes one writes it; the index record that stores a
+/// thread under its workspace holds none, and an empty one is left unwritten.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThreadRecord {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub workspace_id: String,
     pub harness: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub permission_mode: Option<String>,

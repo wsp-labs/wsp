@@ -24,6 +24,7 @@ wsp-wire = { path = "../wsp-wire" }
 wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
 wsp-words = { path = "../wsp-words" }
 wsp-adapters = { path = "../wsp-adapters" }
+wsp-machines = { path = "../wsp-machines" }
 sha2 = "0.10"
 hex = "0.4"
 base64 = "0.22"

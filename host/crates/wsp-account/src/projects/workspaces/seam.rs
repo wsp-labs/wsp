@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What every projects area shares: the live entry handle, the shared maps as the context hands them out, a daemon
-//! ask, and the base half of every area's context trait. Each name a joined crate will give is here, so the swap is
-//! this one file. `LiveEntry` stands in for wsp-core's `LiveWorkspace`: that struct holds the engine's `Workspace`,
-//! which no test can build while `Workspace::new` is a stub, and ruling 2 of #2448 (6401022701) changes it to share
-//! one record between entries. This one holds the record shared, the join fields the areas read and write, and no
-//! machine: every machine and engine call goes through the context (`ws_*`, `machine_*`). The wsp-core join replaces
-//! it with the shared-record `LiveWorkspace` and `Entry` with machines a's alias.
+//! ask, and the base half of every area's context trait. The entry is wsp-machines' `Entry` over wsp-core's
+//! `LiveWorkspace`, the one the account areas hold too.
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -14,11 +10,9 @@ use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 use wsp_core::clock::Clock;
 use wsp_core::ids::Ids;
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::pending::Store;
-use tokio_util::sync::CancellationToken;
-use wsp_core::types::wiring::{DeleteSaid, Joined, SizeAsk, WakeAsk, WorkspaceRecord};
-use wsp_wire::types::changes::Checkout;
-use wsp_wire::types::pull_request::PullRequestSeen;
+use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::views::preferences::Preferences;
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::{Caller, ProjectView};
@@ -27,56 +21,14 @@ use wsp_wire::views::workspace_more::WorkspaceView;
 use wsp_wire::wire::machine_link::ExecResult;
 use wsp_words::exit::HostError;
 
-/// A workspace this host holds in memory (types/wiring.ts:416-477), the fields these areas touch. Never stored.
-pub struct LiveEntry {
-    /// Shared by every entry of one workspace, as the TS shares one object.
-    pub record: Rc<RefCell<WorkspaceRecord>>,
-    pub creating: bool,
-    pub unchecked: bool,
-    pub waking: Option<Joined<WorkspaceView>>,
-    pub napping: Option<Joined<WorkspaceView>>,
-    pub deleting: Option<Joined<()>>,
-    pub wake_stop: Option<CancellationToken>,
-    pub wake_said: Option<String>,
-    pub wake_ask: Option<WakeAsk>,
-    pub delete_said: Option<DeleteSaid>,
-    pub resize_to: Option<SizeAsk>,
-    pub nap_wait_ms: Option<u64>,
-    pub checkout: Option<Checkout>,
-    pub pr: Option<PullRequestSeen>,
-}
+pub use crate::account::core_types::Entry;
 
-impl LiveEntry {
-    /// A fresh entry over a record, every join field empty: what `ctx.attach` makes. A struct literal, so tests can
-    /// build entries before any body is written.
-    pub fn new(record: WorkspaceRecord) -> Entry {
-        Rc::new(RefCell::new(LiveEntry {
-            record: Rc::new(RefCell::new(record)),
-            creating: false,
-            unchecked: false,
-            waking: None,
-            napping: None,
-            deleting: None,
-            wake_stop: None,
-            wake_said: None,
-            wake_ask: None,
-            delete_said: None,
-            resize_to: None,
-            nap_wait_ms: None,
-            checkout: None,
-            pr: None,
-        }))
-    }
-}
-
-/// A workspace this host holds, shared by every area that reads or writes it.
-pub type Entry = Rc<RefCell<LiveEntry>>;
 /// `ctx.live`, in insertion order (rule 3.11).
 pub type Live = Rc<RefCell<IndexMap<String, Entry>>>;
 /// `ctx.projectsHeld`, in insertion order.
 pub type ProjectsHeld = Rc<RefCell<IndexMap<String, ProjectView>>>;
 /// What `spawnGuard` hands back: the slot's release, safe to call more than once.
-pub type FreeSlot = Rc<dyn Fn()>;
+pub type FreeSlot = crate::account::core_types::Release;
 /// A bus event as the TS object literal writes it, keys in order; `seq` is the bus's to stamp.
 pub type Event = serde_json::Value;
 
@@ -89,13 +41,8 @@ pub type HereWork = Box<dyn FnOnce(DaemonAsk, String) -> LocalBoxFuture<'static,
 /// Work queued behind a key (`queued`, `oneFolder`).
 pub type Queued<T> = LocalBoxFuture<'static, Result<T, HostError>>;
 
-/// `entryOf`'s options: the thread the caller names, the act it asks for, and `now` (skip the boot wait).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct EntryAsk {
-    pub thread: Option<String>,
-    pub act: Option<String>,
-    pub now: bool,
-}
+/// `entryOf`'s options: the thread the caller names, the act it asks for, `now` (skip the boot wait) and `beingMade`.
+pub use wsp_machines::machines::boot::entries::EntryAsk;
 
 /// A git run on this computer, `ctx.gitHere(cwd, args, timeoutMs?, input?)`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -119,8 +66,9 @@ pub trait Base {
     fn project_held(&self, project_id: &str) -> Result<ProjectView, HostError>;
     /// Every session row's view, in insertion order (`ctx.sessions.values()`).
     fn session_views(&self) -> Vec<SessionView>;
-    /// Every thread record as `(threadId, workspaceId)`, in insertion order (`ctx.threadRecords`).
-    fn thread_workspaces(&self) -> Vec<(String, String)>;
+    /// Every thread record as `(threadId, record)`, in insertion order (`ctx.threadRecords`); the record names its
+    /// workspace.
+    fn thread_records(&self) -> Vec<(String, ThreadRecord)>;
     /// `ctx.persist(record)`.
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError>;
     /// `ctx.view(record)`.

@@ -25,14 +25,14 @@ chapter 02 drops `moveOldCopies` and `copies-kept.txt` under Proposal 3.
 ## How each area reaches the runtime
 
 Each TS area takes the whole `RuntimeContext`. Under ruling 4 of #2448 (comment 6401022701) each Rust area declares the
-calls it makes as a trait of its own, and the wsp-core join implements them on the context handle:
+calls it makes as a trait of its own, and the join implements them on the context handle:
 `UsageResetDeps` (the TS deps object, usage-reset.ts:53), `ProjectIconsCtx`, `StartFromCtx`, `FoldersCtx`, `ProjectsCtx`
 and `WorkspacesCtx`. A method keeps its TS name in snake case. The shared maps come out of the trait as
 `Rc<RefCell<IndexMap<..>>>`, as machines a does (`live`, `projects_held`, `sessions`, `thread_records`), and a live
-entry is `Entry = Rc<RefCell<LiveWorkspace>>`, machines a's alias (`wsp-machines/src/machines/machines.rs:38`). By
-ruling 2 the join makes every entry of one workspace share one record; until then the record is read and written
-through the entry. Every type this slice takes from a crate that is not on `rust/2448-base` yet is named in
-`src/projects/workspaces/seam.rs` (`crate::projects::workspaces::seam`; `projects.rs` is the skeleton owner's), so the swap to the joined crates is one file.
+entry is `Entry = Rc<RefCell<LiveWorkspace>>`, machines a's alias (`wsp-machines/src/machines/machines.rs:39`), shared by
+every area of both slices; the record is shared by `Rc` between the entries of one workspace (ruling 2). What the join
+replaced and what is still open is in `join.md`. The types this slice takes from the other crates are named in
+`src/projects/workspaces/seam.rs` (`crate::projects::workspaces::seam`).
 
 The areas themselves are structs over `Rc<dyn ...Ctx>`: `Workspaces` implements `wsp_core::types::api::WorkspacesApi`,
 `Projects` implements `ProjectsApi`; the area handle traits of `wsp_core::context` (`FoldersArea`, `StartFromArea`,

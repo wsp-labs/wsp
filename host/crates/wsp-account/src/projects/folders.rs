@@ -26,31 +26,11 @@ use wsp_words::exit::HostError;
 use crate::projects::workspaces::seam::{Base, Entry, Queued};
 
 /// `copier.worktree({...})`'s ask. folders.ts:82.
-#[derive(Clone, Debug, PartialEq)]
-pub struct WorktreeAsk {
-    pub from: String,
-    pub home: String,
-    pub project: String,
-    pub branch: String,
-    pub modules: Vec<CarryModule>,
-    pub checkpoint: Option<String>,
-}
-
-/// `copier.worktreeRemove({from, home, path, force})`. folders.ts:228.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WorktreeRemoveAsk {
-    pub from: String,
-    pub home: String,
-    pub path: String,
-    pub force: bool,
-}
-
+pub use wsp_wire::views::workspace_more::WorktreeAsk;
+/// `copier.worktreeRemove({from, home, path, force})`'s ask. folders.ts:228.
+pub use wsp_engine::copier::WorktreeRemove;
 /// `local.hereDaemon`: this computer's daemon binary's version and the fix a behind one names. folders.ts:77-81.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct HereDaemon {
-    pub version: i64,
-    pub fix: String,
-}
+pub use wsp_core::types::wiring::HereDaemon;
 
 /// `ctx.state`'s sweep fields: the armed timer, the sweep in flight, and the close's stop. folders.ts:280-296.
 #[derive(Default)]
@@ -70,9 +50,9 @@ pub trait FoldersCtx: Base {
     fn has_copier(&self) -> bool;
     async fn copier_worktree(&self, ask: WorktreeAsk) -> Result<WorktreeReport, HostError>;
     async fn copier_worktree_mount(&self, from: &str, home: &str, path: &str) -> Result<(), HostError>;
-    async fn copier_worktree_remove(&self, ask: WorktreeRemoveAsk) -> Result<(), HostError>;
+    async fn copier_worktree_remove(&self, ask: WorktreeRemove) -> Result<(), HostError>;
     /// `local.hereDaemon`, its version read now; none where the host wires none.
-    async fn here_daemon(&self) -> Result<Option<HereDaemon>, HostError>;
+    fn here_daemon(&self) -> Option<Rc<dyn HereDaemon>>;
     /// `moduleOf(kind).admitFolder?.({kind, name, place?})`.
     async fn admit_folder(&self, kind: WorkspaceKind, name: &str, place: Option<&str>) -> Result<(), HostError>;
     /// `backendOfKind(kind, place).get(place ?? LOCAL_MACHINE_ID)` and that backend's `pricing.defaultSize`.

@@ -13,7 +13,8 @@ use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 
 use common::{error_json, live, oracle, plain, project, record, run};
-use wsp_account::account::core_types::Live;
+use wsp_account::account::core_types::Entry;
+use wsp_core::types::internal::ThreadRecord;
 use wsp_account::account::rules::{like_of, CapsHeldAt, RulesArea, RulesCtx, TreeFacts};
 use wsp_core::types::internal::WorkspaceLike;
 use wsp_core::types::wiring::WorkspaceRecord;
@@ -26,7 +27,7 @@ use wsp_words::words::computer::{AcrossAct, SpawnAct};
 /// The oracle's world as a context.
 struct World {
     fixture: Value,
-    live: Vec<Live>,
+    live: Vec<Entry>,
     projects: Rc<RefCell<IndexMap<String, ProjectView>>>,
     landing: Rc<RefCell<IndexMap<String, i64>>>,
     puts: RefCell<Vec<ProjectView>>,
@@ -40,7 +41,7 @@ fn world() -> Rc<World> {
     let w = &fixture["world"];
     let live = w["live"].as_array().unwrap().iter().map(|e| {
         let entry = live(record(&e["record"]));
-        entry.creating.set(e["creating"] == json!(true));
+        entry.borrow_mut().creating = e["creating"] == json!(true);
         entry
     });
     let projects = w["projects"].as_array().unwrap().iter().map(|p| (p["id"].as_str().unwrap().to_string(), project(p))).collect();
@@ -94,11 +95,11 @@ impl RulesCtx for World {
     fn landing(&self) -> Rc<RefCell<IndexMap<String, i64>>> {
         self.landing.clone()
     }
-    fn live(&self) -> Vec<Live> {
+    fn live(&self) -> Vec<Entry> {
         self.live.clone()
     }
-    fn live_get(&self, id: &str) -> Option<Live> {
-        self.live.iter().find(|e| e.record.borrow().id == id).cloned()
+    fn live_get(&self, id: &str) -> Option<Entry> {
+        self.live.iter().find(|e| e.borrow().record.borrow().id == id).cloned()
     }
     fn projects_held(&self) -> Rc<RefCell<IndexMap<String, ProjectView>>> {
         self.projects.clone()
@@ -109,8 +110,17 @@ impl RulesCtx for World {
     fn thread_records_size(&self) -> usize {
         self.w()["threadRecords"].as_array().unwrap().len()
     }
-    fn thread_record(&self, thread_id: &str) -> Option<TreeFacts> {
-        self.w()["threadRecords"].as_array().unwrap().iter().find(|t| t["threadId"] == json!(thread_id)).map(World::facts)
+    fn thread_record(&self, thread_id: &str) -> Option<ThreadRecord> {
+        self.w()["threadRecords"].as_array().unwrap().iter().find(|t| t["threadId"] == json!(thread_id)).map(|t| {
+            let facts = World::facts(t);
+            ThreadRecord {
+                workspace_id: facts.workspace_id.unwrap_or_default(),
+                harness: "claude".to_owned(),
+                parent_thread_id: facts.parent_thread_id,
+                root_thread_id: facts.root_thread_id,
+                ..ThreadRecord::default()
+            }
+        })
     }
     fn rows_on(&self, thread_id: &str) -> Vec<TreeFacts> {
         self.w()["rows"][thread_id].as_array().map(|rows| rows.iter().map(World::facts).collect()).unwrap_or_default()
@@ -134,16 +144,16 @@ impl RulesCtx for World {
     fn relayed(&self, kind: WorkspaceKind, machine_id: Option<&str>) -> bool {
         kind == WorkspaceKind::Cloud && machine_id.is_some_and(|m| !m.is_empty())
     }
-    fn turn_reach(&self, entry: &Live) -> Option<Map<String, Value>> {
-        let r = entry.record.borrow();
+    fn turn_reach(&self, entry: &Entry) -> Option<Map<String, Value>> {
+        let r = entry.borrow().record.borrow().clone();
         match r.kind {
             WorkspaceKind::Cloud => Some(json!({ "url": format!("wss://host/{}", r.id) }).as_object().unwrap().clone()),
             WorkspaceKind::Place => Some(Map::new()),
             _ => None,
         }
     }
-    fn wsp_mcp(&self, entry: &Live) -> Option<Value> {
-        let r = entry.record.borrow();
+    fn wsp_mcp(&self, entry: &Entry) -> Option<Value> {
+        let r = entry.borrow().record.borrow().clone();
         (r.kind == WorkspaceKind::Cloud).then(|| json!({ "command": "wsp", "args": ["mcp", r.id] }))
     }
     fn same_repository(&self, a: &ProjectView, b: &ProjectView, _caller: Option<&Caller>) -> bool {
@@ -200,7 +210,7 @@ fn caller_names(fixture: &Value) -> Vec<String> {
 }
 
 fn record_of(w: &World, id: &str) -> WorkspaceRecord {
-    w.live_get(id).unwrap().record.borrow().clone()
+    w.live_get(id).unwrap().borrow().record.borrow().clone()
 }
 
 /// The record a matrix row names: a live one, `none`, or the create-shaped `noProject`.
@@ -243,8 +253,8 @@ fn act(word: &str) -> SpawnAct {
     serde_json::from_value(json!(word)).unwrap()
 }
 
-fn ids(list: &[Live]) -> Vec<String> {
-    list.iter().map(|e| e.record.borrow().id.clone()).collect()
+fn ids(list: &[Entry]) -> Vec<String> {
+    list.iter().map(|e| e.borrow().record.borrow().id.clone()).collect()
 }
 
 #[test]

@@ -27,6 +27,7 @@ use wsp_account::projects::workspaces::phases::{
     PhasesCtx, RESIZE_NAP_MS,
 };
 use wsp_account::projects::workspaces::seam::Entry;
+use wsp_core::clock::FakeClock;
 use wsp_core::types::wiring::DeleteSaid;
 use wsp_wire::types::workspace_look::{WorkspaceGlyph, WorkspaceLook};
 use wsp_wire::views::workspace::WorkspacePhase;
@@ -83,10 +84,9 @@ impl H {
         self.f.base.answer_with("resume_asks", vec![json!({ "forMs": for_ms, "everyMs": every_ms })]);
     }
     fn now(&self) -> i64 {
-        use wsp_core::clock::Clock;
-        base::ClockOf(self.f.base.clock.clone()).now()
+        self.f.base.clock.now()
     }
-    fn clock(&self) -> &base::TestClock {
+    fn clock(&self) -> &FakeClock {
         &self.f.base.clock
     }
     fn wake_task(&self, id: &'static str) -> JoinHandle<Result<WorkspaceView, HostError>> {
@@ -544,7 +544,7 @@ fn wake_counts_the_cadence_from_when_the_ask_began() {
         first.send(Err(unanswered())).unwrap();
         settle().await;
         assert_eq!(h.args("sleeps"), vec![json!({ "ms": EVERY / 2, "now": began + EVERY / 2 })]);
-        assert_eq!(h.clock().due(), vec![began + EVERY]);
+        base::assert_due(h.clock(), &[began + EVERY]);
         h.pump(&task).await;
         task.await.unwrap().unwrap();
         // Ask 2 failed at once, a cadence in: what is left of its cadence is a whole one.
@@ -1411,7 +1411,7 @@ fn delete_takes_everything_away_in_the_ts_order() {
         let entry = h.local("ws_a", json!({ "worktree": { "path": "/wt/a", "branch": "wsp/a", "made": true } }));
         entry.borrow_mut().delete_said = Some(DeleteSaid { phase: WorkspacePhase::Running, line: "an old line".to_owned() });
         h.f.paths.borrow_mut().push("/wt/a".to_owned());
-        h.f.base.threads.borrow_mut().extend([("t_1".to_owned(), "ws_a".to_owned()), ("t_x".to_owned(), "ws_other".to_owned()), ("t_2".to_owned(), "ws_a".to_owned())]);
+        h.f.base.threads.borrow_mut().extend([("t_1".to_owned(), base::thread_on("ws_a")), ("t_x".to_owned(), base::thread_on("ws_other")), ("t_2".to_owned(), base::thread_on("ws_a"))]);
         for (id, thread, ws) in [("s1", "t_1", "ws_a"), ("s3", "t_3", "ws_a"), ("s4", "t_4", "ws_other"), ("s5", "t_5", "ws_a")] {
             h.f.base.sessions.borrow_mut().push(serde_json::from_value(json!({ "id": id, "workspaceId": ws, "harness": "claude", "status": "completed", "threadId": thread })).unwrap());
         }
@@ -1437,7 +1437,7 @@ fn delete_of_a_fork_unforks_its_machine_and_drops_no_checkpoints() {
     run(async {
         let h = H::new();
         h.cloud("ws_a", json!({ "phase": "running" }));
-        h.f.base.threads.borrow_mut().push(("t_1".to_owned(), "ws_a".to_owned()));
+        h.f.base.threads.borrow_mut().push(("t_1".to_owned(), base::thread_on("ws_a")));
         delete(&h.ctx, "ws_a", Some(the_person())).await.unwrap();
         assert_eq!(h.calls(&["cut_off", "end_sessions", "drop_checkpoints", "remove_worktree_ending", "drop_thread_files", "machine_kill", "unfork", "drop_workspace"]), [
             "cut_off", "end_sessions", "drop_thread_files", "unfork", "drop_workspace"

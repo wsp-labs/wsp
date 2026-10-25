@@ -24,6 +24,7 @@ use wsp_core::clock::Clock;
 use wsp_core::ids::Ids;
 use wsp_core::types::internal::{ImportLanded, ImportReport};
 use wsp_core::types::pending::{CacheRule, Store};
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::{
     LandRequest, LandedAgent, LandedProject, PackedProject, PackedState, ProjectBundler, ProjectImportOptions, ProjectLander,
     SeedPack, SeedWiring, StateRequest, WorkspaceRecord,
@@ -668,8 +669,8 @@ impl Base for FakeProjects {
     fn session_views(&self) -> Vec<SessionView> {
         self.me().session_views()
     }
-    fn thread_workspaces(&self) -> Vec<(String, String)> {
-        self.me().thread_workspaces()
+    fn thread_records(&self) -> Vec<(String, ThreadRecord)> {
+        self.me().thread_records()
     }
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.me().persist(record).await

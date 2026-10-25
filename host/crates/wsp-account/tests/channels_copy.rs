@@ -16,11 +16,15 @@ use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use tokio::sync::Notify;
 
-use common::{error_json, live_with, oracle, plain, project, record, run, settle};
+use common::{error_json, in_flight, live_with, ok_exec, oracle, plain, project, record, run, settle, ExecScript, FakeMachine};
+use std::sync::Arc;
+use wsp_core::types::internal::ThreadRecord;
+use wsp_engine::machine::{ExecResult, Machine};
 use wsp_account::account::box_panels::{BoxPanelsCtx, StartedRow};
 use wsp_account::account::channels::copy::{ChildRoad, ShellToken};
-use wsp_account::account::channels::{ChannelThread, ChannelsArea, ChannelsCtx, TerminalSignIn, ThreadLaunch, WORKSPACE_FRAMES};
-use wsp_account::account::core_types::{AccountError, AccountResult, Cancel, EntryMachine, ExecAnswer, Frame, Live, Release, Served};
+use wsp_account::account::channels::{ChannelsArea, ChannelsCtx, TerminalSignIn, ThreadLaunch, WORKSPACE_FRAMES};
+use wsp_account::account::core_types::{AccountError, AccountResult, Frame, Entry, Release, Served};
+use wsp_core::clock::Cancel;
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel};
 use wsp_core::devices::{DeviceDoor, HeldDevice, IssuedCode, MintMore, PairedDevice, ScopedRoad};
 use wsp_core::types::wiring::WorkspaceRecord;
@@ -127,45 +131,38 @@ impl Daemon {
     }
 }
 
-struct SimMachine {
-    id: String,
-    served: Option<Served>,
-    mode: RefCell<Value>,
-    fx: Fx,
-    gates: Rc<Gates>,
-}
+/// How the machine's exec answers, which a step may change: `ok`, `never`, `gate`, `{throw}` or `{exit, stderr}`.
+type ExecMode = Rc<RefCell<Value>>;
 
-#[async_trait(?Send)]
-impl EntryMachine for SimMachine {
-    fn id(&self) -> String {
-        self.id.clone()
-    }
-    fn daemon_frame(&self) -> Option<Served> {
-        self.served.clone()
-    }
-    async fn state(&self) -> AccountResult<String> {
-        Ok("running".into())
-    }
-    async fn exec(&self, cmd: &str, timeout_ms: i64) -> AccountResult<ExecAnswer> {
-        self.fx.push(json!(["exec", cmd, timeout_ms]));
-        let mode = self.mode.borrow().clone();
-        if mode == json!("never") {
-            futures::future::pending::<()>().await;
-        }
-        if mode == json!("gate") {
-            let gate = self.gates.borrow().get("exec").cloned();
-            if let Some(gate) = gate {
-                gate.wait().await;
+/// A machine whose exec logs the call and answers by `mode`, serving daemon frames when `served` is given.
+fn sim_machine(id: &str, served: Option<Served>, mode: ExecMode, fx: Fx, gates: Rc<Gates>) -> Arc<FakeMachine> {
+    let machine = FakeMachine::new(id);
+    *machine.served.borrow_mut() = served;
+    let run: ExecScript = Rc::new(move |cmd: String, timeout_ms: i64| {
+        let (mode, fx, gates) = (mode.clone(), fx.clone(), gates.clone());
+        Box::pin(async move {
+            fx.push(json!(["exec", cmd, timeout_ms]));
+            let mode = mode.borrow().clone();
+            if mode == json!("never") {
+                futures::future::pending::<()>().await;
             }
-        }
-        if let Some(m) = mode.get("throw").and_then(Value::as_str) {
-            return Err(plain(m).into());
-        }
-        if mode.get("exit").is_some() {
-            return Ok(ExecAnswer { exit_code: mode["exit"].as_i64().unwrap(), stdout: String::new(), stderr: mode["stderr"].as_str().unwrap_or("").to_string() });
-        }
-        Ok(ExecAnswer::default())
-    }
+            if mode == json!("gate") {
+                let gate = gates.borrow().get("exec").cloned();
+                if let Some(gate) = gate {
+                    gate.wait().await;
+                }
+            }
+            if let Some(m) = mode.get("throw").and_then(Value::as_str) {
+                return Err(m.to_string());
+            }
+            if mode.get("exit").is_some() {
+                return Ok(ExecResult { exit_code: mode["exit"].as_i64().unwrap().into(), stdout: String::new(), stderr: mode["stderr"].as_str().unwrap_or("").to_string() });
+            }
+            Ok(ok_exec())
+        })
+    });
+    *machine.exec_script.borrow_mut() = Some(run);
+    machine
 }
 
 /// The clock the fake context hands the area: timers fire only when a step advances it.
@@ -335,7 +332,7 @@ impl BoxPanelsCtx for SimPanels {
     fn scopes_on(&self, _place_id: &str) -> Vec<ProcScope> {
         vec![]
     }
-    fn thread_env(&self, _entry: &Live) -> IndexMap<String, String> {
+    fn thread_env(&self, _entry: &Entry) -> IndexMap<String, String> {
         env_of(&self.w["threadEnv"])
     }
     fn spawn(&self, f: LocalBoxFuture<'static, ()>) {
@@ -362,7 +359,7 @@ struct Sim {
     live: RefCell<Vec<String>>,
     bus: Bus,
     projects: IndexMap<String, ProjectView>,
-    threads: Vec<(String, ChannelThread)>,
+    threads: Vec<(String, ThreadRecord)>,
     minted: Cell<u32>,
     opened: Cell<u32>,
     link_on_event: RefCell<Option<Rc<dyn Fn(Value)>>>,
@@ -391,7 +388,7 @@ impl ChannelsCtx for Sim {
     fn session_rows(&self) -> Vec<wsp_account::account::channels::ChannelRow> {
         vec![]
     }
-    fn thread_record(&self, thread_id: &str) -> Option<ChannelThread> {
+    fn thread_record(&self, thread_id: &str) -> Option<ThreadRecord> {
         self.threads.iter().find(|(id, _)| id == thread_id).map(|(_, t)| t.clone())
     }
     fn thread_ids(&self) -> Vec<String> {
@@ -404,7 +401,7 @@ impl ChannelsCtx for Sim {
     fn home_dir(&self, _record: &WorkspaceRecord) -> Option<String> {
         None
     }
-    async fn daemon_road(&self, _entry: &Live) -> AccountResult<DaemonReachView> {
+    async fn daemon_road(&self, _entry: &Entry) -> AccountResult<DaemonReachView> {
         Ok(serde_json::from_value(json!({ "url": "ws://daemon", "daemonToken": "dt", "expiresAt": 0 })).unwrap())
     }
     fn turn_road(&self, _kind: WorkspaceKind) -> Option<ScopedRoad> {
@@ -469,7 +466,7 @@ impl ChannelsCtx for Sim {
     async fn local_road(&self) -> AccountResult<DaemonReachView> {
         unreachable!("the copy area dials no local road")
     }
-    async fn adopt_pause(&self, _entry: &Live) {}
+    async fn adopt_pause(&self, _entry: &Entry) {}
     fn broker_ready(&self) -> bool {
         self.flag("broker")
     }
@@ -550,7 +547,7 @@ impl ChannelsCtx for Sim {
         self.live.borrow().iter().any(|id| id == workspace_id)
     }
 
-    async fn thread_launch(&self, _entry: &Live, thread_id: &str, root_thread_id: &str) -> AccountResult<ThreadLaunch> {
+    async fn thread_launch(&self, _entry: &Entry, thread_id: &str, root_thread_id: &str) -> AccountResult<ThreadLaunch> {
         self.fx.push(json!(["launch", thread_id, root_thread_id]));
         let env: IndexMap<String, String> = [("LAUNCH".to_string(), "1".to_string()), ("HOST_TOKEN".to_string(), "launch".to_string())].into_iter().collect();
         if self.w["scoped"] == json!(false) {
@@ -561,24 +558,24 @@ impl ChannelsCtx for Sim {
         let device: DeviceView = serde_json::from_value(json!({ "id": format!("d{n}"), "name": "shell", "createdAt": "2026-10-25T00:00:00.000Z", "lastSeenAt": "2026-10-25T00:00:00.000Z" })).unwrap();
         Ok(ThreadLaunch { scoped: Some(PairedDevice { device_id: format!("d{n}"), device_token: format!("tok{n}"), device }), env })
     }
-    fn brokered_env(&self, token: &str, _entry: &Live) -> IndexMap<String, String> {
+    fn brokered_env(&self, token: &str, _entry: &Entry) -> IndexMap<String, String> {
         [("HOST_TOKEN".to_string(), token.to_string()), ("GH_TOKEN".to_string(), token.to_string())].into_iter().collect()
     }
-    fn terminal_sign_in(&self, harness: &str, _entry: &Live, token: &str) -> Option<TerminalSignIn> {
+    fn terminal_sign_in(&self, harness: &str, _entry: &Entry, token: &str) -> Option<TerminalSignIn> {
         match harness {
-            "claude" => Some(TerminalSignIn { program: "claude-bin".into(), env: [("SIGN_IN".to_string(), format!("claude:{token}"))].into_iter().collect() }),
-            "codex" => Some(TerminalSignIn { program: "codex-bin".into(), env: [("SIGN_IN".to_string(), format!("codex:{token}")), ("CODEX_EXTRA".to_string(), "1".to_string())].into_iter().collect() }),
+            "claude" => Some(TerminalSignIn { program: Some("claude-bin".into()), env: [("SIGN_IN".to_string(), format!("claude:{token}"))].into_iter().collect() }),
+            "codex" => Some(TerminalSignIn { program: Some("codex-bin".into()), env: [("SIGN_IN".to_string(), format!("codex:{token}")), ("CODEX_EXTRA".to_string(), "1".to_string())].into_iter().collect() }),
             _ => None,
         }
     }
     fn terminal_line(&self, harness: &str, program: &str) -> String {
         format!("write-terminal {harness} {program}")
     }
-    async fn thread_folder(&self, _entry: &Live) -> String {
+    async fn thread_folder(&self, _entry: &Entry) -> String {
         self.fx.push(json!(["thread-folder"]));
         self.w["threadFolder"].as_str().unwrap_or("/srv/alpha/work").to_string()
     }
-    fn thread_env(&self, _entry: &Live) -> IndexMap<String, String> {
+    fn thread_env(&self, _entry: &Entry) -> IndexMap<String, String> {
         env_of(&self.w["threadEnv"])
     }
     async fn persist(&self, record: &WorkspaceRecord) -> AccountResult<()> {
@@ -589,8 +586,8 @@ impl ChannelsCtx for Sim {
         self.fx.push(json!(["persist", record.id, branch]));
         Ok(())
     }
-    fn read_checkout_soon(&self, entry: &Live) {
-        self.fx.push(json!(["read-checkout", entry.record.borrow().id]));
+    fn read_checkout_soon(&self, entry: &Entry) {
+        self.fx.push(json!(["read-checkout", entry.borrow().record.borrow().id]));
     }
     async fn delete_workspace(&self, workspace_id: &str) -> AccountResult<()> {
         self.fx.push(json!(["delete-workspace", workspace_id]));
@@ -625,8 +622,8 @@ impl ChannelsCtx for Sim {
 
 struct Built {
     sim: Rc<Sim>,
-    entry: Live,
-    machine: Rc<SimMachine>,
+    entry: Entry,
+    mode: ExecMode,
     area: Rc<ChannelsArea>,
 }
 
@@ -645,9 +642,12 @@ fn build(w: &Value) -> Built {
         f
     });
     let rec = record(&w["record"]);
-    let machine = Rc::new(SimMachine { id: rec.machine_id.clone(), served, mode: RefCell::new(w["machine"].get("exec").cloned().unwrap_or(json!("ok"))), fx: fx.clone(), gates: gates.clone() });
-    let entry = live_with(rec, machine.clone());
-    entry.deleting.set(w["deleting"] == json!(true));
+    let mode: ExecMode = Rc::new(RefCell::new(w["machine"].get("exec").cloned().unwrap_or(json!("ok"))));
+    let machine = sim_machine(&rec.machine_id, served, mode.clone(), fx.clone(), gates.clone());
+    let entry = live_with(rec, machine);
+    if w["deleting"] == json!(true) {
+        entry.borrow_mut().deleting = Some(in_flight());
+    }
 
     let docs = w["store"].as_object().map(|m| m.iter().map(|(c, rows)| (c.clone(), rows.as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect())).collect()).unwrap_or_default();
     let live: Vec<String> = match w["live"].as_array() {
@@ -655,7 +655,7 @@ fn build(w: &Value) -> Built {
         None => vec![w["record"]["id"].as_str().unwrap().to_string()],
     };
     let threads = w["threads"].as_array().map(|ts| {
-        ts.iter().map(|t| (t["id"].as_str().unwrap().to_string(), ChannelThread { workspace_id: t["workspaceId"].as_str().unwrap().to_string(), permission_mode: None, harness: t["harness"].as_str().map(String::from) })).collect()
+        ts.iter().map(|t| (t["id"].as_str().unwrap().to_string(), ThreadRecord { workspace_id: t["workspaceId"].as_str().unwrap().to_string(), harness: t["harness"].as_str().unwrap_or("").to_string(), ..Default::default() })).collect()
     }).unwrap_or_default();
     let projects = w["projects"].as_array().unwrap().iter().map(|p| (p["id"].as_str().unwrap().to_string(), project(p))).collect();
     let shared = Rc::new(SimShared { fx: fx.clone(), listeners: RefCell::new(IndexMap::new()) });
@@ -679,7 +679,7 @@ fn build(w: &Value) -> Built {
         door: Rc::new(SimDoor { fx, revoke_fails: w["revokeFails"] == json!(true) }),
     });
     let area = ChannelsArea::new(sim.clone());
-    Built { sim, entry, machine, area }
+    Built { sim, entry, mode, area }
 }
 
 fn thrown(e: &AccountError) -> Value {
@@ -723,7 +723,12 @@ async fn play(world: &Value, script: &[Value], mode: Mode) -> (Value, Value) {
                 let opened = match mode {
                     Mode::Copy => b.area.copy_channel(&b.entry, on_event, &carries).await,
                     Mode::Served => {
-                        let served = b.entry.machine.daemon_frame().expect("a served scenario");
+                        let machine = b.entry.borrow().machine.clone();
+                        assert!(machine.offers().daemon_frame, "a served scenario");
+                        let served: Served = Rc::new(move |frame: Frame| {
+                            let machine = machine.clone();
+                            Box::pin(async move { machine.daemon_frame(frame).await.map_err(|e| AccountError::from(plain(&e.to_string()))) })
+                        });
                         b.area.served_channel(&b.entry, served, on_event, &carries).await
                     }
                 };
@@ -769,7 +774,7 @@ async fn play(world: &Value, script: &[Value], mode: Mode) -> (Value, Value) {
                 let gate = b.sim.gates.borrow().get(step["gate"].as_str().unwrap()).cloned().unwrap();
                 gate.release();
             }
-            "machine" => *b.machine.mode.borrow_mut() = step["exec"].clone(),
+            "machine" => *b.mode.borrow_mut() = step["exec"].clone(),
             "daemon" => {
                 if let Some(id) = step["drop"].as_str() {
                     b.sim.daemon.ptys.borrow_mut().retain(|p| p != id);

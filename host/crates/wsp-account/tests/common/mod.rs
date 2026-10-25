@@ -3,14 +3,18 @@
 //! fake machine, a live entry, and a one-thread runtime that runs spawned work to quiet before a test reads state.
 #![allow(dead_code)]
 
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+mod entry;
+mod errors;
+pub use entry::*;
+pub use errors::*;
 
-use async_trait::async_trait;
+use std::sync::Arc;
+
 use serde_json::{json, Value};
 
-use wsp_account::account::core_types::{AccountResult, ExecAnswer, EntryMachine, Live, LiveEntry, Served};
+use wsp_account::account::core_types::Entry;
 use wsp_core::types::wiring::WorkspaceRecord;
+use wsp_engine::machine::Machine;
 use wsp_wire::views::workspace::ProjectView;
 use wsp_words::exit::{HostError, Kind};
 
@@ -50,68 +54,13 @@ pub fn project(given: &Value) -> ProjectView {
     serde_json::from_value(full).unwrap_or_else(|e| panic!("project {given}: {e}"))
 }
 
-/// A machine that answers what the test set: its state, its exec, and the frames its computer serves.
-pub struct FakeMachine {
-    pub id: String,
-    pub state: RefCell<Result<String, String>>,
-    pub served: RefCell<Option<Served>>,
-    pub execs: RefCell<Vec<String>>,
-    pub exec_answer: RefCell<Result<ExecAnswer, String>>,
-}
-
-impl FakeMachine {
-    pub fn new(id: &str) -> Rc<FakeMachine> {
-        Rc::new(FakeMachine {
-            id: id.to_string(),
-            state: RefCell::new(Ok("running".into())),
-            served: RefCell::new(None),
-            execs: RefCell::new(Vec::new()),
-            exec_answer: RefCell::new(Ok(ExecAnswer::default())),
-        })
-    }
-}
-
-#[async_trait(?Send)]
-impl EntryMachine for FakeMachine {
-    fn id(&self) -> String {
-        self.id.clone()
-    }
-    fn daemon_frame(&self) -> Option<Served> {
-        self.served.borrow().clone()
-    }
-    async fn state(&self) -> AccountResult<String> {
-        self.state.borrow().clone().map_err(|m| plain(&m).into())
-    }
-    async fn exec(&self, cmd: &str, _timeout_ms: i64) -> AccountResult<ExecAnswer> {
-        self.execs.borrow_mut().push(cmd.to_string());
-        self.exec_answer.borrow().clone().map_err(|m| plain(&m).into())
-    }
-}
-
 /// A live entry over a record and a machine, every in-memory field at its start.
-pub fn live_with(record: WorkspaceRecord, machine: Rc<dyn EntryMachine>) -> Live {
-    Rc::new(LiveEntry {
-        record: RefCell::new(record),
-        machine,
-        creating: Cell::new(false),
-        waking: Cell::new(false),
-        deleting: Cell::new(false),
-        napping: Cell::new(false),
-        generation: Cell::new(0),
-        wake_ask: Cell::new(None),
-        wake_said: RefCell::new(None),
-        delete_said: RefCell::new(None),
-        checkout: RefCell::new(None),
-        pr: RefCell::new(None),
-        pr_reading: RefCell::new(None),
-        pr_poll: RefCell::new(None),
-        pr_poll_ms: Cell::new(None),
-        pr_none_at: RefCell::new(None),
-    })
+pub fn live_with(record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry {
+    entry_over(record, machine)
 }
 
 /// A live entry over a record, on a fake machine named by the record's `machineId`.
-pub fn live(record: WorkspaceRecord) -> Live {
+pub fn live(record: WorkspaceRecord) -> Entry {
     let machine = FakeMachine::new(&record.machine_id);
     live_with(record, machine)
 }
@@ -128,45 +77,7 @@ pub fn error_json(e: &HostError) -> Value {
     out
 }
 
-/// The TS word of a kind, written here so a test reads it without wsp-words' own table.
-pub fn kind_word(kind: &Kind) -> String {
-    match kind {
-        Kind::Usage => "usage",
-        Kind::Invalid => "invalid",
-        Kind::NotFound => "not-found",
-        Kind::ProcessesLeft => "processes-left",
-        Kind::Auth => "auth",
-        Kind::Ticket => "ticket",
-        Kind::Conflict => "conflict",
-        Kind::Concurrency => "concurrency",
-        Kind::StartLimit => "startLimit",
-        Kind::Plan => "plan",
-        Kind::Missing => "missing",
-        Kind::SnapshotUnavailable => "snapshotUnavailable",
-        Kind::Transient => "transient",
-        Kind::Unknown => "unknown",
-        Kind::NotFirstLife => "notFirstLife",
-        Kind::MachineAlive => "machineAlive",
-        Kind::SnapshotFailed => "snapshotFailed",
-        Kind::CredentialOnBuilder => "credentialOnBuilder",
-        Kind::NoProvider => "noProvider",
-        Kind::VaultTooLarge => "vaultTooLarge",
-        Kind::Exists => "exists",
-        Kind::SshInclude => "sshInclude",
-        Kind::HostKey => "host-key",
-        Kind::SshBehind => "sshBehind",
-        Kind::Unreachable => "unreachable",
-        Kind::Refused => "refused",
-        Kind::Reauth => "reauth",
-        Kind::Other(s) => s,
-    }
-    .to_string()
-}
 
-/// A host error with the message alone, as `new Error(message)` (no wsp-words constructor needed).
-pub fn plain(message: &str) -> HostError {
-    HostError { message: message.to_string(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }
-}
 
 /// Runs `f` on one thread with a local set, as the host does (chapter 03).
 pub fn run<F: std::future::Future<Output = ()>>(f: F) {

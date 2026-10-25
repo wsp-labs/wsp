@@ -17,7 +17,7 @@ use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 
 use common::{error_json, live, oracle, plain, record, run};
-use wsp_account::account::core_types::{AccountResult, Live};
+use wsp_account::account::core_types::{AccountResult, Entry};
 use wsp_account::account::preferences::{AccessTable, AgentsWorkspace, CatalogAgentKeys, ChannelTarget, PreferencesArea, PreferencesCtx, ServerIcons, SetAnswer};
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel, Frame};
 use wsp_wire::views::preferences::{Preferences, PreferencesPatch};
@@ -221,7 +221,7 @@ impl PreferencesCtx for World {
     fn on_workspace_deleted(&self, f: Rc<dyn Fn(&str)>) {
         *self.hook.borrow_mut() = Some(f);
     }
-    async fn entry_of(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<Live, HostError> {
+    async fn entry_of(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<Entry, HostError> {
         self.log.borrow_mut().push(json!(["entryOf", workspace_id, origin.is_some()]));
         match self.entry_record(workspace_id) {
             Some(r) => Ok(live(record(&r))),
@@ -236,24 +236,24 @@ impl PreferencesCtx for World {
             .map(|a| CatalogAgentKeys { id: a["id"].as_str().unwrap().to_string(), state_home_env: a["stateHomeEnv"].as_str().map(String::from), plugin_seed_env: a["pluginSeedEnv"].as_str().map(String::from) })
             .collect()
     }
-    fn thread_env(&self, _entry: &Live, agent: &str) -> IndexMap<String, String> {
+    fn thread_env(&self, _entry: &Entry, agent: &str) -> IndexMap<String, String> {
         self.fx["threadEnv"].get(agent).and_then(|e| e.as_object()).map(|e| e.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect()).unwrap_or_default()
     }
-    fn checkout_of(&self, entry: &Live) -> Result<String, HostError> {
-        let r = entry.record.borrow();
+    fn checkout_of(&self, entry: &Entry) -> Result<String, HostError> {
+        let r = entry.borrow().record.borrow().clone();
         if r.id == "wBad" {
             return Err(plain("no checkout here"));
         }
         Ok(format!("/work/{}", r.project))
     }
-    fn is_local(&self, entry: &Live) -> bool {
-        entry.record.borrow().kind == WorkspaceKind::Local
+    fn is_local(&self, entry: &Entry) -> bool {
+        entry.borrow().record.borrow().kind == WorkspaceKind::Local
     }
-    fn at_provider(&self, entry: &Live) -> bool {
-        entry.record.borrow().place.as_deref() == Some("box")
+    fn at_provider(&self, entry: &Entry) -> bool {
+        entry.borrow().record.borrow().place.as_deref() == Some("box")
     }
-    fn pause_mode(&self, entry: &Live) -> Option<String> {
-        (entry.record.borrow().id == "wNap").then(|| "disk".to_string())
+    fn pause_mode(&self, entry: &Entry) -> Option<String> {
+        (entry.borrow().record.borrow().id == "wNap").then(|| "disk".to_string())
     }
     fn projects_on(&self, place_id: &str) -> Vec<(String, String, String)> {
         self.trace.borrow_mut().push(format!("projects_on {place_id}"));

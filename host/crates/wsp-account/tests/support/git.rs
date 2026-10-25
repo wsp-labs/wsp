@@ -9,8 +9,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future::{BoxFuture, FutureExt};
-use futures::stream::{self, BoxStream, StreamExt};
+use futures::future::{BoxFuture, FutureExt, LocalBoxFuture};
+use futures::stream::{self, BoxStream, LocalBoxStream, StreamExt};
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 use wsp_account::projects::folders::tree::{ListedWorktree, RemoveAsk};
@@ -23,6 +23,7 @@ use wsp_core::clock::Clock;
 use wsp_core::ids::Ids;
 use wsp_core::types::api::FolderForAsk;
 use wsp_core::types::pending::Store;
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::{RunningExec, WorkspaceRecord};
 use wsp_wire::types::changes::{Checkout, ViewedMarks};
 use wsp_wire::types::pull_request::{GitUpdateReply, PullRequestPage};
@@ -48,20 +49,20 @@ pub struct FakeStream {
 }
 
 impl ExecStream for FakeStream {
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
-        stream::iter(self.lines.clone().into_iter().map(Ok)).boxed()
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
+        stream::iter(self.lines.clone().into_iter().map(Ok)).boxed_local()
     }
     fn teardown(&self) {}
     fn kill(&self) {
         self.kills.fetch_add(1, Ordering::SeqCst);
     }
-    fn write(&self, _line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
-        async { Ok(WriteOutcome::Written) }.boxed()
+    fn write(&self, _line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+        async { Ok(WriteOutcome::Written) }.boxed_local()
     }
     fn close_input(&self) {}
     fn exited(&self) -> SharedFuture<Option<i32>> {
         let code = self.exit;
-        async move { code }.boxed().shared()
+        async move { code }.boxed_local().shared()
     }
 }
 
@@ -140,8 +141,8 @@ impl Base for FakeGit {
     fn session_views(&self) -> Vec<SessionView> {
         self.inner.session_views()
     }
-    fn thread_workspaces(&self) -> Vec<(String, String)> {
-        self.inner.thread_workspaces()
+    fn thread_records(&self) -> Vec<(String, ThreadRecord)> {
+        self.inner.thread_records()
     }
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.inner.persist(record).await

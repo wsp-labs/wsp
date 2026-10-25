@@ -15,14 +15,15 @@ use futures::future::{LocalBoxFuture, Shared};
 use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Value};
-use wsp_account::projects::folders::{FoldersCtx, HereDaemon, SweepState, WorktreeAsk, WorktreeRemoveAsk};
+use wsp_account::projects::folders::{FoldersCtx, HereDaemon, SweepState, WorktreeAsk, WorktreeRemove};
 use wsp_account::projects::workspaces::seam::{
-    Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, LiveEntry, ProjectsHeld,
+    Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld,
 };
 use wsp_core::clock::Clock;
 use wsp_core::ids::Ids;
 use wsp_core::types::harness::StartPicksAsked;
 use wsp_core::types::pending::Store;
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_engine::errors::Result as EngineResult;
 use wsp_engine::machine::{ExecOptions, Machine, MachineKind, MachineLife, MachineState, RunOptions, SnapshotOptions};
@@ -36,48 +37,21 @@ use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_wire::wire::machine_link::ExecResult;
 use wsp_words::exit::HostError;
 
-use crate::base::{plain, BaseOf, FakeBase};
+use crate::base::{plain, BaseOf, FakeBase, FakeMachine};
 
-/// A machine handle that only carries its id: the folders area never runs anything on it (every exec goes through
-/// `FoldersCtx::local_exec`).
-pub struct FakeMachine {
-    pub id: String,
+/// `local.hereDaemon`: the daemon binary beside the host, at the version a test says.
+pub struct FakeHere {
+    pub version: u32,
+    pub fix: String,
 }
 
 #[async_trait(?Send)]
-impl Machine for FakeMachine {
-    fn id(&self) -> &str {
-        &self.id
+impl HereDaemon for FakeHere {
+    async fn version(&self) -> Result<u32, HostError> {
+        Ok(self.version)
     }
-    fn kind(&self) -> MachineKind {
-        MachineKind::Sandbox
-    }
-    async fn exec(&self, _cmd: &str, _opts: ExecOptions) -> EngineResult<ExecResult> {
-        Ok(ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() })
-    }
-    async fn run(&self, _script: &str, _opts: RunOptions) -> EngineResult<ExecResult> {
-        Ok(ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() })
-    }
-    async fn snapshot(&self, _name: &str, _life: MachineLife, _opts: SnapshotOptions) -> EngineResult<String> {
-        Ok("s".into())
-    }
-    async fn pause(&self, _wait_ms: Option<u64>) -> EngineResult<()> {
-        Ok(())
-    }
-    async fn resume(&self, _signal: Option<&wsp_engine::cancel::Cancel>) -> EngineResult<()> {
-        Ok(())
-    }
-    async fn kill(&self) -> EngineResult<()> {
-        Ok(())
-    }
-    async fn state(&self) -> EngineResult<MachineState> {
-        Ok(MachineState::Running)
-    }
-    async fn download_url(&self, _path: &str) -> EngineResult<String> {
-        Ok("u".into())
-    }
-    async fn upload_url(&self, _path: &str) -> EngineResult<String> {
-        Ok("u".into())
+    fn fix(&self) -> String {
+        self.fix.clone()
     }
 }
 
@@ -116,7 +90,7 @@ pub struct FakeFolders {
     /// `ctx.opts.statePath !== undefined`.
     pub state_path: Cell<bool>,
     /// `local.hereDaemon`.
-    pub here: RefCell<Option<HereDaemon>>,
+    pub here: RefCell<Option<Rc<dyn HereDaemon>>>,
     pub sweep: Rc<RefCell<SweepState>>,
     /// Workspace ids a turn runs in.
     pub running: RefCell<IndexSet<String>>,
@@ -184,8 +158,8 @@ impl Base for FakeFolders {
     fn session_views(&self) -> Vec<SessionView> {
         self.b().session_views()
     }
-    fn thread_workspaces(&self) -> Vec<(String, String)> {
-        self.b().thread_workspaces()
+    fn thread_records(&self) -> Vec<(String, ThreadRecord)> {
+        self.b().thread_records()
     }
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.b().persist(record).await
@@ -274,13 +248,13 @@ impl FoldersCtx for FakeFolders {
         self.base.call("copier_worktree_mount", json!({ "from": from, "home": home, "path": path }));
         self.base.answer_as("copier_worktree_mount", || ())
     }
-    async fn copier_worktree_remove(&self, ask: WorktreeRemoveAsk) -> Result<(), HostError> {
+    async fn copier_worktree_remove(&self, ask: WorktreeRemove) -> Result<(), HostError> {
         self.base.call("copier_worktree_remove", json!({ "from": ask.from, "home": ask.home, "path": ask.path, "force": ask.force }));
         self.base.answer_as("copier_worktree_remove", || ())
     }
-    async fn here_daemon(&self) -> Result<Option<HereDaemon>, HostError> {
+    fn here_daemon(&self) -> Option<Rc<dyn HereDaemon>> {
         self.base.call("here_daemon", json!(null));
-        Ok(self.here.borrow().clone())
+        self.here.borrow().clone()
     }
     async fn admit_folder(&self, kind: WorkspaceKind, name: &str, place: Option<&str>) -> Result<(), HostError> {
         self.base.call("admit_folder", json!({ "kind": serde_json::to_value(kind).unwrap(), "name": name, "place": place }));
@@ -290,13 +264,13 @@ impl FoldersCtx for FakeFolders {
     async fn folder_machine(&self, kind: WorkspaceKind, place: Option<&str>) -> Result<(Arc<dyn Machine>, WorkspaceSize), HostError> {
         self.base.call("folder_machine", json!({ "kind": serde_json::to_value(kind).unwrap(), "place": place }));
         yield_once().await;
-        let machine: Arc<dyn Machine> = Arc::new(FakeMachine { id: place.unwrap_or("local").to_owned() });
+        let machine: Arc<dyn Machine> = FakeMachine::new(place.unwrap_or("local"));
         Ok((machine, WorkspaceSize { cpu: 2.0.into(), mem_mb: 4096.0.into() }))
     }
     fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry {
         self.base.call("attach", json!({ "id": record.id, "machineId": machine.id() }));
         let id = record.id.clone();
-        let entry = LiveEntry::new(record);
+        let entry = crate::base::entry_over(record, machine.clone());
         self.base.live.borrow_mut().insert(id, entry.clone());
         entry
     }

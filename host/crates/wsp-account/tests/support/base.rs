@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The test half every projects test shares: a clock the test moves, ids drawn in a known order, a store in memory,
+//! The test half every projects test shares: the real fake clock, ids drawn in a known order, a store in memory,
 //! and `FakeBase`, which implements `seam::Base` over shared state, logs every call in order with its arguments, and
 //! answers from a script. A unit's own fake (support/<area>.rs) wraps a `FakeBase` and implements the unit's trait the
 //! same way: `self.base.call(name, args)` logs, `self.base.answer(name)` takes the next scripted answer.
@@ -14,12 +14,20 @@ use futures::FutureExt;
 use indexmap::IndexMap;
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
+#[path = "../common/entry.rs"]
+mod entry;
+#[path = "../common/errors.rs"]
+mod errors;
+pub use errors::{kind_named, kinded, plain, refused};
+pub use entry::{entry_over, in_flight, FakeMachine};
+
 use wsp_account::projects::workspaces::seam::{
-    Base, DaemonAsk, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, LiveEntry, Live, ProjectsHeld,
+    Base, DaemonAsk, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld,
 };
-use wsp_core::clock::{Cancel, Clock, Timer};
+use wsp_core::clock::{Clock, FakeClock};
 use wsp_core::ids::Ids;
 use wsp_core::types::pending::{BlobMark, Store};
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::views::preferences::Preferences;
 use wsp_wire::views::session::SessionView;
@@ -30,22 +38,15 @@ use wsp_wire::wire::machine_link::ExecResult;
 use wsp_words::exit::{HostError, Kind};
 
 // ---------------------------------------------------------------------------------------------------------------
+// Threads
+
+/// A thread record naming its workspace and nothing else a project area reads.
+pub fn thread_on(workspace_id: &str) -> ThreadRecord {
+    ThreadRecord { workspace_id: workspace_id.to_owned(), harness: "claude".to_owned(), ..ThreadRecord::default() }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Errors
-
-/// `new Error(message)`, built from fields so no wsp-words body is needed.
-pub fn plain(message: &str) -> HostError {
-    HostError { message: message.to_owned(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, marks: vec![] }
-}
-
-/// `Object.assign(new Error(message), { kind })`.
-pub fn kinded(message: &str, kind: Kind) -> HostError {
-    HostError { kind: Some(kind), ..plain(message) }
-}
-
-/// A refusal: `refusalLine(said, fix)` as the message, the fix kept apart.
-pub fn refused(message: &str, fix: &str, kind: Kind) -> HostError {
-    HostError { fix: Some(fix.to_owned()), kind: Some(kind), ..plain(message) }
-}
 
 /// A scripted failure: `{"$error": {"message": .., "kind": ..}}` in a script queue.
 pub fn err_answer(message: &str, kind: Option<&str>) -> Value {
@@ -59,90 +60,15 @@ fn error_of(v: &Value) -> Option<HostError> {
     Some(HostError { kind, ..plain(&message) })
 }
 
-/// The `Kind` a TS kind string names, read without wsp-words' `Kind::parse` body.
-pub fn kind_named(word: &str) -> Kind {
-    match word {
-        "usage" => Kind::Usage,
-        "invalid" => Kind::Invalid,
-        "not-found" => Kind::NotFound,
-        "conflict" => Kind::Conflict,
-        "auth" => Kind::Auth,
-        "missing" => Kind::Missing,
-        "machineAlive" => Kind::MachineAlive,
-        other => Kind::Other(other.to_owned()),
-    }
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Clock
 
-/// A clock the test moves: `advance` runs each due timer at its own time, earliest first, ties in scheduling order.
-pub struct TestClock {
-    now: Cell<i64>,
-    next: Cell<u64>,
-    timers: RefCell<Vec<(i64, u64, Option<Timer>)>>,
-}
-
-impl TestClock {
-    pub fn new(start: i64) -> Rc<TestClock> {
-        Rc::new(TestClock { now: Cell::new(start), next: Cell::new(0), timers: RefCell::new(vec![]) })
-    }
-    pub fn advance(&self, ms: i64) {
-        let end = self.now.get() + ms;
-        loop {
-            let due = {
-                let mut timers = self.timers.borrow_mut();
-                let pick = timers
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, (at, _, f))| *at <= end && f.is_some())
-                    .min_by_key(|(_, (at, seq, _))| (*at, *seq))
-                    .map(|(i, _)| i);
-                pick.map(|i| {
-                    let at = timers[i].0;
-                    (at, timers[i].2.take())
-                })
-            };
-            match due {
-                Some((at, Some(f))) => {
-                    self.now.set(at.max(self.now.get()));
-                    f();
-                }
-                _ => break,
-            }
-        }
-        self.now.set(end);
-    }
-    /// Timers armed and not yet run or cancelled.
-    pub fn pending(&self) -> usize {
-        self.timers.borrow().iter().filter(|t| t.2.is_some()).count()
-    }
-    /// When each pending timer is due.
-    pub fn due(&self) -> Vec<i64> {
-        self.timers.borrow().iter().filter(|t| t.2.is_some()).map(|t| t.0).collect()
-    }
-}
-
-/// The `Clock` handle of a `TestClock`.
-pub struct ClockOf(pub Rc<TestClock>);
-
-impl Clock for ClockOf {
-    fn now(&self) -> i64 {
-        self.0.now.get()
-    }
-    fn schedule(&self, f: Timer, ms: i64) -> Cancel {
-        let seq = self.0.next.get();
-        self.0.next.set(seq + 1);
-        let at = self.0.now.get() + ms.max(1);
-        self.0.timers.borrow_mut().push((at, seq, Some(f)));
-        let clock = self.0.clone();
-        Rc::new(move || {
-            for t in clock.timers.borrow_mut().iter_mut() {
-                if t.1 == seq {
-                    t.2 = None;
-                }
-            }
-        })
+/// The timers armed on `clock` are exactly those due at `ats` (each moment named once).
+pub fn assert_due(clock: &FakeClock, ats: &[i64]) {
+    assert_eq!(clock.pending(), ats.len(), "timers armed, wanted at {ats:?}");
+    for at in ats {
+        assert!(clock.due_for(*at), "no timer due at {at}");
     }
 }
 
@@ -318,13 +244,13 @@ pub struct Call {
 
 /// The base context over shared state, logging every call and answering from the script.
 pub struct FakeBase {
-    pub clock: Rc<TestClock>,
+    pub clock: FakeClock,
     pub ids: Rc<TestIds>,
     pub store: Rc<MemStore>,
     pub live: Live,
     pub projects: ProjectsHeld,
     pub sessions: RefCell<Vec<SessionView>>,
-    pub threads: RefCell<Vec<(String, String)>>,
+    pub threads: RefCell<Vec<(String, ThreadRecord)>>,
     /// Every record `persist` was handed, in order.
     pub persisted: RefCell<Vec<WorkspaceRecord>>,
     /// Every event `emit` was handed, in order.
@@ -341,7 +267,7 @@ pub struct FakeBase {
 impl FakeBase {
     pub fn new() -> Rc<FakeBase> {
         Rc::new(FakeBase {
-            clock: TestClock::new(1_000_000),
+            clock: FakeClock::new(1_000_000),
             ids: TestIds::new(),
             store: MemStore::new(),
             live: Rc::new(RefCell::new(IndexMap::new())),
@@ -414,7 +340,7 @@ impl FakeBase {
     /// Holds a live entry over a record.
     pub fn hold(&self, r: WorkspaceRecord) -> Entry {
         let id = r.id.clone();
-        let entry = LiveEntry::new(r);
+        let entry = entry_over(r, FakeMachine::new(&id));
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
@@ -448,7 +374,7 @@ impl Base for BaseOf {
         self.0.answer_as("ready", || ())
     }
     fn clock(&self) -> Rc<dyn Clock> {
-        Rc::new(ClockOf(self.0.clock.clone()))
+        self.0.clock.clock()
     }
     fn ids(&self) -> Rc<dyn Ids> {
         self.0.ids.clone()
@@ -468,7 +394,7 @@ impl Base for BaseOf {
     fn session_views(&self) -> Vec<SessionView> {
         self.0.sessions.borrow().clone()
     }
-    fn thread_workspaces(&self) -> Vec<(String, String)> {
+    fn thread_records(&self) -> Vec<(String, ThreadRecord)> {
         self.0.threads.borrow().clone()
     }
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {

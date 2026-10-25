@@ -13,13 +13,14 @@ use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::views::workspace::{Caller, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceAgents};
+use wsp_core::types::internal::ThreadRecord;
 use wsp_words::exit::HostError;
 use wsp_words::words::computer::{AcrossAct, SpawnAct};
 
-use crate::account::core_types::{Live, Release};
+use crate::account::core_types::{Entry, Release};
 
-/// What a thread's own record, or its first row, says of its place in a tree (`threadRecords.get(id)` and
-/// `rowsOn(id)`): the workspace it runs on and the threads above it.
+/// What a thread's first row says of its place in a tree (`rowsOn(id)`): the workspace it runs on and the threads
+/// above it. A session row carries many fields no rule reads, so the row's three are read as this.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TreeFacts {
     pub workspace_id: Option<String>,
@@ -53,9 +54,9 @@ pub trait RulesCtx {
     /// `landing`: the slots forks still landing hold, per root thread; shared with the create.
     fn landing(&self) -> Rc<RefCell<IndexMap<String, i64>>>;
     /// `live`, in map order.
-    fn live(&self) -> Vec<Live>;
+    fn live(&self) -> Vec<Entry>;
     /// `live.get(id)`.
-    fn live_get(&self, id: &str) -> Option<Live>;
+    fn live_get(&self, id: &str) -> Option<Entry>;
     /// `projectsHeld`: shared with every reader of the project map.
     fn projects_held(&self) -> Rc<RefCell<IndexMap<String, ProjectView>>>;
     /// `sessions.size`.
@@ -63,7 +64,7 @@ pub trait RulesCtx {
     /// `threadRecords.size`.
     fn thread_records_size(&self) -> usize;
     /// `threadRecords.get(threadId)`.
-    fn thread_record(&self, thread_id: &str) -> Option<TreeFacts>;
+    fn thread_record(&self, thread_id: &str) -> Option<ThreadRecord>;
     /// `rowsOn(threadId)`, in row order.
     fn rows_on(&self, thread_id: &str) -> Vec<TreeFacts>;
     /// `(await ctx.preferences.get()).target?.workspace`.
@@ -79,9 +80,9 @@ pub trait RulesCtx {
     /// `moduleOf(kind).relayed(machineId)`.
     fn relayed(&self, kind: WorkspaceKind, machine_id: Option<&str>) -> bool;
     /// `moduleOf(kind).turnReach(entry)` as the TS object.
-    fn turn_reach(&self, entry: &Live) -> Option<Map<String, Value>>;
+    fn turn_reach(&self, entry: &Entry) -> Option<Map<String, Value>>;
     /// `moduleOf(kind).wspMcp(entry)` as the TS object.
-    fn wsp_mcp(&self, entry: &Live) -> Option<Value>;
+    fn wsp_mcp(&self, entry: &Entry) -> Option<Value>;
     /// `ctx.sameRepository(a, b, caller)` (channels_copy C15).
     fn same_repository(&self, a: &ProjectView, b: &ProjectView, caller: Option<&Caller>) -> bool;
     /// `ctx.projectHeld(id)`: throws `noSuchProjectLine` for an id not held.
@@ -123,7 +124,7 @@ impl RulesArea {
     }
 
     /// R3, R4, rules.ts:43. `can` is the TS capability key.
-    pub fn refuse_cannot(&self, entry: &Live, can: &str, action: &str) -> Result<(), HostError> {
+    pub fn refuse_cannot(&self, entry: &Entry, can: &str, action: &str) -> Result<(), HostError> {
         todo!()
     }
 
@@ -133,7 +134,7 @@ impl RulesArea {
     }
 
     /// R4, rules.ts:49.
-    pub fn refuse_pauseless(&self, entry: &Live, action: &str) -> Result<(), HostError> {
+    pub fn refuse_pauseless(&self, entry: &Entry, action: &str) -> Result<(), HostError> {
         todo!()
     }
 
@@ -208,12 +209,12 @@ impl RulesArea {
     }
 
     /// R17, rules.ts:212.
-    pub fn held(&self) -> Vec<Live> {
+    pub fn held(&self) -> Vec<Entry> {
         todo!()
     }
 
     /// R17, rules.ts:216.
-    pub fn listed_for(&self, caller: Option<&Caller>) -> Result<Vec<Live>, HostError> {
+    pub fn listed_for(&self, caller: Option<&Caller>) -> Result<Vec<Entry>, HostError> {
         todo!()
     }
 
@@ -253,7 +254,7 @@ impl RulesArea {
     }
 
     /// R25, rules.ts:265: the reach's own keys, then `wsp`.
-    pub fn agents_reach(&self, entry: &Live) -> Option<Map<String, Value>> {
+    pub fn agents_reach(&self, entry: &Entry) -> Option<Map<String, Value>> {
         todo!()
     }
 

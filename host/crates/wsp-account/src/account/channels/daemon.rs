@@ -12,7 +12,7 @@ use wsp_wire::views::workspace_more::{ProjectRef, WorkspaceAgents};
 use wsp_words::exit::HostError;
 
 use super::ChannelsArea;
-use crate::account::core_types::{AccountResult, Ask, Frame, Live, Served, Work};
+use crate::account::core_types::{AccountResult, Ask, Frame, Entry, Served, Work};
 
 /// `{ deadlineMs }` of `turnLimitOf` (channels.ts:89): `f64::INFINITY` for no limit.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -108,17 +108,17 @@ impl ChannelsArea {
     }
 
     /// D9, channels.ts:124.
-    pub fn computer_of(&self, entry: &Live) -> String {
+    pub fn computer_of(&self, entry: &Entry) -> String {
         todo!()
     }
 
     /// D10, channels.ts:130.
-    pub fn served_by_its_computer(&self, entry: &Live) -> Option<Served> {
+    pub fn served_by_its_computer(&self, entry: &Entry) -> Option<Served> {
         todo!()
     }
 
     /// D12, channels.ts:138.
-    pub async fn own_daemon_channel(&self, entry: &Live, on_event: Rc<dyn Fn(Value)>) -> AccountResult<Rc<dyn DaemonChannel>> {
+    pub async fn own_daemon_channel(&self, entry: &Entry, on_event: Rc<dyn Fn(Value)>) -> AccountResult<Rc<dyn DaemonChannel>> {
         todo!()
     }
 
@@ -128,12 +128,12 @@ impl ChannelsArea {
     }
 
     /// D14, channels.ts:158.
-    pub async fn with_daemon<T: 'static>(self: &Rc<Self>, entry: &Live, work: Work<T>) -> AccountResult<T> {
+    pub async fn with_daemon<T: 'static>(self: &Rc<Self>, entry: &Entry, work: Work<T>) -> AccountResult<T> {
         todo!()
     }
 
     /// D15, channels.ts:172.
-    pub fn brokered(&self, entry: &Live) -> bool {
+    pub fn brokered(&self, entry: &Entry) -> bool {
         todo!()
     }
 
@@ -143,7 +143,7 @@ impl ChannelsArea {
     }
 
     /// D16, channels.ts:189: `ask` wrapped so each op of `OP_TOKEN_OPS` carries a token of its own.
-    pub fn with_op_tokens(self: &Rc<Self>, entry: &Live, ask: Ask, hello: futures::future::Shared<futures::future::LocalBoxFuture<'static, Option<i64>>>) -> Ask {
+    pub fn with_op_tokens(self: &Rc<Self>, entry: &Entry, ask: Ask, hello: futures::future::Shared<futures::future::LocalBoxFuture<'static, Option<i64>>>) -> Ask {
         todo!()
     }
 
@@ -158,7 +158,7 @@ impl ChannelsArea {
     }
 
     /// D17, channels.ts:223. `need` defaults to `STDIO_DAEMON_VERSION` at the call sites that name none.
-    pub async fn stdio_road(&self, entry: &Live, need: i64) -> AccountResult<StdioRoad> {
+    pub async fn stdio_road(&self, entry: &Entry, need: i64) -> AccountResult<StdioRoad> {
         todo!()
     }
 
@@ -183,7 +183,7 @@ impl ChannelsArea {
     }
 
     /// D20, channels.ts:278.
-    pub async fn copy_blocked(&self, entry: &Live) -> Result<(), HostError> {
+    pub async fn copy_blocked(&self, entry: &Entry) -> Result<(), HostError> {
         todo!()
     }
 }
