@@ -1,0 +1,2108 @@
+{
+ "kinds": [
+  "agents",
+  "mcp",
+  "clis",
+  "skills",
+  "plugins",
+  "folders",
+  "configs"
+ ],
+ "cases": [
+  {
+   "name": "nothing moved",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [],
+   "steps": []
+  },
+  {
+   "name": "first apply",
+   "before": null,
+   "beforeItems": null,
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "agents/claude",
+     "kind": "agents",
+     "name": "claude",
+     "how": "added"
+    },
+    {
+     "key": "mcp/linear",
+     "kind": "mcp",
+     "name": "linear",
+     "how": "added"
+    },
+    {
+     "key": "clis/jq",
+     "kind": "clis",
+     "name": "jq",
+     "how": "added"
+    },
+    {
+     "key": "skills/unslop",
+     "kind": "skills",
+     "name": "unslop",
+     "how": "added"
+    },
+    {
+     "key": "configs/git",
+     "kind": "configs",
+     "name": "git",
+     "how": "added"
+    }
+   ],
+   "steps": [
+    "agents",
+    "signins",
+    "mcp",
+    "skills",
+    "context",
+    "clis",
+    "configs"
+   ]
+  },
+  {
+   "name": "first apply with items before",
+   "before": null,
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {},
+   "changes": [
+    {
+     "key": "agents/claude",
+     "kind": "agents",
+     "name": "claude",
+     "how": "added"
+    },
+    {
+     "key": "mcp/linear",
+     "kind": "mcp",
+     "name": "linear",
+     "how": "added"
+    },
+    {
+     "key": "clis/jq",
+     "kind": "clis",
+     "name": "jq",
+     "how": "added"
+    },
+    {
+     "key": "skills/unslop",
+     "kind": "skills",
+     "name": "unslop",
+     "how": "added"
+    },
+    {
+     "key": "configs/git",
+     "kind": "configs",
+     "name": "git",
+     "how": "added"
+    }
+   ],
+   "steps": [
+    "agents",
+    "signins",
+    "mcp",
+    "skills",
+    "context",
+    "clis",
+    "configs"
+   ]
+  },
+  {
+   "name": "no items kept",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": null,
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "agents/claude",
+     "kind": "agents",
+     "name": "claude",
+     "how": "edited"
+    },
+    {
+     "key": "mcp/linear",
+     "kind": "mcp",
+     "name": "linear",
+     "how": "edited"
+    },
+    {
+     "key": "clis/jq",
+     "kind": "clis",
+     "name": "jq",
+     "how": "edited"
+    },
+    {
+     "key": "skills/unslop",
+     "kind": "skills",
+     "name": "unslop",
+     "how": "edited"
+    },
+    {
+     "key": "configs/git",
+     "kind": "configs",
+     "name": "git",
+     "how": "edited"
+    }
+   ],
+   "steps": [
+    "mcp",
+    "clis",
+    "context",
+    "skills",
+    "configs"
+   ]
+  },
+  {
+   "name": "no items kept, none now",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": null,
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {},
+   "changes": [],
+   "steps": []
+  },
+  {
+   "name": "mixed",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "machine"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "why": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {
+     "lint@acme": {}
+    },
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.8",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1",
+    "skills/why": "w1"
+   },
+   "changes": [
+    {
+     "key": "agents/claude",
+     "kind": "agents",
+     "name": "claude",
+     "how": "changed"
+    },
+    {
+     "key": "clis/jq",
+     "kind": "clis",
+     "name": "jq",
+     "how": "edited"
+    },
+    {
+     "key": "skills/why",
+     "kind": "skills",
+     "name": "why",
+     "how": "added"
+    },
+    {
+     "key": "skills/unslop",
+     "kind": "skills",
+     "name": "unslop",
+     "how": "removed"
+    },
+    {
+     "key": "plugins/lint@acme",
+     "kind": "plugins",
+     "name": "lint@acme",
+     "how": "added"
+    }
+   ],
+   "steps": [
+    "signins",
+    "clis",
+    "context",
+    "skills",
+    "plugins"
+   ]
+  },
+  {
+   "name": "keys yes",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "copyKeys": true,
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "mcp/linear",
+     "kind": "mcp",
+     "name": "linear",
+     "how": "changed"
+    }
+   ],
+   "steps": [
+    "mcp"
+   ]
+  },
+  {
+   "name": "keys no",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "copyKeys": true,
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "mcp/linear",
+     "kind": "mcp",
+     "name": "linear",
+     "how": "changed"
+    }
+   ],
+   "steps": [
+    "mcp"
+   ]
+  },
+  {
+   "name": "keys yes, first",
+   "before": null,
+   "beforeItems": null,
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "copyKeys": true,
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "agents/claude",
+     "kind": "agents",
+     "name": "claude",
+     "how": "added"
+    },
+    {
+     "key": "mcp/linear",
+     "kind": "mcp",
+     "name": "linear",
+     "how": "added"
+    },
+    {
+     "key": "clis/jq",
+     "kind": "clis",
+     "name": "jq",
+     "how": "added"
+    },
+    {
+     "key": "skills/unslop",
+     "kind": "skills",
+     "name": "unslop",
+     "how": "added"
+    },
+    {
+     "key": "configs/git",
+     "kind": "configs",
+     "name": "git",
+     "how": "added"
+    }
+   ],
+   "steps": [
+    "agents",
+    "signins",
+    "mcp",
+    "skills",
+    "context",
+    "clis",
+    "configs"
+   ]
+  },
+  {
+   "name": "item prefix only",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1",
+    "mcp/linear2": "x",
+    "mcp/linearx/claude": "y"
+   },
+   "changes": [],
+   "steps": []
+  },
+  {
+   "name": "item sub key",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1",
+    "mcp/linear/codex": "m2"
+   },
+   "changes": [
+    {
+     "key": "mcp/linear",
+     "kind": "mcp",
+     "name": "linear",
+     "how": "edited"
+    }
+   ],
+   "steps": [
+    "mcp"
+   ]
+  },
+  {
+   "name": "item dropped",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1"
+   },
+   "changes": [
+    {
+     "key": "mcp/linear",
+     "kind": "mcp",
+     "name": "linear",
+     "how": "edited"
+    },
+    {
+     "key": "clis/jq",
+     "kind": "clis",
+     "name": "jq",
+     "how": "edited"
+    },
+    {
+     "key": "skills/unslop",
+     "kind": "skills",
+     "name": "unslop",
+     "how": "edited"
+    },
+    {
+     "key": "configs/git",
+     "kind": "configs",
+     "name": "git",
+     "how": "edited"
+    }
+   ],
+   "steps": [
+    "mcp",
+    "clis",
+    "context",
+    "skills",
+    "configs"
+   ]
+  },
+  {
+   "name": "all removed",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {},
+    "mcp": {},
+    "clis": {},
+    "skills": {},
+    "plugins": {},
+    "folders": {},
+    "configs": {}
+   },
+   "afterItems": {},
+   "changes": [
+    {
+     "key": "agents/claude",
+     "kind": "agents",
+     "name": "claude",
+     "how": "removed"
+    },
+    {
+     "key": "mcp/linear",
+     "kind": "mcp",
+     "name": "linear",
+     "how": "removed"
+    },
+    {
+     "key": "clis/jq",
+     "kind": "clis",
+     "name": "jq",
+     "how": "removed"
+    },
+    {
+     "key": "skills/unslop",
+     "kind": "skills",
+     "name": "unslop",
+     "how": "removed"
+    },
+    {
+     "key": "configs/git",
+     "kind": "configs",
+     "name": "git",
+     "how": "removed"
+    }
+   ],
+   "steps": [
+    "context",
+    "mcp"
+   ]
+  },
+  {
+   "name": "agent added",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     },
+     "codex": {
+      "signin": "machine"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "agents/codex",
+     "kind": "agents",
+     "name": "codex",
+     "how": "added"
+    }
+   ],
+   "steps": [
+    "agents",
+    "signins",
+    "mcp",
+    "skills",
+    "context"
+   ]
+  },
+  {
+   "name": "cli needs",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     },
+     "nextest": {
+      "via": "cargo",
+      "needs": [
+       "build-essential"
+      ]
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "clis/nextest",
+     "kind": "clis",
+     "name": "nextest",
+     "how": "added"
+    }
+   ],
+   "steps": [
+    "clis",
+    "context",
+    "floor"
+   ]
+  },
+  {
+   "name": "cli no needs",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     },
+     "rg": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "clis/rg",
+     "kind": "clis",
+     "name": "rg",
+     "how": "added"
+    }
+   ],
+   "steps": [
+    "clis",
+    "context"
+   ]
+  },
+  {
+   "name": "cli changed needs",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew",
+      "needs": [
+       "x"
+      ]
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "clis/jq",
+     "kind": "clis",
+     "name": "jq",
+     "how": "changed"
+    }
+   ],
+   "steps": [
+    "clis",
+    "context"
+   ]
+  },
+  {
+   "name": "github config",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {},
+     "github": {
+      "signin": "vault"
+     }
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "configs/github",
+     "kind": "configs",
+     "name": "github",
+     "how": "added"
+    }
+   ],
+   "steps": [
+    "github"
+   ]
+  },
+  {
+   "name": "folder",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {
+     "app": {
+      "from": "~/code/app",
+      "keep": []
+     }
+    },
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "folders/app",
+     "kind": "folders",
+     "name": "app",
+     "how": "added"
+    }
+   ],
+   "steps": [
+    "folders",
+    "folderServers"
+   ]
+  },
+  {
+   "name": "agent edited",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a2",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "agents/claude",
+     "kind": "agents",
+     "name": "claude",
+     "how": "edited"
+    }
+   ],
+   "steps": [
+    "mcp"
+   ]
+  },
+  {
+   "name": "cli removed",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {},
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "clis/jq",
+     "kind": "clis",
+     "name": "jq",
+     "how": "removed"
+    }
+   ],
+   "steps": [
+    "context"
+   ]
+  },
+  {
+   "name": "agent removed",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {},
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "agents/claude",
+     "kind": "agents",
+     "name": "claude",
+     "how": "removed"
+    }
+   ],
+   "steps": [
+    "context"
+   ]
+  },
+  {
+   "name": "config removed",
+   "before": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {
+     "git": {}
+    }
+   },
+   "beforeItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "after": {
+    "name": "laptop",
+    "agents": {
+     "claude": {
+      "signin": "vault"
+     }
+    },
+    "mcp": {
+     "linear": {
+      "agents": [
+       "claude"
+      ]
+     }
+    },
+    "clis": {
+     "jq": {
+      "via": "brew"
+     }
+    },
+    "skills": {
+     "unslop": {
+      "from": "~/.claude/skills"
+     }
+    },
+    "plugins": {},
+    "folders": {},
+    "configs": {}
+   },
+   "afterItems": {
+    "agents/claude": "a1",
+    "clis/jq": "1.7",
+    "skills/unslop": "s1",
+    "mcp/linear/claude": "m1",
+    "configs/git": "g1"
+   },
+   "changes": [
+    {
+     "key": "configs/git",
+     "kind": "configs",
+     "name": "git",
+     "how": "removed"
+    }
+   ],
+   "steps": []
+  }
+ ],
+ "stepsOnly": [
+  [
+   "removed mcp and clis",
+   [
+    "mcp",
+    "context"
+   ]
+  ],
+  [
+   "added cli not in after",
+   [
+    "clis",
+    "context"
+   ]
+  ],
+  [
+   "order",
+   [
+    "folders",
+    "plugins",
+    "configs",
+    "folderServers"
+   ]
+  ],
+  [
+   "none",
+   []
+  ]
+ ]
+}
