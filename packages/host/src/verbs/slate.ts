@@ -135,7 +135,7 @@ export const SLATE_VERBS: readonly Verb[] = [
       return 0;
     },
     tool: tool({
-      description: `Writes this thread's slate. ${SLATE_PURPOSE} Show what they want to see (live data, traffic, metrics, a price, a PR, progress), a dashboard, a form to fill in or a decision. A run with every= refreshes with no turns. ${SLATE_SCRIPT_WORDS}`,
+      description: `Writes this thread's slate. ${SLATE_PURPOSE} Show what they want to see (live data, traffic, metrics, a price, a PR, progress), a dashboard, a form to fill in or a decision. A run with every= refreshes; never poll in chat. ${SLATE_SCRIPT_WORDS}`,
       input: {
         thread: SlateThreadIn,
         text: z.string().optional().describe("JSX-like text: a <slate>, or a patch"),
