@@ -19,8 +19,9 @@ pub use wsp_wire::views::place_more::CloudLimits;
 pub use wsp_wire::views::workspace::{MachineFacts, MachineState};
 pub use wsp_wire::wire::capabilities::{Capabilities, PlaceCapacity};
 pub use wsp_wire::wire::machine_link::{
-    DaemonSupervisor, ExecResult, LifecycleBudgets, MachineLife, MachineListRow, MachineShape, MachineSpec, PreviewReach,
+    DaemonSupervisor, ExecResult, LifecycleBudgets, MachineLife, MachineSpecOnIdle, MachineListRow, MachineShape, MachineSpec, PreviewReach,
     SnapshotRow, SnapshotStoragePricing as WireSnapshotStoragePricing, TemplateRow,
+    BackendFactsBaseTemplates as BaseTemplates,
 };
 
 use crate::box_backend::BoxLimits;
@@ -303,7 +304,8 @@ pub trait MachineBackend: Send + Sync {
     fn lifecycle(&self) -> Option<Arc<dyn Lifecycle>> {
         None
     }
-    fn base_templates(&self) -> Option<IndexMap<MachineKind, String>> {
+    /// What each kind boots from: wsp-wire's `{ sandbox, desktop }`.
+    fn base_templates(&self) -> Option<BaseTemplates> {
         None
     }
     fn names_workspace(&self) -> bool {

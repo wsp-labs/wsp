@@ -68,8 +68,9 @@ pub fn os_name_of(values: &IndexMap<String, String>) -> Option<String> {
     todo!()
 }
 
-/// machine-facts.ts:106. `now` is ms since the epoch on this computer's clock.
-pub fn uptime_ms_of(values: &IndexMap<String, String>, now: i64) -> Option<u64> {
+/// machine-facts.ts:106. `now` is ms since the epoch on this computer's clock. Negative where /proc says so: the TS
+/// rounds whatever finite figure it reads.
+pub fn uptime_ms_of(values: &IndexMap<String, String>, now: i64) -> Option<i64> {
     todo!()
 }
 

@@ -189,6 +189,9 @@ pub fn state_map(state: &str) -> Option<MachineState> {
     todo!()
 }
 
+/// box-backend.ts:250. The box user's home, which the agent starts every command in.
+pub const BOX_WORK_DIR: &str = "/home/user";
+
 /// box-backend.ts:277.
 pub const BOX_NAME_MAX: usize = 120;
 
