@@ -209,7 +209,7 @@ it("transcript_reader", async () => {
   const textLong = delta("a", 1, "z".repeat(5000));
   const shaped = (e: object) => {
     const s = reader.headShape(e);
-    return { keys: Object.keys(s), textLength: s.text?.length, cut: s.cut, patchCut: s.patchCut, patch: s.patch, tail: s.text?.slice(-3) };
+    return { keys: Object.keys(s), textLength: s.text?.length, cut: s.cut, patchCut: s.patchCut, patch: s.patch, tail: [...(s.text?.slice(-3) ?? "")].map((c: string) => c.charCodeAt(0)) };
   };
   write("transcript_reader", {
     reads,
