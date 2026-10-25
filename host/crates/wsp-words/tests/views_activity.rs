@@ -109,7 +109,7 @@ mod a_snapshot_read_by_thread {
     #[test]
     fn leaves_a_settle_what_outlives_the_agent_what_runs_under_the_agent_ends_with_it() {
         let left = processes_left(&activity_of(&read(procs())), &[LAB_THREAD.to_string(), KEPT_THREAD.to_string()]);
-        let shape: Vec<(String, Vec<i64>)> = left.iter().map(|t| (t.thread_id.clone(), t.processes.iter().map(|p| p.pid).collect())).collect();
+        let shape: Vec<(String, Vec<i64>)> = left.iter().map(|t| (t.thread_id.clone(), t.processes.iter().map(|p| p.pid.get()).collect())).collect();
         assert_eq!(shape, vec![(LAB_THREAD.to_string(), vec![400])]);
         let left: Vec<LeftThread> = left
             .into_iter()
@@ -248,7 +248,7 @@ mod an_end_s_plan {
             let said = refusal(|| end_plan(&placed, 500.0, at(500), &anyone));
             let line = not_started_line(500);
             assert!(said.contains(&line), "{said}");
-            let unowned: Vec<i64> = activity_of(&placed).unowned.iter().map(|p| p.pid).collect();
+            let unowned: Vec<i64> = activity_of(&placed).unowned.iter().map(|p| p.pid.get()).collect();
             assert_eq!(unowned, if by == "coalition" { vec![500] } else { vec![] });
         }
         // A thread's process the daemon names by its mark, the thread no longer among the read's scopes, is still wsp's.
@@ -256,7 +256,7 @@ mod an_end_s_plan {
         all.push(row_with(500, 1, "node", "node vite.js", json!({ "owner": { "by": "env", "thread": "t-gone" } })));
         let marked = read(all);
         assert_eq!(end_plan(&marked, 500.0, at(500), &anyone).unwrap(), EndPlan::Targets(vec![marked.procs.last().unwrap().clone()]));
-        let unowned: Vec<i64> = activity_of(&marked).unowned.iter().map(|p| p.pid).collect();
+        let unowned: Vec<i64> = activity_of(&marked).unowned.iter().map(|p| p.pid.get()).collect();
         assert_eq!(unowned, vec![500]);
     }
 
@@ -268,7 +268,7 @@ mod an_end_s_plan {
         all.push(row_with(500, 1, "node", "node lookalike.js", json!({ "owner": { "by": "env", "thread": LAB_THREAD } })));
         let marked = read(all);
         // Drawn under the thread it names, and ended by nobody but the person.
-        let drawn: Vec<i64> = activity_of(&marked).threads[0].processes.iter().map(|p| p.pid).collect();
+        let drawn: Vec<i64> = activity_of(&marked).threads[0].processes.iter().map(|p| p.pid.get()).collect();
         assert!(drawn.contains(&500), "{drawn:?}");
         let said = refusal(|| end_plan(&marked, 500.0, at(500), &lab_only));
         let line = not_threads_line(500);
@@ -397,7 +397,7 @@ mod an_agent_outside_this_host_s_threads {
             host: 10,
             scopes: vec![],
             agent_bins: vec!["claude".into(), "codex".into()],
-            ports: Some(HashMap::from([(400, vec![4400, 4420]), (410, vec![58815])])),
+            ports: Some(HashMap::from([(400, vec![4400.into(), 4420.into()]), (410, vec![58815.into()])])),
             cgroups: None,
         };
         let plan = end_plan(&outside, 500.0, (OUTSIDE_START + 500) as f64, &anyone).unwrap();

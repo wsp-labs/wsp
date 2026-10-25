@@ -115,7 +115,7 @@ mod plan_alerts_tests {
 
     // const reading = (windows, status?) => ({ windows, ...(status !== undefined ? { status } : {}) });
     fn reading(windows: serde_json::Value, status: Option<&str>) -> AccountLimit {
-        let mut v = json!({ "windows": windows });
+        let mut v = json!({ "key": "k", "agent": "claude", "label": "Claude", "windows": windows, "readAt": 0, "computers": [] });
         if let Some(status) = status {
             v["status"] = json!(status);
         }

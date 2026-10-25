@@ -400,7 +400,10 @@ mod the_words_the_clients_print_for_the_job {
             "ticks": [], "answers": {}, "footer": [],
         }));
         let job_of = |fixed: f64, drafts: Option<Value>| -> InitJob {
-            let mut job = json!({ "disk": { "fixed": fixed, "total": 20.0 * gib }, "screens": [agents, tools, logins] });
+            let mut job = json!({
+                "id": "j", "road": "manual", "phase": "answering", "keys": {}, "step": 0, "stoppable": false, "rows": [], "progress": { "done": 0, "total": 0 }, "log": [],
+                "disk": { "fixed": fixed, "total": 20.0 * gib }, "screens": [agents, tools, logins],
+            });
             if let Some(d) = drafts {
                 job["drafts"] = d;
             }
@@ -432,11 +435,11 @@ mod the_words_the_clients_print_for_the_job {
             init_image_bytes(&job, Some(&CurrentTicks { at: "agents".to_string(), ticks: vec!["claude".to_string()] })),
             208.0 * MIB + 300.0 * MIB + 4.0 * gib
         );
-        assert_eq!(init_image_bytes(&wire(json!({ "screens": [] })), None), 0.0);
+        assert_eq!(init_image_bytes(&wire(json!({ "id": "j", "road": "manual", "phase": "answering", "keys": {}, "step": 0, "stoppable": false, "rows": [], "progress": { "done": 0, "total": 0 }, "log": [], "screens": [] })), None), 0.0);
         // The one rule for a screen's ticks as they stand, which the screen's draft and the estimate both read. The TS
         // spreads a Set in insertion order, which the IndexSet keeps.
         assert_eq!(init_ticks_of(&tools, None).into_iter().collect::<Vec<_>>(), set(&["rust", "bun"]));
-        assert_eq!(init_ticks_of(&tools, Some(&wire(json!({ "at": "tools", "ticks": ["swift"] })))).into_iter().collect::<Vec<_>>(), set(&["swift"]));
+        assert_eq!(init_ticks_of(&tools, Some(&wire(json!({ "at": "tools", "ticks": ["swift"], "answers": {} })))).into_iter().collect::<Vec<_>>(), set(&["swift"]));
         // The estimate reads in the tone its share of the disk earns, never its weight: 4.9 GB is the danger weight and a quarter of the disk.
         assert_eq!(disk_tone(init_image_bytes(&job, None), total), SizeTone::Muted);
         assert_eq!(size_tone(init_image_bytes(&job, None)), SizeTone::Danger);
