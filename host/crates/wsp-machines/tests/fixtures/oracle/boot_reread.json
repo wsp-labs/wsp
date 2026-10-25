@@ -1,0 +1,180 @@
+{
+ "T0": 1790000000000,
+ "scenes": [
+  {
+   "name": "a held record the provider finds is loaded onto and synced",
+   "store": {},
+   "answers": {},
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "mark",
+     "reread"
+    ],
+    [
+     "sightMachine",
+     "m-a"
+    ],
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     null
+    ],
+    [
+     "idle.touch",
+     "a"
+    ],
+    [
+     "syncDaemon",
+     "a"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a held record read gone settles gone with the load's answer",
+   "store": {},
+   "answers": {},
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "mark",
+     "reread"
+    ],
+    [
+     "sightMachine",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "markGone",
+     "a",
+     "m-a",
+     "machine m-a is gone at the provider: the record load found it gone at 2026-09-21T14:13:20Z (404 no such machine)"
+    ],
+    [
+     "isHeldAway after",
+     false
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a sighting that fails leaves it held",
+   "store": {},
+   "answers": {},
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "sightMachine",
+     "m-a"
+    ],
+    [
+     "isHeldAway after",
+     true
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a record not held, or being reread, is not read",
+   "store": {},
+   "answers": {},
+   "log": [],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,1681 @@
+{
+ "T0": 1790000000000,
+ "scenes": [
+  {
+   "name": "nap: pausing is written and pushed before the provider is asked, then napping",
+   "store": {},
+   "log": [
+    [
+     "joined",
+     false
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "pausing"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "ws.nap"
+    ],
+    [
+     "session.end",
+     "s1",
+     "machine paused while the agent was working"
+    ],
+    [
+     "exec.end",
+     "machine paused while the agent was working"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "napping",
+      "nappedAt": 1790000000005
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.napped",
+      "workspaceId": "ws_1"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     "idle 20 min"
+    ]
+   ],
+   "answer": {
+    "answer": {
+     "id": "ws_1",
+     "phase": "napping"
+    },
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "napping",
+     "nappedAt": 1790000000005
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "nap: a record not running answers its view",
+   "store": {},
+   "log": [
+    [
+     "machine.state"
+    ]
+   ],
+   "answer": {
+    "answer": {
+     "id": "ws_1",
+     "phase": "napping"
+    },
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "napping"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "nap: a napping record over a running machine is adopted first, then napped",
+   "store": {},
+   "log": [
+    [
+     "machine.state"
+    ],
+    [
+     "ws.noteRunning"
+    ],
+    [
+     "syncDaemon",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running",
+      "firstLife": false
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.woken",
+      "workspaceId": "ws_1",
+      "machineId": "m-1"
+     }
+    ],
+    [
+     "placeIdOf",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "napping",
+      "firstLife": false,
+      "nappedAt": 1790000000000
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     "already running at the provider"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "pausing",
+      "firstLife": false
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "ws.nap"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "napping",
+      "firstLife": false,
+      "nappedAt": 1790000000000
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.napped",
+      "workspaceId": "ws_1"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ]
+   ],
+   "answer": {
+    "answer": {
+     "id": "ws_1",
+     "phase": "napping"
+    },
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "napping",
+     "firstLife": false,
+     "nappedAt": 1790000000000
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "nap: a refused pause puts the engine's phase back and stands the refusal",
+   "store": {},
+   "log": [
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "pausing"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "ws.nap"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running"
+     }
+    ],
+    [
+     "warn",
+     "the provider does not pause m-1 of ws_1 (provider will not pause); an idle nap waits for the backstop and exports no vault until a pause lands"
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     "the provider does not pause this machine (provider will not pause): its memory and disk together are over what it pauses; it runs until you delete it"
+    ],
+    [
+     "rejected",
+     "the provider does not pause this machine (provider will not pause): its memory and disk together are over what it pauses; it runs until you delete it"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "pausing"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "ws.nap"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     "the provider does not pause this machine (provider will not pause): its memory and disk together are over what it pauses; it runs until you delete it"
+    ],
+    [
+     "rejected",
+     "the provider does not pause this machine (provider will not pause): its memory and disk together are over what it pauses; it runs until you delete it"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running"
+    },
+    "marks": [],
+    "napRefusals": [
+     [
+      "ws_1",
+      {
+       "machineId": "m-1",
+       "said": "provider will not pause"
+      }
+     ]
+    ],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "nap: a refused stop is kept too",
+   "store": {},
+   "log": [
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "pausing"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "ws.nap"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     "the provider will not stop this machine while the snapshot of its disk fails (stop refused): push its work, then free space on its disk, since a full disk fails the snapshot and a machine left like this has been dropped with its disk"
+    ],
+    [
+     "rejected",
+     "the provider will not stop this machine while the snapshot of its disk fails (stop refused): push its work, then free space on its disk, since a full disk fails the snapshot and a machine left like this has been dropped with its disk"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [
+     [
+      "ws_1",
+      {
+       "machineId": "m-1",
+       "said": "stop refused"
+      }
+     ]
+    ],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "nap: a 404 confirmed gone settles gone and is thrown",
+   "store": {},
+   "log": [
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "pausing"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "ws.nap"
+    ],
+    [
+     "readGone",
+     "m-1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "gone",
+      "gone": "machine m-1 is gone at the provider: the pause found it gone at 2026-09-21T14:13:20Z (404 404 not found)"
+     }
+    ],
+    [
+     "session.end",
+     "s1",
+     "machine gone at the provider while the agent was working"
+    ],
+    [
+     "exec.end",
+     "machine gone at the provider while the agent was working"
+    ],
+    [
+     "warn",
+     "workspace ws_1 is gone: machine m-1 is gone at the provider: the pause found it gone at 2026-09-21T14:13:20Z (404 404 not found)"
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.gone",
+      "workspaceId": "ws_1",
+      "machineId": "m-1",
+      "reason": "machine m-1 is gone at the provider: the pause found it gone at 2026-09-21T14:13:20Z (404 404 not found)"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "gone",
+     "machine m-1 is gone at the provider: the pause found it gone at 2026-09-21T14:13:20Z (404 404 not found)"
+    ],
+    [
+     "rejected",
+     "404 not found"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "gone",
+     "gone": "machine m-1 is gone at the provider: the pause found it gone at 2026-09-21T14:13:20Z (404 404 not found)"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "nap: a 404 the reads do not confirm takes the refused road",
+   "store": {},
+   "log": [
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "pausing"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "ws.nap"
+    ],
+    [
+     "readGone",
+     "m-1"
+    ],
+    [
+     "warn",
+     "workspace ws_1 is not gone: machine m-1 is gone at the provider: the pause found it gone at 2026-09-21T14:13:20Z (404 404 not found), and the state read that followed said running"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     "404 not found"
+    ],
+    [
+     "rejected",
+     "404 not found"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "adopt pause: the record follows a pause outside wsp",
+   "store": {},
+   "log": [
+    [
+     "ws.notePaused"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "napping",
+      "nappedAt": 1790000000000
+     }
+    ],
+    [
+     "session.end",
+     "s1",
+     "machine paused while the agent was working"
+    ],
+    [
+     "exec.end",
+     "machine paused while the agent was working"
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.napped",
+      "workspaceId": "ws_1",
+      "found": true
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     "paused outside wsp"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "napping",
+     "nappedAt": 1790000000000
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "adopt pause: not while napping, waking or not running",
+   "store": {},
+   "log": [],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "napping"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "adopt running: the record follows a machine the provider runs, joined",
+   "store": {},
+   "log": [
+    [
+     "ws.noteRunning"
+    ],
+    [
+     "syncDaemon",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running",
+      "firstLife": false
+     }
+    ],
+    [
+     "joined",
+     true
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.woken",
+      "workspaceId": "ws_1",
+      "machineId": "m-1"
+     }
+    ],
+    [
+     "placeIdOf",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running",
+      "firstLife": false
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     "already running at the provider"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running",
+     "firstLife": false
+    },
+    "marks": [
+     "unchecked"
+    ],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "runs under napping: only a napping record, a failed read reads paused",
+   "store": {},
+   "log": [
+    [
+     "machine.state"
+    ]
+   ],
+   "answer": {
+    "r1": false,
+    "r2": false
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "settle gone: a confirmed gone marks the record and ends its sessions",
+   "store": {},
+   "log": [
+    [
+     "readGone",
+     "m-1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "gone",
+      "firstLife": true,
+      "gone": "machine m-1 is gone"
+     }
+    ],
+    [
+     "session.end",
+     "s1",
+     "machine gone at the provider while the agent was working"
+    ],
+    [
+     "exec.end",
+     "machine gone at the provider while the agent was working"
+    ],
+    [
+     "warn",
+     "workspace ws_1 is gone: machine m-1 is gone"
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.gone",
+      "workspaceId": "ws_1",
+      "machineId": "m-1",
+      "reason": "machine m-1 is gone"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "gone",
+     "machine m-1 is gone"
+    ]
+   ],
+   "answer": {
+    "outcome": "settled",
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "gone",
+     "firstLife": true,
+     "gone": "machine m-1 is gone"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "settle gone: a read that says running is not gone",
+   "store": {},
+   "log": [
+    [
+     "readGone",
+     "m-1"
+    ],
+    [
+     "warn",
+     "workspace ws_1 is not gone: the poll found it, and the state read that followed said running"
+    ]
+   ],
+   "answer": {
+    "outcome": "not-gone",
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "settle gone: reads that fail leave it unchecked",
+   "store": {},
+   "log": [
+    [
+     "readGone",
+     "m-1"
+    ],
+    [
+     "warn",
+     "workspace ws_1 is not gone: the poll found it, and the reads that followed failed: 503 down"
+    ]
+   ],
+   "answer": {
+    "outcome": "unchecked",
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "mark gone: moot when already gone, on another machine, dropped or deleting",
+   "store": {},
+   "log": [],
+   "answer": {
+    "outs": [
+     "moot",
+     "moot",
+     "moot",
+     "moot"
+    ],
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "gone"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "mark gone: a sub-thread's record is released by its life",
+   "store": {},
+   "log": [
+    [
+     "subLost",
+     "ws_1",
+     "r"
+    ]
+   ],
+   "answer": {
+    "outcome": "settled",
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running",
+     "sub": {
+      "on": "solari"
+     }
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "adopt gone: deferred to a nap or wake, dropped while reread, unchecked said",
+   "store": {},
+   "log": [
+    [
+     "readGone",
+     "m-1"
+    ],
+    [
+     "warn",
+     "workspace ws_1 is not gone: seen, and the reads that followed failed: 503 down"
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     "not known to be gone; wsp could not reach the provider to check it"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "recover gone: a running machine brings the record back running",
+   "store": {},
+   "log": [
+    [
+     "machine.state"
+    ],
+    [
+     "ws.noteRunning"
+    ],
+    [
+     "syncDaemon",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running",
+      "diskGone": "d",
+      "firstLife": false
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.woken",
+      "workspaceId": "ws_1",
+      "machineId": "m-1"
+     }
+    ],
+    [
+     "placeIdOf",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running",
+      "diskGone": "d",
+      "firstLife": false
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     "not gone at the provider after all; the record follows the state read"
+    ]
+   ],
+   "answer": {
+    "phase": "running",
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running",
+     "diskGone": "d",
+     "firstLife": false
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "recover gone: a paused machine brings it back napping",
+   "store": {},
+   "log": [
+    [
+     "machine.state"
+    ],
+    [
+     "ws.notePaused"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "napping"
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.napped",
+      "workspaceId": "ws_1",
+      "found": true
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     "not gone at the provider after all; the record follows the state read"
+    ]
+   ],
+   "answer": {
+    "phase": "napping",
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "napping"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "recover gone: gone, unknown or failed reads move nothing",
+   "store": {},
+   "log": [
+    [
+     "machine.state"
+    ]
+   ],
+   "answer": {
+    "a": null,
+    "b": null,
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "gone"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "status: a running row the poll reads paused is adopted as a pause",
+   "store": {},
+   "log": [
+    [
+     "emit",
+     {
+      "type": "workspace.status",
+      "status": {
+       "id": "ws_1",
+       "phase": "running",
+       "machineState": "paused"
+      }
+     }
+    ],
+    [
+     "ws.notePaused"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "napping",
+      "nappedAt": 1790000000000
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.status",
+      "status": {
+       "id": "ws_none",
+       "phase": "running",
+       "machineState": "paused"
+      }
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.napped",
+      "workspaceId": "ws_1",
+      "found": true
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     "paused outside wsp"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "napping",
+     "nappedAt": 1790000000000
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "proven: a machine with no proof road is ready at once",
+   "store": {},
+   "log": [],
+   "answer": {
+    "view": {
+     "id": "ws_1",
+     "phase": "running"
+    },
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "proven: waking while the proof runs, running after, joined",
+   "store": {},
+   "log": [
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "waking"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "during",
+     "waking",
+     true
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     null
+    ]
+   ],
+   "answer": {
+    "view": {
+     "id": "ws_1",
+     "phase": "running"
+    },
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "proven: a stop ends it with the stopped line",
+   "store": {},
+   "log": [
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "waking"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     "waking stopped; the machine is up and has not taken a command yet"
+    ],
+    [
+     "rejected",
+     "waking stopped; the machine is up and has not taken a command yet"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running"
+    },
+    "marks": [
+     "unchecked"
+    ],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "proven: a restore not finished says no commands yet",
+   "store": {},
+   "log": [
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "waking"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     "w1 is up and takes no commands yet (disk streaming); wake it again in a minute or two"
+    ],
+    [
+     "rejected",
+     "w1 is up and takes no commands yet (disk streaming); wake it again in a minute or two"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "proven: any other failure is said and thrown as itself",
+   "store": {},
+   "log": [
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "waking"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "running"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "reachable",
+     "exec refused"
+    ],
+    [
+     "rejected",
+     "exec refused"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "running"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "proven: a machine the provider lost takes the gone road",
+   "store": {},
+   "log": [
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "waking"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "readGone",
+     "m-1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "gone",
+      "gone": "machine m-1 is gone at the provider: the wake found it gone at 2026-09-21T14:13:20Z (404 404 no such box)"
+     }
+    ],
+    [
+     "warn",
+     "workspace ws_1 is gone: machine m-1 is gone at the provider: the wake found it gone at 2026-09-21T14:13:20Z (404 404 no such box)"
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.gone",
+      "workspaceId": "ws_1",
+      "machineId": "m-1",
+      "reason": "machine m-1 is gone at the provider: the wake found it gone at 2026-09-21T14:13:20Z (404 404 no such box)"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "gone",
+     "machine m-1 is gone at the provider: the wake found it gone at 2026-09-21T14:13:20Z (404 404 no such box)"
+    ],
+    [
+     "rejected",
+     "w1's machine is gone with its disk, so work that was not pushed is lost; rebuild it to wake, which brings back its home folder from the last saved nap (machine m-1 is gone at the provider: the wake found it gone at 2026-09-21T14:13:20Z (404 404 no such box))"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "gone",
+     "gone": "machine m-1 is gone at the provider: the wake found it gone at 2026-09-21T14:13:20Z (404 404 no such box)"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "proven: a delete that took the record has the last word",
+   "store": {},
+   "log": [
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-1",
+      "phase": "waking"
+     }
+    ],
+    [
+     "emitStatus",
+     "ws_1",
+     "napping",
+     null
+    ],
+    [
+     "rejected",
+     "no workspace w1",
+     "not-found"
+    ]
+   ],
+   "answer": {
+    "record": {
+     "id": "ws_1",
+     "name": "w1",
+     "kind": "cloud",
+     "machineId": "m-1",
+     "phase": "waking"
+    },
+    "marks": [],
+    "napRefusals": [],
+    "stopRefusals": [],
+    "rereading": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "drop: everything the workspace left goes, in order, and the event last",
+   "store": {
+    "agent-lists": {
+     "m-1:claude": {},
+     "m-1:codex": {},
+     "m-2:claude": {}
+    }
+   },
+   "log": [
+    [
+     "lateRead cancelled"
+    ],
+    [
+     "module.dropped",
+     "cloud",
+     "ws_1"
+    ],
+    [
+     "reapKept",
+     "t1"
+    ],
+    [
+     "slates.forget",
+     "t1"
+    ],
+    [
+     "slates.forget",
+     "t2"
+    ],
+    [
+     "store.deleteBlob",
+     "sub-sessions",
+     "t1"
+    ],
+    [
+     "store.deleteBlob",
+     "sub-sessions",
+     "t2"
+    ],
+    [
+     "cancelFlush",
+     "ws_1"
+    ],
+    [
+     "store.delete",
+     "workspaces",
+     "ws_1"
+    ],
+    [
+     "store.deleteBlob",
+     "transcripts",
+     "ws_1"
+    ],
+    [
+     "rows.clear",
+     "ws_1"
+    ],
+    [
+     "store.deleteBlob",
+     "transcript-heads",
+     "ws_1"
+    ],
+    [
+     "store.deleteBlob",
+     "transcript-index",
+     "ws_1"
+    ],
+    [
+     "dropSentImages",
+     "ws_1",
+     "all"
+    ],
+    [
+     "store.delete",
+     "workspace-names",
+     "ws_1"
+    ],
+    [
+     "store.delete",
+     "sessions",
+     "ws_1"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "store.deleteBlob",
+     "vaults",
+     "ws_1"
+    ],
+    [
+     "store.delete",
+     "agent-lists",
+     "m-1:claude"
+    ],
+    [
+     "store.delete",
+     "agent-lists",
+     "m-1:codex"
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.deleted",
+      "workspaceId": "ws_1"
+     }
+    ]
+   ],
+   "answer": {
+    "live": [],
+    "threads": [
+     "t9"
+    ],
+    "sessions": [
+     "s9"
+    ],
+    "agentLists": [
+     [
+      "m-2:claude",
+      {}
+     ]
+    ]
+   },
+   "creates": [],
+   "inflight": []
+  }
+ ]
+}

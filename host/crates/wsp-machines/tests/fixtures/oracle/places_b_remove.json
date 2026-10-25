@@ -1,0 +1,99 @@
+{
+  "words": {
+    "leaveLine": "wsp leave",
+    "away": "maya@10.0.0.5 no longer reaches the computer added here as old-macbook",
+    "awayOther": "maya@10.0.0.5 reaches the other computer added here as vps",
+    "elsewhereRemoved": "maya@10.0.0.5 no longer reaches the computer added here as old-macbook, so nothing was changed on the machine it reaches; old-macbook is off this host, and whatever wsp left on old-macbook itself stays until wsp leave runs there",
+    "elsewhereRemovedOther": "maya@10.0.0.5 reaches the other computer added here as vps, which stays added, so nothing was changed there; this record of old-macbook is off this host",
+    "elsewhereSweptOverLink": "maya@10.0.0.5 no longer reaches the computer added here as old-macbook, so nothing was changed on the machine it reaches; old-macbook swept itself over the link: its files came off and the service that starts the agent there did not",
+    "elsewhereSweptOverLinkOther": "maya@10.0.0.5 reaches the other computer added here as vps, so nothing was changed on the machine it reaches; old-macbook swept itself over the link: its files came off and the service that starts the agent there did not",
+    "sweptOverLink": "old-macbook did not answer the login at maya@10.0.0.5, so it swept itself over the link: its files came off and the service that starts the agent there did not",
+    "sweptOverLinkSaid": "old-macbook ran the leave over the login at maya@10.0.0.5 and did not finish it (vps ran the leave and did not finish it: Failed to stop: Unit is masked.), so it swept itself over the link: its files came off and the service that starts the agent there did not",
+    "sweptOverSsh": "wsp and the service that kept it running are removed from old-macbook",
+    "loginRoadSaid": "old-macbook ran the leave over the login at maya@10.0.0.5 and did not finish it (vps ran the leave and did not finish it: Failed to stop: Unit is masked.)",
+    "loginRoadNone": "old-macbook did not answer the login at maya@10.0.0.5",
+    "stillInstalled": "old-macbook is off this host, but the daemon on it is still installed; run wsp leave on that computer when it is back",
+    "forgotten": "old-macbook is forgotten here and nothing was done on it; whatever of wsp's is still there comes off with wsp leave run on that computer",
+    "forgottenForks": "old-macbook is forgotten here and nothing was done on it; whatever of wsp's is still there, the copies its forks ran in among it, comes off with wsp leave run on that computer",
+    "pluginOff": "plugin superpowers@market",
+    "pluginsKept": "stuck@market is still on old-macbook: wsp could not take it off",
+    "pluginsKeptTwo": "lint, stuck are still on old-macbook: wsp could not take them off",
+    "pluginsKeptStuck": "stuck is still on old-macbook: wsp could not take it off",
+    "unsavedRefusal": {
+      "said": "old-macbook holds work no remote has, which a remove would lose: site has 2 commits no remote has; /wsp/projects/old/checkout has 1 commit no remote has. Keep a fork's work with wsp export or by pushing its branch, and copy a project folder's off old-macbook from the path named; then remove old-macbook again, or wsp remove old-macbook --force removes it anyway.",
+      "fix": "Keep a fork's work with wsp export or by pushing its branch, and copy a project folder's off old-macbook from the path named; then remove old-macbook again, or wsp remove old-macbook --force removes it anyway."
+    },
+    "awayRefusal": {
+      "said": "old-macbook is not answering, and its forks and projects go over its link. Turn old-macbook on and remove it again once it answers; if it never will, wsp remove old-macbook --forget takes it, its forks, projects and threads out of this wsp, with nothing done on it beyond a try at wsp's own leave over ssh.",
+      "fix": "Turn old-macbook on and remove it again once it answers; if it never will, wsp remove old-macbook --forget takes it, its forks, projects and threads out of this wsp, with nothing done on it beyond a try at wsp's own leave over ssh."
+    },
+    "forgetAnswersRefusal": {
+      "said": "old-macbook is answering, so there is nothing to forget. wsp remove old-macbook takes it out and takes wsp off it.",
+      "fix": "wsp remove old-macbook takes it out and takes wsp off it."
+    },
+    "uncheckedSudo": {
+      "happened": "maya@10.0.0.5 could not be checked as old-macbook, so nothing was changed there: sudo: a password is required",
+      "fix": "Check that ssh maya@10.0.0.5 logs in as root, or through a sudo that takes the password you typed, and try again.",
+      "said": "maya@10.0.0.5 could not be checked as old-macbook, so nothing was changed there: sudo: a password is required. Check that ssh maya@10.0.0.5 logs in as root, or through a sudo that takes the password you typed, and try again."
+    },
+    "uncheckedTimeout": {
+      "happened": "maya@10.0.0.5 could not be checked as old-macbook, so nothing was changed there: the read timed out after 15s",
+      "fix": "Check that ssh maya@10.0.0.5 logs in as root, or through a sudo that takes the password you typed, and try again.",
+      "said": "maya@10.0.0.5 could not be checked as old-macbook, so nothing was changed there: the read timed out after 15s. Check that ssh maya@10.0.0.5 logs in as root, or through a sudo that takes the password you typed, and try again."
+    },
+    "uncheckedNoHome": {
+      "happened": "maya@10.0.0.5 could not be checked as old-macbook, so nothing was changed there: old-macbook never said where its home is",
+      "fix": "Check that ssh maya@10.0.0.5 logs in as root, or through a sudo that takes the password you typed, and try again.",
+      "said": "maya@10.0.0.5 could not be checked as old-macbook, so nothing was changed there: old-macbook never said where its home is. Check that ssh maya@10.0.0.5 logs in as root, or through a sudo that takes the password you typed, and try again."
+    },
+    "uncheckedNoRoad": {
+      "happened": "maya@10.0.0.5 could not be checked as old-macbook, so nothing was changed there: this host holds no ssh road to read it over",
+      "fix": "Check that ssh maya@10.0.0.5 logs in as root, or through a sudo that takes the password you typed, and try again.",
+      "said": "maya@10.0.0.5 could not be checked as old-macbook, so nothing was changed there: this host holds no ssh road to read it over. Check that ssh maya@10.0.0.5 logs in as root, or through a sudo that takes the password you typed, and try again."
+    },
+    "uncheckedExit": {
+      "happened": "maya@10.0.0.5 could not be checked as old-macbook, so nothing was changed there: the read exited 3",
+      "fix": "Check that ssh maya@10.0.0.5 logs in as root, or through a sudo that takes the password you typed, and try again.",
+      "said": "maya@10.0.0.5 could not be checked as old-macbook, so nothing was changed there: the read exited 3. Check that ssh maya@10.0.0.5 logs in as root, or through a sudo that takes the password you typed, and try again."
+    },
+    "otherRefusal": {
+      "happened": "maya@10.0.0.5 no longer reaches the computer added here as old-macbook, so nothing was changed there",
+      "fix": "Give old-macbook the login that reaches it with wsp computers set old-macbook --ssh <user@host>, then try again.",
+      "said": "maya@10.0.0.5 no longer reaches the computer added here as old-macbook, so nothing was changed there. Give old-macbook the login that reaches it with wsp computers set old-macbook --ssh <user@host>, then try again."
+    },
+    "otherRefusalNamed": {
+      "happened": "maya@10.0.0.5 reaches the other computer added here as vps, so nothing was changed there",
+      "fix": "This record of old-macbook stands beside that one; take it away with wsp remove p_0000000000000001.",
+      "said": "maya@10.0.0.5 reaches the other computer added here as vps, so nothing was changed there. This record of old-macbook stands beside that one; take it away with wsp remove p_0000000000000001."
+    },
+    "noSuchPlace": "no place named p_nope; you have old-macbook",
+    "syncing": "old-macbook is syncing to its recipe; set it up again once that ends",
+    "unpushedUnread": "/wsp/projects: could not read what is not pushed: the listing exited 2",
+    "unpushedUnreadStderr": "/wsp/projects: could not read what is not pushed: Permission denied",
+    "updateSlow60": "old-macbook took the daemon and had not dialled back on it within 60s; its row reads the new version once it does",
+    "updateSlow1": "old-macbook took the daemon and had not dialled back on it within 1s; its row reads the new version once it does",
+    "updateWaitMs": 60000,
+    "noPlaceUpdater": "this runtime carries no daemon to put on a computer; the host that serves the app wires one",
+    "serversUnread": "wsp's MCP servers were not looked for in /home/maya/.codex/config.toml: it is not a plain file, or it is a link out of the folder it belongs to, and wsp reads neither",
+    "behindWord": "daemon 166, host 167",
+    "daemonVersion": 167,
+    "unsavedOld": "/wsp/projects/old/checkout holds 2 commits not pushed and 1 uncommitted file",
+    "unreadFresh": "/wsp/projects/fresh/checkout: could not read what is not pushed: git failed",
+    "unreadBoom": "/wsp/projects: could not read what is not pushed: boom",
+    "blocked": "srv cannot run wsp workspaces: it mounts cgroup v1 at /sys/fs/cgroup, and wsp runs workspaces on cgroup v2 alone: boot it with systemd.unified_cgroup_hierarchy=1"
+  },
+  "scripts": {
+    "held": "echo; echo WSP_PLACE_HELD\nif [ -e '/home/maya/.wsp/place.json' ]; then { [ -f '/home/maya/.wsp/place.json' ] && [ ! -s '/home/maya/.wsp/place.json' ] && echo 'WSP_PLACE_LEFT file'; head -c 65536 '/home/maya/.wsp/place.json' 2>/dev/null || echo 'WSP_PLACE_LEFT file'; }\nelif [ -L '/home/maya/.wsp/place.json' ]; then echo 'WSP_PLACE_LEFT file'\nelif [ -e '/home/maya/.wsp/place-key.pem' ] || [ -L '/home/maya/.wsp/place-key.pem' ]; then echo 'WSP_PLACE_LEFT key'; fi; true",
+    "cgroupsEnd": "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\n[ -d '/sys/fs/cgroup/wsp-threads' ] || exit 0\nfor d in '/sys/fs/cgroup/wsp-threads'/*/; do [ -d \"$d\" ] || continue; t=$(basename \"$d\"); wsp_end '/wsp-threads'/\"$t\" 1 && echo '/sys/fs/cgroup/wsp-threads'/\"$t\"; done\nrmdir '/sys/fs/cgroup/wsp-threads' 2>/dev/null\nexit 0",
+    "placeFile": "/home/maya/.wsp/place.json"
+  },
+  "unmerge": {
+    "codexText": "[projects.\"/root/repo\"]\ntrust_level = \"trusted\"\n\n[mcp_servers.context7]\ncommand = \"npx\"\n",
+    "codexConfig": "/home/maya/.codex/config.toml",
+    "codexDigest": "085ad6557d4c8c4401a47216dbd5db86db662c23837113fca2a381d0b7e8e7aa",
+    "claudeText": "{\"mcpServers\":{\"gsc\":{\"command\":\"npx\",\"args\":[\"gsc-mcp\"]}}}",
+    "claudeDigest": "6cd540ba09b139e790ab262bcc9cf1840e93c276f58a3af7835a155b508ea6ce",
+    "codexOnlyText": "[mcp_servers.context7]\ncommand = \"npx\"\n",
+    "codexOnlyDigest": "085ad6557d4c8c4401a47216dbd5db86db662c23837113fca2a381d0b7e8e7aa"
+  }
+}
