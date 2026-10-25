@@ -6,6 +6,10 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::js::{number_string, utf16};
+use crate::words::thread::refusal_line;
+use wsp_wire::types::env::CLOUD_ENV;
+
 /// exit.ts:12. Serialized as "ok", "provider", "auth", "usage".
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -22,17 +26,32 @@ impl ExitClass {
 
     /// `EXIT_CODES[class]`: ok 0, provider 1, auth 2, usage 3 (exit.ts:16).
     pub fn code(self) -> i32 {
-        todo!()
+        match self {
+            ExitClass::Ok => 0,
+            ExitClass::Provider => 1,
+            ExitClass::Auth => 2,
+            ExitClass::Usage => 3,
+        }
     }
 
     /// `EXIT_WORDS[class]`, the words the skill, the help and the instructions quote (exit.ts:19-24), word for word.
     pub fn words(self) -> &'static str {
-        todo!()
+        match self {
+            ExitClass::Ok => "it did what its line says; with --json stdout holds the answer",
+            ExitClass::Provider => "the host, the runtime, a provider or the machine refused or failed",
+            ExitClass::Auth => "no key, no sign-in, or the host refused the token",
+            ExitClass::Usage => "the line was refused before anything ran: a missing argument, an unknown flag or a value nothing takes",
+        }
     }
 
     /// The class's wire word: "ok", "provider", "auth", "usage".
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            ExitClass::Ok => "ok",
+            ExitClass::Provider => "provider",
+            ExitClass::Auth => "auth",
+            ExitClass::Usage => "usage",
+        }
     }
 }
 
@@ -87,32 +106,95 @@ impl Kind {
     /// "notFirstLife", "machineAlive", "snapshotFailed", "credentialOnBuilder", "noProvider", "vaultTooLarge",
     /// "exists", "sshInclude", "host-key", "sshBehind", "unreachable", "refused", "reauth"; `Other` its own.
     pub fn as_str(&self) -> &str {
-        todo!()
+        match self {
+            Kind::Usage => "usage",
+            Kind::Invalid => "invalid",
+            Kind::NotFound => "not-found",
+            Kind::ProcessesLeft => PROCESSES_LEFT_KIND,
+            Kind::Auth => "auth",
+            Kind::Ticket => "ticket",
+            Kind::Conflict => "conflict",
+            Kind::Concurrency => "concurrency",
+            Kind::StartLimit => "startLimit",
+            Kind::Plan => "plan",
+            Kind::Missing => "missing",
+            Kind::SnapshotUnavailable => "snapshotUnavailable",
+            Kind::Transient => "transient",
+            Kind::Unknown => "unknown",
+            Kind::NotFirstLife => "notFirstLife",
+            Kind::MachineAlive => "machineAlive",
+            Kind::SnapshotFailed => "snapshotFailed",
+            Kind::CredentialOnBuilder => "credentialOnBuilder",
+            Kind::NoProvider => "noProvider",
+            Kind::VaultTooLarge => "vaultTooLarge",
+            Kind::Exists => "exists",
+            Kind::SshInclude => "sshInclude",
+            Kind::HostKey => "host-key",
+            Kind::SshBehind => "sshBehind",
+            Kind::Unreachable => "unreachable",
+            Kind::Refused => "refused",
+            Kind::Reauth => "reauth",
+            Kind::Other(s) => s.as_str(),
+        }
     }
 
     /// The variant a string names; a string no variant names is `Other` holding it, so `parse(k).as_str() == k`
     /// for every string.
     pub fn parse(s: &str) -> Kind {
-        todo!()
+        match s {
+            "usage" => Kind::Usage,
+            "invalid" => Kind::Invalid,
+            "not-found" => Kind::NotFound,
+            PROCESSES_LEFT_KIND => Kind::ProcessesLeft,
+            "auth" => Kind::Auth,
+            "ticket" => Kind::Ticket,
+            "conflict" => Kind::Conflict,
+            "concurrency" => Kind::Concurrency,
+            "startLimit" => Kind::StartLimit,
+            "plan" => Kind::Plan,
+            "missing" => Kind::Missing,
+            "snapshotUnavailable" => Kind::SnapshotUnavailable,
+            "transient" => Kind::Transient,
+            "unknown" => Kind::Unknown,
+            "notFirstLife" => Kind::NotFirstLife,
+            "machineAlive" => Kind::MachineAlive,
+            "snapshotFailed" => Kind::SnapshotFailed,
+            "credentialOnBuilder" => Kind::CredentialOnBuilder,
+            "noProvider" => Kind::NoProvider,
+            "vaultTooLarge" => Kind::VaultTooLarge,
+            "exists" => Kind::Exists,
+            "sshInclude" => Kind::SshInclude,
+            "host-key" => Kind::HostKey,
+            "sshBehind" => Kind::SshBehind,
+            "unreachable" => Kind::Unreachable,
+            "refused" => Kind::Refused,
+            "reauth" => Kind::Reauth,
+            other => Kind::Other(other.to_string()),
+        }
     }
 
     /// `KIND_CLASS[kind] ?? "provider"` (exit.ts:34,39): usage, invalid, not-found and processes-left are usage,
     /// auth is auth, every other kind (an `Other` included, even `Other("usage")` cannot exist since `parse` maps it)
     /// is the provider's. Never `Ok`.
     pub fn class(&self) -> ExitClass {
-        todo!()
+        match self {
+            Kind::Usage | Kind::Invalid | Kind::NotFound | Kind::ProcessesLeft => ExitClass::Usage,
+            Kind::Auth => ExitClass::Auth,
+            _ => ExitClass::Provider,
+        }
     }
 }
 
 impl Serialize for Kind {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        todo!()
+        serializer.serialize_str(self.as_str())
     }
 }
 
 impl<'de> Deserialize<'de> for Kind {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        todo!()
+        let s = String::deserialize(deserializer)?;
+        Ok(Kind::parse(&s))
     }
 }
 
@@ -140,29 +222,29 @@ pub struct HostError {
 impl HostError {
     /// `new Error(message)`: no fix, no kind, no lists.
     pub fn new(message: impl Into<String>) -> HostError {
-        todo!()
+        HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: Vec::new() }
     }
 
     /// `Object.assign(new Error(message), { kind })`: the message as given, no fix.
     pub fn with_kind(message: impl Into<String>, kind: Kind) -> HostError {
-        todo!()
+        HostError { kind: Some(kind), ..HostError::new(message) }
     }
 
     /// `exitClassOf(e)` (exit.ts:37-40): the kind's class, provider where there is no kind.
     pub fn class(&self) -> ExitClass {
-        todo!()
+        self.kind.as_ref().map_or(ExitClass::Provider, Kind::class)
     }
 
     /// `EXIT_CODES[exitClassOf(e)]`: 1, 2 or 3, never 0.
     pub fn exit_code(&self) -> i32 {
-        todo!()
+        self.class().code()
     }
 }
 
 impl std::fmt::Display for HostError {
     /// The message alone, as `e.message`.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        f.write_str(&self.message)
     }
 }
 
@@ -185,7 +267,11 @@ pub struct VerbFailure {
 
 /// `ExitClass.exclude(["ok"])`: the class of a failure, which refuses "ok".
 fn failure_class<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<ExitClass, D::Error> {
-    todo!()
+    let class = ExitClass::deserialize(deserializer)?;
+    if class == ExitClass::Ok {
+        return Err(<D::Error as serde::de::Error>::custom("a failure is never of class ok"));
+    }
+    Ok(class)
 }
 
 /// What a refused reply carries beside its sentence for a client to act on (exit.ts:44-47). Keys in this order;
@@ -219,18 +305,28 @@ pub struct RefusalParts {
 
 /// `exitClassOf(e)` (exit.ts:37).
 pub fn exit_class_of(e: &HostError) -> ExitClass {
-    todo!()
+    e.class()
 }
 
 /// `refusalFields(e)` (exit.ts:44): the problem lists, and `left` only where the kind is processes-left.
 pub fn refusal_fields(e: &HostError) -> RefusalFields {
-    todo!()
+    let lists = problem_lists_of(e);
+    let left = if e.kind == Some(Kind::ProcessesLeft) { e.left.clone() } else { None };
+    RefusalFields { errors: lists.errors, warnings: lists.warnings, left }
 }
 
 /// `escapeC1(json)` (exit.ts:51): DEL and U+0080 to U+009F written as `\u007f` ... `\u009f`, four lower-case hex
 /// digits; nothing else changes.
 pub fn escape_c1(json: &str) -> String {
-    todo!()
+    let mut out = String::with_capacity(json.len());
+    for c in json.chars() {
+        if ('\u{7f}'..='\u{9f}').contains(&c) {
+            out.push_str(&format!("\\u{:04x}", c as u32));
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// `jsonLine(value, space)` (exit.ts:54): `JSON.stringify(value, null, space)` with `escape_c1` over it. `space`
@@ -238,65 +334,127 @@ pub fn escape_c1(json: &str) -> String {
 /// (an empty array `[]`, an empty object `{}`). Numbers are written by `number_string` (rule 4.25), keys in the
 /// order the value holds them (rule 4.26).
 pub fn json_line(value: &serde_json::Value, space: Option<usize>) -> String {
-    todo!()
+    // JSON.stringify with a gap of 0 writes no white space at all, the same as no gap.
+    let space = space.filter(|n| *n > 0);
+    let mut out = String::new();
+    write_json(value, space, 0, &mut out);
+    escape_c1(&out)
+}
+
+fn write_json(value: &serde_json::Value, space: Option<usize>, depth: usize, out: &mut String) {
+    use serde_json::Value;
+    let newline = |depth: usize, out: &mut String| {
+        if let Some(n) = space {
+            out.push('\n');
+            out.push_str(&" ".repeat(n * depth));
+        }
+    };
+    match value {
+        Value::Null => out.push_str("null"),
+        Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+        Value::Number(n) => out.push_str(&number_string(n.as_f64().expect("a JSON number reads as a double"))),
+        Value::String(s) => out.push_str(&serde_json::to_string(s).expect("a string writes as JSON")),
+        Value::Array(items) if items.is_empty() => out.push_str("[]"),
+        Value::Array(items) => {
+            out.push('[');
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                newline(depth + 1, out);
+                write_json(item, space, depth + 1, out);
+            }
+            newline(depth, out);
+            out.push(']');
+        }
+        Value::Object(map) if map.is_empty() => out.push_str("{}"),
+        Value::Object(map) => {
+            out.push('{');
+            for (i, (key, item)) in map.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                newline(depth + 1, out);
+                out.push_str(&serde_json::to_string(key).expect("a key writes as JSON"));
+                out.push_str(if space.is_some() { ": " } else { ":" });
+                write_json(item, space, depth + 1, out);
+            }
+            newline(depth, out);
+            out.push('}');
+        }
+    }
 }
 
 /// `verbFailure(e)` (exit.ts:56).
 pub fn verb_failure(e: &HostError) -> VerbFailure {
-    todo!()
+    let lists = problem_lists_of(e);
+    VerbFailure { error: e.message.clone(), class: e.class(), exit: i64::from(e.exit_code()), errors: lists.errors, warnings: lists.warnings }
 }
 
 /// `problemListsOf(e)` (exit.ts:63).
 pub fn problem_lists_of(e: &HostError) -> ProblemLists {
-    todo!()
+    ProblemLists { errors: e.errors.clone(), warnings: e.warnings.clone() }
 }
 
 /// `refusal(happened, fix, kind)` (exit.ts:72): the message is `refusal_line(happened, fix)`, the fix rides beside
 /// it, and the kind is stamped only when given.
 pub fn refusal(happened: &str, fix: &str, kind: Option<Kind>) -> HostError {
-    todo!()
+    HostError { fix: Some(fix.to_string()), kind, ..HostError::new(refusal_line(happened, fix)) }
 }
 
 /// `refusalSaid(message, fix)` (exit.ts:76): the message with `" " + fix` taken off its end where it ends so, else
 /// the message as it is.
 pub fn refusal_said(message: &str, fix: Option<&str>) -> String {
-    todo!()
+    match fix.and_then(|fix| message.strip_suffix(&format!(" {fix}"))) {
+        Some(said) => said.to_string(),
+        None => message.to_string(),
+    }
 }
 
 /// `refusalParts(e)` (exit.ts:84).
 pub fn refusal_parts(e: &HostError) -> RefusalParts {
-    todo!()
+    RefusalParts { said: refusal_said(&e.message, e.fix.as_deref()), fix: e.fix.clone(), kind: e.kind.as_ref().map(|k| k.as_str().to_string()) }
 }
 
 /// `markedCut(line, max)` (exit.ts:96): the line as it is up to `max` units, else its first `max` units and
 /// ` (cut N characters)` with N the units taken off. Counts UTF-16 units (rule 8.4).
 pub fn marked_cut(line: &str, max: usize) -> String {
-    todo!()
+    let len = utf16::len(line);
+    if len > max {
+        format!("{} (cut {} characters)", utf16::cut(line, max), len - max)
+    } else {
+        line.to_string()
+    }
 }
 
 /// `keptSaid(said)` (exit.ts:99): split on "\n", the first 11 lines each through `marked_cut(_, 400)`, then
 /// `(cut N lines)` where more than 11 were there.
 pub fn kept_said(said: &str) -> String {
-    todo!()
+    let lines: Vec<&str> = said.split('\n').collect();
+    let mut kept: Vec<String> = lines.iter().take(SAID_LINES).map(|line| marked_cut(line, SAID_LINE_CHARS)).collect();
+    if lines.len() > SAID_LINES {
+        kept.push(format!("(cut {} lines)", lines.len() - SAID_LINES));
+    }
+    kept.join("\n")
 }
 
 /// `usageRefusal(happened, fix)` (exit.ts:106).
 pub fn usage_refusal(happened: &str, fix: &str) -> HostError {
-    todo!()
+    refusal(happened, fix, Some(Kind::Usage))
 }
 
 /// `cloudOffRefusal(line)` (exit.ts:109): `<line> needs the cloud, which is off on this computer:` and
 /// `start the host with WSP_CLOUD=1 to turn it on.`, kind usage.
 pub fn cloud_off_refusal(line: &str) -> HostError {
-    todo!()
+    refusal(&format!("{line} needs the cloud, which is off on this computer:"), &format!("start the host with {CLOUD_ENV}=1 to turn it on."), Some(Kind::Usage))
 }
 
 /// `authRefusal(message)` (exit.ts:112): the message as given, kind auth, no fix.
 pub fn auth_refusal(message: &str) -> HostError {
-    todo!()
+    HostError::with_kind(message, Kind::Auth)
 }
 
 /// `notFoundRefusal(message)` (exit.ts:116): the message as given, kind not-found, no fix.
 pub fn not_found_refusal(message: &str) -> HostError {
-    todo!()
+    HostError::with_kind(message, Kind::NotFound)
 }
