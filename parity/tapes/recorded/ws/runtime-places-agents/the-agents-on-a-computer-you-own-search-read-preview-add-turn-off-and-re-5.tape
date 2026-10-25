@@ -2,7 +2,7 @@
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"in":{"q":"pdf","id":2,"op":"skills.search"}}
 {"in":{"skill":"a/b/pdf","id":3,"op":"skills.get"}}
-{"in":{"target":{"placeId":"p_6371df11cc0acae2"},"name":"pdf","id":4,"op":"skills.preview"}}
-{"in":{"target":{"placeId":"p_6371df11cc0acae2"},"skill":"a/b/pdf","id":5,"op":"skills.add"}}
-{"in":{"target":{"placeId":"p_6371df11cc0acae2"},"name":"pdf","on":true,"id":6,"op":"skills.toggle"}}
-{"in":{"target":{"placeId":"p_6371df11cc0acae2"},"name":"pdf","id":7,"op":"skills.remove"}}
+{"in":{"target":{"placeId":"p_00000001"},"name":"pdf","id":4,"op":"skills.preview"}}
+{"in":{"target":{"placeId":"p_00000001"},"skill":"a/b/pdf","id":5,"op":"skills.add"}}
+{"in":{"target":{"placeId":"p_00000001"},"name":"pdf","on":true,"id":6,"op":"skills.toggle"}}
+{"in":{"target":{"placeId":"p_00000001"},"name":"pdf","id":7,"op":"skills.remove"}}

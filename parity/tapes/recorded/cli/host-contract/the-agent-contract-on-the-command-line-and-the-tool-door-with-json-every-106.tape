@@ -1,2 +1,2 @@
 {"meta":{"door":"cli","source":"packages/host/test/contract.test.ts > the agent contract on the command line and the tool door > with --json every command-line verb prints JSON alone on stdout and its last object is the one its MCP tool answers with"}}
-{"in":{"argv":["agents","setup","claude","--program","/opt/claude","--arg=--debug","--json","--state","<run>/wsp-contract-WCW4I1/state/state.json"]}}
+{"in":{"argv":["servers","add","acme","--agent","codex","--command","npx -y @acme/mcp","--env","ACME_KEY","--json","--state","<run>/wsp-contract-000001/state/state.json"]}}

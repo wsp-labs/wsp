@@ -1,7 +1,3 @@
-{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there acts on a thread on its lead's cloud machine by its words alone: no stop, no rename, no send that waits or carries a file, and that turn runs on"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"id":2,"op":"sessions.list"}}
-{"in":{"workspaceId":"ws_0cbb7524","id":3,"op":"harnesses.list"}}
-{"in":{"ref":"ws_0cbb7524","id":4,"op":"workspaces.resolve"}}
-{"in":{"workspaceId":"ws_0cbb7524","id":5,"op":"workspaces.wake"}}
-{"in":{"workspaceId":"ws_0cbb7524","prompt":"the box is done","harness":"claude","thread":"2359605a-eef3-4bcf-a69f-5c735c8d743c","startedBy":"cli","requestId":"b1f9f06d-88d5-4ef2-b052-81303d8d8f9f","answerHeld":true,"id":6,"op":"sessions.start"}}
+{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there reaches its lead by its words alone: no stop of the lead, no send that waits on its reply or carries a file"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAGy1Sa+pfUPSsGcpl7ZPUkQWL27h0/ty3uhyfOf7W0ic=","nonce":"tNPqAGsCaEChiH05mV94H7yaBgQn3fhRN78wUfpV3eg=","ephemeral":"BfYR6ZPhDJKjE5NWiZG8ui3boSB+OM44W9KaxVv7IgM=","id":1,"op":"place.join"}}
+{"in":{"signature":"R9/Hp4juwgA7bwuWsdTQSicmdjE641ALIBJPNWO/mCnL2AcxdSXqJubI9e9p1ciun05Cl24xv5EAavuLME6CBw==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}

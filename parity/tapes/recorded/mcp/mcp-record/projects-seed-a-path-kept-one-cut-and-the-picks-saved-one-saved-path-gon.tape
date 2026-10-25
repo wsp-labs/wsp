@@ -1,0 +1,4 @@
+{"meta":{"door":"mcp","source":"mcp-record > projects_seed > a path kept, one cut and the picks saved, one saved path gone from the folder"}}
+{"in":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"parity","version":"1"}}}}
+{"in":{"jsonrpc":"2.0","method":"notifications/initialized"}}
+{"in":{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"projects_seed","arguments":{"project":"lab","keep":[".env"],"cut":["node_modules"],"none":true,"confirm":true}}}}

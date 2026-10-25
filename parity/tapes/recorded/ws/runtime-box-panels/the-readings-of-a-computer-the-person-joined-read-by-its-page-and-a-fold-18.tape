@@ -1,3 +1,6 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/box-panels.test.ts > the readings of a computer the person joined, read by its page and a folder's panes at once > say the daemon's refusal of the watch, and keep nothing of it: the next reader on that link asks again"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEA+ClQsDznQ9MrZS5Htl/C8awja+HM3Auye/NJQ61n1nc=","nonce":"P5csXxDErCKil9UhCJugfo6Ipfrl5XmReyiTE24FmQo=","ephemeral":"ZhqOEJZqIA6P368VIWbEJPl7lIBl9T2qTn4rKdDBBVc=","id":1,"op":"place.join"}}
-{"in":{"signature":"w4PB4JQovLb8dTZcL4o/DQC1Q9jKAcfuuRCblWGKXkx+IcT5bvv2fqJRWdoHdgPUH/Od6XiMXKz2B6O7bltWCQ==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":167,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/box-panels.test.ts > the readings of a computer the person joined, read by its page and a folder's panes at once > are refused for a place this host holds no computer for, and for an ask that names a workspace and a computer both"}}
+{"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"in":{"placeId":"p_nowhere","id":2,"op":"sys.subscribe"}}
+{"in":{"placeId":"p_00000001","workspaceId":"ws_00000002","id":3,"op":"sys.subscribe"}}
+{"in":{"id":4,"op":"sys.subscribe"}}
+{"in":{"placeId":"p_00000001","workspaceId":"ws_00000002","id":5,"op":"sys.unsubscribe"}}

@@ -1,0 +1,4 @@
+{"meta":{"door":"mcp","source":"mcp-record > fork > first turn"}}
+{"in":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"parity","version":"1"}}}}
+{"in":{"jsonrpc":"2.0","method":"notifications/initialized"}}
+{"in":{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"fork","arguments":{"workspace":"alpha","task":"go ","model":"old","effort":"low","access":"full","cwd":"/root/alpha","notify":["me","t-1"]}}}}

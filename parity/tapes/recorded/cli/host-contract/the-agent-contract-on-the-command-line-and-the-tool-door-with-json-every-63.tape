@@ -1,2 +1,2 @@
 {"meta":{"door":"cli","source":"packages/host/test/contract.test.ts > the agent contract on the command line and the tool door > with --json every command-line verb prints JSON alone on stdout and its last object is the one its MCP tool answers with"}}
-{"in":{"argv":["activity","--json","--state","<run>/wsp-contract-WCW4I1/state/state.json"]}}
+{"in":{"argv":["run","--beside","00000000-0000-4000-8000-000000000001","--agent","codex","never gets going","--json","--state","<run>/wsp-contract-000001/state/state.json"]}}

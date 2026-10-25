@@ -1,5 +1,3 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/box-panels.test.ts > the readings of a computer the person joined, read by its page and a folder's panes at once > ride the watch a daemon from before sys.unwatch is still sending after the last reader left, and never ask it twice"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"placeId":"p_96e51044407eaa55","id":2,"op":"sys.subscribe"}}
-{"in":{"placeId":"p_96e51044407eaa55","id":3,"op":"sys.unsubscribe"}}
-{"in":{"placeId":"p_96e51044407eaa55","id":4,"op":"sys.subscribe"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/box-panels.test.ts > the readings of a computer the person joined, read by its page and a folder's panes at once > keep a page whose subscribe was in flight when the link dropped, and ask for it on the link that comes back"}}
+{"in":{"placeId":"p_00000001","nonce":"K4Fsx34Ic1wrYVER0RoAPpy7Kk/qrzEPei34ULBdnvE=","ephemeral":"4UWLQgtfEtzgnC3AbQMBHgpk5IVbHuLRuzQRR3VigGA=","id":1,"op":"place.auth"}}
+{"in":{"signature":"0PQEBJBwD5lYhdAJrlie4y82spTN5OdGBD28CS9a+9jxARWDc8hTDRe03qkVVYmMNSuJUKyFX4RRZg94mRWFDw==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":167,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"id":2,"op":"place.prove"}}

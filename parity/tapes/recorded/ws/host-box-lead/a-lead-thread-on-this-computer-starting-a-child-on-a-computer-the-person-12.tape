@@ -1,5 +1,6 @@
-{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there naming a cloud project of its repository, or a cloud machine its lead forked, is told to ask its lead, from the command line"}}
+{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there acts on a thread on its lead's cloud machine by its words alone: no stop, no rename, no send that waits or carries a file, and that turn runs on"}}
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"ref":"lab-cloud","id":2,"op":"projects.resolve"}}
-{"in":{"id":3,"op":"projects.list"}}
-{"in":{"ref":"lab-cloud","id":4,"op":"projects.resolve"}}
+{"in":{"id":2,"op":"sessions.list"}}
+{"in":{"ref":"ws_00000005","id":3,"op":"workspaces.resolve"}}
+{"in":{"workspaceId":"ws_00000005","id":4,"op":"workspaces.wake"}}
+{"in":{"sessionId":"00000000-0000-4000-8000-000000000005","title":"mine now","id":5,"op":"sessions.rename"}}

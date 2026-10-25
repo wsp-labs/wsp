@@ -1,3 +1,3 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/box-panels.test.ts > the readings of a computer the person joined, read by its page and a folder's panes at once > keep a page whose subscribe was in flight when the link dropped, and ask for it on the link that comes back"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"placeId":"p_c9c9e041bcc8f7c1","id":2,"op":"sys.subscribe"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/box-panels.test.ts > the readings of a computer the person joined, read by its page and a folder's panes at once > say the daemon's refusal of the watch, and keep nothing of it: the next reader on that link asks again"}}
+{"in":{"placeId":"p_00000001","nonce":"RdTP9GdsM+7PutCzDalBudCT35aQAjdOh+ahgE5l+bY=","ephemeral":"bmUIyoJJggHcmxA0yC/2pS9nzAPsqg26DN8eXaD5xFY=","id":1,"op":"place.auth"}}
+{"in":{"signature":"jEOKSd5bHOlDicSgm6Lb46ZtYEEKdcvt914YMzG8D5tgIpJqRDgnbQEuIH3bNSFTJ9oJIn1vPsqdD3EFS2veDA==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":167,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"id":2,"op":"place.prove"}}
