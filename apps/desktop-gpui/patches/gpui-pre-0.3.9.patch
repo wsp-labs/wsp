@@ -2692,7 +2692,7 @@ index 5b63821..7b481ae 100644
          !self.force_disabled
      }
 diff --git a/src/window.rs b/src/window.rs
-index 1214b03..7696fea 100644
+index 1214b03..478b228 100644
 --- a/src/window.rs
 +++ b/src/window.rs
 @@ -5,10 +5,11 @@ use crate::Inspector;
@@ -3317,7 +3317,7 @@ index 1214b03..7696fea 100644
      }
  
      /// Renders the current frame's scene to a texture and returns the pixel data as an RGBA image.
-@@ -2882,6 +3287,18 @@ impl Window {
+@@ -2882,6 +3287,24 @@ impl Window {
          self.rendered_frame.scene.quads.clone()
      }
  
@@ -3333,10 +3333,16 @@ index 1214b03..7696fea 100644
 +        self.rendered_frame.scene.backdrop_blurs.clone()
 +    }
 +
++    /// Returns the glyphs and icons in the most recently rendered frame's scene, each in the color it is drawn in.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn painted_monochrome_sprites(&self) -> Vec<MonochromeSprite> {
++        self.rendered_frame.scene.monochrome_sprites.clone()
++    }
++
      /// Returns the underlines in the most recently rendered frame's scene.
      #[cfg(any(test, feature = "test-support"))]
      pub fn painted_underlines(&self) -> Vec<Underline> {
-@@ -2935,7 +3352,7 @@ impl Window {
+@@ -2935,7 +3358,7 @@ impl Window {
      /// During drawing this is a consistent frame snapshot. Outside drawing it
      /// reflects the latest platform sample, not a synchronous geometry query.
      pub fn visual_viewport_bounds(&self) -> Bounds<Pixels> {
@@ -3345,7 +3351,7 @@ index 1214b03..7696fea 100644
      }
  
      /// Returns a conservative rectangle avoiding platform-known obscured content.
-@@ -2943,7 +3360,7 @@ impl Window {
+@@ -2943,7 +3366,7 @@ impl Window {
      /// Intersects the visual viewport with the full layout area inset by system
      /// safe areas and keyboard occlusion. Unknown overlays cannot be excluded.
      pub fn fully_visible_bounds(&self) -> Bounds<Pixels> {
@@ -3354,7 +3360,7 @@ index 1214b03..7696fea 100644
          let viewport = self.viewport_size();
          let left = insets.left.max(Pixels::ZERO).min(viewport.width);
          let top = insets.top.max(Pixels::ZERO).min(viewport.height);
-@@ -2996,7 +3413,7 @@ impl Window {
+@@ -2996,7 +3419,7 @@ impl Window {
  
      /// Opens the native title bar context menu, useful when implementing client side decorations (Wayland and X11)
      pub fn show_window_menu(&self, position: Point<Pixels>) {
@@ -3363,7 +3369,7 @@ index 1214b03..7696fea 100644
      }
  
      /// Handle window movement for Linux and macOS.
-@@ -3010,7 +3427,7 @@ impl Window {
+@@ -3010,7 +3433,7 @@ impl Window {
      /// When using client side decorations, set this to the width of the invisible decorations (Wayland and X11)
      pub fn set_client_inset(&mut self, inset: Pixels) {
          self.client_inset = Some(inset);
@@ -3372,7 +3378,7 @@ index 1214b03..7696fea 100644
      }
  
      /// Returns the client_inset value by [`Self::set_client_inset`].
-@@ -3085,6 +3502,21 @@ impl Window {
+@@ -3085,6 +3508,21 @@ impl Window {
          self.platform_window.show_character_palette();
      }
  
@@ -3394,7 +3400,7 @@ index 1214b03..7696fea 100644
      /// The scale factor of the display associated with the window. For example, it could
      /// return 2.0 for a "retina" display, indicating that each logical pixel should actually
      /// be rendered as two pixels on screen.
-@@ -3174,13 +3606,6 @@ impl Window {
+@@ -3174,13 +3612,6 @@ impl Window {
          px(round_to_device_pixel(value.0, self.scale_factor()) / self.scale_factor())
      }
  
@@ -3408,7 +3414,7 @@ index 1214b03..7696fea 100644
      /// Snaps a bounds' origin and size to the nearest device pixel.
      #[inline]
      pub fn pixel_snap_bounds(&self, bounds: Bounds<Pixels>) -> Bounds<Pixels> {
-@@ -3224,7 +3649,7 @@ impl Window {
+@@ -3224,7 +3655,7 @@ impl Window {
          self.invalidator.debug_assert_paint();
          let underline = self.underline(origin, width, style);
          if exclusions.is_empty() {
@@ -3417,7 +3423,7 @@ index 1214b03..7696fea 100644
              return;
          }
  
-@@ -3242,13 +3667,13 @@ impl Window {
+@@ -3242,13 +3673,13 @@ impl Window {
              })
              .collect::<SmallVec<[_; 4]>>();
          if exclusions.is_empty() {
@@ -3433,7 +3439,7 @@ index 1214b03..7696fea 100644
                  content_mask: ContentMask {
                      bounds: Bounds::from_corners(
                          point(start, bounds.top()),
-@@ -3273,9 +3698,9 @@ impl Window {
+@@ -3273,9 +3704,9 @@ impl Window {
      fn underline(&self, origin: Point<Pixels>, width: Pixels, style: &UnderlineStyle) -> Underline {
          Underline {
              order: 0,
@@ -3444,7 +3450,7 @@ index 1214b03..7696fea 100644
              color: style
                  .color
                  .unwrap_or_default()
-@@ -3323,6 +3748,44 @@ impl Window {
+@@ -3323,6 +3754,44 @@ impl Window {
          )
      }
  
@@ -3489,7 +3495,7 @@ index 1214b03..7696fea 100644
      #[inline]
      fn snapped_content_mask(&self) -> ContentMask<ScaledPixels> {
          ContentMask {
-@@ -3421,6 +3884,7 @@ impl Window {
+@@ -3421,6 +3890,7 @@ impl Window {
      /// the contents of the new [`Scene`], use [`Self::present`].
      #[profiling::function]
      pub fn draw(&mut self, cx: &mut App) -> ArenaClearNeeded {
@@ -3497,7 +3503,7 @@ index 1214b03..7696fea 100644
          // Drain every draw in profiler builds so a previous frame's
          // first-invalidation timestamp can't be attributed to this one.
          #[cfg(feature = "profiler")]
-@@ -3458,6 +3922,7 @@ impl Window {
+@@ -3458,6 +3928,7 @@ impl Window {
                  self.rendered_frame.input_handlers.push(Some(input_handler));
              }
          }
@@ -3505,7 +3511,7 @@ index 1214b03..7696fea 100644
          if !cx.mode.skip_drawing() {
              self.draw_roots(cx);
              #[cfg(feature = "profiler")]
-@@ -3471,7 +3936,10 @@ impl Window {
+@@ -3471,7 +3942,10 @@ impl Window {
                  );
              }
          }
@@ -3516,7 +3522,7 @@ index 1214b03..7696fea 100644
          self.next_frame.window_active = self.active.get();
  
          // Register requested input handler with the platform window.
-@@ -3562,6 +4030,15 @@ impl Window {
+@@ -3562,6 +4036,15 @@ impl Window {
              self.refresh();
          }
          self.needs_present.set(true);
@@ -3532,7 +3538,7 @@ index 1214b03..7696fea 100644
  
          #[cfg(feature = "profiler")]
          {
-@@ -3579,8 +4056,13 @@ impl Window {
+@@ -3579,8 +4062,13 @@ impl Window {
      }
  
      fn record_entities_accessed(&mut self, cx: &mut App) {
@@ -3548,7 +3554,7 @@ index 1214b03..7696fea 100644
          let handle = self.handle;
          cx.record_entities_accessed(
              handle,
-@@ -3594,10 +4076,352 @@ impl Window {
+@@ -3594,10 +4082,352 @@ impl Window {
  
      fn invalidate_entities(&mut self) {
          let mut views = self.invalidator.take_views();
@@ -3901,7 +3907,7 @@ index 1214b03..7696fea 100644
      }
  
      #[profiling::function]
-@@ -3671,7 +4495,10 @@ impl Window {
+@@ -3671,7 +4501,10 @@ impl Window {
          self.tooltip_bounds.take();
  
          self.a11y.sync_active_flag();
@@ -3913,7 +3919,7 @@ index 1214b03..7696fea 100644
              self.a11y.begin_frame();
          }
  
-@@ -3820,7 +4647,9 @@ impl Window {
+@@ -3820,7 +4653,9 @@ impl Window {
                  size: self.viewport_size(),
              };
  
@@ -3924,7 +3930,7 @@ index 1214b03..7696fea 100644
                  let new_x = mouse_position.x - tooltip_bounds.size.width - px(1.);
                  if new_x >= Pixels::ZERO {
                      tooltip_bounds.origin.x = new_x;
-@@ -3832,7 +4661,9 @@ impl Window {
+@@ -3832,7 +4667,9 @@ impl Window {
                  }
              }
  
@@ -3935,7 +3941,7 @@ index 1214b03..7696fea 100644
                  let new_y = mouse_position.y - tooltip_bounds.size.height - px(1.);
                  if new_y >= Pixels::ZERO {
                      tooltip_bounds.origin.y = new_y;
-@@ -3914,14 +4745,19 @@ impl Window {
+@@ -3914,14 +4751,19 @@ impl Window {
  
                  let prepaint_start = self.prepaint_index();
                  if let Some(mut element) = element {
@@ -3961,7 +3967,7 @@ index 1214b03..7696fea 100644
                  } else {
                      self.reuse_prepaint(prepaint_range);
                  }
-@@ -3958,13 +4794,18 @@ impl Window {
+@@ -3958,13 +4800,18 @@ impl Window {
              let paint_start = self.paint_index();
              let content_mask = deferred_draw.content_mask;
              if let Some(element) = deferred_draw.element.as_mut() {
@@ -3986,7 +3992,7 @@ index 1214b03..7696fea 100644
              } else {
                  self.reuse_paint(deferred_draw.paint_range.clone());
              }
-@@ -4040,6 +4881,8 @@ impl Window {
+@@ -4040,6 +4887,8 @@ impl Window {
                      absolute_offset: deferred_draw.absolute_offset,
                      prepaint_range: deferred_draw.prepaint_range.clone(),
                      paint_range: deferred_draw.paint_range.clone(),
@@ -3995,7 +4001,7 @@ index 1214b03..7696fea 100644
                  }),
          );
      }
-@@ -4177,6 +5020,34 @@ impl Window {
+@@ -4177,6 +5026,34 @@ impl Window {
          }
      }
  
@@ -4030,7 +4036,7 @@ index 1214b03..7696fea 100644
      /// Updates the global element offset relative to the current offset. This is used to implement
      /// scrolling. This method should only be called during the prepaint phase of element drawing.
      pub fn with_element_offset<R>(
-@@ -4235,8 +5106,12 @@ impl Window {
+@@ -4235,8 +5112,12 @@ impl Window {
      pub fn transact<T, U>(&mut self, f: impl FnOnce(&mut Self) -> Result<T, U>) -> Result<T, U> {
          self.invalidator.debug_assert_prepaint();
          let index = self.prepaint_index();
@@ -4043,7 +4049,7 @@ index 1214b03..7696fea 100644
              self.next_frame.hitboxes.truncate(index.hitboxes_index);
              self.next_frame
                  .tooltip_requests
-@@ -4447,6 +5322,65 @@ impl Window {
+@@ -4447,6 +5328,65 @@ impl Window {
          }
      }
  
@@ -4109,7 +4115,7 @@ index 1214b03..7696fea 100644
      /// A variant of `with_element_state` that allows the element's id to be optional. This is a convenience
      /// method for elements where the element id may or may not be assigned. Prefer using `with_element_state`
      /// when the element is guaranteed to have an id.
-@@ -4522,6 +5456,8 @@ impl Window {
+@@ -4522,6 +5462,8 @@ impl Window {
              absolute_offset,
              prepaint_range: PrepaintStateIndex::default()..PrepaintStateIndex::default(),
              paint_range: PaintIndex::default()..PaintIndex::default(),
@@ -4118,7 +4124,7 @@ index 1214b03..7696fea 100644
          });
      }
  
-@@ -4566,24 +5502,42 @@ impl Window {
+@@ -4566,24 +5508,42 @@ impl Window {
          let scale_factor = self.scale_factor();
          let content_mask = self.snapped_content_mask();
          let opacity = self.element_opacity();
@@ -4165,7 +4171,7 @@ index 1214b03..7696fea 100644
              });
          }
      }
-@@ -4602,7 +5556,7 @@ impl Window {
+@@ -4602,7 +5562,7 @@ impl Window {
          let scale_factor = self.scale_factor();
          let content_mask = self.snapped_content_mask();
          let opacity = self.element_opacity();
@@ -4174,7 +4180,7 @@ index 1214b03..7696fea 100644
          let element_corner_radii = corner_radii.scale(scale_factor);
          for shadow in shadows {
              if !shadow.inset {
-@@ -4618,17 +5572,17 @@ impl Window {
+@@ -4618,17 +5578,17 @@ impl Window {
                  bottom_right: (corner_radii.bottom_right - shadow.spread_radius).max(zero),
                  bottom_left: (corner_radii.bottom_left - shadow.spread_radius).max(zero),
              };
@@ -4194,7 +4200,7 @@ index 1214b03..7696fea 100644
              });
          }
      }
-@@ -4691,6 +5645,8 @@ impl Window {
+@@ -4691,6 +5651,8 @@ impl Window {
              order: 0,
              bounds: snapped_bounds,
              content_mask: self.snapped_content_mask(),
@@ -4203,7 +4209,7 @@ index 1214b03..7696fea 100644
              background: quad.background.opacity(opacity),
              border_color: quad.border_color.opacity(opacity),
              corner_radii: quad.corner_radii.scale(self.scale_factor()),
-@@ -4699,7 +5655,7 @@ impl Window {
+@@ -4699,7 +5661,7 @@ impl Window {
          };
  
          if !quad.background.is_transparent() {
@@ -4212,7 +4218,7 @@ index 1214b03..7696fea 100644
              return;
          }
  
-@@ -4709,7 +5665,7 @@ impl Window {
+@@ -4709,7 +5671,7 @@ impl Window {
          let inner_bounds = Self::largest_border_interior(&quad);
  
          if inner_bounds.is_empty() {
@@ -4221,7 +4227,7 @@ index 1214b03..7696fea 100644
              return;
          }
  
-@@ -4739,7 +5695,7 @@ impl Window {
+@@ -4739,7 +5701,7 @@ impl Window {
          for strip in strips {
              let content_mask_bounds = quad.content_mask.bounds.intersect(&strip);
              if !content_mask_bounds.is_empty() {
@@ -4230,7 +4236,7 @@ index 1214b03..7696fea 100644
                      content_mask: ContentMask {
                          bounds: content_mask_bounds,
                      },
-@@ -4749,6 +5705,41 @@ impl Window {
+@@ -4749,6 +5711,41 @@ impl Window {
          }
      }
  
@@ -4272,7 +4278,7 @@ index 1214b03..7696fea 100644
      /// Paint the given `Path` into the scene for the next frame at the current z-index.
      ///
      /// This method should only be called as part of the paint phase of element drawing.
-@@ -4761,9 +5752,10 @@ impl Window {
+@@ -4761,9 +5758,10 @@ impl Window {
          path.content_mask = content_mask;
          let color: Background = color.into();
          path.color = color.opacity(opacity);
@@ -4286,7 +4292,7 @@ index 1214b03..7696fea 100644
      }
  
      /// Paint an underline into the scene for the next frame at the current z-index.
-@@ -4777,7 +5769,7 @@ impl Window {
+@@ -4777,7 +5775,7 @@ impl Window {
      ) {
          self.invalidator.debug_assert_paint();
          let underline = self.underline(origin, width, style);
@@ -4295,7 +4301,7 @@ index 1214b03..7696fea 100644
      }
  
      /// Paint a strikethrough into the scene for the next frame at the current z-index.
-@@ -4799,11 +5791,11 @@ impl Window {
+@@ -4799,11 +5797,11 @@ impl Window {
          };
          let opacity = self.element_opacity();
  
@@ -4309,7 +4315,7 @@ index 1214b03..7696fea 100644
              thickness: self.snap_stroke(style.thickness),
              color: style.color.unwrap_or_default().opacity(opacity),
              wavy: false.into(),
-@@ -4835,8 +5827,8 @@ impl Window {
+@@ -4835,8 +5833,8 @@ impl Window {
          let quantized_origin = Point::new(
              round_half_toward_zero(glyph_origin.x.0 * SUBPIXEL_VARIANTS_X as f32)
                  / SUBPIXEL_VARIANTS_X as f32,
@@ -4320,7 +4326,7 @@ index 1214b03..7696fea 100644
          );
          let subpixel_variant = Point::new(
              (quantized_origin.x.fract() * SUBPIXEL_VARIANTS_X as f32) as u8,
-@@ -4872,21 +5864,21 @@ impl Window {
+@@ -4872,21 +5870,21 @@ impl Window {
              let content_mask = self.snapped_content_mask();
  
              if subpixel_rendering {
@@ -4346,7 +4352,7 @@ index 1214b03..7696fea 100644
                      color: color.opacity(element_opacity),
                      tile,
                      transformation: TransformationMatrix::unit(),
-@@ -4934,7 +5926,11 @@ impl Window {
+@@ -4934,7 +5932,11 @@ impl Window {
  
          let scale_factor = self.scale_factor();
          let glyph_origin = origin.scale(scale_factor);
@@ -4359,7 +4365,7 @@ index 1214b03..7696fea 100644
          let params = RenderGlyphParams {
              font_id,
              glyph_id,
-@@ -4963,13 +5959,13 @@ impl Window {
+@@ -4963,13 +5965,13 @@ impl Window {
              let content_mask = self.snapped_content_mask();
              let opacity = self.element_opacity();
  
@@ -4375,7 +4381,7 @@ index 1214b03..7696fea 100644
                  tile,
                  opacity,
              });
-@@ -5029,11 +6025,11 @@ impl Window {
+@@ -5029,11 +6031,11 @@ impl Window {
              .map_origin(|value| ScaledPixels(round_half_toward_zero(value.0)))
              .map_size(|size| size.ceil());
  
@@ -4389,7 +4395,7 @@ index 1214b03..7696fea 100644
              color: color.opacity(element_opacity),
              tile,
              transformation,
-@@ -5135,12 +6131,12 @@ impl Window {
+@@ -5135,12 +6137,12 @@ impl Window {
              .scale(self.scale_factor());
          let opacity = self.element_opacity();
  
@@ -4404,7 +4410,7 @@ index 1214b03..7696fea 100644
              corner_radii,
              tile: sub_tile,
              opacity,
-@@ -5163,7 +6159,7 @@ impl Window {
+@@ -5163,7 +6165,7 @@ impl Window {
  
          let bounds = self.snap_bounds(bounds);
          let content_mask = self.snapped_content_mask();
@@ -4413,7 +4419,7 @@ index 1214b03..7696fea 100644
              order: 0,
              bounds,
              content_mask,
-@@ -5171,6 +6167,27 @@ impl Window {
+@@ -5171,6 +6173,27 @@ impl Window {
          });
      }
  
@@ -4441,7 +4447,7 @@ index 1214b03..7696fea 100644
      /// Removes an image from the sprite atlas.
      pub fn drop_image(&mut self, data: Arc<RenderImage>) -> Result<()> {
          for frame_index in 0..data.frame_count() {
-@@ -5287,6 +6304,31 @@ impl Window {
+@@ -5287,6 +6310,31 @@ impl Window {
          bounds
      }
  
@@ -4473,7 +4479,7 @@ index 1214b03..7696fea 100644
      /// This method should be called during `prepaint`. You can use
      /// the returned [Hitbox] during `paint` or in an event handler
      /// to determine whether the inserted hitbox was the topmost.
-@@ -6654,7 +7696,7 @@ impl Window {
+@@ -6654,7 +7702,7 @@ impl Window {
          self.on_next_frame(|window, cx| {
              if let Some(mut input_handler) = window.platform_window.take_input_handler() {
                  if let Some(bounds) = input_handler.selected_bounds(window, cx) {
@@ -4482,7 +4488,7 @@ index 1214b03..7696fea 100644
                  }
                  window.platform_window.set_input_handler(input_handler);
              }
-@@ -7007,6 +8049,24 @@ impl Window {
+@@ -7007,6 +8055,24 @@ impl Window {
          self.a11y.is_active()
      }
  
@@ -4507,7 +4513,7 @@ index 1214b03..7696fea 100644
      /// Debug representation of the last frame's accessibility information.
      pub fn debug_a11y_tree_json(&self) -> Option<String> {
          self.a11y.debug_tree_json()
-@@ -7337,8 +8397,9 @@ impl Window {
+@@ -7337,8 +8403,9 @@ impl Window {
  
      #[inline(never)]
      fn observe_keyed_state<S: 'static>(state: &Entity<S>, current_view: EntityId, cx: &mut App) {

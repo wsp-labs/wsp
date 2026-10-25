@@ -38,6 +38,12 @@ impl Door {
         std::fs::write(self.dir.join("rules.json"), rules.to_string()).unwrap();
     }
 
+    /// Lets every answer a `hold` rule keeps go.
+    #[allow(dead_code)] // `tests/theme_switch.rs` builds this file on its own and holds writes; no test here does.
+    pub fn release(&self) {
+        std::fs::write(self.dir.join("release"), "").unwrap();
+    }
+
     pub fn state(&self) -> PathBuf {
         self.dir.join("state.json")
     }

@@ -3,11 +3,13 @@
 // `node door.mjs <dir>` serves on loopback and writes <dir>/host.lock and <dir>/host-token beside <dir>/state.json,
 // as a host does, so a client dials it by that state file. Each frame after the token is appended to <dir>/asked.jsonl.
 // <dir>/rules.json, read again at every frame, names per op what to do:
-//   { "<op>": { "reply": {...} } | { "error": "...", "kind": "...", "fix": "..." }, "delayMs": n, "push": [event, ...] }
+//   { "<op>": { "reply": {...} } | { "error": "...", "kind": "...", "fix": "..." }, "delayMs": n, "push": [event, ...],
+//     "hold": true, "pushAfter": [event, ...] }
+// "hold" keeps the answer until <dir>/release exists, as a host that takes its time does, and "pushAfter" goes out then.
 // A `daemon.send:<frame op>` rule answers that daemon op ahead of the `daemon.send` rule.
 // "push" goes to every socket as the frame arrives, before the answer; an op no rule names is refused. `GET /` serves
 // the page a dial reads first: the boot line naming the socket's path, the host package's release and the token's digest.
-import { appendFileSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,6 +52,8 @@ wss.on("connection", ws => {
     if (rule === undefined) return answer({ ok: false, error: `${frame.op} is not served here.`, kind: "usage" });
     for (const event of rule.push ?? []) for (const s of sockets) s.send(JSON.stringify(event));
     if (rule.delayMs !== undefined) await new Promise(r => setTimeout(r, rule.delayMs));
+    while (rule.hold && !existsSync(join(dir, "release"))) await new Promise(r => setTimeout(r, 10));
+    for (const event of rule.pushAfter ?? []) for (const s of sockets) s.send(JSON.stringify(event));
     if (rule.error !== undefined) return answer({ ok: false, error: rule.error, ...(rule.kind ? { kind: rule.kind } : {}), ...(rule.fix ? { fix: rule.fix } : {}) });
     answer({ ok: true, ...(rule.reply ?? {}) });
   });
