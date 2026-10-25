@@ -492,8 +492,17 @@ impl Check for ProjectExportResult {
 }
 
 /// TS: packages/protocol/src/views/project-bundle.ts:127 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::HostFolder;
+/// A folder on the host a person may add a project from; touchedAt is a plain number in zod.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostFolder {
+    pub path: String,
+    pub repo: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub touched_at: Option<JsNumber>,
+}
 
 impl Check for HostFolder {
     fn check(&self) -> Result<(), SchemaError> {
@@ -507,19 +516,25 @@ impl Check for HostFolder {
                 "path" => <String as Check>::describe(rest),
                 "repo" => <bool as Check>::describe(rest),
                 "branch" => <Option<String> as Check>::describe(rest),
-                "touchedAt" => <Option<i64> as Check>::describe(rest),
+                "touchedAt" => <Option<JsNumber> as Check>::describe(rest),
                 _ => None,
             },
         }
     }
 }
 
-/// TS: packages/protocol/src/views/project-bundle.ts:140 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::HostFolderListing;
+/// TS: packages/protocol/src/views/project-bundle.ts:141 at a3b870a6e.
+/// A listing of the host's folders under a directory.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostFolderListing {
+    pub dir: String,
+    pub roots: Vec<String>,
+    pub folders: Vec<HostFolder>,
+    pub hidden: i64,
+}
 
 impl Check for HostFolderListing {
-    /// Nested checks: folders.
     fn check(&self) -> Result<(), SchemaError> {
         self.folders.check().map_err(|e| e.under("folders"))?;
         Ok(())
@@ -532,7 +547,7 @@ impl Check for HostFolderListing {
                 "dir" => <String as Check>::describe(rest),
                 "roots" => <Vec<String> as Check>::describe(rest),
                 "folders" => <Vec<HostFolder> as Check>::describe(rest),
-                "hidden" => <u64 as Check>::describe(rest),
+                "hidden" => <i64 as Check>::describe(rest),
                 _ => None,
             },
         }

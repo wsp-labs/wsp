@@ -736,14 +736,17 @@ impl Check for ReactionContent {
 }
 
 /// TS: packages/protocol/src/pull-request.ts:399 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::PullRequestReaction;
+/// One reaction left on an item: which, how many left it, and whether the person is one of them.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullRequestReaction {
+    pub content: ReactionContent,
+    pub count: i64,
+    pub mine: bool,
+}
 
 impl Check for PullRequestReaction {
-    /// Rules: count: >= 0.
-    /// Nested checks: content.
     fn check(&self) -> Result<(), SchemaError> {
-        self.content.check().map_err(|e| e.under("content"))?;
         crate::types::check::num_at_least(self.count as f64, 0.0).map_err(|e| e.under("count"))?;
         Ok(())
     }
@@ -753,7 +756,7 @@ impl Check for PullRequestReaction {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
                 "content" => <ReactionContent as Check>::describe(rest),
-                "count" => <u64 as Check>::describe(rest),
+                "count" => <i64 as Check>::describe(rest),
                 "mine" => <bool as Check>::describe(rest),
                 _ => None,
             },
@@ -762,23 +765,30 @@ impl Check for PullRequestReaction {
 }
 
 /// TS: packages/protocol/src/pull-request.ts:405 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::PullRequestCommit;
+/// One commit of a pull request, with its counts where the host answered for them.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullRequestCommit {
+    pub oid: String,
+    pub subject: String,
+    pub body: String,
+    pub at: String,
+    pub author: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parents: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additions: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deletions: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check: Option<CheckState>,
+}
 
 impl Check for PullRequestCommit {
-    /// Rules: parents: >= 0; additions: >= 0; deletions: >= 0.
-    /// Nested checks: check.
     fn check(&self) -> Result<(), SchemaError> {
-        if let Some(v) = self.parents {
-            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("parents"))?;
-        }
-        if let Some(v) = self.additions {
-            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("additions"))?;
-        }
-        if let Some(v) = self.deletions {
-            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("deletions"))?;
-        }
-        self.check.check().map_err(|e| e.under("check"))?;
+        if let Some(v) = self.parents { crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("parents"))?; }
+        if let Some(v) = self.additions { crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("additions"))?; }
+        if let Some(v) = self.deletions { crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("deletions"))?; }
         Ok(())
     }
 
@@ -791,9 +801,9 @@ impl Check for PullRequestCommit {
                 "body" => <String as Check>::describe(rest),
                 "at" => <String as Check>::describe(rest),
                 "author" => <String as Check>::describe(rest),
-                "parents" => <Option<u64> as Check>::describe(rest),
-                "additions" => <Option<u64> as Check>::describe(rest),
-                "deletions" => <Option<u64> as Check>::describe(rest),
+                "parents" => <Option<i64> as Check>::describe(rest),
+                "additions" => <Option<i64> as Check>::describe(rest),
+                "deletions" => <Option<i64> as Check>::describe(rest),
                 "check" => <Option<CheckState> as Check>::describe(rest),
                 _ => None,
             },
@@ -1140,11 +1150,19 @@ impl Check for GitPrViewReply {
 }
 
 /// TS: packages/protocol/src/pull-request.ts:511 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitPrReadReply;
+/// A pull request read: the pull request, the step it last saw, and whether nothing changed since.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitPrReadReply {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pr: Option<PullRequest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seen: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unchanged: Option<bool>,
+}
 
 impl Check for GitPrReadReply {
-    /// Nested checks: pr.
     fn check(&self) -> Result<(), SchemaError> {
         self.pr.check().map_err(|e| e.under("pr"))?;
         Ok(())
@@ -1156,7 +1174,7 @@ impl Check for GitPrReadReply {
             Some((key, rest)) => match key.as_str()? {
                 "pr" => <Option<PullRequest> as Check>::describe(rest),
                 "seen" => <Option<String> as Check>::describe(rest),
-                "unchanged" => <bool as Check>::describe(rest),
+                "unchanged" => <Option<bool> as Check>::describe(rest),
                 _ => None,
             },
         }
@@ -1474,11 +1492,17 @@ impl Check for PullRequestSendResult {
 }
 
 /// TS: packages/protocol/src/pull-request.ts:561 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitPrReplyReply;
+/// The comment a reply made, on the conversation or on a line.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitPrReplyReply {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comment: Option<PullRequestComment>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review_comment: Option<PullRequestReviewComment>,
+}
 
 impl Check for GitPrReplyReply {
-    /// Nested checks: comment, reviewComment.
     fn check(&self) -> Result<(), SchemaError> {
         self.comment.check().map_err(|e| e.under("comment"))?;
         self.review_comment.check().map_err(|e| e.under("reviewComment"))?;
@@ -1519,11 +1543,15 @@ impl Check for GitPrResolveReply {
 }
 
 /// TS: packages/protocol/src/pull-request.ts:569 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitPrReactReply;
+/// A reaction added or taken off as the person: the item's node id and every reaction on it now.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitPrReactReply {
+    pub subject: String,
+    pub reactions: Vec<PullRequestReaction>,
+}
 
 impl Check for GitPrReactReply {
-    /// Nested checks: reactions.
     fn check(&self) -> Result<(), SchemaError> {
         self.reactions.check().map_err(|e| e.under("reactions"))?;
         Ok(())

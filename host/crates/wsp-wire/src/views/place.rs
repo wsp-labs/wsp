@@ -14,9 +14,9 @@ use crate::views::workspace::WorkspaceAgents;
 use crate::wire::capabilities::MachineSizeOffer;
 use crate::wire::limits::PortForward;
 use indexmap::IndexMap;
-use wsp_frames::RelayPort;
+use crate::wire::limits::RelayPort;
 use wsp_frames::True;
-use wsp_frames::WorkspaceSize;
+use crate::wire::capabilities::WorkspaceSize;
 
 /// TS: packages/protocol/src/views/place.ts:27 at a3b870a6e.
 /// A Record in the TS: its keys in the TS's order.
@@ -520,12 +520,16 @@ impl Check for PlaceDialled {
     }
 }
 
-/// TS: packages/protocol/src/views/place.ts:179 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::WorkspaceCopy;
+/// TS: packages/protocol/src/views/place.ts:180 at a3b870a6e.
+/// The project a workspace on a computer you own is made with: a checkout copied once for this workspace, and where it is mounted inside.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceCopy {
+    pub from: String,
+    pub at: String,
+}
 
 impl Check for WorkspaceCopy {
-    /// Rules: from: at least 1 UTF-16 units; from: a refine (spec/shapes.md rule 7); at: at least 1 UTF-16 units; at: a refine (spec/shapes.md rule 7).
     fn check(&self) -> Result<(), SchemaError> {
         crate::types::check::text_at_least(&self.from, 1).map_err(|e| e.under("from"))?;
         crate::types::check::refine(crate::wire::limits::is_plain_path(&self.from), "an absolute path on the computer").map_err(|e| e.under("from"))?;

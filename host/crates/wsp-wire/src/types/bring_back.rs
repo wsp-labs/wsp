@@ -7,8 +7,17 @@ use crate::types::check::{Check, SchemaError};
 use crate::types::pull_request::PullRequest;
 
 /// TS: packages/protocol/src/bring-back.ts:11 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitPushReply;
+/// The push a bring back made: the branch, its base and remote, how far it is ahead and how many files are uncommitted.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitPushReply {
+    pub branch: String,
+    pub base: String,
+    pub remote: String,
+    pub ahead: i64,
+    pub uncommitted: i64,
+    pub stat: Vec<String>,
+}
 
 impl Check for GitPushReply {
     fn check(&self) -> Result<(), SchemaError> {
@@ -22,8 +31,8 @@ impl Check for GitPushReply {
                 "branch" => <String as Check>::describe(rest),
                 "base" => <String as Check>::describe(rest),
                 "remote" => <String as Check>::describe(rest),
-                "ahead" => <u64 as Check>::describe(rest),
-                "uncommitted" => <u64 as Check>::describe(rest),
+                "ahead" => <i64 as Check>::describe(rest),
+                "uncommitted" => <i64 as Check>::describe(rest),
                 "stat" => <Vec<String> as Check>::describe(rest),
                 _ => None,
             },
@@ -32,11 +41,15 @@ impl Check for GitPushReply {
 }
 
 /// TS: packages/protocol/src/bring-back.ts:22 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitPrReply;
+/// The branch's pull request, and whether this call is what opened it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitPrReply {
+    pub pr: PullRequest,
+    pub created: bool,
+}
 
 impl Check for GitPrReply {
-    /// Nested checks: pr.
     fn check(&self) -> Result<(), SchemaError> {
         self.pr.check().map_err(|e| e.under("pr"))?;
         Ok(())

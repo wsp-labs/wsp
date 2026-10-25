@@ -9,7 +9,7 @@ use crate::types::init_job::LoginChoice;
 use crate::types::init_job::LoginState;
 use crate::types::js_number::JsNumber;
 use wsp_frames::True;
-use wsp_frames::WorkspaceSize;
+use crate::wire::capabilities::WorkspaceSize;
 
 literal!(CustomLit, "custom");
 literal!(LitV1, 1);

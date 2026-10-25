@@ -31,18 +31,23 @@ impl Check for GitStartOnReply {
 }
 
 /// TS: packages/protocol/src/tree.ts:17 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitBranchCompareReply;
+/// How far a head is from a base on the git host: whether it is pushed, and the counts and the host's word when it is.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitBranchCompareReply {
+    pub pushed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ahead_by: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub behind_by: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+}
 
 impl Check for GitBranchCompareReply {
-    /// Rules: aheadBy: >= 0; behindBy: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        if let Some(v) = self.ahead_by {
-            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("aheadBy"))?;
-        }
-        if let Some(v) = self.behind_by {
-            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("behindBy"))?;
-        }
+        if let Some(v) = self.ahead_by { crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("aheadBy"))?; }
+        if let Some(v) = self.behind_by { crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("behindBy"))?; }
         Ok(())
     }
 
@@ -51,8 +56,8 @@ impl Check for GitBranchCompareReply {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
                 "pushed" => <bool as Check>::describe(rest),
-                "aheadBy" => <Option<u64> as Check>::describe(rest),
-                "behindBy" => <Option<u64> as Check>::describe(rest),
+                "aheadBy" => <Option<i64> as Check>::describe(rest),
+                "behindBy" => <Option<i64> as Check>::describe(rest),
                 "status" => <Option<String> as Check>::describe(rest),
                 _ => None,
             },

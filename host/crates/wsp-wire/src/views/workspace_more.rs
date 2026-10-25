@@ -19,7 +19,7 @@ use crate::types::workspace_look::WorkspaceTheme;
 use crate::views::workspace_kind::WorkspaceKind;
 use wsp_frames::PauseMode;
 use wsp_frames::True;
-use wsp_frames::WorkspaceSize;
+use crate::wire::capabilities::WorkspaceSize;
 
 /// TS: packages/protocol/src/views/workspace.ts:250 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

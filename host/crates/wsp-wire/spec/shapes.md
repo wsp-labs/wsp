@@ -30,8 +30,11 @@ The views the host sends and the records it keeps, as serde types. The implement
    `ProjectSource`, `McpRowTransport`) is `#[serde(tag = ...)]`: its member structs leave the tag key out and carry
    `pub const TYPE` (or `KIND`). Every `*Event` struct whose first key is a `type` literal does the same; the wire
    writer's `EventUnion` tags them. Other unions (8) are `untagged`, variants in zod's order: the first that reads wins.
-6. A schema whose keys (or words) match a `src/generated` type in order is wsp-frames' own, re-exported (36, e.g.
-   `HostFolder`, `MachineKind`, `PullRequestState`, the `Git*Reply`s).
+6. A zod schema is re-exported from wsp-frames only where everything matches zod: the keys and their order, each field's
+   type (an integer where zod has `.int()`, a `JsNumber` where zod has `z.number()`, unsigned only where zod says so), every
+   check (a `>= 0` rule must not be a serde refusal), the defaults and the nullable keys, and the nested schemas. Otherwise
+   the type is a local struct with `JsNumber` fields and zod's rules, and wsp-frames is left alone. Re-exported today: the
+   unit enums and the `Git*Reply`s whose audit passed (see the list in `src/types/` where each `pub use wsp_frames::` is).
 7. Hand rules beside the generated ones: `WorkspaceCopy.from/at`, `MachineShare.source/target`,
    `MachineBind.source/target` refine with `crate::wire::limits::is_plain_path` (custom, "an absolute path on the
    computer" / "an absolute path inside the workspace", views/place.ts:180-206); `textSize` and `codeSize` refine to
