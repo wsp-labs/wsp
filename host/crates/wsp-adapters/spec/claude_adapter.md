@@ -33,7 +33,7 @@ No resume or no seed → launch. Else start_after_loss(options, `No conversation
 launch): the session answers the running launch's ids, run, pid, command and tells_unread, delegates every action to
 it, and `finished` is start_after_loss's. It is registered under the first launch's local id.
 
-## warm (adapter.ts:1298)
+## warm (adapter.ts:1298) and the kept process
 
 A new session id; launch_command of the warm options (no resume, no title) with memory and launch; exec.launch(guard
 + command, {env, input: [], secret}); keep_run; the first view's input closed at once (the process rests). `next` runs
@@ -82,7 +82,19 @@ walled → `Err(aside_wall_line(wall))`; nothing → `Err(last line said, else h
 The adapter keeps nothing on disk. A re-attached turn's command is unknown (`None`). A side question or a fork copy
 whose host went mid-way leaves its copy's file under the projects folder (nothing sweeps it).
 
-## Rules against tests
+## Rules added for the port (numbered; each value printed by the TS at a3b870a6e)
+
+- **A1.** `warm` launches with `input: Some([])` (a line channel holding nothing) and no `input_after`; its first view's
+  input closes at once and nothing reaches the process. The warm process has no `session_file`. The command ends
+  `--model '<model>' --session-id <warm id>` where a model is named.
+- **A2.** `next` on a warm process is a fresh session (the whole total is the turn's cost) under the warm id: local id
+  and claude session id both the warm id, `command()` the warm command without the guard, registered under that id,
+  its line `user_message_line(prompt, warm id, images)` with no uuid. `close(false)` waits `result_exit_ms`, then
+  `closeInput` and `teardown`.
+- **A3.** The start's own refusals (a bad slug, a window with no model, a session id that is no UUID) come back as the
+  start's `Err` before anything is launched; `warm` refuses the same way.
+
+
 
 | Rule | Test |
 |---|---|
@@ -96,3 +108,5 @@ whose host went mid-way leaves its copy's file under the projects folder (nothin
 | aside removes its copy on every road | `claude_copy` aside cases (ported) |
 | the person's program everywhere, launch words on turns and asides only | `claude_turn_results::runs_the_program_everywhere_and_adds_the_launch_words_to_a_turn_and_its_side_question_alone` (ported) |
 | capabilities declared | `claude_restart::the_adapter_declares_what_claude_code_takes` |
+| A3: a refused value fails the start before any launch | `claude_turn_edges::a_refused_value_fails_the_start_before_any_launch` |
+| A1, A2: a warm process and its first turn | `claude_kept::a_warm_process_rests_until_its_first_turn_which_is_a_fresh_session_under_the_warm_id` |

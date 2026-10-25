@@ -236,3 +236,16 @@ async fn every_transport_failure_kind_rides_session_end_as_it_came() {
         assert_eq!(events.lock().unwrap().last(), Some(&AdapterEvent::SessionEnd { session_id: SID.into(), exit_code: None, saw_result: false, failure: Some(failure) }), "{kind:?}");
     }
 }
+
+// A3: a launch line that refuses a value is the start's (and the warm's) Err, before anything is launched.
+#[test]
+fn a_refused_value_fails_the_start_before_any_launch() {
+    let exec = FakeExec::manual(StreamOpts::default());
+    let adapter = create_claude_adapter(deps(&exec)).unwrap();
+    let start = adapter.start(HarnessStartOptions { prompt: "x".into(), model: Some("bad model".into()), on_event: Some(Arc::new(|_| {})), ..Default::default() });
+    assert_eq!(start.err().map(|e| e.0), Some(r#"model must be a plain slug, got "bad model""#.to_string()));
+    let warm = adapter.warm(HarnessWarmOptions { model: Some("bad model".into()), context_window: Some("1m".into()), ..Default::default() });
+    assert_eq!(warm.err().map(|e| e.0), Some(r#"model must be a plain slug, got "bad model[1m]""#.to_string()), "the slug is checked after the window's suffix");
+    assert!(exec.calls().is_empty());
+    assert!(adapter.sessions().is_empty());
+}

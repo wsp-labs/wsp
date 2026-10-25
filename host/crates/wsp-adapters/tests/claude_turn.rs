@@ -940,18 +940,33 @@ async fn ends_a_backgrounded_subagent_started_after_a_switch_away_from_auto_mode
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ends_a_fork_which_never_hands_back_in_an_auto_run() {
     let call = "toolu_01WspFixPb1";
-    // The spaced literals are the TS test's own: against a compact re-stringified frame they never match.
+    // The TS test spells these with a space after each colon, so against its compact re-stringified frames the rewrite
+    // never happened (spec/claude_turn.md rule T13). Here it rewrites the call and its task_started line, as meant.
     let fork = |f: Value| -> Value {
         let text = f.to_string();
-        if text.contains("\"name\": \"Agent\"") {
-            serde_json::from_str(&text.replace("\"subagent_type\": \"general-purpose\"", "\"subagent_type\": \"fork\"")).unwrap()
+        if text.contains(r#""name":"Agent""#) || f["subtype"] == "task_started" {
+            serde_json::from_str(&text.replace(r#""subagent_type":"general-purpose""#, r#""subagent_type":"fork""#)).unwrap()
         } else {
             f
         }
     };
-    let events = replay(with_init("subagent-bypass-background.jsonl", json!({"permissionMode": "auto"}), &fork)).await;
+    let lines = with_init("subagent-bypass-background.jsonl", json!({"permissionMode": "auto"}), &fork);
+    assert_eq!(lines.iter().filter(|l| l.contains(r#""subagent_type":"fork""#)).count(), 2, "the call and its task_started line name a fork");
+    let events = replay(lines).await;
     assert_eq!(done_summaries(&events), vec![(SubagentState::Done, Some(BG_REPORT.to_string()))]);
     assert_eq!(not_internal(answers(&events, call)), vec![answer("21921000-0000-4aaa-8bbb-000000000006", call, BG_REPORT)]);
+    let plain = replay(with_init("subagent-bypass-background.jsonl", json!({"permissionMode": "auto"}), &same)).await;
+    let unforked: Vec<AdapterEvent> = events
+        .into_iter()
+        .map(|e| match e {
+            AdapterEvent::TurnDelta(mut d) => {
+                d.text = d.text.replace(r#""subagent_type":"fork""#, r#""subagent_type":"general-purpose""#);
+                AdapterEvent::TurnDelta(d)
+            }
+            other => other,
+        })
+        .collect();
+    assert_eq!(unforked, plain, "the adapter reads no subagent_type: a fork differs only in its call's drawn input");
 }
 
 // TS: adapter.test.ts:701
