@@ -12,9 +12,9 @@ use std::sync::Arc;
 
 use futures::future::{BoxFuture, Shared};
 use futures::stream::BoxStream;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 pub use crate::pending::McpServerSpec;
 pub use wsp_wire::views::harness::ScreenCommand;
@@ -113,6 +113,26 @@ impl TurnDelta {
     pub fn new(session_id: impl Into<String>, kind: DeltaKind, text: impl Into<String>) -> Self {
         TurnDelta { session_id: session_id.into(), kind, text: text.into(), message_id: None, tool_name: None, tool_use_id: None, is_error: None, parent_tool_use_id: None, cwd: None, bytes: None, exit_code: None, duration_ms: None, patch: None }
     }
+}
+
+/// What a TS adapter throws synchronously, in its own words (`new Error(message)`); callers read the message alone.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AdapterError(pub String);
+
+impl std::fmt::Display for AdapterError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for AdapterError {}
+
+/// The wall clock in ms epoch, the TS `Date.now()`. Deps take one so a test can pin it; `system_now()` where absent.
+pub type Now = Arc<dyn Fn() -> i64 + Send + Sync>;
+
+/// The system clock as a [`Now`].
+pub fn system_now() -> Now {
+    todo!()
 }
 
 /// What failed a run's stream, as its transport threw it. The runtime reads `kind`, never `message` (TS
@@ -777,8 +797,9 @@ pub trait KeptAgent: Send + Sync {
 /// The runtime's view of one harness adapter. TS runtime harness.ts:196. Capability flags the TS declares as
 /// `readonly x?: true` are `bool`s here, false where absent.
 pub trait HarnessAdapter: Send + Sync {
-    fn start(&self, options: HarnessStartOptions) -> Arc<dyn HarnessSession>;
-    fn warm(&self, options: HarnessWarmOptions) -> Option<Box<dyn KeptAgent>> {
+    /// `Err` where the TS start throws before anything runs (a bad slug, a window with no model, a fork with a resume).
+    fn start(&self, options: HarnessStartOptions) -> Result<Arc<dyn HarnessSession>, AdapterError>;
+    fn warm(&self, options: HarnessWarmOptions) -> Option<Result<Box<dyn KeptAgent>, AdapterError>> {
         let _ = options;
         None
     }
@@ -865,6 +886,156 @@ pub trait HarnessAdapter: Send + Sync {
         None
     }
     fn env(&self) -> Option<Env> {
+        None
+    }
+    fn conversations(&self) -> Option<Arc<dyn ConversationStore>> {
+        None
+    }
+}
+
+/// The process behind a thread's turns, shared by the turns that read it one after another. TS kept-run.ts:51.
+pub trait KeptRun: Send + Sync {
+    /// A view of the process for one turn, reading the lines it prints from now on, and where the turn starts in the
+    /// run's log on every view after the first. kept-run.ts:53.
+    fn turn(&self) -> (Arc<dyn ExecStream>, Option<u64>);
+    /// The open turn takes the process with it: its view's close_input reaches the process. kept-run.ts:57.
+    fn release(&self);
+    /// Up and not released. kept-run.ts:59.
+    fn up(&self) -> bool;
+    fn exited(&self) -> SharedFuture<Option<i32>>;
+    /// Ends the process: input closed, then end_after_result(wait_ms, grace_ms). kept-run.ts:61.
+    fn close(&self, wait_ms: u64, grace_ms: u64) -> BoxFuture<'static, ()>;
+}
+
+/// One reader for a process's whole life, handing each turn a view of it; `between` takes each line printed while no
+/// turn is open. TS kept-run.ts:111 (`keepRun`).
+pub fn keep_run(stream: Arc<dyn ExecStream>, between: Option<Arc<dyn Fn(String) + Send + Sync>>) -> Arc<dyn KeptRun> {
+    todo!()
+}
+
+/// A start that may resume a session the agent's store no longer holds. TS lost-session.ts:11.
+pub struct LostSessionStart {
+    pub prompt: String,
+    pub resume: String,
+    pub seed: Arc<dyn Fn() -> BoxFuture<'static, Result<String, String>> + Send + Sync>,
+    pub on_event: OnEvent,
+}
+
+/// A turn as start_after_loss holds it: anything with a `finished`.
+pub trait Finishes: Send + Sync {
+    fn finished(&self) -> SharedFuture<TurnResult>;
+}
+
+/// What start_after_loss answers: the first launch, the session running now, and the turn's end. TS lost-session.ts:25.
+pub struct AfterLoss<S: ?Sized> {
+    pub first: Arc<S>,
+    pub now: Arc<std::sync::Mutex<Arc<S>>>,
+    pub finished: SharedFuture<TurnResult>,
+}
+
+/// TS lost-session.ts:21. `launch(prompt, resume, on_event)` starts one launch: the first with `Some(resume)`, the
+/// second, only where the first ended with a turn.done whose error is `lost`, with `None` and the prompt
+/// `lost_session_prompt(seed, prompt)`. The first's turn.done of `lost` and its session.end after it reach nobody; the
+/// second's first session.start is followed by one note delta carrying LOST_SESSION_NOTE.
+pub fn start_after_loss<S, L>(options: LostSessionStart, lost: String, launch: L) -> Result<AfterLoss<S>, AdapterError>
+where
+    S: Finishes + ?Sized + 'static,
+    L: Fn(String, Option<String>, OnEvent) -> Result<Arc<S>, AdapterError> + Send + Sync + 'static,
+{
+    todo!()
+}
+
+/// Who opened a conversation. TS conversations.ts:7.
+pub use wsp_wire::types::conversations::ConversationOrigin;
+
+/// One row of a conversation's earlier messages. TS conversations.ts:48.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ConversationLine {
+    /// "person", "agent" or "tool".
+    pub who: String,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<f64>,
+}
+
+/// A conversation as an adapter reads it off its agent's store. TS conversations.ts:56.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoredConversation {
+    pub id: String,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_prompt: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    pub cwd: String,
+    pub last_at: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<f64>,
+    pub origin: ConversationOrigin,
+}
+
+/// TS conversations.ts:68.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ConversationEarlier {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    pub lines: Vec<ConversationLine>,
+    pub earlier: u32,
+}
+
+/// What `earlier` found. TS `ConversationEarlier | "gone" | "open"`.
+#[derive(Clone, Debug, PartialEq)]
+pub enum EarlierRead {
+    Read(ConversationEarlier),
+    Gone,
+    Open,
+}
+
+/// How an adapter reaches the computer the store is on. TS conversations.ts:76.
+#[derive(Clone)]
+pub struct ConversationRoad {
+    pub exec: Arc<dyn HarnessExec>,
+    /// One frame to the daemon, `{ op, ... }` in key order, answering its reply object.
+    pub ask: Arc<dyn Fn(Map<String, Value>) -> BoxFuture<'static, Result<Map<String, Value>, ExecFailure>> + Send + Sync>,
+}
+
+/// The `earlier` options. TS conversations.ts:92.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EarlierAsk {
+    pub cwds: Vec<String>,
+    pub last: u32,
+    pub probe: bool,
+    pub tail: Option<u64>,
+    /// `false` is the TS `count: false`.
+    pub count: bool,
+}
+
+/// A store read's failure; `lasting` is the TS `lastingStoreError` mark (conversations.ts:98).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoreError {
+    pub message: String,
+    pub lasting: bool,
+}
+
+/// An agent's own store of conversations. TS conversations.ts:88. Optional TS members answer `None` where absent.
+pub trait ConversationStore: Send + Sync {
+    fn list(&self, cwds: Vec<String>, road: ConversationRoad) -> BoxFuture<'static, Result<Vec<StoredConversation>, StoreError>>;
+    /// Inner `None`: nothing could say (the TS `null`).
+    fn live(&self, road: ConversationRoad) -> Option<BoxFuture<'static, Option<IndexSet<String>>>> {
+        let _ = road;
+        None
+    }
+    fn stamp(&self, cwds: Vec<String>, road: ConversationRoad) -> Option<BoxFuture<'static, Result<String, StoreError>>> {
+        let _ = (cwds, road);
+        None
+    }
+    fn earlier(&self, id: String, ask: EarlierAsk, road: ConversationRoad) -> BoxFuture<'static, Result<EarlierRead, StoreError>>;
+    fn lets_go(&self) -> Option<String> {
         None
     }
 }
