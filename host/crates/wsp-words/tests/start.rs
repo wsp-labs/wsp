@@ -88,12 +88,12 @@ mod github_link_of {
         let block = "Issue #6 \"Say the date in CHANGELOG.txt\" (https://github.com/Zingzy/wsp-pr-lab/issues/6):\n> Add a dated line at the top.";
         let read = github_link_of(block).unwrap();
         assert_eq!(serde_json::to_value(&read).unwrap()["kind"], "issue");
-        assert_eq!(read.number, 6);
+        assert_eq!(read.number, 6.into());
         assert_eq!(read.repo, "Zingzy/wsp-pr-lab");
         let pr = "Pull request #7 \"Rename the status word\" (https://github.com/Zingzy/wsp-pr-lab/pull/7):\n> (no description)";
         let read = github_link_of(pr).unwrap();
         assert_eq!(serde_json::to_value(&read).unwrap()["kind"], "pull_request");
-        assert_eq!(read.number, 7);
+        assert_eq!(read.number, 7.into());
     }
 
     #[test]

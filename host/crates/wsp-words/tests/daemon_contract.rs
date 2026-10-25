@@ -25,7 +25,7 @@ use wsp_wire::wire::limits::{EXEC_BODY_MAX, GUEST_ARGV_MAX, GUEST_CWD_MAX, GUEST
 use wsp_wire::wire::machine_link::{NOT_ON_THIS_ROAD, NO_IMAGES_HERE};
 use wsp_wire::wire::place_link::{host_key_refusal, PLACE_LINK_NONCE_BYTES};
 
-const CONTRACT: &str = "/root/wsp-vm/wt-2445-words/daemon/fixtures/contract";
+const CONTRACT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../daemon/fixtures/contract");
 
 fn committed_text(name: &str) -> Option<String> {
     std::fs::read_to_string(format!("{CONTRACT}/{name}")).ok()
