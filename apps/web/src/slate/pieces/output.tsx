@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// A run's output summary first (#2468): a row of the card with its label and its state as one word, a quiet Cancel in
+// A run's output summary first: a row of the card with its label and its state as one word, a quiet Cancel in
 // the slot while it runs, then what passed and failed as the runner tallied it and the lines that name a failure, or
 // the last line where no tally reads; the raw lines fold under "All N lines", `lines` rows tall once open, following
 // the end while it runs. Why under them when held or failed.

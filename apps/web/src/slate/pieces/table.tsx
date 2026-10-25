@@ -4,7 +4,7 @@
 // room, figures 12 px mono at the end, words 13 px muted. With more than two text columns a row folds to its title
 // over a note of the rest. One action that every row takes makes the row open, ending in a chevron. Nothing is cut:
 // long text wraps and the row grows. Rows are keyed by the piece's `key`, else their index.
-import type { SlateJson, SlatePropValue } from "@wsp/protocol/slate";
+import { SLATE_LIMITS, type SlateJson, type SlatePropValue } from "@wsp/protocol/slate";
 import type { SlateStep } from "../model.js";
 import { Button } from "../../components/ui/button.js";
 import { ChevronRight } from "lucide-react";
@@ -93,11 +93,9 @@ function fillOf(slate: SlateEngine, id: string, beside = true): { at: number; wo
   return { at, word: Math.max(word, ...fellows.map(other => fillOf(slate, other, false).word)) };
 }
 
-/** Past this many rows a table says how many more there are rather than draw them all on every push. */
-export const ROWS_DRAWN = 200;
-
-/** How many of a table's rows draw: what its rows prop asks for, never past ROWS_DRAWN. */
-const drawnRows = (asked: SlateJson | undefined, length: number): number => Math.min(typeof asked === "number" ? Math.max(0, Math.floor(asked)) : length, ROWS_DRAWN);
+/** How many of a table's rows draw: what its rows prop asks for, never past SLATE_LIMITS.rowsDrawn; past it the table
+ * says how many more there are rather than draw them all on every push. */
+const drawnRows = (asked: SlateJson | undefined, length: number): number => Math.min(typeof asked === "number" ? Math.max(0, Math.floor(asked)) : length, SLATE_LIMITS.rowsDrawn);
 
 
 const NAME = "text-sm leading-5 text-foreground";
