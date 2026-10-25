@@ -1,0 +1,132 @@
+{
+ "storeVars": [
+  "CLAUDE_CONFIG_DIR",
+  "CODEX_HOME"
+ ],
+ "loginRead": "printf \"path %s\\n\" \"$PATH\"; printf \"store:CLAUDE_CONFIG_DIR %s\\n\" \"$CLAUDE_CONFIG_DIR\"; printf \"store:CODEX_HOME %s\\n\" \"$CODEX_HOME\"",
+ "readScript": "printf \"home %s\\n\" \"$HOME\"\nprintf \"system %s\\n\" \"$(uname -s)\"\nprintf \"arch %s\\n\" \"$(uname -m)\"\nprintf \"user %s\\n\" \"$(id -un)\"\nshell=$(getent passwd \"$(id -un)\" 2>/dev/null | cut -d: -f7); shell=${shell##*/}; shell=${shell:-${SHELL##*/}}; shell=${shell:-bash}\nprintf \"shell %s\\n\" \"$shell\"\nenv -u BASH_ENV bash --noprofile --norc -c 'printf \"path %s\\n\" \"$PATH\"; printf \"store:CLAUDE_CONFIG_DIR %s\\n\" \"$CLAUDE_CONFIG_DIR\"; printf \"store:CODEX_HOME %s\\n\" \"$CODEX_HOME\"' 2>/dev/null\nprintf \"cpu %s\\n\" \"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 0)\"\nprintf \"memkb %s\\n\" \"$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1024 )))\"",
+ "factsScript": "printf \"pretty %s\\n\" \"$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release 2>/dev/null | head -1 | tr -d '\"')\"\nprintf \"mac %s\\n\" \"$(sw_vers -productVersion 2>/dev/null)\"\nprintf \"kernel %s %s\\n\" \"$(uname -s)\" \"$(uname -r)\"\nprintf \"uptime %s\\n\" \"$(cut -d' ' -f1 /proc/uptime 2>/dev/null)\"\nprintf \"boot %s\\n\" \"$(sysctl -n kern.boottime 2>/dev/null)\"\nprintf \"home %s\\n\" \"$HOME\"",
+ "sudoRead": "if [ \"$(id -u)\" -eq 0 ]; then echo WSP_SUDO root\nelif ! command -v sudo >/dev/null 2>&1; then echo WSP_SUDO none\nelif said=$(LC_ALL=C sudo -n -v 2>&1 && LC_ALL=C sudo -n -l bash -c true 2>&1); then echo WSP_SUDO free\nelse case \"$said\" in *\"must have a tty\"*) echo WSP_SUDO tty ;; *) echo WSP_SUDO asks ;; esac; fi",
+ "sudoTry": "LC_ALL=C sudo -S -k -p '' bash -c 'echo WSP_SUDO taken'",
+ "putBytesScript": [
+  "set -e\numask 077\nmkdir -p '/home/maya/.wsp'\ncat > '/home/maya/.wsp/daemon.tgz.wsp-in-abababababab'\n[ \"$(wc -c < '/home/maya/.wsp/daemon.tgz.wsp-in-abababababab' | tr -d ' ')\" = 5 ] || { rm -f '/home/maya/.wsp/daemon.tgz.wsp-in-abababababab'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f '/home/maya/.wsp/daemon.tgz.wsp-in-abababababab' '/home/maya/.wsp/daemon.tgz'\necho WSP_BYTES_OK",
+  "set -e\numask 077\nmkdir -p '.'\ncat > 'file.t'\n[ \"$(wc -c < 'file.t' | tr -d ' ')\" = 0 ] || { rm -f 'file.t'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f 'file.t' 'file'\necho WSP_BYTES_OK",
+  "set -e\numask 077\nmkdir -p '/it'\\''s here'\ncat > '/it'\\''s here/f.t'\n[ \"$(wc -c < '/it'\\''s here/f.t' | tr -d ' ')\" = 12 ] || { rm -f '/it'\\''s here/f.t'; echo WSP_BYTES_SHORT; exit 1; }\nmv -f '/it'\\''s here/f.t' '/it'\\''s here/f'\necho WSP_BYTES_OK"
+ ],
+ "plainPath": [
+  {
+   "path": null,
+   "plain": "/usr/local/bin:/usr/bin:/bin"
+  },
+  {
+   "path": "",
+   "plain": "/usr/local/bin:/usr/bin:/bin"
+  },
+  {
+   "path": "/usr/bin::/bin",
+   "plain": "/usr/bin:/bin"
+  },
+  {
+   "path": "./bin:/bin",
+   "plain": "/bin"
+  },
+  {
+   "path": "/a\"b:/c",
+   "plain": "/c"
+  },
+  {
+   "path": "/opt/my tools/bin:/usr/bin",
+   "plain": "/usr/bin"
+  },
+  {
+   "path": "/usr/bin:/usr/bin",
+   "plain": "/usr/bin:/usr/bin"
+  },
+  {
+   "path": "/x//y:/z",
+   "plain": "/z"
+  },
+  {
+   "path": "/a/../b:/c",
+   "plain": "/c"
+  },
+  {
+   "path": "/tab\there:/d",
+   "plain": "/d"
+  }
+ ],
+ "dialsThis": [
+  {
+   "host": "localhost",
+   "names": [],
+   "here": true
+  },
+  {
+   "host": "LOCALHOST.",
+   "names": [],
+   "here": true
+  },
+  {
+   "host": "127.9.9.9",
+   "names": [],
+   "here": true
+  },
+  {
+   "host": "[::1]",
+   "names": [],
+   "here": true
+  },
+  {
+   "host": "::1",
+   "names": [],
+   "here": true
+  },
+  {
+   "host": "0.0.0.0",
+   "names": [],
+   "here": true
+  },
+  {
+   "host": "mac",
+   "names": [
+    "Mac.local"
+   ],
+   "here": true
+  },
+  {
+   "host": "mac.local",
+   "names": [
+    "mac"
+   ],
+   "here": true
+  },
+  {
+   "host": "MAC.LOCAL.",
+   "names": [
+    "mac"
+   ],
+   "here": true
+  },
+  {
+   "host": "other",
+   "names": [
+    "mac"
+   ],
+   "here": false
+  },
+  {
+   "host": "mac",
+   "names": [
+    ""
+   ],
+   "here": false
+  },
+  {
+   "host": "box.lan",
+   "names": [
+    "box"
+   ],
+   "here": false
+  }
+ ]
+}

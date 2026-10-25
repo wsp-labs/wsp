@@ -1,0 +1,171 @@
+{
+ "hostKeyFound": [
+  {
+   "found": "# Host [10.0.0.5]:2222 found: line 3 \n[10.0.0.5]:2222 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDdxs0iI8J5qm7+4hxS2LKxvEImRo4YOgbsh7o/q6LcNs+/euQcFejNmlxWKGPcPx6ZAFZEvYmdwe/yDUYsoAH66WB32nACpcm8ELAXEkXxQZEjmr8daugXOpWv0qDzNu/2u5+eMJJJRNDDDupbkvmCM74T9cCAVkHDjisNybGndQ==\n|1|g4CYAxJ751PqMLyUC5r0xLd/ov4=|8lv3RgXEmKyoPgL0K37Xx452RDA= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC6sV8jQCzynkpUOM40rRIjA7tPstUSjC+A/LVMnAZhP\n",
+   "algorithms": "ssh-ed25519,rsa-sha2-512",
+   "key": "ssh-ed25519 SHA256:Ge9MQ9S/Faik2WzsxidRXnoEOJRIHkJKTBkOJ903vq4"
+  },
+  {
+   "found": "# Host [10.0.0.5]:2222 found: line 3 \n[10.0.0.5]:2222 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDdxs0iI8J5qm7+4hxS2LKxvEImRo4YOgbsh7o/q6LcNs+/euQcFejNmlxWKGPcPx6ZAFZEvYmdwe/yDUYsoAH66WB32nACpcm8ELAXEkXxQZEjmr8daugXOpWv0qDzNu/2u5+eMJJJRNDDDupbkvmCM74T9cCAVkHDjisNybGndQ==\n|1|g4CYAxJ751PqMLyUC5r0xLd/ov4=|8lv3RgXEmKyoPgL0K37Xx452RDA= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC6sV8jQCzynkpUOM40rRIjA7tPstUSjC+A/LVMnAZhP\n",
+   "algorithms": "rsa-sha2-512,ssh-ed25519",
+   "key": "ssh-rsa SHA256:00VO3BTKQbJeAg/nTIZvht3husrdVHRx5/E4JC9fFBE"
+  },
+  {
+   "found": "# Host [10.0.0.5]:2222 found: line 3 \n[10.0.0.5]:2222 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDdxs0iI8J5qm7+4hxS2LKxvEImRo4YOgbsh7o/q6LcNs+/euQcFejNmlxWKGPcPx6ZAFZEvYmdwe/yDUYsoAH66WB32nACpcm8ELAXEkXxQZEjmr8daugXOpWv0qDzNu/2u5+eMJJJRNDDDupbkvmCM74T9cCAVkHDjisNybGndQ==\n|1|g4CYAxJ751PqMLyUC5r0xLd/ov4=|8lv3RgXEmKyoPgL0K37Xx452RDA= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC6sV8jQCzynkpUOM40rRIjA7tPstUSjC+A/LVMnAZhP\n",
+   "algorithms": "rsa-sha2-512-cert-v01@openssh.com",
+   "key": null
+  },
+  {
+   "found": "# Host [10.0.0.5]:2222 found: line 3 \n[10.0.0.5]:2222 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDdxs0iI8J5qm7+4hxS2LKxvEImRo4YOgbsh7o/q6LcNs+/euQcFejNmlxWKGPcPx6ZAFZEvYmdwe/yDUYsoAH66WB32nACpcm8ELAXEkXxQZEjmr8daugXOpWv0qDzNu/2u5+eMJJJRNDDDupbkvmCM74T9cCAVkHDjisNybGndQ==\n|1|g4CYAxJ751PqMLyUC5r0xLd/ov4=|8lv3RgXEmKyoPgL0K37Xx452RDA= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC6sV8jQCzynkpUOM40rRIjA7tPstUSjC+A/LVMnAZhP\n",
+   "algorithms": "",
+   "key": null
+  },
+  {
+   "found": "  h ssh-ed25519   AAAAC3NzaC1lZDI1NTE5AAAAIC6sV8jQCzynkpUOM40rRIjA7tPstUSjC+A/LVMnAZhP  trailing comment",
+   "algorithms": "ssh-ed25519",
+   "key": "ssh-ed25519 SHA256:Ge9MQ9S/Faik2WzsxidRXnoEOJRIHkJKTBkOJ903vq4"
+  },
+  {
+   "found": "h ssh-ed25519 not*base64!",
+   "algorithms": "ssh-ed25519",
+   "key": "ssh-ed25519 SHA256:fU1i9JySLFesQSDuAAzQsJZRXJs89aWIz8hyOXzxT4A"
+  },
+  {
+   "found": "h ssh-ed25519 QUJD",
+   "algorithms": "ssh-ed25519",
+   "key": "ssh-ed25519 SHA256:tdQEXD9Gb6kf4sxqvnkjKhpXzfEE96JucW4KHieJ33g"
+  },
+  {
+   "found": "h ssh-ed25519 QUJ",
+   "algorithms": "ssh-ed25519",
+   "key": "ssh-ed25519 SHA256:OBZPvRdgPXP2lri01yZk1zW7anyIV3aH/SrjP9aWQVM"
+  },
+  {
+   "found": "h ssh-rsa QUJD\nh ssh-rsa QUJE",
+   "algorithms": "ssh-rsa",
+   "key": "ssh-rsa SHA256:tdQEXD9Gb6kf4sxqvnkjKhpXzfEE96JucW4KHieJ33g"
+  }
+ ],
+ "target": [
+  {
+   "values": {
+    "hostname": "10.0.0.5",
+    "port": "2222"
+   },
+   "target": "[10.0.0.5]:2222"
+  },
+  {
+   "values": {
+    "hostname": "10.0.0.5",
+    "port": "22"
+   },
+   "target": "10.0.0.5"
+  },
+  {
+   "values": {
+    "hostname": "10.0.0.5",
+    "port": "abc"
+   },
+   "target": "10.0.0.5"
+  },
+  {
+   "values": {
+    "hostname": "10.0.0.5",
+    "port": "2222.5"
+   },
+   "target": "10.0.0.5"
+  },
+  {
+   "values": {
+    "hostname": "10.0.0.5"
+   },
+   "target": "10.0.0.5"
+  },
+  {
+   "values": {
+    "hostname": "",
+    "port": "2222"
+   },
+   "target": null
+  },
+  {
+   "values": {
+    "hostname": "h",
+    "hostkeyalias": "alias"
+   },
+   "target": "alias"
+  },
+  {
+   "values": {
+    "hostname": "h",
+    "hostkeyalias": ""
+   },
+   "target": "h"
+  }
+ ],
+ "files": [
+  {
+   "values": {
+    "userknownhostsfile": "/a /b  /c",
+    "globalknownhostsfile": "none /g"
+   },
+   "files": [
+    "/a",
+    "/b",
+    "/c",
+    "/g"
+   ]
+  },
+  {
+   "values": {
+    "userknownhostsfile": "~/.ssh/known_hosts ~ ~x/y"
+   },
+   "files": [
+    "/home/me/.ssh/known_hosts",
+    "~",
+    "~x/y"
+   ]
+  },
+  {
+   "values": {},
+   "files": []
+  }
+ ],
+ "clientWords": [
+  {
+   "text": "debug1: x\ndev@h: Permission denied (publickey).\n",
+   "words": "dev@h: Permission denied (publickey)."
+  },
+  {
+   "text": "Warning: Permanently added '10.0.0.5' (ED25519) to the list of known hosts.\nreal\n",
+   "words": "real"
+  },
+  {
+   "text": "Warning: Permanently added 'x' to the list of known hosts\n",
+   "words": ""
+  },
+  {
+   "text": "Warning: Permanently added 'x' to the list of known hosts.\r\n",
+   "words": "Warning: Permanently added 'x' to the list of known hosts."
+  },
+  {
+   "text": "bind [127.0.0.1]:8080: Address already in use\nchannel_setup_fwd_listener_tcpip: cannot listen to port: 8080\nCould not request local forwarding.\nkept\n",
+   "words": "kept"
+  },
+  {
+   "text": "  debug12: deep\n  spaced  \n",
+   "words": "debug12: deep\n  spaced"
+  },
+  {
+   "text": "",
+   "words": ""
+  }
+ ],
+ "refusal": [
+  "dev@box refused the login over ssh (exit 255)",
+  "dev@box refused the login over ssh (exit 1)",
+  "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+ ],
+ "wordRefusal": "nonsense is neither a login like root@host nor an alias your ssh config gives a HostName",
+ "identity": "ssh-ed25519 SHA256:x as dev"
+}

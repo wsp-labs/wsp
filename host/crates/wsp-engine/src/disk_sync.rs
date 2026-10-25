@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! Port of packages/engine/src/disk-sync.ts. Spec: spec/machine_reads.md.
+//!
+//! The guest's disk made whole before the provider copies or pauses it.
+use crate::errors::EngineError;
+use crate::machine::Machine;
+
+/// disk-sync.ts:13.
+pub const DISK_SYNC_CMD: &str = "sync && awk '/^(Dirty|Writeback):/ {print $1, $2}' /proc/meminfo";
+
+/// disk-sync.ts:16. What the guest's counters read once its sync returned, in kB.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DiskReading {
+    pub dirty_kb: f64,
+    pub writeback_kb: f64,
+}
+
+/// disk-sync.ts:22 `DiskSyncError`, beside the exec's own failure, which passes as itself.
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+pub enum SyncDiskError {
+    /// The guest's sync answered non-zero: `answer` is exec-detached's `machine_answer(res)`, `line` is
+    /// `disk_sync_failed_line(answer)`, which is the message.
+    #[error("{line}")]
+    Sync { answer: String, line: String },
+    #[error(transparent)]
+    Exec(EngineError),
+}
+
+/// disk-sync.ts:31. `exec(DISK_SYNC_CMD, timeout INLINE_EXEC_MS)`. Non-zero is `Sync`. Else each counter is the digits of
+/// the first line matching `^<Name>: (\d+)$` (multiline): `None` where either is missing.
+pub async fn sync_disk(machine: &dyn Machine) -> Result<Option<DiskReading>, SyncDiskError> {
+    todo!()
+}
+
+/// disk-sync.ts:44.
+pub const DISK_USE_CMD: &str = "df -Pk / | awk 'NR==2 {print $3, $4}'";
+
+/// disk-sync.ts:48 answer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DiskUse {
+    pub used_bytes: f64,
+    pub free_bytes: f64,
+    /// `used * 100 / (used + free)`, unrounded.
+    pub pct: f64,
+}
+
+/// disk-sync.ts:48. The first line of the trimmed text matching `^(\d+) (\d+)$` (multiline), in kB; `None` where none
+/// matches or both are 0.
+pub fn disk_use_of(stdout: &str) -> Option<DiskUse> {
+    todo!()
+}
+
+/// disk-sync.ts:56.
+pub fn disk_use_pct(stdout: &str) -> Option<f64> {
+    todo!()
+}
+
+/// disk-sync.ts:59. A reading with either counter above 0.
+pub fn disk_unsettled(r: Option<&DiskReading>) -> bool {
+    todo!()
+}

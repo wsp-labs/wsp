@@ -1,0 +1,108 @@
+{
+ "shape": [
+  {
+   "cpu": 10,
+   "memMb": 16384
+  },
+  {
+   "cpu": 10,
+   "memMb": 16384
+  },
+  {
+   "cpu": 8,
+   "memMb": 8192
+  },
+  {
+   "cpu": 1,
+   "memMb": 1024
+  },
+  {
+   "cpu": 4,
+   "memMb": 2048
+  },
+  {
+   "cpu": 2,
+   "memMb": 0
+  }
+ ],
+ "meminfo": [
+  {
+   "freeMb": 9000,
+   "totalMb": 15921
+  },
+  null,
+  {
+   "freeMb": 1,
+   "totalMb": 2
+  },
+  null,
+  {
+   "freeMb": 1,
+   "totalMb": 2
+  }
+ ],
+ "pressure": [
+  [
+   "54\n",
+   {
+    "freeMb": 8847,
+    "totalMb": 16384
+   }
+  ],
+  [
+   "",
+   null
+  ],
+  [
+   "x",
+   null
+  ],
+  [
+   "101",
+   null
+  ],
+  [
+   "-1",
+   null
+  ],
+  [
+   "5.5",
+   null
+  ],
+  [
+   " 7 ",
+   {
+    "freeMb": 1146,
+    "totalMb": 16384
+   }
+  ],
+  [
+   "0",
+   {
+    "freeMb": 0,
+    "totalMb": 16384
+   }
+  ],
+  [
+   "100",
+   {
+    "freeMb": 16384,
+    "totalMb": 16384
+   }
+  ],
+  [
+   "1e1",
+   {
+    "freeMb": 1638,
+    "totalMb": 16384
+   }
+  ],
+  [
+   "0x10",
+   {
+    "freeMb": 2621,
+    "totalMb": 16384
+   }
+  ]
+ ]
+}

@@ -1,0 +1,76 @@
+[
+ {
+  "stdout": "home /home/dev\nuser dev\npath /home/dev/.local/bin:/usr/bin\ncpu 8\nmemkb 16384000\n",
+  "read": {
+   "ok": {
+    "login": {
+     "HOME": "/home/dev",
+     "USER": "dev",
+     "PATH": "/home/dev/.local/bin:/usr/bin"
+    },
+    "shape": {
+     "cpu": 8,
+     "memMb": 16000
+    }
+   }
+  }
+ },
+ {
+  "stdout": "home /root\nuser \npath \ncpu abc\nmemkb x\nshell \nsystem Linux\narch aarch64\nstore:CLAUDE_CONFIG_DIR /root/.c\nstore:CODEX_HOME relative\n",
+  "read": {
+   "ok": {
+    "login": {
+     "CLAUDE_CONFIG_DIR": "/root/.c",
+     "HOME": "/root",
+     "USER": "",
+     "PATH": "/usr/local/bin:/usr/bin:/bin"
+    },
+    "shape": {
+     "cpu": null,
+     "memMb": 0
+    },
+    "system": "Linux",
+    "arch": "aarch64"
+   }
+  }
+ },
+ {
+  "stdout": "home /root\ncpu\n",
+  "read": {
+   "ok": {
+    "login": {
+     "HOME": "/root",
+     "USER": "dev",
+     "PATH": "/usr/local/bin:/usr/bin:/bin"
+    },
+    "shape": {
+     "cpu": 0,
+     "memMb": 0
+    }
+   }
+  }
+ },
+ {
+  "stdout": "home /root\nhome /second\nuser a\nuser b\n",
+  "read": {
+   "ok": {
+    "login": {
+     "HOME": "/second",
+     "USER": "b",
+     "PATH": "/usr/local/bin:/usr/bin:/bin"
+    },
+    "shape": {
+     "cpu": 0,
+     "memMb": 0
+    }
+   }
+  }
+ },
+ {
+  "stdout": "",
+  "read": {
+   "err": "dev@box did not answer over ssh: out",
+   "missingKnownHosts": false
+  }
+ }
+]
