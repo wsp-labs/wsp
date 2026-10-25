@@ -63,7 +63,7 @@ Nothing here fails a remove: each answers empty on any failure.
   and `reason`.
 - **V15 `forks_of(record)`** (:234-256): `None` where the computer is not linked; where linked with no backend yet, start
   `forking_backend(id)` in the background (not awaited, failure swallowed) and answer `None`; `None` where the backend
-  has no `capacity`. Else `capacity()` bounded by `CAPACITY_MS` (5 s, what `machine.capacity on <name>`): `running` =
+  does not offer `capacity` (`offers().capacity` false). Else `capacity()` bounded by `CAPACITY_MS` (5 s, what `machine.capacity on <name>`): `running` =
   `machines.running` (a napping fork is not counted), `room` = `fork_room(capacity, min(defaultSize.memMb,
   machineMemMb), largest image sizeBytes or None where it is 0)`. A failure or the bound is `None`.
 
@@ -122,10 +122,10 @@ is what places-a's `load` hands to `taken_back`.
 | V10 | `plugins_off_only_installed_rows`, `plugins_off_link_then_login_roads`, `plugins_off_kept_names_and_labels` |
 | V11 | `facts_on_answers_held_after_add_facts_ms` |
 | V12 | `backend_from_replaces_kept_backend` |
-| V13 | `tunnelled_data_and_end_reach_the_connection`, `tunnelled_other_place_is_false` |
+| V13 | `tunnelled_other_place_is_false` (the data path needs a `Forward`, whose `LoopbackListener` binds a real port: covered once places-a's pane ports test one) |
 | V14 | `cut_removes_link_then_closes_1000` |
 | V15 | `forks_of_unlinked_none`, `forks_of_room_and_running`, `forks_of_capacity_bound_is_none` |
 | V16 | `view_of_full_row`, `view_of_road_hides_key_path_and_host_key`, `view_of_takes_runtime_needs_leave_asks`, `view_of_sign_ins_absent_without_logins` |
 | V17 | `joined_writes_record_marks_default_emits`, `joined_bad_signature_spends_no_code`, `joined_blocked_spends_no_code`, `joined_spent_code_refused_no_record`, `joined_notes_awaiting_install_road`, `joined_admits_client_device` |
 | V18 | `forget_clears_record_caps_mark_and_emits`, `forget_keeps_mark_on_other_place` |
-| V19-V22 | `here_row_fields_and_behind_install`, `rows_of_order_and_one_default`, `rows_of_mark_on_gone_row_falls_to_here`, `provider_row_rate_sizes` |
+| V19-V22 | `here_row_fields_and_behind_install`, `rows_of_order_and_one_default`, `rows_of_mark_on_gone_row_falls_to_here`, `joined_row_adds_image_facts`, `provider_row_rate_sizes` |
