@@ -1,0 +1,7615 @@
+[
+ {
+  "name": "firewall_wiped_past_the_add_window_warns_without_words",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://3000-x.on.boat.dev/?_token=t9"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "url": "https://3000-x.on.boat.dev/?_token=t9",
+   "token": "t9",
+   "expiresAt": 9007199254740991
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/host",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"port\":3000,\"public\":false}"
+   }
+  ],
+  "sleeps": [
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000
+  ],
+  "warns": [
+   "bx_tumrjngm: the firewall did not hold a rule for port 3000; the route is minted without one"
+  ],
+  "elapsed": 35000
+ },
+ {
+  "name": "firewall_keeps_the_last_refusal_after_a_later_add_held",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "  ERROR: ufw busy \n",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://3000-x.on.boat.dev/?_token=t9"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "url": "https://3000-x.on.boat.dev/?_token=t9",
+   "token": "t9",
+   "expiresAt": 9007199254740991
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/host",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"port\":3000,\"public\":false}"
+   }
+  ],
+  "sleeps": [
+   10,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000
+  ],
+  "warns": [
+   "bx_tumrjngm: the firewall did not hold a rule for port 3000 (ERROR: ufw busy); the route is minted without one"
+  ],
+  "elapsed": 35010
+ },
+ {
+  "name": "firewall_blank_stderr_hides_stdout",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "out",
+      "stderr": " \n",
+      "timedOut": false
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://3000-x.on.boat.dev/?_token=t9"
+     }
+    }
+   ]
+  },
+  "budgets": {
+   "pollMs": 1000
+  },
+  "out": {
+   "url": "https://3000-x.on.boat.dev/?_token=t9",
+   "token": "t9",
+   "expiresAt": 9007199254740991
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/host",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"port\":3000,\"public\":false}"
+   }
+  ],
+  "sleeps": [
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000
+  ],
+  "warns": [
+   "bx_tumrjngm: the firewall did not hold a rule for port 3000; the route is minted without one"
+  ],
+  "elapsed": 31000
+ },
+ {
+  "name": "firewall_keeps_the_last_200_units_of_a_long_refusal",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://3000-x.on.boat.dev/?_token=t9"
+     }
+    }
+   ]
+  },
+  "budgets": {
+   "pollMs": 1000
+  },
+  "out": {
+   "url": "https://3000-x.on.boat.dev/?_token=t9",
+   "token": "t9",
+   "expiresAt": 9007199254740991
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^3000/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 3000/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/host",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"port\":3000,\"public\":false}"
+   }
+  ],
+  "sleeps": [
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000,
+   1000
+  ],
+  "warns": [
+   "bx_tumrjngm: the firewall did not hold a rule for port 3000 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB); the route is minted without one"
+  ],
+  "elapsed": 31000
+ },
+ {
+  "name": "firewall_standing_read_that_throws_reads_as_not_standing",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 400,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 400,
+      "code": "bad_request",
+      "message": "no shell",
+      "requestId": "req_1"
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://x.on.boat.dev/"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "url": "https://x.on.boat.dev/",
+   "token": "",
+   "expiresAt": 9007199254740991
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^8080/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw allow 8080/tcp'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^8080/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^8080/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^8080/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^8080/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^8080/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nufw status | grep -q '\\\\''^8080/tcp '\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/host",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"port\":8080,\"public\":false}"
+   }
+  ],
+  "sleeps": [
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000
+  ],
+  "warns": [
+   "Boat refused POST /sandboxes/bx_tumrjngm/commands: 400 code=bad_request requestId=req_1: no shell"
+  ],
+  "elapsed": 30000
+ },
+ {
+  "name": "route_token_is_the_decoded_query_value",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://7070-x.on.boat.dev/p?a=1&_token=a+b%2Fc&_token=second"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "url": "https://7070-x.on.boat.dev/p?a=1&_token=a+b%2Fc&_token=second",
+   "token": "a b/c",
+   "expiresAt": 9007199254740991
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/host",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"port\":7070,\"public\":true}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "pause_of_an_archived_box_sends_nothing_and_sleeps_not",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archived",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "pause_archived_at_the_budget_read_is_done",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "running",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archiving",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archiving",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archiving",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archiving",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archiving",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archiving",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archiving",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archiving",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archiving",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archived",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/stop": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/stop",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10
+  ],
+  "warns": [],
+  "elapsed": 100
+ },
+ {
+  "name": "pause_archiving_at_the_budget_read_times_out",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archiving",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "pause did not complete in 100ms; the provider did not answer and reads the machine paused; try again",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10
+  ],
+  "warns": [
+   "bx_tumrjngm: pause did not complete in 100ms; the provider did not answer and reads the machine paused; try again"
+  ],
+  "elapsed": 100
+ },
+ {
+  "name": "pause_of_a_lost_box_fails_missing_and_sends_no_stop",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "not_found",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused GET /sandboxes/bx_tumrjngm: 404 code=not_found requestId=req_1: not_found"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "pause_wait_stands_in_for_the_budget",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "running",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "archiving",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/stop": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "pause did not complete in 40ms; the provider did not answer and reads the machine paused; try again",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/stop",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [
+   10,
+   10,
+   10,
+   10
+  ],
+  "warns": [
+   "bx_tumrjngm: pause did not complete in 40ms; the provider did not answer and reads the machine paused; try again"
+  ],
+  "elapsed": 40
+ },
+ {
+  "name": "snapshot_failed_with_empty_error_has_no_colon",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /named-snapshots": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ],
+   "GET /named-snapshots/wsp-v1": [
+    {
+     "status": 200,
+     "body": {
+      "snapshot": {
+       "name": "wsp-v1",
+       "status": "saving",
+       "sourceSandboxId": "bx_tumrjngm",
+       "createdAt": "2026-09-11T06:47:23.959Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "snapshot": {
+       "name": "wsp-v1",
+       "status": "failed",
+       "sourceSandboxId": "bx_tumrjngm",
+       "createdAt": "2026-09-11T06:47:23.959Z",
+       "error": ""
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "named snapshot wsp-v1 of bx_tumrjngm failed",
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/named-snapshots",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"sandboxId\":\"bx_tumrjngm\",\"name\":\"wsp-v1\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [
+   10,
+   10
+  ],
+  "warns": [],
+  "elapsed": 20
+ },
+ {
+  "name": "snapshot_ready_at_the_budget_read_wins",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /named-snapshots": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ],
+   "GET /named-snapshots/wsp-v1": [
+    {
+     "status": 200,
+     "body": {
+      "snapshot": {
+       "name": "wsp-v1",
+       "status": "saving",
+       "sourceSandboxId": "bx_tumrjngm",
+       "createdAt": "2026-09-11T06:47:23.959Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "snapshot": {
+       "name": "wsp-v1",
+       "status": "saving",
+       "sourceSandboxId": "bx_tumrjngm",
+       "createdAt": "2026-09-11T06:47:23.959Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "snapshot": {
+       "name": "wsp-v1",
+       "status": "saving",
+       "sourceSandboxId": "bx_tumrjngm",
+       "createdAt": "2026-09-11T06:47:23.959Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "snapshot": {
+       "name": "wsp-v1",
+       "status": "saving",
+       "sourceSandboxId": "bx_tumrjngm",
+       "createdAt": "2026-09-11T06:47:23.959Z"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "snapshot": {
+       "name": "wsp-v1",
+       "status": "ready",
+       "sourceSandboxId": "bx_tumrjngm",
+       "createdAt": "2026-09-11T06:47:23.959Z"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {
+   "snapshotMs": 2500,
+   "pollMs": 500
+  },
+  "out": "wsp-v1",
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/named-snapshots",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"sandboxId\":\"bx_tumrjngm\",\"name\":\"wsp-v1\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [
+   500,
+   500,
+   500,
+   500,
+   500
+  ],
+  "warns": [],
+  "elapsed": 2500
+ },
+ {
+  "name": "snapshot_budget_words_round_half_up",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /named-snapshots": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ],
+   "GET /named-snapshots/wsp-v1": [
+    {
+     "status": 200,
+     "body": {
+      "snapshot": {
+       "name": "wsp-v1",
+       "status": "saving",
+       "sourceSandboxId": "bx_tumrjngm",
+       "createdAt": "2026-09-11T06:47:23.959Z"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {
+   "snapshotMs": 2500,
+   "pollMs": 500
+  },
+  "out": null,
+  "err": "named snapshot wsp-v1 of bx_tumrjngm still reads saving after 3 s",
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/named-snapshots",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"sandboxId\":\"bx_tumrjngm\",\"name\":\"wsp-v1\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [
+   500,
+   500,
+   500,
+   500,
+   500
+  ],
+  "warns": [],
+  "elapsed": 2500
+ },
+ {
+  "name": "snapshot_budget_under_half_a_second_reads_0_s",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /named-snapshots": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ],
+   "GET /named-snapshots/wsp-v1": [
+    {
+     "status": 200,
+     "body": {
+      "snapshot": {
+       "name": "wsp-v1",
+       "status": "saving",
+       "sourceSandboxId": "bx_tumrjngm",
+       "createdAt": "2026-09-11T06:47:23.959Z"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "named snapshot wsp-v1 of bx_tumrjngm still reads saving after 0 s",
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/named-snapshots",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"sandboxId\":\"bx_tumrjngm\",\"name\":\"wsp-v1\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/named-snapshots/wsp-v1",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10,
+   10
+  ],
+  "warns": [],
+  "elapsed": 100
+ },
+ {
+  "name": "kill_answered_without_an_operation_keeps_no_deletion_and_forgets_the_timer",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ],
+   "DELETE /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "threw": null,
+   "timer": null,
+   "deletion": null
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":600}"
+   },
+   {
+    "method": "DELETE",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "x-ascii-confirm-delete": "bx_tumrjngm"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "kill_refused_keeps_the_timer",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ],
+   "DELETE /sandboxes/bx_tumrjngm": [
+    {
+     "status": 409,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 409,
+      "code": "conflict",
+      "message": "busy",
+      "requestId": "req_1"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "threw": "busy",
+   "timer": {
+    "until": 1600000,
+    "spanMs": 600000
+   },
+   "deletion": null
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":600}"
+   },
+   {
+    "method": "DELETE",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "x-ascii-confirm-delete": "bx_tumrjngm"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused DELETE /sandboxes/bx_tumrjngm: 409 code=conflict requestId=req_1: busy"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "kill_of_a_gone_box_forgets_the_timer",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "threw": null,
+   "timer": null,
+   "deletion": null
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":600}"
+   },
+   {
+    "method": "DELETE",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "x-ascii-confirm-delete": "bx_tumrjngm"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused DELETE /sandboxes/bx_tumrjngm: 404 code=not_found requestId=req_1: not_found"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "exec_exit_code_wins_over_timed_out",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "x",
+      "stderr": "",
+      "timedOut": true
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://3000-x.on.boat.dev/?_token=t9"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "exitCode": 0,
+   "stdout": "x",
+   "stderr": ""
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\necho hi'\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "exec_null_exit_timed_out_reads_124",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": null,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": true
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://3000-x.on.boat.dev/?_token=t9"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "exitCode": 124,
+   "stdout": "",
+   "stderr": ""
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\necho hi'\",\"timeoutSeconds\":2}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "exec_null_exit_reads_minus_1_and_absent_streams_read_empty",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "exitCode": null
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://3000-x.on.boat.dev/?_token=t9"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "exitCode": -1,
+   "stdout": "",
+   "stderr": ""
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\necho hi'\",\"timeoutSeconds\":1}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "exec_at_the_inline_cap_stays_inline",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://3000-x.on.boat.dev/?_token=t9"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "exitCode": 0,
+   "stdout": "",
+   "stderr": ""
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\necho hi'\",\"timeoutSeconds\":30}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "exec_loader_emfile_on_a_later_line_is_unusable",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "warn\nsudo: error while loading shared libraries: libc.so.6: cannot open shared object file: Error 24\n",
+      "timedOut": false
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://3000-x.on.boat.dev/?_token=t9"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "Boat left bx_tumrjngm running but nothing on it can run: warn\nsudo: error while loading shared libraries: libc.so.6: cannot open shared object file: Error 24",
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\necho hi'\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "exec_loader_emfile_not_at_a_line_start_is_a_plain_answer",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": " bash: error while loading shared libraries: x: Error 24",
+      "timedOut": false
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://3000-x.on.boat.dev/?_token=t9"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "exitCode": 1,
+   "stdout": "",
+   "stderr": " bash: error while loading shared libraries: x: Error 24"
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\necho hi'\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "exec_no_work_folder_wins_over_machine_not_running",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 409,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 409,
+      "code": "machine_not_running",
+      "message": "CWD must be an existing directory",
+      "requestId": "req_1"
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/host": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "url": "https://3000-x.on.boat.dev/?_token=t9"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "Boat left bx_tumrjngm running but nothing on it can run: /home/user is missing, and Boat runs every command there (it said: CWD must be an existing directory); a wake cannot make it again, so a rebuild is the way out, and work not pushed is lost with the old disk",
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\necho hi'\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused POST /sandboxes/bx_tumrjngm/commands: 409 code=machine_not_running requestId=req_1: CWD must be an existing directory"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "put_of_no_bytes_into_tmp_is_one_empty_put",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PUT /sandboxes/bx_tumrjngm/files": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": null,
+  "calls": [
+   {
+    "method": "PUT",
+    "path": "/sandboxes/bx_tumrjngm/files",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"path\":\"/tmp/empty\",\"content\":\"\",\"encoding\":\"base64\"}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "put_to_the_bare_tmp_path_joins_into_root",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PUT /sandboxes/bx_tumrjngm/files": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": null,
+  "calls": [
+   {
+    "method": "PUT",
+    "path": "/sandboxes/bx_tumrjngm/files",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"path\":\"/tmp/wsp-put-abababababab.0\",\"content\":\"AQ==\",\"encoding\":\"base64\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\n[ ! -e '\\\\''/tmp/wsp-put-abababababab.0'\\\\'' ] && [ \\\"$(stat -c %s '\\\\''/tmp'\\\\'' 2>/dev/null)\\\" = 1 ] && exit 0\\nmkdir -p '\\\\''/'\\\\''\\ncat '\\\\''/tmp/wsp-put-abababababab.0'\\\\'' > '\\\\''/tmp'\\\\'' && chmod 0644 '\\\\''/tmp'\\\\'' && rm -f '\\\\''/tmp/wsp-put-abababababab.0'\\\\''\\n[ \\\"$(stat -c %s '\\\\''/tmp'\\\\'')\\\" = 1 ] || { echo \\\"WSP_SHORT $(stat -c %s '\\\\''/tmp'\\\\'')\\\"; exit 1; }'\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "put_to_a_relative_path_cuts_the_folder_as_the_ts_does",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PUT /sandboxes/bx_tumrjngm/files": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": null,
+  "calls": [
+   {
+    "method": "PUT",
+    "path": "/sandboxes/bx_tumrjngm/files",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"path\":\"/tmp/wsp-put-abababababab.0\",\"content\":\"AQI=\",\"encoding\":\"base64\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\n[ ! -e '\\\\''/tmp/wsp-put-abababababab.0'\\\\'' ] && [ \\\"$(stat -c %s '\\\\''file.txt'\\\\'' 2>/dev/null)\\\" = 2 ] && exit 0\\nmkdir -p '\\\\''file.tx'\\\\''\\ncat '\\\\''/tmp/wsp-put-abababababab.0'\\\\'' > '\\\\''file.txt'\\\\'' && chmod 0644 '\\\\''file.txt'\\\\'' && rm -f '\\\\''/tmp/wsp-put-abababababab.0'\\\\''\\n[ \\\"$(stat -c %s '\\\\''file.txt'\\\\'')\\\" = 2 ] || { echo \\\"WSP_SHORT $(stat -c %s '\\\\''file.txt'\\\\'')\\\"; exit 1; }'\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "put_join_failure_names_stdout_when_stderr_is_blank",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PUT /sandboxes/bx_tumrjngm/files": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "WSP_SHORT 1\n",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "/root/a b/x did not land on bx_tumrjngm (exit 1): WSP_SHORT 1",
+  "calls": [
+   {
+    "method": "PUT",
+    "path": "/sandboxes/bx_tumrjngm/files",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"path\":\"/tmp/wsp-put-abababababab.0\",\"content\":\"AQI=\",\"encoding\":\"base64\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\n[ ! -e '\\\\''/tmp/wsp-put-abababababab.0'\\\\'' ] && [ \\\"$(stat -c %s '\\\\''/root/a b/x'\\\\'' 2>/dev/null)\\\" = 2 ] && exit 0\\nmkdir -p '\\\\''/root/a b'\\\\''\\ncat '\\\\''/tmp/wsp-put-abababababab.0'\\\\'' > '\\\\''/root/a b/x'\\\\'' && chmod 0644 '\\\\''/root/a b/x'\\\\'' && rm -f '\\\\''/tmp/wsp-put-abababababab.0'\\\\''\\n[ \\\"$(stat -c %s '\\\\''/root/a b/x'\\\\'')\\\" = 2 ] || { echo \\\"WSP_SHORT $(stat -c %s '\\\\''/root/a b/x'\\\\'')\\\"; exit 1; }'\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "read_with_a_blank_size_reads_zero_and_takes_the_straight_road",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "\n",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "GET /sandboxes/bx_tumrjngm/files": [
+    {
+     "status": 200,
+     "body": {
+      "content": "AQID"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "bytes": [
+    1,
+    2,
+    3
+   ]
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nstat -c %s '\\\\''/tmp/x'\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm/files",
+    "query": [
+     [
+      "path",
+      "/tmp/x"
+     ],
+     [
+      "encoding",
+      "base64"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "read_size_in_exponent_form_is_a_number",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": " 3e0 \n",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "GET /sandboxes/bx_tumrjngm/files": [
+    {
+     "status": 200,
+     "body": {
+      "content": "AQID"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "bytes": [
+    1,
+    2,
+    3
+   ]
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nstat -c %s '\\\\''/root/x'\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nsplit -b 4194304 -d -a 4 '\\\\''/root/x'\\\\'' '\\\\''/tmp/wsp-get-abababababab.'\\\\'' && chmod 0644 '\\\\''/tmp/wsp-get-abababababab.0000'\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm/files",
+    "query": [
+     [
+      "path",
+      "/tmp/wsp-get-abababababab.0000"
+     ],
+     [
+      "encoding",
+      "base64"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nrm -f '\\\\''/tmp/wsp-get-abababababab.0000'\\\\'''\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "read_size_with_a_fraction_is_refused",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "12.5\n",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "/tmp/x on bx_tumrjngm could not be read (exit 0): 12.5",
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nstat -c %s '\\\\''/tmp/x'\\\\'''\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "read_cut_refused_still_removes_every_piece",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": false,
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "split: no such file\n",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "/root/x on bx_tumrjngm was not cut for reading (exit 1): split: no such file",
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nsplit -b 4194304 -d -a 4 '\\\\''/root/x'\\\\'' '\\\\''/tmp/wsp-get-abababababab.'\\\\'' && chmod 0644 '\\\\''/tmp/wsp-get-abababababab.0000'\\\\'' '\\\\''/tmp/wsp-get-abababababab.0001'\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nrm -f '\\\\''/tmp/wsp-get-abababababab.0000'\\\\'' '\\\\''/tmp/wsp-get-abababababab.0001'\\\\'''\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "read_short_still_removes_and_names_both_sizes",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    },
+    {
+     "status": 400,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 400,
+      "code": "bad",
+      "message": "rm refused",
+      "requestId": "req_1"
+     }
+    }
+   ],
+   "GET /sandboxes/bx_tumrjngm/files": [
+    {
+     "status": 200,
+     "body": {
+      "content": "AQID"
+     }
+    },
+    {
+     "status": 200,
+     "body": {}
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "/root/x on bx_tumrjngm read 3 bytes of 4194305",
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nsplit -b 4194304 -d -a 4 '\\\\''/root/x'\\\\'' '\\\\''/tmp/wsp-get-abababababab.'\\\\'' && chmod 0644 '\\\\''/tmp/wsp-get-abababababab.0000'\\\\'' '\\\\''/tmp/wsp-get-abababababab.0001'\\\\'''\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm/files",
+    "query": [
+     [
+      "path",
+      "/tmp/wsp-get-abababababab.0000"
+     ],
+     [
+      "encoding",
+      "base64"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm/files",
+    "query": [
+     [
+      "path",
+      "/tmp/wsp-get-abababababab.0001"
+     ],
+     [
+      "encoding",
+      "base64"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\nrm -f '\\\\''/tmp/wsp-get-abababababab.0000'\\\\'' '\\\\''/tmp/wsp-get-abababababab.0001'\\\\'''\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused POST /sandboxes/bx_tumrjngm/commands: 400 code=bad requestId=req_1: rm refused"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "describe_reads_half_a_gigabyte_and_leaves_out_what_is_missing",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "running",
+       "error": null,
+       "type": "huge",
+       "memoryGB": 0.5,
+       "createdAt": null
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "memMb": 512
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "create_in_progress_waits_2000_and_the_request_asks_a_gateway_again_itself",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "status": 409,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 409,
+      "code": "idempotency_in_progress",
+      "message": "in progress",
+      "requestId": "req_1"
+     }
+    },
+    {
+     "status": 502,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 502,
+      "code": "bad_gateway",
+      "message": "bad gateway",
+      "requestId": "req_1"
+     }
+    },
+    {
+     "status": 201,
+     "body": {
+      "ok": true,
+      "status": "provisioning",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "provisioning",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_new/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "DELETE /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "operation": {
+       "id": "op_1"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "id": "bx_new",
+   "replayed": false
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_new/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\ntrue'\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [
+   2000,
+   1000
+  ],
+  "warns": [
+   "Boat refused POST /sandboxes: 409 code=idempotency_in_progress requestId=req_1: in progress",
+   "Boat refused POST /sandboxes: 502 code=bad_gateway requestId=req_1: bad gateway"
+  ],
+  "elapsed": 3000
+ },
+ {
+  "name": "create_lost_then_answered_warns_the_first_lost_words_and_is_not_replayed",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "road": "dropped"
+    },
+    {
+     "status": 409,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 409,
+      "code": "idempotency_in_progress",
+      "message": "in progress",
+      "requestId": "req_1"
+     }
+    },
+    {
+     "road": "offline"
+    },
+    {
+     "status": 201,
+     "body": {
+      "ok": true,
+      "status": "ready",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_new/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "DELETE /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "operation": {
+       "id": "op_1"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "id": "bx_new",
+   "replayed": false
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_new/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\ntrue'\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [
+   0,
+   2000,
+   3000
+  ],
+  "warns": [
+   "Boat refused POST /sandboxes: 409 code=idempotency_in_progress requestId=req_1: in progress",
+   "POST /sandboxes did not leave this computer (ENOTFOUND); try 2 of 3",
+   "the answer to Boat's create was lost (fetch failed: ECONNRESET); wsp asked again and found bx_new, which this create goes on with."
+  ],
+  "elapsed": 5000
+ },
+ {
+  "name": "create_lost_until_the_window_answers_the_last_failure",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "road": "dropped"
+    }
+   ],
+   "GET /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_new/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "DELETE /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "operation": {
+       "id": "op_1"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "fetch failed",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   }
+  ],
+  "sleeps": [
+   0,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000,
+   5000
+  ],
+  "warns": [],
+  "elapsed": 120000
+ },
+ {
+  "name": "create_refused_after_a_lost_answer_is_the_refusal",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "road": "dropped"
+    },
+    {
+     "status": 400,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 400,
+      "code": "bad_request",
+      "message": "bad name",
+      "requestId": "req_1"
+     }
+    }
+   ],
+   "GET /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_new/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "DELETE /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "operation": {
+       "id": "op_1"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "bad name",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   }
+  ],
+  "sleeps": [
+   0
+  ],
+  "warns": [
+   "Boat refused POST /sandboxes: 400 code=bad_request requestId=req_1: bad name"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "create_with_an_empty_key_sends_it_empty",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "status": 201,
+     "body": {
+      "ok": true,
+      "status": "provisioning",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "provisioning",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_new/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "DELETE /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "operation": {
+       "id": "op_1"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "id": "bx_new",
+   "replayed": false
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_new/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\ntrue'\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "create_with_sent_bytes_names_the_box_after_the_bytes",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "status": 201,
+     "body": {
+      "ok": true,
+      "status": "provisioning",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "provisioning",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_new/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "DELETE /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "operation": {
+       "id": "op_1"
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "id": "bx_new",
+   "replayed": false
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":60,\"noEnv\":true,\"name\":\"wsp;w=from-bytes\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_new/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\ntrue'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"name\":\"wsp;w=from-bytes\"}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "create_replayed_that_fails_keeps_the_box_and_its_timer",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "status": 201,
+     "body": {
+      "ok": true,
+      "status": "ready",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_new/commands": [
+    {
+     "status": 400,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 400,
+      "code": "bad",
+      "message": "no",
+      "requestId": "req_1"
+     }
+    }
+   ],
+   "DELETE /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "operation": {
+       "id": "op_1"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "threw": "no",
+   "timer": {
+    "until": 1900000,
+    "spanMs": 900000
+   }
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":900,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_new/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\ntrue'\",\"timeoutSeconds\":20}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused POST /sandboxes/bx_new/commands: 400 code=bad requestId=req_1: no"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "create_fresh_that_fails_with_a_refused_kill_keeps_its_timer",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "status": 201,
+     "body": {
+      "ok": true,
+      "status": "provisioning",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "provisioning",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_new/commands": [
+    {
+     "status": 400,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 400,
+      "code": "bad",
+      "message": "no",
+      "requestId": "req_1"
+     }
+    }
+   ],
+   "DELETE /sandboxes/bx_new": [
+    {
+     "status": 409,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 409,
+      "code": "conflict",
+      "message": "busy",
+      "requestId": "req_1"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "threw": "no",
+   "timer": {
+    "until": 1900000,
+    "spanMs": 900000
+   }
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":900,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_new/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\ntrue'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "DELETE",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "x-ascii-confirm-delete": "bx_new"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused POST /sandboxes/bx_new/commands: 400 code=bad requestId=req_1: no",
+   "Boat refused DELETE /sandboxes/bx_new: 409 code=conflict requestId=req_1: busy"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "create_rename_refused_kills_and_answers_the_rename",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "status": 201,
+     "body": {
+      "ok": true,
+      "status": "provisioning",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "provisioning",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "snap-name",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_new/commands": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "command.finished",
+      "success": true,
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     }
+    }
+   ],
+   "DELETE /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "operation": {
+       "id": "op_1"
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_new": [
+    {
+     "status": 400,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 400,
+      "code": "bad",
+      "message": "name taken",
+      "requestId": "req_1"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "threw": "name taken",
+   "timer": null
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":7200,\"noEnv\":true,\"name\":\"wsp\"}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_new/commands",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"command\":\"sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\\nexport HOME=/root USER=root\\ntrue'\",\"timeoutSeconds\":20}"
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"name\":\"wsp\"}"
+   },
+   {
+    "method": "DELETE",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "x-ascii-confirm-delete": "bx_new"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused PATCH /sandboxes/bx_new: 400 code=bad requestId=req_1: name taken"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "replay_of_an_unparsable_time_is_asked",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "status": 201,
+     "body": {
+      "ok": true,
+      "status": "ready",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "machine": {
+    "id": "bx_new",
+    "kind": "sandbox",
+    "labels": {
+     "wsp": "1",
+     "wsp-workspace": "w1"
+    },
+    "seen": {
+     "state": "running",
+     "createdAt": "2026-09-11T06:28:06.053Z"
+    },
+    "replayed": true
+   },
+   "countedUnchanged": true
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":60,\"noEnv\":true,\"name\":\"wsp;w=w1\"}"
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"name\":\"wsp;w=w1\"}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "replay_at_the_window_edge_is_not_asked",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "status": 201,
+     "body": {
+      "ok": true,
+      "status": "ready",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "machine": null,
+   "countedUnchanged": true
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "replay_a_millisecond_inside_the_window_is_asked_and_not_counted",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "status": 201,
+     "body": {
+      "ok": true,
+      "status": "ready",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "ready",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_new": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "machine": {
+    "id": "bx_new",
+    "kind": "sandbox",
+    "labels": {
+     "wsp": "1",
+     "wsp-workspace": "w1"
+    },
+    "seen": {
+     "state": "running",
+     "createdAt": "2026-09-11T06:28:06.053Z"
+    },
+    "replayed": true
+   },
+   "countedUnchanged": true
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":60,\"noEnv\":true,\"name\":\"wsp;w=w1\"}"
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_new",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"name\":\"wsp;w=w1\"}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "replay_of_a_cancelled_box_is_not_renamed",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes": [
+    {
+     "status": 201,
+     "body": {
+      "ok": true,
+      "status": "cancelled",
+      "sandbox": {
+       "id": "bx_new",
+       "name": "wsp",
+       "state": "cancelled",
+       "error": null,
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": {
+   "machine": {
+    "id": "bx_new",
+    "kind": "sandbox",
+    "labels": {
+     "wsp": "1",
+     "wsp-workspace": "w1"
+    },
+    "seen": {
+     "state": "gone",
+     "createdAt": "2026-09-11T06:28:06.053Z"
+    },
+    "replayed": true
+   },
+   "countedUnchanged": true
+  },
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "idempotency-key": "key-1",
+     "content-type": "application/json"
+    },
+    "raw": "{\"type\":\"small\",\"ttlSeconds\":60,\"noEnv\":true,\"name\":\"wsp;w=w1\"}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "list_pages_follow_an_empty_cursor_and_encode_it",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "GET /sandboxes": [
+    {
+     "status": 200,
+     "body": {
+      "sandboxes": [
+       {
+        "id": "bx_1",
+        "name": "wsp;w=a",
+        "state": "running",
+        "error": null,
+        "type": "small",
+        "vcpu": 2,
+        "memoryGB": 4,
+        "createdAt": "2026-09-11T06:28:06.053Z"
+       }
+      ],
+      "pageInfo": {
+       "nextCursor": "a/b=c d"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "sandboxes": [
+       {
+        "id": "bx_2",
+        "name": "wsp;w=b",
+        "state": "running",
+        "error": null,
+        "type": "small",
+        "vcpu": 2,
+        "memoryGB": 4,
+        "createdAt": "2026-09-11T06:28:06.053Z"
+       }
+      ],
+      "pageInfo": {
+       "nextCursor": ""
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "sandboxes": [
+       {
+        "id": "bx_1",
+        "name": "wsp;w=a",
+        "state": "archived",
+        "error": null,
+        "type": "small",
+        "vcpu": 2,
+        "memoryGB": 4,
+        "createdAt": "2026-09-11T06:28:06.053Z"
+       },
+       {
+        "id": "bx_3",
+        "name": null,
+        "state": "archived",
+        "error": null,
+        "type": "small",
+        "vcpu": 2,
+        "memoryGB": 4,
+        "createdAt": "2026-09-11T06:28:06.053Z"
+       }
+      ],
+      "pageInfo": {
+       "nextCursor": null
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": [
+   {
+    "id": "bx_1",
+    "state": "running",
+    "labels": {
+     "wsp": "1",
+     "wsp-workspace": "a"
+    },
+    "size": {
+     "cpu": 2,
+     "memMb": 4096
+    }
+   },
+   {
+    "id": "bx_2",
+    "state": "running",
+    "labels": {
+     "wsp": "1",
+     "wsp-workspace": "b"
+    },
+    "size": {
+     "cpu": 2,
+     "memMb": 4096
+    }
+   }
+  ],
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/sandboxes",
+    "query": [
+     [
+      "limit",
+      "200"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes",
+    "query": [
+     [
+      "limit",
+      "200"
+     ],
+     [
+      "cursor",
+      "a/b=c d"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes",
+    "query": [
+     [
+      "limit",
+      "200"
+     ],
+     [
+      "cursor",
+      ""
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes",
+    "query": [
+     [
+      "state",
+      "archived"
+     ],
+     [
+      "limit",
+      "200"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "named_after_skips_nameless_boxes_and_keeps_the_first_row_per_id",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "GET /sandboxes": [
+    {
+     "status": 200,
+     "body": {
+      "sandboxes": [
+       {
+        "id": "bx_1",
+        "name": "snap-a",
+        "state": "running",
+        "error": null,
+        "type": "small",
+        "vcpu": 2,
+        "memoryGB": 4,
+        "createdAt": null
+       },
+       {
+        "id": "bx_2",
+        "name": null,
+        "state": "running",
+        "error": null,
+        "type": "small",
+        "vcpu": 2,
+        "memoryGB": 4,
+        "createdAt": "2026-09-11T06:28:06.053Z"
+       }
+      ]
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "sandboxes": [
+       {
+        "id": "bx_1",
+        "name": "snap-a",
+        "state": "archived",
+        "error": null,
+        "type": "small",
+        "vcpu": 2,
+        "memoryGB": 4,
+        "createdAt": "2026-09-11T06:28:06.053Z"
+       },
+       {
+        "id": "bx_4",
+        "name": "snap-b",
+        "state": "archived",
+        "error": null,
+        "type": "small",
+        "vcpu": 2,
+        "memoryGB": 4,
+        "createdAt": "2026-09-11T06:28:06.053Z"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": [
+   {
+    "id": "bx_1",
+    "name": "snap-a",
+    "state": "running"
+   },
+   {
+    "id": "bx_4",
+    "name": "snap-b",
+    "state": "paused",
+    "createdAt": "2026-09-11T06:28:06.053Z"
+   }
+  ],
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/sandboxes",
+    "query": [
+     [
+      "limit",
+      "200"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes",
+    "query": [
+     [
+      "state",
+      "archived"
+     ],
+     [
+      "limit",
+      "200"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "snapshot_rows_read_blank_completion_null_chain_and_string_sizes_as_the_ts",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "GET /named-snapshots": [
+    {
+     "status": 200,
+     "body": {
+      "snapshots": [
+       {
+        "name": "wsp-v1",
+        "status": "ready",
+        "sourceSandboxId": "bx_tumrjngm",
+        "createdAt": "2026-09-11T06:47:23.959Z",
+        "sizeBytes": null
+       }
+      ]
+     }
+    }
+   ],
+   "GET /snapshots": [
+    {
+     "status": 200,
+     "body": {
+      "snapshots": [
+       {
+        "id": "dc8cd70e-d16b-472a-b5d7-070bc84db7a7",
+        "sizeBytes": null,
+        "contentSizeBytes": "5",
+        "completedAt": "",
+        "createdAt": "2026-09-11T00:00:00Z",
+        "chainId": null
+       }
+      ],
+      "pageInfo": {
+       "nextCursor": "c2"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "snapshots": [
+       {
+        "id": "11111111-2222-3333-4444-555555555555",
+        "completedAt": "2026-09-12T00:00:00Z",
+        "contentSizeBytes": 0
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": [
+   {
+    "id": "wsp-v1",
+    "name": "wsp-v1",
+    "sizeBytes": 0,
+    "createdAt": "2026-09-11T06:47:23.959Z"
+   },
+   {
+    "id": "dc8cd70e-d16b-472a-b5d7-070bc84db7a7",
+    "sizeBytes": 0,
+    "parent": null
+   },
+   {
+    "id": "11111111-2222-3333-4444-555555555555",
+    "sizeBytes": 0,
+    "restoredBytes": 0,
+    "createdAt": "2026-09-12T00:00:00Z"
+   }
+  ],
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/named-snapshots",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/snapshots",
+    "query": [
+     [
+      "limit",
+      "200"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/snapshots",
+    "query": [
+     [
+      "limit",
+      "200"
+     ],
+     [
+      "cursor",
+      "c2"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "snapshot_history_asked_in_capitals_is_read_to_its_end",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "GET /named-snapshots": [
+    {
+     "status": 200,
+     "body": {
+      "snapshots": [
+       {
+        "name": "wsp-v1",
+        "status": "ready",
+        "sourceSandboxId": "bx_tumrjngm",
+        "createdAt": "2026-09-11T06:47:23.959Z",
+        "sizeBytes": null
+       }
+      ]
+     }
+    }
+   ],
+   "GET /snapshots": [
+    {
+     "status": 200,
+     "body": {
+      "snapshots": [
+       {
+        "id": "dc8cd70e-d16b-472a-b5d7-070bc84db7a7",
+        "sizeBytes": null,
+        "contentSizeBytes": "5",
+        "completedAt": "",
+        "createdAt": "2026-09-11T00:00:00Z",
+        "chainId": null
+       }
+      ],
+      "pageInfo": {
+       "nextCursor": "c2"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "snapshots": [
+       {
+        "id": "11111111-2222-3333-4444-555555555555",
+        "completedAt": "2026-09-12T00:00:00Z",
+        "contentSizeBytes": 0
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": [
+   {
+    "id": "wsp-v1",
+    "name": "wsp-v1",
+    "sizeBytes": 0,
+    "createdAt": "2026-09-11T06:47:23.959Z"
+   },
+   {
+    "id": "dc8cd70e-d16b-472a-b5d7-070bc84db7a7",
+    "sizeBytes": 0,
+    "parent": null
+   },
+   {
+    "id": "11111111-2222-3333-4444-555555555555",
+    "sizeBytes": 0,
+    "restoredBytes": 0,
+    "createdAt": "2026-09-12T00:00:00Z"
+   }
+  ],
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/named-snapshots",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/snapshots",
+    "query": [
+     [
+      "limit",
+      "200"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/snapshots",
+    "query": [
+     [
+      "limit",
+      "200"
+     ],
+     [
+      "cursor",
+      "c2"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "snapshot_history_stops_at_the_page_holding_every_asked_id",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "GET /named-snapshots": [
+    {
+     "status": 200,
+     "body": {
+      "snapshots": [
+       {
+        "name": "wsp-v1",
+        "status": "ready",
+        "sourceSandboxId": "bx_tumrjngm",
+        "createdAt": "2026-09-11T06:47:23.959Z",
+        "sizeBytes": null
+       }
+      ]
+     }
+    }
+   ],
+   "GET /snapshots": [
+    {
+     "status": 200,
+     "body": {
+      "snapshots": [
+       {
+        "id": "dc8cd70e-d16b-472a-b5d7-070bc84db7a7",
+        "sizeBytes": null,
+        "contentSizeBytes": "5",
+        "completedAt": "",
+        "createdAt": "2026-09-11T00:00:00Z",
+        "chainId": null
+       }
+      ],
+      "pageInfo": {
+       "nextCursor": "c2"
+      }
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "snapshots": [
+       {
+        "id": "11111111-2222-3333-4444-555555555555",
+        "completedAt": "2026-09-12T00:00:00Z",
+        "contentSizeBytes": 0
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": [
+   {
+    "id": "wsp-v1",
+    "name": "wsp-v1",
+    "sizeBytes": 0,
+    "createdAt": "2026-09-11T06:47:23.959Z"
+   },
+   {
+    "id": "dc8cd70e-d16b-472a-b5d7-070bc84db7a7",
+    "sizeBytes": 0,
+    "parent": null
+   }
+  ],
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/named-snapshots",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "GET",
+    "path": "/snapshots",
+    "query": [
+     [
+      "limit",
+      "200"
+     ]
+    ],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "delete_snapshot_by_a_capital_uuid_takes_the_history_road",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": null,
+  "calls": [
+   {
+    "method": "DELETE",
+    "path": "/snapshots/DC8CD70E-D16B-472A-B5D7-070BC84DB7A7",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "x-ascii-confirm-delete": "DC8CD70E-D16B-472A-B5D7-070BC84DB7A7"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused DELETE /snapshots/DC8CD70E-D16B-472A-B5D7-070BC84DB7A7: 404 code=not_found requestId=req_1: not_found"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "backstop_whose_limits_read_fails_backs_off",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 400,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 400,
+      "code": "bad",
+      "message": "limits down",
+      "requestId": "req_1"
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": [
+   "threw: limits down",
+   "ok",
+   null
+  ],
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused GET /limits: 400 code=bad requestId=req_1: limits down"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "backstop_in_the_past_asks_one_second",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "paid",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": [
+   "ok",
+   {
+    "until": 0,
+    "spanMs": -1000000
+   }
+  ],
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":1}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
+  "name": "backstop_exact_ignores_the_backoff",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "paid",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_tumrjngm": [
+    {
+     "status": 400,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 400,
+      "code": "bad",
+      "message": "no",
+      "requestId": "req_1"
+     }
+    },
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": [
+   "threw: no",
+   "ok",
+   "ok",
+   {
+    "until": 2000000,
+    "spanMs": 1000000
+   }
+  ],
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":1000}"
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":1000}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused PATCH /sandboxes/bx_tumrjngm: 400 code=bad requestId=req_1: no"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "backstop_backoff_doubles_from_the_failure_read_at_entry",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "paid",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_tumrjngm": [
+    {
+     "status": 400,
+     "body": {
+      "ok": false,
+      "type": "sandbox.error",
+      "status": 400,
+      "code": "bad",
+      "message": "no",
+      "requestId": "req_1"
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": [
+   "threw: no",
+   "threw: no",
+   "threw: no",
+   "threw: no",
+   "threw: no",
+   "threw: no",
+   "ok"
+  ],
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":8000}"
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":7970}"
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":7910}"
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":7790}"
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":7550}"
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":7250}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused PATCH /sandboxes/bx_tumrjngm: 400 code=bad requestId=req_1: no",
+   "Boat refused PATCH /sandboxes/bx_tumrjngm: 400 code=bad requestId=req_1: no",
+   "Boat refused PATCH /sandboxes/bx_tumrjngm: 400 code=bad requestId=req_1: no",
+   "Boat refused PATCH /sandboxes/bx_tumrjngm: 400 code=bad requestId=req_1: no",
+   "Boat refused PATCH /sandboxes/bx_tumrjngm: 400 code=bad requestId=req_1: no"
+  ],
+  "elapsed": 1049999
+ }
+]

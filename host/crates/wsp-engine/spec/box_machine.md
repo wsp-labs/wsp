@@ -2,7 +2,7 @@
 
 The environment landing, the root wrapper, the daemon's exits, and `BoxMachine`. Rust:
 `src/box_backend/machine.rs`. Other slices it calls: exec-detached's `exec_detached(machine, script, RunOptions)`,
-`DEADLINE_EXIT` (124), `DAEMON_ENV_FILE`, `INLINE_EXEC_MS` (30,000); run-env's `DROP_SUDO_MARKS`; preview's
+`DEADLINE_EXIT` (124), `DAEMON_ENV_FILE`, `INLINE_EXEC_MS` (20,000); run-env's `DROP_SUDO_MARKS`; preview's
 `DAEMON_PORT` (7070); golden_seam's `EXEC_ENV`.
 
 ## Text (pure, byte for byte, oracle `box.json`)
@@ -24,8 +24,8 @@ A handle: backend, id, kind, labels, seen, replayed; `deletion` set by kill. `st
 (systemd). `offers()`: resume_at, preview_url, prove_road, start_daemon, daemon_exits, put_bytes, read_bytes,
 describe. Nothing it holds survives a restart beyond the provider's box.
 
-- `exec(cmd, opts)` (:1128): timeout `opts.timeout_ms` or 30,000. Above 30,000 (`BOX_INLINE_MAX_MS`) it goes
-  `exec_detached` with `deadline_ms = timeout`, `poll_ms = budgets.poll_ms`; the detached road's own execs ask 30,000
+- `exec(cmd, opts)` (:1128): timeout `opts.timeout_ms` or `INLINE_EXEC_MS` (20,000, so a plain exec asks `timeoutSeconds: 20`). Above 30,000 (`BOX_INLINE_MAX_MS`) it goes
+  `exec_detached` with `deadline_ms = timeout`, `poll_ms = budgets.poll_ms`; the detached road's own execs ask 20,000
   and stay inline. `idempotency_key` and `stdin` are ignored.
 - `exec_inline(cmd, timeout_ms, signal)` (:1147): `while_restoring` of POST `/sandboxes/<id>/commands` with
   `{ command: sudo_command(cmd), timeoutSeconds: max(1, ceil(timeout / 1000)) }`, cap `timeoutSeconds * 1000 +
@@ -35,7 +35,7 @@ describe. Nothing it holds survives a restart beyond the provider's box.
   An answer whose stderr matches `/^(bash|sudo): error while loading shared libraries: .*: Error 24/m` is
   `guest_unusable(id, name, stderr.trim(), 200)`. Else `{ exitCode: exitCode, or 124 where timedOut, or -1; stdout
   or ""; stderr or "" }`.
-- `prove_road(signal)` (:1174): `exec_inline("true", 30,000, signal)`; a still-restoring failure becomes
+- `prove_road(signal)` (:1174): `exec_inline("true", 20,000, signal)`; a still-restoring failure becomes
   `restore_unfinished(id, e)`.
 - `start_daemon` (:1137): `exec("systemctl start wsp-daemon.service")`. `daemon_exits` (:1141):
   `daemon_exits_of(exec(DAEMON_EXITS_CMD).stdout)`.
@@ -96,3 +96,76 @@ describe. Nothing it holds survives a restart beyond the provider's box.
 | routes and the firewall | `box_machine_moves::routes_the_daemons_port_public_*`, `box_machine_moves::mints_a_private_route_*`, `box_machine_moves::mints_the_route_with_one_read_*`, `box_machine_moves::a_rule_the_boxs_own_agent_wipes_*`, `box_machine_moves::a_rule_the_guest_refuses_while_it_boots_*` |
 | bytes in and out, pieces, the join | `box_machine_moves::puts_bytes_through_put_files_*`, `box_machine_moves::a_join_over_a_file_already_at_the_new_bytes_size_*`, `box_machine_moves::bytes_past_the_files_endpoints_cap_*`, `box_machine_moves::reads_a_file_off_the_box_*`, `box_machine_moves::the_signed_url_roads_say_where_a_boxs_bytes_go_instead` |
 | snapshot, kill, state, describe, desktop | `box_machine_moves::a_snapshot_is_a_named_snapshot_*`, `box_machine_moves::a_save_the_provider_fails_*`, `box_machine_moves::kills_with_the_confirm_header_*`, `box_machine_moves::reads_the_providers_states_*`, `box_machine_moves::describes_the_class_*`, `box_machine_moves::a_desktop_machine_boots_the_same_box_*` |
+
+## Pins (wave 2)
+
+Each line is a scene in `oracle/box_scenes.oracle.ts`, replayed by `tests/box_scenes.rs::<name>` against
+`tests/fixtures/scenes/box.json`: every request (method, path, query pairs in order, headers, the body's exact bytes),
+every sleep, every warn line, the clock's travel and the answer must be the TS's. Budgets are the test ones (poll 10,
+every other budget 100) unless a line says.
+
+- B-M1 The firewall loop reads, in this order each pass: while `held` is set, one standing check; standing and
+  `now - held >= 30,000` returns; standing and younger sleeps 5,000 and goes round without looking at the add window;
+  gone clears `held` and falls through. Then, only with `held` unset, `now >= start + restore_ms + 30,000` ends the
+  loop (warn, Ok), else one add. A rule wiped after the window ends the loop at that read, with the warn and no
+  second add (`firewall_wiped_past_the_add_window_warns_without_words`).
+- B-M2 `said` is set by a refused add and never cleared by a later add that succeeds, so the closing warn names the
+  last refusal even when an add held in between (`firewall_keeps_the_last_refusal_after_a_later_add_held`). It is
+  `(stderr || stdout).trim()` then its last 200 UTF-16 units: stderr is taken when non-empty before trimming.
+- B-M3 A stderr of white space alone wins over stdout and trims to `""`, so the warn has no `( ... )`
+  (`firewall_blank_stderr_hides_stdout`, poll 1,000: 31 adds, one every 1,000 ms, then the warn).
+- B-M4 A refusal longer than 200 units keeps its last 200 (`firewall_keeps_the_last_200_units_of_a_long_refusal`).
+- B-M5 A standing check whose exec fails reads as not standing (exit -1), as does an add whose exec fails, whose
+  `said` is the error's message (`firewall_standing_read_that_throws_reads_as_not_standing`).
+- B-M6 The route's token is the URL's first `_token` query value, decoded as `URLSearchParams` decodes (`+` is a
+  space, `%2F` is `/`); the url is answered as given. Port 7070 sends no command at all, and the body is
+  `{"port":7070,"public":true}` in that key order (`route_token_is_the_decoded_query_value`).
+- B-M7 A pause that finds the box archived on its first read sends no stop and sleeps not
+  (`pause_of_an_archived_box_sends_nothing_and_sleeps_not`).
+- B-M8 Each pause pass is: sleep the poll, read, archived returns, any state but archiving is refused, then the
+  budget. So archived on the read at exactly the budget is done (`pause_archived_at_the_budget_read_is_done`), and
+  archiving there fails `MoveUnanswered` with `move_timed_out_line("pause", 100, Paused)` warned as `<id>: <words>`
+  (`pause_archiving_at_the_budget_read_times_out`).
+- B-M9 A pause whose first read is refused (404) fails with that error, `is_missing` true, and sends no stop
+  (`pause_of_a_lost_box_fails_missing_and_sends_no_stop`).
+- B-M10 `wait_ms` replaces the pause budget whole: 35 with poll 10 reads four times and fails naming 40 ms
+  (`pause_wait_stands_in_for_the_budget`).
+- B-M11 A snapshot's first read comes after one poll's sleep. A `failed` status with an empty or absent `error` ends
+  `failed` with no colon (`snapshot_failed_with_empty_error_has_no_colon`).
+- B-M12 Each snapshot pass checks ready, then failed, then the budget, so ready on the read at the budget answers the
+  name (`snapshot_ready_at_the_budget_read_wins`, snapshot 2,500, poll 500).
+- B-M13 The budget's words are `Math.round(snapshot_ms / 1000)`, half up: 2,500 reads `3 s`
+  (`snapshot_budget_words_round_half_up`) and 100 reads `0 s` (`snapshot_budget_under_half_a_second_reads_0_s`).
+- B-M14 kill: an answer with no `operation` leaves `deletion` `None` and forgets the timer
+  (`kill_answered_without_an_operation_keeps_no_deletion_and_forgets_the_timer`); a 404 forgets it too
+  (`kill_of_a_gone_box_forgets_the_timer`); any other refusal is answered and the timer is kept, `last_timer` still
+  `{ until: 1,600,000, span_ms: 600,000 }` (`kill_refused_keeps_the_timer`).
+- B-M15 exec reads `exitCode` first: 0 with `timedOut: true` is 0 (`exec_exit_code_wins_over_timed_out`); null with
+  `timedOut` is 124 (`exec_null_exit_timed_out_reads_124`, 1,500 ms asks `timeoutSeconds: 2`); null without is -1 and
+  absent streams read `""` (`exec_null_exit_reads_minus_1_and_absent_streams_read_empty`, 0 ms asks 1).
+- B-M16 Exactly 30,000 stays inline (`exec_at_the_inline_cap_stays_inline`); only above it goes detached.
+- B-M17 The loader-EMFILE test runs on stderr with `^` at any line start (JS `m`: after `\n`, `\r`, U+2028, U+2029),
+  before the exit code is read, and fails `guest_unusable(id, "Boat", stderr.trim(), 200)` even on exit 0
+  (`exec_loader_emfile_on_a_later_line_is_unusable`); a leading space is no match and the answer is plain
+  (`exec_loader_emfile_not_at_a_line_start_is_a_plain_answer`).
+- B-M18 The work-folder test is case-insensitive and comes first: a 409 `machine_not_running` whose message says
+  `CWD must be an existing directory` is `GuestUnusable` with status 409, not `MachineStopped`
+  (`exec_no_work_folder_wins_over_machine_not_running`).
+- B-M19 No bytes to a path under `/tmp/` is one PUT with `"content":""` (`put_of_no_bytes_into_tmp_is_one_empty_put`).
+- B-M20 The prefixes are `/tmp/` and `/home/user/` with their slash: `/tmp` itself goes by pieces and the join's
+  folder is `/` (`put_to_the_bare_tmp_path_joins_into_root`). The folder is `path.slice(0, path.lastIndexOf("/")) ||
+  "/"`, so a path with no slash loses its last character (`file.txt` makes `mkdir -p 'file.tx'`), as the TS does
+  (`put_to_a_relative_path_cuts_the_folder_as_the_ts_does`). The join script is byte for byte the fixture's.
+- B-M21 A failed join names `stderr.trim() || stdout.trim()` (`put_join_failure_names_stdout_when_stderr_is_blank`).
+- B-M22 The size `stat` prints is read with JS `Number` of the trimmed text and must be an integer: a blank answer is
+  0, so a file under `/tmp/` takes the straight road and answers whatever GET returns with no length check
+  (`read_with_a_blank_size_reads_zero_and_takes_the_straight_road`); ` 3e0 ` is 3
+  (`read_size_in_exponent_form_is_a_number`); `12.5` fails `could not be read (exit 0): 12.5`
+  (`read_size_with_a_fraction_is_refused`).
+- B-M23 The cut is one exec, `split -b 4194304 -d -a 4 '<path>' '/tmp/wsp-get-<hex>.' && chmod 0644 <every piece
+  name>`, and the removal `rm -f <every piece name>` runs after a refused cut, after a short read, and after success;
+  its own failure is ignored (`read_cut_refused_still_removes_every_piece`,
+  `read_short_still_removes_and_names_both_sizes`). A GET answer with no `content` reads as no bytes.
+- B-M24 describe: `memoryGB` 0.5 is `memMb` 512; an absent `vcpu`, a class the table does not know and a null
+  `createdAt` each leave their key out
+  (`describe_reads_half_a_gigabyte_and_leaves_out_what_is_missing`).
