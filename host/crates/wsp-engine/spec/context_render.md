@@ -6,7 +6,7 @@ The document, the short text, the skill, each agent's hooks, and the run that la
 ## Renders (pure; byte for byte, oracle `render`)
 
 - `render_machine_context(input)` (:341) and `render_short_context(input)` (:409): the TS line lists exactly, joined
-  `\n`, ending in `\n`. Every branch the TS takes is pinned by the oracle's eleven inputs: kernel absent; versions
+  `\n`, ending in `\n`. Every branch below is pinned by the oracle's fifteen inputs (four added in wave 2, rule C-1): kernel absent; versions
   empty; brew; golden-path with `on_npm_bin(golden.npm_bin, TOOLS_PATH)`; overlay false with and without docker or
   podman; overlay true with neither; wsp-open shim; at a provider (`SERVERS_OFF_LINE`); fish in the secrets file
   (`<sh> and <fish>`); workspace or builder; golden `v<version>, sealed <first 10 of createdAt>, setup <first 12 of
@@ -24,10 +24,10 @@ The document, the short text, the skill, each agent's hooks, and the run that la
   `<bytes> written for <names of written, by catalog name, joined ", ">` or `<bytes> written` when none was, then per
   result in order `<name> by its fallback (<note>)` or `<name> not loaded (<note>), skill only`, joined `"; "`.
 
-## apply_machine_context (:514). Never fails; nothing changes on the guest when it reports a failure.
+## apply_machine_context (:514). Reports a probe or a write failure in the outcome rather than failing (rule C-2).
 
 1. One exec of `probe_command(roots, path, shells)` with `timeout_ms = INLINE_EXEC_MS` (exec-detached, 20,000). An
-   exec that fails: `failure = "probe failed: <message>"`. An answer without both markers:
+   exec that fails: `failure = "probe failed: <message>"`, the message as it is (not trimmed, newlines kept). An answer without both markers:
    `"probe answered exit <code> without its markers"`. Either way `context` is empty and `summary` is
    `"not written (<failure>)"`.
 2. `facts = merge_facts(probe.facts or empty, opts.result)`; the input carries workspace, golden and at_provider.
@@ -56,3 +56,22 @@ The document, the short text, the skill, each agent's hooks, and the run that la
 | hooks per agent, fallbacks, never a person's file | `context_render::writes_the_short_text_through_each_hook_and_the_skill_into_each_global_skills_directory`, `context_render::the_codex_string_is_a_literal_toml_*`, `context_render::gemini_and_opencode_get_json_that_names_ours_and_nothing_of_the_persons`, `context_render::hermes_reads_the_short_text_into_its_hint_*`, `context_render::falls_back_when_the_persons_own_file_sets_the_key_*`, `context_render::never_names_the_two_paths_that_would_replace_a_file_of_the_persons` |
 | context line and summary words | `context_oracle::the_context_line_says_each_outcome_in_the_ts_words`, `context_oracle::the_summary_names_what_was_written_and_for_whom` |
 | the run: probe, files, order, agents found only, failures change nothing | `context_render::probes_renders_with_facts_folded_in_lands_every_hook_and_skill_through_the_upload_road_and_records_each_agent`, `context_render::takes_the_fallback_for_a_claimed_hook_the_skill_alone_for_hermes_and_skips_agents_not_installed`, `context_render::reports_a_guest_that_does_not_answer_and_writes_nothing`, `context_render::a_refused_upload_is_a_failure_that_names_the_cap_and_nothing_lands`, `context_render::an_untar_that_fails_is_a_failure_with_the_guests_last_line` |
+
+## Pins (wave 2)
+
+- C-1 Four render inputs added to `oracle/machines.oracle.ts`, held byte for byte by
+  `context_oracle::every_render_is_the_ts_text_byte_for_byte`: `no-overlay-with-docker` (overlay false with a
+  container tool: `Containers do not run here: the kernel has no overlayfs. Install services natively.`),
+  `golden-without-workspace` (the builder line, then the golden line under it), `golden-short-strings` (createdAt
+  and setupSha shorter than their 10 and 12 cuts are written whole: `v1, sealed 2026, setup abc`), and
+  `fish-without-the-open-shim`.
+- C-2 Only the probe exec and the import are inside a `try`. A failure in the renders, `agent_files` or `tar_of`
+  (vault's refusal of an oversize body or an over-long path) is not caught by the TS and rejects
+  `apply_machine_context` itself. None can happen with the files this writes (fixed paths under `/etc` and `/root`,
+  bodies of a few KB), and the Rust signature answers `ContextOutcome` with no `Err`, so the interface stays: such a
+  failure is reported as `write failed: <message>`. An accepted difference on a path the TS cannot reach. The probe's
+  failure words are the message untrimmed; only the write's are trimmed with newline runs joined by `"; "`.
+- C-3 The three shared files are rendered with no agent (`turn_fact(None)`, the shared cd words); only the per-agent
+  renders carry the agent.
+- C-4 `summarize`'s byte count is the gzipped tar's length, and the tar headers carry the time of the call, so the
+  figure is not reproducible across implementations; a test reads it through `fmt_bytes` of the real length only.
