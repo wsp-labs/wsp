@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! How an agent's own harness answers for one MCP server's sign-in. Port of packages/catalog/src/mcp-check.ts at
 //! a3b870a6e; the spec is spec/mcp_modules.md.
-use std::sync::OnceLock;
-
-use regex::Regex;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::js_regex::JsRegex;
+use crate::js_regex::{compiled, JsRegex};
 use wsp_wire::types::agents_report::McpAuth;
 use wsp_wire::types::shell_quote::shell_quote;
 
@@ -57,9 +54,8 @@ impl McpCheck {
 
 /// The text of the first `Status:` line, without its label (mcp-check.ts:148).
 fn status_of(output: &str) -> String {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"(?m)^\s*Status:\s*(.*)$").expect("a fixed pattern"));
-    re.captures(output).and_then(|c| c.get(1)).map_or_else(String::new, |m| m.as_str().to_string())
+    let re = compiled(r"^\s*Status:\s*(.*)$", "m");
+    re.re.captures(output).ok().flatten().and_then(|c| c.get(1)).map_or_else(String::new, |m| m.as_str().to_string())
 }
 
 fn claude_auth(output: &str) -> Option<McpCheckWord> {
@@ -79,9 +75,7 @@ fn claude_auth(output: &str) -> Option<McpCheckWord> {
 }
 
 fn codex_auth(output: &str, name: &str) -> Option<McpCheckWord> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"(?m)^\[").expect("a fixed pattern"));
-    let at = re.find(output)?.start();
+    let at = compiled(r"^\[", "m").find(output)?.start;
     let listed: Value = serde_json::from_str(&output[at..]).ok()?;
     let entries = listed.as_array()?;
     let entry = entries.iter().find(|s| s.get("name").and_then(Value::as_str) == Some(name));

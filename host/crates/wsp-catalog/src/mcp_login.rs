@@ -7,7 +7,7 @@ use indexmap::IndexSet;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::js_regex::JsRegex;
+use crate::js_regex::{compiled, JsRegex};
 use crate::mcp::{McpServer, McpTransport};
 use crate::mcp_check::CLAUDE_NOT_SET_UP;
 use wsp_wire::types::agents_report::PageReach;
@@ -134,9 +134,8 @@ fn signs_with_login(command: &str, args: &[String]) -> bool {
 
 /// Whether a header's value is empty once a leading scheme word is taken off (mcp-login.ts:281).
 fn header_is_empty(value: &str) -> bool {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"(?i)^\s*(?:Bearer|Basic|Token)(?-u:\b)").expect("a fixed pattern"));
-    js_trim(&re.replace(value, "")).is_empty()
+    let scheme = compiled(r"^\s*(?:Bearer|Basic|Token)\b", "i").find(value);
+    js_trim(&value[scheme.map_or(0, |range| range.end)..]).is_empty()
 }
 
 /// Whether a server needs a sign-in or a key of the person's, which a cloud machine never holds (mcp-login.ts:277);

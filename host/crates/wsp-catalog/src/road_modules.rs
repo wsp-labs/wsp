@@ -5,9 +5,9 @@
 use std::sync::LazyLock;
 
 use indexmap::IndexMap;
-use regex::Regex;
 use serde::Serialize;
 
+use crate::js_regex::compiled;
 use crate::road_release::{asset_install, release_install};
 use crate::roads::{
     is_road, standing_pin, version_of, InstallRoad, PackageRoad, RoadName, APT_ENV, GUEST_HOME, HOME_BIN, LOCAL_BIN, ROADS,
@@ -342,10 +342,9 @@ fn is_major_suffix(s: &str) -> bool {
 
 /// The module and version a go row names: its first path's `path@version`, else the label's `(...)` (road-modules.ts:401).
 fn go_module(row: &ToolRow) -> Option<(String, String)> {
-    static LABEL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\(([^()\s]+)\)").expect("a constant pattern"));
     let spec = match row.paths.first() {
         Some(path) => path.clone(),
-        None => LABEL.captures(&row.label)?.get(1)?.as_str().to_string(),
+        None => compiled(r"\(([^()\s]+)\)", "").re.captures(&row.label).ok()??.get(1)?.as_str().to_string(),
     };
     let at = spec.rfind('@')?;
     if at == 0 || at == spec.len() - 1 {
