@@ -216,6 +216,7 @@
      "worktree": {
       "path": "/home/u/.wsp/trees/alpha-tree",
       "branch": "wsp/t",
+      "made": true,
       "madeFor": "t1"
      }
     }

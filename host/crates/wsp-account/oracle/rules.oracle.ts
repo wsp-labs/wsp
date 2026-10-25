@@ -37,7 +37,7 @@ const world = {
     { record: { id: "wC3", name: "beta-fork", kind: "cloud", project: "pB", machineId: "m3", phase: "running", rootThreadId: "t1", parentThreadId: "t1" } },
     { record: { id: "wC4", name: "bare-cloud", kind: "cloud", project: "pAc", machineId: "m4", phase: "running", place: "bare" } },
     { record: { id: "wCa", name: "alpha-capped", kind: "cloud", project: "pAc", machineId: "m5", phase: "running", agents: { maxMachines: 1, maxDepth: 1 } } },
-    { record: { id: "wWt", name: "alpha-tree", kind: "local", project: "pA", machineId: "", phase: "running", worktree: { path: "/home/u/.wsp/trees/alpha-tree", branch: "wsp/t", madeFor: "t1" } } },
+    { record: { id: "wWt", name: "alpha-tree", kind: "local", project: "pA", machineId: "", phase: "running", worktree: { path: "/home/u/.wsp/trees/alpha-tree", branch: "wsp/t", made: true, madeFor: "t1" } } },
     { record: { id: "wSub", name: "alpha-sub", kind: "cloud", project: "pAc", machineId: "m6", phase: "running", rootThreadId: "t1", parentThreadId: "t1", lead: { threadId: "t1", workspaceId: "wL" } } },
     { record: { id: "wGone", name: "alpha-gone", kind: "cloud", project: "pAc", machineId: "m7", phase: "gone", rootThreadId: "t1" } },
     { record: { id: "wRel", name: "alpha-released", kind: "cloud", project: "pAc", machineId: "m8", phase: "released", rootThreadId: "t1" } },

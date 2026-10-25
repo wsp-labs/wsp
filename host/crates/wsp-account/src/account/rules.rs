@@ -10,7 +10,6 @@ use serde_json::{Map, Value};
 
 use wsp_core::types::internal::WorkspaceLike;
 use wsp_core::types::wiring::WorkspaceRecord;
-use wsp_wire::views::preferences::{Preferences, PreferencesPatch};
 use wsp_wire::views::workspace::{Caller, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceAgents};
@@ -67,10 +66,10 @@ pub trait RulesCtx {
     fn thread_record(&self, thread_id: &str) -> Option<TreeFacts>;
     /// `rowsOn(threadId)`, in row order.
     fn rows_on(&self, thread_id: &str) -> Vec<TreeFacts>;
-    /// `ctx.preferences.get()`.
-    async fn preferences(&self) -> Result<Preferences, HostError>;
-    /// `ctx.preferences.set(patch)`.
-    async fn set_preferences(&self, patch: PreferencesPatch) -> Result<(), HostError>;
+    /// `(await ctx.preferences.get()).target?.workspace`.
+    async fn target_workspace(&self) -> Result<Option<String>, HostError>;
+    /// `ctx.preferences.set(patch)`, the patch as the TS object.
+    async fn set_preferences(&self, patch: Value) -> Result<(), HostError>;
     /// `backendFor(record).capabilities[can] === true`, `can` the TS key (`snapshot`, `fork`, `resize`, ...).
     fn capability(&self, record: &WorkspaceRecord, can: &str) -> bool;
     /// `backendFor(record).capabilities.pauseMode !== undefined`.
