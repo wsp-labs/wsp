@@ -256,7 +256,6 @@ mod a_limits_windows_and_words {
     }
 
     #[test]
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn keeps_every_sentence_a_row_may_carry_in_one_table() {
         assert_eq!(words("notPriced"), "not priced");
         assert_eq!(words("listPrice"), "list price");
@@ -309,7 +308,8 @@ mod what_a_range_used_said_once {
             used_headline(&answer(UsageRange::Week, rows.clone())),
             "7.35B tokens in the last 7 days, $4,317.19 at list price, 6.9B of it read from cache."
         );
-        let fresh: Vec<f64> = rows.iter().map(|r| fresh_in(r.tokens.input.0, r.tokens.cached.0, r.tokens.cache_write.map(|n| n.0))).collect();
+        let fresh: Vec<f64> =
+            rows.iter().map(|r| fresh_in(r.tokens.input.0, r.tokens.cached.0, r.tokens.cache_write.map(|n| n.0))).collect();
         assert_eq!(fresh, [448_900_000.0, 1_300_000.0]);
         assert_eq!(used_headline(&answer(UsageRange::Day, vec![])), words("noUse"));
     }
@@ -341,7 +341,9 @@ mod a_used_rows_price {
 
     #[test]
     fn says_not_priced_wherever_some_of_its_tokens_had_no_price_beside_whatever_figure_the_re() {
-        let row = |cost_list: Option<f64>, cost_reported: Option<f64>, priced: bool| used_row("k", "K", (0.0, 0.0, 0.0), cost_list, cost_reported, priced);
+        let row = |cost_list: Option<f64>, cost_reported: Option<f64>, priced: bool| {
+            used_row("k", "K", (0.0, 0.0, 0.0), cost_list, cost_reported, priced)
+        };
         assert_eq!(used_price(&row(Some(1.5), None, false)), price(Some("$1.50"), Some(words("notPriced"))));
         assert_eq!(used_price(&row(None, Some(0.4), false)), price(Some("$0.40"), Some(words("notPriced"))));
         assert_eq!(used_price(&row(None, None, false)), price(None, Some(words("notPriced"))));
@@ -367,7 +369,10 @@ mod pinned {
     }
     fn table() -> RateTable {
         let mut t = RateTable::new();
-        t.insert("claude-sonnet-4-5".into(), Rate { input: 3e-6, output: 15e-6, cache_read: Some(3e-7), cache_write: Some(3.75e-6), provider: None });
+        t.insert(
+            "claude-sonnet-4-5".into(),
+            Rate { input: 3e-6, output: 15e-6, cache_read: Some(3e-7), cache_write: Some(3.75e-6), provider: None },
+        );
         t.insert("gpt-5".into(), Rate { input: 1.25e-6, output: 1e-5, cache_read: None, cache_write: None, provider: None });
         t
     }
@@ -380,18 +385,60 @@ mod pinned {
         assert_eq!(base_model("[1m]"), ""); // baseModel("[1m]")
         assert_eq!(base_model("a[1m]b"), "a[1m]b"); // baseModel("a[1m]b")
         assert_eq!(base_model("a[]"), "a"); // baseModel("a[]")
-        assert_eq!(rate_of("claude-sonnet-4-5", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()), "{\"input\":0.000003,\"output\":0.000015,\"cacheRead\":3e-7,\"cacheWrite\":0.00000375}"); // JSON.stringify(rateOf("claude-sonnet-4-5", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
-        assert_eq!(rate_of("anthropic/claude-sonnet-4-5", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()), "{\"input\":0.000003,\"output\":0.000015,\"cacheRead\":3e-7,\"cacheWrite\":0.00000375}"); // JSON.stringify(rateOf("anthropic/claude-sonnet-4-5", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
-        assert_eq!(rate_of("claude-sonnet-4-5-20250929", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()), "{\"input\":0.000003,\"output\":0.000015,\"cacheRead\":3e-7,\"cacheWrite\":0.00000375}"); // JSON.stringify(rateOf("claude-sonnet-4-5-20250929", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
-        assert_eq!(rate_of("claude-sonnet-4-5[1m]", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()), "{\"input\":0.000003,\"output\":0.000015,\"cacheRead\":3e-7,\"cacheWrite\":0.00000375}"); // JSON.stringify(rateOf("claude-sonnet-4-5[1m]", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
-        assert_eq!(rate_of("openai/gpt-5", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()), "{\"input\":0.00000125,\"output\":0.00001}"); // JSON.stringify(rateOf("openai/gpt-5", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
-        assert_eq!(rate_of("gpt-5-20250101", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()), "{\"input\":0.00000125,\"output\":0.00001}"); // JSON.stringify(rateOf("gpt-5-20250101", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
+        assert_eq!(
+            rate_of("claude-sonnet-4-5", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()),
+            "{\"input\":0.000003,\"output\":0.000015,\"cacheRead\":3e-7,\"cacheWrite\":0.00000375}"
+        ); // JSON.stringify(rateOf("claude-sonnet-4-5", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
+        assert_eq!(
+            rate_of("anthropic/claude-sonnet-4-5", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()),
+            "{\"input\":0.000003,\"output\":0.000015,\"cacheRead\":3e-7,\"cacheWrite\":0.00000375}"
+        ); // JSON.stringify(rateOf("anthropic/claude-sonnet-4-5", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
+        assert_eq!(
+            rate_of("claude-sonnet-4-5-20250929", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()),
+            "{\"input\":0.000003,\"output\":0.000015,\"cacheRead\":3e-7,\"cacheWrite\":0.00000375}"
+        ); // JSON.stringify(rateOf("claude-sonnet-4-5-20250929", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
+        assert_eq!(
+            rate_of("claude-sonnet-4-5[1m]", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()),
+            "{\"input\":0.000003,\"output\":0.000015,\"cacheRead\":3e-7,\"cacheWrite\":0.00000375}"
+        ); // JSON.stringify(rateOf("claude-sonnet-4-5[1m]", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
+        assert_eq!(
+            rate_of("openai/gpt-5", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()),
+            "{\"input\":0.00000125,\"output\":0.00001}"
+        ); // JSON.stringify(rateOf("openai/gpt-5", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
+        assert_eq!(
+            rate_of("gpt-5-20250101", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()),
+            "{\"input\":0.00000125,\"output\":0.00001}"
+        ); // JSON.stringify(rateOf("gpt-5-20250101", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
         assert_eq!(rate_of("gpt-6", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()), "null"); // JSON.stringify(rateOf("gpt-6", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
         assert_eq!(rate_of("claude-sonnet-4-5-2025", &table()).map(|r| js(&r)).unwrap_or_else(|| "null".into()), "null"); // JSON.stringify(rateOf("claude-sonnet-4-5-2025", {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? null)
-        assert_eq!(price_of("gpt-5", &PricedTokens { input: 1000.0, output: 100.0, cached: None, cache_write: None }, &table()).map(wsp_words::js::number_string).unwrap_or_else(|| "none".into()), "0.0022500000000000003"); // String(priceOf("gpt-5", {"input":1000,"output":100}, {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? "none")
-        assert_eq!(price_of("claude-sonnet-4-5", &PricedTokens { input: 1000.0, output: 100.0, cached: Some(400.0), cache_write: Some(100.0) }, &table()).map(wsp_words::js::number_string).unwrap_or_else(|| "none".into()), "0.003495"); // String(priceOf("claude-sonnet-4-5", {"input":1000,"output":100,"cached":400,"cacheWrite":100}, {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? "none")
-        assert_eq!(price_of("claude-sonnet-4-5", &PricedTokens { input: 100.0, output: 0.0, cached: Some(300.0), cache_write: None }, &table()).map(wsp_words::js::number_string).unwrap_or_else(|| "none".into()), "0.00008999999999999999"); // String(priceOf("claude-sonnet-4-5", {"input":100,"output":0,"cached":300}, {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? "none")
-        assert_eq!(price_of("nope", &PricedTokens { input: 1.0, output: 1.0, cached: None, cache_write: None }, &table()).map(wsp_words::js::number_string).unwrap_or_else(|| "none".into()), "none"); // String(priceOf("nope", {"input":1,"output":1}, {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? "none")
+        assert_eq!(
+            price_of("gpt-5", &PricedTokens { input: 1000.0, output: 100.0, cached: None, cache_write: None }, &table())
+                .map(wsp_words::js::number_string)
+                .unwrap_or_else(|| "none".into()),
+            "0.0022500000000000003"
+        ); // String(priceOf("gpt-5", {"input":1000,"output":100}, {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? "none")
+        assert_eq!(
+            price_of(
+                "claude-sonnet-4-5",
+                &PricedTokens { input: 1000.0, output: 100.0, cached: Some(400.0), cache_write: Some(100.0) },
+                &table()
+            )
+            .map(wsp_words::js::number_string)
+            .unwrap_or_else(|| "none".into()),
+            "0.003495"
+        ); // String(priceOf("claude-sonnet-4-5", {"input":1000,"output":100,"cached":400,"cacheWrite":100}, {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? "none")
+        assert_eq!(
+            price_of("claude-sonnet-4-5", &PricedTokens { input: 100.0, output: 0.0, cached: Some(300.0), cache_write: None }, &table())
+                .map(wsp_words::js::number_string)
+                .unwrap_or_else(|| "none".into()),
+            "0.00008999999999999999"
+        ); // String(priceOf("claude-sonnet-4-5", {"input":100,"output":0,"cached":300}, {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? "none")
+        assert_eq!(
+            price_of("nope", &PricedTokens { input: 1.0, output: 1.0, cached: None, cache_write: None }, &table())
+                .map(wsp_words::js::number_string)
+                .unwrap_or_else(|| "none".into()),
+            "none"
+        ); // String(priceOf("nope", {"input":1,"output":1}, {"claude-sonnet-4-5":{"input":0.000003,"output":0.000015,"cacheRead":3e-7,"cacheWrite":0.00000375},"gpt-5":{"input":0.00000125,"output":0.00001}}) ?? "none")
         assert_eq!(fresh_in(10.0, 3.0, None), 7.0); // freshIn({"input":10,"cached":3})
         assert_eq!(fresh_in(10.0, 3.0, Some(4.0)), 3.0); // freshIn({"input":10,"cached":3,"cacheWrite":4})
         assert_eq!(fresh_in(2.0, 5.0, None), 0.0); // freshIn({"input":2,"cached":5})
@@ -399,40 +446,144 @@ mod pinned {
 
     #[test]
     fn an_account_and_its_reset_sentences() {
-        assert_eq!(account_words(&AccountWho { agent_name: "Claude Code".into(), keyed: Some(true), plan: Some("max".into()), plan_brand: None, named: None, vaulted: None, own_on: None }), "Claude Code with an API key"); // accountWords({"agentName":"Claude Code","keyed":true,"plan":"max"})
-        assert_eq!(account_words(&AccountWho { agent_name: "Claude Code".into(), keyed: None, plan: Some("max".into()), plan_brand: None, named: None, vaulted: None, own_on: None }), "Claude Code with Max"); // accountWords({"agentName":"Claude Code","plan":"max"})
-        assert_eq!(account_words(&AccountWho { agent_name: "Codex".into(), keyed: None, plan: Some("plus".into()), plan_brand: Some("ChatGPT".into()), named: None, vaulted: None, own_on: None }), "Codex with ChatGPT Plus"); // accountWords({"agentName":"Codex","plan":"plus","planBrand":"ChatGPT"})
-        assert_eq!(account_words(&AccountWho { agent_name: "Codex".into(), keyed: None, plan: Some("".into()), plan_brand: None, named: Some("a@b.c".into()), vaulted: None, own_on: None }), "Codex as a@b.c"); // accountWords({"agentName":"Codex","plan":"","named":"a@b.c"})
-        assert_eq!(account_words(&AccountWho { agent_name: "Codex".into(), keyed: None, plan: None, plan_brand: None, named: None, vaulted: Some(true), own_on: None }), "Codex with your sign-in"); // accountWords({"agentName":"Codex","vaulted":true})
-        assert_eq!(account_words(&AccountWho { agent_name: "Codex".into(), keyed: None, plan: None, plan_brand: None, named: None, vaulted: None, own_on: Some("spoo".into()) }), "Codex signed in on spoo"); // accountWords({"agentName":"Codex","ownOn":"spoo"})
-        assert_eq!(account_words(&AccountWho { agent_name: "Codex".into(), keyed: None, plan: None, plan_brand: None, named: None, vaulted: None, own_on: None }), "Codex"); // accountWords({"agentName":"Codex"})
-        assert_eq!(account_words(&AccountWho { agent_name: "Codex".into(), keyed: None, plan: Some("\u{e9}bc".into()), plan_brand: None, named: None, vaulted: None, own_on: None }), "Codex with \u{c9}bc"); // accountWords({"agentName":"Codex","plan":"ébc"})
+        assert_eq!(
+            account_words(&AccountWho {
+                agent_name: "Claude Code".into(),
+                keyed: Some(true),
+                plan: Some("max".into()),
+                plan_brand: None,
+                named: None,
+                vaulted: None,
+                own_on: None
+            }),
+            "Claude Code with an API key"
+        ); // accountWords({"agentName":"Claude Code","keyed":true,"plan":"max"})
+        assert_eq!(
+            account_words(&AccountWho {
+                agent_name: "Claude Code".into(),
+                keyed: None,
+                plan: Some("max".into()),
+                plan_brand: None,
+                named: None,
+                vaulted: None,
+                own_on: None
+            }),
+            "Claude Code with Max"
+        ); // accountWords({"agentName":"Claude Code","plan":"max"})
+        assert_eq!(
+            account_words(&AccountWho {
+                agent_name: "Codex".into(),
+                keyed: None,
+                plan: Some("plus".into()),
+                plan_brand: Some("ChatGPT".into()),
+                named: None,
+                vaulted: None,
+                own_on: None
+            }),
+            "Codex with ChatGPT Plus"
+        ); // accountWords({"agentName":"Codex","plan":"plus","planBrand":"ChatGPT"})
+        assert_eq!(
+            account_words(&AccountWho {
+                agent_name: "Codex".into(),
+                keyed: None,
+                plan: Some("".into()),
+                plan_brand: None,
+                named: Some("a@b.c".into()),
+                vaulted: None,
+                own_on: None
+            }),
+            "Codex as a@b.c"
+        ); // accountWords({"agentName":"Codex","plan":"","named":"a@b.c"})
+        assert_eq!(
+            account_words(&AccountWho {
+                agent_name: "Codex".into(),
+                keyed: None,
+                plan: None,
+                plan_brand: None,
+                named: None,
+                vaulted: Some(true),
+                own_on: None
+            }),
+            "Codex with your sign-in"
+        ); // accountWords({"agentName":"Codex","vaulted":true})
+        assert_eq!(
+            account_words(&AccountWho {
+                agent_name: "Codex".into(),
+                keyed: None,
+                plan: None,
+                plan_brand: None,
+                named: None,
+                vaulted: None,
+                own_on: Some("spoo".into())
+            }),
+            "Codex signed in on spoo"
+        ); // accountWords({"agentName":"Codex","ownOn":"spoo"})
+        assert_eq!(
+            account_words(&AccountWho {
+                agent_name: "Codex".into(),
+                keyed: None,
+                plan: None,
+                plan_brand: None,
+                named: None,
+                vaulted: None,
+                own_on: None
+            }),
+            "Codex"
+        ); // accountWords({"agentName":"Codex"})
+        assert_eq!(
+            account_words(&AccountWho {
+                agent_name: "Codex".into(),
+                keyed: None,
+                plan: Some("\u{e9}bc".into()),
+                plan_brand: None,
+                named: None,
+                vaulted: None,
+                own_on: None
+            }),
+            "Codex with \u{c9}bc"
+        ); // accountWords({"agentName":"Codex","plan":"ébc"})
         assert_eq!(reset_who("Claude Max", true, "spoo"), "Claude Max"); // resetWho({label:"Claude Max", own:true, computer:"spoo"})
         assert_eq!(reset_who("Claude Max", false, "spoo"), "Claude Max on spoo"); // resetWho({label:"Claude Max", own:false, computer:"spoo"})
-        assert_eq!(reset_question("Max", None), "Use a reset banked on Max? Its five-hour and weekly windows start again now. There is no undo."); // resetQuestion("Max", undefined)
-        assert_eq!(reset_question("Max", Some(1.0)), "Use the one reset banked on Max? Its five-hour and weekly windows start again now. There is no undo."); // resetQuestion("Max", 1)
-        assert_eq!(reset_question("Max", Some(3.0)), "Use one of the 3 resets banked on Max? Its five-hour and weekly windows start again now. There is no undo."); // resetQuestion("Max", 3)
+        assert_eq!(
+            reset_question("Max", None),
+            "Use a reset banked on Max? Its five-hour and weekly windows start again now. There is no undo."
+        ); // resetQuestion("Max", undefined)
+        assert_eq!(
+            reset_question("Max", Some(1.0)),
+            "Use the one reset banked on Max? Its five-hour and weekly windows start again now. There is no undo."
+        ); // resetQuestion("Max", 1)
+        assert_eq!(
+            reset_question("Max", Some(3.0)),
+            "Use one of the 3 resets banked on Max? Its five-hour and weekly windows start again now. There is no undo."
+        ); // resetQuestion("Max", 3)
         assert_eq!(reset_keyed_line("Max"), "Max pays per token; an API key has no reset to use"); // resetKeyedLine("Max")
         assert_eq!(reset_silent_line("Codex", "spoo"), "Codex on spoo did not answer; the same request goes again on the next press"); // resetSilentLine("Codex", "spoo")
         assert_eq!(reset_unread_line("Codex", "spoo", "Max"), "Codex on spoo did not read Max's limits; nothing was spent"); // resetUnreadLine("Codex", "spoo", "Max")
         assert_eq!(reset_mismatch_line("Codex", "spoo", "b@c", "Max"), "Codex on spoo is now signed in as b@c, not Max; nothing was spent"); // resetMismatchLine("Codex", "spoo", "b@c", "Max")
         assert_eq!(reset_refused_line("Codex", "spoo", "Max", "no"), "Codex on spoo refused the reset of Max: no"); // resetRefusedLine("Codex", "spoo", "Max", "no")
-        assert_eq!(reset_provider_only_line("Max", "Hetzner", "Codex"), "Max lives only on Hetzner machines; sign Codex in on a computer of yours"); // resetProviderOnlyLine("Max", "Hetzner", "Codex")
+        assert_eq!(
+            reset_provider_only_line("Max", "Hetzner", "Codex"),
+            "Max lives only on Hetzner machines; sign Codex in on a computer of yours"
+        ); // resetProviderOnlyLine("Max", "Hetzner", "Codex")
         assert_eq!(reset_signed_out_line("Max", "Codex"), "Max is signed in on none of your computers now; sign Codex in on one of them"); // resetSignedOutLine("Max", "Codex")
         assert_eq!(reset_not_on_line("Max", "spoo", &["a"] as &[&str]), "Max is not signed in on spoo; it is on a"); // resetNotOnLine("Max", "spoo", ["a"])
-        assert_eq!(reset_not_on_line("Max", "spoo", &["a","b"] as &[&str]), "Max is not signed in on spoo; it is on a and b"); // resetNotOnLine("Max", "spoo", ["a","b"])
+        assert_eq!(reset_not_on_line("Max", "spoo", &["a", "b"] as &[&str]), "Max is not signed in on spoo; it is on a and b"); // resetNotOnLine("Max", "spoo", ["a","b"])
         assert_eq!(reset_no_logins_line("spoo", "Codex"), "spoo has not said where it keeps its logins, so Codex's there cannot be reached; wsp add spoo --update puts a newer agent on it"); // resetNoLoginsLine("spoo", "Codex")
         assert_eq!(reset_none_line("Codex"), "Codex banks no resets"); // resetNoneLine("Codex")
-        assert_eq!(no_such_account_line("max"), "no account max; wsp usage lists every account"); // noSuchAccountLine("max")
+        assert_eq!(no_such_account_line("max"), "no account max; wsp usage lists every account");
+        // noSuchAccountLine("max")
     }
 
     #[test]
     fn lists_logs_and_the_used_ask() {
         assert_eq!(list_words(&[] as &[&str]), ""); // listWords([])
         assert_eq!(list_words(&["a"] as &[&str]), "a"); // listWords(["a"])
-        assert_eq!(list_words(&["a","b"] as &[&str]), "a and b"); // listWords(["a","b"])
-        assert_eq!(list_words(&["a","b","c"] as &[&str]), "a, b and c"); // listWords(["a","b","c"])
-        assert_eq!(logs_line(&UsedAnswerLogs { agents: vec!["Claude Code".into(), "Codex".into()], computers: vec!["spoo".into()] }), "Counts what Claude Code and Codex logged on spoo, wsp's threads there included."); // logsLine({agents:["Claude Code","Codex"], computers:["spoo"]})
+        assert_eq!(list_words(&["a", "b"] as &[&str]), "a and b"); // listWords(["a","b"])
+        assert_eq!(list_words(&["a", "b", "c"] as &[&str]), "a, b and c"); // listWords(["a","b","c"])
+        assert_eq!(
+            logs_line(&UsedAnswerLogs { agents: vec!["Claude Code".into(), "Codex".into()], computers: vec!["spoo".into()] }),
+            "Counts what Claude Code and Codex logged on spoo, wsp's threads there included."
+        ); // logsLine({agents:["Claude Code","Codex"], computers:["spoo"]})
         assert_eq!(js(&used_ask(&UsageRange::Week, &UsageSplit::Model)), "{\"range\":\"week\",\"split\":\"model\",\"outside\":true}"); // JSON.stringify(usedAsk("week", "model"))
         assert_eq!(kind_word(limit_kind_of_minutes(0.0)), "session"); // limitKindOfMinutes(0)
         assert_eq!(kind_word(limit_kind_of_minutes(300.0)), "session"); // limitKindOfMinutes(300)
@@ -473,13 +624,59 @@ mod pinned {
         assert_eq!(as_of_word(1792920600000.0, 1792920600000.0, Some("Asia/Kolkata")), "as of 15:00"); // asOfWord(1792920600000, 1792920600000, "Asia/Kolkata")
         assert_eq!(clock_word(1792872000000.0, 1792920600000.0, Some("Asia/Kolkata")), "01:30"); // clockWord(1792872000000, 1792920600000, "Asia/Kolkata")
         assert_eq!(as_of_word(1792872000000.0, 1792920600000.0, Some("Asia/Kolkata")), "as of 01:30"); // asOfWord(1792872000000, 1792920600000, "Asia/Kolkata")
-        assert_eq!(window_cell(&LimitWindow { kind: LimitKind::Session, used_percent: JsNumber(42.5), resets_at: None }, 1792920600000.0, Some("UTC")), "43%"); // windowCell({"kind":"session","usedPercent":42.5}, 1792920600000, "UTC")
-        assert_eq!(window_cell(&LimitWindow { kind: LimitKind::Week, used_percent: JsNumber(99.4), resets_at: Some(JsNumber(1792927800000.0)) }, 1792920600000.0, Some("UTC")), "99% resets in 2 h"); // windowCell({"kind":"week","usedPercent":99.4,"resetsAt":1792927800000}, 1792920600000, "UTC")
-        assert_eq!(window_cell(&LimitWindow { kind: LimitKind::Month, used_percent: JsNumber(0.0), resets_at: Some(JsNumber(1792920599999.0)) }, 1792920600000.0, Some("UTC")), "0% reset"); // windowCell({"kind":"month","usedPercent":0,"resetsAt":1792920599999}, 1792920600000, "UTC")
+        assert_eq!(
+            window_cell(
+                &LimitWindow { kind: LimitKind::Session, used_percent: JsNumber(42.5), resets_at: None },
+                1792920600000.0,
+                Some("UTC")
+            ),
+            "43%"
+        ); // windowCell({"kind":"session","usedPercent":42.5}, 1792920600000, "UTC")
+        assert_eq!(
+            window_cell(
+                &LimitWindow { kind: LimitKind::Week, used_percent: JsNumber(99.4), resets_at: Some(JsNumber(1792927800000.0)) },
+                1792920600000.0,
+                Some("UTC")
+            ),
+            "99% resets in 2 h"
+        ); // windowCell({"kind":"week","usedPercent":99.4,"resetsAt":1792927800000}, 1792920600000, "UTC")
+        assert_eq!(
+            window_cell(
+                &LimitWindow { kind: LimitKind::Month, used_percent: JsNumber(0.0), resets_at: Some(JsNumber(1792920599999.0)) },
+                1792920600000.0,
+                Some("UTC")
+            ),
+            "0% reset"
+        ); // windowCell({"kind":"month","usedPercent":0,"resetsAt":1792920599999}, 1792920600000, "UTC")
         assert_eq!(held_until(&[], 1792920600000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "none".into()), "none"); // String(heldUntil([], 1792920600000) ?? "none")
-        assert_eq!(held_until(&[LimitWindow { kind: LimitKind::Session, used_percent: JsNumber(100.0), resets_at: Some(JsNumber(1792920600010.0)) }, LimitWindow { kind: LimitKind::Week, used_percent: JsNumber(100.0), resets_at: Some(JsNumber(1792920600099.0)) }, LimitWindow { kind: LimitKind::Month, used_percent: JsNumber(99.0), resets_at: Some(JsNumber(1792920600999.0)) }], 1792920600000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "none".into()), "1792920600099"); // String(heldUntil([{"kind":"session","usedPercent":100,"resetsAt":1792920600010},{"kind":"week","usedPercent":100,"resetsAt":1792920600099},{"kind":"month","usedPercent":99,"resetsAt":1792920600999}], 1792920600000) ?? "none")
-        assert_eq!(held_until(&[LimitWindow { kind: LimitKind::Session, used_percent: JsNumber(100.0), resets_at: Some(JsNumber(1792920600000.0)) }], 1792920600000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "none".into()), "none"); // String(heldUntil([{"kind":"session","usedPercent":100,"resetsAt":1792920600000}], 1792920600000) ?? "none")
-        assert_eq!(held_until(&[LimitWindow { kind: LimitKind::Session, used_percent: JsNumber(100.0), resets_at: None }], 1792920600000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "none".into()), "none"); // String(heldUntil([{"kind":"session","usedPercent":100}], 1792920600000) ?? "none")
+        assert_eq!(
+            held_until(
+                &[
+                    LimitWindow { kind: LimitKind::Session, used_percent: JsNumber(100.0), resets_at: Some(JsNumber(1792920600010.0)) },
+                    LimitWindow { kind: LimitKind::Week, used_percent: JsNumber(100.0), resets_at: Some(JsNumber(1792920600099.0)) },
+                    LimitWindow { kind: LimitKind::Month, used_percent: JsNumber(99.0), resets_at: Some(JsNumber(1792920600999.0)) }
+                ],
+                1792920600000.0
+            )
+            .map(wsp_words::js::number_string)
+            .unwrap_or_else(|| "none".into()),
+            "1792920600099"
+        ); // String(heldUntil([{"kind":"session","usedPercent":100,"resetsAt":1792920600010},{"kind":"week","usedPercent":100,"resetsAt":1792920600099},{"kind":"month","usedPercent":99,"resetsAt":1792920600999}], 1792920600000) ?? "none")
+        assert_eq!(
+            held_until(
+                &[LimitWindow { kind: LimitKind::Session, used_percent: JsNumber(100.0), resets_at: Some(JsNumber(1792920600000.0)) }],
+                1792920600000.0
+            )
+            .map(wsp_words::js::number_string)
+            .unwrap_or_else(|| "none".into()),
+            "none"
+        ); // String(heldUntil([{"kind":"session","usedPercent":100,"resetsAt":1792920600000}], 1792920600000) ?? "none")
+        assert_eq!(
+            held_until(&[LimitWindow { kind: LimitKind::Session, used_percent: JsNumber(100.0), resets_at: None }], 1792920600000.0)
+                .map(wsp_words::js::number_string)
+                .unwrap_or_else(|| "none".into()),
+            "none"
+        ); // String(heldUntil([{"kind":"session","usedPercent":100}], 1792920600000) ?? "none")
     }
 
     #[test]
@@ -494,6 +691,7 @@ mod pinned {
         assert_eq!(limit_words::stopped("Codex"), "Codex stopped this turn until its plan resets."); // LIMIT_WORDS.stopped("Codex")
         assert_eq!(limit_words::stopped_unknown("Codex"), "Codex stopped this turn and did not say when its plan resets."); // LIMIT_WORDS.stoppedUnknown("Codex")
         assert_eq!(limit_words::armed("Codex"), "Codex goes on with this turn when its plan resets."); // LIMIT_WORDS.armed("Codex")
-        assert_eq!(limit_words::resumes_at("Codex", "14:00"), "Codex resumes at 14:00"); // LIMIT_WORDS.resumesAt("Codex", "14:00")
+        assert_eq!(limit_words::resumes_at("Codex", "14:00"), "Codex resumes at 14:00");
+        // LIMIT_WORDS.resumesAt("Codex", "14:00")
     }
 }

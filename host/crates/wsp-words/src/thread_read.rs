@@ -2,10 +2,20 @@
 //! One thread read off the transcript the host holds: the messages a reader sees and the result its latest turn ended with. Port of the functions of packages/protocol/src/thread-read.ts at
 //! a3b870a6e; its shapes and flat constants are wsp_wire::types::thread_read. See spec/thread_read.md.
 
-use wsp_wire::views::session_events::SessionEvent;
-use wsp_wire::views::session_events::SessionPermissionEvent;
-use wsp_wire::types::thread_read::ThreadMessage;
-use wsp_wire::views::session_events::TurnResult;
+use indexmap::IndexMap;
+
+use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::types::thread_read::{ThreadMessage, ThreadVoice, THREAD_SEED_CHARS};
+use wsp_wire::views::session_events::{
+    DeltaKind, PlanStepState, SessionChangesEvent, SessionDeltaEvent, SessionDoneEvent, SessionEarlierEvent, SessionEarlierEventWho,
+    SessionEndEvent, SessionEvent, SessionPermissionEvent, SessionPlanEvent, SessionStartEvent, TurnResult, TurnStatus,
+};
+
+use crate::words::tools::{tool_activity_line, tool_done_line};
+use crate::words::turn::{
+    fmt_clock, notify_body, notify_reply, plan_steps_line, turn_changes_line, turn_end_line, FileLines, NotifyLength, StepState,
+    TurnChanges, NEWER_TURN_LINE, NO_RESULT_LINE,
+};
 
 // Who a row of a read is: the message that opened or steered a turn, the agent's own words, one tool call, or the
 // turn's own end as the chat's footer states it.
@@ -40,7 +50,22 @@ use wsp_wire::views::session_events::TurnResult;
 //   return at === 0 ? kept : `*${at} earlier ${at === 1 ? "message" : "messages"} left out*\n\n${kept}`;
 // }
 pub fn thread_seed(messages: &[ThreadMessage]) -> String {
-    todo!()
+    let mut at = messages.len();
+    let mut size = 0usize;
+    while at > 0 {
+        let units = messages[at - 1].text.encode_utf16().count();
+        if size + units > THREAD_SEED_CHARS as usize {
+            break;
+        }
+        size += units;
+        at -= 1;
+    }
+    let kept = thread_markdown(&messages[at..]);
+    if at == 0 {
+        return kept;
+    }
+    let noun = if at == 1 { "message" } else { "messages" };
+    format!("*{} earlier {noun} left out*\n\n{kept}", crate::js::number_string(at as f64))
 }
 
 // thread-read.ts:46
@@ -182,7 +207,45 @@ pub fn thread_seed(messages: &[ThreadMessage]) -> String {
 //   return rows;
 // }
 pub fn thread_messages(events: &[SessionEvent], thread_id: &str) -> Vec<ThreadMessage> {
-    todo!()
+    let mut reader = Reader::default();
+    for event in events {
+        if thread_of(event) != Some(thread_id) {
+            continue;
+        }
+        let at = at_of(event);
+        match event {
+            SessionEvent::SessionStartEvent(e) => reader.start(e, at),
+            SessionEvent::SessionSteerEvent(e) => {
+                reader.say(ThreadVoice::Person, at, e.prompt.clone());
+            }
+            SessionEvent::SessionMovedEvent(e) => {
+                let line = crate::projects::thread_moved_line(&e.from, &e.to, e.fresh.is_some());
+                reader.say(ThreadVoice::Turn, at, line);
+            }
+            SessionEvent::SessionBehindEvent(e) => {
+                reader.say(ThreadVoice::Turn, at, e.text.clone());
+            }
+            SessionEvent::SessionNoticeEvent(e) => {
+                reader.say(ThreadVoice::Turn, at, e.text.clone());
+            }
+            SessionEvent::ThreadWaitedEvent(e) => {
+                let line = e.said.clone().unwrap_or_else(|| crate::workspace_state::waited_line(e.ms.as_f64()));
+                reader.say(ThreadVoice::Turn, at, line);
+            }
+            SessionEvent::SessionEarlierEvent(e) => reader.earlier(e, at),
+            SessionEvent::SessionDeltaEvent(e) => reader.delta(e, at),
+            SessionEvent::SessionDoneEvent(e) => reader.done(e, at),
+            SessionEvent::SessionEndEvent(e) => reader.end(e, at),
+            SessionEvent::SessionCompactedEvent(e) => {
+                let line = crate::words::turn::compacted_line(e.before.as_ref().map(|n| n.0), e.after.as_ref().map(|n| n.0));
+                reader.say(ThreadVoice::Tool, at, line);
+            }
+            SessionEvent::SessionPlanEvent(e) => reader.plan(e, at),
+            SessionEvent::SessionChangesEvent(e) => reader.changes(e, at),
+            _ => {}
+        }
+    }
+    reader.rows
 }
 
 /// The thread as Markdown, for a person to paste elsewhere: each message a person sent under a bold header with its
@@ -218,7 +281,49 @@ pub fn thread_messages(events: &[SessionEvent], thread_id: &str) -> Vec<ThreadMe
 //   return blocks.map(block => block.join("\n")).join("\n\n");
 // }
 pub fn thread_markdown(rows: &[ThreadMessage]) -> String {
-    todo!()
+    let zone = jiff::tz::TimeZone::system();
+    let offset = |at: f64| match jiff::Timestamp::from_millisecond(at as i64) {
+        Ok(stamp) => zone.to_offset(stamp).seconds() as i64,
+        Err(_) => 0,
+    };
+    let mut blocks: Vec<Vec<String>> = Vec::new();
+    let mut speaker: Option<ThreadVoice> = None;
+    for (index, row) in rows.iter().enumerate() {
+        match row.who {
+            ThreadVoice::Person => {
+                let clock = fmt_clock(row.at.as_ref().map(|at| at.0), &offset);
+                let head = if clock.is_empty() { "**You**".to_string() } else { format!("**You** {clock}") };
+                blocks.push(vec![head]);
+                blocks.push(row.text.split('\n').map(str::to_string).collect());
+                speaker = Some(ThreadVoice::Person);
+                continue;
+            }
+            ThreadVoice::Turn => {
+                blocks
+                    .push(row.text.split('\n').map(|line| if line.is_empty() { line.to_string() } else { format!("*{line}*") }).collect());
+                speaker = Some(ThreadVoice::Turn);
+                continue;
+            }
+            ThreadVoice::Agent | ThreadVoice::Tool => {}
+        }
+        if speaker != Some(ThreadVoice::Agent) {
+            blocks.push(vec!["**Agent**".to_string()]);
+        }
+        speaker = Some(ThreadVoice::Agent);
+        if row.who == ThreadVoice::Agent {
+            blocks.push(row.text.split('\n').map(str::to_string).collect());
+            continue;
+        }
+        let mut lines = row.text.split('\n');
+        let head = lines.next().unwrap_or("");
+        let mut item = vec![format!("- {head}")];
+        item.extend(lines.map(|line| format!("  {line}")));
+        match blocks.last_mut() {
+            Some(last) if index > 0 && rows[index - 1].who == ThreadVoice::Tool => last.extend(item),
+            _ => blocks.push(item),
+        }
+    }
+    blocks.iter().map(|block| block.join("\n")).collect::<Vec<_>>().join("\n\n")
 }
 
 // The thread's latest turn as its transcript ended it, with the time of the row it came off: the done's result
@@ -256,7 +361,7 @@ pub fn thread_markdown(rows: &[ThreadMessage]) -> String {
 //   return latestTurn(events, threadId)?.result;
 // }
 pub fn thread_result(events: &[SessionEvent], thread_id: &str) -> Option<TurnResult> {
-    todo!()
+    latest_turn(events, thread_id).map(|turn| turn.result)
 }
 
 /// The final reply alone, as the thread's finished line carries it: the whole message the thread's latest ended turn
@@ -276,7 +381,17 @@ pub fn thread_result(events: &[SessionEvent], thread_id: &str) -> Option<TurnRes
 //   return latest.running ? [...rows, message("turn", undefined, NEWER_TURN_LINE)] : rows;
 // }
 pub fn thread_reply_rows(events: &[SessionEvent], thread_id: &str) -> Vec<ThreadMessage> {
-    todo!()
+    let Some(latest) = latest_turn(events, thread_id) else {
+        return Vec::new();
+    };
+    let reply = notify_reply(&latest.result, Some(NotifyLength::Whole));
+    let body = notify_body(&latest.result, Some(NotifyLength::Whole)).unwrap_or_else(|| turn_end_line(&latest.result));
+    let who = if reply.as_deref() == Some(body.as_str()) { ThreadVoice::Agent } else { ThreadVoice::Turn };
+    let mut rows = vec![message(who, latest.at, body)];
+    if latest.running {
+        rows.push(message(ThreadVoice::Turn, None, NEWER_TURN_LINE.to_string()));
+    }
+    rows
 }
 
 /// Which of the prompts a turn holds open the thread is waiting on: the oldest still open, since that is the one the
@@ -287,7 +402,7 @@ pub fn thread_reply_rows(events: &[SessionEvent], thread_id: &str) -> Vec<Thread
 //   return [...open][0];
 // }
 pub fn lead_ask<T>(open: impl IntoIterator<Item = T>) -> Option<T> {
-    todo!()
+    open.into_iter().next()
 }
 
 /// The permission prompt this thread has open and nobody has answered, read off the transcript alone, by the rule
@@ -304,6 +419,316 @@ pub fn lead_ask<T>(open: impl IntoIterator<Item = T>) -> Option<T> {
 //   return leadAsk(open.values());
 // }
 pub fn open_ask(events: &[SessionEvent], thread_id: &str) -> Option<SessionPermissionEvent> {
-    todo!()
+    let mut open: IndexMap<String, SessionPermissionEvent> = IndexMap::new();
+    for event in events {
+        if thread_of(event) != Some(thread_id) {
+            continue;
+        }
+        match event {
+            SessionEvent::SessionPermissionEvent(e) => {
+                open.insert(e.ask_id.clone(), e.clone());
+            }
+            SessionEvent::SessionPermissionClosedEvent(e) => {
+                open.shift_remove(&e.ask_id);
+            }
+            _ => {}
+        }
+    }
+    lead_ask(open.into_values())
 }
 
+macro_rules! on_each_event {
+    ($event:expr, $e:ident => $body:expr) => {
+        match $event {
+            SessionEvent::SessionStartEvent($e) => $body,
+            SessionEvent::SessionDeltaEvent($e) => $body,
+            SessionEvent::SessionDoneEvent($e) => $body,
+            SessionEvent::SessionEndEvent($e) => $body,
+            SessionEvent::SessionSteerEvent($e) => $body,
+            SessionEvent::SessionNotifyEvent($e) => $body,
+            SessionEvent::SessionPermissionEvent($e) => $body,
+            SessionEvent::SessionPermissionClosedEvent($e) => $body,
+            SessionEvent::SessionCheckpointEvent($e) => $body,
+            SessionEvent::SessionChangesEvent($e) => $body,
+            SessionEvent::SessionPlanEvent($e) => $body,
+            SessionEvent::SessionCompactedEvent($e) => $body,
+            SessionEvent::SessionRetryEvent($e) => $body,
+            SessionEvent::SessionContextEvent($e) => $body,
+            SessionEvent::SessionRunEvent($e) => $body,
+            SessionEvent::SessionMovedEvent($e) => $body,
+            SessionEvent::SessionBehindEvent($e) => $body,
+            SessionEvent::SessionNoticeEvent($e) => $body,
+            SessionEvent::SessionEarlierEvent($e) => $body,
+            SessionEvent::SessionCappedEvent($e) => $body,
+            SessionEvent::SessionUncappedEvent($e) => $body,
+            SessionEvent::SessionSubagentEvent($e) => $body,
+            SessionEvent::SessionSlateEvent($e) => $body,
+            SessionEvent::ThreadWaitedEvent($e) => $body,
+        }
+    };
+}
+
+// The one variant per event type that carries a thread id; the runtime stamps every event, a row from before the stamp has none.
+fn thread_of(event: &SessionEvent) -> Option<&str> {
+    on_each_event!(event, e => e.thread_id.thread_str())
+}
+
+trait ThreadStr {
+    fn thread_str(&self) -> Option<&str>;
+}
+
+impl ThreadStr for Option<String> {
+    fn thread_str(&self) -> Option<&str> {
+        self.as_deref()
+    }
+}
+
+impl ThreadStr for String {
+    fn thread_str(&self) -> Option<&str> {
+        Some(self.as_str())
+    }
+}
+
+fn at_of(event: &SessionEvent) -> Option<f64> {
+    on_each_event!(event, e => e.at.as_ref().map(|at| at.0))
+}
+
+// A turn's result the runtime wrote for it: failed, with the reason it ended on.
+fn failed_result(error: &str) -> TurnResult {
+    TurnResult {
+        status: TurnStatus::Failed,
+        duration_ms: None,
+        waited_ms: None,
+        cost_usd: None,
+        tokens: None,
+        model: None,
+        models: None,
+        text: None,
+        error: Some(error.to_string()),
+        unreached: None,
+        refusal: None,
+        limit: None,
+    }
+}
+
+fn message(who: ThreadVoice, at: Option<f64>, text: String) -> ThreadMessage {
+    ThreadMessage { who, at: at.map(JsNumber), text }
+}
+
+struct LatestTurn {
+    at: Option<f64>,
+    result: TurnResult,
+    running: bool,
+}
+
+// The latest turn, read newest first; see the TS comment above, kept with the reader it serves.
+fn latest_turn(events: &[SessionEvent], thread_id: &str) -> Option<LatestTurn> {
+    let mut end: Option<&SessionEndEvent> = None;
+    let mut running = false;
+    for event in events.iter().rev() {
+        if thread_of(event) != Some(thread_id) {
+            continue;
+        }
+        match event {
+            SessionEvent::SessionEndEvent(e) => {
+                if end.is_some() {
+                    break;
+                }
+                end = Some(e);
+            }
+            SessionEvent::SessionDoneEvent(e) if end.is_none_or(|end| e.turn_id == end.turn_id) => {
+                return Some(LatestTurn { at: at_of(event), result: e.result.clone(), running });
+            }
+            SessionEvent::SessionStartEvent(e) => match end {
+                None => running = true,
+                Some(end) if e.turn_id == end.turn_id => break,
+                Some(_) => {}
+            },
+            _ => {}
+        }
+    }
+    let end = end?;
+    let reason = end.reason.as_deref().unwrap_or(NO_RESULT_LINE);
+    Some(LatestTurn { at: end.at.as_ref().map(|at| at.0), result: failed_result(reason), running })
+}
+
+#[derive(Default)]
+struct Reader {
+    rows: Vec<ThreadMessage>,
+    // The agent row text deltas append to, and the harness message it is a piece of.
+    open: Option<OpenRow>,
+    // The running turn's tool rows by the id of their call, since a call's input may arrive in pieces.
+    calls: IndexMap<String, Call>,
+    saw_text: bool,
+    replied: bool,
+    steps_row: Option<usize>,
+    plan_row: Option<usize>,
+}
+
+struct OpenRow {
+    row: usize,
+    message_id: Option<String>,
+}
+
+struct Call {
+    row: usize,
+    name: String,
+    input: String,
+}
+
+impl Reader {
+    fn say(&mut self, who: ThreadVoice, at: Option<f64>, text: String) -> usize {
+        self.open = None;
+        self.rows.push(message(who, at, text));
+        self.rows.len() - 1
+    }
+
+    fn turn(&mut self, at: Option<f64>, result: &TurnResult) {
+        if !self.saw_text {
+            if let Some(text) = result.text.as_deref().filter(|text| !text.is_empty()) {
+                self.say(ThreadVoice::Agent, at, text.to_string());
+            }
+        }
+        self.say(ThreadVoice::Turn, at, turn_end_line(result));
+        self.calls.clear();
+        self.saw_text = false;
+    }
+
+    fn start(&mut self, e: &SessionStartEvent, at: Option<f64>) {
+        self.open = None;
+        self.calls.clear();
+        self.saw_text = false;
+        self.replied = false;
+        self.steps_row = None;
+        self.plan_row = None;
+        if let Some(prompt) = &e.prompt {
+            self.say(ThreadVoice::Person, at, prompt.clone());
+        }
+    }
+
+    fn earlier(&mut self, e: &SessionEarlierEvent, at: Option<f64>) {
+        let who = match e.who {
+            SessionEarlierEventWho::Person => ThreadVoice::Person,
+            SessionEarlierEventWho::Agent => ThreadVoice::Agent,
+            SessionEarlierEventWho::Tool => ThreadVoice::Tool,
+            SessionEarlierEventWho::Note => ThreadVoice::Turn,
+        };
+        self.say(who, at, e.text.clone());
+    }
+
+    fn done(&mut self, e: &SessionDoneEvent, at: Option<f64>) {
+        self.replied = true;
+        self.turn(at, &e.result);
+    }
+
+    fn end(&mut self, e: &SessionEndEvent, at: Option<f64>) {
+        let reason = e.reason.as_deref().unwrap_or(NO_RESULT_LINE);
+        if e.unstarted.is_some() {
+            if let Some(prompt) = &e.prompt {
+                self.say(ThreadVoice::Person, at, prompt.clone());
+            }
+            self.turn(at, &failed_result(reason));
+        } else if !self.replied {
+            self.turn(at, &failed_result(reason));
+        }
+    }
+
+    fn plan(&mut self, e: &SessionPlanEvent, at: Option<f64>) {
+        if let Some(steps) = &e.steps {
+            let steps: Vec<crate::words::turn::PlanStep> = steps
+                .iter()
+                .map(|step| crate::words::turn::PlanStep {
+                    text: step.text.clone(),
+                    state: match step.state {
+                        PlanStepState::Pending => StepState::Pending,
+                        PlanStepState::Working => StepState::Working,
+                        PlanStepState::Done => StepState::Done,
+                    },
+                })
+                .collect();
+            let line = plan_steps_line(&steps);
+            match self.steps_row {
+                None => self.steps_row = Some(self.say(ThreadVoice::Tool, at, line)),
+                Some(row) => self.rows[row].text = line,
+            }
+        }
+        if let Some(text) = &e.text {
+            match self.plan_row {
+                None => self.plan_row = Some(self.say(ThreadVoice::Agent, at, text.clone())),
+                Some(row) => self.rows[row].text = text.clone(),
+            }
+        }
+    }
+
+    fn changes(&mut self, e: &SessionChangesEvent, at: Option<f64>) {
+        let changes = TurnChanges {
+            files: e.files.iter().map(|file| FileLines { additions: file.additions.0, deletions: file.deletions.0 }).collect(),
+            others: e.others.as_ref().map(|others| others.len()),
+            shared: e.shared.is_some(),
+        };
+        let row = message(ThreadVoice::Tool, at, turn_changes_line(&changes));
+        if self.rows.last().is_some_and(|last| last.who == ThreadVoice::Turn) {
+            let index = self.rows.len() - 1;
+            self.rows.insert(index, row);
+        } else {
+            self.rows.push(row);
+        }
+        self.open = None;
+    }
+
+    fn delta(&mut self, e: &SessionDeltaEvent, at: Option<f64>) {
+        match e.kind {
+            DeltaKind::Text => {
+                if e.text.is_empty() {
+                    return;
+                }
+                let split = match (self.open.as_ref().and_then(|open| open.message_id.as_ref()), e.message_id.as_ref()) {
+                    (Some(open_id), Some(message_id)) => open_id != message_id,
+                    _ => false,
+                };
+                if split {
+                    self.open = None;
+                }
+                match &mut self.open {
+                    Some(open) => self.rows[open.row].text.push_str(&e.text),
+                    None => {
+                        let row = self.rows.len();
+                        self.rows.push(message(ThreadVoice::Agent, at, e.text.clone()));
+                        self.open = Some(OpenRow { row, message_id: e.message_id.clone() });
+                    }
+                }
+                self.saw_text = true;
+            }
+            DeltaKind::ToolResult => {
+                let answered =
+                    e.tool_use_id.as_ref().and_then(|id| self.calls.get(id)).map(|call| (call.row, call.name.clone(), call.input.clone()));
+                if let Some((row, name, input)) = answered {
+                    if e.is_error != Some(true) {
+                        if let Some(did) = tool_done_line(Some(&name), &input) {
+                            self.rows[row].text = did;
+                        }
+                    }
+                }
+            }
+            DeltaKind::ToolUse => {
+                self.open = None;
+                let key = e.tool_use_id.clone();
+                if let Some(call) = key.as_ref().and_then(|key| self.calls.get_mut(key)) {
+                    if let Some(name) = &e.tool_name {
+                        call.name = name.clone();
+                    }
+                    call.input.push_str(&e.text);
+                    let (row, name, input) = (call.row, call.name.clone(), call.input.clone());
+                    self.rows[row].text = tool_activity_line(Some(&name), &input);
+                } else {
+                    let row = self.say(ThreadVoice::Tool, at, tool_activity_line(e.tool_name.as_deref(), &e.text));
+                    if let Some(key) = key {
+                        let name = e.tool_name.clone().unwrap_or_else(|| "tool".to_string());
+                        self.calls.insert(key, Call { row, name, input: e.text.clone() });
+                    }
+                }
+            }
+            DeltaKind::Thinking | DeltaKind::Note => {}
+        }
+    }
+}

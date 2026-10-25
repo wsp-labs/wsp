@@ -3,7 +3,10 @@
 //! a read's rows), thread titles from the opening turn and from a harness's answer, and the kept opening. Each TS
 //! statement stands as a comment above its stub. See spec/turn.md.
 
-use wsp_wire::types::thread_read::ThreadMessage;
+use crate::js::{is_js_whitespace, js_collapse_whitespace, js_trim, number_string, upper_first, utf16};
+use crate::words::base::{cut_line, fmt_threads, last_line, plural, words_within, ELLIPSIS};
+use crate::words::units::{fmt_cost, fmt_duration, fmt_tokens};
+use wsp_wire::types::thread_read::{ThreadMessage, ThreadVoice};
 use wsp_wire::views::session::{TitleSource, TurnRefusal};
 use wsp_wire::views::session_events::{TurnResult, TurnStatus};
 
@@ -28,7 +31,10 @@ pub enum NotifyLength {
 impl NotifyLength {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            Self::Tail => "tail",
+            Self::Whole => "whole",
+        }
     }
 }
 
@@ -41,7 +47,14 @@ impl NotifyLength {
 //   return length === "tail" ? lastLine(text) : text.trim() === "" ? undefined : text.trim();
 // }
 pub fn notify_reply(result: &TurnResult, length: Option<NotifyLength>) -> Option<String> {
-    todo!()
+    let text = result.text.as_deref().unwrap_or("");
+    match length.unwrap_or(NotifyLength::Tail) {
+        NotifyLength::Tail => last_line(text),
+        NotifyLength::Whole => {
+            let whole = js_trim(text);
+            (!whole.is_empty()).then(|| whole.to_string())
+        }
+    }
 }
 
 /// What the notify line ends with, and what a wait answers as the reply: the reply at the length asked for, or the
@@ -53,7 +66,12 @@ pub fn notify_reply(result: &TurnResult, length: Option<NotifyLength>) -> Option
 //   return result.status === "completed" ? reply ?? result.error : result.error ?? reply;
 // }
 pub fn notify_body(result: &TurnResult, length: Option<NotifyLength>) -> Option<String> {
-    todo!()
+    let reply = notify_reply(result, length);
+    if result.status == TurnStatus::Completed {
+        reply.or_else(|| result.error.clone())
+    } else {
+        result.error.clone().or(reply)
+    }
 }
 
 /// A turn that ended with no result and no reason from the runtime.
@@ -93,7 +111,8 @@ pub const SUBAGENT_ASKED_CHARS: usize = 280;
 //   return last === undefined ? undefined : ownCopy(cutLine(last, LISTED_LINE_CHARS));
 // }
 pub fn listed_last_line(text: Option<&str>) -> Option<String> {
-    todo!()
+    let last = last_line(text.unwrap_or(""))?;
+    Some(cut_line(strip_list_marker(&last), LISTED_LINE_CHARS))
 }
 
 /// Why something failed as a listing carries it: the first line of the words, or the words a turn with none ends on.
@@ -103,14 +122,15 @@ pub fn listed_last_line(text: Option<&str>) -> Option<String> {
 //   return ownCopy(cutLine(first ?? NO_RESULT_LINE, LISTED_LINE_CHARS));
 // }
 pub fn listed_failure(why: Option<&str>) -> String {
-    todo!()
+    let first = first_text_line(why.unwrap_or("")).map(collapsed);
+    cut_line(&first.unwrap_or_else(|| NO_RESULT_LINE.to_string()), LISTED_LINE_CHARS)
 }
 
 /// What a subagent was asked, as its listing carries it.
 // turn.ts:65
 // export const subagentAsked = (prompt: string): string => ownCopy(cutLine(prompt.trim(), SUBAGENT_ASKED_CHARS));
 pub fn subagent_asked(prompt: &str) -> String {
-    todo!()
+    cut_line(js_trim(prompt), SUBAGENT_ASKED_CHARS)
 }
 
 /// What a turn's end leaves on its row: the reply's last line, and why it failed where it did, off the result's error
@@ -131,7 +151,9 @@ pub struct TurnLines {
 }
 
 pub fn turn_lines(result: &TurnResult, reason: Option<&str>) -> TurnLines {
-    todo!()
+    let last_line = listed_last_line(result.text.as_deref());
+    let failure = (result.status == TurnStatus::Failed).then(|| listed_failure(result.error.as_deref().or(reason)));
+    TurnLines { last_line, failure }
 }
 
 /// The tail alone: the length a person's sidebar row and a wait's reply field read.
@@ -140,7 +162,7 @@ pub fn turn_lines(result: &TurnResult, reason: Option<&str>) -> TurnLines {
 //   return notifyBody(result, "tail");
 // }
 pub fn notify_tail(result: &TurnResult) -> Option<String> {
-    todo!()
+    notify_body(result, Some(NotifyLength::Tail))
 }
 
 /// The one line a thread's end sends to whoever its start named, and the one a wait on it prints: the thread's first
@@ -153,7 +175,15 @@ pub fn notify_tail(result: &TurnResult) -> Option<String> {
 //   return `thread ${threadId.slice(0, 8)} finished (${facts.join(", ")})${body !== undefined ? `: ${body}` : ""}`;
 // }
 pub fn notify_line(thread_id: &str, result: &TurnResult, length: Option<NotifyLength>) -> String {
-    todo!()
+    let mut facts = vec![status_word(result.status).to_string()];
+    if let Some(clocked) = turn_worked_ms(&TurnClocks::from(result)) {
+        facts.push(fmt_duration(clocked.worked, None));
+    }
+    if let Some(cost) = result.cost_usd.as_ref().map(|c| c.0) {
+        facts.push(fmt_cost(cost));
+    }
+    let body = notify_body(result, length).map(|body| format!(": {body}")).unwrap_or_default();
+    format!("thread {} finished ({}){body}", utf16::cut(thread_id, 8), facts.join(", "))
 }
 
 /// What the person is told of a message steered into a turn whose agent never read it, when it is not sent again:
@@ -164,7 +194,8 @@ pub fn notify_line(thread_id: &str, result: &TurnResult, length: Option<NotifyLe
 //   return `the agent never read this message: ${first}`;
 // }
 pub fn unread_line(prompt: &str) -> String {
-    todo!()
+    let first = prompt.split('\n').find(|line| !js_trim(line).is_empty()).map(js_trim).unwrap_or("");
+    format!("the agent never read this message: {first}")
 }
 
 /// The line a wait prints when its deadline passed with every named thread still running: one thread by its first
@@ -176,7 +207,12 @@ pub fn unread_line(prompt: &str) -> String {
 // }
 /// `thread_ids` holds at least one id where its length is 1 (the TS reads `threadIds[0]!`).
 pub fn wait_timed_out_line(thread_ids: &[impl AsRef<str>], ms: f64) -> String {
-    todo!()
+    let who = if thread_ids.len() == 1 {
+        format!("thread {}", utf16::cut(thread_ids[0].as_ref(), 8))
+    } else {
+        fmt_threads(thread_ids.len() as f64)
+    };
+    format!("{who} still running after {}", fmt_duration(ms, None))
 }
 
 /// What the threads a thread opened have spent, said as its own fact: this is their whole life, and the turn's own
@@ -186,7 +222,7 @@ pub fn wait_timed_out_line(thread_ids: &[impl AsRef<str>], ms: f64) -> String {
 //   return `${fmtCost(costUsd)} in threads it opened`;
 // }
 pub fn opened_spend_part(cost_usd: f64) -> String {
-    todo!()
+    format!("{} in threads it opened", fmt_cost(cost_usd))
 }
 
 /// The turn's own cost where a second figure stands beside it. The two count different things, one turn against
@@ -196,7 +232,7 @@ pub fn opened_spend_part(cost_usd: f64) -> String {
 //   return `${spendFigure(costUsd, word)} this turn`;
 // }
 pub fn turn_spend_part(cost_usd: f64, word: Option<&str>) -> String {
-    todo!()
+    format!("{} this turn", spend_figure(cost_usd, word))
 }
 
 /// The minutes a settled turn stood stopped on a question, said where they are most of what it took: the figure
@@ -207,7 +243,7 @@ pub fn turn_spend_part(cost_usd: f64, word: Option<&str>) -> String {
 //   return `waited on you ${fmtDuration(waitedMs)}`;
 // }
 pub fn waited_on_you_part(waited_ms: f64) -> String {
-    todo!()
+    format!("waited on you {}", fmt_duration(waited_ms, None))
 }
 
 /// How long a settled turn worked and how long of it went on the person: the harness clocks wall time from launch
@@ -229,7 +265,11 @@ pub struct TurnClocks {
 
 impl From<&TurnResult> for TurnClocks {
     fn from(result: &TurnResult) -> TurnClocks {
-        todo!()
+        TurnClocks {
+            duration_ms: result.duration_ms.as_ref().map(|n| n.0),
+            waited_ms: result.waited_ms.as_ref().map(|n| n.0),
+            cost_usd: result.cost_usd.as_ref().map(|n| n.0),
+        }
     }
 }
 
@@ -241,7 +281,9 @@ pub struct Worked {
 }
 
 pub fn turn_worked_ms(turn: &TurnClocks) -> Option<Worked> {
-    todo!()
+    let duration = turn.duration_ms?;
+    let waited = turn.waited_ms.filter(|waited| *waited > 0.0).unwrap_or(0.0).min(duration);
+    Some(Worked { worked: duration - waited, waited })
 }
 
 /// What a settled turn says beside its outcome word, in the order every client shows it: how long it worked, what
@@ -262,7 +304,21 @@ pub fn turn_worked_ms(turn: &TurnClocks) -> Option<Worked> {
 //   return parts;
 // }
 pub fn turn_settled_parts(turn: &TurnClocks, opened_cost_usd: Option<f64>, spend_word: Option<&str>) -> Vec<String> {
-    todo!()
+    let opened = opened_cost_usd.filter(|cost| *cost > 0.0);
+    let mut parts = Vec::new();
+    if let Some(clocked) = turn_worked_ms(turn) {
+        parts.push(format!("Worked for {}", fmt_duration(clocked.worked, None)));
+        if clocked.waited > clocked.worked {
+            parts.push(waited_on_you_part(clocked.waited));
+        }
+    }
+    if let Some(cost) = turn.cost_usd {
+        parts.push(if opened.is_some() { turn_spend_part(cost, spend_word) } else { spend_figure(cost, spend_word) });
+    }
+    if let Some(opened) = opened {
+        parts.push(opened_spend_part(opened));
+    }
+    parts
 }
 
 /// What a reply ran on and what it read and wrote, in the footer's order: the model, then the tokens in and out.
@@ -285,12 +341,20 @@ pub struct TurnFacts {
 
 impl From<&TurnResult> for TurnFacts {
     fn from(result: &TurnResult) -> TurnFacts {
-        todo!()
+        TurnFacts { model: result.model.clone(), tokens: result.tokens.as_ref().map(|t| (t.input.0, t.output.0)) }
     }
 }
 
 pub fn turn_facts_parts(turn: &TurnFacts, model_label: Option<&str>) -> Vec<String> {
-    todo!()
+    let mut parts = Vec::new();
+    if let Some(model) = model_label.or(turn.model.as_deref()).filter(|model| !model.is_empty()) {
+        parts.push(model.to_string());
+    }
+    if let Some((input, output)) = turn.tokens {
+        parts.push(format!("{} in", fmt_tokens(input)));
+        parts.push(format!("{} out", fmt_tokens(output)));
+    }
+    parts
 }
 
 /// The chat footer as one line, for a stream that has no footer: the outcome word, then what it worked and cost.
@@ -301,7 +365,9 @@ pub fn turn_facts_parts(turn: &TurnFacts, model_label: Option<&str>) -> Vec<Stri
 //   return [result.status, ...turnSettledParts(result, undefined, spendWord)].join("  ");
 // }
 pub fn turn_settled_line(result: &TurnResult, spend_word: Option<&str>) -> String {
-    todo!()
+    let mut parts = vec![status_word(result.status).to_string()];
+    parts.extend(turn_settled_parts(&TurnClocks::from(result), None, spend_word));
+    parts.join("  ")
 }
 
 /// A compaction's line in the thread, with what the model held before and after it where the agent said.
@@ -311,7 +377,11 @@ pub fn turn_settled_line(result: &TurnResult, spend_word: Option<&str>) -> Strin
 //   return before === undefined ? `Compacted the context to ${fmtTokens(after)} tokens` : `Compacted the context, ${fmtTokens(before)} to ${fmtTokens(after)} tokens`;
 // }
 pub fn compacted_line(before: Option<f64>, after: Option<f64>) -> String {
-    todo!()
+    match (before, after) {
+        (_, None) => "Compacted the context".to_string(),
+        (None, Some(after)) => format!("Compacted the context to {} tokens", fmt_tokens(after)),
+        (Some(before), Some(after)) => format!("Compacted the context, {} to {} tokens", fmt_tokens(before), fmt_tokens(after)),
+    }
 }
 
 /// Why Claude Code is making a model call again, by the category it gives the failure: a call held past its wait or cut
@@ -324,7 +394,18 @@ pub fn compacted_line(before: Option<f64>, after: Option<f64>) -> String {
 //   return status === undefined ? "Anthropic did not answer" : `Anthropic answered ${status}`;
 // }
 pub fn anthropic_retry_why(error: Option<&str>, status: Option<f64>) -> String {
-    todo!()
+    match error {
+        Some("overloaded") => "Anthropic was overloaded".to_string(),
+        Some("rate_limit") => "Anthropic's rate limit was reached".to_string(),
+        Some("server_error") => match status {
+            None => "Anthropic answered with a server error".to_string(),
+            Some(status) => format!("Anthropic answered with a server error ({})", number_string(status)),
+        },
+        _ => match status {
+            None => "Anthropic did not answer".to_string(),
+            Some(status) => format!("Anthropic answered {}", number_string(status)),
+        },
+    }
 }
 
 /// What a running turn says in place of Working while its agent makes a failed model call again: the thread names
@@ -343,7 +424,14 @@ pub struct Retry {
 }
 
 pub fn retry_line(retry: &Retry) -> String {
-    todo!()
+    let which = match retry.of {
+        None => number_string(retry.attempt),
+        Some(of) => format!("{} of {}", number_string(retry.attempt), number_string(of)),
+    };
+    match &retry.why {
+        None => format!("Trying again ({which})"),
+        Some(why) => format!("{}, trying again ({which})", upper_first(why)),
+    }
 }
 
 /// The agent's step list as a read transcript's row says it: the count done, then one task line per step.
@@ -369,7 +457,14 @@ pub enum StepState {
 }
 
 pub fn plan_steps_line(steps: &[PlanStep]) -> String {
-    todo!()
+    let done = steps.iter().filter(|step| step.state == StepState::Done).count();
+    let mut lines = vec![format!("Plan: {done} of {} steps done", steps.len())];
+    for step in steps {
+        let mark = if step.state == StepState::Done { "x" } else { " " };
+        let working = if step.state == StepState::Working { " (working)" } else { "" };
+        lines.push(format!("- [{mark}] {}{working}", step.text));
+    }
+    lines.join("\n")
 }
 
 /// What a turn changed in its folder, as a read transcript's row says it: the files and the lines added and taken, and
@@ -404,7 +499,22 @@ pub struct TurnChanges {
 }
 
 pub fn turn_changes_line(changes: &TurnChanges) -> String {
-    todo!()
+    let added: f64 = changes.files.iter().map(|file| file.additions).sum();
+    let taken: f64 = changes.files.iter().map(|file| file.deletions).sum();
+    let count = format!("{}, +{} -{}", plural(changes.files.len() as f64, "file"), number_string(added), number_string(taken));
+    if let Some(others) = changes.others {
+        let own = if changes.files.is_empty() { "No files from this thread's edits".to_string() } else { format!("Changed {count}") };
+        return if others == 0 { own } else { format!("{own}; {} also changed in this folder", plural(others as f64, "file")) };
+    }
+    if changes.shared {
+        return format!(
+            "{} changed in this folder, +{} -{}; other threads worked in it too",
+            plural(changes.files.len() as f64, "file"),
+            number_string(added),
+            number_string(taken)
+        );
+    }
+    format!("Changed {count}")
 }
 
 /// The row a turn's end leaves in a read transcript: the footer above, and why it did not complete where it did
@@ -416,7 +526,14 @@ pub fn turn_changes_line(changes: &TurnChanges) -> String {
 //   return failure === undefined ? line : `${line}: ${failure}`;
 // }
 pub fn turn_end_line(result: &TurnResult) -> String {
-    todo!()
+    let failure = if result.status == TurnStatus::Completed { None } else { result.error.as_deref() };
+    let mut parts = vec![turn_settled_line(result, None)];
+    parts.extend(turn_facts_parts(&TurnFacts::from(result), None));
+    let line = parts.join("  ");
+    match failure {
+        None => line,
+        Some(failure) => format!("{line}: {failure}"),
+    }
 }
 
 /// A turn the agent refused outright: it answered with an error line of its own and did none of the work. The word
@@ -448,7 +565,23 @@ pub struct RefusalRoad {
 }
 
 pub fn refused_turn(result: &TurnResult, refusal: Option<&RefusalRoad>) -> TurnResult {
-    todo!()
+    let said = js_trim(result.text.as_deref().or(result.error.as_deref()).unwrap_or(""));
+    let road = refusal.and_then(|refusal| refusal.road.as_deref()).unwrap_or("");
+    let sentence = [said, road].into_iter().filter(|part| !part.is_empty()).collect::<Vec<_>>().join("; ");
+    TurnResult {
+        status: TurnStatus::Failed,
+        duration_ms: result.duration_ms,
+        waited_ms: None,
+        cost_usd: result.cost_usd,
+        tokens: result.tokens.clone(),
+        model: result.model.clone(),
+        models: None,
+        text: None,
+        error: (!sentence.is_empty()).then_some(sentence),
+        unreached: None,
+        refusal: refusal.and_then(|refusal| refusal.cause),
+        limit: None,
+    }
 }
 
 /// The clock a read prints beside a row, to the second, in the zone of the computer reading it, which is the
@@ -461,7 +594,12 @@ pub fn refused_turn(result: &TurnResult, refusal: Option<&RefusalRoad>) -> TurnR
 /// answers that zone's UTC offset in seconds at the instant `at` (ms epoch), so the clock is `at + offset` as
 /// 24-hour HH:MM:SS. The caller passes the host's zone (jiff's `TimeZone::system()`, rule 8.16).
 pub fn fmt_clock(at: Option<f64>, offset_seconds_at: &dyn Fn(f64) -> i64) -> String {
-    todo!()
+    let Some(at) = at else {
+        return String::new();
+    };
+    let local_secs = ((at + offset_seconds_at(at) as f64 * 1000.0) / 1000.0).floor() as i64;
+    let day = local_secs.rem_euclid(86_400);
+    format!("{:02}:{:02}:{:02}", day / 3600, day % 3600 / 60, day % 60)
 }
 
 /// One row of a read: who spoke and when on its own line, then the text under it, so a reply of many lines reads as
@@ -472,7 +610,9 @@ pub fn fmt_clock(at: Option<f64>, offset_seconds_at: &dyn Fn(f64) -> i64) -> Str
 //   return [clock === "" ? row.who : `${row.who} ${clock}`, ...row.text.split("\n")];
 // }
 pub fn thread_row_lines(row: &ThreadMessage, offset_seconds_at: &dyn Fn(f64) -> i64) -> Vec<String> {
-    todo!()
+    let clock = fmt_clock(row.at.as_ref().map(|at| at.0), offset_seconds_at);
+    let head = if clock.is_empty() { who_word(row.who).to_string() } else { format!("{} {clock}", who_word(row.who)) };
+    std::iter::once(head).chain(row.text.split('\n').map(str::to_string)).collect()
 }
 
 /// A thread's messages as one printout, a blank line between rows.
@@ -481,7 +621,7 @@ pub fn thread_row_lines(row: &ThreadMessage, offset_seconds_at: &dyn Fn(f64) -> 
 //   return rows.map(row => threadRowLines(row).join("\n")).join("\n\n");
 // }
 pub fn thread_read_text(rows: &[ThreadMessage], offset_seconds_at: &dyn Fn(f64) -> i64) -> String {
-    todo!()
+    rows.iter().map(|row| thread_row_lines(row, offset_seconds_at).join("\n")).collect::<Vec<_>>().join("\n\n")
 }
 
 /// What a read prints for a thread the transcript this host holds carries no message of: the cap dropped its rows,
@@ -489,14 +629,14 @@ pub fn thread_read_text(rows: &[ThreadMessage], offset_seconds_at: &dyn Fn(f64) 
 // turn.ts:257
 // export const noMessagesLine = (threadId: string): string => `thread ${threadId.slice(0, 8)} has no messages in the transcript this host holds`;
 pub fn no_messages_line(thread_id: &str) -> String {
-    todo!()
+    format!("thread {} has no messages in the transcript this host holds", utf16::cut(thread_id, 8))
 }
 
 /// What a read of the final reply alone prints for a thread whose first turn has not ended yet.
 // turn.ts:260
 // export const noReplyLine = (threadId: string): string => `thread ${threadId.slice(0, 8)} has not replied yet`;
 pub fn no_reply_line(thread_id: &str) -> String {
-    todo!()
+    format!("thread {} has not replied yet", utf16::cut(thread_id, 8))
 }
 
 /// The row under a final reply the thread has already moved past: the turn that gave it is over and another is
@@ -507,7 +647,8 @@ pub const NEWER_TURN_LINE: &str = "a newer turn is running; the reply above is t
 /// The note a turn carries where the machine held no session for the thread to resume (a Boat box woke with none on
 /// 2026-09-27): the turn ran in a new session, which the thread so far was handed as its first message.
 // turn.ts:268
-pub const LOST_SESSION_NOTE: &str = "the agent's session for this thread was gone from the machine, so this turn started a new one and handed it the thread so far";
+pub const LOST_SESSION_NOTE: &str =
+    "the agent's session for this thread was gone from the machine, so this turn started a new one and handed it the thread so far";
 
 /// The words that open that new session's first message, which the harness may title the new session by.
 // turn.ts:271
@@ -517,7 +658,7 @@ const LOST_SESSION_HEAD: &str = "Your earlier session for this thread was lost, 
 // turn.ts:274
 // export const lostSessionPrompt = (thread: string, prompt: string): string => `${LOST_SESSION_HEAD} The thread so far, oldest first:\n\n${thread}\n\nThe new message:\n\n${prompt}`;
 pub fn lost_session_prompt(thread: &str, prompt: &str) -> String {
-    todo!()
+    format!("{LOST_SESSION_HEAD} The thread so far, oldest first:\n\n{thread}\n\nThe new message:\n\n{prompt}")
 }
 
 /// Text cut to one line: its first non-empty line with the whitespace collapsed, so a multi-paragraph brief is one
@@ -528,7 +669,7 @@ pub fn lost_session_prompt(thread: &str, prompt: &str) -> String {
 //   return first.replace(/\s+/g, " ").trim();
 // }
 pub fn title_line(text: &str) -> String {
-    todo!()
+    first_text_line(text).map(collapsed).unwrap_or_default()
 }
 
 /// The most characters a thread title made from its opening turn takes, the ellipsis counted.
@@ -544,7 +685,8 @@ const OPENING_TITLE_MAX: usize = 48;
 //   return cutLine(/^.*?[.!?](?=\s|$)/.exec(line)?.[0] ?? line, OPENING_TITLE_MAX);
 // }
 pub fn opening_title(text: &str) -> String {
-    todo!()
+    let line = title_line(text);
+    cut_line(first_sentence(&line).unwrap_or(&line), OPENING_TITLE_MAX)
 }
 
 /// The most characters the third line of a workspace row holds: the row leaves 201 px for text at the sidebar's
@@ -573,14 +715,18 @@ pub const OPENING_KEPT: usize = 600;
 //   return text.slice(0, end).split("").join("");
 // }
 pub fn kept_opening(text: &str) -> String {
-    todo!()
+    if utf16::len(text) <= OPENING_KEPT {
+        return text.to_string();
+    }
+    let high_surrogate_at_edge = text.encode_utf16().nth(OPENING_KEPT - 1).is_some_and(|unit| (0xD800..=0xDBFF).contains(&unit));
+    utf16::cut(text, if high_surrogate_at_edge { OPENING_KEPT - 1 } else { OPENING_KEPT })
 }
 
 /// Whether a row's opening may be the head of a longer message: a row keeps no mark of the cut.
 // turn.ts:317
 // export const openingCut = (kept: string): boolean => kept.length >= OPENING_KEPT - 1;
 pub fn opening_cut(kept: &str) -> bool {
-    todo!()
+    utf16::len(kept) >= OPENING_KEPT - 1
 }
 
 /// Where a title read out of the harness's own store came from: one that is the prompt the thread opened with, or its
@@ -600,7 +746,22 @@ pub fn opening_cut(kept: &str) -> bool {
 //   return title !== "" && (handed.startsWith(title) || title.startsWith(handed) || (openingCut(opening) && title.startsWith(words))) ? "seed" : "person";
 // }
 pub fn stored_title_source(stored: &str, opening: Option<&str>) -> TitleSource {
-    todo!()
+    let title = collapsed(stored);
+    if title.starts_with(LOST_SESSION_HEAD) {
+        return TitleSource::Seed;
+    }
+    let Some(opening) = opening else {
+        return TitleSource::Person;
+    };
+    let words = collapsed(opening);
+    let handed = format!("{words} {ATTACHED_FILES_HEAD}");
+    let seed = !title.is_empty()
+        && (handed.starts_with(&title) || title.starts_with(&handed) || (opening_cut(opening) && title.starts_with(&words)));
+    if seed {
+        TitleSource::Seed
+    } else {
+        TitleSource::Person
+    }
 }
 
 /// The most characters a generated title takes; a longer answer is cut to the words that fit.
@@ -638,7 +799,20 @@ pub const GENERATED_TITLE_MAX: usize = 40;
 //   ].join("\n");
 // }
 pub fn title_prompt(opening: &str, reply: Option<&str>) -> String {
-    todo!()
+    let mut lines = vec![
+        "Name this coding agent thread in 3 to 6 words, no more than 34 characters, sentence case, no quotes and no full stop.".to_string(),
+        "Do not repeat the opening words, and do not say anything is done, fixed or working.".to_string(),
+        "Answer with the title alone and nothing else; a longer answer is cut short.".to_string(),
+        String::new(),
+        "The opening turn:".to_string(),
+        excerpt(opening),
+    ];
+    if let Some(reply) = reply {
+        lines.push(String::new());
+        lines.push("The reply:".to_string());
+        lines.push(excerpt(reply));
+    }
+    lines.join("\n")
 }
 
 /// A harness's answer to titlePrompt as a title, or nothing when it did not answer with one: a title is one line, so
@@ -657,6 +831,106 @@ pub fn title_prompt(opening: &str, reply: Option<&str>) -> String {
 //   return title.length <= GENERATED_TITLE_MAX ? title : (wordsWithin(title, GENERATED_TITLE_MAX) ?? null);
 // }
 pub fn generated_title(answer: &str) -> Option<String> {
-    todo!()
+    let line = js_trim(answer);
+    if line.is_empty() || line.contains(['\r', '\n']) {
+        return None;
+    }
+    let unquoted = unquote(line).map(js_trim).unwrap_or(line);
+    let title = js_trim(unquoted.trim_end_matches('.'));
+    if title.is_empty() {
+        None
+    } else if utf16::len(title) <= GENERATED_TITLE_MAX {
+        Some(title.to_string())
+    } else {
+        words_within(title, GENERATED_TITLE_MAX)
+    }
 }
 
+const TITLE_EXCERPT_MAX: usize = OPENING_KEPT;
+
+fn status_word(status: TurnStatus) -> &'static str {
+    match status {
+        TurnStatus::Completed => "completed",
+        TurnStatus::Interrupted => "interrupted",
+        TurnStatus::Failed => "failed",
+    }
+}
+
+fn who_word(who: ThreadVoice) -> &'static str {
+    match who {
+        ThreadVoice::Person => "person",
+        ThreadVoice::Agent => "agent",
+        ThreadVoice::Tool => "tool",
+        ThreadVoice::Turn => "turn",
+    }
+}
+
+fn spend_figure(usd: f64, word: Option<&str>) -> String {
+    match word {
+        None => fmt_cost(usd),
+        Some(word) => format!("{} {word}", fmt_cost(usd)),
+    }
+}
+
+fn first_text_line(text: &str) -> Option<&str> {
+    text.split('\n').find(|line| !js_trim(line).is_empty())
+}
+
+fn collapsed(line: &str) -> String {
+    js_trim(&js_collapse_whitespace(line)).to_string()
+}
+
+fn first_sentence(line: &str) -> Option<&str> {
+    for (i, c) in line.char_indices() {
+        if matches!(c, '.' | '!' | '?') {
+            let after = &line[i + c.len_utf8()..];
+            if after.chars().next().is_none_or(is_js_whitespace) {
+                return Some(&line[..i + c.len_utf8()]);
+            }
+        }
+    }
+    None
+}
+
+// The last line's list marker and the whitespace after it, when a marker stands alone and something follows it.
+fn strip_list_marker(line: &str) -> &str {
+    let bytes = line.as_bytes();
+    let marker_len = if matches!(bytes.first(), Some(b'-' | b'*' | b'+')) {
+        1
+    } else {
+        let digits = bytes.iter().take_while(|b| b.is_ascii_digit()).count();
+        if (1..=9).contains(&digits) && matches!(bytes.get(digits), Some(b'.' | b')')) {
+            digits + 1
+        } else {
+            return line;
+        }
+    };
+    let rest = &line[marker_len..];
+    let after_space = rest.trim_start_matches(is_js_whitespace);
+    if after_space.len() == rest.len() || after_space.is_empty() {
+        line
+    } else {
+        after_space
+    }
+}
+
+fn excerpt(text: &str) -> String {
+    let trimmed = js_trim(text);
+    if utf16::len(trimmed) <= TITLE_EXCERPT_MAX {
+        trimmed.to_string()
+    } else {
+        format!("{}{ELLIPSIS}", utf16::cut(trimmed, TITLE_EXCERPT_MAX))
+    }
+}
+
+// The inside of a line wrapped in one opening and one closing quote of any of the kinds a model writes.
+fn unquote(line: &str) -> Option<&str> {
+    if line.chars().count() < 2 {
+        return None;
+    }
+    let open = line.chars().next()?;
+    let close = line.chars().next_back()?;
+    let opens = matches!(open, '"' | '\'' | '\u{201c}' | '\u{2018}');
+    let closes = matches!(close, '"' | '\'' | '\u{201d}' | '\u{2019}');
+    (opens && closes).then(|| &line[open.len_utf8()..line.len() - close.len_utf8()])
+}

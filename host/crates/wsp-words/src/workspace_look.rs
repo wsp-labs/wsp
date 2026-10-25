@@ -3,7 +3,11 @@
 //! side and ink a theme draws under. Port of the functions and tables of packages/protocol/src/workspace-look.ts at
 //! a3b870a6e; its zod shapes and flat constants are wsp_wire::types::workspace_look. See spec/workspace_look.md.
 
-use wsp_wire::types::workspace_look::{ThemeDot, ThemeHarmony, WorkspaceTheme};
+use crate::js::js_round;
+use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::types::workspace_look::{
+    ThemeDot, ThemeHarmony, ThemeMode, WorkspaceTheme, INK_FLOOR, THEME_GRAIN_STEPS, THEME_MIN_OPACITY, WORD_FLOOR,
+};
 
 // The glyphs offered, in the order the picker shows them; each id names one icon of the app's set.
 // workspace-look.ts:15
@@ -79,7 +83,7 @@ use wsp_wire::types::workspace_look::{ThemeDot, ThemeHarmony, WorkspaceTheme};
 // workspace-look.ts:65
 // export const harmonySize = (harmony: ThemeHarmony): number => HARMONY_ANGLES[harmony].length + 1;
 pub fn harmony_size(harmony: ThemeHarmony) -> usize {
-    todo!()
+    harmony_angles(harmony).len() + 1
 }
 
 /// The harmonies that place this many dots, in the order the picker cycles them.
@@ -88,7 +92,7 @@ pub fn harmony_size(harmony: ThemeHarmony) -> usize {
 //   return THEME_HARMONIES.filter(harmony => harmonySize(harmony) === count);
 // }
 pub fn harmonies_of(count: usize) -> Vec<ThemeHarmony> {
-    todo!()
+    ALL_HARMONIES.iter().copied().filter(|harmony| harmony_size(*harmony) == count).collect()
 }
 
 // workspace-look.ts:72
@@ -150,7 +154,11 @@ pub fn harmonies_of(count: usize) -> Vec<ThemeHarmony> {
 //   return [first, ...HARMONY_ANGLES[harmony].map(offset => ({ angle: (first.angle + offset) % 360, radius: first.radius }))];
 // }
 pub fn harmony_dots(first: &ThemeDot, harmony: ThemeHarmony) -> Vec<ThemeDot> {
-    todo!()
+    let mut dots = vec![first.clone()];
+    dots.extend(
+        harmony_angles(harmony).iter().map(|offset| ThemeDot { angle: JsNumber((first.angle.0 + offset) % 360.0), radius: first.radius }),
+    );
+    dots
 }
 
 /// The theme with its first dot moved: the others follow the harmony.
@@ -159,7 +167,7 @@ pub fn harmony_dots(first: &ThemeDot, harmony: ThemeHarmony) -> Vec<ThemeDot> {
 //   return { ...theme, dots: harmonyDots(first, theme.harmony) };
 // }
 pub fn move_first_dot(theme: &WorkspaceTheme, first: &ThemeDot) -> WorkspaceTheme {
-    todo!()
+    WorkspaceTheme { dots: harmony_dots(first, theme.harmony), ..theme.clone() }
 }
 
 /// The theme with one dot more or fewer: the next harmony of that size, with its dots placed. Null where the count
@@ -171,7 +179,9 @@ pub fn move_first_dot(theme: &WorkspaceTheme, first: &ThemeDot) -> WorkspaceThem
 // }
 /// `grow` true is the TS step 1, false is -1; None is the TS null.
 pub fn resize_dots(theme: &WorkspaceTheme, grow: bool) -> Option<WorkspaceTheme> {
-    todo!()
+    let next = if grow { theme.dots.len() + 1 } else { theme.dots.len().checked_sub(1)? };
+    let harmony = *harmonies_of(next).first()?;
+    Some(WorkspaceTheme { harmony, dots: harmony_dots(&theme.dots[0], harmony), ..theme.clone() })
 }
 
 /// The theme under the next harmony that places as many dots, wrapping.
@@ -182,14 +192,22 @@ pub fn resize_dots(theme: &WorkspaceTheme, grow: bool) -> Option<WorkspaceTheme>
 //   return { ...theme, harmony, dots: harmonyDots(theme.dots[0]!, harmony) };
 // }
 pub fn cycle_harmony(theme: &WorkspaceTheme) -> WorkspaceTheme {
-    todo!()
+    let choices = harmonies_of(theme.dots.len());
+    let harmony = if choices.is_empty() {
+        theme.harmony
+    } else {
+        let position = choices.iter().position(|harmony| *harmony == theme.harmony);
+        choices[position.map_or(0, |found| found + 1) % choices.len()]
+    };
+    WorkspaceTheme { harmony, dots: harmony_dots(&theme.dots[0], harmony), ..theme.clone() }
 }
 
 /// A grain value on the slider's steps.
 // workspace-look.ts:132
 // export const snapGrain = (grain: number): number => Math.round(Math.min(1, Math.max(0, grain)) * THEME_GRAIN_STEPS) / THEME_GRAIN_STEPS;
 pub fn snap_grain(grain: f64) -> f64 {
-    todo!()
+    let steps = THEME_GRAIN_STEPS as f64;
+    js_round(grain.clamp(0.0, 1.0) * steps) / steps
 }
 
 // workspace-look.ts:134
@@ -204,7 +222,7 @@ pub type Rgb = [f64; 3];
 //   return hslToRgb(dot.angle / 360, 0.9 + 0.1 * dot.radius, dot.radius);
 // }
 pub fn dot_colour(dot: &ThemeDot) -> Rgb {
-    todo!()
+    hsl_to_rgb(dot.angle.0 / 360.0, 0.9 + 0.1 * dot.radius.0, dot.radius.0)
 }
 
 // workspace-look.ts:142
@@ -225,7 +243,25 @@ pub fn dot_colour(dot: &ThemeDot) -> Rgb {
 //   return [Math.round(channel(h + 1 / 3) * 255), Math.round(channel(h) * 255), Math.round(channel(h - 1 / 3) * 255)];
 // }
 pub fn hsl_to_rgb(h: f64, s: f64, l: f64) -> Rgb {
-    todo!()
+    if s == 0.0 {
+        let grey = js_round(l * 255.0);
+        return [grey, grey, grey];
+    }
+    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+    let p = 2.0 * l - q;
+    let channel = |t: f64| -> f64 {
+        let u = ((t % 1.0) + 1.0) % 1.0;
+        if u < 1.0 / 6.0 {
+            p + (q - p) * 6.0 * u
+        } else if u < 1.0 / 2.0 {
+            q
+        } else if u < 2.0 / 3.0 {
+            p + (q - p) * (2.0 / 3.0 - u) * 6.0
+        } else {
+            p
+        }
+    };
+    [js_round(channel(h + 1.0 / 3.0) * 255.0), js_round(channel(h) * 255.0), js_round(channel(h - 1.0 / 3.0) * 255.0)]
 }
 
 // workspace-look.ts:159
@@ -242,7 +278,25 @@ pub fn hsl_to_rgb(h: f64, s: f64, l: f64) -> Rgb {
 // }
 /// Hue 0 to 1, saturation and lightness 0 to 1.
 pub fn rgb_to_hsl(rgb: &Rgb) -> [f64; 3] {
-    todo!()
+    let red = rgb[0] / 255.0;
+    let green = rgb[1] / 255.0;
+    let blue = rgb[2] / 255.0;
+    let max = red.max(green).max(blue);
+    let min = red.min(green).min(blue);
+    let l = (max + min) / 2.0;
+    if max == min {
+        return [0.0, 0.0, l];
+    }
+    let d = max - min;
+    let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+    let h = if max == red {
+        (green - blue) / d + if green < blue { 6.0 } else { 0.0 }
+    } else if max == green {
+        (blue - red) / d + 2.0
+    } else {
+        (red - green) / d + 4.0
+    };
+    [(h / 6.0) * 360.0, s, l]
 }
 
 // workspace-look.ts:172
@@ -263,7 +317,10 @@ pub fn rgb_to_hsl(rgb: &Rgb) -> [f64; 3] {
 // };
 /// `SIDE_INK[side]`: light ground [250,250,250] foreground [39,39,42]; dark ground [17,17,17] foreground [241,243,247].
 pub fn side_ink(side: Side) -> SideInk {
-    todo!()
+    match side {
+        Side::Light => SideInk { ground: [250.0, 250.0, 250.0], foreground: [39.0, 39.0, 42.0] },
+        Side::Dark => SideInk { ground: [17.0, 17.0, 17.0], foreground: [241.0, 243.0, 247.0] },
+    }
 }
 
 /// The ground and the foreground a side draws.
@@ -295,7 +352,9 @@ pub struct SideInk {
 //   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 // }
 pub fn contrast_ratio(a: &Rgb, b: &Rgb) -> f64 {
-    todo!()
+    let la = luminance(a);
+    let lb = luminance(b);
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
 }
 
 // workspace-look.ts:202
@@ -337,7 +396,19 @@ pub enum Side {
 //   return ownReads < WORD_FLOOR && wordsRead(wash, other, THEME_MIN_OPACITY) > ownReads ? other : own;
 // }
 pub fn theme_scheme(theme: &WorkspaceTheme, app_dark: bool) -> Side {
-    todo!()
+    match theme.mode {
+        ThemeMode::Light => return Side::Light,
+        ThemeMode::Dark => return Side::Dark,
+        ThemeMode::Auto => {}
+    }
+    let own = if app_dark { Side::Dark } else { Side::Light };
+    let other = if app_dark { Side::Light } else { Side::Dark };
+    let own_reads = words_read(theme, own, THEME_MIN_OPACITY);
+    if own_reads < WORD_FLOOR && words_read(theme, other, THEME_MIN_OPACITY) > own_reads {
+        other
+    } else {
+        own
+    }
 }
 
 /// How far the opacity may go before the side's words drop under the floor on the colour laid over the ground: the
@@ -352,7 +423,15 @@ pub fn theme_scheme(theme: &WorkspaceTheme, app_dark: bool) -> Side {
 //   return THEME_MIN_OPACITY;
 // }
 pub fn opacity_cap(theme: &WorkspaceTheme, app_dark: bool) -> f64 {
-    todo!()
+    let side = theme_scheme(theme, app_dark);
+    let mut alpha = 1.0_f64;
+    while alpha > THEME_MIN_OPACITY {
+        if words_read(theme, side, alpha) >= WORD_FLOOR {
+            return alpha;
+        }
+        alpha = js_round((alpha - 0.05) * 100.0) / 100.0;
+    }
+    THEME_MIN_OPACITY
 }
 
 /// The opacity the theme paints at: the record's, held under the cap.
@@ -361,7 +440,7 @@ pub fn opacity_cap(theme: &WorkspaceTheme, app_dark: bool) -> f64 {
 //   return Math.min(theme.opacity, opacityCap(theme, appDark));
 // }
 pub fn effective_opacity(theme: &WorkspaceTheme, app_dark: bool) -> f64 {
-    todo!()
+    theme.opacity.0.min(opacity_cap(theme, app_dark))
 }
 
 /// The one colour a theme lends the chrome: the first dot, saturated a step and pulled toward the lightness that
@@ -392,7 +471,30 @@ pub fn effective_opacity(theme: &WorkspaceTheme, app_dark: bool) -> f64 {
 //   return best?.ink ?? at(lightness);
 // }
 pub fn theme_ink(theme: &WorkspaceTheme, app_dark: bool) -> Rgb {
-    todo!()
+    let scheme = theme_scheme(theme, app_dark);
+    let first = dot_colour(&theme.dots[0]);
+    let [h, s, l] = rgb_to_hsl(&first);
+    let ground = side_ink(scheme).ground;
+    let washed = over(&first, effective_opacity(theme, app_dark), &ground);
+    let step = if scheme == Side::Dark { 0.03 } else { -0.03 };
+    let ink_lightness = if scheme == Side::Dark { 0.66 } else { 0.38 };
+    let at = |lightness: f64| hsl_to_rgb(h / 360.0, (s + 0.2).min(1.0), lightness);
+    let mut lightness = l * 0.2 + ink_lightness * 0.8;
+    let mut best: Option<(Rgb, f64)> = None;
+    for _ in 0..24 {
+        let ink = at(lightness);
+        let on_washed = contrast_ratio(&ink, &washed);
+        if contrast_ratio(&ink, &ground) >= INK_FLOOR as f64 {
+            if on_washed >= INK_FLOOR as f64 {
+                return ink;
+            }
+            if best.is_none_or(|(_, found)| on_washed > found) {
+                best = Some((ink, on_washed));
+            }
+        }
+        lightness = (lightness + step).clamp(0.0, 1.0);
+    }
+    best.map_or_else(|| at(lightness), |(ink, _)| ink)
 }
 
 /// Preset themes, in the row's order: each is a set of dots with its harmony, and takes the person's grain, opacity
@@ -446,7 +548,8 @@ pub const THEME_PRESETS: [ThemePreset; 8] = [
 /// The first preset's harmony and dots, grain 0, opacity 0.5, mode auto. (The TS object also carries the preset's
 /// `id` key at runtime, which WorkspaceTheme has no field for.)
 pub fn default_theme() -> WorkspaceTheme {
-    todo!()
+    let first = &THEME_PRESETS[0];
+    WorkspaceTheme { dots: preset_dots(first), harmony: first.harmony, grain: JsNumber(0.0), opacity: JsNumber(0.5), mode: ThemeMode::Auto }
 }
 
 /// A preset applied over a theme: the dots and harmony move, the rest stays.
@@ -455,7 +558,7 @@ pub fn default_theme() -> WorkspaceTheme {
 //   return { ...theme, harmony: chosen.harmony, dots: [...chosen.dots] };
 // }
 pub fn apply_preset(theme: &WorkspaceTheme, chosen: &ThemePreset) -> WorkspaceTheme {
-    todo!()
+    WorkspaceTheme { harmony: chosen.harmony, dots: preset_dots(chosen), ..theme.clone() }
 }
 
 /// Whether a theme's dots are the preset's, which is what marks the preset as the current one.
@@ -464,6 +567,55 @@ pub fn apply_preset(theme: &WorkspaceTheme, chosen: &ThemePreset) -> WorkspaceTh
 //   return theme.harmony === chosen.harmony && theme.dots.length === chosen.dots.length && theme.dots.every((dot, i) => Math.abs(dot.angle - chosen.dots[i]!.angle) < 0.5 && Math.abs(dot.radius - chosen.dots[i]!.radius) < 0.005);
 // }
 pub fn is_preset(theme: &WorkspaceTheme, chosen: &ThemePreset) -> bool {
-    todo!()
+    theme.harmony == chosen.harmony
+        && theme.dots.len() == chosen.dots.len()
+        && theme
+            .dots
+            .iter()
+            .zip(chosen.dots.iter())
+            .all(|(dot, &(angle, radius))| (dot.angle.0 - angle).abs() < 0.5 && (dot.radius.0 - radius).abs() < 0.005)
+}
+const ALL_HARMONIES: [ThemeHarmony; 6] = [
+    ThemeHarmony::Single,
+    ThemeHarmony::Complementary,
+    ThemeHarmony::Analogous,
+    ThemeHarmony::SplitComplementary,
+    ThemeHarmony::Triadic,
+    ThemeHarmony::AnalogousThree,
+];
+
+fn harmony_angles(harmony: ThemeHarmony) -> &'static [f64] {
+    match harmony {
+        ThemeHarmony::Single => &[],
+        ThemeHarmony::Complementary => &[180.0],
+        ThemeHarmony::Analogous => &[310.0],
+        ThemeHarmony::SplitComplementary => &[150.0, 210.0],
+        ThemeHarmony::Triadic => &[120.0, 240.0],
+        ThemeHarmony::AnalogousThree => &[50.0, 310.0],
+    }
 }
 
+fn preset_dots(preset: &ThemePreset) -> Vec<ThemeDot> {
+    preset.dots.iter().map(|&(angle, radius)| ThemeDot { angle: JsNumber(angle), radius: JsNumber(radius) }).collect()
+}
+
+fn luminance(rgb: &Rgb) -> f64 {
+    let channel = |v: f64| {
+        let u = v / 255.0;
+        if u <= 0.04045 {
+            u / 12.92
+        } else {
+            ((u + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2])
+}
+
+fn over(top: &Rgb, alpha: f64, under: &Rgb) -> Rgb {
+    [0, 1, 2].map(|i| js_round(top[i] * alpha + under[i] * (1.0 - alpha)))
+}
+
+fn words_read(theme: &WorkspaceTheme, side: Side, alpha: f64) -> f64 {
+    let ink = side_ink(side);
+    theme.dots.iter().map(|dot| contrast_ratio(&ink.foreground, &over(&dot_colour(dot), alpha, &ink.ground))).fold(f64::INFINITY, f64::min)
+}
