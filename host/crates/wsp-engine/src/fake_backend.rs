@@ -169,8 +169,7 @@ impl FakeMachine {
             env: IndexMap::from([("HOME".to_string(), at.to_string_lossy().into_owned())]),
         });
         std::fs::create_dir_all(&run.cwd).map_err(io)?;
-        let mut env: IndexMap<String, String> =
-            std::env::vars_os().map(|(k, v)| (k.to_string_lossy().into_owned(), v.to_string_lossy().into_owned())).collect();
+        let mut env: IndexMap<String, String> = crate::child_exec::process_env();
         env.extend(run.env);
         let args = ["-c".to_string(), run.cmd];
         Ok(run_child("bash", &args, ChildOptions { cwd: Some(run.cwd), env: Some(env), timeout_ms, on_line, stdin: None }).await)

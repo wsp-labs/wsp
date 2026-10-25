@@ -90,7 +90,7 @@ fn sudo_mark(line: &str) -> Option<SshSudo> {
 /// line where the login does not stand.
 pub async fn read_ssh_sudo(reach: &SshReach, transport: &SshTransport) -> Result<SshSudoRoad> {
     let opts = SshTransportOptions { timeout_ms: Some(SSH_DIAL_MS), ride: SshRide::Login, ..Default::default() };
-    let read = transport(reach.clone(), SSH_SUDO_READ.to_string(), opts).await;
+    let read = transport(reach.clone(), SSH_SUDO_READ.to_string(), opts).await?;
     let said = read.stdout.split(['\n', '\r', '\u{2028}', '\u{2029}']).find_map(sudo_mark);
     match said {
         Some(road) => Ok(road),
@@ -100,15 +100,15 @@ pub async fn read_ssh_sudo(reach: &SshReach, transport: &SshTransport) -> Result
 }
 
 /// ssh-backend.ts:660. One try of the person's password; answers taken, wrong, tty or none.
-pub async fn try_ssh_sudo(reach: &SshReach, password: &str, transport: &SshTransport) -> SshSudo {
+pub async fn try_ssh_sudo(reach: &SshReach, password: &str, transport: &SshTransport) -> Result<SshSudo> {
     let opts = SshTransportOptions {
         timeout_ms: Some(SSH_DIAL_MS),
         ride: SshRide::Login,
         stdin: Some(format!("{password}\n").into_bytes()),
         ..Default::default()
     };
-    let tried = transport(reach.clone(), SSH_SUDO_TRY.to_string(), opts).await;
-    if tried.stdout.contains("WSP_SUDO taken") {
+    let tried = transport(reach.clone(), SSH_SUDO_TRY.to_string(), opts).await?;
+    Ok(if tried.stdout.contains("WSP_SUDO taken") {
         SshSudo::Taken
     } else if tried.stderr.contains("must have a tty") {
         SshSudo::Tty
@@ -116,7 +116,7 @@ pub async fn try_ssh_sudo(reach: &SshReach, password: &str, transport: &SshTrans
         SshSudo::Wrong
     } else {
         SshSudo::None
-    }
+    })
 }
 
 /// ssh-backend.ts:670. The store variable each harness reads, by name, in catalog order.
@@ -176,7 +176,7 @@ pub struct SshMachineRead {
 /// ssh-backend.ts:709. One dial that both proves the machine answers and records what wsp needs of it.
 pub async fn read_ssh_machine(reach: &SshReach, transport: &SshTransport) -> Result<SshMachineRead> {
     let opts = SshTransportOptions { timeout_ms: Some(30_000), ..Default::default() };
-    let res = transport(reach.clone(), ssh_read_script(), opts).await;
+    let res = transport(reach.clone(), ssh_read_script(), opts).await?;
     if res.exit_code.get() != 0 {
         return Err(plain(did_not_answer(reach, &res)));
     }
@@ -344,11 +344,11 @@ impl Machine for SshMachine {
     }
     async fn exec(&self, cmd: &str, opts: ExecOptions) -> Result<ExecResult> {
         let opts = SshTransportOptions { timeout_ms: opts.timeout_ms, ..Default::default() };
-        Ok((self.transport)(self.reach.clone(), cmd.to_string(), opts).await)
+        (self.transport)(self.reach.clone(), cmd.to_string(), opts).await
     }
     async fn run(&self, script: &str, opts: RunOptions) -> Result<ExecResult> {
         let opts = SshTransportOptions { timeout_ms: Some(opts.deadline_ms), on_line: opts.on_line, ..Default::default() };
-        Ok((self.transport)(self.reach.clone(), script.to_string(), opts).await)
+        (self.transport)(self.reach.clone(), script.to_string(), opts).await
     }
     async fn snapshot(&self, _name: &str, _life: MachineLife, _opts: SnapshotOptions) -> Result<String> {
         Err(plain("a machine reached over ssh cannot be snapshotted".to_string()))
@@ -379,7 +379,7 @@ impl Machine for SshMachine {
     /// answers with none of it leaves the rows waiting, and its reason goes to the warning sink once per change.
     async fn facts(&self) -> Result<MachineFacts> {
         let opts = SshTransportOptions { timeout_ms: Some(10_000), ..Default::default() };
-        let res = (self.transport)(self.reach.clone(), ssh_facts_script(), opts).await;
+        let res = (self.transport)(self.reach.clone(), ssh_facts_script(), opts).await?;
         let values = if res.exit_code.get() == 0 { read_values(&res.stdout) } else { IndexMap::new() };
         let os = os_name_of(&values);
         let uptime_ms = uptime_ms_of(&values, now_ms());
@@ -411,7 +411,7 @@ impl Machine for SshMachine {
     async fn put_bytes(&self, path: &str, bytes: &[u8], timeout_ms: Option<u64>) -> Result<Option<BytesLanded>> {
         let tmp = format!("{path}.wsp-in-{}", hex::encode(rand::random::<[u8; 6]>()));
         let opts = SshTransportOptions { stdin: Some(bytes.to_vec()), timeout_ms, ..Default::default() };
-        let res = (self.transport)(self.reach.clone(), put_bytes_script(path, bytes.len(), &tmp), opts).await;
+        let res = (self.transport)(self.reach.clone(), put_bytes_script(path, bytes.len(), &tmp), opts).await?;
         if res.exit_code.get() != 0 || !res.stdout.contains(SSH_BYTES_OK) {
             return Err(plain(format!(
                 "{} bytes did not land at {path} over ssh (exit {}): {}",
@@ -511,7 +511,7 @@ impl SshBackend {
     }
 
     /// ssh-backend.ts:921. One try of the person's password on a login whose sudo asks for one.
-    pub async fn sudo_try(&self, reach: &SshReach, password: &str) -> SshSudo {
+    pub async fn sudo_try(&self, reach: &SshReach, password: &str) -> Result<SshSudo> {
         try_ssh_sudo(reach, password, &self.transport).await
     }
 

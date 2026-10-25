@@ -10,7 +10,6 @@ use crate::cancel::Cancel;
 use async_trait::async_trait;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
-use futures::FutureExt;
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use url::Url;
@@ -63,6 +62,8 @@ pub trait MachineLink {
 pub const LINK_MARGIN_MS: u64 = 5_000;
 /// link-backend.ts:87.
 pub const LINK_PROMPT_MS: u64 = 6_000;
+/// How long a cancelled resume goes on driving its frame.
+const CANCELLED_RESUME_MS: std::time::Duration = std::time::Duration::from_millis(80);
 /// link-backend.ts:399.
 pub const CREATE_MS: u64 = 600_000 + LINK_MARGIN_MS;
 /// link-backend.ts:403.
@@ -174,7 +175,7 @@ impl LinkMachine {
                     "data": STANDARD.encode(&bytes[start..end]),
                     "timeoutMs": timeout,
                 })),
-                LinkAsk { timeout_ms: Some(timeout + LINK_MARGIN_MS), idempotency_key: None },
+                LinkAsk { timeout_ms: Some(timeout.saturating_add(LINK_MARGIN_MS)), idempotency_key: None },
             )
             .await?;
         }
@@ -235,7 +236,7 @@ impl Machine for LinkMachine {
         if let Some(stdin) = &opts.stdin {
             params.insert("stdin".to_string(), Value::String(STANDARD.encode(stdin)));
         }
-        let ask = LinkAsk { timeout_ms: Some(timeout + LINK_MARGIN_MS), idempotency_key: opts.idempotency_key };
+        let ask = LinkAsk { timeout_ms: Some(timeout.saturating_add(LINK_MARGIN_MS)), idempotency_key: opts.idempotency_key };
         Ok(read::<MachineExecReply>(self.ask("machine.exec", params, ask).await?)?.result)
     }
 
@@ -253,22 +254,23 @@ impl Machine for LinkMachine {
         self.ask("machine.pause", Map::new(), LinkAsk::default()).await.map(|_| ())
     }
 
-    /// link-backend.ts:181. The frame is sent once whatever the caller does with it: a cancel that already fired still
-    /// sends it, then fails at once.
+    /// link-backend.ts:181. The frame is sent once whatever the caller does with it: a cancel ends the wait, and the frame
+    /// goes on being driven for `CANCELLED_RESUME_MS` so the link can finish its round trip, where the TS lets it run on
+    /// without end.
     async fn resume(&self, signal: Option<&Cancel>) -> Result<()> {
         let mut sent = pin!(self.ask("machine.resume", Map::new(), LinkAsk::default()));
         let Some(stop) = signal else {
             return sent.await.map(|_| ());
         };
-        if stop.is_cancelled() {
-            let _ = sent.as_mut().now_or_never();
-            return Err(cancel_error(stop));
+        if !stop.is_cancelled() {
+            tokio::select! {
+                biased;
+                () = stop.cancelled() => {}
+                r = sent.as_mut() => return r.map(|_| ()),
+            }
         }
-        tokio::select! {
-            biased;
-            () = stop.cancelled() => Err(cancel_error(stop)),
-            r = sent => r.map(|_| ()),
-        }
+        let _ = tokio::time::timeout(CANCELLED_RESUME_MS, sent).await;
+        Err(cancel_error(stop))
     }
 
     async fn kill(&self) -> Result<()> {
@@ -304,7 +306,7 @@ impl Machine for LinkMachine {
     /// link-backend.ts:235.
     async fn daemon_answers(&self, timeout_ms: Option<u64>) -> Result<bool> {
         let timeout = timeout_ms.unwrap_or(INLINE_EXEC_MS);
-        let ask = LinkAsk { timeout_ms: Some(timeout + LINK_MARGIN_MS), idempotency_key: None };
+        let ask = LinkAsk { timeout_ms: Some(timeout.saturating_add(LINK_MARGIN_MS)), idempotency_key: None };
         Ok(read::<MachineAnswersReply>(self.ask("machine.daemonAnswers", obj(json!({ "timeoutMs": timeout })), ask).await?)?.answers)
     }
 
@@ -487,7 +489,7 @@ impl MachineBackend for LinkBackend {
     /// link-backend.ts:391. The frame names no machine: the computer's own daemon runs the command on itself.
     async fn on_computer(&self, cmd: &str, timeout_ms: Option<u64>) -> Result<ExecResult> {
         let timeout = timeout_ms.unwrap_or(INLINE_EXEC_MS);
-        let ask = LinkAsk { timeout_ms: Some(timeout + LINK_MARGIN_MS), idempotency_key: None };
+        let ask = LinkAsk { timeout_ms: Some(timeout.saturating_add(LINK_MARGIN_MS)), idempotency_key: None };
         let answer = self.link.request("exec", obj(json!({ "cmd": cmd, "timeoutMs": timeout })), ask).await?;
         let reply = read::<DaemonExecReply>(answer)?;
         Ok(ExecResult { exit_code: reply.exit_code, stdout: reply.stdout, stderr: reply.stderr })

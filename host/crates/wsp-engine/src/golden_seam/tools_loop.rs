@@ -625,7 +625,7 @@ pub async fn install_tools_at(
             let road_seen = road_of(&res.stdout);
             let left = free_bytes(machine, prefix).await?;
             let bytes = match (&free, &left) {
-                (FreeDisk::Free { bytes: had }, FreeDisk::Free { bytes: now }) => Some((had - now).max(0.0) as i64),
+                (FreeDisk::Free { bytes: had }, FreeDisk::Free { bytes: now }) => Some((had - now).max(0.0)),
                 _ => None,
             };
             reading = Some(left);

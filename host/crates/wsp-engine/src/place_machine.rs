@@ -180,7 +180,7 @@ impl PlaceMachine {
         if let Some(stdin) = &opts.stdin {
             params.insert("stdin".to_string(), Value::String(STANDARD.encode(stdin)));
         }
-        let ask = LinkAsk { timeout_ms: Some(timeout + LINK_MARGIN_MS), idempotency_key: opts.idempotency_key };
+        let ask = LinkAsk { timeout_ms: Some(timeout.saturating_add(LINK_MARGIN_MS)), idempotency_key: opts.idempotency_key };
         let reply = read::<DaemonExecReply>(self.link.request("exec", params, ask).await?)?;
         Ok(ExecResult { exit_code: reply.exit_code, stdout: reply.stdout, stderr: reply.stderr })
     }

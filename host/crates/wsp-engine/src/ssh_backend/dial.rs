@@ -19,7 +19,7 @@ use sha2::{Digest, Sha256};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use wsp_words::js::{is_js_whitespace, js_trim, to_number};
 
-use crate::child_exec::{run_child, ChildOptions, LineFeed, CHILD_UNSTARTABLE};
+use crate::child_exec::{errno_name, errno_sentence, process_env, run_child, ChildOptions, LineFeed};
 use crate::errors::{EngineError, Result};
 use crate::machine::{ExecResult, OnLine};
 use crate::run_env::DROP_SUDO_MARKS;
@@ -46,7 +46,22 @@ pub fn ssh_machine_id(reach: &SshReach) -> Result<String> {
     let text = format!("ssh://{}@{}:{}", encode_uri_component(&reach.user), reach.host, reach.port);
     let mut url = url::Url::parse(&text).map_err(|_| plain("Invalid URL".to_string()))?;
     if let Some(key) = &reach.key_path {
-        url.query_pairs_mut().append_pair("key", key);
+        // `searchParams.set` reads the query the host already put there as pairs and writes the whole of it back.
+        let mut pairs: Vec<(String, String)> = url.query_pairs().map(|(k, v)| (k.into_owned(), v.into_owned())).collect();
+        match pairs.iter().position(|(k, _)| k == "key") {
+            Some(first) => {
+                pairs[first].1 = key.clone();
+                let mut seen = 0;
+                pairs.retain(|(k, _)| {
+                    if k == "key" {
+                        seen += 1;
+                    }
+                    k != "key" || seen == 1
+                });
+            }
+            None => pairs.push(("key".to_string(), key.clone())),
+        }
+        url.query_pairs_mut().clear().extend_pairs(pairs);
     }
     Ok(url.to_string())
 }
@@ -130,7 +145,7 @@ pub struct SshTransportOptions {
 }
 
 /// ssh-backend.ts:82. How a script reaches the machine; a test hands its own and reads what it was asked to run.
-pub type SshTransport = Arc<dyn Fn(SshReach, String, SshTransportOptions) -> LocalBoxFuture<'static, ExecResult>>;
+pub type SshTransport = Arc<dyn Fn(SshReach, String, SshTransportOptions) -> LocalBoxFuture<'static, Result<ExecResult>>>;
 
 /// ssh-backend.ts:89.
 pub const SSH_CONNECT_TIMEOUT_S: u64 = 10;
@@ -159,29 +174,34 @@ pub(crate) fn utf16_tail(text: &str, n: usize) -> String {
 /// ssh-backend.ts:101.
 pub const SSH_CONTROL_PERSIST_S: u64 = 60;
 
-/// The home directory node's `homedir()` answers: `$HOME` when it is set and not empty, else the passwd entry's.
+/// The home directory node's `homedir()` answers: `$HOME` when it is set, empty or not, else the passwd entry's.
 fn node_homedir() -> String {
-    match std::env::var("HOME") {
-        Ok(home) if !home.is_empty() => home,
-        _ => passwd_home().unwrap_or_default(),
+    match std::env::var_os("HOME") {
+        Some(home) => home.to_string_lossy().into_owned(),
+        None => passwd_home().unwrap_or_default(),
     }
 }
 
-/// ssh-backend.ts:106. `{home}/.wsp/ssh`; `None` is Node's `homedir()` ($HOME when set and non-empty, else passwd).
+/// ssh-backend.ts:106. `join(home, ".wsp", "ssh")`, normalized; `None` is Node's `homedir()` ($HOME when set, else passwd).
 pub fn ssh_control_dir(home: Option<&str>) -> PathBuf {
     let home = home.map_or_else(node_homedir, str::to_string);
-    PathBuf::from(home).join(".wsp").join("ssh")
+    PathBuf::from(posix_join(&home, ".wsp/ssh"))
 }
 
 /// ssh-backend.ts:111.
 pub const SSH_CONTROL_DIR_MODE: u32 = 0o700;
 
-/// ssh-backend.ts:115. Makes the folder (parents included) and tightens it to 0700 whatever it was.
+/// ssh-backend.ts:115. Makes the folder (parents included) and tightens it to 0700 whatever it was. A failure is node's
+/// own error, `ENOTDIR: not a directory, mkdir '<folder>'`.
 pub fn make_ssh_control_dir(home: Option<&str>) -> Result<PathBuf> {
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
     let dir = ssh_control_dir(home);
-    std::fs::DirBuilder::new().recursive(true).mode(SSH_CONTROL_DIR_MODE).create(&dir).map_err(|e| plain(e.to_string()))?;
-    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(SSH_CONTROL_DIR_MODE)).map_err(|e| plain(e.to_string()))?;
+    let node_error = |e: std::io::Error, syscall: &str| match errno_name(&e) {
+        Some(code) => plain(format!("{code}: {}, {syscall} '{}'", errno_sentence(code), dir.display())),
+        None => plain(e.to_string()),
+    };
+    std::fs::DirBuilder::new().recursive(true).mode(SSH_CONTROL_DIR_MODE).create(&dir).map_err(|e| node_error(e, "mkdir"))?;
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(SSH_CONTROL_DIR_MODE)).map_err(|e| node_error(e, "chmod"))?;
     Ok(dir)
 }
 
@@ -450,11 +470,7 @@ pub fn spawn_ssh() -> SshSpawn {
         let mut child = match spawned {
             Ok(child) => child,
             Err(e) => {
-                let why = match e.kind() {
-                    std::io::ErrorKind::NotFound => "ENOENT".to_string(),
-                    std::io::ErrorKind::PermissionDenied => "EACCES".to_string(),
-                    _ => e.to_string(),
-                };
+                let why = errno_name(&e).map_or_else(|| e.to_string(), str::to_string);
                 return HeldChild {
                     stdin: Box::new(tokio::io::sink()),
                     stdout: Box::new(tokio::io::empty()),
@@ -513,19 +529,45 @@ fn send_signal(pid: Option<u32>, signal: &str) -> bool {
     }
 }
 
-/// The name Node gives a signal number, for the signals a child is ended on here.
+/// The name Node gives a signal number (`signo_string`), as this platform numbers them.
 fn signal_name(number: i32) -> String {
-    match number {
-        libc::SIGHUP => "SIGHUP".to_string(),
-        libc::SIGINT => "SIGINT".to_string(),
-        libc::SIGQUIT => "SIGQUIT".to_string(),
-        libc::SIGABRT => "SIGABRT".to_string(),
-        libc::SIGKILL => "SIGKILL".to_string(),
-        libc::SIGSEGV => "SIGSEGV".to_string(),
-        libc::SIGPIPE => "SIGPIPE".to_string(),
-        libc::SIGTERM => "SIGTERM".to_string(),
-        other => format!("SIG{other}"),
-    }
+    let name = match number {
+        libc::SIGHUP => "SIGHUP",
+        libc::SIGINT => "SIGINT",
+        libc::SIGQUIT => "SIGQUIT",
+        libc::SIGILL => "SIGILL",
+        libc::SIGTRAP => "SIGTRAP",
+        libc::SIGABRT => "SIGABRT",
+        libc::SIGBUS => "SIGBUS",
+        libc::SIGFPE => "SIGFPE",
+        libc::SIGKILL => "SIGKILL",
+        libc::SIGUSR1 => "SIGUSR1",
+        libc::SIGSEGV => "SIGSEGV",
+        libc::SIGUSR2 => "SIGUSR2",
+        libc::SIGPIPE => "SIGPIPE",
+        libc::SIGALRM => "SIGALRM",
+        libc::SIGTERM => "SIGTERM",
+        libc::SIGCHLD => "SIGCHLD",
+        libc::SIGCONT => "SIGCONT",
+        libc::SIGSTOP => "SIGSTOP",
+        libc::SIGTSTP => "SIGTSTP",
+        libc::SIGTTIN => "SIGTTIN",
+        libc::SIGTTOU => "SIGTTOU",
+        libc::SIGURG => "SIGURG",
+        libc::SIGXCPU => "SIGXCPU",
+        libc::SIGXFSZ => "SIGXFSZ",
+        libc::SIGVTALRM => "SIGVTALRM",
+        libc::SIGPROF => "SIGPROF",
+        libc::SIGWINCH => "SIGWINCH",
+        libc::SIGIO => "SIGIO",
+        libc::SIGSYS => "SIGSYS",
+        #[cfg(target_os = "linux")]
+        libc::SIGSTKFLT => "SIGSTKFLT",
+        #[cfg(target_os = "linux")]
+        libc::SIGPWR => "SIGPWR",
+        other => return format!("SIG{other}"),
+    };
+    name.to_string()
 }
 
 /// ssh-backend.ts:313.
@@ -588,9 +630,26 @@ struct Pump {
 }
 
 impl Pump {
-    /// Reads what is ready on both pipes, takes the exit once it is there, and settles once the child has ended and both
-    /// pipes have closed.
+    /// Reads what is ready on both pipes, takes the exit once it is there, and settles on the exit: a helper the child left
+    /// holding a pipe does not keep the forward from ending (ssh-backend.ts:346 settles on `exit`, not on the pipes' close).
     fn poll(&mut self, cx: &mut Context<'_>) {
+        self.read_pipes(cx);
+        if let Some(exit) = self.exit.as_mut() {
+            if let Poll::Ready(end) = exit.poll_unpin(cx) {
+                self.exit = None;
+                self.exit_end = Some(end);
+                self.read_pipes(cx);
+            }
+        }
+        if self.ended.is_none() && self.exit_end.is_some() {
+            self.settle();
+            self.stdout = None;
+            self.stderr = None;
+            self.stdin = None;
+        }
+    }
+
+    fn read_pipes(&mut self, cx: &mut Context<'_>) {
         for line in take_lines(&mut self.stdout, &mut self.out_lines, cx) {
             if js_trim(&line) == SSH_BACK_UP && self.up.is_none() {
                 self.up = Some(Ok(()));
@@ -601,15 +660,6 @@ impl Pump {
             if self.said.len() > 50 {
                 self.said.pop_front();
             }
-        }
-        if let Some(exit) = self.exit.as_mut() {
-            if let Poll::Ready(end) = exit.poll_unpin(cx) {
-                self.exit = None;
-                self.exit_end = Some(end);
-            }
-        }
-        if self.ended.is_none() && self.exit_end.is_some() && self.stdout.is_none() && self.stderr.is_none() {
-            self.settle();
         }
     }
 
@@ -722,8 +772,10 @@ impl BackForward {
     }
 }
 
-/// ssh-backend.ts:323. Starts the forward child and holds it, draining its pipes on a local task: needs a tokio
-/// `LocalSet`.
+/// ssh-backend.ts:323. Starts the forward child and holds it, draining its pipes on a local task that keeps the holder's
+/// state until the child ends, so a holder that is dropped leaves the child running until `release` or its own end, as the
+/// TS's does. Outside a tokio `LocalSet` there is no task to drain on: `up` and `ended` then read the pipes as they are
+/// awaited.
 pub fn hold_back_forward(carried: &SshCarried, box_port: u16, door_port: u16, spawn: SshSpawn) -> BackForward {
     let child = spawn("ssh", &ssh_back_args(carried, box_port, door_port));
     let pump = Pump {
@@ -741,29 +793,48 @@ pub fn hold_back_forward(carried: &SshCarried, box_port: u16, door_port: u16, sp
         released: false,
     };
     let state = Arc::new(BackForwardState { waiters: Arc::new(Waiters::default()), pump: RefCell::new(pump) });
-    let held = Arc::downgrade(&state);
-    tokio::task::spawn_local(futures::future::poll_fn(move |cx| match held.upgrade() {
-        Some(state) => {
-            state.drive(cx);
-            if state.pump.borrow().ended.is_some() {
-                Poll::Ready(())
-            } else {
-                Poll::Pending
-            }
+    let drained = state.clone();
+    try_spawn_local(futures::future::poll_fn(move |cx| {
+        drained.drive(cx);
+        if drained.pump.borrow().ended.is_some() {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
         }
-        None => Poll::Ready(()),
     }));
     BackForward { inner: state }
+}
+
+/// `spawn_local` where there is a `LocalSet` to run it, and nothing where there is none; true where it was spawned.
+fn try_spawn_local(task: impl std::future::Future<Output = ()> + 'static) -> bool {
+    static QUIET: std::sync::Once = std::sync::Once::new();
+    // The one panic `spawn_local` makes outside a LocalSet is caught here, so it is kept out of the log.
+    QUIET.call_once(|| {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            let said = match info.payload().downcast_ref::<&str>() {
+                Some(said) => said.to_string(),
+                None => info.payload().downcast_ref::<String>().cloned().unwrap_or_default(),
+            };
+            if !said.contains("called from outside of a `task::LocalSet`") {
+                previous(info);
+            }
+        }));
+    });
+    let mut task = Some(task);
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if let Some(task) = task.take() {
+            tokio::task::spawn_local(task);
+        }
+    }))
+    .is_ok()
 }
 
 /// ssh-backend.ts:366. The ssh client on this computer, carrying one script to the machine.
 pub fn ssh_client() -> SshTransport {
     Arc::new(|reach: SshReach, script: String, opts: SshTransportOptions| {
         async move {
-            let control_dir = match make_ssh_control_dir(None) {
-                Ok(dir) => dir,
-                Err(e) => return ExecResult { exit_code: CHILD_UNSTARTABLE.into(), stdout: String::new(), stderr: e.to_string() },
-            };
+            let control_dir = make_ssh_control_dir(None)?;
             let (as_, stdin) = match &opts.ride {
                 SshRide::Login => (SshAs::Login, opts.stdin.clone()),
                 SshRide::RootByPassword(password) => {
@@ -779,13 +850,13 @@ pub fn ssh_client() -> SshTransport {
                 &SshArgsOptions { control_dir: Some(control_dir.to_string_lossy().into_owned()), stdin: stdin.is_some(), as_ },
             );
             let child = ChildOptions {
-                env: Some(std::env::vars().collect()),
+                env: Some(process_env()),
                 timeout_ms: opts.timeout_ms,
                 on_line: opts.on_line.clone(),
                 stdin,
                 ..Default::default()
             };
-            run_child("ssh", &args, child).await
+            Ok(run_child("ssh", &args, child).await)
         }
         .boxed_local()
     })

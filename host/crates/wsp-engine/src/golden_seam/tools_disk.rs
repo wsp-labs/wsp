@@ -7,7 +7,7 @@ use wsp_catalog::road_modules::road_step;
 use wsp_catalog::roads::RoadName;
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::wire::machine_link::ExecResult;
-use wsp_words::js::{is_js_whitespace, js_trim, to_number};
+use wsp_words::js::{is_js_whitespace, js_trim, number_string, to_number};
 use wsp_words::words::image::DiskUse;
 use wsp_words::words::thread::timed_out_line;
 use wsp_words::words::units::fmt_bytes;
@@ -204,8 +204,8 @@ pub fn guard_deadline_ms(timeout_s: u64) -> u64 {
 /// golden-tools.ts:92 `reasonOf`: 124 is `timed_out_line(timeout_s)`; else the last `Error:` line of stderr, else stderr's
 /// last line, else stdout's, else `exit <code>`; lines trimmed, blank ones dropped; cut to 160 UTF-16 units.
 pub fn reason_of(res: &ExecResult, timeout_s: f64) -> String {
-    let code = res.exit_code.get();
-    if code == 124 {
+    let code = res.exit_code.as_f64();
+    if code == 124.0 {
         return timed_out_line(timeout_s, None);
     }
     let lines = |text: &str| -> Vec<String> { text.split('\n').map(|l| js_trim(l).to_string()).filter(|l| !l.is_empty()).collect() };
@@ -217,7 +217,7 @@ pub fn reason_of(res: &ExecResult, timeout_s: f64) -> String {
         .cloned()
         .or_else(|| err.last().cloned())
         .or_else(|| lines(&res.stdout).last().cloned())
-        .unwrap_or_else(|| format!("exit {code}"));
+        .unwrap_or_else(|| format!("exit {}", number_string(code)));
     cut_units(&picked, 160)
 }
 

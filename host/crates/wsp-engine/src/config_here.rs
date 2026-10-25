@@ -45,8 +45,7 @@ pub fn write_config_here(file: &str, base: &str, sum: Option<&str>, text: &str, 
         bytes: text.len() as u64,
         from: None,
     });
-    let mut vars: IndexMap<String, String> =
-        std::env::vars_os().map(|(k, v)| (k.to_string_lossy().into_owned(), v.to_string_lossy().into_owned())).collect();
+    let mut vars: IndexMap<String, String> = crate::child_exec::process_env();
     vars.insert("PATH".into(), "/usr/bin:/bin".into());
     let opts = FedOptions { timeout: Some(std::time::Duration::from_millis(WRITE_MS)), env: Some(vars), ..Default::default() };
     let ran = spawn_sync_fed_checked("/bin/sh", &["-c".to_string(), line], text.as_bytes(), &opts)
