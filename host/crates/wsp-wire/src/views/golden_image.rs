@@ -2216,6 +2216,23 @@ pub fn command_check(bin: &str) -> String {
     format!("command -v {}", crate::types::shell_quote::shell_quote(bin))
 }
 
+/// A pin as `recipePins` builds it, `{ id, ...pin, road }`: the id first, where a parsed `SealedPin` has it after the
+/// pin's keys.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecipePin {
+    pub id: String,
+    pub tag: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arch: Option<ToolPinArch>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest: Option<True>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub road: Option<String>,
+}
+
 // views/golden-image.ts:355 at a3b870a6e
 // export function recipePins(digest: Pick<RecipeDigest, "ticks">, key: (id: string) => string = id => id): SealedPin[] {
 //   return digest.ticks
@@ -2225,19 +2242,19 @@ pub fn command_check(bin: &str) -> String {
 /// One pin per tick that has one, its id through `key` (the identity where the TS caller passes none), then the pin's
 /// own keys, then `road` where the tick has one; sorted by id as `String.prototype.localeCompare` orders them
 /// (`crate::text::collate`).
-pub fn recipe_pins(digest: &RecipeDigest, key: Option<&dyn Fn(&str) -> String>) -> Vec<SealedPin> {
-    let mut pins: Vec<SealedPin> = digest
+pub fn recipe_pins(digest: &RecipeDigest, key: Option<&dyn Fn(&str) -> String>) -> Vec<RecipePin> {
+    let mut pins: Vec<RecipePin> = digest
         .ticks
         .iter()
         .filter_map(|tick| {
             let pin = tick.pin.as_ref()?;
             let id = key.map_or_else(|| tick.id.clone(), |key| key(&tick.id));
-            Some(SealedPin {
+            Some(RecipePin {
+                id,
                 tag: pin.tag.clone(),
                 sha256: pin.sha256.clone(),
                 arch: pin.arch.clone(),
                 latest: pin.latest,
-                id,
                 road: tick.road.clone(),
             })
         })
