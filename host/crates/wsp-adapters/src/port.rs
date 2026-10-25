@@ -746,26 +746,27 @@ pub trait HarnessSession: Send + Sync {
         None
     }
     fn interrupt(&self) -> BoxFuture<'static, ()>;
+    /// A write's rejection (`Err`) is the TS method's own rejection.
     /// `None` on an adapter that keeps no process; `Some(None)` where this turn's process went with it.
     fn kept(&self) -> Option<Option<Box<dyn KeptAgent>>> {
         None
     }
-    fn steer(&self, prompt: String, id: Option<String>, images: Vec<TurnImage>) -> Option<BoxFuture<'static, SteerOutcome>> {
+    fn steer(&self, prompt: String, id: Option<String>, images: Vec<TurnImage>) -> Option<BoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
         let _ = (prompt, id, images);
         None
     }
     fn tells_unread(&self) -> Option<bool> {
         None
     }
-    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<BoxFuture<'static, AnswerOutcome>> {
+    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<BoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         let _ = (ask_id, answer);
         None
     }
-    fn set_access(&self, mode: String) -> Option<BoxFuture<'static, AccessOutcome>> {
+    fn set_access(&self, mode: String) -> Option<BoxFuture<'static, Result<AccessOutcome, ExecFailure>>> {
         let _ = mode;
         None
     }
-    fn stop_task(&self, task: String) -> Option<BoxFuture<'static, TaskStop>> {
+    fn stop_task(&self, task: String) -> Option<BoxFuture<'static, Result<TaskStop, ExecFailure>>> {
         let _ = task;
         None
     }
@@ -781,7 +782,7 @@ pub struct KeptTurn {
 
 /// The process behind a thread's turns, kept up between them. TS kept-run.ts:11.
 pub trait KeptAgent: Send + Sync {
-    fn next(&self, turn: KeptTurn) -> Arc<dyn HarnessSession>;
+    fn next(&self, turn: KeptTurn) -> Result<Arc<dyn HarnessSession>, AdapterError>;
     /// `now`: SIGTERM to its tree at once.
     fn close(&self, now: bool) -> BoxFuture<'static, ()>;
     fn exited(&self) -> SharedFuture<()>;
@@ -844,15 +845,15 @@ pub trait HarnessAdapter: Send + Sync {
         false
     }
     /// `None` at the outer level: no probe. Inner `None`: the binary did not answer.
-    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Option<HarnessCatalogAnswer>>> {
+    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
         let _ = exec;
         None
     }
-    fn probe_version(&self, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Option<String>>> {
+    fn probe_version(&self, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let _ = exec;
         None
     }
-    fn session_title(&self, harness_session_id: String, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Option<String>>> {
+    fn session_title(&self, harness_session_id: String, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let _ = (harness_session_id, exec);
         None
     }
@@ -860,15 +861,15 @@ pub trait HarnessAdapter: Send + Sync {
         let _ = session_id;
         None
     }
-    fn rename_session(&self, harness_session_id: String, title: String, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, SessionRenameWrite>> {
+    fn rename_session(&self, harness_session_id: String, title: String, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
         let _ = (harness_session_id, title, exec);
         None
     }
-    fn title_for(&self, turn: TitleTurn, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Option<String>>> {
+    fn title_for(&self, turn: TitleTurn, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let _ = (turn, exec);
         None
     }
-    fn draft_for(&self, ask: DraftAsk, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Option<String>>> {
+    fn draft_for(&self, ask: DraftAsk, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let _ = (ask, exec);
         None
     }
