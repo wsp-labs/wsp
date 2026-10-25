@@ -86,7 +86,8 @@ mod agents {
 
     #[test]
     fn config_travels_without_its_login_file() {
-        let rows: Vec<(&str, Vec<(&str, u64)>, &str, Vec<&str>, u64)> = vec![
+        type TravelRow<'a> = (&'a str, Vec<(&'a str, u64)>, &'a str, Vec<&'a str>, u64);
+        let rows: Vec<TravelRow> = vec![
             (
                 "codex",
                 vec![("~/.codex/config.toml", 50), ("~/.codex/auth.json", 900), ("~/.codex/prompts/p.md", 20)],
@@ -258,9 +259,7 @@ mod w2_oracle {
                 if let Some(v) = &a.volatile {
                     o.insert("volatile".into(), json!(v));
                 }
-                if let Some(h) = a.hooks {
-                    o.insert("hooks_file".into(), json!(h.file()));
-                }
+                o.insert("hooks_file".into(), a.hooks.map_or(Value::Null, |h| json!(h.file())));
                 Value::Object(o)
             })
             .collect();

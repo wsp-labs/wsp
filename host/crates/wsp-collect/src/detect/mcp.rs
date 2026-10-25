@@ -87,7 +87,8 @@ async fn home_deps(host: &Host, server: &McpServer, carried_paths: &[String]) ->
 /// What a definition carries: secret-named env values by size, the file such a value points at (which travels on
 /// the row), header values, and where its mcp-remote sign-in or, as the agent's entry says, its http sign-in lives. Nothing is read.
 async fn carried(host: &Host, server: &McpServer, agent: &AgentEntry, remote_tokens: &IndexMap<String, u64>) -> Carried {
-    let mut out = Carried { secrets: Vec::new(), keys: Vec::new(), notes: Vec::new(), paths: Vec::new(), bytes: 0, sign_in: ServerSignIn::None };
+    let mut out =
+        Carried { secrets: Vec::new(), keys: Vec::new(), notes: Vec::new(), paths: Vec::new(), bytes: 0, sign_in: ServerSignIn::None };
     let http_auth = agent.mcp.as_ref().and_then(|m| m.http_auth.clone());
     let mut named: Vec<String> = server.env_refs.clone();
     match &server.transport {
@@ -261,10 +262,13 @@ fn remote_row(store: &RemoteStore, matched: &[String]) -> ManifestEntry {
     }
     if n == 0 {
         row.default = RowDefault::Skip;
-        row.reason = Some(format!("no saved sign-in the current bridge reads{}", if older { "; older versions' folders are left here" } else { "" }));
+        row.reason = Some(format!(
+            "no saved sign-in the current bridge reads{}",
+            if older { "; older versions' folders are left here" } else { "" }
+        ));
         return row;
     }
-    let elsewhere = n - matched.len();
+    let elsewhere = n as i64 - matched.len() as i64;
     let mut whom: Vec<String> = Vec::new();
     if !matched.is_empty() {
         whom.push(format!("for {}", matched.join(", ")));

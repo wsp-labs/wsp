@@ -56,9 +56,7 @@ async fn sqlite_json(host: &Host, file: &str, query: &str) -> Option<String> {
 async fn database_calls(host: &Host, file: &str) -> Result<Vec<Call>, HostError> {
     let out = match sqlite_json(host, file, QUERY_WITH_CWD).await {
         Some(out) => out,
-        None => sqlite_json(host, file, QUERY)
-            .await
-            .ok_or_else(|| HostError::new(format!("{file} could not be read with sqlite3")))?,
+        None => sqlite_json(host, file, QUERY).await.ok_or_else(|| HostError::new(format!("{file} could not be read with sqlite3")))?,
     };
     let rows = if js_trim(&out).is_empty() {
         Vec::new()

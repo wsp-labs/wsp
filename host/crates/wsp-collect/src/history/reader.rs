@@ -53,10 +53,8 @@ pub const PARSE_VERSION: u32 = 2;
 /// `None` when the path is not a file.
 pub async fn stamp_of(host: &Host, path: &str) -> Option<HistoryFile> {
     let st = host.fs.stat(path).await?;
-    (st.kind == StatKind::File).then(|| HistoryFile {
-        path: path.to_string(),
-        stamp: format!("{}:{}", wsp_words::js::number_string(st.mtime_ms), st.bytes),
-    })
+    (st.kind == StatKind::File)
+        .then(|| HistoryFile { path: path.to_string(), stamp: format!("{}:{}", wsp_words::js::number_string(st.mtime_ms), st.bytes) })
 }
 
 /// Every `.jsonl` file under root the session rule has an answer for, stamped, in walk order.

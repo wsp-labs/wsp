@@ -16,8 +16,6 @@ use crate::ghostty_config::{parse_ghostty_directives, read_ghostty_config, GHOST
 use crate::host::{expand, Host, Platform, RunOptions};
 use crate::manifest::{ManifestEntry, RowDefault, Rung};
 
-// terminal.ts:152
-// export const TERMINAL_FONT_ID = "shell/terminal-font";
 pub const TERMINAL_FONT_ID: &str = "shell/terminal-font";
 
 const TERM: &str = r"\n\r\x{2028}\x{2029}";
@@ -27,8 +25,9 @@ const LINE_END: &str = r"(?:$|(?=[\n\r\x{2028}\x{2029}]))";
 static ITERM_DEFAULT_GUID: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(r"<key>Default Bookmark Guid</key>[{JS_WS}]*<string>([^<]*)</string>")).expect("ITERM_DEFAULT_GUID compiles")
 });
-static ITERM_NORMAL_FONT: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(&format!(r"<key>Normal Font</key>[{JS_WS}]*<string>([^<]*)</string>")).expect("ITERM_NORMAL_FONT compiles"));
+static ITERM_NORMAL_FONT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(r"<key>Normal Font</key>[{JS_WS}]*<string>([^<]*)</string>")).expect("ITERM_NORMAL_FONT compiles")
+});
 static ITERM_SIZE: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r"[{JS_WS}]+[0-9.]+$")).expect("ITERM_SIZE compiles"));
 static WEZ_BLOCK_COMMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"--\[\[[\s\S]*?\]\]").expect("WEZ_BLOCK_COMMENT compiles"));
 static WEZ_LINE_COMMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r"--[^{TERM}]*")).expect("WEZ_LINE_COMMENT compiles"));
@@ -38,16 +37,21 @@ static WEZ_FONT: LazyLock<Regex> = LazyLock::new(|| {
     ))
     .expect("WEZ_FONT compiles")
 });
-static KITTY_LINE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(&format!(r"{LINE_START}[{JS_WS}]*font_family[{JS_WS}]+([^{TERM}]+?)[{JS_WS}]*{LINE_END}")).expect("KITTY_LINE compiles"));
-static KITTY_KEYED: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(&format!(r#"(?<![A-Za-z0-9_])family[{JS_WS}]*=[{JS_WS}]*(?:"([^"]*)"|([^{JS_WS}]+))"#)).expect("KITTY_KEYED compiles"));
+static KITTY_LINE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(r"{LINE_START}[{JS_WS}]*font_family[{JS_WS}]+([^{TERM}]+?)[{JS_WS}]*{LINE_END}")).expect("KITTY_LINE compiles")
+});
+static KITTY_KEYED: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(r#"(?<![A-Za-z0-9_])family[{JS_WS}]*=[{JS_WS}]*(?:"([^"]*)"|([^{JS_WS}]+))"#)).expect("KITTY_KEYED compiles")
+});
 static ALACRITTY_TOML_TABLE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(r#"\[font\.normal\][^\[]*?{LINE_START}[{JS_WS}]*family[{JS_WS}]*=[{JS_WS}]*"([^"]+)""#)).expect("ALACRITTY_TOML_TABLE compiles")
+    Regex::new(&format!(r#"\[font\.normal\][^\[]*?{LINE_START}[{JS_WS}]*family[{JS_WS}]*=[{JS_WS}]*"([^"]+)""#))
+        .expect("ALACRITTY_TOML_TABLE compiles")
 });
 static ALACRITTY_TOML_INLINE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(r#"{LINE_START}[{JS_WS}]*normal[{JS_WS}]*=[{JS_WS}]*\{{[^}}]*(?<![A-Za-z0-9_])family[{JS_WS}]*=[{JS_WS}]*"([^"]+)""#))
-        .expect("ALACRITTY_TOML_INLINE compiles")
+    Regex::new(&format!(
+        r#"{LINE_START}[{JS_WS}]*normal[{JS_WS}]*=[{JS_WS}]*\{{[^}}]*(?<![A-Za-z0-9_])family[{JS_WS}]*=[{JS_WS}]*"([^"]+)""#
+    ))
+    .expect("ALACRITTY_TOML_INLINE compiles")
 });
 static ALACRITTY_TOML_DOTTED: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(r#"{LINE_START}[{JS_WS}]*normal\.family[{JS_WS}]*=[{JS_WS}]*"([^"]+)""#)).expect("ALACRITTY_TOML_DOTTED compiles")
@@ -195,7 +199,14 @@ async fn configured(host: &Host, kind: Kind) -> Option<String> {
             if files == 0 {
                 return None;
             }
-            let families: Vec<String> = config.get("fontFamily").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect();
+            let families: Vec<String> = config
+                .get("fontFamily")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect();
             Some(primary_face(&families).unwrap_or_else(|| GHOSTTY_BUILT_IN_FONT.to_string()))
         }
         Kind::ITerm2 => {
@@ -214,7 +225,11 @@ async fn configured(host: &Host, kind: Kind) -> Option<String> {
             kitty_font(&conf)
         }
         Kind::Alacritty => {
-            let text = first_text(host, &["~/.config/alacritty/alacritty.toml", "~/.alacritty.toml", "~/.config/alacritty/alacritty.yml", "~/.alacritty.yml"]).await?;
+            let text = first_text(
+                host,
+                &["~/.config/alacritty/alacritty.toml", "~/.alacritty.toml", "~/.config/alacritty/alacritty.yml", "~/.alacritty.yml"],
+            )
+            .await?;
             alacritty_font(&text)
         }
     }

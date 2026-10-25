@@ -25,7 +25,8 @@ pub const NOT_A_CHOICE: [&str; 4] = ["sudo", "unminimize", "lsb-release", "apt-t
 /// A file directly under /usr/bin or /bin, as a JavaScript regex source (apt.ts:27).
 pub const COMMAND_PATH: &str = r"^\/(usr\/)?bin\/[^/]+$";
 
-static DPKG_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r"^([^{JS_WS}]+)[{JS_WS}]+([^{JS_WS}]+)[{JS_WS}]*$")).expect("DPKG_LINE compiles"));
+static DPKG_LINE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"^([^{JS_WS}]+)[{JS_WS}]+([^{JS_WS}]+)[{JS_WS}]*$")).expect("DPKG_LINE compiles"));
 
 static COMMAND: LazyLock<Regex> = LazyLock::new(|| Regex::new(COMMAND_PATH).expect("COMMAND_PATH compiles"));
 
@@ -77,7 +78,9 @@ pub async fn apt_packages(host: &Host) -> Result<Vec<Pkg>, HostError> {
     if mine.is_empty() {
         return Ok(Vec::new());
     }
-    let priority = parse_dpkg_fields(&host.exec.run("dpkg-query", &argv(&["-Wf", "${Package} ${Priority}\n"]), RunOptions::default()).await.unwrap_or_default());
+    let priority = parse_dpkg_fields(
+        &host.exec.run("dpkg-query", &argv(&["-Wf", "${Package} ${Priority}\n"]), RunOptions::default()).await.unwrap_or_default(),
+    );
     let lists = file_lists(host).await;
     let mut out = Vec::new();
     for name in mine {
@@ -98,7 +101,9 @@ pub async fn apt_sizes(host: &Host, names: &[String]) -> IndexMap<String, f64> {
     if names.is_empty() {
         return out;
     }
-    let fields = parse_dpkg_fields(&host.exec.run("dpkg-query", &argv(&["-Wf", "${Package} ${Installed-Size}\n"]), RunOptions::default()).await.unwrap_or_default());
+    let fields = parse_dpkg_fields(
+        &host.exec.run("dpkg-query", &argv(&["-Wf", "${Package} ${Installed-Size}\n"]), RunOptions::default()).await.unwrap_or_default(),
+    );
     for name in names {
         let kib = fields.get(name).map_or(f64::NAN, |v| to_number(v));
         if kib.is_finite() && kib > 0.0 {

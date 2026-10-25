@@ -144,9 +144,7 @@ pub fn one_holder(held: &[Held]) -> Vec<HistoryBucket> {
         }
     }
     held.iter()
-        .flat_map(|h| {
-            h.buckets.iter().filter(|b| kept.get(b.session.as_str()).is_some_and(|&(holder, _)| holder == h.holder)).cloned()
-        })
+        .flat_map(|h| h.buckets.iter().filter(|b| kept.get(b.session.as_str()).is_some_and(|&(holder, _)| holder == h.holder)).cloned())
         .collect()
 }
 
@@ -164,11 +162,8 @@ impl Tally {
 
     /// Most sessions first, then most calls, then by name.
     fn counts(&self) -> IndexMap<String, Count> {
-        let mut rows: Vec<(&String, Count)> = self
-            .seen
-            .iter()
-            .map(|(name, (sessions, calls))| (name, Count { sessions: sessions.len() as u64, calls: *calls }))
-            .collect();
+        let mut rows: Vec<(&String, Count)> =
+            self.seen.iter().map(|(name, (sessions, calls))| (name, Count { sessions: sessions.len() as u64, calls: *calls })).collect();
         rows.sort_by(|a, b| b.1.sessions.cmp(&a.1.sessions).then(b.1.calls.cmp(&a.1.calls)).then_with(|| utf16::cmp(a.0, b.0)));
         rows.into_iter().map(|(name, count)| (name.clone(), count)).collect()
     }
@@ -202,11 +197,5 @@ pub fn usage_of(buckets: &[HistoryBucket], folders: Option<&[String]>) -> Usage 
             tool(&mut tools, &installed_name(key), &b.session, *calls);
         }
     }
-    Usage {
-        sessions: sessions.len() as u64,
-        calls: total,
-        commands: commands.counts(),
-        installs: installs.counts(),
-        tools: tools.counts(),
-    }
+    Usage { sessions: sessions.len() as u64, calls: total, commands: commands.counts(), installs: installs.counts(), tools: tools.counts() }
 }

@@ -134,11 +134,7 @@ pub async fn detect_identity(host: &Host) -> Vec<ManifestEntry> {
             label: "GPG keyring".into(),
             paths: f.paths,
             bytes: f.bytes,
-            opt: RowOptions {
-                default: Some(RowDefault::Skip),
-                reason: Some("GPG keys are never copied".into()),
-                ..Default::default()
-            },
+            opt: RowOptions { default: Some(RowDefault::Skip), reason: Some("GPG keys are never copied".into()), ..Default::default() },
         })));
     }
     present(rows)

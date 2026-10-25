@@ -8,9 +8,6 @@ use wsp_words::js::js_trim;
 use crate::host::{expand, Host};
 use crate::manifest::{Linux, ManifestEntry, RowDefault, Rung};
 
-// common.ts:6
-// /** prior is every row the rungs before this one produced. */
-// export type Detector = (host: Host, prior: readonly ManifestEntry[]) => Promise<ManifestEntry[]>;
 /// `prior` is every row the rungs before this one produced.
 /// A detector that rejects in the TS (a hooks file `hook_files` refuses, an apt list read failing part way) is an
 /// `Err` here, and `collect` fails with it.
@@ -32,27 +29,6 @@ pub struct RowOptions {
     pub detail: Option<String>,
 }
 
-// common.ts:8
-// export interface RowSpec {
-//   rung: Rung;
-//   id: string;
-//   label: string;
-//   /** `~/`-relative candidates; only the ones that exist end up on the row. */
-//   paths: readonly string[];
-//   default?: Default;
-//   reason?: string;
-//   group?: string;
-//   required?: boolean;
-//   linux?: Linux;
-//   version?: string;
-//   arch?: string;
-//   /** Candidates the tool rewrites while it runs; those found land on the row as volatile. */
-//   volatile?: readonly string[];
-//   /** Emit the row even when none of the candidate paths exist. */
-//   always?: boolean;
-//   /** One line for the detail pane. */
-//   detail?: string;
-// }
 #[derive(Debug, Clone, PartialEq)]
 pub struct RowSpec {
     pub rung: Rung,
@@ -65,11 +41,6 @@ pub struct RowSpec {
     pub opt: RowOptions,
 }
 
-// common.ts:57
-// export interface EntrySpec extends Omit<RowSpec, "paths" | "always"> {
-//   paths: string[];
-//   bytes: number;
-// }
 #[derive(Debug, Clone, PartialEq)]
 pub struct EntrySpec {
     pub rung: Rung,
@@ -80,11 +51,6 @@ pub struct EntrySpec {
     pub opt: RowOptions,
 }
 
-// common.ts:29
-// export interface Found {
-//   paths: string[];
-//   bytes: number;
-// }
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Found {
     pub paths: Vec<String>,

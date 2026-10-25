@@ -444,7 +444,10 @@ pub(crate) fn comment_at(line: &[char], i: usize) -> bool {
     if line.get(i) != Some(&'#') {
         return false;
     }
-    i == 0 || is_js_whitespace(line[i - 1]) || matches!(line[i - 1], ';' | '&' | '|') || (i >= 2 && line[i - 2] == '=' && line[i - 1] == '(')
+    i == 0
+        || is_js_whitespace(line[i - 1])
+        || matches!(line[i - 1], ';' | '&' | '|')
+        || (i >= 2 && line[i - 2] == '=' && line[i - 1] == '(')
 }
 
 /// A command that reads a file: its `source` or `.` word (nvm writes `\.` to dodge an alias on the dot), the one token after it and what follows.

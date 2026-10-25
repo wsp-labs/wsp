@@ -11,7 +11,7 @@ use wsp_wire::types::js_number::JsInt;
 use wsp_wire::views::project_bundle::{TerminalRgb, TerminalScheme};
 use wsp_words::js::{js_trim, number_string, to_number};
 
-use crate::host::{expand, Host, HostFs, Platform};
+use crate::host::{expand, Host, Platform};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GhosttyDirective {

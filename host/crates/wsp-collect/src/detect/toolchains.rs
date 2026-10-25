@@ -14,7 +14,12 @@ struct Manager {
 }
 
 const MANAGERS: &[Manager] = &[
-    Manager { id: "mise", bin: Some("mise"), markers: &["~/.config/mise/config.toml"], pins: &["~/.config/mise/config.toml", "~/.tool-versions"] },
+    Manager {
+        id: "mise",
+        bin: Some("mise"),
+        markers: &["~/.config/mise/config.toml"],
+        pins: &["~/.config/mise/config.toml", "~/.tool-versions"],
+    },
     Manager { id: "asdf", bin: Some("asdf"), markers: &["~/.asdf"], pins: &["~/.tool-versions", "~/.asdfrc"] },
     Manager { id: "fnm", bin: Some("fnm"), markers: &[], pins: &["~/.node-version", "~/.nvmrc"] },
     Manager { id: "nvm", bin: None, markers: &["~/.nvm"], pins: &["~/.nvmrc"] },

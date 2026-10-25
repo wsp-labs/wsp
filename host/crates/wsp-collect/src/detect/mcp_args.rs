@@ -199,13 +199,7 @@ pub fn mcp_remote_of(args: &[String]) -> Option<McpRemote> {
     parts.extend(sorted_json(&headers));
     parts.extend(after("--client-metadata-url"));
     let hash = format!("{:x}", Md5::digest(parts.join("|").as_bytes()));
-    Some(McpRemote {
-        url,
-        headers,
-        hash,
-        client_credentials: rest.iter().any(|a| a == "--client-credentials"),
-        v1: keeps_v1(&args[at]),
-    })
+    Some(McpRemote { url, headers, hash, client_credentials: rest.iter().any(|a| a == "--client-credentials"), v1: keeps_v1(&args[at]) })
 }
 
 /// The store key mcp-remote derives for a definition that runs it; undefined when the definition does not run it.
@@ -313,7 +307,9 @@ pub fn read_args(command: &str, args: &[String], home: &str) -> Vec<ArgRead> {
                     });
                 } else {
                     match assign_read(value) {
-                        Some(assigned) => out.push(ArgRead { show: Some(format!("{head}={}", assigned.show.clone().unwrap_or_default())), ..assigned }),
+                        Some(assigned) => {
+                            out.push(ArgRead { show: Some(format!("{head}={}", assigned.show.clone().unwrap_or_default())), ..assigned })
+                        }
                         None => out.push(ArgRead { show: Some(shown(a)), ..ArgRead::default() }),
                     }
                 }

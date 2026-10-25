@@ -179,7 +179,6 @@ mod w2_oracle {
             arch: v["arch"].as_str().map(str::to_string),
             volatile: v.get("volatile").map(strs),
             detail: v["detail"].as_str().map(str::to_string),
-            ..Default::default()
         }
     }
 

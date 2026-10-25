@@ -9,8 +9,8 @@ use std::sync::LazyLock;
 use indexmap::IndexMap;
 use regex::{Captures, Regex};
 use serde_json::{Map, Value};
-use wsp_words::js::{js_trim, js_trim_start, JS_WS};
 use wsp_wire::wire::helpers::js_key_order;
+use wsp_words::js::{js_trim, js_trim_start, JS_WS};
 
 pub use wsp_wire::views::project_bundle::CredentialSignal as Signal;
 
@@ -65,8 +65,20 @@ const STRUCTURED_EXTENSIONS: &[&str] = &["json", "yaml", "yml", "toml"];
 /// Key names that hold a secret, after `accessToken` and `client-secret` are read as snake case. Bare `key` is left out (a
 /// keybinding or a public key far more often) and so is a `_password` suffix (`generate_password` is a command).
 const KEY_NAMES: &[&str] = &[
-    "token", "password", "passwd", "secret", "bearer", "auths", "credentials", "_authtoken", "apikey", "api_key", "private_key",
-    "secret_key", "access_key", "secret_access_key",
+    "token",
+    "password",
+    "passwd",
+    "secret",
+    "bearer",
+    "auths",
+    "credentials",
+    "_authtoken",
+    "apikey",
+    "api_key",
+    "private_key",
+    "secret_key",
+    "access_key",
+    "secret_access_key",
 ];
 const KEY_SUFFIXES: &[&str] = &["_token", "_secret", "_api_key", "_apikey", "_private_key", "_secret_access_key"];
 
@@ -75,8 +87,7 @@ const KEY_SUFFIXES: &[&str] = &["_token", "_secret", "_api_key", "_apikey", "_pr
 static REFERENCE_VALUE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(?:\$\{\{[^}]*\}\}|\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*|<[^<>]*>)?$").expect("REFERENCE_VALUE compiles")
 });
-static PEM_HEADER: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^-----BEGIN[ A-Z0-9_-]*PRIVATE KEY").expect("PEM_HEADER compiles"));
+static PEM_HEADER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^-----BEGIN[ A-Z0-9_-]*PRIVATE KEY").expect("PEM_HEADER compiles"));
 static BLANK_OR_EMPTY_STRUCTURE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(r"^[{JS_WS}]*(?:\{{[{JS_WS}]*\}}|\[[{JS_WS}]*\])?[{JS_WS}]*$")).expect("BLANK_OR_EMPTY_STRUCTURE compiles")
 });
@@ -91,8 +102,7 @@ static KEY_LINE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(r#"^[{JS_WS}]*(?://[^{JS_WS}:]+/:)?"?([A-Za-z_][A-Za-z0-9_.-]*)"?[{JS_WS}]*[:=]([^\n]*)$"#))
         .expect("KEY_LINE compiles")
 });
-static VALUE_COMMENT: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(&format!(r"[{JS_WS}]+#[^\n]*$")).expect("VALUE_COMMENT compiles"));
+static VALUE_COMMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r"[{JS_WS}]+#[^\n]*$")).expect("VALUE_COMMENT compiles"));
 static CAMEL_BOUNDARY: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"([a-z0-9])([A-Z])").expect("CAMEL_BOUNDARY compiles"));
 
 /// The lower-cased text after the last dot, or empty when the dot is the first character or there is none.

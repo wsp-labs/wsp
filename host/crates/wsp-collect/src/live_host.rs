@@ -41,7 +41,7 @@ fn skip_dir(name: &std::ffi::OsStr) -> bool {
     name.to_str().is_some_and(|n| SKIP_DIRS.contains(&n))
 }
 
-fn utf16_order(a: &String, b: &String) -> Ordering {
+fn utf16_order(a: &str, b: &str) -> Ordering {
     a.encode_utf16().cmp(b.encode_utf16())
 }
 
@@ -211,7 +211,7 @@ impl HostFs for NodeFs {
                 return Vec::new();
             };
             let mut names: Vec<String> = entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
-            names.sort_by(utf16_order);
+            names.sort_by(|a, b| utf16_order(a, b));
             names
         }
         .boxed_local()
@@ -247,7 +247,7 @@ impl HostFs for NodeFs {
                     }
                 }
             }
-            out.sort_by(utf16_order);
+            out.sort_by(|a, b| utf16_order(a, b));
             out
         }
         .boxed_local()
@@ -310,9 +310,8 @@ impl HostExec for NodeExec {
 
     fn run<'a>(&'a self, cmd: &'a str, args: &'a [String], opts: RunOptions) -> LocalBoxFuture<'a, Option<String>> {
         async move {
-            let mut env: IndexMap<String, String> = std::env::vars_os()
-                .map(|(k, v)| (k.to_string_lossy().into_owned(), v.to_string_lossy().into_owned()))
-                .collect();
+            let mut env: IndexMap<String, String> =
+                std::env::vars_os().map(|(k, v)| (k.to_string_lossy().into_owned(), v.to_string_lossy().into_owned())).collect();
             if let Some(given) = &opts.env {
                 for (k, v) in given {
                     env.insert(k.clone(), v.clone());
@@ -382,13 +381,7 @@ pub async fn spawn_run(cmd: &str, args: &[String], env: &[(String, String)], opt
         return None;
     }
     let mut command = tokio::process::Command::new(cmd);
-    command
-        .args(args)
-        .env_clear()
-        .envs(env.iter().map(|(k, v)| (k, v)))
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    command.args(args).env_clear().envs(env.iter().map(|(k, v)| (k, v))).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     // SAFETY: between fork and exec the only call is setsid, which is async-signal-safe.
     unsafe {
         command.pre_exec(|| {
@@ -413,7 +406,7 @@ pub async fn spawn_run(cmd: &str, args: &[String], env: &[(String, String)], opt
     let mut grace_at = Instant::now();
     let mut grace_live = false;
     let cancellable = opts.signal.is_some();
-    let token = opts.signal.clone().unwrap_or_else(CancellationToken::new);
+    let token = opts.signal.clone().unwrap_or_default();
     let mut aborted = false;
     let mut failed = false;
     let mut status: Option<ExitStatus> = None;
@@ -510,10 +503,7 @@ fn node_platform_word(os: &str) -> &str {
 /// CODEX_HOME where set and not empty; `stores` and `seeds` absent. An unknown platform is the TS throw's sentence.
 pub fn node_host() -> Result<Host, wsp_words::exit::HostError> {
     let platform = platform_of(std::env::consts::OS).ok_or_else(|| {
-        HostError::new(format!(
-            "wsp reads a computer's setup on macOS or Linux only, not {}",
-            node_platform_word(std::env::consts::OS)
-        ))
+        HostError::new(format!("wsp reads a computer's setup on macOS or Linux only, not {}", node_platform_word(std::env::consts::OS)))
     })?;
     let var = |name: &str| std::env::var(name).ok().filter(|v| !v.is_empty());
     Ok(Host {

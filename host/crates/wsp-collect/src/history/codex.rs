@@ -37,7 +37,9 @@ pub fn codex_call(session: &str, name: &str, args: Option<&Value>, folder: Optio
 fn calls_of_line(session: &str, folder: &mut Option<String>, line: &str) -> Vec<Call> {
     if folder.is_none() && line.contains("\"session_meta\"") {
         let meta = try_json(line);
-        if let Some(cwd) = meta.as_ref().and_then(|m| m.get("payload")).filter(|p| is_record(p)).and_then(|p| p.get("cwd")).and_then(Value::as_str) {
+        if let Some(cwd) =
+            meta.as_ref().and_then(|m| m.get("payload")).filter(|p| is_record(p)).and_then(|p| p.get("cwd")).and_then(Value::as_str)
+        {
             *folder = Some(cwd.to_string());
         }
     }

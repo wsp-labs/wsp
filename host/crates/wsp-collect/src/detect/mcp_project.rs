@@ -173,7 +173,7 @@ pub async fn detect_project_mcp(host: &Host, folder: &str, o: &ProjectMcpOptions
                 Some(reason) => ManifestEntry { default: RowDefault::Skip, reason: Some(reason), ..row },
                 None => row,
             };
-            servers.push(ProjectServer { agent: *agent, turn, row });
+            servers.push(ProjectServer { agent, turn, row });
         }
     }
     ProjectMcp { servers, read, checkout }

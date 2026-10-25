@@ -29,14 +29,8 @@ pub enum Bills {
     Login,
 }
 
-// logins.ts:35
-// /** The detail on a login that is signed in once on the computer that runs the workspaces: it is found here, and
-//  * none of it is offered to copy, since no machine ever holds a copy of it. */
-// export const LIVES_ON_COMPUTER_DETAIL = "it signs in once on the computer that runs your workspaces; nothing of it travels";
 pub const LIVES_ON_COMPUTER_DETAIL: &str = "it signs in once on the computer that runs your workspaces; nothing of it travels";
 
-// logins.ts:77
-// export const CLAUDE_KEY_ENV = "ANTHROPIC_API_KEY";
 pub const CLAUDE_KEY_ENV: &str = "ANTHROPIC_API_KEY";
 
 /// One CLI or agent login the table names: its files on each platform, then the files every platform has (logins.ts:37).
@@ -56,7 +50,14 @@ const LOGINS: [Login; 11] = [
         group: "CLI logins",
         darwin: &[],
         linux: &[],
-        all: &["~/.config/gcloud/credentials.db", "~/.config/gcloud/access_tokens.db", "~/.config/gcloud/application_default_credentials.json", "~/.config/gcloud/configurations", "~/.config/gcloud/active_config", "~/.config/gcloud/legacy_credentials"],
+        all: &[
+            "~/.config/gcloud/credentials.db",
+            "~/.config/gcloud/access_tokens.db",
+            "~/.config/gcloud/application_default_credentials.json",
+            "~/.config/gcloud/configurations",
+            "~/.config/gcloud/active_config",
+            "~/.config/gcloud/legacy_credentials",
+        ],
     },
     Login {
         id: "wrangler",
@@ -66,7 +67,14 @@ const LOGINS: [Login; 11] = [
         linux: &["~/.config/.wrangler/config/default.toml"],
         all: &[],
     },
-    Login { id: "cloudflared", label: "cloudflared login", group: "CLI logins", darwin: &[], linux: &[], all: &["~/.cloudflared/cert.pem"] },
+    Login {
+        id: "cloudflared",
+        label: "cloudflared login",
+        group: "CLI logins",
+        darwin: &[],
+        linux: &[],
+        all: &["~/.cloudflared/cert.pem"],
+    },
     Login {
         id: "vercel",
         label: "Vercel login",
@@ -75,11 +83,25 @@ const LOGINS: [Login; 11] = [
         linux: &["~/.config/com.vercel.cli/auth.json"],
         all: &["~/.vercel/auth.json"],
     },
-    Login { id: "aws", label: "AWS keys and profiles", group: "CLI logins", darwin: &[], linux: &[], all: &["~/.aws/credentials", "~/.aws/config"] },
+    Login {
+        id: "aws",
+        label: "AWS keys and profiles",
+        group: "CLI logins",
+        darwin: &[],
+        linux: &[],
+        all: &["~/.aws/credentials", "~/.aws/config"],
+    },
     Login { id: "kube", label: "kubectl config", group: "CLI logins", darwin: &[], linux: &[], all: &["~/.kube/config"] },
     Login { id: "codex", label: "Codex login", group: "Agent logins", darwin: &[], linux: &[], all: &["~/.codex/auth.json"] },
     Login { id: "gemini", label: "Gemini CLI login", group: "Agent logins", darwin: &[], linux: &[], all: &["~/.gemini/oauth_creds.json"] },
-    Login { id: "opencode", label: "OpenCode login", group: "Agent logins", darwin: &[], linux: &[], all: &["~/.local/share/opencode/auth.json"] },
+    Login {
+        id: "opencode",
+        label: "OpenCode login",
+        group: "Agent logins",
+        darwin: &[],
+        linux: &[],
+        all: &["~/.local/share/opencode/auth.json"],
+    },
     Login { id: "pi", label: "Pi login", group: "Agent logins", darwin: &[], linux: &[], all: &["~/.pi/agent/auth.json"] },
     Login { id: "hermes", label: "Hermes Agent login", group: "Agent logins", darwin: &[], linux: &[], all: &["~/.hermes/auth.json"] },
 ];
@@ -206,7 +228,12 @@ async fn keys_rows(host: &Host) -> Vec<ManifestEntry> {
             label: format!("{} API keys", r.entry.name()),
             paths: f.paths,
             bytes: f.bytes,
-            opt: RowOptions { group: Some(group.to_string()), default: Some(login_default(&r.id)), detail: Some(keys.note.clone()), ..RowOptions::default() },
+            opt: RowOptions {
+                group: Some(group.to_string()),
+                default: Some(login_default(&r.id)),
+                detail: Some(keys.note.clone()),
+                ..RowOptions::default()
+            },
         }));
     }
     rows

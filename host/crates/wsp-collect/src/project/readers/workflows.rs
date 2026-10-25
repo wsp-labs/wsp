@@ -20,8 +20,9 @@ static SETUP: LazyLock<Regex> = LazyLock::new(|| {
     ))
     .expect("SETUP compiles")
 });
-static USES_OWNER: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(&format!(r#"^[{JS_WS}]*-?[{JS_WS}]*uses:[{JS_WS}]*["']?([A-Za-z0-9_.-]+)/"#)).expect("USES_OWNER compiles"));
+static USES_OWNER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(r#"^[{JS_WS}]*-?[{JS_WS}]*uses:[{JS_WS}]*["']?([A-Za-z0-9_.-]+)/"#)).expect("USES_OWNER compiles")
+});
 static OWNS_IT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"-action$").expect("OWNS_IT compiles"));
 static RUN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(r"^([{JS_WS}]*)-?[{JS_WS}]*run:[{JS_WS}]*([^\r\n\x{{2028}}\x{{2029}}]*)$")).expect("RUN compiles")

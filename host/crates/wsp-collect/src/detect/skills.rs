@@ -25,20 +25,6 @@ pub struct SkillPlugin {
     pub on: bool,
 }
 
-// skills.ts:14
-// /** One folder to read skills from, absolute: whose own folder it is, where it is one agent's, and what kind. */
-// export interface SkillRootAt {
-//   dir: string;
-//   scope: SkillScope;
-//   agent?: string;
-//   /** The project a project folder is in, its path absolute. */
-//   project?: AgentsProject;
-//   /** Why nothing under this folder is read, as the list's refusal line says it: a project's folder that links out of
-//    * the repo, or one the read could not tell. */
-//   skipped?: string;
-//   /** The plugin a plugin's folder comes with: its id, the name its skills are announced under, and whether it is on. */
-//   plugin?: { id: string; prefix: string; on: boolean };
-// }
 #[derive(Debug, Clone, PartialEq)]
 pub struct SkillRootAt {
     pub dir: String,
@@ -51,24 +37,12 @@ pub struct SkillRootAt {
     pub plugin: Option<SkillPlugin>,
 }
 
-// skills.ts:27
-// export interface SkillsRead {
-//   skills: SkillRow[];
-//   refused: string[];
-// }
 #[derive(Debug, Clone, PartialEq)]
 pub struct SkillsRead {
     pub skills: Vec<SkillRow>,
     pub refused: Vec<String>,
 }
 
-// skills.ts:117
-// /** What a SKILL.md's frontmatter says; `names` counts the name lines when there is more than one. */
-// export interface SkillFront {
-//   name?: string;
-//   description?: string;
-//   names?: number;
-// }
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SkillFront {
     pub name: Option<String>,
@@ -322,7 +296,14 @@ fn posix_normalize(path: &str) -> String {
     let trailing = path.ends_with('/');
     let mut out = normalize_string(path, !absolute);
     if out.is_empty() {
-        return if absolute { "/" } else if trailing { "./" } else { "." }.to_string();
+        return if absolute {
+            "/"
+        } else if trailing {
+            "./"
+        } else {
+            "."
+        }
+        .to_string();
     }
     if trailing {
         out.push('/');
@@ -400,7 +381,13 @@ fn skipped_line(home: &str, dir: &str, at: Option<&(String, String)>) -> String 
 
 /// Adds each folder not yet listed; a folder already listed keeps its place and takes `agent` only when it is that
 /// agent's own and has none.
-fn add_roots(out: &mut IndexMap<String, SkillRootAt>, dirs: Vec<(String, bool)>, scope: SkillScope, agent: &str, project: Option<&AgentsProject>) {
+fn add_roots(
+    out: &mut IndexMap<String, SkillRootAt>,
+    dirs: Vec<(String, bool)>,
+    scope: SkillScope,
+    agent: &str,
+    project: Option<&AgentsProject>,
+) {
     for (dir, own) in dirs {
         match out.entry(dir.clone()) {
             Entry::Vacant(v) => {
@@ -494,7 +481,8 @@ pub async fn skill_roots(
     let mut out: IndexMap<String, SkillRootAt> = IndexMap::new();
     for a in &agents {
         let store = host.stores.as_ref().and_then(|s| s.get(&a.id)).map(String::as_str);
-        let dirs: Vec<(String, bool)> = a.skill_roots.user.iter().enumerate().map(|(i, r)| (in_store(&a.state_home, &r.dir, &host.home, store), i == 0)).collect();
+        let dirs: Vec<(String, bool)> =
+            a.skill_roots.user.iter().enumerate().map(|(i, r)| (in_store(&a.state_home, &r.dir, &host.home, store), i == 0)).collect();
         add_roots(&mut out, dirs, SkillScope::User, &a.id, None);
     }
     let checks = join_all(projects.iter().map(|project| {
@@ -516,7 +504,8 @@ pub async fn skill_roots(
     .await;
     for (project, (dirs, linked)) in projects.iter().zip(checks) {
         for a in &agents {
-            let roots: Vec<(String, bool)> = a.skill_roots.project.iter().enumerate().map(|(i, r)| (posix_join(&[&project.path, &r.dir]), i == 0)).collect();
+            let roots: Vec<(String, bool)> =
+                a.skill_roots.project.iter().enumerate().map(|(i, r)| (posix_join(&[&project.path, &r.dir]), i == 0)).collect();
             add_roots(&mut out, roots, SkillScope::Project, &a.id, Some(project));
         }
         for dir in &dirs {
@@ -609,7 +598,8 @@ pub async fn detect_skills(host: &Host, all: &[SkillRootAt]) -> SkillsRead {
                 row.paths.push(path);
             }
         } else {
-            let project = root.project.as_ref().map(|p| AgentsProject { id: p.id.clone(), name: p.name.clone(), path: tilde(&host.home, &p.path) });
+            let project =
+                root.project.as_ref().map(|p| AgentsProject { id: p.id.clone(), name: p.name.clone(), path: tilde(&host.home, &p.path) });
             rows.insert(
                 key,
                 SkillRow {

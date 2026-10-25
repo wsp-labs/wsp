@@ -14,13 +14,6 @@ use wsp_words::js::js_trim_end;
 use crate::detect::tools::argv;
 use crate::host::{tilde, Host, RunOptions};
 
-// plugins.ts:11
-// /** One agent's plugins as its module found them, beside the rows the report carries. */
-// export interface AgentPlugins {
-//   agent: string;
-//   shelf: PluginShelf;
-//   found: PluginsFound;
-// }
 #[derive(Debug, Clone, PartialEq)]
 pub struct AgentPlugins {
     pub agent: String,
@@ -28,13 +21,6 @@ pub struct AgentPlugins {
     pub found: PluginsFound,
 }
 
-// plugins.ts:17
-// export interface PluginsRead {
-//   plugins: PluginRow[];
-//   refused: string[];
-//   /** Each agent's own read, which a switch acts on and the skills reader takes plugin skills from. */
-//   agents: AgentPlugins[];
-// }
 #[derive(Debug, Clone, PartialEq)]
 pub struct PluginsRead {
     pub plugins: Vec<PluginRow>,
@@ -43,9 +29,6 @@ pub struct PluginsRead {
     pub agents: Vec<AgentPlugins>,
 }
 
-// plugins.ts:25
-// /** How much of one file a peek reads. */
-// const PEEK_FILE_BYTES = 256 * 1024;
 pub const PEEK_FILE_BYTES: usize = 256 * 1024;
 
 /// The `peek` and `from` shell functions every peek line opens with, generated from plugins.ts:204-224.
@@ -239,7 +222,8 @@ pub async fn detect_plugins(host: &Host, agents: Option<&[&AgentEntry]>, project
         None => catalog_agents(),
     };
     let shelves: Vec<(&AgentEntry, PluginShelf)> = agents.into_iter().filter_map(|a| a.plugin_shelf.map(|s| (a, s))).collect();
-    let projects: Vec<PluginProject> = projects.iter().map(|p| PluginProject { id: p.id.clone(), name: p.name.clone(), path: p.path.clone() }).collect();
+    let projects: Vec<PluginProject> =
+        projects.iter().map(|p| PluginProject { id: p.id.clone(), name: p.name.clone(), path: p.path.clone() }).collect();
     let projects = &projects;
     let reads: Vec<AgentPlugins> = join_all(shelves.into_iter().map(|(a, shelf)| async move {
         let found = shelf.read(&plugin_io(host, &a.id), projects).await;
