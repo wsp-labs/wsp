@@ -1,0 +1,3374 @@
+{
+  "TOOLS_PATH": "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+  "PATH_LINE": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm",
+  "EXEC_ENV": "export HOME=/root USER=root",
+  "pathLine": [
+    {
+      "path": "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "out": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm"
+    },
+    {
+      "path": "/opt/wsp/bin:/usr/bin:/bin",
+      "prefix": "/opt/wsp",
+      "out": "export PATH=/opt/wsp/bin:/usr/bin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin"
+    },
+    {
+      "path": "",
+      "out": "export PATH= PNPM_HOME=/root/.local/share/pnpm"
+    },
+    {
+      "path": "/a b:/c",
+      "prefix": "/srv/it's",
+      "out": "export PATH=/a b:/c PNPM_HOME=/srv/it's/pnpm BUN_INSTALL=/srv/it's/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/srv/it's/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/srv/it's/uv/python PIPX_HOME=/srv/it's/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/srv/it's/cargo RUSTUP_HOME=/srv/it's/rustup GOPATH=/srv/it's/go GOBIN=/usr/local/bin"
+    }
+  ],
+  "customPrelude": [
+    {
+      "path": "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "out": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1"
+    },
+    {
+      "path": "/p",
+      "prefix": "/opt/wsp",
+      "out": "export PATH=/p PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1"
+    }
+  ],
+  "brewHousekeeping": [
+    {
+      "path": "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "out": [
+        "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew autoremove'",
+        "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew cleanup -s --prune=all'"
+      ]
+    },
+    {
+      "path": "/p:/q",
+      "out": [
+        "export PATH=/p:/q PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew autoremove'",
+        "export PATH=/p:/q PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew cleanup -s --prune=all'"
+      ]
+    }
+  ],
+  "brewTapCheck": [
+    {
+      "tap": "zingzy/tap",
+      "out": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew tap' 2>/dev/null | grep -qx 'zingzy/tap'"
+    },
+    {
+      "tap": "it's/tap",
+      "out": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew tap' 2>/dev/null | grep -qx 'it'\\''s/tap'"
+    }
+  ],
+  "aptIndexStep": [
+    {
+      "id": "tools/apt-index",
+      "cmd": "apt-get update",
+      "out": {
+        "id": "tools/apt-index",
+        "label": "apt index",
+        "manager": "apt",
+        "cmd": "apt-get update",
+        "shown": "apt-get update"
+      }
+    }
+  ],
+  "shownOf": [
+    {
+      "lines": [],
+      "out": ""
+    },
+    {
+      "lines": [
+        "a"
+      ],
+      "out": "a"
+    },
+    {
+      "lines": [
+        "a",
+        "b c",
+        ""
+      ],
+      "out": "a; b c; "
+    }
+  ],
+  "roads": [
+    {
+      "road": {
+        "road": "brew",
+        "formula": "gh"
+      },
+      "bin": "gh",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew install gh'",
+        "shown": "brew install gh"
+      },
+      "roadReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/gh",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/gh",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ],
+        "check": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions gh'"
+      },
+      "pinReadOf": {
+        "read": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions gh' 2>/dev/null | awk '{print $2}'",
+        "fixed": false,
+        "words": "with Homebrew"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "brew",
+        "formula": "gh"
+      },
+      "bin": "gh",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nsu -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew install gh'",
+        "shown": "brew install gh"
+      },
+      "roadReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/gh",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/gh",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ],
+        "check": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions gh'"
+      },
+      "pinReadOf": {
+        "read": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions gh' 2>/dev/null | awk '{print $2}'",
+        "fixed": false,
+        "words": "with Homebrew"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "brew",
+        "formula": "zingzy/tap/diskbloom"
+      },
+      "bin": "diskbloom",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew install zingzy/tap/diskbloom'",
+        "shown": "brew install zingzy/tap/diskbloom"
+      },
+      "roadReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/diskbloom || command -v 'diskbloom' >/dev/null 2>&1",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/diskbloom || command -v 'diskbloom' >/dev/null 2>&1",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ],
+        "check": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions zingzy/tap/diskbloom'"
+      },
+      "pinReadOf": {
+        "read": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions zingzy/tap/diskbloom' 2>/dev/null | awk '{print $2}'",
+        "fixed": false,
+        "words": "with Homebrew"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "brew",
+        "formula": "zingzy/tap/diskbloom"
+      },
+      "bin": "diskbloom",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nsu -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew install zingzy/tap/diskbloom'",
+        "shown": "brew install zingzy/tap/diskbloom"
+      },
+      "roadReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/diskbloom || command -v 'diskbloom' >/dev/null 2>&1",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/diskbloom || command -v 'diskbloom' >/dev/null 2>&1",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ],
+        "check": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions zingzy/tap/diskbloom'"
+      },
+      "pinReadOf": {
+        "read": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions zingzy/tap/diskbloom' 2>/dev/null | awk '{print $2}'",
+        "fixed": false,
+        "words": "with Homebrew"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "npm",
+        "package": "@openai/codex",
+        "version": "0.47.0"
+      },
+      "bin": "codex",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nnpm install -g @openai/codex@0.47.0",
+        "shown": "npm install -g @openai/codex@0.47.0"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'@openai/codex'",
+        "fixed": true,
+        "words": "as an npm global"
+      },
+      "asksVersion": "0.47.0"
+    },
+    {
+      "road": {
+        "road": "npm",
+        "package": "@openai/codex",
+        "version": "0.47.0"
+      },
+      "bin": "codex",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nnpm install -g @openai/codex@0.47.0",
+        "shown": "npm install -g @openai/codex@0.47.0"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'@openai/codex'",
+        "fixed": true,
+        "words": "as an npm global"
+      },
+      "asksVersion": "0.47.0"
+    },
+    {
+      "road": {
+        "road": "npm",
+        "package": "turbo"
+      },
+      "bin": "turbo",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nnpm install -g turbo",
+        "shown": "npm install -g turbo"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'turbo'",
+        "fixed": true,
+        "words": "as an npm global"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "npm",
+        "package": "turbo"
+      },
+      "bin": "turbo",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nnpm install -g turbo",
+        "shown": "npm install -g turbo"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'turbo'",
+        "fixed": true,
+        "words": "as an npm global"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "pnpm",
+        "package": "turbo",
+        "version": "2.5.0"
+      },
+      "bin": "turbo",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\npnpm add -g turbo@2.5.0",
+        "shown": "pnpm add -g turbo@2.5.0"
+      },
+      "roadReads": {
+        "bins": [
+          "/root/.local/share/pnpm"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/root/.local/share/pnpm"
+        ]
+      },
+      "pinReadOf": {
+        "read": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(pnpm root -g)/\"'turbo'",
+        "fixed": true,
+        "words": "with pnpm"
+      },
+      "asksVersion": "2.5.0"
+    },
+    {
+      "road": {
+        "road": "pnpm",
+        "package": "turbo",
+        "version": "2.5.0"
+      },
+      "bin": "turbo",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport PATH=/opt/wsp/pnpm/bin:$PATH; pnpm add -g turbo@2.5.0\nfind /opt/wsp/pnpm/bin -maxdepth 1 -type f -perm -u+x -exec ln -sfn {} /usr/local/bin/ ';'",
+        "shown": "export PATH=/opt/wsp/pnpm/bin:$PATH; pnpm add -g turbo@2.5.0; find /opt/wsp/pnpm/bin -maxdepth 1 -type f -perm -u+x -exec ln -sfn {} /usr/local/bin/ ';'"
+      },
+      "roadReads": {
+        "bins": [
+          "/opt/wsp/pnpm/bin",
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/opt/wsp/pnpm/bin",
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "export PATH=/opt/wsp/pnpm/bin:$PATH; node -p 'require(process.argv[1] + \"/package.json\").version' \"$(pnpm root -g)/\"'turbo'",
+        "fixed": true,
+        "words": "with pnpm"
+      },
+      "asksVersion": "2.5.0"
+    },
+    {
+      "road": {
+        "road": "bun",
+        "package": "eslint",
+        "version": "9.0.0"
+      },
+      "bin": "eslint",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nbun add -g eslint@9.0.0",
+        "shown": "bun add -g eslint@9.0.0"
+      },
+      "roadReads": {
+        "bins": [
+          "/root/.bun/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/root/.bun/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "bun pm ls -g 2>/dev/null | grep -oE \"(^| )eslint@[^[:space:]]+\" | head -n 1 | sed 's/.*@//'",
+        "fixed": true,
+        "words": "with bun"
+      },
+      "asksVersion": "9.0.0"
+    },
+    {
+      "road": {
+        "road": "bun",
+        "package": "eslint",
+        "version": "9.0.0"
+      },
+      "bin": "eslint",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nbun add -g eslint@9.0.0",
+        "shown": "bun add -g eslint@9.0.0"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "bun pm ls -g 2>/dev/null | grep -oE \"(^| )eslint@[^[:space:]]+\" | head -n 1 | sed 's/.*@//'",
+        "fixed": true,
+        "words": "with bun"
+      },
+      "asksVersion": "9.0.0"
+    },
+    {
+      "road": {
+        "road": "uv",
+        "package": "ruff",
+        "version": "0.6.0"
+      },
+      "bin": "ruff",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nuv tool install ruff==0.6.0",
+        "shown": "uv tool install ruff==0.6.0"
+      },
+      "roadReads": {
+        "bins": [
+          "/root/.local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/root/.local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "uv tool list 2>/dev/null | awk -v p='ruff' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'",
+        "fixed": true,
+        "words": "with uv"
+      },
+      "asksVersion": "0.6.0"
+    },
+    {
+      "road": {
+        "road": "uv",
+        "package": "ruff",
+        "version": "0.6.0"
+      },
+      "bin": "ruff",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nuv tool install ruff==0.6.0",
+        "shown": "uv tool install ruff==0.6.0"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "uv tool list 2>/dev/null | awk -v p='ruff' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'",
+        "fixed": true,
+        "words": "with uv"
+      },
+      "asksVersion": "0.6.0"
+    },
+    {
+      "road": {
+        "road": "pipx",
+        "package": "black"
+      },
+      "bin": "black",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\npipx install black",
+        "shown": "pipx install black"
+      },
+      "roadReads": {
+        "bins": [
+          "/root/.local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/root/.local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "pipx list --short 2>/dev/null | awk -v p='black' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'",
+        "fixed": true,
+        "words": "with pipx"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "pipx",
+        "package": "black"
+      },
+      "bin": "black",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\npipx install black",
+        "shown": "pipx install black"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "pipx list --short 2>/dev/null | awk -v p='black' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'",
+        "fixed": true,
+        "words": "with pipx"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "cargo",
+        "package": "tokei",
+        "version": "12.1.2"
+      },
+      "bin": "tokei",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\ncargo install tokei --version 12.1.2 --locked",
+        "shown": "cargo install tokei --version 12.1.2 --locked"
+      },
+      "roadReads": {
+        "bins": [
+          "/root/.cargo/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/root/.cargo/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "cargo install --list 2>/dev/null | awk -v p='tokei' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'",
+        "fixed": true,
+        "words": "with cargo"
+      },
+      "asksVersion": "12.1.2"
+    },
+    {
+      "road": {
+        "road": "cargo",
+        "package": "tokei",
+        "version": "12.1.2"
+      },
+      "bin": "tokei",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport PATH=/opt/wsp/cargo/bin:$PATH; cargo install tokei --version 12.1.2 --locked\nfind /opt/wsp/cargo/bin -maxdepth 1 -type f -perm -u+x -exec ln -sfn {} /usr/local/bin/ ';'",
+        "shown": "export PATH=/opt/wsp/cargo/bin:$PATH; cargo install tokei --version 12.1.2 --locked; find /opt/wsp/cargo/bin -maxdepth 1 -type f -perm -u+x -exec ln -sfn {} /usr/local/bin/ ';'"
+      },
+      "roadReads": {
+        "bins": [
+          "/opt/wsp/cargo/bin",
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/opt/wsp/cargo/bin",
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "export PATH=/opt/wsp/cargo/bin:$PATH; cargo install --list 2>/dev/null | awk -v p='tokei' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'",
+        "fixed": true,
+        "words": "with cargo"
+      },
+      "asksVersion": "12.1.2"
+    },
+    {
+      "road": {
+        "road": "go",
+        "module": "github.com/sqlc-dev/sqlc/cmd/sqlc",
+        "version": "v1.31.1"
+      },
+      "bin": "sqlc",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\ngo install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1",
+        "shown": "go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1"
+      },
+      "roadReads": {
+        "bins": [
+          "/root/go/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/root/go/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "go version -m /root/go/bin/'sqlc' 2>/dev/null | awk '$1==\"mod\"{print $3}'",
+        "fixed": true,
+        "words": "with go install"
+      },
+      "asksVersion": "v1.31.1"
+    },
+    {
+      "road": {
+        "road": "go",
+        "module": "github.com/sqlc-dev/sqlc/cmd/sqlc",
+        "version": "v1.31.1"
+      },
+      "bin": "sqlc",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\ngo install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1",
+        "shown": "go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "go version -m /usr/local/bin/'sqlc' 2>/dev/null | awk '$1==\"mod\"{print $3}'",
+        "fixed": true,
+        "words": "with go install"
+      },
+      "asksVersion": "v1.31.1"
+    },
+    {
+      "road": {
+        "road": "apt",
+        "packages": [
+          "ripgrep"
+        ]
+      },
+      "bin": "rg",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nexport DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq ripgrep",
+        "shown": "apt-get install ripgrep"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "dpkg-query -W -f='${Version}\\n' 'ripgrep' 2>/dev/null",
+        "fixed": false,
+        "words": "by apt"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "apt",
+        "packages": [
+          "ripgrep"
+        ]
+      },
+      "bin": "rg",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq ripgrep",
+        "shown": "apt-get install ripgrep"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "dpkg-query -W -f='${Version}\\n' 'ripgrep' 2>/dev/null",
+        "fixed": false,
+        "words": "by apt"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "script",
+        "script": "curl -fsSL https://x.example/install.sh -o /tmp/i.sh\nsh /tmp/i.sh",
+        "version": "1.0.0"
+      },
+      "bin": "x",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\ncurl -fsSL https://x.example/install.sh -o /tmp/i.sh\nsh /tmp/i.sh",
+        "shown": "curl -fsSL https://x.example/install.sh -o /tmp/i.sh; sh /tmp/i.sh"
+      },
+      "roadReads": {},
+      "roadStepReads": {},
+      "pinReadOf": {
+        "read": "'x' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "fixed": true,
+        "words": "by its own installer"
+      },
+      "asksVersion": "1.0.0"
+    },
+    {
+      "road": {
+        "road": "script",
+        "script": "curl -fsSL https://x.example/install.sh -o /tmp/i.sh\nsh /tmp/i.sh",
+        "version": "1.0.0"
+      },
+      "bin": "x",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\ncurl -fsSL https://x.example/install.sh -o /tmp/i.sh\nsh /tmp/i.sh",
+        "shown": "curl -fsSL https://x.example/install.sh -o /tmp/i.sh; sh /tmp/i.sh"
+      },
+      "roadReads": {},
+      "roadStepReads": {},
+      "pinReadOf": {
+        "read": "'x' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "fixed": true,
+        "words": "by its own installer"
+      },
+      "asksVersion": "1.0.0"
+    },
+    {
+      "road": {
+        "road": "release",
+        "repo": "cli/cli",
+        "version": "v2.60.0",
+        "go": "github.com/cli/cli/v2/cmd/gh@v2.60.0"
+      },
+      "bin": "gh",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nset -euo pipefail\nname='gh'\ntag='v2.60.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/cli/cli/releases/tags/v2.60.0' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelif command -v go >/dev/null 2>&1; then\n  GOBIN=/usr/local/bin go install 'github.com/cli/cli/v2/cmd/gh@v2.60.0'\n  echo \"WSP_ROAD go \"'github.com/cli/cli/v2/cmd/gh@v2.60.0'\nelse\n  echo \"Error: release \"'v2.60.0'\" of \"'cli/cli'\" has no Linux build, and go is not on the machine\" >&2\n  exit 1\nfi",
+        "shown": "the v2.60.0 release of github.com/cli/cli"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "fixed": true,
+        "words": "from its release"
+      },
+      "asksVersion": "v2.60.0"
+    },
+    {
+      "road": {
+        "road": "release",
+        "repo": "cli/cli",
+        "version": "v2.60.0",
+        "go": "github.com/cli/cli/v2/cmd/gh@v2.60.0"
+      },
+      "bin": "gh",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nset -euo pipefail\nname='gh'\ntag='v2.60.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/cli/cli/releases/tags/v2.60.0' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelif command -v go >/dev/null 2>&1; then\n  GOBIN=/usr/local/bin go install 'github.com/cli/cli/v2/cmd/gh@v2.60.0'\n  echo \"WSP_ROAD go \"'github.com/cli/cli/v2/cmd/gh@v2.60.0'\nelse\n  echo \"Error: release \"'v2.60.0'\" of \"'cli/cli'\" has no Linux build, and go is not on the machine\" >&2\n  exit 1\nfi",
+        "shown": "the v2.60.0 release of github.com/cli/cli"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "fixed": true,
+        "words": "from its release"
+      },
+      "asksVersion": "v2.60.0"
+    },
+    {
+      "road": {
+        "road": "release",
+        "repo": "cli/cli",
+        "version": "v2.101.0",
+        "assets": {
+          "x86_64": {
+            "name": "gh_2.101.0_linux_amd64.tar.gz",
+            "sha256": "9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8"
+          },
+          "aarch64": {
+            "name": "gh_2.101.0_linux_arm64.tar.gz",
+            "sha256": "b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f"
+          }
+        },
+        "go": "github.com/cli/cli/v2/cmd/gh"
+      },
+      "bin": "gh",
+      "from": "gh",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nset -euo pipefail\nname='gh'\ntag='v2.101.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) asset='gh_2.101.0_linux_amd64.tar.gz' sha=9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8 ;; aarch64) asset='gh_2.101.0_linux_arm64.tar.gz' sha=b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nurl='https://github.com/cli/cli/releases/download/v2.101.0/'\"$asset\"\ncurl -o \"$tmp/$asset\" \"$url\"\necho \"$sha  $tmp/$asset\" | sha256sum -c - >/dev/null\ncase \"$asset\" in\n  *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n  *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\nesac\nbin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n[ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n[ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\ninstall -m 0755 \"$bin\" \"/usr/local/bin/$name\"\necho \"WSP_ROAD release $asset $sha $tag\"",
+        "shown": "the v2.101.0 release of github.com/cli/cli"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "fixed": true,
+        "words": "from its release"
+      },
+      "asksVersion": "v2.101.0"
+    },
+    {
+      "road": {
+        "road": "release",
+        "repo": "cli/cli",
+        "version": "v2.101.0",
+        "assets": {
+          "x86_64": {
+            "name": "gh_2.101.0_linux_amd64.tar.gz",
+            "sha256": "9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8"
+          },
+          "aarch64": {
+            "name": "gh_2.101.0_linux_arm64.tar.gz",
+            "sha256": "b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f"
+          }
+        },
+        "go": "github.com/cli/cli/v2/cmd/gh"
+      },
+      "bin": "gh",
+      "from": "gh",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nset -euo pipefail\nname='gh'\ntag='v2.101.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) asset='gh_2.101.0_linux_amd64.tar.gz' sha=9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8 ;; aarch64) asset='gh_2.101.0_linux_arm64.tar.gz' sha=b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nurl='https://github.com/cli/cli/releases/download/v2.101.0/'\"$asset\"\ncurl -o \"$tmp/$asset\" \"$url\"\necho \"$sha  $tmp/$asset\" | sha256sum -c - >/dev/null\ncase \"$asset\" in\n  *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n  *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\nesac\nbin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n[ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n[ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\ninstall -m 0755 \"$bin\" \"/usr/local/bin/$name\"\necho \"WSP_ROAD release $asset $sha $tag\"",
+        "shown": "the v2.101.0 release of github.com/cli/cli"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "fixed": true,
+        "words": "from its release"
+      },
+      "asksVersion": "v2.101.0"
+    },
+    {
+      "road": {
+        "road": "script",
+        "script": "node_have=\"$(node --version 2>/dev/null || echo v0)\"\nnode_major=\"$(printf '%s' \"$node_have\" | sed 's/^v//; s/\\..*//')\"\necho \"NODE_HAVE $node_have\"\nif [ \"${node_major:-0}\" -ge 22 ] && [ \"${node_major:-0}\" -le 22 ]; then echo \"NODE_KEPT $node_have\"; exit 0; fi\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) pkg=node-v22.23.2-linux-x64.tar.gz sha=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;\n  aarch64) pkg=node-v22.23.2-linux-arm64.tar.gz sha=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o \"/tmp/$pkg\" \"https://nodejs.org/dist/v22.23.2/$pkg\"\necho \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\ntar -xzf \"/tmp/$pkg\" -C /usr/local --strip-components=1\nrm -f \"/tmp/$pkg\"\nexport PATH=\"/usr/local/bin:$PATH\"\ntest \"$(node --version)\" = \"v22.23.2\"\necho \"NODE_INSTALLED v22.23.2\"",
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "bin": "node",
+      "from": "node",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nnode_have=\"$(node --version 2>/dev/null || echo v0)\"\nnode_major=\"$(printf '%s' \"$node_have\" | sed 's/^v//; s/\\..*//')\"\necho \"NODE_HAVE $node_have\"\nif [ \"${node_major:-0}\" -ge 22 ] && [ \"${node_major:-0}\" -le 22 ]; then echo \"NODE_KEPT $node_have\"; exit 0; fi\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) pkg=node-v22.23.2-linux-x64.tar.gz sha=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;\n  aarch64) pkg=node-v22.23.2-linux-arm64.tar.gz sha=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o \"/tmp/$pkg\" \"https://nodejs.org/dist/v22.23.2/$pkg\"\necho \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\ntar -xzf \"/tmp/$pkg\" -C /usr/local --strip-components=1\nrm -f \"/tmp/$pkg\"\nexport PATH=\"/usr/local/bin:$PATH\"\ntest \"$(node --version)\" = \"v22.23.2\"\necho \"NODE_INSTALLED v22.23.2\"",
+        "shown": "node_have=\"$(node --version 2>/dev/null || echo v0)\"; node_major=\"$(printf '%s' \"$node_have\" | sed 's/^v//; s/\\..*//')\"; echo \"NODE_HAVE $node_have\"; if [ \"${node_major:-0}\" -ge 22 ] && [ \"${node_major:-0}\" -le 22 ]; then echo \"NODE_KEPT $node_have\"; exit 0; fi; arch=\"$(uname -m)\"; case \"$arch\" in;   x86_64) pkg=node-v22.23.2-linux-x64.tar.gz sha=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;;   aarch64) pkg=node-v22.23.2-linux-arm64.tar.gz sha=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;;   *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;; esac; curl -o \"/tmp/$pkg\" \"https://nodejs.org/dist/v22.23.2/$pkg\"; echo \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null; tar -xzf \"/tmp/$pkg\" -C /usr/local --strip-components=1; rm -f \"/tmp/$pkg\"; export PATH=\"/usr/local/bin:$PATH\"; test \"$(node --version)\" = \"v22.23.2\"; echo \"NODE_INSTALLED v22.23.2\""
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "'node' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "fixed": false,
+        "words": "by its own installer"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "script",
+        "script": "node_have=\"$(node --version 2>/dev/null || echo v0)\"\nnode_major=\"$(printf '%s' \"$node_have\" | sed 's/^v//; s/\\..*//')\"\necho \"NODE_HAVE $node_have\"\nif [ \"${node_major:-0}\" -ge 22 ] && [ \"${node_major:-0}\" -le 22 ]; then echo \"NODE_KEPT $node_have\"; exit 0; fi\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) pkg=node-v22.23.2-linux-x64.tar.gz sha=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;\n  aarch64) pkg=node-v22.23.2-linux-arm64.tar.gz sha=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o \"/tmp/$pkg\" \"https://nodejs.org/dist/v22.23.2/$pkg\"\necho \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\ntar -xzf \"/tmp/$pkg\" -C /usr/local --strip-components=1\nrm -f \"/tmp/$pkg\"\nexport PATH=\"/usr/local/bin:$PATH\"\ntest \"$(node --version)\" = \"v22.23.2\"\necho \"NODE_INSTALLED v22.23.2\"",
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "bin": "node",
+      "from": "node",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nnode_have=\"$(node --version 2>/dev/null || echo v0)\"\nnode_major=\"$(printf '%s' \"$node_have\" | sed 's/^v//; s/\\..*//')\"\necho \"NODE_HAVE $node_have\"\nif [ \"${node_major:-0}\" -ge 22 ] && [ \"${node_major:-0}\" -le 22 ]; then echo \"NODE_KEPT $node_have\"; exit 0; fi\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) pkg=node-v22.23.2-linux-x64.tar.gz sha=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;\n  aarch64) pkg=node-v22.23.2-linux-arm64.tar.gz sha=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o \"/tmp/$pkg\" \"https://nodejs.org/dist/v22.23.2/$pkg\"\necho \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\ntar -xzf \"/tmp/$pkg\" -C /usr/local --strip-components=1\nrm -f \"/tmp/$pkg\"\nexport PATH=\"/usr/local/bin:$PATH\"\ntest \"$(node --version)\" = \"v22.23.2\"\necho \"NODE_INSTALLED v22.23.2\"",
+        "shown": "node_have=\"$(node --version 2>/dev/null || echo v0)\"; node_major=\"$(printf '%s' \"$node_have\" | sed 's/^v//; s/\\..*//')\"; echo \"NODE_HAVE $node_have\"; if [ \"${node_major:-0}\" -ge 22 ] && [ \"${node_major:-0}\" -le 22 ]; then echo \"NODE_KEPT $node_have\"; exit 0; fi; arch=\"$(uname -m)\"; case \"$arch\" in;   x86_64) pkg=node-v22.23.2-linux-x64.tar.gz sha=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;;   aarch64) pkg=node-v22.23.2-linux-arm64.tar.gz sha=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;;   *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;; esac; curl -o \"/tmp/$pkg\" \"https://nodejs.org/dist/v22.23.2/$pkg\"; echo \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null; tar -xzf \"/tmp/$pkg\" -C /usr/local --strip-components=1; rm -f \"/tmp/$pkg\"; export PATH=\"/usr/local/bin:$PATH\"; test \"$(node --version)\" = \"v22.23.2\"; echo \"NODE_INSTALLED v22.23.2\""
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "'node' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "fixed": false,
+        "words": "by its own installer"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "brew",
+        "formula": "go"
+      },
+      "bin": "go",
+      "from": "go",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew install go'",
+        "shown": "brew install go"
+      },
+      "roadReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/go",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/go",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ],
+        "check": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions go'"
+      },
+      "pinReadOf": {
+        "read": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions go' 2>/dev/null | awk '{print $2}'",
+        "fixed": false,
+        "words": "with Homebrew"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "brew",
+        "formula": "go"
+      },
+      "bin": "go",
+      "from": "go",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nsu -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew install go'",
+        "shown": "brew install go"
+      },
+      "roadReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/go",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "present": "test -e /home/linuxbrew/.linuxbrew/opt/go",
+        "bins": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ],
+        "check": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions go'"
+      },
+      "pinReadOf": {
+        "read": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions go' 2>/dev/null | awk '{print $2}'",
+        "fixed": false,
+        "words": "with Homebrew"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "apt",
+        "packages": [
+          "ffmpeg"
+        ]
+      },
+      "bin": "ffmpeg",
+      "from": "ffmpeg",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nexport DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq ffmpeg",
+        "shown": "apt-get install ffmpeg"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "dpkg-query -W -f='${Version}\\n' 'ffmpeg' 2>/dev/null",
+        "fixed": false,
+        "words": "by apt"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "apt",
+        "packages": [
+          "ffmpeg"
+        ]
+      },
+      "bin": "ffmpeg",
+      "from": "ffmpeg",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq ffmpeg",
+        "shown": "apt-get install ffmpeg"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "dpkg-query -W -f='${Version}\\n' 'ffmpeg' 2>/dev/null",
+        "fixed": false,
+        "words": "by apt"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "apt",
+        "packages": [
+          "ruby",
+          "ruby-dev",
+          "ruby-bundler"
+        ]
+      },
+      "bin": "ruby",
+      "from": "ruby",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nexport DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq ruby ruby-dev ruby-bundler",
+        "shown": "apt-get install ruby ruby-dev ruby-bundler"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "dpkg-query -W -f='${Version}\\n' 'ruby' 2>/dev/null",
+        "fixed": false,
+        "words": "by apt"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "apt",
+        "packages": [
+          "ruby",
+          "ruby-dev",
+          "ruby-bundler"
+        ]
+      },
+      "bin": "ruby",
+      "from": "ruby",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq ruby ruby-dev ruby-bundler",
+        "shown": "apt-get install ruby ruby-dev ruby-bundler"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "dpkg-query -W -f='${Version}\\n' 'ruby' 2>/dev/null",
+        "fixed": false,
+        "words": "by apt"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "script",
+        "script": "corepack enable yarn\nCOREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack install -g yarn@4.18.0",
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "bin": "yarn",
+      "from": "yarn",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\ncorepack enable yarn\nCOREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack install -g yarn@4.18.0",
+        "shown": "corepack enable yarn; COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack install -g yarn@4.18.0"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "'yarn' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "fixed": false,
+        "words": "by its own installer"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "script",
+        "script": "corepack enable yarn\nCOREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack install -g yarn@4.18.0",
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "bin": "yarn",
+      "from": "yarn",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\ncorepack enable yarn\nCOREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack install -g yarn@4.18.0",
+        "shown": "corepack enable yarn; COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack install -g yarn@4.18.0"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "'yarn' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "fixed": false,
+        "words": "by its own installer"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "script",
+        "script": "arch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;\n  aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"\necho \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null\nchmod +x /tmp/rustup-init\n/tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable\nrm -f /tmp/rustup-init",
+        "bins": [
+          "/root/.cargo/bin"
+        ]
+      },
+      "bin": "cargo",
+      "from": "rust",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;\n  aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"\necho \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null\nchmod +x /tmp/rustup-init\n/tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable\nrm -f /tmp/rustup-init",
+        "shown": "arch=\"$(uname -m)\"; case \"$arch\" in;   x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;;   aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;;   *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;; esac; curl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"; echo \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null; chmod +x /tmp/rustup-init; /tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable; rm -f /tmp/rustup-init"
+      },
+      "roadReads": {
+        "bins": [
+          "/root/.cargo/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/root/.cargo/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "'cargo' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "fixed": false,
+        "words": "by its own installer"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "script",
+        "script": "arch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;\n  aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"\necho \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null\nchmod +x /tmp/rustup-init\n/tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable\nrm -f /tmp/rustup-init",
+        "bins": [
+          "/root/.cargo/bin"
+        ]
+      },
+      "bin": "cargo",
+      "from": "rust",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;\n  aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"\necho \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null\nchmod +x /tmp/rustup-init\n/tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable\nrm -f /tmp/rustup-init\nfind /opt/wsp/cargo/bin -maxdepth 1 -type f -perm -u+x -exec ln -sfn {} /usr/local/bin/ ';'",
+        "shown": "arch=\"$(uname -m)\"; case \"$arch\" in;   x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;;   aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;;   *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;; esac; curl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"; echo \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null; chmod +x /tmp/rustup-init; /tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable; rm -f /tmp/rustup-init; find /opt/wsp/cargo/bin -maxdepth 1 -type f -perm -u+x -exec ln -sfn {} /usr/local/bin/ ';'"
+      },
+      "roadReads": {
+        "bins": [
+          "/opt/wsp/cargo/bin",
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/opt/wsp/cargo/bin",
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "'cargo' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "fixed": false,
+        "words": "by its own installer"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "npm",
+        "package": "pnpm",
+        "version": "11.9.0"
+      },
+      "bin": "pnpm",
+      "from": "pnpm",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nnpm install -g pnpm@11.9.0",
+        "shown": "npm install -g pnpm@11.9.0"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'pnpm'",
+        "fixed": true,
+        "words": "as an npm global"
+      },
+      "asksVersion": "11.9.0"
+    },
+    {
+      "road": {
+        "road": "npm",
+        "package": "pnpm",
+        "version": "11.9.0"
+      },
+      "bin": "pnpm",
+      "from": "pnpm",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nnpm install -g pnpm@11.9.0",
+        "shown": "npm install -g pnpm@11.9.0"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'pnpm'",
+        "fixed": true,
+        "words": "as an npm global"
+      },
+      "asksVersion": "11.9.0"
+    },
+    {
+      "road": {
+        "road": "npm",
+        "package": "bun"
+      },
+      "bin": "bun",
+      "from": "bun",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nnpm install -g bun",
+        "shown": "npm install -g bun"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'bun'",
+        "fixed": true,
+        "words": "as an npm global"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "npm",
+        "package": "bun"
+      },
+      "bin": "bun",
+      "from": "bun",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nnpm install -g bun",
+        "shown": "npm install -g bun"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "read": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'bun'",
+        "fixed": true,
+        "words": "as an npm global"
+      },
+      "asksVersion": null
+    },
+    {
+      "road": {
+        "road": "vendor",
+        "cask": {
+          "version": "v1.37.0",
+          "sha256": {
+            "x86_64": "6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f",
+            "aarch64": "922df28df248cc00a9e025f947704f1d1482de64ece54cfe57e61f19eaf1eef3"
+          },
+          "bin": "kubectl",
+          "from": "Kubernetes release",
+          "detail": "kubectl only, from the Kubernetes release; Docker itself has no Linux build",
+          "install": "set -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=amd64 sha=6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f ;; aarch64) a=arm64 sha=922df28df248cc00a9e025f947704f1d1482de64ece54cfe57e61f19eaf1eef3 ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\nver='v1.37.0'\ncurl -o \"$tmp/kubectl\" \"https://dl.k8s.io/release/$ver/bin/linux/$a/kubectl\"\necho \"$sha  $tmp/kubectl\" | sha256sum -c - >/dev/null\ninstall -m 0755 \"$tmp/kubectl\" /usr/local/bin/kubectl\necho \"WSP_ROAD release kubectl-$ver-linux-$a $sha $ver\"",
+          "uninstall": "rm -f /usr/local/bin/kubectl"
+        },
+        "version": "v1.37.0"
+      },
+      "bin": "kubectl",
+      "from": "kubectl",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nset -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=amd64 sha=6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f ;; aarch64) a=arm64 sha=922df28df248cc00a9e025f947704f1d1482de64ece54cfe57e61f19eaf1eef3 ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\nver='v1.37.0'\ncurl -o \"$tmp/kubectl\" \"https://dl.k8s.io/release/$ver/bin/linux/$a/kubectl\"\necho \"$sha  $tmp/kubectl\" | sha256sum -c - >/dev/null\ninstall -m 0755 \"$tmp/kubectl\" /usr/local/bin/kubectl\necho \"WSP_ROAD release kubectl-$ver-linux-$a $sha $ver\"",
+        "shown": "Kubernetes release"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "fixed": true,
+        "words": "from its vendor's release"
+      },
+      "asksVersion": "v1.37.0"
+    },
+    {
+      "road": {
+        "road": "vendor",
+        "cask": {
+          "version": "v1.37.0",
+          "sha256": {
+            "x86_64": "6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f",
+            "aarch64": "922df28df248cc00a9e025f947704f1d1482de64ece54cfe57e61f19eaf1eef3"
+          },
+          "bin": "kubectl",
+          "from": "Kubernetes release",
+          "detail": "kubectl only, from the Kubernetes release; Docker itself has no Linux build",
+          "install": "set -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=amd64 sha=6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f ;; aarch64) a=arm64 sha=922df28df248cc00a9e025f947704f1d1482de64ece54cfe57e61f19eaf1eef3 ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\nver='v1.37.0'\ncurl -o \"$tmp/kubectl\" \"https://dl.k8s.io/release/$ver/bin/linux/$a/kubectl\"\necho \"$sha  $tmp/kubectl\" | sha256sum -c - >/dev/null\ninstall -m 0755 \"$tmp/kubectl\" /usr/local/bin/kubectl\necho \"WSP_ROAD release kubectl-$ver-linux-$a $sha $ver\"",
+          "uninstall": "rm -f /usr/local/bin/kubectl"
+        },
+        "version": "v1.37.0"
+      },
+      "bin": "kubectl",
+      "from": "kubectl",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nset -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=amd64 sha=6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f ;; aarch64) a=arm64 sha=922df28df248cc00a9e025f947704f1d1482de64ece54cfe57e61f19eaf1eef3 ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\nver='v1.37.0'\ncurl -o \"$tmp/kubectl\" \"https://dl.k8s.io/release/$ver/bin/linux/$a/kubectl\"\necho \"$sha  $tmp/kubectl\" | sha256sum -c - >/dev/null\ninstall -m 0755 \"$tmp/kubectl\" /usr/local/bin/kubectl\necho \"WSP_ROAD release kubectl-$ver-linux-$a $sha $ver\"",
+        "shown": "Kubernetes release"
+      },
+      "roadReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "roadStepReads": {
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "pinReadOf": {
+        "fixed": true,
+        "words": "from its vendor's release"
+      },
+      "asksVersion": "v1.37.0"
+    },
+    {
+      "road": {
+        "road": "script",
+        "script": "export DEBIAN_FRONTEND=noninteractive\nnpm install -g playwright@1.62.1\ncommand -v playwright >/dev/null || { b=\"$(npm prefix -g)/bin\"; case \"$b\" in /root/*) ;; *) PATH=\"$b:$PATH\" ;; esac; }\nplaywright install --with-deps chromium",
+        "version": "1.62.1"
+      },
+      "bin": "playwright",
+      "from": "playwright",
+      "prefix": null,
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nexport DEBIAN_FRONTEND=noninteractive\nnpm install -g playwright@1.62.1\ncommand -v playwright >/dev/null || { b=\"$(npm prefix -g)/bin\"; case \"$b\" in /root/*) ;; *) PATH=\"$b:$PATH\" ;; esac; }\nplaywright install --with-deps chromium",
+        "shown": "export DEBIAN_FRONTEND=noninteractive; npm install -g playwright@1.62.1; command -v playwright >/dev/null || { b=\"$(npm prefix -g)/bin\"; case \"$b\" in /root/*) ;; *) PATH=\"$b:$PATH\" ;; esac; }; playwright install --with-deps chromium"
+      },
+      "roadReads": {},
+      "roadStepReads": {},
+      "pinReadOf": {
+        "read": "'playwright' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "fixed": true,
+        "words": "by its own installer"
+      },
+      "asksVersion": "1.62.1"
+    },
+    {
+      "road": {
+        "road": "script",
+        "script": "export DEBIAN_FRONTEND=noninteractive\nnpm install -g playwright@1.62.1\ncommand -v playwright >/dev/null || { b=\"$(npm prefix -g)/bin\"; case \"$b\" in /root/*) ;; *) PATH=\"$b:$PATH\" ;; esac; }\nplaywright install --with-deps chromium",
+        "version": "1.62.1"
+      },
+      "bin": "playwright",
+      "from": "playwright",
+      "prefix": "/opt/wsp",
+      "viaRoad": {
+        "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport DEBIAN_FRONTEND=noninteractive\nnpm install -g playwright@1.62.1\ncommand -v playwright >/dev/null || { b=\"$(npm prefix -g)/bin\"; case \"$b\" in /root/*) ;; *) PATH=\"$b:$PATH\" ;; esac; }\nplaywright install --with-deps chromium",
+        "shown": "export DEBIAN_FRONTEND=noninteractive; npm install -g playwright@1.62.1; command -v playwright >/dev/null || { b=\"$(npm prefix -g)/bin\"; case \"$b\" in /root/*) ;; *) PATH=\"$b:$PATH\" ;; esac; }; playwright install --with-deps chromium"
+      },
+      "roadReads": {},
+      "roadStepReads": {},
+      "pinReadOf": {
+        "read": "'playwright' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "fixed": true,
+        "words": "by its own installer"
+      },
+      "asksVersion": "1.62.1"
+    }
+  ],
+  "table": [
+    [
+      "node",
+      {
+        "name": "node",
+        "fullName": "node",
+        "deps": [],
+        "macosOnly": false,
+        "version": "24.1.0"
+      }
+    ],
+    [
+      "zingzy/tap/diskbloom",
+      {
+        "name": "diskbloom",
+        "fullName": "zingzy/tap/diskbloom",
+        "deps": [],
+        "macosOnly": false,
+        "version": "0.4.0",
+        "source": {
+          "repo": "zingzy/diskbloom",
+          "tag": "v0.4.0"
+        }
+      }
+    ],
+    [
+      "felixkratz/formulae/sketchybar",
+      {
+        "name": "sketchybar",
+        "fullName": "felixkratz/formulae/sketchybar",
+        "deps": [],
+        "macosOnly": false,
+        "source": {
+          "repo": "felixkratz/sketchybar",
+          "tag": "v2"
+        }
+      }
+    ],
+    [
+      "acme/tap/mactool",
+      {
+        "name": "mactool",
+        "fullName": "acme/tap/mactool",
+        "deps": [],
+        "macosOnly": true,
+        "source": {
+          "repo": "acme/mactool",
+          "tag": "v1"
+        }
+      }
+    ]
+  ],
+  "rows": [
+    {
+      "row": {
+        "label": "tap",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew-tap/zingzy/tap",
+        "linux": "yes"
+      },
+      "baseRowFor": null,
+      "rowRoad": null,
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "gh",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/gh",
+        "linux": "yes"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "brew",
+          "formula": "gh"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "jq",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/jq",
+        "linux": "yes"
+      },
+      "baseRowFor": {
+        "id": "tools/brew/jq",
+        "name": "jq",
+        "entry": {
+          "kind": "tool",
+          "configPaths": [],
+          "floor": true,
+          "id": "jq",
+          "name": "jq",
+          "bin": "jq",
+          "installRoad": {
+            "road": "apt",
+            "packages": [
+              "jq"
+            ]
+          },
+          "size": {
+            "bytes": 1170432,
+            "on": "2026-09-07",
+            "method": "apt"
+          },
+          "signIn": {
+            "kind": "none",
+            "sources": []
+          },
+          "defaultOn": true,
+          "source": {
+            "sessions": 17,
+            "images": 5,
+            "road": "unmeasured"
+          }
+        }
+      },
+      "rowRoad": {
+        "road": {
+          "road": "brew",
+          "formula": "jq"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "jq",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": false,
+        "rung": "tools",
+        "id": "tools/brew/jq",
+        "linux": "yes"
+      },
+      "baseRowFor": {
+        "id": "tools/brew/jq",
+        "name": "jq",
+        "entry": {
+          "kind": "tool",
+          "configPaths": [],
+          "floor": true,
+          "id": "jq",
+          "name": "jq",
+          "bin": "jq",
+          "installRoad": {
+            "road": "apt",
+            "packages": [
+              "jq"
+            ]
+          },
+          "size": {
+            "bytes": 1170432,
+            "on": "2026-09-07",
+            "method": "apt"
+          },
+          "signIn": {
+            "kind": "none",
+            "sources": []
+          },
+          "defaultOn": true,
+          "source": {
+            "sessions": 17,
+            "images": 5,
+            "road": "unmeasured"
+          }
+        }
+      },
+      "rowRoad": {
+        "road": {
+          "road": "brew",
+          "formula": "jq"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "diskbloom",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/zingzy/tap/diskbloom",
+        "linux": "unknown"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "release",
+          "repo": "zingzy/diskbloom",
+          "version": "v0.4.0",
+          "go": "github.com/zingzy/diskbloom@v0.4.0"
+        },
+        "bin": "diskbloom"
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "diskbloom",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/zingzy/tap/diskbloom",
+        "linux": "unknown",
+        "pin": {
+          "tag": "v0.4.0",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "arch": "x86_64"
+        }
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "release",
+          "repo": "zingzy/diskbloom",
+          "version": "v0.4.0",
+          "pin": {
+            "tag": "v0.4.0",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "arch": "x86_64"
+          },
+          "go": "github.com/zingzy/diskbloom@v0.4.0"
+        },
+        "bin": "diskbloom"
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "sketchybar",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/felixkratz/formulae/sketchybar",
+        "linux": "unknown"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "brew",
+          "formula": "felixkratz/formulae/sketchybar"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "mactool",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/acme/tap/mactool",
+        "linux": "unknown"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "brew",
+          "formula": "acme/tap/mactool"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "other",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/acme/tap/other",
+        "linux": "unknown"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "brew",
+          "formula": "acme/tap/other"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "mas",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/mas",
+        "linux": "no"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "brew",
+          "formula": "mas"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "bat",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/bat"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "brew",
+          "formula": "bat"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "node",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/node",
+        "linux": "yes"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "script",
+          "script": "node_have=\"$(node --version 2>/dev/null || echo v0)\"\nnode_major=\"$(printf '%s' \"$node_have\" | sed 's/^v//; s/\\..*//')\"\necho \"NODE_HAVE $node_have\"\nif [ \"${node_major:-0}\" -ge 22 ] && [ \"${node_major:-0}\" -le 22 ]; then echo \"NODE_KEPT $node_have\"; exit 0; fi\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) pkg=node-v22.23.2-linux-x64.tar.gz sha=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;\n  aarch64) pkg=node-v22.23.2-linux-arm64.tar.gz sha=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o \"/tmp/$pkg\" \"https://nodejs.org/dist/v22.23.2/$pkg\"\necho \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\ntar -xzf \"/tmp/$pkg\" -C /usr/local --strip-components=1\nrm -f \"/tmp/$pkg\"\nexport PATH=\"/usr/local/bin:$PATH\"\ntest \"$(node --version)\" = \"v22.23.2\"\necho \"NODE_INSTALLED v22.23.2\"",
+          "bins": [
+            "/usr/local/bin"
+          ]
+        },
+        "bin": "node",
+        "after": "curl"
+      },
+      "catalogToolOf": "node"
+    },
+    {
+      "row": {
+        "label": "rust",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/rust",
+        "linux": "yes"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "script",
+          "script": "arch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;\n  aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"\necho \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null\nchmod +x /tmp/rustup-init\n/tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable\nrm -f /tmp/rustup-init",
+          "bins": [
+            "/root/.cargo/bin"
+          ]
+        },
+        "bin": "cargo",
+        "note": "by an unmeasured road"
+      },
+      "catalogToolOf": "rust"
+    },
+    {
+      "row": {
+        "label": "rustup",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/rustup",
+        "linux": "yes"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "script",
+          "script": "arch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;\n  aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"\necho \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null\nchmod +x /tmp/rustup-init\n/tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable\nrm -f /tmp/rustup-init",
+          "bins": [
+            "/root/.cargo/bin"
+          ]
+        },
+        "bin": "cargo",
+        "note": "by an unmeasured road"
+      },
+      "catalogToolOf": "rust"
+    },
+    {
+      "row": {
+        "label": "go",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/go",
+        "linux": "yes"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "brew",
+          "formula": "go"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "python@3.12",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/brew/python@3.12",
+        "linux": "yes"
+      },
+      "baseRowFor": {
+        "id": "tools/brew/python@3.12",
+        "name": "Python 3.12",
+        "entry": {
+          "kind": "tool",
+          "configPaths": [],
+          "floor": true,
+          "id": "python",
+          "name": "Python 3.12",
+          "bin": "python3",
+          "installRoad": {
+            "road": "script",
+            "script": "if ! command -v uv >/dev/null 2>&1; then\n  arch=\"$(uname -m)\"\n  case \"$arch\" in\n    x86_64) sha=ec7a99cd05e0cd7f80243f135ce1361c76835cb0ee60055d14d20eba8eba1460 ;;\n    aarch64) sha=c36fe17937ff6bd16dc42fc13854b5465999fcab2efe0af559381e945e3c6001 ;;\n    *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\n  esac\n  pkg=\"uv-$arch-unknown-linux-gnu.tar.gz\"\n  curl -o \"/tmp/$pkg\" \"https://github.com/astral-sh/uv/releases/download/0.12.9/$pkg\"\n  echo \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\n  tar -xzf \"/tmp/$pkg\" -C /tmp\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uv\" /usr/local/bin/uv\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uvx\" /usr/local/bin/uvx\n  rm -rf \"/tmp/$pkg\" \"/tmp/uv-$arch-unknown-linux-gnu\"\nfi\nuv python install 3.12\nln -sfn \"$(uv python find --managed-python 3.12)\" /usr/local/bin/python3",
+            "bins": [
+              "/usr/local/bin"
+            ]
+          },
+          "after": "uv",
+          "covers": [
+            "python@3.12"
+          ],
+          "major": {
+            "name": "Python",
+            "version": "3.12"
+          },
+          "signIn": {
+            "kind": "none",
+            "sources": []
+          },
+          "defaultOn": true,
+          "source": {
+            "sessions": 107,
+            "images": 4,
+            "road": "unmeasured"
+          },
+          "size": {
+            "bytes": 108105728,
+            "on": "2026-09-07",
+            "method": "du"
+          }
+        }
+      },
+      "rowRoad": {
+        "road": {
+          "road": "brew",
+          "formula": "python@3.12"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "turbo",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/npm/turbo",
+        "version": "2.5.0"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "npm",
+          "package": "turbo",
+          "version": "2.5.0"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "pnpm",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/npm/pnpm"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "npm",
+          "package": "pnpm",
+          "version": "11.9.0"
+        },
+        "pinned": "11.9.0"
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "@monid-ai/cli@0.3.1",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/npm/@monid-ai/cli",
+        "version": "0.3.1"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "npm",
+          "package": "@monid-ai/cli",
+          "version": "0.3.1"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "turbo",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/pnpm/turbo",
+        "version": "2.5.0"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "pnpm",
+          "package": "turbo",
+          "version": "2.5.0"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "eslint",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/bun/eslint",
+        "version": "9.0.0"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "bun",
+          "package": "eslint",
+          "version": "9.0.0"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "ty",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/uv/ty",
+        "version": "0.0.56"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "uv",
+          "package": "ty",
+          "version": "0.0.56"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "ruff",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/uv/ruff"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "uv",
+          "package": "ruff"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "black",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/pipx/black",
+        "version": "24.1.0"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "pipx",
+          "package": "black",
+          "version": "24.1.0"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "tokei",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/cargo/tokei",
+        "version": "12.1.2"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "cargo",
+          "package": "tokei",
+          "version": "12.1.2"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "ripgrep",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/cargo/ripgrep",
+        "version": "14.1.0"
+      },
+      "baseRowFor": {
+        "id": "tools/cargo/ripgrep",
+        "name": "ripgrep",
+        "entry": {
+          "kind": "tool",
+          "configPaths": [],
+          "floor": true,
+          "id": "ripgrep",
+          "name": "ripgrep",
+          "bin": "rg",
+          "installRoad": {
+            "road": "apt",
+            "packages": [
+              "ripgrep"
+            ]
+          },
+          "size": {
+            "bytes": 4666368,
+            "on": "2026-09-07",
+            "method": "apt"
+          },
+          "signIn": {
+            "kind": "none",
+            "sources": []
+          },
+          "defaultOn": true,
+          "source": {
+            "sessions": 10,
+            "images": 4,
+            "road": "unmeasured"
+          }
+        },
+        "version": "14.1.0"
+      },
+      "rowRoad": {
+        "road": {
+          "road": "cargo",
+          "package": "ripgrep",
+          "version": "14.1.0"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "sqlc",
+        "paths": [
+          "github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1"
+        ],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/go/sqlc",
+        "version": "v1.31.1"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "go",
+          "module": "github.com/sqlc-dev/sqlc/cmd/sqlc",
+          "version": "v1.31.1"
+        },
+        "bin": "sqlc"
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "github.com/a/old@v1.0.0",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/go/old"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "go"
+        }
+      },
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "htop",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/apt/htop"
+      },
+      "baseRowFor": null,
+      "rowRoad": null,
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "ffmpeg",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/catalog/ffmpeg"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "apt",
+          "packages": [
+            "ffmpeg"
+          ]
+        },
+        "bin": "ffmpeg",
+        "after": "apt-index",
+        "note": "by an unmeasured road"
+      },
+      "catalogToolOf": "ffmpeg"
+    },
+    {
+      "row": {
+        "label": "ruby",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/catalog/ruby",
+        "version": "3.3.0"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "apt",
+          "packages": [
+            "ruby",
+            "ruby-dev",
+            "ruby-bundler"
+          ]
+        },
+        "bin": "ruby",
+        "after": "apt-index",
+        "note": "by an unmeasured road; 3.3.0 asked, installed by apt at its current version"
+      },
+      "catalogToolOf": "ruby"
+    },
+    {
+      "row": {
+        "label": "node",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/catalog/node",
+        "version": "20.1.0"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "script",
+          "script": "node_have=\"$(node --version 2>/dev/null || echo v0)\"\nnode_major=\"$(printf '%s' \"$node_have\" | sed 's/^v//; s/\\..*//')\"\necho \"NODE_HAVE $node_have\"\nif [ \"${node_major:-0}\" -ge 22 ] && [ \"${node_major:-0}\" -le 22 ]; then echo \"NODE_KEPT $node_have\"; exit 0; fi\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) pkg=node-v22.23.2-linux-x64.tar.gz sha=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;\n  aarch64) pkg=node-v22.23.2-linux-arm64.tar.gz sha=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o \"/tmp/$pkg\" \"https://nodejs.org/dist/v22.23.2/$pkg\"\necho \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\ntar -xzf \"/tmp/$pkg\" -C /usr/local --strip-components=1\nrm -f \"/tmp/$pkg\"\nexport PATH=\"/usr/local/bin:$PATH\"\ntest \"$(node --version)\" = \"v22.23.2\"\necho \"NODE_INSTALLED v22.23.2\"",
+          "bins": [
+            "/usr/local/bin"
+          ]
+        },
+        "bin": "node",
+        "after": "curl",
+        "note": "20.1.0 asked, installed by its own installer at its current version"
+      },
+      "catalogToolOf": "node"
+    },
+    {
+      "row": {
+        "label": "gh",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/catalog/gh",
+        "version": "2.0.0"
+      },
+      "baseRowFor": null,
+      "rowRoad": {
+        "road": {
+          "road": "release",
+          "repo": "cli/cli",
+          "version": "v2.101.0",
+          "assets": {
+            "x86_64": {
+              "name": "gh_2.101.0_linux_amd64.tar.gz",
+              "sha256": "9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8"
+            },
+            "aarch64": {
+              "name": "gh_2.101.0_linux_arm64.tar.gz",
+              "sha256": "b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f"
+            }
+          },
+          "go": "github.com/cli/cli/v2/cmd/gh"
+        },
+        "bin": "gh",
+        "note": "by an unmeasured road; asked 2.0.0, installed at the catalog's pinned v2.101.0"
+      },
+      "catalogToolOf": "gh"
+    },
+    {
+      "row": {
+        "label": "not-a-tool",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/catalog/not-a-tool"
+      },
+      "baseRowFor": null,
+      "rowRoad": null,
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "claude",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/catalog/claude"
+      },
+      "baseRowFor": null,
+      "rowRoad": null,
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "thing",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "tools",
+        "id": "tools/custom/thing"
+      },
+      "baseRowFor": null,
+      "rowRoad": null,
+      "catalogToolOf": null
+    },
+    {
+      "row": {
+        "label": "agents/claude",
+        "paths": [],
+        "bytes": 0,
+        "default": "bring",
+        "bring": true,
+        "rung": "agents",
+        "id": "agents/claude"
+      },
+      "baseRowFor": null,
+      "rowRoad": null,
+      "catalogToolOf": null
+    }
+  ],
+  "brewfileFor": [
+    {
+      "rows": [
+        {
+          "label": "tap",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew-tap/zingzy/tap",
+          "linux": "yes"
+        },
+        {
+          "label": "gh",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/gh",
+          "linux": "yes"
+        },
+        {
+          "label": "jq",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/jq",
+          "linux": "yes"
+        },
+        {
+          "label": "jq",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": false,
+          "rung": "tools",
+          "id": "tools/brew/jq",
+          "linux": "yes"
+        },
+        {
+          "label": "diskbloom",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/zingzy/tap/diskbloom",
+          "linux": "unknown"
+        },
+        {
+          "label": "diskbloom",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/zingzy/tap/diskbloom",
+          "linux": "unknown",
+          "pin": {
+            "tag": "v0.4.0",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "arch": "x86_64"
+          }
+        },
+        {
+          "label": "sketchybar",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/felixkratz/formulae/sketchybar",
+          "linux": "unknown"
+        },
+        {
+          "label": "mactool",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/acme/tap/mactool",
+          "linux": "unknown"
+        },
+        {
+          "label": "other",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/acme/tap/other",
+          "linux": "unknown"
+        },
+        {
+          "label": "mas",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/mas",
+          "linux": "no"
+        },
+        {
+          "label": "bat",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/bat"
+        },
+        {
+          "label": "node",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/node",
+          "linux": "yes"
+        },
+        {
+          "label": "rust",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/rust",
+          "linux": "yes"
+        },
+        {
+          "label": "rustup",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/rustup",
+          "linux": "yes"
+        },
+        {
+          "label": "go",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/go",
+          "linux": "yes"
+        },
+        {
+          "label": "python@3.12",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew/python@3.12",
+          "linux": "yes"
+        },
+        {
+          "label": "turbo",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/npm/turbo",
+          "version": "2.5.0"
+        },
+        {
+          "label": "pnpm",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/npm/pnpm"
+        },
+        {
+          "label": "@monid-ai/cli@0.3.1",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/npm/@monid-ai/cli",
+          "version": "0.3.1"
+        },
+        {
+          "label": "turbo",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/pnpm/turbo",
+          "version": "2.5.0"
+        },
+        {
+          "label": "eslint",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/bun/eslint",
+          "version": "9.0.0"
+        },
+        {
+          "label": "ty",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/uv/ty",
+          "version": "0.0.56"
+        },
+        {
+          "label": "ruff",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/uv/ruff"
+        },
+        {
+          "label": "black",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/pipx/black",
+          "version": "24.1.0"
+        },
+        {
+          "label": "tokei",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/cargo/tokei",
+          "version": "12.1.2"
+        },
+        {
+          "label": "ripgrep",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/cargo/ripgrep",
+          "version": "14.1.0"
+        },
+        {
+          "label": "sqlc",
+          "paths": [
+            "github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1"
+          ],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/go/sqlc",
+          "version": "v1.31.1"
+        },
+        {
+          "label": "github.com/a/old@v1.0.0",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/go/old"
+        },
+        {
+          "label": "htop",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/apt/htop"
+        },
+        {
+          "label": "ffmpeg",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/catalog/ffmpeg"
+        },
+        {
+          "label": "ruby",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/catalog/ruby",
+          "version": "3.3.0"
+        },
+        {
+          "label": "node",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/catalog/node",
+          "version": "20.1.0"
+        },
+        {
+          "label": "gh",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/catalog/gh",
+          "version": "2.0.0"
+        },
+        {
+          "label": "not-a-tool",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/catalog/not-a-tool"
+        },
+        {
+          "label": "claude",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/catalog/claude"
+        },
+        {
+          "label": "thing",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/custom/thing"
+        },
+        {
+          "label": "agents/claude",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/claude"
+        }
+      ],
+      "out": {
+        "text": "tap \"zingzy/tap\"\nbrew \"gh\"\nbrew \"bat\"\nbrew \"go\"\n",
+        "taps": [
+          "zingzy/tap"
+        ],
+        "formulae": [
+          "gh",
+          "bat",
+          "go"
+        ],
+        "skipped": [
+          {
+            "id": "tools/brew/felixkratz/formulae/sketchybar",
+            "note": "macOS only"
+          },
+          {
+            "id": "tools/brew/acme/tap/mactool",
+            "note": "macOS only"
+          },
+          {
+            "id": "tools/brew/acme/tap/other",
+            "note": "no Linux bottle known"
+          },
+          {
+            "id": "tools/brew/mas",
+            "note": "no Linux bottle"
+          }
+        ],
+        "roads": [
+          {
+            "id": "tools/brew/zingzy/tap/diskbloom",
+            "name": "diskbloom",
+            "source": {
+              "repo": "zingzy/diskbloom",
+              "tag": "v0.4.0"
+            }
+          },
+          {
+            "id": "tools/brew/zingzy/tap/diskbloom",
+            "name": "diskbloom",
+            "source": {
+              "repo": "zingzy/diskbloom",
+              "tag": "v0.4.0"
+            },
+            "pin": {
+              "tag": "v0.4.0",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "arch": "x86_64"
+            }
+          }
+        ],
+        "base": [
+          {
+            "id": "tools/brew/jq",
+            "name": "jq",
+            "entry": {
+              "kind": "tool",
+              "configPaths": [],
+              "floor": true,
+              "id": "jq",
+              "name": "jq",
+              "bin": "jq",
+              "installRoad": {
+                "road": "apt",
+                "packages": [
+                  "jq"
+                ]
+              },
+              "size": {
+                "bytes": 1170432,
+                "on": "2026-09-07",
+                "method": "apt"
+              },
+              "signIn": {
+                "kind": "none",
+                "sources": []
+              },
+              "defaultOn": true,
+              "source": {
+                "sessions": 17,
+                "images": 5,
+                "road": "unmeasured"
+              }
+            }
+          },
+          {
+            "id": "tools/brew/python@3.12",
+            "name": "Python 3.12",
+            "entry": {
+              "kind": "tool",
+              "configPaths": [],
+              "floor": true,
+              "id": "python",
+              "name": "Python 3.12",
+              "bin": "python3",
+              "installRoad": {
+                "road": "script",
+                "script": "if ! command -v uv >/dev/null 2>&1; then\n  arch=\"$(uname -m)\"\n  case \"$arch\" in\n    x86_64) sha=ec7a99cd05e0cd7f80243f135ce1361c76835cb0ee60055d14d20eba8eba1460 ;;\n    aarch64) sha=c36fe17937ff6bd16dc42fc13854b5465999fcab2efe0af559381e945e3c6001 ;;\n    *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\n  esac\n  pkg=\"uv-$arch-unknown-linux-gnu.tar.gz\"\n  curl -o \"/tmp/$pkg\" \"https://github.com/astral-sh/uv/releases/download/0.12.9/$pkg\"\n  echo \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\n  tar -xzf \"/tmp/$pkg\" -C /tmp\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uv\" /usr/local/bin/uv\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uvx\" /usr/local/bin/uvx\n  rm -rf \"/tmp/$pkg\" \"/tmp/uv-$arch-unknown-linux-gnu\"\nfi\nuv python install 3.12\nln -sfn \"$(uv python find --managed-python 3.12)\" /usr/local/bin/python3",
+                "bins": [
+                  "/usr/local/bin"
+                ]
+              },
+              "after": "uv",
+              "covers": [
+                "python@3.12"
+              ],
+              "major": {
+                "name": "Python",
+                "version": "3.12"
+              },
+              "signIn": {
+                "kind": "none",
+                "sources": []
+              },
+              "defaultOn": true,
+              "source": {
+                "sessions": 107,
+                "images": 4,
+                "road": "unmeasured"
+              },
+              "size": {
+                "bytes": 108105728,
+                "on": "2026-09-07",
+                "method": "du"
+              }
+            }
+          },
+          {
+            "id": "tools/cargo/ripgrep",
+            "name": "ripgrep",
+            "entry": {
+              "kind": "tool",
+              "configPaths": [],
+              "floor": true,
+              "id": "ripgrep",
+              "name": "ripgrep",
+              "bin": "rg",
+              "installRoad": {
+                "road": "apt",
+                "packages": [
+                  "ripgrep"
+                ]
+              },
+              "size": {
+                "bytes": 4666368,
+                "on": "2026-09-07",
+                "method": "apt"
+              },
+              "signIn": {
+                "kind": "none",
+                "sources": []
+              },
+              "defaultOn": true,
+              "source": {
+                "sessions": 10,
+                "images": 4,
+                "road": "unmeasured"
+              }
+            },
+            "version": "14.1.0"
+          }
+        ]
+      }
+    },
+    {
+      "rows": [
+        {
+          "label": "bun@1.4.0",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/npm/bun",
+          "version": "1.4.0"
+        }
+      ],
+      "out": {
+        "text": "",
+        "taps": [],
+        "formulae": [],
+        "skipped": [],
+        "roads": [],
+        "base": []
+      }
+    },
+    {
+      "rows": [],
+      "out": {
+        "text": "",
+        "taps": [],
+        "formulae": [],
+        "skipped": [],
+        "roads": [],
+        "base": []
+      }
+    }
+  ],
+  "managerFormula": [
+    {
+      "manager": "npm",
+      "out": null
+    },
+    {
+      "manager": "pnpm",
+      "out": null
+    },
+    {
+      "manager": "bun",
+      "out": null
+    },
+    {
+      "manager": "uv",
+      "out": null
+    },
+    {
+      "manager": "pipx",
+      "out": "pipx"
+    },
+    {
+      "manager": "cargo",
+      "out": null
+    },
+    {
+      "manager": "go",
+      "out": "go"
+    },
+    {
+      "manager": "brew",
+      "out": null
+    },
+    {
+      "manager": "apt",
+      "out": null
+    },
+    {
+      "manager": "script",
+      "out": null
+    },
+    {
+      "manager": "release",
+      "out": null
+    },
+    {
+      "manager": "vendor",
+      "out": null
+    }
+  ],
+  "custom": [
+    {
+      "kind": "custom",
+      "id": "ace",
+      "name": "ace",
+      "install": [
+        "curl -fsSL https://ace.example/i.sh -o /tmp/ace.sh",
+        "sh /tmp/ace.sh"
+      ],
+      "check": "ace --version",
+      "why": "the person wrote it"
+    },
+    {
+      "kind": "custom",
+      "id": "bee",
+      "name": "bee",
+      "install": [
+        "npm install -g bee@1"
+      ],
+      "check": "bee --version",
+      "manager": "npm",
+      "why": "an npm global"
+    },
+    {
+      "kind": "custom",
+      "id": "cee",
+      "name": "cee",
+      "install": [
+        "brew install cee"
+      ],
+      "check": "cee --version",
+      "manager": "brew",
+      "why": "a formula"
+    },
+    {
+      "kind": "custom",
+      "id": "dee",
+      "name": "dee",
+      "install": [
+        "apt-get install -y dee"
+      ],
+      "check": "dee --version",
+      "manager": "apt",
+      "why": "an apt row"
+    },
+    {
+      "kind": "custom",
+      "id": "eff",
+      "name": "eff",
+      "install": [
+        "true"
+      ],
+      "check": "eff",
+      "manager": "nonsense",
+      "why": "a manager nobody knows"
+    }
+  ],
+  "customInstallsFor": [
+    {
+      "path": "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "out": [
+        {
+          "id": "tools/custom/ace",
+          "label": "ace",
+          "manager": "script",
+          "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1\ncurl -fsSL https://ace.example/i.sh -o /tmp/ace.sh\nsh /tmp/ace.sh",
+          "check": "ace --version",
+          "shown": "curl -fsSL https://ace.example/i.sh -o /tmp/ace.sh; sh /tmp/ace.sh"
+        },
+        {
+          "id": "tools/custom/bee",
+          "label": "bee",
+          "manager": "script",
+          "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1\nnpm install -g bee@1",
+          "bins": [
+            "/usr/local/bin"
+          ],
+          "check": "bee --version",
+          "shown": "npm install -g bee@1"
+        },
+        {
+          "id": "tools/custom/cee",
+          "label": "cee",
+          "manager": "script",
+          "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1\nbrew install cee",
+          "present": "test -e /home/linuxbrew/.linuxbrew/opt/cee",
+          "bins": [
+            "/home/linuxbrew/.linuxbrew/bin",
+            "/home/linuxbrew/.linuxbrew/sbin",
+            "/usr/local/bin"
+          ],
+          "check": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions cee'",
+          "shown": "brew install cee"
+        },
+        {
+          "id": "tools/custom/dee",
+          "label": "dee",
+          "manager": "script",
+          "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1\napt-get install -y dee",
+          "check": "dee --version",
+          "shown": "apt-get install -y dee"
+        },
+        {
+          "id": "tools/custom/eff",
+          "label": "eff",
+          "manager": "script",
+          "cmd": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1\ntrue",
+          "check": "eff",
+          "shown": "true"
+        }
+      ]
+    },
+    {
+      "path": "/opt/wsp/bin:/usr/bin",
+      "prefix": "/opt/wsp",
+      "after": {
+        "bee": "tools/manager/npm",
+        "cee": "tools/brew-toolchain/gcc"
+      },
+      "out": [
+        {
+          "id": "tools/custom/ace",
+          "label": "ace",
+          "manager": "script",
+          "cmd": "export PATH=/opt/wsp/bin:/usr/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1\ncurl -fsSL https://ace.example/i.sh -o /tmp/ace.sh\nsh /tmp/ace.sh",
+          "check": "ace --version",
+          "shown": "curl -fsSL https://ace.example/i.sh -o /tmp/ace.sh; sh /tmp/ace.sh"
+        },
+        {
+          "id": "tools/custom/bee",
+          "label": "bee",
+          "manager": "script",
+          "cmd": "export PATH=/opt/wsp/bin:/usr/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1\nnpm install -g bee@1",
+          "bins": [
+            "/usr/local/bin"
+          ],
+          "check": "bee --version",
+          "shown": "npm install -g bee@1",
+          "after": "tools/manager/npm"
+        },
+        {
+          "id": "tools/custom/cee",
+          "label": "cee",
+          "manager": "script",
+          "cmd": "export PATH=/opt/wsp/bin:/usr/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1\nbrew install cee",
+          "present": "test -e /home/linuxbrew/.linuxbrew/opt/cee",
+          "bins": [
+            "/home/linuxbrew/.linuxbrew/bin",
+            "/home/linuxbrew/.linuxbrew/sbin",
+            "/usr/local/bin"
+          ],
+          "check": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions cee'",
+          "shown": "brew install cee",
+          "after": "tools/brew-toolchain/gcc"
+        },
+        {
+          "id": "tools/custom/dee",
+          "label": "dee",
+          "manager": "script",
+          "cmd": "export PATH=/opt/wsp/bin:/usr/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1\napt-get install -y dee",
+          "check": "dee --version",
+          "shown": "apt-get install -y dee"
+        },
+        {
+          "id": "tools/custom/eff",
+          "label": "eff",
+          "manager": "script",
+          "cmd": "export PATH=/opt/wsp/bin:/usr/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nexport DEBIAN_FRONTEND=noninteractive\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1\ntrue",
+          "check": "eff",
+          "shown": "true"
+        }
+      ]
+    }
+  ]
+}
