@@ -227,6 +227,10 @@ pub fn fork_room(capacity: &PlaceCapacity, mem_mb: f64, image_bytes: Option<f64>
 // A word list zod reads with z.enum: serde refuses any other word, so nothing is left to check.
 impl Check for PauseMode {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["memory", "disk"]))
     }
 }

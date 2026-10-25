@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::types::check::Check;
+use crate::types::check::{Check, SchemaError};
 
 /// TS: packages/protocol/src/project-look.ts:16 at a3b870a6e.
 pub const PROJECT_ICON_PX: u64 = 128;
@@ -101,5 +101,17 @@ impl Check for ProjectHue {
 }
 
 /// TS: packages/protocol/src/project-look.ts:14 at a3b870a6e.
-pub type ProjectIconHash = String;
-// Rules: ProjectIconHash: matches /^[0-9a-f]{64}$/.
+/// TS: project-look.ts:14 at a3b870a6e..
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ProjectIconHash(pub String);
+
+impl Check for ProjectIconHash {
+    fn check(&self) -> Result<(), SchemaError> {
+        crate::types::check::regex_check(crate::types::check::hex_64(&self.0))
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Word("string"))
+    }
+}

@@ -239,6 +239,7 @@ impl Check for RecipeFileFoldersValue {
         for (i, item) in self.keep.iter().enumerate() {
             crate::types::check::text_at_least(item, 1).map_err(|e| e.under(i).under("keep"))?;
         }
+        self.image.check().map_err(|e| e.under("image"))?;
         Ok(())
     }
 
@@ -348,6 +349,21 @@ impl Check for RecipeFileConfigs {
     }
 }
 
+/// A key of a recipe table: the name a row goes by, which zod reads as a non-empty string.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RecipeName(pub String);
+
+impl Check for RecipeName {
+    fn check(&self) -> Result<(), SchemaError> {
+        crate::types::check::text_at_least(&self.0, 1)
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Word("string"))
+    }
+}
+
 /// TS: packages/protocol/src/recipe-file.ts:55 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -355,19 +371,19 @@ pub struct RecipeFile {
     #[serde(deserialize_with = "crate::types::check::trimmed")]
     pub name: String,
     #[serde(default = "default_recipe_file_agents")]
-    pub agents: IndexMap<String, RecipeFileAgentsValue>,
+    pub agents: IndexMap<RecipeName, RecipeFileAgentsValue>,
     #[serde(default = "default_recipe_file_mcp")]
-    pub mcp: IndexMap<String, RecipeFileMcpValue>,
+    pub mcp: IndexMap<RecipeName, RecipeFileMcpValue>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub copy_keys: Option<True>,
     #[serde(default = "default_recipe_file_clis")]
-    pub clis: IndexMap<String, RecipeFileClisValue>,
+    pub clis: IndexMap<RecipeName, RecipeFileClisValue>,
     #[serde(default = "default_recipe_file_skills")]
-    pub skills: IndexMap<String, RecipeFileSkillsValue>,
+    pub skills: IndexMap<RecipeName, RecipeFileSkillsValue>,
     #[serde(default = "default_recipe_file_plugins")]
-    pub plugins: IndexMap<String, RecipeFilePluginsValue>,
+    pub plugins: IndexMap<RecipeName, RecipeFilePluginsValue>,
     #[serde(default = "default_recipe_file_folders")]
-    pub folders: IndexMap<String, RecipeFileFoldersValue>,
+    pub folders: IndexMap<RecipeName, RecipeFileFoldersValue>,
     #[serde(default = "default_recipe_file_configs")]
     pub configs: RecipeFileConfigs,
 }
@@ -394,13 +410,13 @@ impl Check for RecipeFile {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
                 "name" => <String as Check>::describe(rest),
-                "agents" => <IndexMap<String, RecipeFileAgentsValue> as Check>::describe(rest),
-                "mcp" => <IndexMap<String, RecipeFileMcpValue> as Check>::describe(rest),
+                "agents" => <IndexMap<RecipeName, RecipeFileAgentsValue> as Check>::describe(rest),
+                "mcp" => <IndexMap<RecipeName, RecipeFileMcpValue> as Check>::describe(rest),
                 "copyKeys" => None,
-                "clis" => <IndexMap<String, RecipeFileClisValue> as Check>::describe(rest),
-                "skills" => <IndexMap<String, RecipeFileSkillsValue> as Check>::describe(rest),
-                "plugins" => <IndexMap<String, RecipeFilePluginsValue> as Check>::describe(rest),
-                "folders" => <IndexMap<String, RecipeFileFoldersValue> as Check>::describe(rest),
+                "clis" => <IndexMap<RecipeName, RecipeFileClisValue> as Check>::describe(rest),
+                "skills" => <IndexMap<RecipeName, RecipeFileSkillsValue> as Check>::describe(rest),
+                "plugins" => <IndexMap<RecipeName, RecipeFilePluginsValue> as Check>::describe(rest),
+                "folders" => <IndexMap<RecipeName, RecipeFileFoldersValue> as Check>::describe(rest),
                 "configs" => <RecipeFileConfigs as Check>::describe(rest),
                 _ => None,
             },
@@ -408,27 +424,27 @@ impl Check for RecipeFile {
     }
 }
 
-fn default_recipe_file_agents() -> IndexMap<String, RecipeFileAgentsValue> {
+fn default_recipe_file_agents() -> IndexMap<RecipeName, RecipeFileAgentsValue> {
     from_json("{}")
 }
 
-fn default_recipe_file_mcp() -> IndexMap<String, RecipeFileMcpValue> {
+fn default_recipe_file_mcp() -> IndexMap<RecipeName, RecipeFileMcpValue> {
     from_json("{}")
 }
 
-fn default_recipe_file_clis() -> IndexMap<String, RecipeFileClisValue> {
+fn default_recipe_file_clis() -> IndexMap<RecipeName, RecipeFileClisValue> {
     from_json("{}")
 }
 
-fn default_recipe_file_skills() -> IndexMap<String, RecipeFileSkillsValue> {
+fn default_recipe_file_skills() -> IndexMap<RecipeName, RecipeFileSkillsValue> {
     from_json("{}")
 }
 
-fn default_recipe_file_plugins() -> IndexMap<String, RecipeFilePluginsValue> {
+fn default_recipe_file_plugins() -> IndexMap<RecipeName, RecipeFilePluginsValue> {
     from_json("{}")
 }
 
-fn default_recipe_file_folders() -> IndexMap<String, RecipeFileFoldersValue> {
+fn default_recipe_file_folders() -> IndexMap<RecipeName, RecipeFileFoldersValue> {
     from_json("{}")
 }
 

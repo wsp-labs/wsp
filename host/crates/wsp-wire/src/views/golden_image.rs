@@ -280,6 +280,7 @@ impl Check for GoldenVersion {
         if let Some(v) = &self.image_hash {
             crate::types::check::text_exactly(v, 64).map_err(|e| e.under("imageHash"))?;
         }
+        self.size.check().map_err(|e| e.under("size"))?;
         Ok(())
     }
 

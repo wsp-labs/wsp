@@ -610,7 +610,7 @@ pub fn review_verdict<'de, D: serde::Deserializer<'de>>(d: D) -> Result<ReviewBl
     let v = serde_json::Value::deserialize(d)?;
     let v = match v {
         serde_json::Value::String(s) => {
-            serde_json::Value::String(s.to_lowercase().chars().map(|c| if c.is_whitespace() || c == '-' { '_' } else { c }).collect())
+            serde_json::Value::String(s.to_lowercase().chars().map(|c| if crate::types::check::js_space(c) || c == '-' { '_' } else { c }).collect())
         }
         other => other,
     };

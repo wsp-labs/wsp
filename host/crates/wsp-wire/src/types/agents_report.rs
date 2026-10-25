@@ -7,7 +7,7 @@ use crate::literal;
 use crate::types::check::{Check, SchemaError};
 use crate::types::thread_defaults::AgentSetupView;
 use indexmap::IndexMap;
-use wsp_frames::PauseMode;
+use crate::wire::capabilities::PauseMode;
 use wsp_frames::True;
 
 literal!(UnknownLit, "unknown");
@@ -1122,6 +1122,7 @@ impl Check for AgentsReport {
         self.plugins.check().map_err(|e| e.under("plugins"))?;
         self.projects.check().map_err(|e| e.under("projects"))?;
         self.reach.check().map_err(|e| e.under("reach"))?;
+        self.pause_mode.check().map_err(|e| e.under("pauseMode"))?;
         Ok(())
     }
 

@@ -17,7 +17,7 @@ use crate::types::tree::TreeFact;
 use crate::types::workspace_look::WorkspaceGlyph;
 use crate::types::workspace_look::WorkspaceTheme;
 use crate::views::workspace_kind::WorkspaceKind;
-use wsp_frames::PauseMode;
+use crate::wire::capabilities::PauseMode;
 use wsp_frames::True;
 use crate::wire::capabilities::WorkspaceSize;
 
@@ -788,6 +788,9 @@ impl Check for WorkspaceView {
         self.worktree.check().map_err(|e| e.under("worktree"))?;
         self.from.check().map_err(|e| e.under("from"))?;
         self.review.check().map_err(|e| e.under("review"))?;
+        self.phase.check().map_err(|e| e.under("phase"))?;
+        self.pause_mode.check().map_err(|e| e.under("pauseMode"))?;
+        self.branch_of_record.check().map_err(|e| e.under("branchOfRecord"))?;
         Ok(())
     }
 
@@ -987,6 +990,12 @@ impl Check for WorkspaceStatus {
         self.checkout.check().map_err(|e| e.under("checkout"))?;
         self.pr.check().map_err(|e| e.under("pr"))?;
         self.tree.check().map_err(|e| e.under("tree"))?;
+        self.phase.check().map_err(|e| e.under("phase"))?;
+        self.pause_mode.check().map_err(|e| e.under("pauseMode"))?;
+        self.branch_of_record.check().map_err(|e| e.under("branchOfRecord"))?;
+        self.machine_state.check().map_err(|e| e.under("machineState"))?;
+        self.reach.check().map_err(|e| e.under("reach"))?;
+        self.size.check().map_err(|e| e.under("size"))?;
         Ok(())
     }
 
@@ -1115,6 +1124,8 @@ impl Check for WorkspaceOut {
         self.worktree.check().map_err(|e| e.under("worktree"))?;
         self.from.check().map_err(|e| e.under("from"))?;
         self.review.check().map_err(|e| e.under("review"))?;
+        self.phase.check().map_err(|e| e.under("phase"))?;
+        self.pause_mode.check().map_err(|e| e.under("pauseMode"))?;
         Ok(())
     }
 
@@ -1180,6 +1191,7 @@ impl Check for WorkspaceTalked {
     fn check(&self) -> Result<(), SchemaError> {
         self.kind.check().map_err(|e| e.under("kind"))?;
         self.project.check().map_err(|e| e.under("project"))?;
+        self.phase.check().map_err(|e| e.under("phase"))?;
         Ok(())
     }
 
@@ -1284,6 +1296,11 @@ impl Check for WorkspaceListing {
         self.from.check().map_err(|e| e.under("from"))?;
         self.review.check().map_err(|e| e.under("review"))?;
         self.facts.check().map_err(|e| e.under("facts"))?;
+        self.phase.check().map_err(|e| e.under("phase"))?;
+        self.pause_mode.check().map_err(|e| e.under("pauseMode"))?;
+        self.machine_state.check().map_err(|e| e.under("machineState"))?;
+        self.size.check().map_err(|e| e.under("size"))?;
+        self.reach.check().map_err(|e| e.under("reach"))?;
         Ok(())
     }
 

@@ -159,12 +159,6 @@ impl Check for PreferencesStored {
     /// Nested checks: theme, lightTheme, darkTheme, sidebarMode, terminalSize, target, projectLook, projectIcon, computerLook, recipeLook, editor, agentDefaults, projectDefaults, sendWith, midTurn, notifyNeeds, notifyDone, settleAfter, onQuit, newThreadIn.
     fn check(&self) -> Result<(), SchemaError> {
         self.theme.check().map_err(|e| e.under("theme"))?;
-        if let Some(v) = &self.light_theme {
-            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("lightTheme"))?;
-        }
-        if let Some(v) = &self.dark_theme {
-            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("darkTheme"))?;
-        }
         self.sidebar_mode.check().map_err(|e| e.under("sidebarMode"))?;
         if let Some(v) = self.sidebar_width {
             crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("sidebarWidth"))?;
@@ -206,6 +200,9 @@ impl Check for PreferencesStored {
         self.settle_after.check().map_err(|e| e.under("settleAfter"))?;
         self.on_quit.check().map_err(|e| e.under("onQuit"))?;
         self.new_thread_in.check().map_err(|e| e.under("newThreadIn"))?;
+        self.light_theme.check().map_err(|e| e.under("lightTheme"))?;
+        self.dark_theme.check().map_err(|e| e.under("darkTheme"))?;
+        self.project_icon.check().map_err(|e| e.under("projectIcon"))?;
         Ok(())
     }
 
@@ -449,8 +446,20 @@ impl Check for RecipeLook {
 }
 
 /// TS: packages/protocol/src/views/preferences.ts:46 at a3b870a6e.
-pub type ThemeId = String;
-// Rules: ThemeId: at least 1 UTF-16 units.
+/// TS: views/preferences.ts:46 at a3b870a6e..
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ThemeId(pub String);
+
+impl Check for ThemeId {
+    fn check(&self) -> Result<(), SchemaError> {
+        crate::types::check::text_at_least(&self.0, 1)
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Word("string"))
+    }
+}
 
 /// TS: packages/protocol/src/views/preferences.ts:57 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -608,8 +617,6 @@ impl Check for Preferences {
     /// Nested checks: theme, lightTheme, darkTheme, sidebarMode, terminalSize, projectLook, projectIcon, computerLook, agentDefaults, projectDefaults, sendWith, midTurn, notifyNeeds, notifyDone, settleAfter, onQuit, newThreadIn, target, editor, recipeLook.
     fn check(&self) -> Result<(), SchemaError> {
         self.theme.check().map_err(|e| e.under("theme"))?;
-        crate::types::check::text_at_least(&self.light_theme, 1).map_err(|e| e.under("lightTheme"))?;
-        crate::types::check::text_at_least(&self.dark_theme, 1).map_err(|e| e.under("darkTheme"))?;
         self.sidebar_mode.check().map_err(|e| e.under("sidebarMode"))?;
         self.terminal_size.check().map_err(|e| e.under("terminalSize"))?;
         self.project_look.check().map_err(|e| e.under("projectLook"))?;
@@ -643,6 +650,9 @@ impl Check for Preferences {
             crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v as u64)), "one of 11, 12, 13, 14, 15").map_err(|e| e.under("codeSize"))?;
         }
         self.recipe_look.check().map_err(|e| e.under("recipeLook"))?;
+        self.light_theme.check().map_err(|e| e.under("lightTheme"))?;
+        self.dark_theme.check().map_err(|e| e.under("darkTheme"))?;
+        self.project_icon.check().map_err(|e| e.under("projectIcon"))?;
         Ok(())
     }
 
@@ -886,12 +896,6 @@ impl Check for PreferencesPatch {
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
         self.theme.check().map_err(|e| e.under("theme"))?;
-        if let Some(v) = &self.light_theme {
-            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("lightTheme"))?;
-        }
-        if let Some(v) = &self.dark_theme {
-            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("darkTheme"))?;
-        }
         self.sidebar_mode.check().map_err(|e| e.under("sidebarMode"))?;
         if let Some(Some(v)) = self.sidebar_width {
             crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("sidebarWidth"))?;
@@ -937,6 +941,8 @@ impl Check for PreferencesPatch {
         self.settle_after.check().map_err(|e| e.under("settleAfter"))?;
         self.on_quit.check().map_err(|e| e.under("onQuit"))?;
         self.new_thread_in.check().map_err(|e| e.under("newThreadIn"))?;
+        self.light_theme.check().map_err(|e| e.under("lightTheme"))?;
+        self.dark_theme.check().map_err(|e| e.under("darkTheme"))?;
         Ok(())
     }
 

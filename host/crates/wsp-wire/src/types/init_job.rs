@@ -770,6 +770,7 @@ impl Check for InitJob {
         self.builders.check().map_err(|e| e.under("builders"))?;
         self.workspace.check().map_err(|e| e.under("workspace"))?;
         self.place.check().map_err(|e| e.under("place"))?;
+        self.keys.check().map_err(|e| e.under("keys"))?;
         Ok(())
     }
 

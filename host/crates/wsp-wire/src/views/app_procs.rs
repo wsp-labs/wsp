@@ -103,8 +103,21 @@ impl Check for AppProc {
 }
 
 /// TS: packages/protocol/src/views/app-procs.ts:37 at a3b870a6e.
-pub type AppProcList = Vec<AppProc>;
-// Rules: AppProcList[]: check of AppProc; AppProcList: at most 200 items.
+/// TS: packages/protocol/src/views/app-procs.ts:37 at a3b870a6e.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct AppProcList(pub Vec<AppProc>);
+
+impl Check for AppProcList {
+    fn check(&self) -> Result<(), SchemaError> {
+        crate::types::check::items_at_most(self.0.len(), 200)?;
+        self.0.check()
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        <Vec<AppProc> as Check>::describe(path)
+    }
+}
 
 /// TS: packages/protocol/src/views/app-procs.ts:40 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -121,7 +134,6 @@ impl AppProcsEvent {
 impl Check for AppProcsEvent {
     /// Nested checks: procs.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::items_at_most(self.procs.len(), 200).map_err(|e| e.under("procs"))?;
         self.procs.check().map_err(|e| e.under("procs"))?;
         Ok(())
     }
