@@ -15,7 +15,7 @@ use wsp_wire::views::workspace_more::Carried;
 pub use wsp_wire::wire::machine_link::ExecResult;
 
 use wsp_wire::types::check::{parse, Check};
-use wsp_words::js::{cut, js_trim, number_string};
+use wsp_words::js::{js_trim, number_string, utf16};
 use wsp_words::words::units::copy_verb_failed_line;
 
 use crate::child_exec::{run_child, ChildOptions};
@@ -143,7 +143,7 @@ fn answer<T: DeserializeOwned + Check>(what: &str, binary: &str, res: &ExecResul
     let said = js_trim(&res.stdout);
     let read = serde_json::from_str::<serde_json::Value>(said).ok().and_then(|v| parse::<T>(&v).ok());
     read.ok_or_else(|| {
-        let shown = if said.is_empty() { "nothing at all".to_string() } else { cut(said, 200) };
+        let shown = if said.is_empty() { "nothing at all".to_string() } else { utf16::cut(said, 200) };
         EngineError::Other { message: format!("the {what} verb answered something this host does not read: {shown}"), code: None }
     })
 }

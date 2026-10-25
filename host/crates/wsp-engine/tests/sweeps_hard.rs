@@ -90,7 +90,7 @@ fn storage_view_writes_named_only_when_billed_by_count() {
             .unwrap();
     let v = serde_json::to_value(&by_count).unwrap();
     assert_eq!(v["named"], json!({ "count": 3, "free": 1 }));
-    assert_eq!(v["monthlyUsd"], json!(1.0));
+    assert_eq!(v["monthlyUsd"], json!(1));
     let empty = OwnerRead { host_id: String::new(), recorded: HashSet::new(), now };
     assert_eq!(
         snapshot_storage(&rows, &pricing(json!({ "freeGb": 10, "usdPerGbMonth": 0.05 })), &empty).unwrap_err().to_string(),
