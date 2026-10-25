@@ -818,6 +818,7 @@ fn each_port_watch_lists_the_ports_again(cx: &mut TestAppContext) {
 struct SendsWhileDrawn {
     session: Entity<Session>,
     draws: usize,
+    sent: usize,
 }
 
 impl gpui_kit::Render for SendsWhileDrawn {
@@ -826,6 +827,7 @@ impl gpui_kit::Render for SendsWhileDrawn {
         self.draws += 1;
         if self.draws == 2 {
             self.session.update(cx, |s, cx| s.send(b"echo drawn-$((6*7))\r", cx));
+            self.sent += 1;
         }
         gpui_kit::ParentElement::child(gpui_kit::div(), title)
     }
@@ -836,14 +838,17 @@ fn a_line_sent_while_a_window_draws_its_shell_reaches_the_pty(cx: &mut TestAppCo
     let Some(host) = Host::start() else { return };
     let link = open_link(&host, cx);
     let session = opened_shell(&link, 80, 24, &host, cx);
-    let window = cx.add_window(|_, _| SendsWhileDrawn { session: session.clone(), draws: 0 });
+    let window = cx.add_window(|_, _| SendsWhileDrawn { session: session.clone(), draws: 0, sent: 0 });
     cx.run_until_parked();
     _ = window.update(cx, |_, window, cx| {
         cx.notify();
         window.refresh();
     });
     cx.run_until_parked();
-    assert_eq!(window.update(cx, |v, _, _| v.draws).unwrap(), 2, "the window drew twice");
+    // The shell's own output after the send, its prompt or a title, can draw the window again on a slow runner.
+    let (draws, sent) = window.update(cx, |v, _, _| (v.draws, v.sent)).unwrap();
+    assert!(draws >= 2, "the window drew twice, drew {draws}");
+    assert_eq!(sent, 1, "the line went once, from the second draw");
     assert_eq!(session.update(cx, |s, _| s.take_out()), [], "the link took the line as soon as the draw was done");
     until(cx, "the line sent mid-draw run by the shell", &host, |cx| shows_line(&session, "drawn-42", cx));
 }
