@@ -60,8 +60,9 @@ export const str = (value: SlateJson | undefined): string | undefined =>
 /** The sentence a control is held by: a non-empty text holds it, anything else (null, false, "") lets it go. */
 export { slateHeldText as heldBy } from "@wsp/protocol/slate";
 
-/** A cell or a fact that reads as a figure: a number, or text that is one with a unit or a rate after it. */
-const FIGURE = /^[-+]?[$€£₹¥]?\d[\d,]*(\.\d+)?\s?(%|[A-Za-z]{1,5}(\/[A-Za-z]+)?)?$/;
+/** A cell or a fact that reads as a figure: a number, a count of a total (24/24), or text that is one with a unit or a
+ * rate after it; a sign may be the true minus (−2%). */
+const FIGURE = /^[-+\u2212]?[$€£₹¥]?\d[\d,]*(\.\d+)?(\/\d[\d,]*(\.\d+)?)?\s?(%|[A-Za-z]{1,5}(\/[A-Za-z]+)?)?$/;
 export const isFigure = (value: SlateJson | undefined): boolean => typeof value === "number" || (typeof value === "string" && FIGURE.test(value.trim()));
 
 const WORD = /^[A-Za-z][a-z]*[,.:;!?]?$/;
