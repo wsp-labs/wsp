@@ -103,3 +103,59 @@ fn a_thread_hangs_under_the_thread_that_started_its_machine(cx: &mut TestAppCont
     push(&sidebar, Change::Whole(Box::new(snap)), cx);
     assert!(!at_root(&sidebar, cx) && under_lead(&sidebar, cx), "the machine's record puts it under t0");
 }
+
+/// The Boat machine t0 started, deleted once its sub-thread was done, whose sub-thread was deleted after it: the host
+/// keeps the record and no row.
+fn deleted_with_its_sub_thread(now: f64) -> Value {
+    let mut record = boat(now - 60_000.);
+    record["phase"] = json!("released");
+    record["machineId"] = json!("");
+    record
+}
+
+/// Catches: a machine deleted with its sub-thread drawn as a card under the thread that started it, which opened a New
+/// thread page on a machine that is gone, and reached by Ctrl+Tab's walk, which steps the drawn rows.
+#[gpui_kit::test]
+fn a_machine_deleted_with_its_sub_thread_draws_no_row(cx: &mut TestAppContext) {
+    let now = now_ms();
+    let (sidebar, cx) = drawn(cx);
+    let mut snap = snapshot(2, now);
+    snap.workspaces.push(deleted_with_its_sub_thread(now));
+    push(&sidebar, Change::Whole(Box::new(snap)), cx);
+    assert!(!machine_drawn(&sidebar, cx), "no card under t0");
+    assert!(!at_root(&sidebar, cx), "and none at the root");
+    assert!(sidebar.read_with(cx, |s, _| s.deleted_sub_thread("w-boat")));
+    // The same record with its sub-thread still held keeps its thread's row, today's banner on its page.
+    push(&sidebar, Change::Row { id: "r-sub".into(), row: Some(sub(now - 60_000., true)) }, cx);
+    assert!(under_lead(&sidebar, cx) && !sidebar.read_with(cx, |s, _| s.deleted_sub_thread("w-boat")), "a held sub-thread stands");
+}
+
+/// Catches: a machine deleted with its sub-thread, reached by a link or a kept selection, opening the New thread page
+/// with its field on a machine that is gone, where it says its sub-thread was deleted.
+#[gpui_kit::test]
+fn a_page_on_a_machine_deleted_with_its_sub_thread_says_so(cx: &mut TestAppContext) {
+    use crate::screens::composer::screen::ComposerScreen;
+    use crate::screens::settings::door::{self, Door};
+    use crate::screens::{Host, Opened, Screen};
+    cx.executor().allow_parking();
+    let now = now_ms();
+    let (sidebar, cx) = drawn(cx);
+    let mut snap = snapshot(2, now);
+    snap.workspaces.push(deleted_with_its_sub_thread(now));
+    push(&sidebar, Change::Whole(Box::new(snap)), cx);
+    let door = Door::start(json!({}));
+    let runtime = door::runtime();
+    let host = Host::new(door.client(&runtime), runtime);
+    cx.update(|_, cx| crate::screens::terminal::read_workspaces_from(&sidebar, cx));
+    let mut page = None;
+    let (_, cx) = cx.add_window_view(|window, cx| {
+        let opened = Opened { arg: Some("w-boat".into()), ..Opened::default() };
+        let view = cx.new(|cx| <ComposerScreen as Screen>::new(host, opened, window, cx));
+        page = Some(view.clone());
+        Root::new(view, window, cx)
+    });
+    cx.run_until_parked();
+    let page = page.unwrap();
+    assert!(cx.debug_bounds("sub-thread-deleted").is_some(), "the page says its sub-thread was deleted");
+    assert!(!page.read_with(cx, |p, cx| p.hero().read(cx).follows()), "and draws no New thread field");
+}
