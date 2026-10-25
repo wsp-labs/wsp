@@ -1,0 +1,2323 @@
+{
+ "presence_of": [
+  {
+   "name": "duplicates counted twice, input spelling kept",
+   "laptop": {
+    "files": {
+     "~/.b": 5,
+     "~/.c/x": 7
+    },
+    "which": [
+     "t"
+    ]
+   },
+   "args": [
+    [
+     "~/.a",
+     "~/.b",
+     "~/.c",
+     "~/.b"
+    ],
+    "t"
+   ],
+   "out": {
+    "paths": [
+     "~/.b",
+     "~/.c",
+     "~/.b"
+    ],
+    "bytes": 17,
+    "bin": true
+   },
+   "calls": []
+  },
+  {
+   "name": "nothing",
+   "laptop": {},
+   "args": [
+    [],
+    "t"
+   ],
+   "out": null,
+   "calls": []
+  },
+  {
+   "name": "bin only",
+   "laptop": {
+    "which": [
+     "t"
+    ]
+   },
+   "args": [
+    [],
+    "t"
+   ],
+   "out": {
+    "paths": [],
+    "bytes": 0,
+    "bin": true
+   },
+   "calls": []
+  },
+  {
+   "name": "absolute path and an empty bin",
+   "laptop": {
+    "files": {
+     "/abs/p": 3
+    }
+   },
+   "args": [
+    [
+     "/abs/p",
+     "~"
+    ],
+    ""
+   ],
+   "out": {
+    "paths": [
+     "/abs/p"
+    ],
+    "bytes": 3,
+    "bin": false
+   },
+   "calls": []
+  },
+  {
+   "name": "paths without the bin",
+   "laptop": {
+    "files": {
+     "~/.b": 5,
+     "~/.c/x": 7
+    }
+   },
+   "args": [
+    [
+     "~/.a",
+     "~/.b",
+     "~/.c"
+    ],
+    "none"
+   ],
+   "out": {
+    "paths": [
+     "~/.b",
+     "~/.c"
+    ],
+    "bytes": 12,
+    "bin": false
+   },
+   "calls": []
+  },
+  {
+   "name": "no path, no bin",
+   "laptop": {
+    "files": {
+     "~/.b": 5
+    }
+   },
+   "args": [
+    [
+     "~/.a"
+    ],
+    "none"
+   ],
+   "out": null,
+   "calls": []
+  }
+ ],
+ "detect_toolchains": [
+  {
+   "name": "everything present: order, shared pins, sums, label asks",
+   "laptop": {
+    "files": {
+     "~/.config/mise/config.toml": 300,
+     "~/.tool-versions": 40,
+     "~/.asdf/x": 1,
+     "~/.asdfrc": 2,
+     "~/.node-version": 8,
+     "~/.nvmrc": 3,
+     "~/.nvm/alias/default": "lts/iron\n",
+     "~/.pyenv/version": 6,
+     "~/.config/uv/uv.toml": 20,
+     "~/.python-version": 5,
+     "~/.rustup/settings.toml": 50,
+     "~/.cargo/config.toml": 30,
+     "~/.config/go/env": 12
+    },
+    "which": [
+     "go",
+     "mise",
+     "fnm",
+     "uv",
+     "pyenv",
+     "asdf"
+    ],
+    "exec": {
+     "fnm current": "v22.12.0\n",
+     "go version": "go version go1.23.1 darwin/arm64\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/mise",
+     "label": "mise pins",
+     "paths": [
+      "~/.config/mise/config.toml",
+      "~/.tool-versions"
+     ],
+     "bytes": 340,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/asdf",
+     "label": "asdf pins",
+     "paths": [
+      "~/.tool-versions",
+      "~/.asdfrc"
+     ],
+     "bytes": 42,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/fnm",
+     "label": "fnm (node v22.12.0)",
+     "paths": [
+      "~/.node-version",
+      "~/.nvmrc"
+     ],
+     "bytes": 11,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/nvm",
+     "label": "nvm (default lts/iron)",
+     "paths": [
+      "~/.nvmrc"
+     ],
+     "bytes": 3,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/pyenv",
+     "label": "pyenv (global python)",
+     "paths": [
+      "~/.pyenv/version"
+     ],
+     "bytes": 6,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/uv",
+     "label": "uv (python versions)",
+     "paths": [
+      "~/.config/uv/uv.toml",
+      "~/.python-version"
+     ],
+     "bytes": 25,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/rustup",
+     "label": "rustup default toolchain",
+     "paths": [
+      "~/.rustup/settings.toml",
+      "~/.cargo/config.toml"
+     ],
+     "bytes": 80,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/go",
+     "label": "go 1.23.1",
+     "paths": [
+      "~/.config/go/env"
+     ],
+     "bytes": 12,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run fnm current",
+    "read /Users/dev/.nvm/alias/default",
+    "run go version"
+   ]
+  },
+  {
+   "name": "pins alone make no manager except through a marker dir",
+   "laptop": {
+    "files": {
+     "~/.node-version": 8,
+     "~/.python-version": 5,
+     "~/.cargo/config.toml": 3,
+     "~/.config/go/env": 1,
+     "~/.pyenv/version": 1,
+     "~/.asdfrc": 1,
+     "~/.tool-versions": 1,
+     "~/.nvmrc": 1
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/pyenv",
+     "label": "pyenv (global python)",
+     "paths": [
+      "~/.pyenv/version"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "binaries alone make rows with no paths",
+   "laptop": {
+    "which": [
+     "mise",
+     "fnm",
+     "go",
+     "uv",
+     "asdf",
+     "pyenv"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/mise",
+     "label": "mise pins",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/asdf",
+     "label": "asdf pins",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/fnm",
+     "label": "fnm",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/pyenv",
+     "label": "pyenv (global python)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/uv",
+     "label": "uv (python versions)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/go",
+     "label": "go",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run fnm current",
+    "run go version"
+   ]
+  },
+  {
+   "name": "fnm says none, go gives no version",
+   "laptop": {
+    "which": [
+     "fnm",
+     "go"
+    ],
+    "exec": {
+     "fnm current": "none\n",
+     "go version": "command not found\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/fnm",
+     "label": "fnm (node none)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/go",
+     "label": "go",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run fnm current",
+    "run go version"
+   ]
+  },
+  {
+   "name": "blank first lines give the bare labels",
+   "laptop": {
+    "which": [
+     "fnm",
+     "go"
+    ],
+    "exec": {
+     "fnm current": "\n",
+     "go version": "\ngo version go1.2\n"
+    },
+    "files": {
+     "~/.nvm/alias/default": "\n20\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/fnm",
+     "label": "fnm",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/nvm",
+     "label": "nvm",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/go",
+     "label": "go",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run fnm current",
+    "read /Users/dev/.nvm/alias/default",
+    "run go version"
+   ]
+  },
+  {
+   "name": "CRLF and padding in answers",
+   "laptop": {
+    "which": [
+     "fnm",
+     "go"
+    ],
+    "exec": {
+     "fnm current": "  v20.1.0  \r\nv18\n",
+     "go version": "go version go1.24.0 linux/amd64\r\n"
+    },
+    "files": {
+     "~/.nvm/alias/default": "v20\r\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/fnm",
+     "label": "fnm (node v20.1.0)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/nvm",
+     "label": "nvm (default v20)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "toolchains",
+     "id": "toolchains/go",
+     "label": "go 1.24.0",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run fnm current",
+    "read /Users/dev/.nvm/alias/default",
+    "run go version"
+   ]
+  },
+  {
+   "name": "go devel",
+   "laptop": {
+    "which": [
+     "go"
+    ],
+    "exec": {
+     "go version": "go version devel go1.24-abc123 Tue Jan 1 00:00:00 2025 +0000 linux/amd64\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/go",
+     "label": "go 1.24",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run go version"
+   ]
+  },
+  {
+   "name": "go rc",
+   "laptop": {
+    "which": [
+     "go"
+    ],
+    "exec": {
+     "go version": "go version go1.22rc1 linux/amd64\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/go",
+     "label": "go 1.22",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run go version"
+   ]
+  },
+  {
+   "name": "go major only",
+   "laptop": {
+    "which": [
+     "go"
+    ],
+    "exec": {
+     "go version": "go version go1 linux/amd64\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/go",
+     "label": "go 1",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run go version"
+   ]
+  },
+  {
+   "name": "go with no digits",
+   "laptop": {
+    "which": [
+     "go"
+    ],
+    "exec": {
+     "go version": "go version go linux/amd64\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/go",
+     "label": "go",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run go version"
+   ]
+  },
+  {
+   "name": "go with a dangling dot",
+   "laptop": {
+    "which": [
+     "go"
+    ],
+    "exec": {
+     "go version": "go version go1.23. x\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/go",
+     "label": "go 1.23",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run go version"
+   ]
+  },
+  {
+   "name": "go gives no answer",
+   "laptop": {
+    "which": [
+     "go"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/go",
+     "label": "go",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run go version"
+   ]
+  },
+  {
+   "name": "nvm alias is an empty file",
+   "laptop": {
+    "files": {
+     "~/.nvm/alias/default": "",
+     "~/.nvm/x": 1
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/nvm",
+     "label": "nvm",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.nvm/alias/default"
+   ]
+  },
+  {
+   "name": "nvm home is a plain file",
+   "laptop": {
+    "files": {
+     "~/.nvm": 5
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/nvm",
+     "label": "nvm",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.nvm/alias/default"
+   ]
+  },
+  {
+   "name": "rustup dir without settings.toml",
+   "laptop": {
+    "files": {
+     "~/.rustup/toolchains/x": 5
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": []
+  },
+  {
+   "name": "a directory pin sums its tree",
+   "laptop": {
+    "files": {
+     "~/.tool-versions/a": 7,
+     "~/.tool-versions/b": 8
+    },
+    "which": [
+     "mise"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/mise",
+     "label": "mise pins",
+     "paths": [
+      "~/.tool-versions"
+     ],
+     "bytes": 15,
+     "default": "bring"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "mise brings its config and tool-versions",
+   "laptop": {
+    "files": {
+     "~/.config/mise/config.toml": 300,
+     "~/.tool-versions": 40
+    },
+    "which": [
+     "mise"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "toolchains",
+     "id": "toolchains/mise",
+     "label": "mise pins",
+     "paths": [
+      "~/.config/mise/config.toml",
+      "~/.tool-versions"
+     ],
+     "bytes": 340,
+     "default": "bring"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "nothing installed",
+   "laptop": {},
+   "args": [],
+   "out": [],
+   "calls": []
+  }
+ ],
+ "detect_shell": [
+  {
+   "name": "the whole ladder: order, labels, sums, login",
+   "laptop": {
+    "files": {
+     "~/.zshrc": 10,
+     "~/.zshenv": 10,
+     "~/.zprofile": 10,
+     "~/.zlogin": 10,
+     "~/.bashrc": 10,
+     "~/.bash_profile": 10,
+     "~/.profile": 10,
+     "~/.inputrc": 10,
+     "~/.aliases": 10,
+     "~/.zsh_aliases": 10,
+     "~/.config/fish/config.fish": 1,
+     "~/.config/sheldon/p.toml": 2,
+     "~/.config/starship.toml": 3,
+     "~/.p10k.zsh": 4,
+     "~/.config/oh-my-posh/t.json": 5,
+     "~/.tmux.conf": 6,
+     "~/.config/tmux/t.conf": 7,
+     "~/.config/zellij/c.kdl": 8,
+     "~/.config/direnv/d": 9,
+     "~/.direnvrc": 11,
+     "~/.oh-my-zsh/oh-my-zsh.sh": 100,
+     "~/.oh-my-zsh/custom/a.zsh": 12,
+     "~/.local/share/zinit/z": 1,
+     "~/.zinit/z": 1,
+     "~/.zplug/z": 1,
+     "~/.antidote/a": 1,
+     "~/.zsh_plugins.txt": 13,
+     "~/.config/fish/functions/fisher.fish": 5,
+     "~/.config/fish/fish_plugins": 14,
+     "~/.zsh_history": 15,
+     "~/.bash_history": 16,
+     "~/.local/share/fish/fish_history": 17,
+     "~/.local/share/atuin/h.db": 18,
+     "/etc/shells": "/bin/zsh\n"
+    },
+    "shell": "/bin/zsh"
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/zshrc",
+     "label": "~/.zshrc",
+     "paths": [
+      "~/.zshrc"
+     ],
+     "bytes": 10,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zshenv",
+     "label": "~/.zshenv",
+     "paths": [
+      "~/.zshenv"
+     ],
+     "bytes": 10,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zprofile",
+     "label": "~/.zprofile",
+     "paths": [
+      "~/.zprofile"
+     ],
+     "bytes": 10,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zlogin",
+     "label": "~/.zlogin",
+     "paths": [
+      "~/.zlogin"
+     ],
+     "bytes": 10,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/bashrc",
+     "label": "~/.bashrc",
+     "paths": [
+      "~/.bashrc"
+     ],
+     "bytes": 10,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/bash_profile",
+     "label": "~/.bash_profile",
+     "paths": [
+      "~/.bash_profile"
+     ],
+     "bytes": 10,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/profile",
+     "label": "~/.profile",
+     "paths": [
+      "~/.profile"
+     ],
+     "bytes": 10,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/inputrc",
+     "label": "~/.inputrc",
+     "paths": [
+      "~/.inputrc"
+     ],
+     "bytes": 10,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/aliases",
+     "label": "~/.aliases",
+     "paths": [
+      "~/.aliases"
+     ],
+     "bytes": 10,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zsh_aliases",
+     "label": "~/.zsh_aliases",
+     "paths": [
+      "~/.zsh_aliases"
+     ],
+     "bytes": 10,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/fish",
+     "label": "fish config",
+     "paths": [
+      "~/.config/fish"
+     ],
+     "bytes": 20,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/sheldon",
+     "label": "sheldon plugins",
+     "paths": [
+      "~/.config/sheldon"
+     ],
+     "bytes": 2,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/starship",
+     "label": "starship prompt",
+     "paths": [
+      "~/.config/starship.toml"
+     ],
+     "bytes": 3,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/p10k",
+     "label": "powerlevel10k prompt",
+     "paths": [
+      "~/.p10k.zsh"
+     ],
+     "bytes": 4,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/oh-my-posh",
+     "label": "oh-my-posh prompt",
+     "paths": [
+      "~/.config/oh-my-posh"
+     ],
+     "bytes": 5,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/tmux",
+     "label": "tmux config",
+     "paths": [
+      "~/.tmux.conf",
+      "~/.config/tmux"
+     ],
+     "bytes": 13,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zellij",
+     "label": "zellij config",
+     "paths": [
+      "~/.config/zellij"
+     ],
+     "bytes": 8,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/direnv",
+     "label": "direnv config",
+     "paths": [
+      "~/.config/direnv",
+      "~/.direnvrc"
+     ],
+     "bytes": 20,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/oh-my-zsh",
+     "label": "oh-my-zsh custom dir (the framework reinstalls)",
+     "paths": [
+      "~/.oh-my-zsh/custom"
+     ],
+     "bytes": 12,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zinit",
+     "label": "zinit (reinstalls from ~/.zshrc)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zplug",
+     "label": "zplug (reinstalls from ~/.zshrc)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/antidote",
+     "label": "antidote plugin list",
+     "paths": [
+      "~/.zsh_plugins.txt"
+     ],
+     "bytes": 13,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/fisher",
+     "label": "fisher plugin list",
+     "paths": [
+      "~/.config/fish/fish_plugins"
+     ],
+     "bytes": 14,
+     "default": "bring",
+     "login": "zsh"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/history",
+     "label": "shell history",
+     "paths": [
+      "~/.zsh_history",
+      "~/.bash_history",
+      "~/.local/share/fish/fish_history",
+      "~/.local/share/atuin"
+     ],
+     "bytes": 66,
+     "default": "skip",
+     "login": "zsh"
+    }
+   ],
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "bare managers and oh-my-zsh without custom",
+   "laptop": {
+    "files": {
+     "~/.oh-my-zsh/oh-my-zsh.sh": 100,
+     "~/.antidote/a": 1,
+     "~/.config/fish/functions/fisher.fish": 5,
+     "~/.zinit/z": 1
+    },
+    "shell": "/bin/zsh"
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/fish",
+     "label": "fish config",
+     "paths": [
+      "~/.config/fish"
+     ],
+     "bytes": 5,
+     "default": "bring"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/oh-my-zsh",
+     "label": "oh-my-zsh custom dir (the framework reinstalls)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zinit",
+     "label": "zinit (reinstalls from ~/.zshrc)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/antidote",
+     "label": "antidote plugin list",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/fisher",
+     "label": "fisher plugin list",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "SHELL empty, /etc/shells listing /bin/zsh",
+   "laptop": {
+    "files": {
+     "~/.zshrc": 1,
+     "/etc/shells": "/bin/zsh\n"
+    },
+    "shell": ""
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/zshrc",
+     "label": "~/.zshrc",
+     "paths": [
+      "~/.zshrc"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "login": ""
+    }
+   ],
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "SHELL empty, no /etc/shells",
+   "laptop": {
+    "files": {
+     "~/.zshrc": 1
+    },
+    "shell": ""
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/zshrc",
+     "label": "~/.zshrc",
+     "paths": [
+      "~/.zshrc"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "login": ""
+    }
+   ],
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "etc/shells with a comment, padding and CRLF",
+   "laptop": {
+    "files": {
+     "~/.zshrc": 1,
+     "/etc/shells": "# /bin/fish\n  /bin/zsh  \r\n/bin/bash\r\n"
+    },
+    "shell": "/bin/zsh"
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/zshrc",
+     "label": "~/.zshrc",
+     "paths": [
+      "~/.zshrc"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "login": "zsh"
+    }
+   ],
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "SHELL without a slash",
+   "laptop": {
+    "files": {
+     "~/.zshrc": 1,
+     "/etc/shells": "zsh\n"
+    },
+    "shell": "zsh"
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/zshrc",
+     "label": "~/.zshrc",
+     "paths": [
+      "~/.zshrc"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "login": "zsh"
+    }
+   ],
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "SHELL under /usr/bin, list says /bin",
+   "laptop": {
+    "files": {
+     "~/.zshrc": 1,
+     "/etc/shells": "/bin/zsh\n"
+    },
+    "shell": "/usr/bin/zsh"
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/zshrc",
+     "label": "~/.zshrc",
+     "paths": [
+      "~/.zshrc"
+     ],
+     "bytes": 1,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "SHELL with a trailing slash",
+   "laptop": {
+    "files": {
+     "~/.zshrc": 1,
+     "/etc/shells": "/bin/zsh/\n"
+    },
+    "shell": "/bin/zsh/"
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/zshrc",
+     "label": "~/.zshrc",
+     "paths": [
+      "~/.zshrc"
+     ],
+     "bytes": 1,
+     "default": "bring",
+     "login": ""
+    }
+   ],
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "an item row gets the login too",
+   "laptop": {
+    "files": {
+     "~/.zplug/z": 1,
+     "/etc/shells": "/bin/zsh\n"
+    },
+    "shell": "/bin/zsh"
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/zplug",
+     "label": "zplug (reinstalls from ~/.zshrc)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "login": "zsh"
+    }
+   ],
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "history alone: bash",
+   "laptop": {
+    "files": {
+     "~/.bash_history": 5
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/history",
+     "label": "shell history",
+     "paths": [
+      "~/.bash_history"
+     ],
+     "bytes": 5,
+     "default": "skip"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "history alone: fish",
+   "laptop": {
+    "files": {
+     "~/.local/share/fish/fish_history": 5
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/history",
+     "label": "shell history",
+     "paths": [
+      "~/.local/share/fish/fish_history"
+     ],
+     "bytes": 5,
+     "default": "skip"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "directories and files are one path each",
+   "laptop": {
+    "files": {
+     "~/.config/fish/a/b": 5,
+     "~/.config/tmux": 3
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/fish",
+     "label": "fish config",
+     "paths": [
+      "~/.config/fish"
+     ],
+     "bytes": 5,
+     "default": "bring"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/tmux",
+     "label": "tmux config",
+     "paths": [
+      "~/.config/tmux"
+     ],
+     "bytes": 3,
+     "default": "bring"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "rc files by name",
+   "laptop": {
+    "files": {
+     "~/.zprofile": 10,
+     "~/.zlogin": 11,
+     "~/.zsh_aliases": 12
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/zprofile",
+     "label": "~/.zprofile",
+     "paths": [
+      "~/.zprofile"
+     ],
+     "bytes": 10,
+     "default": "bring"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zlogin",
+     "label": "~/.zlogin",
+     "paths": [
+      "~/.zlogin"
+     ],
+     "bytes": 11,
+     "default": "bring"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zsh_aliases",
+     "label": "~/.zsh_aliases",
+     "paths": [
+      "~/.zsh_aliases"
+     ],
+     "bytes": 12,
+     "default": "bring"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "empty laptop",
+   "laptop": {},
+   "args": [],
+   "out": [],
+   "calls": []
+  }
+ ],
+ "login_shell": [
+  {
+   "name": "listed",
+   "laptop": {
+    "shell": "/bin/zsh",
+    "files": {
+     "/etc/shells": "/bin/zsh"
+    }
+   },
+   "args": [],
+   "out": "zsh",
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "listed after a BOM",
+   "laptop": {
+    "shell": "/bin/zsh",
+    "files": {
+     "/etc/shells": "﻿/bin/zsh\n"
+    }
+   },
+   "args": [],
+   "out": "zsh",
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "listed with a trailing space",
+   "laptop": {
+    "shell": "/bin/zsh",
+    "files": {
+     "/etc/shells": "/bin/zsh \n"
+    }
+   },
+   "args": [],
+   "out": "zsh",
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "case differs",
+   "laptop": {
+    "shell": "/bin/zsh",
+    "files": {
+     "/etc/shells": "/bin/Zsh\n"
+    }
+   },
+   "args": [],
+   "out": null,
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "a trailing comment on the line",
+   "laptop": {
+    "shell": "/bin/zsh",
+    "files": {
+     "/etc/shells": "/bin/zsh # c\n"
+    }
+   },
+   "args": [],
+   "out": null,
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "only a commented line",
+   "laptop": {
+    "shell": "/bin/zsh",
+    "files": {
+     "/etc/shells": "# /bin/zsh\n"
+    }
+   },
+   "args": [],
+   "out": null,
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "fish by full path",
+   "laptop": {
+    "shell": "/opt/homebrew/bin/fish",
+    "files": {
+     "/etc/shells": "/bin/zsh\n/opt/homebrew/bin/fish\n"
+    }
+   },
+   "args": [],
+   "out": "fish",
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "no SHELL",
+   "laptop": {
+    "files": {
+     "/etc/shells": "/bin/zsh\n"
+    }
+   },
+   "args": [],
+   "out": null,
+   "calls": []
+  },
+  {
+   "name": "empty SHELL, no /etc/shells",
+   "laptop": {
+    "shell": ""
+   },
+   "args": [],
+   "out": "",
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "empty SHELL, trailing newline in the list",
+   "laptop": {
+    "shell": "",
+    "files": {
+     "/etc/shells": "/bin/zsh\n"
+    }
+   },
+   "args": [],
+   "out": "",
+   "calls": [
+    "read /etc/shells"
+   ]
+  },
+  {
+   "name": "SHELL by bare name",
+   "laptop": {
+    "shell": "zsh",
+    "files": {
+     "/etc/shells": "zsh\n"
+    }
+   },
+   "args": [],
+   "out": "zsh",
+   "calls": [
+    "read /etc/shells"
+   ]
+  }
+ ],
+ "detect_identity": [
+  {
+   "name": "git on PATH, nothing answered, a gitconfig",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {},
+    "files": {
+     "~/.gitconfig": 5
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-user",
+     "label": "git name and email",
+     "paths": [
+      "~/.gitconfig"
+     ],
+     "bytes": 5,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey"
+   ]
+  },
+  {
+   "name": "no git on PATH: no asks at all",
+   "laptop": {
+    "files": {
+     "~/.gitconfig": 5
+    },
+    "exec": {
+     "git config --global --get user.name": "A\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-user",
+     "label": "git name and email",
+     "paths": [
+      "~/.gitconfig"
+     ],
+     "bytes": 5,
+     "default": "bring"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "a name and no config file",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get user.name": "A\n"
+    },
+    "files": {}
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-user",
+     "label": "git name and email",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "required": true
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey"
+   ]
+  },
+  {
+   "name": "blank answers are no answers",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get user.name": "\n",
+     "git config --global --get user.email": "  \n"
+    },
+    "files": {
+     "~/.gitconfig": 5
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-user",
+     "label": "git name and email",
+     "paths": [
+      "~/.gitconfig"
+     ],
+     "bytes": 5,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey"
+   ]
+  },
+  {
+   "name": "both config files in constant order",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {},
+    "files": {
+     "~/.config/git/config": 7,
+     "~/.gitconfig": 5
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-user",
+     "label": "git name and email",
+     "paths": [
+      "~/.gitconfig",
+      "~/.config/git/config"
+     ],
+     "bytes": 12,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey"
+   ]
+  },
+  {
+   "name": "commit.gpgsign false still counts",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get commit.gpgsign": "false\n"
+    },
+    "files": {}
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-signing",
+     "label": "git signing (gpg); the signing key itself stays on this computer",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign"
+   ]
+  },
+  {
+   "name": "commit.gpgsign answered skips user.signingkey",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get commit.gpgsign": "true\n",
+     "git config --global --get user.signingkey": "ABC\n"
+    },
+    "files": {}
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-signing",
+     "label": "git signing (gpg); the signing key itself stays on this computer",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign"
+   ]
+  },
+  {
+   "name": "user.signingkey alone",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get user.signingkey": "ABC\n"
+    },
+    "files": {}
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-signing",
+     "label": "git signing (gpg); the signing key itself stays on this computer",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey"
+   ]
+  },
+  {
+   "name": "ssh format, signers file absent",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get gpg.format": "ssh\n",
+     "git config --global --get gpg.ssh.allowedSignersFile": "~/.ssh/allowed_signers\n"
+    },
+    "files": {}
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-signing",
+     "label": "git signing (ssh); the signing key itself stays on this computer",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey",
+    "run git config --global --get gpg.ssh.allowedSignersFile"
+   ]
+  },
+  {
+   "name": "ssh format, no signers answer",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get gpg.format": "ssh\n"
+    },
+    "files": {}
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-signing",
+     "label": "git signing (ssh); the signing key itself stays on this computer",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey",
+    "run git config --global --get gpg.ssh.allowedSignersFile"
+   ]
+  },
+  {
+   "name": "ssh format, absolute signers file",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get gpg.format": "ssh\n",
+     "git config --global --get gpg.ssh.allowedSignersFile": "/etc/signers\n"
+    },
+    "files": {
+     "/etc/signers": 9
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-signing",
+     "label": "git signing (ssh); the signing key itself stays on this computer",
+     "paths": [
+      "/etc/signers"
+     ],
+     "bytes": 9,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey",
+    "run git config --global --get gpg.ssh.allowedSignersFile"
+   ]
+  },
+  {
+   "name": "ssh format, tilde signers file present",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get user.name": "Dev\n",
+     "git config --global --get user.email": "d@x\n",
+     "git config --global --get gpg.format": "ssh\n",
+     "git config --global --get gpg.ssh.allowedSignersFile": "~/.ssh/allowed_signers\n"
+    },
+    "files": {
+     "~/.gitconfig": 512,
+     "~/.ssh/allowed_signers": 90
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-user",
+     "label": "git name and email",
+     "paths": [
+      "~/.gitconfig"
+     ],
+     "bytes": 512,
+     "default": "bring",
+     "required": true
+    },
+    {
+     "rung": "identity",
+     "id": "identity/git-signing",
+     "label": "git signing (ssh); the signing key itself stays on this computer",
+     "paths": [
+      "~/.ssh/allowed_signers"
+     ],
+     "bytes": 90,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey",
+    "run git config --global --get gpg.ssh.allowedSignersFile"
+   ]
+  },
+  {
+   "name": "x509 format: signers not asked",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get gpg.format": "x509\n",
+     "git config --global --get gpg.ssh.allowedSignersFile": "~/.ssh/allowed_signers\n"
+    },
+    "files": {
+     "~/.ssh/allowed_signers": 9
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-signing",
+     "label": "git signing (x509); the signing key itself stays on this computer",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey"
+   ]
+  },
+  {
+   "name": "openpgp format",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get gpg.format": "openpgp\n"
+    },
+    "files": {}
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-signing",
+     "label": "git signing (openpgp); the signing key itself stays on this computer",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey"
+   ]
+  },
+  {
+   "name": "SSH in upper case is not ssh",
+   "laptop": {
+    "which": [
+     "git"
+    ],
+    "exec": {
+     "git config --global --get gpg.format": "SSH\n",
+     "git config --global --get gpg.ssh.allowedSignersFile": "~/.ssh/allowed_signers\n"
+    },
+    "files": {
+     "~/.ssh/allowed_signers": 9
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/git-signing",
+     "label": "git signing (SSH); the signing key itself stays on this computer",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "run git config --global --get user.name",
+    "run git config --global --get user.email",
+    "run git config --global --get gpg.format",
+    "run git config --global --get commit.gpgsign",
+    "run git config --global --get user.signingkey"
+   ]
+  },
+  {
+   "name": "odd names under .ssh",
+   "laptop": {
+    "files": {
+     "~/.ssh/.DS_Store": 6148,
+     "~/.ssh/authorized_keys2": 5,
+     "~/.ssh/authorized_keys": 5,
+     "~/.ssh/config.bak": 7,
+     "~/.ssh/known_hosts.old": 3,
+     "~/.ssh/agent.sock.1": 0,
+     "~/.ssh/agent.sock": 0,
+     "~/.ssh/controlmasters/x": 1,
+     "~/.ssh/id.pub.bak": 4,
+     "~/.ssh/rc": 1,
+     "~/.ssh/environment": 1,
+     "~/.ssh/allowed_signers": 1,
+     "~/.ssh/known_hosts.pub": 2,
+     "~/.ssh/my_known_hosts_backup": 9,
+     "~/.ssh/id_ed25519": 11,
+     "~/.ssh/id_ed25519.pub": 12,
+     "~/.ssh/Config": 13,
+     "~/.ssh/config": 14
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/ssh-config",
+     "label": "~/.ssh/config",
+     "paths": [
+      "~/.ssh/config"
+     ],
+     "bytes": 14,
+     "default": "bring",
+     "detail": "copied with IgnoreUnknown at the top, since ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file"
+    },
+    {
+     "rung": "identity",
+     "id": "identity/ssh-public-keys",
+     "label": "SSH public keys (2)",
+     "paths": [
+      "~/.ssh/id_ed25519.pub",
+      "~/.ssh/known_hosts.pub"
+     ],
+     "bytes": 14,
+     "default": "bring",
+     "required": true
+    },
+    {
+     "rung": "identity",
+     "id": "identity/ssh-key/.DS_Store",
+     "label": "~/.ssh/.DS_Store",
+     "paths": [
+      "~/.ssh/.DS_Store"
+     ],
+     "bytes": 6148,
+     "default": "skip",
+     "reason": "private key, never copied; the machine gets its own key"
+    },
+    {
+     "rung": "identity",
+     "id": "identity/ssh-key/Config",
+     "label": "~/.ssh/Config",
+     "paths": [
+      "~/.ssh/Config"
+     ],
+     "bytes": 13,
+     "default": "skip",
+     "reason": "private key, never copied; the machine gets its own key"
+    },
+    {
+     "rung": "identity",
+     "id": "identity/ssh-key/agent.sock.1",
+     "label": "~/.ssh/agent.sock.1",
+     "paths": [
+      "~/.ssh/agent.sock.1"
+     ],
+     "bytes": 0,
+     "default": "skip",
+     "reason": "private key, never copied; the machine gets its own key"
+    },
+    {
+     "rung": "identity",
+     "id": "identity/ssh-key/authorized_keys2",
+     "label": "~/.ssh/authorized_keys2",
+     "paths": [
+      "~/.ssh/authorized_keys2"
+     ],
+     "bytes": 5,
+     "default": "skip",
+     "reason": "private key, never copied; the machine gets its own key"
+    },
+    {
+     "rung": "identity",
+     "id": "identity/ssh-key/config.bak",
+     "label": "~/.ssh/config.bak",
+     "paths": [
+      "~/.ssh/config.bak"
+     ],
+     "bytes": 7,
+     "default": "skip",
+     "reason": "private key, never copied; the machine gets its own key"
+    },
+    {
+     "rung": "identity",
+     "id": "identity/ssh-key/id.pub.bak",
+     "label": "~/.ssh/id.pub.bak",
+     "paths": [
+      "~/.ssh/id.pub.bak"
+     ],
+     "bytes": 4,
+     "default": "skip",
+     "reason": "private key, never copied; the machine gets its own key"
+    },
+    {
+     "rung": "identity",
+     "id": "identity/ssh-key/id_ed25519",
+     "label": "~/.ssh/id_ed25519",
+     "paths": [
+      "~/.ssh/id_ed25519"
+     ],
+     "bytes": 11,
+     "default": "skip",
+     "reason": "private key, never copied; the machine gets its own key"
+    },
+    {
+     "rung": "identity",
+     "id": "identity/ssh-known-hosts",
+     "label": "~/.ssh/known_hosts",
+     "paths": [
+      "~/.ssh/known_hosts.old",
+      "~/.ssh/known_hosts.pub",
+      "~/.ssh/my_known_hosts_backup"
+     ],
+     "bytes": 14,
+     "default": "skip",
+     "reason": "host entries are rebuilt on first connect"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "only ssh config",
+   "laptop": {
+    "files": {
+     "~/.ssh/config": 14
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/ssh-config",
+     "label": "~/.ssh/config",
+     "paths": [
+      "~/.ssh/config"
+     ],
+     "bytes": 14,
+     "default": "bring",
+     "detail": "copied with IgnoreUnknown at the top, since ssh on the machine does not know every option yours does, and one unknown option would stop it reading the file"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "gnupg as a file",
+   "laptop": {
+    "files": {
+     "~/.gnupg": 5
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/gpg",
+     "label": "GPG keyring",
+     "paths": [
+      "~/.gnupg"
+     ],
+     "bytes": 5,
+     "default": "skip",
+     "reason": "GPG keys are never copied"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "a zero-byte private key",
+   "laptop": {
+    "files": {
+     "~/.ssh/id_rsa": 0
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/ssh-key/id_rsa",
+     "label": "~/.ssh/id_rsa",
+     "paths": [
+      "~/.ssh/id_rsa"
+     ],
+     "bytes": 0,
+     "default": "skip",
+     "reason": "private key, never copied; the machine gets its own key"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "public keys are one required row",
+   "laptop": {
+    "files": {
+     "~/.ssh/id_ed25519.pub": 100,
+     "~/.ssh/work.pub": 120,
+     "~/.ssh/authorized_keys": 300,
+     "~/.ssh/agent.sock": 0
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "identity",
+     "id": "identity/ssh-public-keys",
+     "label": "SSH public keys (2)",
+     "paths": [
+      "~/.ssh/id_ed25519.pub",
+      "~/.ssh/work.pub"
+     ],
+     "bytes": 220,
+     "default": "bring",
+     "required": true
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "empty laptop",
+   "laptop": {},
+   "args": [],
+   "out": [],
+   "calls": []
+  }
+ ]
+}

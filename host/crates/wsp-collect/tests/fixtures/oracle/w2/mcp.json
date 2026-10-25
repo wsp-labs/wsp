@@ -1,0 +1,2166 @@
+{
+ "detect_mcp": [
+  {
+   "name": "row and store key order as the TS writes them",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"gh\":{\"command\":\"npx\",\"args\":[\"-y\",\"pkg\"],\"env\":{\"GITHUB_TOKEN\":\"abc\"}},\"n\":{\"type\":\"http\",\"url\":\"https://n.example/mcp\"}}}",
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_tokens.json": 10,
+     "~/.mcp-auth/mcp-remote-0.1.1/x": 1
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/gh",
+     "label": "gh",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "GITHUB_TOKEN"
+     ],
+     "detail": "stdio: npx pkg; runs via npx; carries a secret: env GITHUB_TOKEN (3 B)",
+     "signIn": "token"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/n",
+     "label": "n",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: n.example/mcp; nothing to install; its sign-in is kept with the Claude Code login",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "excludes": [
+      "~/.mcp-auth/mcp-remote-0.1.1"
+     ],
+     "bytes": 10,
+     "default": "bring",
+     "consent": true,
+     "detail": "browser sign-ins saved by mcp-remote for remote servers: 1 token (10 B), 1 for server configured elsewhere (a repo's .mcp.json); older bridge versions' folders stay here"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "the same name in the user scope and the home folder's entry",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"a\":{\"command\":\"npx\",\"args\":[\"p\"]},\"z\":{\"command\":\"npx\",\"args\":[\"p\"]}},\"projects\":{\"/Users/dev\":{\"mcpServers\":{\"a\":{\"command\":\"npx\",\"args\":[\"q\"]},\"m\":{\"command\":\"npx\",\"args\":[\"q\"]}}}}}"
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/a",
+     "label": "a",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx p; runs via npx; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/z",
+     "label": "z",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx p; runs via npx; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/home/a",
+     "label": "a",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "local to ~; stdio: npx q; runs via npx; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/home/m",
+     "label": "m",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "local to ~; stdio: npx q; runs via npx; carries no secret",
+     "signIn": "none"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "the same name under three agents",
+   "laptop": {
+    "files": {
+     "~/.gemini/settings.json": "{\"mcpServers\":{\"x\":{\"command\":\"npx\",\"args\":[\"g\"]}}}",
+     "~/.claude.json": "{\"mcpServers\":{\"x\":{\"command\":\"npx\",\"args\":[\"c\"]}}}",
+     "~/.codex/config.toml": "[mcp_servers.x]\ncommand = \"npx\"\nargs = [\"t\"]\n"
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/x",
+     "label": "x",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx c; runs via npx; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/codex/x",
+     "label": "x",
+     "group": "Codex MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx t; runs via npx; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/gemini/x",
+     "label": "x",
+     "group": "Gemini CLI MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx g; runs via npx; carries no secret",
+     "signIn": "none"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "an empty agent list is not the default list",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"a\":{\"command\":\"npx\"}}}",
+     "~/.mcp-auth/mcp-remote-v1/x": 3
+    }
+   },
+   "args": [
+    []
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "bytes": 3,
+     "default": "skip",
+     "reason": "no saved sign-in the current bridge reads"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "one agent named by id",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"a\":{\"command\":\"npx\"}}}",
+     "~/.codex/config.toml": "[mcp_servers.t]\ncommand = \"npx\"\n"
+    }
+   },
+   "args": [
+    [
+     "codex"
+    ]
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/codex/t",
+     "label": "t",
+     "group": "Codex MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx; runs via npx; carries no secret",
+     "signIn": "none"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "servers an agent's file switches off still get a row",
+   "laptop": {
+    "files": {
+     "~/.codex/config.toml": "[mcp_servers.off]\ncommand = \"npx\"\nenabled = false\n",
+     "~/.config/opencode/opencode.json": "{\"mcp\":{\"off2\":{\"type\":\"local\",\"command\":[\"npx\",\"x\"],\"enabled\":false}}}",
+     "~/.claude.json": "{\"mcpServers\":{\"a\":{\"command\":\"npx\"}},\"projects\":{\"/Users/dev\":{\"disabledMcpServers\":[\"a\",\"b\"],\"mcpServers\":{\"b\":{\"command\":\"npx\"}}}}}"
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/a",
+     "label": "a",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx; runs via npx; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/home/b",
+     "label": "b",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "local to ~; stdio: npx; runs via npx; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/codex/off",
+     "label": "off",
+     "group": "Codex MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx; runs via npx; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/opencode/off2",
+     "label": "off2",
+     "group": "OpenCode MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx x; runs via npx; carries no secret",
+     "signIn": "none"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json"
+   ]
+  },
+  {
+   "name": "secrets, keys and signIn from one definition",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"mix\":{\"command\":\"node\",\"args\":[\"/Users/dev/x.js\",\"--api-key\",\"v1\",\"API_KEY=a\",\"API_KEY=b\",\"pos\",\"--token=t\"],\"env\":{\"X_TOKEN\":\"tok\",\"Y_KEY\":\"yk\",\"PLAIN\":\"p\"}},\"dup\":{\"command\":\"npx\",\"args\":[\"p\",\"--api-key\",\"a\",\"--api-key\",\"b\",\"--token=1\",\"--token=2\"]}}}"
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/mix",
+     "label": "mix",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "consent": true,
+     "keys": [
+      "X_TOKEN",
+      "Y_KEY",
+      "--api-key",
+      "API_KEY",
+      "argument 6",
+      "--token"
+     ],
+     "detail": "stdio: node ~/x.js --api-key … API_KEY=… API_KEY=… …; needs node on the machine; ~/x.js is not on this computer; unticked, tick it if the server creates it on first start; carries secrets: env X_TOKEN (3 B), env Y_KEY (2 B), flag --api-key (2 B), arg API_KEY (1 B), arg API_KEY (1 B), arg 6 (3 B), flag --token (1 B)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/dup",
+     "label": "dup",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "--api-key",
+      "--token"
+     ],
+     "detail": "stdio: npx p --api-key … --api-key … …; runs via npx; carries secrets: flag --api-key (1 B), flag --api-key (1 B), flag --token (1 B), flag --token (1 B)",
+     "signIn": "token"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "signIn corners",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"flagonly\":{\"command\":\"npx\",\"args\":[\"p\",\"--api-key\",\"v\"]},\"posonly\":{\"command\":\"npx\",\"args\":[\"p\",\"positional\"]},\"envkey\":{\"command\":\"npx\",\"args\":[\"p\"],\"env\":{\"MY_KEY\":\"k\"}},\"envtoken\":{\"command\":\"npx\",\"args\":[\"p\"],\"env\":{\"MY_TOKEN\":\"k\"}},\"envboth\":{\"command\":\"npx\",\"args\":[\"p\",\"--api-key\",\"v\"],\"env\":{\"MY_TOKEN\":\"k\"}},\"envmonkey\":{\"command\":\"npx\",\"args\":[\"p\"],\"env\":{\"MONKEY\":\"k\"}}}}"
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/flagonly",
+     "label": "flagonly",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "--api-key"
+     ],
+     "detail": "stdio: npx p --api-key …; runs via npx; carries a secret: flag --api-key (1 B)",
+     "signIn": "token"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/posonly",
+     "label": "posonly",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "argument 2"
+     ],
+     "detail": "stdio: npx p …; runs via npx; carries a secret: arg 2 (10 B)",
+     "signIn": "token"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/envkey",
+     "label": "envkey",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "MY_KEY"
+     ],
+     "detail": "stdio: npx p; runs via npx; carries a secret: env MY_KEY (1 B)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/envtoken",
+     "label": "envtoken",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "MY_TOKEN"
+     ],
+     "detail": "stdio: npx p; runs via npx; carries a secret: env MY_TOKEN (1 B)",
+     "signIn": "token"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/envboth",
+     "label": "envboth",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "MY_TOKEN",
+      "--api-key"
+     ],
+     "detail": "stdio: npx p --api-key …; runs via npx; carries secrets: env MY_TOKEN (1 B), flag --api-key (1 B)",
+     "signIn": "token"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/envmonkey",
+     "label": "envmonkey",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx p; runs via npx; carries no secret",
+     "signIn": "none"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "what a secret-named env value turns into",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"dir\":{\"command\":\"npx\",\"env\":{\"A_KEY\":\"/Users/dev/d\"}},\"rel\":{\"command\":\"npx\",\"env\":{\"A_KEY\":\"rel/path\"}},\"tildemissing\":{\"command\":\"npx\",\"env\":{\"A_KEY\":\"~/missing\"}},\"tildefile\":{\"command\":\"npx\",\"env\":{\"A_KEY\":\"~/f.json\"}},\"samefile\":{\"command\":\"npx\",\"env\":{\"A_KEY\":\"~/f.json\",\"B_TOKEN\":\"/Users/dev/f.json\"}},\"zero\":{\"command\":\"npx\",\"env\":{\"A_KEY\":\"~/zero.json\"}},\"outside\":{\"command\":\"npx\",\"env\":{\"CREDENTIALS_PATH\":\"/etc/creds.json\"}},\"homeexact\":{\"command\":\"npx\",\"env\":{\"A_KEY\":\"/Users/dev\"}},\"empty\":{\"command\":\"npx\",\"env\":{\"A_KEY\":\"\"}},\"nonsecret_home\":{\"command\":\"npx\",\"env\":{\"PLAIN\":\"~/f.json\"}},\"unicode\":{\"command\":\"npx\",\"env\":{\"A_KEY\":\"é😀\"}}}}",
+     "~/d/x": 5,
+     "~/f.json": 1500,
+     "~/zero.json": 0,
+     "/etc/creds.json": 10
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/dir",
+     "label": "dir",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "A_KEY"
+     ],
+     "detail": "stdio: npx; runs via npx; depends on ~/d, which comes along only if a row carries it; carries a secret: env A_KEY (12 B)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/rel",
+     "label": "rel",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "A_KEY"
+     ],
+     "detail": "stdio: npx; runs via npx; carries a secret: env A_KEY (8 B)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/tildemissing",
+     "label": "tildemissing",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "consent": true,
+     "keys": [
+      "A_KEY"
+     ],
+     "detail": "stdio: npx; runs via npx; ~/missing is not on this computer; unticked, tick it if the server creates it on first start; carries a secret: env A_KEY (9 B)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/tildefile",
+     "label": "tildefile",
+     "group": "Claude Code MCP servers",
+     "paths": [
+      "~/f.json"
+     ],
+     "bytes": 1500,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "A_KEY"
+     ],
+     "detail": "stdio: npx; runs via npx; carries a secret: the file A_KEY points at (1 KB)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/samefile",
+     "label": "samefile",
+     "group": "Claude Code MCP servers",
+     "paths": [
+      "~/f.json",
+      "~/f.json"
+     ],
+     "bytes": 3000,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "A_KEY",
+      "B_TOKEN"
+     ],
+     "detail": "stdio: npx; runs via npx; carries secrets: the file A_KEY points at (1 KB), the file B_TOKEN points at (1 KB)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/zero",
+     "label": "zero",
+     "group": "Claude Code MCP servers",
+     "paths": [
+      "~/zero.json"
+     ],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "A_KEY"
+     ],
+     "detail": "stdio: npx; runs via npx; carries a secret: the file A_KEY points at (0 B)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/outside",
+     "label": "outside",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx; runs via npx; the file CREDENTIALS_PATH points at is outside your home and is not copied",
+     "signIn": "token"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/homeexact",
+     "label": "homeexact",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "A_KEY"
+     ],
+     "detail": "stdio: npx; runs via npx; carries a secret: env A_KEY (10 B)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/empty",
+     "label": "empty",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "A_KEY"
+     ],
+     "detail": "stdio: npx; runs via npx; carries a secret: env A_KEY (0 B)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/nonsecret_home",
+     "label": "nonsecret_home",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx; runs via npx; depends on ~/f.json, which comes along only if a row carries it; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/unicode",
+     "label": "unicode",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "A_KEY"
+     ],
+     "detail": "stdio: npx; runs via npx; carries a secret: env A_KEY (6 B)",
+     "signIn": "key"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "http definitions: headers, notes and odd urls",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"hdr\":{\"type\":\"http\",\"url\":\"https://a.example/mcp\",\"headers\":{\"Authorization\":\"Bearer é\"}},\"hdrkey\":{\"type\":\"http\",\"url\":\"https://a.example/mcp\",\"headers\":{\"X-API-Key\":\"k\",\"Authorization\":\"x\"}},\"plain\":{\"type\":\"http\",\"url\":\"https://a.example/mcp\"},\"odd\":{\"type\":\"http\",\"url\":\"https://A.Example:443/a b?x=1#f\"},\"badurl\":{\"type\":\"http\",\"url\":\"not a url\"},\"mac\":{\"type\":\"http\",\"url\":\"https://a.example/Applications/x\"},\"file\":{\"type\":\"http\",\"url\":\"file:///a/b\"},\"v6\":{\"type\":\"http\",\"url\":\"http://[::1]:8080/a\"},\"login\":{\"type\":\"http\",\"url\":\"https://U:p@x.example/p?k=v#f\"},\"slash\":{\"type\":\"http\",\"url\":\"https://x.example/\"},\"bare\":{\"type\":\"http\",\"url\":\"https://x.example\"},\"monkey\":{\"type\":\"http\",\"url\":\"https://x.example/a\",\"headers\":{\"X-Monkey\":\"v\"}}}}"
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/hdr",
+     "label": "hdr",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "Authorization"
+     ],
+     "detail": "http: a.example/mcp; nothing to install; carries a secret: header Authorization (9 B); its sign-in is kept with the Claude Code login",
+     "signIn": "token"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/hdrkey",
+     "label": "hdrkey",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "X-API-Key",
+      "Authorization"
+     ],
+     "detail": "http: a.example/mcp; nothing to install; carries secrets: header X-API-Key (1 B), header Authorization (1 B); its sign-in is kept with the Claude Code login",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/plain",
+     "label": "plain",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: a.example/mcp; nothing to install; its sign-in is kept with the Claude Code login",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/odd",
+     "label": "odd",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: a.example/a%20b; nothing to install; its sign-in is kept with the Claude Code login",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/badurl",
+     "label": "badurl",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: not a url; nothing to install; its sign-in is kept with the Claude Code login",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/mac",
+     "label": "mac",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: a.example/Applications/x; nothing to install; its sign-in is kept with the Claude Code login",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/file",
+     "label": "file",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: /a/b; nothing to install; its sign-in is kept with the Claude Code login",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/v6",
+     "label": "v6",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: [::1]:8080/a; nothing to install; its sign-in is kept with the Claude Code login",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/login",
+     "label": "login",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: x.example/p; nothing to install; its sign-in is kept with the Claude Code login",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/slash",
+     "label": "slash",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: x.example; nothing to install; its sign-in is kept with the Claude Code login",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/bare",
+     "label": "bare",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: x.example; nothing to install; its sign-in is kept with the Claude Code login",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/monkey",
+     "label": "monkey",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "X-Monkey"
+     ],
+     "detail": "http: x.example/a; nothing to install; carries a secret: header X-Monkey (1 B); its sign-in is kept with the Claude Code login",
+     "signIn": "key"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "http header references",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"refd\":{\"type\":\"http\",\"url\":\"https://a.example/mcp\",\"headers\":{\"Authorization\":\"Bearer ${MY_KEY}\"}},\"ref2\":{\"type\":\"http\",\"url\":\"https://a.example/mcp\",\"headers\":{\"X-Thing\":\"${MY_THING:-d}\"}},\"stdioref\":{\"command\":\"npx\",\"args\":[\"p\"],\"env\":{\"MY_KEY\":\"${MY_KEY}\"}},\"argref\":{\"command\":\"npx\",\"args\":[\"p\",\"--x\",\"${A_KEY}\"]}}}"
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/refd",
+     "label": "refd",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "Authorization"
+     ],
+     "detail": "http: a.example/mcp; nothing to install; reads MY_KEY from the environment, set it on the machine; carries a secret: header Authorization (16 B); its sign-in is kept with the Claude Code login",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/ref2",
+     "label": "ref2",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "X-Thing"
+     ],
+     "detail": "http: a.example/mcp; nothing to install; reads MY_THING from the environment, set it on the machine; carries a secret: header X-Thing (14 B); its sign-in is kept with the Claude Code login",
+     "signIn": "token"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/stdioref",
+     "label": "stdioref",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "MY_KEY"
+     ],
+     "detail": "stdio: npx p; runs via npx; carries a secret: env MY_KEY (9 B)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/argref",
+     "label": "argref",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx p --x ${A_KEY}; runs via npx; carries no secret",
+     "signIn": "none"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "Codex references",
+   "laptop": {
+    "files": {
+     "~/.codex/config.toml": "[mcp_servers.s]\nurl = \"https://s.example/mcp\"\nbearer_token_env_var = \"S_KEY\"\n[mcp_servers.t]\nurl = \"https://t.example/mcp\"\nhttp_headers = { \"X-Id\" = \"abc\" }\n[mcp_servers.u]\nurl = \"https://u.example/mcp\"\n[mcp_servers.s2]\ncommand = \"npx\"\nargs = [\"p\"]\nenv_vars = [\"MY_KEY\", \"OTHER\"]\n[mcp_servers.t2]\nurl = \"https://t2.example/mcp\"\nenv_http_headers = { \"X-Id\" = \"HDR_TOKEN\" }\n"
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/codex/s",
+     "label": "s",
+     "group": "Codex MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: s.example/mcp; nothing to install; reads S_KEY from the environment, set it on the machine; carries no secret",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/codex/t",
+     "label": "t",
+     "group": "Codex MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "X-Id"
+     ],
+     "detail": "http: t.example/mcp; nothing to install; carries a secret: header X-Id (3 B)",
+     "signIn": "token"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/codex/u",
+     "label": "u",
+     "group": "Codex MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: u.example/mcp; nothing to install; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/codex/s2",
+     "label": "s2",
+     "group": "Codex MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx p; runs via npx; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/codex/t2",
+     "label": "t2",
+     "group": "Codex MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "http: t2.example/mcp; nothing to install; reads HDR_TOKEN from the environment, set it on the machine; carries no secret",
+     "signIn": "token"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "two servers share one mcp-remote url",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"a\":{\"command\":\"npx\",\"args\":[\"mcp-remote\",\"https://a.example/mcp\"]},\"b\":{\"command\":\"npx\",\"args\":[\"mcp-remote\",\"https://a.example/mcp\"]},\"c\":{\"command\":\"npx\",\"args\":[\"mcp-remote\",\"https://c.example/mcp\"]},\"nope\":{\"command\":\"npx\",\"args\":[\"mcp-remote\",\"https://zz.example/mcp\"]}}}",
+     "~/.mcp-auth/mcp-remote-v1/aa5b24b0ba3994ba0c496692c23aa9e7_tokens.json": 1400
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/a",
+     "label": "a",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx mcp-remote (a.example/mcp); runs via npx; its saved sign-in (1 KB) travels on the mcp-remote sign-ins row",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/b",
+     "label": "b",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx mcp-remote (a.example/mcp); runs via npx; its saved sign-in (1 KB) travels on the mcp-remote sign-ins row",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/c",
+     "label": "c",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx mcp-remote (c.example/mcp); runs via npx; no saved sign-in; the browser sign-in runs again on the machine",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/nope",
+     "label": "nope",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx mcp-remote (zz.example/mcp); runs via npx; no saved sign-in; the browser sign-in runs again on the machine",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "bytes": 1400,
+     "default": "bring",
+     "consent": true,
+     "detail": "browser sign-ins saved by mcp-remote for remote servers: 1 token (1 KB), for a, b"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "three tokens, one matched",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"c\":{\"command\":\"npx\",\"args\":[\"mcp-remote\",\"https://c.example/mcp\"]}}}",
+     "~/.mcp-auth/mcp-remote-v1/42ba4b7261ab6abb45d2ef3583d84ab8_tokens.json": 700,
+     "~/.mcp-auth/mcp-remote-v1/e1000000000000000000000000000000_tokens.json": 100,
+     "~/.mcp-auth/mcp-remote-v1/e2000000000000000000000000000000_tokens.json": 200
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/c",
+     "label": "c",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx mcp-remote (c.example/mcp); runs via npx; its saved sign-in (700 B) travels on the mcp-remote sign-ins row",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "bytes": 1000,
+     "default": "bring",
+     "consent": true,
+     "detail": "browser sign-ins saved by mcp-remote for remote servers: 3 tokens (1000 B), for c; 2 for servers configured elsewhere (a repo's .mcp.json)"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "two tokens, one matched, one of zero bytes",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"c\":{\"command\":\"npx\",\"args\":[\"mcp-remote\",\"https://c.example/mcp\"]}}}",
+     "~/.mcp-auth/mcp-remote-v1/42ba4b7261ab6abb45d2ef3583d84ab8_tokens.json": 0,
+     "~/.mcp-auth/mcp-remote-v1/e1000000000000000000000000000000_tokens.json": 100
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/c",
+     "label": "c",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx mcp-remote (c.example/mcp); runs via npx; its saved sign-in (0 B) travels on the mcp-remote sign-ins row",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "bytes": 100,
+     "default": "bring",
+     "consent": true,
+     "detail": "browser sign-ins saved by mcp-remote for remote servers: 2 tokens (100 B), for c; 1 for server configured elsewhere (a repo's .mcp.json)"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "one token, none matched",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{}}",
+     "~/.mcp-auth/mcp-remote-v1/e1000000000000000000000000000000_tokens.json": 1536
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "bytes": 1536,
+     "default": "bring",
+     "consent": true,
+     "detail": "browser sign-ins saved by mcp-remote for remote servers: 1 token (2 KB), 1 for server configured elsewhere (a repo's .mcp.json)"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "one token matched under two agents",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"a\":{\"command\":\"npx\",\"args\":[\"mcp-remote\",\"https://a.example/mcp\"]}}}",
+     "~/.gemini/settings.json": "{\"mcpServers\":{\"a\":{\"command\":\"npx\",\"args\":[\"mcp-remote\",\"https://a.example/mcp\"]}}}",
+     "~/.mcp-auth/mcp-remote-v1/aa5b24b0ba3994ba0c496692c23aa9e7_tokens.json": 5
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/a",
+     "label": "a",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx mcp-remote (a.example/mcp); runs via npx; its saved sign-in (5 B) travels on the mcp-remote sign-ins row",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/gemini/a",
+     "label": "a",
+     "group": "Gemini CLI MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx mcp-remote (a.example/mcp); runs via npx; its saved sign-in (5 B) travels on the mcp-remote sign-ins row",
+     "signIn": "oauth"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "bytes": 5,
+     "default": "bring",
+     "consent": true,
+     "detail": "browser sign-ins saved by mcp-remote for remote servers: 1 token (5 B), for a, a"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "store: only a file outside mcp-remote-v1",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{}}",
+     "~/.mcp-auth/other.txt": 5
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "bytes": 0,
+     "default": "skip",
+     "reason": "no saved sign-in the current bridge reads"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "store: only a lock file",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{}}",
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_lock.json": 5
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "excludes": [
+      "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_lock.json"
+     ],
+     "bytes": 0,
+     "default": "skip",
+     "reason": "no saved sign-in the current bridge reads"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "store: a lock file and a token",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{}}",
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_lock.json": 5,
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_tokens.json": 50
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "excludes": [
+      "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_lock.json"
+     ],
+     "bytes": 50,
+     "default": "bring",
+     "consent": true,
+     "detail": "browser sign-ins saved by mcp-remote for remote servers: 1 token (50 B), 1 for server configured elsewhere (a repo's .mcp.json)"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "store: which names are older folders",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{}}",
+     "~/.mcp-auth/mcp-remote-0.1.37/a": 5,
+     "~/.mcp-auth/mcp-remote-1/a": 7,
+     "~/.mcp-auth/mcp-remote-/a": 1,
+     "~/.mcp-auth/mcp-remote-v1x/a": 2,
+     "~/.mcp-auth/mcp-remote-v2/a": 3
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "excludes": [
+      "~/.mcp-auth/mcp-remote-0.1.37",
+      "~/.mcp-auth/mcp-remote-1"
+     ],
+     "bytes": 0,
+     "default": "skip",
+     "reason": "no saved sign-in the current bridge reads; older versions' folders are left here"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "store: older entries beside a token, a file counts as one",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{}}",
+     "~/.mcp-auth/mcp-remote-2.0.0/a": 5,
+     "~/.mcp-auth/mcp-remote-1.5.0": 7,
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_tokens.json": 50
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "excludes": [
+      "~/.mcp-auth/mcp-remote-1.5.0",
+      "~/.mcp-auth/mcp-remote-2.0.0"
+     ],
+     "bytes": 50,
+     "default": "bring",
+     "consent": true,
+     "detail": "browser sign-ins saved by mcp-remote for remote servers: 1 token (50 B), 1 for server configured elsewhere (a repo's .mcp.json); older bridge versions' folders stay here"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "store: names that are neither a token nor a lock still count in the bytes",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{}}",
+     "~/.mcp-auth/mcp-remote-v1/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA_tokens.json": 40,
+     "~/.mcp-auth/mcp-remote-v1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_tokens.json": 41,
+     "~/.mcp-auth/mcp-remote-v1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_tokens.json": 42,
+     "~/.mcp-auth/mcp-remote-v1/b0000000000000000000000000000000_tokens.json.bak": 43,
+     "~/.mcp-auth/mcp-remote-v1/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA_lock.json": 44,
+     "~/.mcp-auth/mcp-remote-v1/b0000000000000000000000000000000_client_info.json": 45,
+     "~/.mcp-auth/mcp-remote-v1/sub/deep.json": 46
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "bytes": 301,
+     "default": "skip",
+     "reason": "no saved sign-in the current bridge reads"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "store: one token of zero bytes",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{}}",
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_tokens.json": 0
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "bytes": 0,
+     "default": "bring",
+     "consent": true,
+     "detail": "browser sign-ins saved by mcp-remote for remote servers: 1 token (0 B), 1 for server configured elsewhere (a repo's .mcp.json)"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "store: two tokens of 1024 bytes",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{}}",
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_tokens.json": 1024,
+     "~/.mcp-auth/mcp-remote-v1/b0000000000000000000000000000000_tokens.json": 1024
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "bytes": 2048,
+     "default": "bring",
+     "consent": true,
+     "detail": "browser sign-ins saved by mcp-remote for remote servers: 2 tokens (2 KB), 2 for servers configured elsewhere (a repo's .mcp.json)"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "store: excludes keep listing order, older folders then locks",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{}}",
+     "~/.mcp-auth/mcp-remote-0.9.9/a": 1,
+     "~/.mcp-auth/mcp-remote-0.1.1/a": 1,
+     "~/.mcp-auth/mcp-remote-v1/b0000000000000000000000000000000_lock.json": 1,
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_lock.json": 1
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/mcp-remote",
+     "label": "mcp-remote sign-ins",
+     "group": "MCP sign-ins",
+     "paths": [
+      "~/.mcp-auth"
+     ],
+     "excludes": [
+      "~/.mcp-auth/mcp-remote-0.1.1",
+      "~/.mcp-auth/mcp-remote-0.9.9",
+      "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_lock.json",
+      "~/.mcp-auth/mcp-remote-v1/b0000000000000000000000000000000_lock.json"
+     ],
+     "bytes": 0,
+     "default": "skip",
+     "reason": "no saved sign-in the current bridge reads; older versions' folders are left here"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "store: ~/.mcp-auth is a file",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{}}",
+     "~/.mcp-auth": 3
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "a server that does not fit keeps no needs text and no dependency notes",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"macdep\":{\"command\":\"/Applications/X.app/x\",\"args\":[\"~/there\",\"~/gone\"],\"env\":{\"E\":\"~/envgone\"}}}}",
+     "~/there": 5
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/macdep",
+     "label": "macdep",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "reason": "command /Applications/X.app/x is macOS-only, will not run",
+     "detail": "stdio: /Applications/X.app/x ~/there ~/gone; carries no secret",
+     "signIn": "none"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "dependency notes: order, one each, carried paths left out",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"deps\":{\"command\":\"npx\",\"args\":[\"~/there\",\"~/gone\",\"--dir=~/dir\"],\"cwd\":\"~/cwdthere\",\"env\":{\"E\":\"~/envgone\",\"F\":\"~/there\"}},\"secretdep\":{\"command\":\"npx\",\"args\":[\"~/there\"],\"env\":{\"A_KEY\":\"~/there\"}},\"secretother\":{\"command\":\"npx\",\"args\":[\"~/there\",\"~/other\"],\"env\":{\"A_KEY\":\"~/there\"}},\"gonehome\":{\"command\":\"npx\",\"args\":[\"~/gone\"],\"env\":{\"A_KEY\":\"k\"}}}}",
+     "~/there": 5,
+     "~/dir/x": 1,
+     "~/cwdthere/x": 1,
+     "~/other": 2
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/deps",
+     "label": "deps",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "stdio: npx ~/there ~/gone --dir=~/dir; runs via npx; depends on ~/there, which comes along only if a row carries it; ~/gone is not on this computer; unticked, tick it if the server creates it on first start; depends on ~/dir, which comes along only if a row carries it; depends on ~/cwdthere, which comes along only if a row carries it; ~/envgone is not on this computer; unticked, tick it if the server creates it on first start; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/secretdep",
+     "label": "secretdep",
+     "group": "Claude Code MCP servers",
+     "paths": [
+      "~/there"
+     ],
+     "bytes": 5,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "A_KEY"
+     ],
+     "detail": "stdio: npx ~/there; runs via npx; carries a secret: the file A_KEY points at (5 B)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/secretother",
+     "label": "secretother",
+     "group": "Claude Code MCP servers",
+     "paths": [
+      "~/there"
+     ],
+     "bytes": 5,
+     "default": "bring",
+     "consent": true,
+     "keys": [
+      "A_KEY"
+     ],
+     "detail": "stdio: npx ~/there ~/other; runs via npx; depends on ~/other, which comes along only if a row carries it; carries a secret: the file A_KEY points at (5 B)",
+     "signIn": "key"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/gonehome",
+     "label": "gonehome",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "consent": true,
+     "keys": [
+      "A_KEY"
+     ],
+     "detail": "stdio: npx ~/gone; runs via npx; ~/gone is not on this computer; unticked, tick it if the server creates it on first start; carries a secret: env A_KEY (1 B)",
+     "signIn": "key"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "a store folder moves the agent's own file",
+   "laptop": {
+    "files": {
+     "~/cfg/.claude.json": "{\"mcpServers\":{\"s\":{\"command\":\"npx\"}}}",
+     "~/.claude.json": "{\"mcpServers\":{\"h\":{\"command\":\"npx\"}}}"
+    },
+    "stores": {
+     "claude": "/Users/dev/cfg"
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/s",
+     "label": "s",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx; runs via npx; carries no secret",
+     "signIn": "none"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/cfg/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "odd server names go into the id as written",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"a/b\":{\"command\":\"npx\"},\"\":{\"command\":\"npx\"},\"my server\":{\"command\":\"npx\"}}}"
+    }
+   },
+   "args": [
+    null
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/a/b",
+     "label": "a/b",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx; runs via npx; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/",
+     "label": "",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx; runs via npx; carries no secret",
+     "signIn": "none"
+    },
+    {
+     "rung": "agents",
+     "id": "agents/mcp/claude/my server",
+     "label": "my server",
+     "group": "Claude Code MCP servers",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "detail": "stdio: npx; runs via npx; carries no secret",
+     "signIn": "none"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  }
+ ],
+ "mcp_remote_tokens": [
+  {
+   "name": "tokens by hash in listing order, a lock and a client file left out",
+   "laptop": {
+    "files": {
+     "~/.mcp-auth/mcp-remote-v1/b0000000000000000000000000000000_tokens.json": "{\"access_token\":\"x\"}",
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_tokens.json": 700,
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_lock.json": 5,
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_client_info.json": 90
+    }
+   },
+   "args": [],
+   "out": [
+    [
+     "a0000000000000000000000000000000",
+     700
+    ],
+    [
+     "b0000000000000000000000000000000",
+     20
+    ]
+   ],
+   "calls": []
+  },
+  {
+   "name": "no store",
+   "laptop": {
+    "files": {}
+   },
+   "args": [],
+   "out": [],
+   "calls": []
+  },
+  {
+   "name": "a file where the folder should be",
+   "laptop": {
+    "files": {
+     "~/.mcp-auth": 3
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": []
+  },
+  {
+   "name": "a zero-byte token",
+   "laptop": {
+    "files": {
+     "~/.mcp-auth/mcp-remote-v1/a0000000000000000000000000000000_tokens.json": 0
+    }
+   },
+   "args": [],
+   "out": [
+    [
+     "a0000000000000000000000000000000",
+     0
+    ]
+   ],
+   "calls": []
+  },
+  {
+   "name": "an upper-case name is no token",
+   "laptop": {
+    "files": {
+     "~/.mcp-auth/mcp-remote-v1/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA_tokens.json": 40
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": []
+  }
+ ],
+ "mcp_remote_token_file": [
+  {
+   "name": "no variable",
+   "laptop": {},
+   "args": [
+    "abc",
+    {}
+   ],
+   "out": "/Users/dev/.mcp-auth/mcp-remote-v1/abc_tokens.json",
+   "calls": []
+  },
+  {
+   "name": "an empty variable",
+   "laptop": {},
+   "args": [
+    "abc",
+    {
+     "MCP_REMOTE_CONFIG_DIR": ""
+    }
+   ],
+   "out": "/Users/dev/.mcp-auth/mcp-remote-v1/abc_tokens.json",
+   "calls": []
+  },
+  {
+   "name": "a folder with a trailing slash is kept as written",
+   "laptop": {},
+   "args": [
+    "abc",
+    {
+     "MCP_REMOTE_CONFIG_DIR": "/cfg/"
+    }
+   ],
+   "out": "/cfg//mcp-remote-v1/abc_tokens.json",
+   "calls": []
+  },
+  {
+   "name": "a tilde folder is not expanded",
+   "laptop": {},
+   "args": [
+    "abc",
+    {
+     "MCP_REMOTE_CONFIG_DIR": "~/c"
+    }
+   ],
+   "out": "~/c/mcp-remote-v1/abc_tokens.json",
+   "calls": []
+  },
+  {
+   "name": "a plain folder",
+   "laptop": {},
+   "args": [
+    "abc",
+    {
+     "MCP_REMOTE_CONFIG_DIR": "/cfg"
+    }
+   ],
+   "out": "/cfg/mcp-remote-v1/abc_tokens.json",
+   "calls": []
+  }
+ ],
+ "mcp_server_row": [
+  {
+   "name": "a secret file under home travels on the row",
+   "laptop": {
+    "files": {
+     "~/.config/gsc/creds.json": 2100
+    }
+   },
+   "args": [
+    "claude",
+    {
+     "name": "gsc",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "uvx",
+      "args": [
+       "mcp-search-console"
+      ],
+      "env": {
+       "GSC_CREDENTIALS_PATH": "/Users/dev/.config/gsc/creds.json"
+      }
+     },
+     "envRefs": []
+    },
+    {}
+   ],
+   "out": {
+    "rung": "agents",
+    "id": "agents/mcp/claude/gsc",
+    "label": "gsc",
+    "group": "Claude Code MCP servers",
+    "paths": [
+     "~/.config/gsc/creds.json"
+    ],
+    "bytes": 2100,
+    "default": "bring",
+    "consent": true,
+    "keys": [
+     "GSC_CREDENTIALS_PATH"
+    ],
+    "detail": "stdio: uvx mcp-search-console; needs uv, installed on the machine when missing; carries a secret: the file GSC_CREDENTIALS_PATH points at (2 KB)",
+    "signIn": "token"
+   },
+   "calls": []
+  },
+  {
+   "name": "a home-scope server keeps the local mark",
+   "laptop": {},
+   "args": [
+    "claude",
+    {
+     "name": "z",
+     "scope": "home",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [
+       "mcp-remote",
+       "https://a.example/mcp"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    {
+     "aa5b24b0ba3994ba0c496692c23aa9e7": 1400
+    }
+   ],
+   "out": {
+    "rung": "agents",
+    "id": "agents/mcp/claude/home/z",
+    "label": "z",
+    "group": "Claude Code MCP servers",
+    "paths": [],
+    "bytes": 0,
+    "default": "bring",
+    "detail": "local to ~; stdio: npx mcp-remote (a.example/mcp); runs via npx; its saved sign-in (1 KB) travels on the mcp-remote sign-ins row",
+    "signIn": "oauth"
+   },
+   "calls": []
+  },
+  {
+   "name": "an http server of an agent with no sign-in note",
+   "laptop": {},
+   "args": [
+    "codex",
+    {
+     "name": "h",
+     "scope": "user",
+     "transport": {
+      "kind": "http",
+      "url": "https://h.example/x",
+      "headers": {
+       "Authorization": "Bearer é"
+      }
+     },
+     "envRefs": [
+      "H_KEY"
+     ]
+    },
+    {}
+   ],
+   "out": {
+    "rung": "agents",
+    "id": "agents/mcp/codex/h",
+    "label": "h",
+    "group": "Codex MCP servers",
+    "paths": [],
+    "bytes": 0,
+    "default": "bring",
+    "consent": true,
+    "keys": [
+     "Authorization"
+    ],
+    "detail": "http: h.example/x; nothing to install; reads H_KEY from the environment, set it on the machine; carries a secret: header Authorization (9 B)",
+    "signIn": "key"
+   },
+   "calls": []
+  },
+  {
+   "name": "env refs on a stdio definition each get a reads line",
+   "laptop": {},
+   "args": [
+    "codex",
+    {
+     "name": "e",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [
+       "p"
+      ],
+      "env": {}
+     },
+     "envRefs": [
+      "A",
+      "A",
+      "B_TOKEN"
+     ]
+    },
+    {}
+   ],
+   "out": {
+    "rung": "agents",
+    "id": "agents/mcp/codex/e",
+    "label": "e",
+    "group": "Codex MCP servers",
+    "paths": [],
+    "bytes": 0,
+    "default": "bring",
+    "detail": "stdio: npx p; runs via npx; reads A from the environment, set it on the machine; reads A from the environment, set it on the machine; reads B_TOKEN from the environment, set it on the machine; carries no secret",
+    "signIn": "token"
+   },
+   "calls": []
+  },
+  {
+   "name": "a token of zero bytes is a saved sign-in",
+   "laptop": {},
+   "args": [
+    "claude",
+    {
+     "name": "z",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [
+       "mcp-remote",
+       "https://a.example/mcp"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    {
+     "aa5b24b0ba3994ba0c496692c23aa9e7": 0
+    }
+   ],
+   "out": {
+    "rung": "agents",
+    "id": "agents/mcp/claude/z",
+    "label": "z",
+    "group": "Claude Code MCP servers",
+    "paths": [],
+    "bytes": 0,
+    "default": "bring",
+    "detail": "stdio: npx mcp-remote (a.example/mcp); runs via npx; its saved sign-in (0 B) travels on the mcp-remote sign-ins row",
+    "signIn": "oauth"
+   },
+   "calls": []
+  },
+  {
+   "name": "a fit failure with a missing home path",
+   "laptop": {},
+   "args": [
+    "claude",
+    {
+     "name": "m",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/Applications/X.app/x",
+      "args": [
+       "~/gone"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    {}
+   ],
+   "out": {
+    "rung": "agents",
+    "id": "agents/mcp/claude/m",
+    "label": "m",
+    "group": "Claude Code MCP servers",
+    "paths": [],
+    "bytes": 0,
+    "default": "skip",
+    "reason": "command /Applications/X.app/x is macOS-only, will not run",
+    "detail": "stdio: /Applications/X.app/x ~/gone; carries no secret",
+    "signIn": "none"
+   },
+   "calls": []
+  }
+ ]
+}

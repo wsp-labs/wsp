@@ -1,0 +1,2176 @@
+{
+ "time_of": [
+  {
+   "name": "\"2026-09-06T10:01:00.000Z\"",
+   "args": [
+    "2026-09-06T10:01:00.000Z"
+   ],
+   "out": 1788688860000
+  },
+  {
+   "name": "\"2026-09-06T10:01:00Z\"",
+   "args": [
+    "2026-09-06T10:01:00Z"
+   ],
+   "out": 1788688860000
+  },
+  {
+   "name": "\"2026-09-06T10:01:00.5+05:30\"",
+   "args": [
+    "2026-09-06T10:01:00.5+05:30"
+   ],
+   "out": 1788669060500
+  },
+  {
+   "name": "[local time, oracle ran at UTC] \"2026-09-06T10:01:00\"",
+   "args": [
+    "2026-09-06T10:01:00"
+   ],
+   "out": 1788688860000
+  },
+  {
+   "name": "\"2026-09-06\"",
+   "args": [
+    "2026-09-06"
+   ],
+   "out": 1788652800000
+  },
+  {
+   "name": "\"2026-13-01T00:00:00Z\"",
+   "args": [
+    "2026-13-01T00:00:00Z"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"not a time\"",
+   "args": [
+    "not a time"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"\"",
+   "args": [
+    ""
+   ],
+   "out": null
+  },
+  {
+   "name": "\"1999-12-31T23:59:59.999Z\"",
+   "args": [
+    "1999-12-31T23:59:59.999Z"
+   ],
+   "out": 946684799999
+  },
+  {
+   "name": "\"2026-09-06T10:01:00.123456Z\"",
+   "args": [
+    "2026-09-06T10:01:00.123456Z"
+   ],
+   "out": 1788688860123
+  },
+  {
+   "name": "\"2026-09-06T10:01Z\"",
+   "args": [
+    "2026-09-06T10:01Z"
+   ],
+   "out": 1788688860000
+  },
+  {
+   "name": "\"2026-09-06T10:01:00+0530\"",
+   "args": [
+    "2026-09-06T10:01:00+0530"
+   ],
+   "out": 1788669060000
+  },
+  {
+   "name": "\"2026-09-06T10:01:00+05\"",
+   "args": [
+    "2026-09-06T10:01:00+05"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026-09-06T24:00:00Z\"",
+   "args": [
+    "2026-09-06T24:00:00Z"
+   ],
+   "out": 1788739200000
+  },
+  {
+   "name": "\"2026-09-06T25:00:00Z\"",
+   "args": [
+    "2026-09-06T25:00:00Z"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026-02-30T00:00:00Z\"",
+   "args": [
+    "2026-02-30T00:00:00Z"
+   ],
+   "out": 1772409600000
+  },
+  {
+   "name": "\"2026-02-28T00:00:00Z\"",
+   "args": [
+    "2026-02-28T00:00:00Z"
+   ],
+   "out": 1772236800000
+  },
+  {
+   "name": "[local time, oracle ran at UTC] \"2026-09-06 10:01:00\"",
+   "args": [
+    "2026-09-06 10:01:00"
+   ],
+   "out": 1788688860000
+  },
+  {
+   "name": "\"2026-09-06 10:01:00Z\"",
+   "args": [
+    "2026-09-06 10:01:00Z"
+   ],
+   "out": 1788688860000
+  },
+  {
+   "name": "[local time, oracle ran at UTC] \"2026/09/06\"",
+   "args": [
+    "2026/09/06"
+   ],
+   "out": 1788652800000
+  },
+  {
+   "name": "[local time, oracle ran at UTC] \"Sep 6, 2026\"",
+   "args": [
+    "Sep 6, 2026"
+   ],
+   "out": 1788652800000
+  },
+  {
+   "name": "\"Sun, 06 Sep 2026 10:01:00 GMT\"",
+   "args": [
+    "Sun, 06 Sep 2026 10:01:00 GMT"
+   ],
+   "out": 1788688860000
+  },
+  {
+   "name": "\"1757152860000\"",
+   "args": [
+    "1757152860000"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026\"",
+   "args": [
+    "2026"
+   ],
+   "out": 1767225600000
+  },
+  {
+   "name": "\"2026-09\"",
+   "args": [
+    "2026-09"
+   ],
+   "out": 1788220800000
+  },
+  {
+   "name": "\"  2026-09-06T10:01:00Z  \"",
+   "args": [
+    "  2026-09-06T10:01:00Z  "
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026-09-06t10:01:00z\"",
+   "args": [
+    "2026-09-06t10:01:00z"
+   ],
+   "out": 1788688860000
+  },
+  {
+   "name": "\"2026-09-06T10:01:00.Z\"",
+   "args": [
+    "2026-09-06T10:01:00.Z"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026-09-06T10:01:00,5Z\"",
+   "args": [
+    "2026-09-06T10:01:00,5Z"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"+002026-09-06T00:00:00Z\"",
+   "args": [
+    "+002026-09-06T00:00:00Z"
+   ],
+   "out": 1788652800000
+  },
+  {
+   "name": "\"-000001-01-01T00:00:00Z\"",
+   "args": [
+    "-000001-01-01T00:00:00Z"
+   ],
+   "out": -62198755200000
+  },
+  {
+   "name": "\"1969-12-31T23:59:59Z\"",
+   "args": [
+    "1969-12-31T23:59:59Z"
+   ],
+   "out": -1000
+  },
+  {
+   "name": "\"1970-01-01T00:00:00Z\"",
+   "args": [
+    "1970-01-01T00:00:00Z"
+   ],
+   "out": 0
+  },
+  {
+   "name": "\"0000-01-01T00:00:00Z\"",
+   "args": [
+    "0000-01-01T00:00:00Z"
+   ],
+   "out": -62167219200000
+  },
+  {
+   "name": "\"275760-09-13T00:00:00Z\"",
+   "args": [
+    "275760-09-13T00:00:00Z"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"+275760-09-13T00:00:00.000Z\"",
+   "args": [
+    "+275760-09-13T00:00:00.000Z"
+   ],
+   "out": 8640000000000000
+  },
+  {
+   "name": "\"+275760-09-13T00:00:00.001Z\"",
+   "args": [
+    "+275760-09-13T00:00:00.001Z"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026-09-06T10:01:00.5Z\"",
+   "args": [
+    "2026-09-06T10:01:00.5Z"
+   ],
+   "out": 1788688860500
+  },
+  {
+   "name": "\"2026-09-06T10:01:00.12Z\"",
+   "args": [
+    "2026-09-06T10:01:00.12Z"
+   ],
+   "out": 1788688860120
+  },
+  {
+   "name": "\"2026-09-06T10:01:00-00:00\"",
+   "args": [
+    "2026-09-06T10:01:00-00:00"
+   ],
+   "out": 1788688860000
+  },
+  {
+   "name": "\"2026-09-06T10:01:00+14:00\"",
+   "args": [
+    "2026-09-06T10:01:00+14:00"
+   ],
+   "out": 1788638460000
+  },
+  {
+   "name": "\"2026-09-06T10:01:00+99:00\"",
+   "args": [
+    "2026-09-06T10:01:00+99:00"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026-09-06T10:01:00 Z\"",
+   "args": [
+    "2026-09-06T10:01:00 Z"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026-09-06T10:01:60Z\"",
+   "args": [
+    "2026-09-06T10:01:60Z"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026-09-06T10:60:00Z\"",
+   "args": [
+    "2026-09-06T10:60:00Z"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026-09-06T\"",
+   "args": [
+    "2026-09-06T"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"T10:01:00Z\"",
+   "args": [
+    "T10:01:00Z"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"true\"",
+   "args": [
+    "true"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"null\"",
+   "args": [
+    "null"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"NaN\"",
+   "args": [
+    "NaN"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"Infinity\"",
+   "args": [
+    "Infinity"
+   ],
+   "out": null
+  },
+  {
+   "name": "[local time, oracle ran at UTC] \"12\"",
+   "args": [
+    "12"
+   ],
+   "out": 1007164800000
+  },
+  {
+   "name": "\"1e3\"",
+   "args": [
+    "1e3"
+   ],
+   "out": null
+  },
+  {
+   "name": "\" \"",
+   "args": [
+    " "
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026-09-06T10:01:00Z\\n\"",
+   "args": [
+    "2026-09-06T10:01:00Z\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"2026-09-06T10:01:00Z junk\"",
+   "args": [
+    "2026-09-06T10:01:00Z junk"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"Sep 6 2026 10:01:00 UTC\"",
+   "args": [
+    "Sep 6 2026 10:01:00 UTC"
+   ],
+   "out": 1788688860000
+  },
+  {
+   "name": "[local time, oracle ran at UTC] \"6 Sep 2026\"",
+   "args": [
+    "6 Sep 2026"
+   ],
+   "out": 1788652800000
+  },
+  {
+   "name": "1757152860000",
+   "args": [
+    1757152860000
+   ],
+   "out": null
+  },
+  {
+   "name": "null",
+   "args": [
+    null
+   ],
+   "out": null
+  },
+  {
+   "name": "{}",
+   "args": [
+    {}
+   ],
+   "out": null
+  },
+  {
+   "name": "[]",
+   "args": [
+    []
+   ],
+   "out": null
+  },
+  {
+   "name": "true",
+   "args": [
+    true
+   ],
+   "out": null
+  },
+  {
+   "name": "[\"2026-09-06T10:01:00Z\"]",
+   "args": [
+    [
+     "2026-09-06T10:01:00Z"
+    ]
+   ],
+   "out": null
+  },
+  {
+   "name": "absent (undefined)",
+   "args": [],
+   "out": null
+  }
+ ],
+ "stem": [
+  {
+   "name": "\"/a/b/c.jsonl\"",
+   "args": [
+    "/a/b/c.jsonl"
+   ],
+   "out": "c"
+  },
+  {
+   "name": "\"/a/b/.hidden\"",
+   "args": [
+    "/a/b/.hidden"
+   ],
+   "out": ".hidden"
+  },
+  {
+   "name": "\"/a/b/c.d.jsonl\"",
+   "args": [
+    "/a/b/c.d.jsonl"
+   ],
+   "out": "c.d"
+  },
+  {
+   "name": "\"c\"",
+   "args": [
+    "c"
+   ],
+   "out": "c"
+  },
+  {
+   "name": "\"/a/b/\"",
+   "args": [
+    "/a/b/"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"/a.b/c\"",
+   "args": [
+    "/a.b/c"
+   ],
+   "out": "c"
+  },
+  {
+   "name": "\".jsonl\"",
+   "args": [
+    ".jsonl"
+   ],
+   "out": ".jsonl"
+  },
+  {
+   "name": "\"\"",
+   "args": [
+    ""
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"/\"",
+   "args": [
+    "/"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"a.\"",
+   "args": [
+    "a."
+   ],
+   "out": "a"
+  },
+  {
+   "name": "\"/a/.b.c\"",
+   "args": [
+    "/a/.b.c"
+   ],
+   "out": ".b"
+  }
+ ],
+ "claude_session": [
+  {
+   "name": "\"-p/abc.jsonl\"",
+   "args": [
+    "-p/abc.jsonl"
+   ],
+   "out": "abc"
+  },
+  {
+   "name": "\"-p/abc\"",
+   "args": [
+    "-p/abc"
+   ],
+   "out": "abc"
+  },
+  {
+   "name": "\"-p/abc/subagents/a.jsonl\"",
+   "args": [
+    "-p/abc/subagents/a.jsonl"
+   ],
+   "out": "abc"
+  },
+  {
+   "name": "\"-p/_cleared_sessions/old.jsonl\"",
+   "args": [
+    "-p/_cleared_sessions/old.jsonl"
+   ],
+   "out": "old"
+  },
+  {
+   "name": "\"-p/_cleared_sessions\"",
+   "args": [
+    "-p/_cleared_sessions"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"-p/_cleared_sessions/x/y.jsonl\"",
+   "args": [
+    "-p/_cleared_sessions/x/y.jsonl"
+   ],
+   "out": "x"
+  },
+  {
+   "name": "\"-p\"",
+   "args": [
+    "-p"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"\"",
+   "args": [
+    ""
+   ],
+   "out": null
+  },
+  {
+   "name": "\"-p/.jsonl\"",
+   "args": [
+    "-p/.jsonl"
+   ],
+   "out": ".jsonl"
+  },
+  {
+   "name": "\"-p/a.b.jsonl\"",
+   "args": [
+    "-p/a.b.jsonl"
+   ],
+   "out": "a.b"
+  },
+  {
+   "name": "\"-p/memory/notes.jsonl\"",
+   "args": [
+    "-p/memory/notes.jsonl"
+   ],
+   "out": "memory"
+  },
+  {
+   "name": "\"-p/s1.jsonl/x.jsonl\"",
+   "args": [
+    "-p/s1.jsonl/x.jsonl"
+   ],
+   "out": "s1"
+  },
+  {
+   "name": "\"-q/.jsonl\"",
+   "args": [
+    "-q/.jsonl"
+   ],
+   "out": ".jsonl"
+  },
+  {
+   "name": "\"-p/s1/a/b/c.jsonl\"",
+   "args": [
+    "-p/s1/a/b/c.jsonl"
+   ],
+   "out": "s1"
+  }
+ ],
+ "claude_call": [
+  {
+   "name": "shell without folder or time",
+   "args": [
+    "s",
+    "Bash",
+    {
+     "command": "ls"
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "shell",
+    "line": "ls"
+   }
+  },
+  {
+   "name": "empty folder and zero time are kept",
+   "args": [
+    "s",
+    "Bash",
+    {
+     "command": ""
+    },
+    "",
+    0
+   ],
+   "out": {
+    "session": "s",
+    "folder": "",
+    "at": 0,
+    "kind": "shell",
+    "line": ""
+   }
+  },
+  {
+   "name": "Bash with a null input is other",
+   "args": [
+    "s",
+    "Bash",
+    null
+   ],
+   "out": {
+    "session": "s",
+    "kind": "other",
+    "name": "Bash"
+   }
+  },
+  {
+   "name": "Bash with a numeric command is other",
+   "args": [
+    "s",
+    "Bash",
+    {
+     "command": 5
+    },
+    "/f",
+    7
+   ],
+   "out": {
+    "session": "s",
+    "folder": "/f",
+    "at": 7,
+    "kind": "other",
+    "name": "Bash"
+   }
+  },
+  {
+   "name": "lowercase bash is other",
+   "args": [
+    "s",
+    "bash",
+    {
+     "command": "ls"
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "other",
+    "name": "bash"
+   }
+  },
+  {
+   "name": "a string input is other",
+   "args": [
+    "s",
+    "Bash",
+    "ls"
+   ],
+   "out": {
+    "session": "s",
+    "kind": "other",
+    "name": "Bash"
+   }
+  },
+  {
+   "name": "another tool",
+   "args": [
+    "s",
+    "Read",
+    {
+     "file_path": "/x"
+    },
+    "/f"
+   ],
+   "out": {
+    "session": "s",
+    "folder": "/f",
+    "kind": "other",
+    "name": "Read"
+   }
+  }
+ ],
+ "codex_call": [
+  {
+   "name": "array joined by a space",
+   "args": [
+    "s",
+    "shell",
+    {
+     "command": [
+      "a",
+      "b"
+     ]
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "shell",
+    "line": "a b"
+   }
+  },
+  {
+   "name": "cmd array wins over command string",
+   "args": [
+    "s",
+    "shell",
+    {
+     "cmd": [
+      "a"
+     ],
+     "command": "z"
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "shell",
+    "line": "a"
+   }
+  },
+  {
+   "name": "an object cmd is other",
+   "args": [
+    "s",
+    "shell",
+    {
+     "cmd": {
+      "x": 1
+     }
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "other",
+    "name": "shell"
+   }
+  },
+  {
+   "name": "a numeric cmd does not fall through to command",
+   "args": [
+    "s",
+    "exec_command",
+    {
+     "cmd": 5,
+     "command": "ls"
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "other",
+    "name": "exec_command"
+   }
+  },
+  {
+   "name": "a null cmd falls through to command",
+   "args": [
+    "s",
+    "exec_command",
+    {
+     "cmd": null,
+     "command": "pwd"
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "shell",
+    "line": "pwd"
+   }
+  },
+  {
+   "name": "an empty cmd string does not fall through",
+   "args": [
+    "s",
+    "exec_command",
+    {
+     "cmd": "",
+     "command": "pwd"
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "shell",
+    "line": ""
+   }
+  },
+  {
+   "name": "an empty array is a shell call with an empty line",
+   "args": [
+    "s",
+    "shell",
+    {
+     "command": []
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "shell",
+    "line": ""
+   }
+  },
+  {
+   "name": "an array with a non-string is other",
+   "args": [
+    "s",
+    "shell",
+    {
+     "command": [
+      "ls",
+      5
+     ]
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "other",
+    "name": "shell"
+   }
+  },
+  {
+   "name": "container.exec",
+   "args": [
+    "s",
+    "container.exec",
+    {
+     "command": [
+      "ls"
+     ]
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "shell",
+    "line": "ls"
+   }
+  },
+  {
+   "name": "local_shell with a spaced word",
+   "args": [
+    "s",
+    "local_shell",
+    {
+     "command": [
+      "a b",
+      "c"
+     ]
+    },
+    "/f",
+    3
+   ],
+   "out": {
+    "session": "s",
+    "folder": "/f",
+    "at": 3,
+    "kind": "shell",
+    "line": "a b c"
+   }
+  },
+  {
+   "name": "Shell is case sensitive",
+   "args": [
+    "s",
+    "Shell",
+    {
+     "command": "ls"
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "other",
+    "name": "Shell"
+   }
+  },
+  {
+   "name": "update_plan is other even with a cmd",
+   "args": [
+    "s",
+    "update_plan",
+    {
+     "cmd": "ls"
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "other",
+    "name": "update_plan"
+   }
+  },
+  {
+   "name": "no arguments",
+   "args": [
+    "s",
+    "shell"
+   ],
+   "out": {
+    "session": "s",
+    "kind": "other",
+    "name": "shell"
+   }
+  },
+  {
+   "name": "null arguments",
+   "args": [
+    "s",
+    "shell",
+    null
+   ],
+   "out": {
+    "session": "s",
+    "kind": "other",
+    "name": "shell"
+   }
+  },
+  {
+   "name": "bash -lc line",
+   "args": [
+    "s",
+    "shell",
+    {
+     "command": [
+      "bash",
+      "-lc",
+      "git status && ls"
+     ]
+    }
+   ],
+   "out": {
+    "session": "s",
+    "kind": "shell",
+    "line": "bash -lc git status && ls"
+   }
+  }
+ ],
+ "hermes_calls": [
+  {
+   "name": "absent tool_calls",
+   "args": [
+    "s"
+   ],
+   "out": []
+  },
+  {
+   "name": "null tool_calls",
+   "args": [
+    "s",
+    null
+   ],
+   "out": []
+  },
+  {
+   "name": "a number",
+   "args": [
+    "s",
+    5
+   ],
+   "out": []
+  },
+  {
+   "name": "an empty string",
+   "args": [
+    "s",
+    ""
+   ],
+   "out": []
+  },
+  {
+   "name": "a string that is not JSON",
+   "args": [
+    "s",
+    "not json"
+   ],
+   "out": []
+  },
+  {
+   "name": "a JSON string of null",
+   "args": [
+    "s",
+    "null"
+   ],
+   "out": []
+  },
+  {
+   "name": "an array passed as is",
+   "args": [
+    "s",
+    [
+     {
+      "type": "function",
+      "function": {
+       "name": "terminal",
+       "arguments": {
+        "command": "tail"
+       }
+      }
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "kind": "shell",
+     "line": "tail"
+    }
+   ]
+  },
+  {
+   "name": "an object with a function is not a list",
+   "args": [
+    "s",
+    {
+     "function": {
+      "name": "terminal",
+      "arguments": {
+       "command": "obj"
+      }
+     }
+    }
+   ],
+   "out": []
+  },
+  {
+   "name": "arguments of every wrong shape",
+   "args": [
+    "s",
+    "[{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":\"not json\"}},{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":\"5\"}},{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":\"[]\"}},{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":null}},{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":{\"command\":5}}},{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":{\"command\":\"\"}}},{\"type\":\"function\",\"function\":{\"name\":\"Terminal\",\"arguments\":{\"command\":\"x\"}}}]"
+   ],
+   "out": [
+    {
+     "session": "s",
+     "kind": "other",
+     "name": "terminal"
+    },
+    {
+     "session": "s",
+     "kind": "other",
+     "name": "terminal"
+    },
+    {
+     "session": "s",
+     "kind": "other",
+     "name": "terminal"
+    },
+    {
+     "session": "s",
+     "kind": "other",
+     "name": "terminal"
+    },
+    {
+     "session": "s",
+     "kind": "other",
+     "name": "terminal"
+    },
+    {
+     "session": "s",
+     "kind": "shell",
+     "line": ""
+    },
+    {
+     "session": "s",
+     "kind": "other",
+     "name": "Terminal"
+    }
+   ]
+  },
+  {
+   "name": "items of every wrong shape",
+   "args": [
+    "s",
+    "[{\"function\":{\"name\":\"x\"}},{\"function\":\"x\"},{\"function\":null},{\"name\":\"terminal\"},[{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":{}}}],{\"type\":\"function\",\"function\":{\"name\":\"a\",\"arguments\":1}}]"
+   ],
+   "out": [
+    {
+     "session": "s",
+     "kind": "other",
+     "name": "x"
+    },
+    {
+     "session": "s",
+     "kind": "other",
+     "name": "a"
+    }
+   ]
+  },
+  {
+   "name": "a folder is carried, an empty one too",
+   "args": [
+    "s",
+    "[{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}]",
+    ""
+   ],
+   "out": [
+    {
+     "session": "s",
+     "folder": "",
+     "kind": "shell",
+     "line": "ls"
+    }
+   ]
+  },
+  {
+   "name": "a folder",
+   "args": [
+    "s",
+    "[{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}]",
+    "/a"
+   ],
+   "out": [
+    {
+     "session": "s",
+     "folder": "/a",
+     "kind": "shell",
+     "line": "ls"
+    }
+   ]
+  }
+ ],
+ "holder": [
+  {
+   "name": "claude: the project folder",
+   "args": [
+    "claude",
+    "/Users/dev/.claude/projects",
+    "/Users/dev/.claude/projects/-p/s1/a/b/c.jsonl"
+   ],
+   "out": "-p"
+  },
+  {
+   "name": "claude: a cleared session",
+   "args": [
+    "claude",
+    "/Users/dev/.claude/projects",
+    "/Users/dev/.claude/projects/-p/_cleared_sessions/old.jsonl"
+   ],
+   "out": "-p"
+  },
+  {
+   "name": "codex: the file itself",
+   "args": [
+    "codex",
+    "/Users/dev/.codex/sessions",
+    "/Users/dev/.codex/sessions/a/x.jsonl"
+   ],
+   "out": "/Users/dev/.codex/sessions/a/x.jsonl"
+  },
+  {
+   "name": "hermes: the file itself",
+   "args": [
+    "hermes",
+    "/Users/dev/.hermes/state.db",
+    "/Users/dev/.hermes/state.db"
+   ],
+   "out": "/Users/dev/.hermes/state.db"
+  }
+ ],
+ "stamp_of": [
+  {
+   "name": "mtime 1000",
+   "laptop": {
+    "files": {
+     "~/a": 4
+    },
+    "mtimes": {
+     "~/a": 1000
+    }
+   },
+   "args": [
+    "/Users/dev/a"
+   ],
+   "out": {
+    "path": "/Users/dev/a",
+    "stamp": "1000:4"
+   },
+   "calls": []
+  },
+  {
+   "name": "mtime 1500.25",
+   "laptop": {
+    "files": {
+     "~/a": 4
+    },
+    "mtimes": {
+     "~/a": 1500.25
+    }
+   },
+   "args": [
+    "/Users/dev/a"
+   ],
+   "out": {
+    "path": "/Users/dev/a",
+    "stamp": "1500.25:4"
+   },
+   "calls": []
+  },
+  {
+   "name": "mtime 1788688860123.4568",
+   "laptop": {
+    "files": {
+     "~/a": 4
+    },
+    "mtimes": {
+     "~/a": 1788688860123.4568
+    }
+   },
+   "args": [
+    "/Users/dev/a"
+   ],
+   "out": {
+    "path": "/Users/dev/a",
+    "stamp": "1788688860123.4568:4"
+   },
+   "calls": []
+  },
+  {
+   "name": "mtime 0",
+   "laptop": {
+    "files": {
+     "~/a": 4
+    },
+    "mtimes": {
+     "~/a": 0
+    }
+   },
+   "args": [
+    "/Users/dev/a"
+   ],
+   "out": {
+    "path": "/Users/dev/a",
+    "stamp": "0:4"
+   },
+   "calls": []
+  },
+  {
+   "name": "mtime 0.30000000000000004",
+   "laptop": {
+    "files": {
+     "~/a": 4
+    },
+    "mtimes": {
+     "~/a": 0.30000000000000004
+    }
+   },
+   "args": [
+    "/Users/dev/a"
+   ],
+   "out": {
+    "path": "/Users/dev/a",
+    "stamp": "0.30000000000000004:4"
+   },
+   "calls": []
+  },
+  {
+   "name": "mtime 1e+21",
+   "laptop": {
+    "files": {
+     "~/a": 4
+    },
+    "mtimes": {
+     "~/a": 1e+21
+    }
+   },
+   "args": [
+    "/Users/dev/a"
+   ],
+   "out": {
+    "path": "/Users/dev/a",
+    "stamp": "1e+21:4"
+   },
+   "calls": []
+  },
+  {
+   "name": "mtime 1e-7",
+   "laptop": {
+    "files": {
+     "~/a": 4
+    },
+    "mtimes": {
+     "~/a": 1e-7
+    }
+   },
+   "args": [
+    "/Users/dev/a"
+   ],
+   "out": {
+    "path": "/Users/dev/a",
+    "stamp": "1e-7:4"
+   },
+   "calls": []
+  },
+  {
+   "name": "mtime -5",
+   "laptop": {
+    "files": {
+     "~/a": 4
+    },
+    "mtimes": {
+     "~/a": -5
+    }
+   },
+   "args": [
+    "/Users/dev/a"
+   ],
+   "out": {
+    "path": "/Users/dev/a",
+    "stamp": "-5:4"
+   },
+   "calls": []
+  },
+  {
+   "name": "mtime 123456789012345680000",
+   "laptop": {
+    "files": {
+     "~/a": 4
+    },
+    "mtimes": {
+     "~/a": 123456789012345680000
+    }
+   },
+   "args": [
+    "/Users/dev/a"
+   ],
+   "out": {
+    "path": "/Users/dev/a",
+    "stamp": "123456789012345680000:4"
+   },
+   "calls": []
+  },
+  {
+   "name": "an empty file",
+   "laptop": {
+    "files": {
+     "~/a": ""
+    }
+   },
+   "args": [
+    "/Users/dev/a"
+   ],
+   "out": {
+    "path": "/Users/dev/a",
+    "stamp": "1000:0"
+   },
+   "calls": []
+  },
+  {
+   "name": "a folder",
+   "laptop": {
+    "files": {
+     "~/d/x": 1
+    }
+   },
+   "args": [
+    "/Users/dev/d"
+   ],
+   "out": null,
+   "calls": []
+  },
+  {
+   "name": "a missing path",
+   "laptop": {
+    "files": {
+     "~/a": 1
+    }
+   },
+   "args": [
+    "/Users/dev/none"
+   ],
+   "out": null,
+   "calls": []
+  },
+  {
+   "name": "a text file's bytes are UTF-8",
+   "laptop": {
+    "files": {
+     "~/a": "é😀"
+    }
+   },
+   "args": [
+    "/Users/dev/a"
+   ],
+   "out": {
+    "path": "/Users/dev/a",
+    "stamp": "1000:6"
+   },
+   "calls": []
+  }
+ ],
+ "claude_reader_files": [
+  {
+   "name": "which files a claude root keeps",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/stray.jsonl": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]},\"cwd\":\"/x\"}",
+     "~/.claude/projects/-p/memory/notes.jsonl": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]},\"cwd\":\"/x\"}",
+     "~/.claude/projects/-p/s1/a/b/c.jsonl": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]},\"cwd\":\"/x\"}",
+     "~/.claude/projects/-p/s1.jsonl/x.jsonl": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]},\"cwd\":\"/x\"}",
+     "~/.claude/projects/-p/_cleared_sessions/old.jsonl": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]},\"cwd\":\"/x\"}",
+     "~/.claude/projects/-p/_cleared_sessions/z.txt": "x",
+     "~/.claude/projects/-p/UP.JSONL": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]},\"cwd\":\"/x\"}",
+     "~/.claude/projects/-p/_cleared_sessions": "a file named cleared",
+     "~/.claude/projects/-p/readme.md": "x",
+     "~/.claude/projects/-q/.jsonl": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]},\"cwd\":\"/x\"}"
+    }
+   },
+   "args": [
+    "/Users/dev/.claude/projects"
+   ],
+   "out": [
+    {
+     "path": "/Users/dev/.claude/projects/-p/_cleared_sessions/old.jsonl",
+     "stamp": "1000:142"
+    },
+    {
+     "path": "/Users/dev/.claude/projects/-p/memory/notes.jsonl",
+     "stamp": "1000:142"
+    },
+    {
+     "path": "/Users/dev/.claude/projects/-p/s1.jsonl/x.jsonl",
+     "stamp": "1000:142"
+    },
+    {
+     "path": "/Users/dev/.claude/projects/-p/s1/a/b/c.jsonl",
+     "stamp": "1000:142"
+    },
+    {
+     "path": "/Users/dev/.claude/projects/-q/.jsonl",
+     "stamp": "1000:142"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "no root",
+   "laptop": {},
+   "args": [
+    "/Users/dev/.claude/projects"
+   ],
+   "out": [],
+   "calls": []
+  }
+ ],
+ "claude_reader_read": [
+  {
+   "name": "eighteen lines of every shape",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}},{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"file_path\":\"/x\"}}]},\"cwd\":\"/a\",\"timestamp\":\"2026-09-06T10:01:00.000Z\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]},\"cwd\":\"\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"pwd\"}}]},\"cwd\":5}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\"}]},\"timestamp\":5}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":5}}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":\"ls\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":\"bash\",\"input\":{\"command\":\"ls\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":5,\"input\":{}},{\"type\":\"tool_use\"},\"x\",null,{\"type\":\"text\",\"text\":\"tool_use\"},{\"type\":\"tool_use\",\"name\":\"Task\",\"input\":null}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":\"tool_use assistant\"}}\n{\"type\":\"assistant\",\"message\":\"tool_use\"}\n{\"type\":\"assistant\",\"message\":null,\"x\":\"tool_use\"}\n[{\"type\":\"assistant\",\"x\":\"tool_use\"}]\n{\"type\":\"Assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"A\",\"input\":{}}]},\"extra\":{\"type\":\"assistant\"}}\n{\"type\":\"assistant\" \"tool_use\" broken\n\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":\"WebFetch\",\"input\":{\"url\":\"http://x\"}}]},\"cwd\":\"/a\"}"
+    }
+   },
+   "args": [
+    "/Users/dev/.claude/projects",
+    "/Users/dev/.claude/projects/-p/s1.jsonl"
+   ],
+   "out": [
+    {
+     "session": "s1",
+     "folder": "/a",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": "gh pr view"
+    },
+    {
+     "session": "s1",
+     "folder": "/a",
+     "at": 1788688860000,
+     "kind": "other",
+     "name": "Read"
+    },
+    {
+     "session": "s1",
+     "folder": "",
+     "kind": "shell",
+     "line": "ls"
+    },
+    {
+     "session": "s1",
+     "kind": "shell",
+     "line": "pwd"
+    },
+    {
+     "session": "s1",
+     "kind": "other",
+     "name": "Bash"
+    },
+    {
+     "session": "s1",
+     "kind": "other",
+     "name": "Bash"
+    },
+    {
+     "session": "s1",
+     "kind": "shell",
+     "line": ""
+    },
+    {
+     "session": "s1",
+     "kind": "other",
+     "name": "Bash"
+    },
+    {
+     "session": "s1",
+     "kind": "other",
+     "name": "bash"
+    },
+    {
+     "session": "s1",
+     "kind": "other",
+     "name": "Task"
+    },
+    {
+     "session": "s1",
+     "folder": "/a",
+     "kind": "other",
+     "name": "WebFetch"
+    }
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl"
+   ]
+  },
+  {
+   "name": "a path with no session yields nothing and opens nothing",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/stray.jsonl": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}},{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"file_path\":\"/x\"}}]},\"cwd\":\"/a\",\"timestamp\":\"2026-09-06T10:01:00.000Z\"}"
+    }
+   },
+   "args": [
+    "/Users/dev/.claude/projects",
+    "/Users/dev/.claude/projects/stray.jsonl"
+   ],
+   "out": [],
+   "calls": []
+  },
+  {
+   "name": "a failing line read ends the stream with its error",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}},{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"file_path\":\"/x\"}}]},\"cwd\":\"/a\",\"timestamp\":\"2026-09-06T10:01:00.000Z\"}\n\u0000fail:EIO"
+    }
+   },
+   "args": [
+    "/Users/dev/.claude/projects",
+    "/Users/dev/.claude/projects/-p/s1.jsonl"
+   ],
+   "error": "EIO",
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl"
+   ]
+  },
+  {
+   "name": "sub-agent transcript is the top-level session",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s9/subagents/agent-a.jsonl": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x\"}}]},\"cwd\":\"/a\"}"
+    }
+   },
+   "args": [
+    "/Users/dev/.claude/projects",
+    "/Users/dev/.claude/projects/-p/s9/subagents/agent-a.jsonl"
+   ],
+   "out": [
+    {
+     "session": "s9",
+     "folder": "/a",
+     "kind": "shell",
+     "line": "gh x"
+    }
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s9/subagents/agent-a.jsonl"
+   ]
+  }
+ ],
+ "codex_reader_read": [
+  {
+   "name": "a rollout of every shape",
+   "laptop": {
+    "files": {
+     "~/.codex/sessions/2026/06/01/rollout-x-t1.jsonl": "{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"exec_command\",\"arguments\":\"{\\\"cmd\\\":\\\"ls\\\"}\"}}\n{\"type\":\"session_meta\",\"payload\":{\"id\":\"t1\",\"cwd\":\"/first\"}}\n{\"type\":\"session_meta\",\"payload\":{\"id\":\"t1\",\"cwd\":\"/second\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"exec_command\",\"arguments\":\"{\\\"cmd\\\":5,\\\"command\\\":\\\"ls\\\"}\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"exec_command\",\"arguments\":\"{\\\"cmd\\\":null,\\\"command\\\":\\\"pwd\\\"}\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"exec_command\",\"arguments\":\"{\\\"cmd\\\":\\\"\\\",\\\"command\\\":\\\"pwd\\\"}\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":[\\\"bash\\\",\\\"-lc\\\",\\\"git status && ls\\\"]}\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":[]}\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":[\\\"ls\\\",5]}\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":\\\"ls -la\\\"}\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{}\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"not json\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"5\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"[]\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":{\"command\":\"obj\"}}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":null}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"container.exec\",\"arguments\":\"{\\\"command\\\":[\\\"ls\\\"]}\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"local_shell\",\"arguments\":\"{\\\"command\\\":[\\\"a b\\\",\\\"c\\\"]}\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"Shell\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"update_plan\",\"arguments\":\"{\\\"cmd\\\":\\\"ls\\\"}\"}}\n{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"name\":5,\"arguments\":\"{}\"}}\n{\"type\":\"event_msg\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}\n{\"type\":\"response_item\",\"payload\":{\"type\":\"custom_tool_call\",\"name\":\"apply_patch\",\"input\":\"function_call\"}}\n{\"type\":\"response_item\",\"payload\":\"function_call\"}\n{\"type\":\"turn_context\",\"payload\":{\"cwd\":\"/third\",\"note\":\"session_meta\"}}\ngarbage function_call\n{\"type\":\"response_item\",\"timestamp\":\"not a time\",\"payload\":{\"type\":\"function_call\",\"name\":\"exec_command\",\"arguments\":\"{\\\"cmd\\\":\\\"after\\\"}\"}}"
+    }
+   },
+   "args": [
+    "/Users/dev/.codex/sessions",
+    "/Users/dev/.codex/sessions/2026/06/01/rollout-x-t1.jsonl"
+   ],
+   "out": [
+    {
+     "session": "rollout-x-t1",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": "ls"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "other",
+     "name": "exec_command"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": "pwd"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": ""
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": "bash -lc git status && ls"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": ""
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "other",
+     "name": "shell"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": "ls -la"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "other",
+     "name": "shell"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "other",
+     "name": "shell"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "other",
+     "name": "shell"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "other",
+     "name": "shell"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": "obj"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "other",
+     "name": "shell"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "other",
+     "name": "shell"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": "ls"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": "a b c"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "other",
+     "name": "Shell"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "at": 1788688860000,
+     "kind": "other",
+     "name": "update_plan"
+    },
+    {
+     "session": "rollout-x-t1",
+     "folder": "/first",
+     "kind": "shell",
+     "line": "after"
+    }
+   ],
+   "calls": [
+    "lines /Users/dev/.codex/sessions/2026/06/01/rollout-x-t1.jsonl"
+   ]
+  },
+  {
+   "name": "a turn_context line that mentions session_meta sets the folder",
+   "laptop": {
+    "files": {
+     "~/.codex/sessions/2026/06/01/rollout-y.jsonl": "{\"type\":\"turn_context\",\"payload\":{\"cwd\":\"/third\",\"note\":\"session_meta\"}}\n{\"type\":\"session_meta\",\"payload\":{\"id\":\"t1\",\"cwd\":\"/fourth\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}"
+    }
+   },
+   "args": [
+    "/Users/dev/.codex/sessions",
+    "/Users/dev/.codex/sessions/2026/06/01/rollout-y.jsonl"
+   ],
+   "out": [
+    {
+     "session": "rollout-y",
+     "folder": "/third",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": "ls"
+    }
+   ],
+   "calls": [
+    "lines /Users/dev/.codex/sessions/2026/06/01/rollout-y.jsonl"
+   ]
+  },
+  {
+   "name": "an empty cwd wins and blocks the later one",
+   "laptop": {
+    "files": {
+     "~/.codex/sessions/2026/06/01/rollout-z.jsonl": "session_meta nonsense\n{\"type\":\"session_meta\",\"payload\":{\"id\":\"t1\",\"cwd\":5}}\n{\"type\":\"session_meta\",\"payload\":{\"id\":\"t1\",\"cwd\":\"\"}}\n{\"type\":\"session_meta\",\"payload\":{\"id\":\"t1\",\"cwd\":\"/late\"}}\n{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}"
+    }
+   },
+   "args": [
+    "/Users/dev/.codex/sessions",
+    "/Users/dev/.codex/sessions/2026/06/01/rollout-z.jsonl"
+   ],
+   "out": [
+    {
+     "session": "rollout-z",
+     "folder": "",
+     "at": 1788688860000,
+     "kind": "shell",
+     "line": "ls"
+    }
+   ],
+   "calls": [
+    "lines /Users/dev/.codex/sessions/2026/06/01/rollout-z.jsonl"
+   ]
+  },
+  {
+   "name": "a failing line read",
+   "laptop": {
+    "files": {
+     "~/.codex/sessions/2026/06/01/rollout-x-t1.jsonl": "{\"type\":\"response_item\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}\n\u0000fail:EIO"
+    }
+   },
+   "args": [
+    "/Users/dev/.codex/sessions",
+    "/Users/dev/.codex/sessions/2026/06/01/rollout-x-t1.jsonl"
+   ],
+   "error": "EIO",
+   "calls": [
+    "lines /Users/dev/.codex/sessions/2026/06/01/rollout-x-t1.jsonl"
+   ]
+  }
+ ],
+ "codex_reader_files": [
+  {
+   "name": "which files a codex root keeps",
+   "laptop": {
+    "files": {
+     "~/.codex/sessions/a/x.jsonl": "",
+     "~/.codex/sessions/b.jsonl": "x",
+     "~/.codex/sessions/.jsonl": "x",
+     "~/.codex/sessions/c.json": "x",
+     "~/.codex/sessions/d/e.JSONL": "x",
+     "~/.codex/sessions/archived/f.jsonl": "x"
+    }
+   },
+   "args": [
+    "/Users/dev/.codex/sessions"
+   ],
+   "out": [
+    {
+     "path": "/Users/dev/.codex/sessions/.jsonl",
+     "stamp": "1000:1"
+    },
+    {
+     "path": "/Users/dev/.codex/sessions/a/x.jsonl",
+     "stamp": "1000:0"
+    },
+    {
+     "path": "/Users/dev/.codex/sessions/archived/f.jsonl",
+     "stamp": "1000:1"
+    },
+    {
+     "path": "/Users/dev/.codex/sessions/b.jsonl",
+     "stamp": "1000:1"
+    }
+   ],
+   "calls": []
+  }
+ ],
+ "hermes_reader_files": [
+  {
+   "name": "the database is there",
+   "laptop": {
+    "files": {
+     "~/.hermes/state.db": 4096
+    }
+   },
+   "args": [
+    "/Users/dev/.hermes/state.db"
+   ],
+   "out": [
+    {
+     "path": "/Users/dev/.hermes/state.db",
+     "stamp": "1000:4096"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "no database",
+   "laptop": {},
+   "args": [
+    "/Users/dev/.hermes/state.db"
+   ],
+   "out": [],
+   "calls": []
+  },
+  {
+   "name": "the root is a folder",
+   "laptop": {
+    "files": {
+     "~/.hermes/state.db/x": 1
+    }
+   },
+   "args": [
+    "/Users/dev/.hermes/state.db"
+   ],
+   "out": [],
+   "calls": []
+  }
+ ],
+ "hermes_reader_read": [
+  {
+   "name": "a first answer that is not JSON: no fallback",
+   "laptop": {
+    "files": {
+     "~/.hermes/state.db": 4096
+    },
+    "exec": {
+     "sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null": "Error: no such table",
+     "sqlite3 -readonly -json /Users/dev/.hermes/state.db select session_id, tool_calls from messages where tool_calls is not null": "[]"
+    }
+   },
+   "args": [
+    "/Users/dev/.hermes/state.db",
+    "/Users/dev/.hermes/state.db"
+   ],
+   "error": "/Users/dev/.hermes/state.db: sqlite3 returned no JSON",
+   "calls": [
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null"
+   ]
+  },
+  {
+   "name": "a first answer of null: no fallback",
+   "laptop": {
+    "files": {
+     "~/.hermes/state.db": 4096
+    },
+    "exec": {
+     "sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null": "null",
+     "sqlite3 -readonly -json /Users/dev/.hermes/state.db select session_id, tool_calls from messages where tool_calls is not null": "[]"
+    }
+   },
+   "args": [
+    "/Users/dev/.hermes/state.db",
+    "/Users/dev/.hermes/state.db"
+   ],
+   "error": "/Users/dev/.hermes/state.db: sqlite3 returned no JSON",
+   "calls": [
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null"
+   ]
+  },
+  {
+   "name": "a first answer of [] is not None: no fallback",
+   "laptop": {
+    "files": {
+     "~/.hermes/state.db": 4096
+    },
+    "exec": {
+     "sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null": "[]",
+     "sqlite3 -readonly -json /Users/dev/.hermes/state.db select session_id, tool_calls from messages where tool_calls is not null": "[{\"session_id\":\"x\",\"tool_calls\":\"[{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":{}}}]\"}]"
+    }
+   },
+   "args": [
+    "/Users/dev/.hermes/state.db",
+    "/Users/dev/.hermes/state.db"
+   ],
+   "out": [],
+   "calls": [
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null"
+   ]
+  },
+  {
+   "name": "a blank first answer: no rows, one query",
+   "laptop": {
+    "files": {
+     "~/.hermes/state.db": 4096
+    },
+    "exec": {
+     "sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null": "\n",
+     "sqlite3 -readonly -json /Users/dev/.hermes/state.db select session_id, tool_calls from messages where tool_calls is not null": "[]"
+    }
+   },
+   "args": [
+    "/Users/dev/.hermes/state.db",
+    "/Users/dev/.hermes/state.db"
+   ],
+   "out": [],
+   "calls": [
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null"
+   ]
+  },
+  {
+   "name": "the plain query answers after the joined one has no answer",
+   "laptop": {
+    "files": {
+     "~/.hermes/state.db": 4096
+    },
+    "exec": {
+     "sqlite3 -readonly -json /Users/dev/.hermes/state.db select session_id, tool_calls from messages where tool_calls is not null": "[{\"session_id\":\"h1\",\"tool_calls\":\"[{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":\\\"{\\\\\\\"command\\\\\\\":\\\\\\\"ls\\\\\\\"}\\\"}}]\"}]"
+    }
+   },
+   "args": [
+    "/Users/dev/.hermes/state.db",
+    "/Users/dev/.hermes/state.db"
+   ],
+   "out": [
+    {
+     "session": "h1",
+     "kind": "shell",
+     "line": "ls"
+    }
+   ],
+   "calls": [
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null",
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select session_id, tool_calls from messages where tool_calls is not null"
+   ]
+  },
+  {
+   "name": "no answer for either query",
+   "laptop": {
+    "files": {
+     "~/.hermes/state.db": 4096
+    },
+    "exec": {}
+   },
+   "args": [
+    "/Users/dev/.hermes/state.db",
+    "/Users/dev/.hermes/state.db"
+   ],
+   "error": "/Users/dev/.hermes/state.db could not be read with sqlite3",
+   "calls": [
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null",
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select session_id, tool_calls from messages where tool_calls is not null"
+   ]
+  },
+  {
+   "name": "an object answer",
+   "laptop": {
+    "files": {
+     "~/.hermes/state.db": 4096
+    },
+    "exec": {
+     "sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null": "{\"x\":1}"
+    }
+   },
+   "args": [
+    "/Users/dev/.hermes/state.db",
+    "/Users/dev/.hermes/state.db"
+   ],
+   "error": "/Users/dev/.hermes/state.db: sqlite3 returned no JSON",
+   "calls": [
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null"
+   ]
+  },
+  {
+   "name": "a row table of every shape",
+   "laptop": {
+    "files": {
+     "~/.hermes/state.db": 4096
+    },
+    "exec": {
+     "sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null": "[{\"session_id\":\"h1\",\"tool_calls\":\"[{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":\\\"{\\\\\\\"command\\\\\\\":\\\\\\\"ls\\\\\\\"}\\\"}}]\",\"cwd\":\"/a\"},{\"session_id\":\"h1\",\"tool_calls\":\"[{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":\\\"{\\\\\\\"command\\\\\\\":\\\\\\\"pwd\\\\\\\"}\\\"}}]\",\"cwd\":null},{\"session_id\":\"h1\",\"tool_calls\":\"[{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":\\\"{\\\\\\\"command\\\\\\\":\\\\\\\"pwd\\\\\\\"}\\\"}}]\",\"cwd\":\"\"},{\"session_id\":\"h2\",\"tool_calls\":[{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":{\"command\":\"tail\"}}}]},{\"session_id\":\"h3\",\"tool_calls\":\"[{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":\\\"not json\\\"}},{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":\\\"5\\\"}},{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":\\\"[]\\\"}},{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":null}},{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":{\\\"command\\\":5}}},{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":{\\\"command\\\":\\\"\\\"}}},{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"Terminal\\\",\\\"arguments\\\":{\\\"command\\\":\\\"x\\\"}}}]\"},{\"session_id\":\"h4\",\"tool_calls\":\"[]\"},{\"session_id\":\"h5\",\"tool_calls\":\"null\"},{\"session_id\":\"h6\",\"tool_calls\":{\"function\":{\"name\":\"terminal\",\"arguments\":{\"command\":\"obj\"}}}},{\"session_id\":\"h7\",\"tool_calls\":\"[{\\\"function\\\":{\\\"name\\\":\\\"x\\\"}},{\\\"function\\\":\\\"x\\\"},{\\\"function\\\":null},{\\\"name\\\":\\\"terminal\\\"},[{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":{}}}],{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"a\\\",\\\"arguments\\\":1}}]\"},{\"session_id\":\"\",\"tool_calls\":\"[{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":{\\\"command\\\":\\\"emptysession\\\"}}}]\"},{\"session_id\":null,\"tool_calls\":\"[{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":{}}}]\"},\"row\",null,{\"tool_calls\":\"[{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"terminal\\\",\\\"arguments\\\":{}}}]\"}]"
+    }
+   },
+   "args": [
+    "/Users/dev/.hermes/state.db",
+    "/Users/dev/.hermes/state.db"
+   ],
+   "out": [
+    {
+     "session": "h1",
+     "folder": "/a",
+     "kind": "shell",
+     "line": "ls"
+    },
+    {
+     "session": "h1",
+     "kind": "shell",
+     "line": "pwd"
+    },
+    {
+     "session": "h1",
+     "folder": "",
+     "kind": "shell",
+     "line": "pwd"
+    },
+    {
+     "session": "h2",
+     "kind": "shell",
+     "line": "tail"
+    },
+    {
+     "session": "h3",
+     "kind": "other",
+     "name": "terminal"
+    },
+    {
+     "session": "h3",
+     "kind": "other",
+     "name": "terminal"
+    },
+    {
+     "session": "h3",
+     "kind": "other",
+     "name": "terminal"
+    },
+    {
+     "session": "h3",
+     "kind": "other",
+     "name": "terminal"
+    },
+    {
+     "session": "h3",
+     "kind": "other",
+     "name": "terminal"
+    },
+    {
+     "session": "h3",
+     "kind": "shell",
+     "line": ""
+    },
+    {
+     "session": "h3",
+     "kind": "other",
+     "name": "Terminal"
+    },
+    {
+     "session": "h7",
+     "kind": "other",
+     "name": "x"
+    },
+    {
+     "session": "h7",
+     "kind": "other",
+     "name": "a"
+    },
+    {
+     "session": "",
+     "kind": "shell",
+     "line": "emptysession"
+    }
+   ],
+   "calls": [
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null"
+   ]
+  }
+ ]
+}

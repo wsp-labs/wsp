@@ -1,0 +1,4361 @@
+{
+ "linux_fit": [
+  {
+   "name": "command and an arg both mac-only: the command is named",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/Applications/X.app/x",
+      "args": [
+       "/System/y"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": false,
+    "reason": "command /Applications/X.app/x is macOS-only, will not run"
+   }
+  },
+  {
+   "name": "arg --flag=path names the part after the equals sign",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [
+       "--config=/Applications/x.json"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": false,
+    "reason": "path /Applications/x.json is macOS-only, will not run"
+   }
+  },
+  {
+   "name": "arg -c=path (single dash) is stripped too",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [
+       "-c=/Library/x"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": false,
+    "reason": "path /Library/x is macOS-only, will not run"
+   }
+  },
+  {
+   "name": "arg --dir=~/Library/x",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [
+       "--dir=~/Library/x"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": false,
+    "reason": "path ~/Library/x is macOS-only, will not run"
+   }
+  },
+  {
+   "name": "a dotted flag name is not stripped",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [
+       "--a.b=/Applications/x"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "runs via npx"
+   }
+  },
+  {
+   "name": "cwd mac-only",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [],
+      "env": {},
+      "cwd": "/private/tmp/x"
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": false,
+    "reason": "path /private/tmp/x is macOS-only, will not run"
+   }
+  },
+  {
+   "name": "cwd empty is fine",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [],
+      "env": {},
+      "cwd": ""
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "runs via npx"
+   }
+  },
+  {
+   "name": "env: the first of two",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [],
+      "env": {
+       "A": "/System/a",
+       "B": "/Volumes/b"
+      }
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": false,
+    "reason": "path /System/a is macOS-only, will not run"
+   }
+  },
+  {
+   "name": "order is args then cwd then env",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [
+       "/Volumes/v"
+      ],
+      "env": {
+       "A": "/System/a"
+      },
+      "cwd": "/Applications/c"
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": false,
+    "reason": "path /Volumes/v is macOS-only, will not run"
+   }
+  },
+  {
+   "name": "command ~/Library/x",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "~/Library/x",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": false,
+    "reason": "command ~/Library/x is macOS-only, will not run"
+   }
+  },
+  {
+   "name": "another user's Library is not this home's",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/Users/developer/Library/x",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs /Users/developer/Library/x on the machine"
+   }
+  },
+  {
+   "name": "home/Library without the slash",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [
+       "/Users/dev/Library"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "runs via npx"
+   }
+  },
+  {
+   "name": "/Library without the slash",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [
+       "/Library"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "runs via npx"
+   }
+  },
+  {
+   "name": "/private/tmp",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "npx",
+      "args": [
+       "/private/tmp/x"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": false,
+    "reason": "path /private/tmp/x is macOS-only, will not run"
+   }
+  },
+  {
+   "name": "a Caskroom command",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/opt/homebrew/Caskroom/x/y",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": false,
+    "reason": "command /opt/homebrew/Caskroom/x/y is macOS-only, will not run"
+   }
+  },
+  {
+   "name": "a Homebrew opt path is not a bin dir",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/opt/homebrew/opt/foo/bin/x",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs /opt/homebrew/opt/foo/bin/x on the machine"
+   }
+  },
+  {
+   "name": "Homebrew sbin",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/opt/homebrew/sbin/x",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs x on the machine"
+   }
+  },
+  {
+   "name": "/usr/local/bin/uvx",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/usr/local/bin/uvx",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs uv, installed on the machine when missing"
+   }
+  },
+  {
+   "name": "/usr/bin/env",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/usr/bin/env",
+      "args": [
+       "x"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs env on the machine"
+   }
+  },
+  {
+   "name": "/bin/sh",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/bin/sh",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs sh on the machine"
+   }
+  },
+  {
+   "name": "/bin/x/y is named y",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/bin/x/y",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs y on the machine"
+   }
+  },
+  {
+   "name": "./server",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "./server",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs ./server on the machine"
+   }
+  },
+  {
+   "name": "empty command: two spaces",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs  on the machine"
+   }
+  },
+  {
+   "name": "a bin dir with nothing after it",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/usr/local/bin/",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs  on the machine"
+   }
+  },
+  {
+   "name": "/usr/bin without the slash",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/usr/bin",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs /usr/bin on the machine"
+   }
+  },
+  {
+   "name": "a home bin",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/Users/dev/bin/x",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs ~/bin/x on the machine"
+   }
+  },
+  {
+   "name": "home .local/bin/npx",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/Users/dev/.local/bin/npx",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "runs via npx"
+   }
+  },
+  {
+   "name": "~/.local/bin/uv",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "~/.local/bin/uv",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs uv, installed on the machine when missing"
+   }
+  },
+  {
+   "name": "~ alone",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "~",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs ~ on the machine"
+   }
+  },
+  {
+   "name": "another absolute path",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/opt/x/y",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs /opt/x/y on the machine"
+   }
+  },
+  {
+   "name": "Homebrew uv",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "/opt/homebrew/bin/uv",
+      "args": [],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "needs uv, installed on the machine when missing"
+   }
+  },
+  {
+   "name": "http url with a mac-looking path",
+   "args": [
+    {
+     "name": "h",
+     "scope": "user",
+     "transport": {
+      "kind": "http",
+      "url": "https://x/Applications/",
+      "headers": {}
+     },
+     "envRefs": []
+    },
+    "/Users/dev"
+   ],
+   "out": {
+    "ok": true,
+    "needs": "nothing to install"
+   }
+  }
+ ],
+ "mcp_remote_of": [
+  {
+   "name": "empty pin after the at sign",
+   "args": [
+    [
+     "mcp-remote@",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": false
+   }
+  },
+  {
+   "name": "text between the first and second at sign: 0.3.1",
+   "args": [
+    [
+     "mcp-remote@0.3.1@latest",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": false
+   }
+  },
+  {
+   "name": "text between the first and second at sign: latest",
+   "args": [
+    [
+     "mcp-remote@latest@0.1.0",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "leading zeros",
+   "args": [
+    [
+     "mcp-remote@00.03.02",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "v prefix",
+   "args": [
+    [
+     "mcp-remote@v1.0.0",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": false
+   }
+  },
+  {
+   "name": "0.3.10",
+   "args": [
+    [
+     "mcp-remote@0.3.10",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "0.10.0",
+   "args": [
+    [
+     "mcp-remote@0.10.0",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "prerelease",
+   "args": [
+    [
+     "mcp-remote@1.0.0-beta",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": false
+   }
+  },
+  {
+   "name": "a slash in the pin is no mcp-remote",
+   "args": [
+    [
+     "mcp-remote@a/b",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": null
+  },
+  {
+   "name": "a url before mcp-remote is not seen",
+   "args": [
+    [
+     "https://mcp.example.com/mcp",
+     "mcp-remote"
+    ]
+   ],
+   "out": null
+  },
+  {
+   "name": "the first mcp-remote argument is the one",
+   "args": [
+    [
+     "mcp-remote@0.3.1",
+     "https://mcp.example.com/mcp",
+     "mcp-remote@latest"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": false
+   }
+  },
+  {
+   "name": "a second mcp-remote after another word",
+   "args": [
+    [
+     "x",
+     "mcp-remote@0.3.1",
+     "mcp-remote",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": false
+   }
+  },
+  {
+   "name": "the url is the first http argument even as a flag value",
+   "args": [
+    [
+     "mcp-remote",
+     "--resource",
+     "https://r.example",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": {
+    "url": "https://r.example",
+    "headers": {},
+    "hash": "e2997cd8124ac517fb763ac4c90674f2",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "an upper-case scheme is no url",
+   "args": [
+    [
+     "mcp-remote",
+     "HTTP://x/mcp"
+    ]
+   ],
+   "out": null
+  },
+  {
+   "name": "a bare scheme is a url",
+   "args": [
+    [
+     "mcp-remote",
+     "https://"
+    ]
+   ],
+   "out": {
+    "url": "https://",
+    "headers": {},
+    "hash": "f8eae6750519389e078e1eb1bcb3d708",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "header key trims to empty",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--header",
+     " :x"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {
+     "": "x"
+    },
+    "hash": "f3b3e1ad2320407ad2b6ad042ed89bfb",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "header with an empty value",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--header",
+     "A:"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {
+     "A": ""
+    },
+    "hash": "0c85aff39aabc63d7cfadef841b09d02",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "header with inner spaces",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--header",
+     "  A b  :  v  w "
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {
+     "A b": "v  w"
+    },
+    "hash": "1a5a9f783c5888db0f576cee59ca39f3",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "header colon in the value",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--header",
+     "Authorization: Bearer a:b"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {
+     "Authorization": "Bearer a:b"
+    },
+    "hash": "3be28c2bfa86b8fbb39f12bd3d94141d",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "header without a colon",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--header",
+     "nocolon"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "header named __proto__",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--header",
+     "__proto__: x"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "header equals form",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--header=A:1"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "a header flag as the value of a header flag",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--header",
+     "--header",
+     "A: 1"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {
+     "A": "1"
+    },
+    "hash": "8696073fd4d659cbce87eb42cda88a3d",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "lower-case -h is no header flag",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "-h",
+     "A: 1"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "authorize-param with a second equals sign",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--authorize-param",
+     "a=1=2"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "a3795b4bcac125ab7652a2697593c9a8",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "authorize-param with the equals sign first",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--authorize-param",
+     "=x"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "authorize-param with an empty value",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--authorize-param",
+     "a="
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "815c589fe0c400e2b5af32ca8920d0c0",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "authorize-param trimmed",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--authorize-param",
+     " a = b "
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "610a2028e4ccdf1979215b5d89727f2f",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "empty resource is present",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--resource",
+     ""
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "7610c5469e4371388b9a1f305f878055",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "blank resource is present",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--resource",
+     "   "
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "7610c5469e4371388b9a1f305f878055",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "resource equals form",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--resource=https://r"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "resource trimmed",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--resource",
+     "  https://r  "
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "9d68543f363b19446d6be100c087676f",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "resource as the last argument",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--resource"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "resource twice: the first",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--resource",
+     "a",
+     "--resource",
+     "b"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "fc00b7236b1ccd58f672228327687bf7",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "resource whose value is a flag",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--resource",
+     "--header",
+     "A: 1"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {
+     "A": "1"
+    },
+    "hash": "d680fb88b1e50aee753c01da98c9527c",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "client metadata url alone",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--client-metadata-url",
+     " https://m "
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "821dcb4edb10965a2768393f607b1f72",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "client credentials alone",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--client-credentials"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": true,
+    "v1": true
+   }
+  },
+  {
+   "name": "client credentials before the url",
+   "args": [
+    [
+     "mcp-remote",
+     "--client-credentials",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "hash": "94baabe3c3fadb285b26c035e4e86046",
+    "clientCredentials": true,
+    "v1": true
+   }
+  },
+  {
+   "name": "json escaping of a header value",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--header",
+     "K: é\"\\\u0001 /<"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {
+     "K": "é\"\\\u0001 /<"
+    },
+    "hash": "ccf4c07fcfe745f0d6b46d34a876b1d2",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "integer-like header names",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--header",
+     "10: a",
+     "--header",
+     "9: b",
+     "--header",
+     "B: c"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {
+     "9": "b",
+     "10": "a",
+     "B": "c"
+    },
+    "hash": "453290f59bfa2615aba78ddea716b930",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "key sort in UTF-16 order",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--header",
+     "b: 1",
+     "--header",
+     "B: 2",
+     "--header",
+     "é: 3",
+     "--header",
+     "a: 4",
+     "--header",
+     "_: 5"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {
+     "b": "1",
+     "B": "2",
+     "é": "3",
+     "a": "4",
+     "_": "5"
+    },
+    "hash": "874038cf087856c7ba46ff97f681d9ad",
+    "clientCredentials": false,
+    "v1": true
+   }
+  },
+  {
+   "name": "every part",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--resource",
+     "R",
+     "--authorize-param",
+     "z=1",
+     "--header",
+     "H: v",
+     "--client-metadata-url",
+     "M",
+     "--client-credentials"
+    ]
+   ],
+   "out": {
+    "url": "https://mcp.example.com/mcp",
+    "headers": {
+     "H": "v"
+    },
+    "hash": "3a4a5e6637a81f9ec20fdaabb272ca5c",
+    "clientCredentials": true,
+    "v1": true
+   }
+  },
+  {
+   "name": "a url with a space is hashed as written",
+   "args": [
+    [
+     "mcp-remote",
+     "https://x.example/a b"
+    ]
+   ],
+   "out": {
+    "url": "https://x.example/a b",
+    "headers": {},
+    "hash": "e33e6b6eb6e20bc03286f16d2a4ca39c",
+    "clientCredentials": false,
+    "v1": true
+   }
+  }
+ ],
+ "mcp_remote_hash": [
+  {
+   "name": "hash of [\"mcp-remote\",\"https://mcp.example.com/mcp\"]",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": "94baabe3c3fadb285b26c035e4e86046"
+  },
+  {
+   "name": "hash of [\"mcp-remote\",\"https://mcp.example.com/mcp\",\"--resource\",\"\"]",
+   "args": [
+    [
+     "mcp-remote",
+     "https://mcp.example.com/mcp",
+     "--resource",
+     ""
+    ]
+   ],
+   "out": "7610c5469e4371388b9a1f305f878055"
+  },
+  {
+   "name": "hash of [\"mcp-remote\"]",
+   "args": [
+    [
+     "mcp-remote"
+    ]
+   ],
+   "out": null
+  },
+  {
+   "name": "hash of [\"-y\",\"@scope/other\",\"https://mcp.example.com/mcp\"]",
+   "args": [
+    [
+     "-y",
+     "@scope/other",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": null
+  },
+  {
+   "name": "hash of [\"mcp-remote\",\"--header\",\"A: 1\",\"https://mcp.example.com/mcp\"]",
+   "args": [
+    [
+     "mcp-remote",
+     "--header",
+     "A: 1",
+     "https://mcp.example.com/mcp"
+    ]
+   ],
+   "out": "8696073fd4d659cbce87eb42cda88a3d"
+  }
+ ],
+ "secret_named": [
+  {
+   "name": "secret_named \"API_KEY\"",
+   "args": [
+    "API_KEY"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"api_key\"",
+   "args": [
+    "api_key"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"MY_AUTH\"",
+   "args": [
+    "MY_AUTH"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"AUTHOR\"",
+   "args": [
+    "AUTHOR"
+   ],
+   "out": false
+  },
+  {
+   "name": "secret_named \"OAUTH\"",
+   "args": [
+    "OAUTH"
+   ],
+   "out": false
+  },
+  {
+   "name": "secret_named \"AUTH\"",
+   "args": [
+    "AUTH"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"NO_AUTH\"",
+   "args": [
+    "NO_AUTH"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"CERT\"",
+   "args": [
+    "CERT"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"CERTIFICATE\"",
+   "args": [
+    "CERTIFICATE"
+   ],
+   "out": false
+  },
+  {
+   "name": "secret_named \"SSL_CERT_FILE\"",
+   "args": [
+    "SSL_CERT_FILE"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"CREDENTIAL\"",
+   "args": [
+    "CREDENTIAL"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"CREDENTIALS_PATH\"",
+   "args": [
+    "CREDENTIALS_PATH"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"MY_CREDENTIAL_FILE\"",
+   "args": [
+    "MY_CREDENTIAL_FILE"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"credentials\"",
+   "args": [
+    "credentials"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"AUTHORIZATION\"",
+   "args": [
+    "AUTHORIZATION"
+   ],
+   "out": false
+  },
+  {
+   "name": "secret_named \"PASSWORD\"",
+   "args": [
+    "PASSWORD"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"TOKEN\"",
+   "args": [
+    "TOKEN"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"DB_PASS\"",
+   "args": [
+    "DB_PASS"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"KEYTIMEOUT\"",
+   "args": [
+    "KEYTIMEOUT"
+   ],
+   "out": false
+  },
+  {
+   "name": "secret_named \"HOME\"",
+   "args": [
+    "HOME"
+   ],
+   "out": false
+  },
+  {
+   "name": "secret_named \"X_SECRET\"",
+   "args": [
+    "X_SECRET"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"x_secret\"",
+   "args": [
+    "x_secret"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"SECRETARY\"",
+   "args": [
+    "SECRETARY"
+   ],
+   "out": false
+  },
+  {
+   "name": "secret_named \"\"",
+   "args": [
+    ""
+   ],
+   "out": false
+  },
+  {
+   "name": "secret_named \"_\"",
+   "args": [
+    "_"
+   ],
+   "out": false
+  },
+  {
+   "name": "secret_named \"__AUTH__\"",
+   "args": [
+    "__AUTH__"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"auth\"",
+   "args": [
+    "auth"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"Auth_Token\"",
+   "args": [
+    "Auth_Token"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"MONKEY\"",
+   "args": [
+    "MONKEY"
+   ],
+   "out": false
+  },
+  {
+   "name": "secret_named \"PUBKEY\"",
+   "args": [
+    "PUBKEY"
+   ],
+   "out": false
+  },
+  {
+   "name": "secret_named \"PRIVATE_KEY\"",
+   "args": [
+    "PRIVATE_KEY"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"GH_PAT\"",
+   "args": [
+    "GH_PAT"
+   ],
+   "out": true
+  },
+  {
+   "name": "secret_named \"gh_pat\"",
+   "args": [
+    "gh_pat"
+   ],
+   "out": false
+  }
+ ],
+ "hides_value": [
+  {
+   "name": "hides_value --api-key",
+   "args": [
+    "--api-key"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --API-KEY",
+   "args": [
+    "--API-KEY"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --token",
+   "args": [
+    "--token"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value -H",
+   "args": [
+    "-H"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value -h",
+   "args": [
+    "-h"
+   ],
+   "out": false
+  },
+  {
+   "name": "hides_value --header",
+   "args": [
+    "--header"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --static-oauth-client-info",
+   "args": [
+    "--static-oauth-client-info"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --auth",
+   "args": [
+    "--auth"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --oauth",
+   "args": [
+    "--oauth"
+   ],
+   "out": false
+  },
+  {
+   "name": "hides_value --no-auth",
+   "args": [
+    "--no-auth"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --auth-file",
+   "args": [
+    "--auth-file"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --cert",
+   "args": [
+    "--cert"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --certificate",
+   "args": [
+    "--certificate"
+   ],
+   "out": false
+  },
+  {
+   "name": "hides_value --cert-path",
+   "args": [
+    "--cert-path"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --credentials",
+   "args": [
+    "--credentials"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --credential-file",
+   "args": [
+    "--credential-file"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --password",
+   "args": [
+    "--password"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --pass",
+   "args": [
+    "--pass"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value -p",
+   "args": [
+    "-p"
+   ],
+   "out": false
+  },
+  {
+   "name": "hides_value -k",
+   "args": [
+    "-k"
+   ],
+   "out": false
+  },
+  {
+   "name": "hides_value --key",
+   "args": [
+    "--key"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --keyfile",
+   "args": [
+    "--keyfile"
+   ],
+   "out": false
+  },
+  {
+   "name": "hides_value --key-file",
+   "args": [
+    "--key-file"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --secret",
+   "args": [
+    "--secret"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --client-secret",
+   "args": [
+    "--client-secret"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --verbose",
+   "args": [
+    "--verbose"
+   ],
+   "out": false
+  },
+  {
+   "name": "hides_value --port",
+   "args": [
+    "--port"
+   ],
+   "out": false
+  },
+  {
+   "name": "hides_value --authorization",
+   "args": [
+    "--authorization"
+   ],
+   "out": false
+  },
+  {
+   "name": "hides_value --api_key",
+   "args": [
+    "--api_key"
+   ],
+   "out": true
+  },
+  {
+   "name": "hides_value --authorize-param",
+   "args": [
+    "--authorize-param"
+   ],
+   "out": false
+  },
+  {
+   "name": "hides_value --header-name",
+   "args": [
+    "--header-name"
+   ],
+   "out": false
+  }
+ ],
+ "plain_arg": [
+  {
+   "name": "plain_arg \"https://x.example/a#token=abc\"",
+   "args": [
+    "https://x.example/a#token=abc"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://x.example/aaaaaaaaaaaaaaaaaaaaaaaa1\"",
+   "args": [
+    "https://x.example/aaaaaaaaaaaaaaaaaaaaaaaa1"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"https://x.example/aaaaaaaaaaaaaaaaaaaaaaa1\"",
+   "args": [
+    "https://x.example/aaaaaaaaaaaaaaaaaaaaaaa1"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"https://x.example/aaaaaaaaaaaaaaaaaaaaaa1\"",
+   "args": [
+    "https://x.example/aaaaaaaaaaaaaaaaaaaaaa1"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://x.example/aaaaaaaaaaaaaaaaaaaaa1\"",
+   "args": [
+    "https://x.example/aaaaaaaaaaaaaaaaaaaaa1"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://x.example/aaaaaaaaaaaaaaaaaaaaaaaa1.json\"",
+   "args": [
+    "https://x.example/aaaaaaaaaaaaaaaaaaaaaaaa1.json"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://x.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
+   "args": [
+    "https://x.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://x.example/a/b/aaaaaaaaaaaaaaaaaaaaaaaa1/c\"",
+   "args": [
+    "https://x.example/a/b/aaaaaaaaaaaaaaaaaaaaaaaa1/c"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"https://x.example/aaaaaaaaaaaaaaaaaaaaaaaa=1\"",
+   "args": [
+    "https://x.example/aaaaaaaaaaaaaaaaaaaaaaaa=1"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"https://x.example/AAAAAAAAAAAAAAAAAAAAAAA-1\"",
+   "args": [
+    "https://x.example/AAAAAAAAAAAAAAAAAAAAAAA-1"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"https://x.example/%41aaaaaaaaaaaaaaaaaaaaaaa1\"",
+   "args": [
+    "https://x.example/%41aaaaaaaaaaaaaaaaaaaaaaa1"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://x.example/aaaaaaaaaaaaaaaaaaaaaaaa1/..\"",
+   "args": [
+    "https://x.example/aaaaaaaaaaaaaaaaaaaaaaaa1/.."
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://x.example/a/../aaaaaaaaaaaaaaaaaaaaaaaa1\"",
+   "args": [
+    "https://x.example/a/../aaaaaaaaaaaaaaaaaaaaaaaa1"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"HTTPS://X.EXAMPLE/\"",
+   "args": [
+    "HTTPS://X.EXAMPLE/"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://@x.example/\"",
+   "args": [
+    "https://@x.example/"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://:@x.example/\"",
+   "args": [
+    "https://:@x.example/"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://u@x.example/\"",
+   "args": [
+    "https://u@x.example/"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"https://x.example:99999/\"",
+   "args": [
+    "https://x.example:99999/"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"https://\"",
+   "args": [
+    "https://"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"http://[::1]/\"",
+   "args": [
+    "http://[::1]/"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"ftp://host/file\"",
+   "args": [
+    "ftp://host/file"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"file:///etc/x\"",
+   "args": [
+    "file:///etc/x"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"mailto:a@b\"",
+   "args": [
+    "mailto:a@b"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"a://b\"",
+   "args": [
+    "a://b"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"1a://b\"",
+   "args": [
+    "1a://b"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"a+b.c-d://x/\"",
+   "args": [
+    "a+b.c-d://x/"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"~\"",
+   "args": [
+    "~"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"~/\"",
+   "args": [
+    "~/"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"/\"",
+   "args": [
+    "/"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"\"",
+   "args": [
+    ""
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"--x\"",
+   "args": [
+    "--x"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"./x\"",
+   "args": [
+    "./x"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"../x\"",
+   "args": [
+    "../x"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"x/y\"",
+   "args": [
+    "x/y"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"C:/x\"",
+   "args": [
+    "C:/x"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"https://x.example/?\"",
+   "args": [
+    "https://x.example/?"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://x.example/#\"",
+   "args": [
+    "https://x.example/#"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://x.example/?#\"",
+   "args": [
+    "https://x.example/?#"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"https://x.example?x\"",
+   "args": [
+    "https://x.example?x"
+   ],
+   "out": false
+  },
+  {
+   "name": "plain_arg \"https://x.example\\\\a\"",
+   "args": [
+    "https://x.example\\a"
+   ],
+   "out": true
+  },
+  {
+   "name": "plain_arg \"/Users/dev/x\"",
+   "args": [
+    "/Users/dev/x"
+   ],
+   "out": true
+  }
+ ],
+ "read_args": [
+  {
+   "name": "an assignment does not use up the program word",
+   "args": [
+    "npx",
+    [
+     "API_KEY=x",
+     "pkg",
+     "other"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "API_KEY=…",
+     "secret": "arg API_KEY (1 B)",
+     "key": "API_KEY",
+     "kind": "assign"
+    },
+    {
+     "show": "pkg"
+    },
+    {
+     "show": "…",
+     "secret": "arg 3 (5 B)",
+     "key": "argument 3",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "a plain assignment before the package",
+   "args": [
+    "npx",
+    [
+     "FOO=bar",
+     "pkg",
+     "other"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "FOO=bar"
+    },
+    {
+     "show": "pkg"
+    },
+    {
+     "show": "…",
+     "secret": "arg 3 (5 B)",
+     "key": "argument 3",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "the program word survives a flag value",
+   "args": [
+    "npx",
+    [
+     "--package",
+     "foo",
+     "pkg",
+     "x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--package"
+    },
+    {
+     "show": "foo"
+    },
+    {
+     "show": "pkg"
+    },
+    {
+     "show": "…",
+     "secret": "arg 4 (1 B)",
+     "key": "argument 4",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "-y then paths",
+   "args": [
+    "npx",
+    [
+     "-y",
+     "pkg",
+     "/a",
+     "/b",
+     "/c",
+     "/d",
+     "/e"
+    ],
+    "/h"
+   ],
+   "out": [
+    {},
+    {
+     "show": "pkg"
+    },
+    {
+     "show": "/a"
+    },
+    {
+     "show": "/b"
+    },
+    {
+     "show": "/c"
+    },
+    {
+     "show": "/d"
+    },
+    {
+     "show": "/e"
+    }
+   ]
+  },
+  {
+   "name": "secret flag followed by a flag",
+   "args": [
+    "npx",
+    [
+     "--api-key",
+     "-x",
+     "v"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--api-key"
+    },
+    {
+     "show": "-x"
+    },
+    {
+     "show": "v"
+    }
+   ]
+  },
+  {
+   "name": "secret flag followed by a dash-led value",
+   "args": [
+    "npx",
+    [
+     "--api-key",
+     "-abc123"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--api-key"
+    },
+    {
+     "show": "-abc123"
+    }
+   ]
+  },
+  {
+   "name": "secret flag with an empty value",
+   "args": [
+    "npx",
+    [
+     "--api-key",
+     "",
+     "pkg"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--api-key"
+    },
+    {
+     "show": "…",
+     "secret": "flag --api-key (0 B)",
+     "key": "--api-key",
+     "kind": "flag"
+    },
+    {
+     "show": "pkg"
+    }
+   ]
+  },
+  {
+   "name": "secret flag last",
+   "args": [
+    "npx",
+    [
+     "pkg",
+     "--api-key"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "pkg"
+    },
+    {
+     "show": "--api-key"
+    }
+   ]
+  },
+  {
+   "name": "dotted flag shows its value",
+   "args": [
+    "npx",
+    [
+     "--api.key",
+     "sk-123"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--api.key"
+    },
+    {
+     "show": "sk-123"
+    }
+   ]
+  },
+  {
+   "name": "triple dash flag",
+   "args": [
+    "npx",
+    [
+     "---x",
+     "v"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "---x"
+    },
+    {
+     "show": "v"
+    }
+   ]
+  },
+  {
+   "name": "-1 flag",
+   "args": [
+    "npx",
+    [
+     "-1",
+     "sk-123"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "-1"
+    },
+    {
+     "show": "sk-123"
+    }
+   ]
+  },
+  {
+   "name": "flag=path under home is not tilde'd, a positional is",
+   "args": [
+    "/h/bin/x",
+    [
+     "--config=/h/x",
+     "/h/x",
+     "--dir",
+     "/h/y"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--config=/h/x"
+    },
+    {
+     "show": "~/x"
+    },
+    {
+     "show": "--dir"
+    },
+    {
+     "show": "~/y"
+    }
+   ]
+  },
+  {
+   "name": "--url= with a login is shown whole",
+   "args": [
+    "npx",
+    [
+     "--url=https://u:p@x.example/a?k=1"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--url=https://u:p@x.example/a?k=1"
+    }
+   ]
+  },
+  {
+   "name": "--url= with a key segment is shown whole",
+   "args": [
+    "npx",
+    [
+     "--url=https://h.example/aaaaaaaaaaaaaaaaaaaaaaaa1"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--url=https://h.example/aaaaaaaaaaaaaaaaaaaaaaaa1"
+    }
+   ]
+  },
+  {
+   "name": "--url value with a login shows host and path",
+   "args": [
+    "npx",
+    [
+     "--url",
+     "https://u:p@h.example/p?q=1#f"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--url"
+    },
+    {
+     "show": "(h.example/p)"
+    }
+   ]
+  },
+  {
+   "name": "--url value with a key segment",
+   "args": [
+    "npx",
+    [
+     "--url",
+     "https://h.example/aaaaaaaaaaaaaaaaaaaaaaaa1"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--url"
+    },
+    {
+     "show": "(h.example/aaaaaaaaaaaaaaaaaaaaaaaa1)"
+    }
+   ]
+  },
+  {
+   "name": "--url value on another scheme is shown raw",
+   "args": [
+    "npx",
+    [
+     "--url",
+     "postgres://u:p@h/db"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--url"
+    },
+    {
+     "show": "postgres://u:p@h/db"
+    }
+   ]
+  },
+  {
+   "name": "--url value without a path",
+   "args": [
+    "npx",
+    [
+     "--url",
+     "https://X.Example:443"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--url"
+    },
+    {
+     "show": "(x.example)"
+    }
+   ]
+  },
+  {
+   "name": "--url value with a port and odd characters",
+   "args": [
+    "npx",
+    [
+     "--url",
+     "https://X.Example:8443/a b/ü"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--url"
+    },
+    {
+     "show": "(x.example:8443/a%20b/%C3%BC)"
+    }
+   ]
+  },
+  {
+   "name": "--url value with a unicode host",
+   "args": [
+    "npx",
+    [
+     "--url",
+     "https://Bücher.example/"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--url"
+    },
+    {
+     "show": "(xn--bcher-kva.example)"
+    }
+   ]
+  },
+  {
+   "name": "--url value that does not parse",
+   "args": [
+    "npx",
+    [
+     "--url",
+     "https://"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--url"
+    },
+    {
+     "show": "(https://)"
+    }
+   ]
+  },
+  {
+   "name": "--url value with an upper-case scheme",
+   "args": [
+    "npx",
+    [
+     "--url",
+     "HTTPS://X.EXAMPLE/p"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--url"
+    },
+    {
+     "show": "HTTPS://X.EXAMPLE/p"
+    }
+   ]
+  },
+  {
+   "name": "positional postgres address, plain",
+   "args": [
+    "npx",
+    [
+     "x",
+     "postgres://db/x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "x"
+    },
+    {
+     "show": "postgres://db/x"
+    }
+   ]
+  },
+  {
+   "name": "positional custom scheme keeps its host case",
+   "args": [
+    "npx",
+    [
+     "x",
+     "custom://Host/Path"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "x"
+    },
+    {
+     "show": "custom://Host/Path"
+    }
+   ]
+  },
+  {
+   "name": "positional http address with a login under the program word",
+   "args": [
+    "npx",
+    [
+     "https://U:p@x.example/a"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "(x.example/a)"
+    }
+   ]
+  },
+  {
+   "name": "non-secret assignment keeps its value as written",
+   "args": [
+    "npx",
+    [
+     "FOO=/h/x",
+     "pkg"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "FOO=/h/x"
+    },
+    {
+     "show": "pkg"
+    }
+   ]
+  },
+  {
+   "name": "empty secret assignment",
+   "args": [
+    "npx",
+    [
+     "API_KEY=",
+     "x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "API_KEY=…",
+     "secret": "arg API_KEY (0 B)",
+     "key": "API_KEY",
+     "kind": "assign"
+    },
+    {
+     "show": "x"
+    }
+   ]
+  },
+  {
+   "name": "assignment value with equals signs",
+   "args": [
+    "npx",
+    [
+     "a=b=c",
+     "x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "a=b=c"
+    },
+    {
+     "show": "x"
+    }
+   ]
+  },
+  {
+   "name": "secret assignment value with equals signs",
+   "args": [
+    "npx",
+    [
+     "MY_TOKEN=a=b",
+     "x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "MY_TOKEN=…",
+     "secret": "arg MY_TOKEN (3 B)",
+     "key": "MY_TOKEN",
+     "kind": "assign"
+    },
+    {
+     "show": "x"
+    }
+   ]
+  },
+  {
+   "name": "lower-case secret assignment",
+   "args": [
+    "npx",
+    [
+     "my_token=abc"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "my_token=…",
+     "secret": "arg my_token (3 B)",
+     "key": "my_token",
+     "kind": "assign"
+    }
+   ]
+  },
+  {
+   "name": "digit-led name is no assignment",
+   "args": [
+    "npx",
+    [
+     "1A_KEY=x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "1A_KEY=x"
+    }
+   ]
+  },
+  {
+   "name": "equals first is no assignment",
+   "args": [
+    "npx",
+    [
+     "=x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "=x"
+    }
+   ]
+  },
+  {
+   "name": "AUTH and CERT words, not OAUTH or AUTHOR",
+   "args": [
+    "npx",
+    [
+     "MY_AUTH=x",
+     "AUTHOR=y",
+     "CERT=z",
+     "OAUTH=w"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "MY_AUTH=…",
+     "secret": "arg MY_AUTH (1 B)",
+     "key": "MY_AUTH",
+     "kind": "assign"
+    },
+    {
+     "show": "AUTHOR=y"
+    },
+    {
+     "show": "CERT=…",
+     "secret": "arg CERT (1 B)",
+     "key": "CERT",
+     "kind": "assign"
+    },
+    {
+     "show": "OAUTH=w"
+    }
+   ]
+  },
+  {
+   "name": "--env=NAME with no value",
+   "args": [
+    "npx",
+    [
+     "--env=NAME",
+     "pkg"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--env=NAME"
+    },
+    {
+     "show": "pkg"
+    }
+   ]
+  },
+  {
+   "name": "--env=secret assignment",
+   "args": [
+    "docker",
+    [
+     "--env=my_token=abc"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--env=my_token=…",
+     "secret": "arg my_token (3 B)",
+     "key": "my_token",
+     "kind": "assign"
+    }
+   ]
+  },
+  {
+   "name": "--token=A=b",
+   "args": [
+    "npx",
+    [
+     "--token=A=b"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--token=…",
+     "secret": "flag --token (3 B)",
+     "key": "--token",
+     "kind": "flag"
+    }
+   ]
+  },
+  {
+   "name": "--header= is hidden",
+   "args": [
+    "npx",
+    [
+     "--header=Authorization: Bearer x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--header=…",
+     "secret": "flag --header (23 B)",
+     "key": "--header",
+     "kind": "flag"
+    }
+   ]
+  },
+  {
+   "name": "-H=x",
+   "args": [
+    "npx",
+    [
+     "-H=x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "-H=…",
+     "secret": "flag -H (1 B)",
+     "key": "-H",
+     "kind": "flag"
+    }
+   ]
+  },
+  {
+   "name": "-H value",
+   "args": [
+    "npx",
+    [
+     "-H",
+     "A: b"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "-H"
+    },
+    {
+     "show": "…",
+     "secret": "flag -H (4 B)",
+     "key": "-H",
+     "kind": "flag"
+    }
+   ]
+  },
+  {
+   "name": "--a.b=C_KEY=1",
+   "args": [
+    "npx",
+    [
+     "--a.b=C_KEY=1"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--a.b=C_KEY=…",
+     "secret": "arg C_KEY (1 B)",
+     "key": "C_KEY",
+     "kind": "assign"
+    }
+   ]
+  },
+  {
+   "name": "--=x",
+   "args": [
+    "npx",
+    [
+     "--=x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--=x"
+    }
+   ]
+  },
+  {
+   "name": "--yes=true is no yes switch",
+   "args": [
+    "npx",
+    [
+     "--yes=true",
+     "pkg"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--yes=true"
+    },
+    {
+     "show": "pkg"
+    }
+   ]
+  },
+  {
+   "name": "-y last still reads {}",
+   "args": [
+    "npx",
+    [
+     "pkg",
+     "-y"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "pkg"
+    },
+    {}
+   ]
+  },
+  {
+   "name": "-y and --yes alone",
+   "args": [
+    "npx",
+    [
+     "-y",
+     "--yes"
+    ],
+    "/h"
+   ],
+   "out": [
+    {},
+    {}
+   ]
+  },
+  {
+   "name": "-y after -- is a value; the first word after -- is still the program word",
+   "args": [
+    "npx",
+    [
+     "--",
+     "-y",
+     "--yes",
+     "--"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--"
+    },
+    {
+     "show": "-y"
+    },
+    {
+     "show": "…",
+     "secret": "arg 3 (5 B)",
+     "key": "argument 3",
+     "kind": "positional"
+    },
+    {
+     "show": "…",
+     "secret": "arg 4 (2 B)",
+     "key": "argument 4",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "-- twice",
+   "args": [
+    "npx",
+    [
+     "--",
+     "--",
+     "a"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--"
+    },
+    {
+     "show": "--"
+    },
+    {
+     "show": "…",
+     "secret": "arg 3 (1 B)",
+     "key": "argument 3",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "the program word after --",
+   "args": [
+    "npx",
+    [
+     "--",
+     "x",
+     "y"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--"
+    },
+    {
+     "show": "x"
+    },
+    {
+     "show": "…",
+     "secret": "arg 3 (1 B)",
+     "key": "argument 3",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "-- is not taken as a flag's value",
+   "args": [
+    "npx",
+    [
+     "--port",
+     "--",
+     "x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--port"
+    },
+    {
+     "show": "--"
+    },
+    {
+     "show": "x"
+    }
+   ]
+  },
+  {
+   "name": "non-secret assignment as a flag value",
+   "args": [
+    "npx",
+    [
+     "--metadata",
+     "A=b"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--metadata"
+    },
+    {
+     "show": "A=b"
+    }
+   ]
+  },
+  {
+   "name": "hiding flag beats an assignment value",
+   "args": [
+    "npx",
+    [
+     "--api-key",
+     "A_KEY=b"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--api-key"
+    },
+    {
+     "show": "…",
+     "secret": "flag --api-key (7 B)",
+     "key": "--api-key",
+     "kind": "flag"
+    }
+   ]
+  },
+  {
+   "name": "secret assignment behind a plain flag",
+   "args": [
+    "npx",
+    [
+     "-e",
+     "A_KEY=b"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "-e"
+    },
+    {
+     "show": "A_KEY=…",
+     "secret": "arg A_KEY (1 B)",
+     "key": "A_KEY",
+     "kind": "assign"
+    }
+   ]
+  },
+  {
+   "name": "uv runner",
+   "args": [
+    "uv",
+    [
+     "run",
+     "--with",
+     "x",
+     "main.py"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "run"
+    },
+    {
+     "show": "--with"
+    },
+    {
+     "show": "x"
+    },
+    {
+     "show": "…",
+     "secret": "arg 4 (7 B)",
+     "key": "argument 4",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "uvx under .local/bin",
+   "args": [
+    "/h/.local/bin/uvx",
+    [
+     "pkg",
+     "val"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "pkg"
+    },
+    {
+     "show": "…",
+     "secret": "arg 2 (3 B)",
+     "key": "argument 2",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "npx under /usr/local/bin",
+   "args": [
+    "/usr/local/bin/npx",
+    [
+     "pkg",
+     "val"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "pkg"
+    },
+    {
+     "show": "…",
+     "secret": "arg 2 (3 B)",
+     "key": "argument 2",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "npx under ~/.local/bin",
+   "args": [
+    "~/.local/bin/npx",
+    [
+     "pkg",
+     "val"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "pkg"
+    },
+    {
+     "show": "…",
+     "secret": "arg 2 (3 B)",
+     "key": "argument 2",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "npx under a home bin is no runner",
+   "args": [
+    "/h/bin/npx",
+    [
+     "pkg"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "…",
+     "secret": "arg 1 (3 B)",
+     "key": "argument 1",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "./npx is no runner",
+   "args": [
+    "./npx",
+    [
+     "pkg"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "…",
+     "secret": "arg 1 (3 B)",
+     "key": "argument 1",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "uvx under ~/.local/bin",
+   "args": [
+    "~/.local/bin/uvx",
+    [
+     "pkg"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "pkg"
+    }
+   ]
+  },
+  {
+   "name": "uv under Homebrew",
+   "args": [
+    "/opt/homebrew/bin/uv",
+    [
+     "pkg"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "pkg"
+    }
+   ]
+  },
+  {
+   "name": "npx under /usr/bin",
+   "args": [
+    "/usr/bin/npx",
+    [
+     "pkg"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "pkg"
+    }
+   ]
+  },
+  {
+   "name": "npx under /opt/x is no runner",
+   "args": [
+    "/opt/x/npx",
+    [
+     "pkg"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "…",
+     "secret": "arg 1 (3 B)",
+     "key": "argument 1",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "no arguments",
+   "args": [
+    "npx",
+    [],
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "empty string argument under the program word",
+   "args": [
+    "npx",
+    [
+     "",
+     "x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": ""
+    },
+    {
+     "show": "…",
+     "secret": "arg 2 (1 B)",
+     "key": "argument 2",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "empty string argument, no runner",
+   "args": [
+    "node",
+    [
+     "",
+     "x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "…",
+     "secret": "arg 1 (0 B)",
+     "key": "argument 1",
+     "kind": "positional"
+    },
+    {
+     "show": "…",
+     "secret": "arg 2 (1 B)",
+     "key": "argument 2",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "home, tilde, tilde slash, home slash",
+   "args": [
+    "node",
+    [
+     "/h",
+     "~",
+     "~/",
+     "/h/"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "~"
+    },
+    {
+     "show": "…",
+     "secret": "arg 2 (1 B)",
+     "key": "argument 2",
+     "kind": "positional"
+    },
+    {
+     "show": "~/"
+    },
+    {
+     "show": "~/"
+    }
+   ]
+  },
+  {
+   "name": "relative paths are values",
+   "args": [
+    "node",
+    [
+     "./x",
+     "../y",
+     "x/y"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "…",
+     "secret": "arg 1 (3 B)",
+     "key": "argument 1",
+     "kind": "positional"
+    },
+    {
+     "show": "…",
+     "secret": "arg 2 (4 B)",
+     "key": "argument 2",
+     "kind": "positional"
+    },
+    {
+     "show": "…",
+     "secret": "arg 3 (3 B)",
+     "key": "argument 3",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "UTF-8 sizes",
+   "args": [
+    "node",
+    [
+     "é",
+     "😀"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "…",
+     "secret": "arg 1 (2 B)",
+     "key": "argument 1",
+     "kind": "positional"
+    },
+    {
+     "show": "…",
+     "secret": "arg 2 (4 B)",
+     "key": "argument 2",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "flag values under home are tilde'd",
+   "args": [
+    "node",
+    [
+     "--out",
+     "/h/x/y",
+     "--out",
+     "~/z"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--out"
+    },
+    {
+     "show": "~/x/y"
+    },
+    {
+     "show": "--out"
+    },
+    {
+     "show": "~/z"
+    }
+   ]
+  },
+  {
+   "name": "unicode flag name",
+   "args": [
+    "node",
+    [
+     "--é",
+     "v"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--é"
+    },
+    {
+     "show": "v"
+    }
+   ]
+  },
+  {
+   "name": "digits in flag names",
+   "args": [
+    "node",
+    [
+     "--a1",
+     "v",
+     "-9",
+     "w"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--a1"
+    },
+    {
+     "show": "v"
+    },
+    {
+     "show": "-9"
+    },
+    {
+     "show": "w"
+    }
+   ]
+  },
+  {
+   "name": "an address that does not parse is hidden in an assignment",
+   "args": [
+    "node",
+    [
+     "X=https://",
+     "Y=postgres://db/x",
+     "Z=HTTPS://u:p@h/",
+     "W=a://b"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "X=…",
+     "secret": "arg X (8 B)",
+     "key": "X",
+     "kind": "assign"
+    },
+    {
+     "show": "Y=postgres://db/x"
+    },
+    {
+     "show": "Z=…",
+     "secret": "arg Z (14 B)",
+     "key": "Z",
+     "kind": "assign"
+    },
+    {
+     "show": "W=a://b"
+    }
+   ]
+  },
+  {
+   "name": "address assignments with a fragment or a bare query",
+   "args": [
+    "node",
+    [
+     "X=https://h/a#f",
+     "Y=https://h/?"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "X=https://h/a#f"
+    },
+    {
+     "show": "Y=https://h/?"
+    }
+   ]
+  },
+  {
+   "name": "--env=DB=address with a login",
+   "args": [
+    "node",
+    [
+     "--env=DB=postgres://u:p@h/db",
+     "--env=DB2=postgres://h/db"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--env=DB=…",
+     "secret": "arg DB (19 B)",
+     "key": "DB",
+     "kind": "assign"
+    },
+    {
+     "show": "--env=DB2=postgres://h/db"
+    }
+   ]
+  },
+  {
+   "name": "flag then a program word",
+   "args": [
+    "npx",
+    [
+     "--registry",
+     "https://r.example/",
+     "pkg",
+     "x"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--registry"
+    },
+    {
+     "show": "(r.example)"
+    },
+    {
+     "show": "pkg"
+    },
+    {
+     "show": "…",
+     "secret": "arg 4 (1 B)",
+     "key": "argument 4",
+     "kind": "positional"
+    }
+   ]
+  },
+  {
+   "name": "an http(s) argument shown as host and path",
+   "args": [
+    "npx",
+    [
+     "--u",
+     "http://[::1]:8080/a",
+     "--u",
+     "https://x.example:443/a/",
+     "--u",
+     "https://x.example/a/?q#f",
+     "--u",
+     "https://x.example//a",
+     "--u",
+     "http://x.example:80",
+     "--u",
+     "https://x.example/%7Efoo",
+     "--u",
+     "https://x.example/a%2Fb",
+     "--u",
+     "https://x.example/ü",
+     "--u",
+     "file:///a/b",
+     "--u",
+     "mailto:x@y"
+    ],
+    "/h"
+   ],
+   "out": [
+    {
+     "show": "--u"
+    },
+    {
+     "show": "([::1]:8080/a)"
+    },
+    {
+     "show": "--u"
+    },
+    {
+     "show": "(x.example/a/)"
+    },
+    {
+     "show": "--u"
+    },
+    {
+     "show": "(x.example/a/)"
+    },
+    {
+     "show": "--u"
+    },
+    {
+     "show": "(x.example//a)"
+    },
+    {
+     "show": "--u"
+    },
+    {
+     "show": "(x.example)"
+    },
+    {
+     "show": "--u"
+    },
+    {
+     "show": "(x.example/%7Efoo)"
+    },
+    {
+     "show": "--u"
+    },
+    {
+     "show": "(x.example/a%2Fb)"
+    },
+    {
+     "show": "--u"
+    },
+    {
+     "show": "(x.example/%C3%BC)"
+    },
+    {
+     "show": "--u"
+    },
+    {
+     "show": "file:///a/b"
+    },
+    {
+     "show": "--u"
+    },
+    {
+     "show": "mailto:x@y"
+    }
+   ]
+  }
+ ],
+ "stdio_line": [
+  {
+   "name": "-y then five paths: no cut",
+   "args": [
+    "npx",
+    [
+     "-y",
+     "/a",
+     "/b",
+     "/c",
+     "/d",
+     "/e"
+    ],
+    "/h"
+   ],
+   "out": "npx /a /b /c /d /e"
+  },
+  {
+   "name": "five paths",
+   "args": [
+    "npx",
+    [
+     "/a",
+     "/b",
+     "/c",
+     "/d",
+     "/e"
+    ],
+    "/h"
+   ],
+   "out": "npx /a /b /c /d /e"
+  },
+  {
+   "name": "-y then six paths",
+   "args": [
+    "npx",
+    [
+     "-y",
+     "/a",
+     "/b",
+     "/c",
+     "/d",
+     "/e",
+     "/f"
+    ],
+    "/h"
+   ],
+   "out": "npx /a /b /c /d /e …"
+  },
+  {
+   "name": "an empty word is kept",
+   "args": [
+    "npx",
+    [
+     "",
+     "/a"
+    ],
+    "/h"
+   ],
+   "out": "npx  /a"
+  },
+  {
+   "name": "-y in the middle",
+   "args": [
+    "npx",
+    [
+     "/a",
+     "-y",
+     "/b"
+    ],
+    "/h"
+   ],
+   "out": "npx /a /b"
+  },
+  {
+   "name": "two --yes then six paths",
+   "args": [
+    "npx",
+    [
+     "--yes",
+     "--yes",
+     "/a",
+     "/b",
+     "/c",
+     "/d",
+     "/e",
+     "/f"
+    ],
+    "/h"
+   ],
+   "out": "npx /a /b /c /d /e …"
+  },
+  {
+   "name": "empty command, no arguments",
+   "args": [
+    "",
+    [],
+    "/h"
+   ],
+   "out": ""
+  },
+  {
+   "name": "empty command, one hidden word",
+   "args": [
+    "",
+    [
+     "a"
+    ],
+    "/h"
+   ],
+   "out": " …"
+  },
+  {
+   "name": "the command is the home itself",
+   "args": [
+    "/h",
+    [],
+    "/h"
+   ],
+   "out": "~"
+  },
+  {
+   "name": "only -y",
+   "args": [
+    "npx",
+    [
+     "-y"
+    ],
+    "/h"
+   ],
+   "out": "npx"
+  },
+  {
+   "name": "hidden words count toward the cut",
+   "args": [
+    "node",
+    [
+     "a",
+     "b",
+     "c",
+     "d",
+     "e",
+     "f"
+    ],
+    "/h"
+   ],
+   "out": "node … … … … … …"
+  },
+  {
+   "name": "a secret flag's value is the flag's word",
+   "args": [
+    "npx",
+    [
+     "p",
+     "--api-key",
+     "v",
+     "--x",
+     "y",
+     "--z"
+    ],
+    "/h"
+   ],
+   "out": "npx p --api-key … --x y …"
+  }
+ ],
+ "home_paths": [
+  {
+   "name": "tilde slash alone, home slash, tilde alone",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "x",
+      "args": [
+       "~/",
+       "/h/",
+       "~"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/h"
+   ],
+   "out": [
+    "~/"
+   ]
+  },
+  {
+   "name": "a trailing slash is another path",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "x",
+      "args": [
+       "/h/a",
+       "/h/a/",
+       "~/a"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/h"
+   ],
+   "out": [
+    "~/a",
+    "~/a/"
+   ]
+  },
+  {
+   "name": "flag forms",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "x",
+      "args": [
+       "-d=/h/x",
+       "--a.b=/h/y",
+       "--a=b=/h/z",
+       "--=/h/w"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/h"
+   ],
+   "out": [
+    "~/x",
+    "~/w"
+   ]
+  },
+  {
+   "name": "order args, cwd, env and one entry each",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "x",
+      "args": [
+       "/h/a"
+      ],
+      "env": {
+       "A": "/h/a",
+       "B": "~/b"
+      },
+      "cwd": "/h/a"
+     },
+     "envRefs": []
+    },
+    "/h"
+   ],
+   "out": [
+    "~/a",
+    "~/b"
+   ]
+  },
+  {
+   "name": "empty cwd",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "x",
+      "args": [],
+      "env": {},
+      "cwd": ""
+     },
+     "envRefs": []
+    },
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "relative paths",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "x",
+      "args": [
+       "./a",
+       "a/b",
+       ".local/bin"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "local bin variants",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "x",
+      "args": [
+       "/h/.local/bin",
+       "/h/.local/bin/",
+       "/h/.local/bin/x",
+       "/h/.local/binx",
+       "~/.local/bin/y"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/h"
+   ],
+   "out": [
+    "~/.local/bin",
+    "~/.local/binx"
+   ]
+  },
+  {
+   "name": "home prefix lookalikes",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "x",
+      "args": [
+       "/hx/a",
+       "/h2/b"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "empty env value",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "x",
+      "args": [],
+      "env": {
+       "A": ""
+      }
+     },
+     "envRefs": []
+    },
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "dots are not normalised",
+   "args": [
+    {
+     "name": "s",
+     "scope": "user",
+     "transport": {
+      "kind": "stdio",
+      "command": "x",
+      "args": [
+       "/h/a/../b",
+       "/h/./c"
+      ],
+      "env": {}
+     },
+     "envRefs": []
+    },
+    "/h"
+   ],
+   "out": [
+    "~/a/../b",
+    "~/./c"
+   ]
+  },
+  {
+   "name": "http has none",
+   "args": [
+    {
+     "name": "h",
+     "scope": "user",
+     "transport": {
+      "kind": "http",
+      "url": "https://h/h/a",
+      "headers": {}
+     },
+     "envRefs": []
+    },
+    "/h"
+   ],
+   "out": []
+  }
+ ]
+}

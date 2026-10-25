@@ -1,0 +1,3242 @@
+{
+ "called_commands": [
+  {
+   "name": "\"git diff src/git\\n\"",
+   "args": [
+    "git diff src/git\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls ~/bin/ls\\n\"",
+   "args": [
+    "ls ~/bin/ls\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool a/tool\\n\"",
+   "args": [
+    "tool a/tool\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool a/b/tool2\\n\"",
+   "args": [
+    "tool a/b/tool2\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"FOO=bar/git git\\n\"",
+   "args": [
+    "FOO=bar/git git\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool x=a/tool\\n\"",
+   "args": [
+    "tool x=a/tool\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"git status a/b/git\\n\"",
+   "args": [
+    "git status a/b/git\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ls -la /usr/bin/ls\\n\"",
+   "args": [
+    "ls -la /usr/bin/ls\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool \\\"a/tool\\\"\\n\"",
+   "args": [
+    "tool \"a/tool\"\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"cat a/cat\\n\"",
+   "args": [
+    "cat a/cat\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"A=x/y tool\\n\"",
+   "args": [
+    "A=x/y tool\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"./run\\n\"",
+   "args": [
+    "./run\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"/usr/bin/git status\\n\"",
+   "args": [
+    "/usr/bin/git status\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"bin/tool x\\n\"",
+   "args": [
+    "bin/tool x\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"git status\\n\"",
+   "args": [
+    "git status\n",
+    "sh"
+   ],
+   "out": [
+    "git"
+   ]
+  },
+  {
+   "name": "\"alias x='A=1 B=2 cmd'\\n\"",
+   "args": [
+    "alias x='A=1 B=2 cmd'\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias x='FOO=1 cmd'\\n\"",
+   "args": [
+    "alias x='FOO=1 cmd'\n",
+    "sh"
+   ],
+   "out": [
+    "cmd"
+   ]
+  },
+  {
+   "name": "\"alias x='A=1 cmd' y='B=2 cmd2'\\n\"",
+   "args": [
+    "alias x='A=1 cmd' y='B=2 cmd2'\n",
+    "sh"
+   ],
+   "out": [
+    "cmd",
+    "cmd2"
+   ]
+  },
+  {
+   "name": "\"alias a=b b=c\\n\"",
+   "args": [
+    "alias a=b b=c\n",
+    "sh"
+   ],
+   "out": [
+    "c"
+   ]
+  },
+  {
+   "name": "\"alias a='b c' d='a e'\\n\"",
+   "args": [
+    "alias a='b c' d='a e'\n",
+    "sh"
+   ],
+   "out": [
+    "b"
+   ]
+  },
+  {
+   "name": "\"alias x='git a/git'\\n\"",
+   "args": [
+    "alias x='git a/git'\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias -g L='| less'\\n\"",
+   "args": [
+    "alias -g L='| less'\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias x='eza -l' y\\n\"",
+   "args": [
+    "alias x='eza -l' y\n",
+    "sh"
+   ],
+   "out": [
+    "eza"
+   ]
+  },
+  {
+   "name": "\"alias ll='-x'\\n\"",
+   "args": [
+    "alias ll='-x'\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias x='cd /tmp'\\n\"",
+   "args": [
+    "alias x='cd /tmp'\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias x='command -v git'\\n\"",
+   "args": [
+    "alias x='command -v git'\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias x='git --version'\\n\"",
+   "args": [
+    "alias x='git --version'\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias ll\\n\"",
+   "args": [
+    "alias ll\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias\\n\"",
+   "args": [
+    "alias\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias x=\\n\"",
+   "args": [
+    "alias x=\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias -- ll=eza\\n\"",
+   "args": [
+    "alias -- ll=eza\n",
+    "sh"
+   ],
+   "out": [
+    "eza"
+   ]
+  },
+  {
+   "name": "\"  alias ll=eza\\n\"",
+   "args": [
+    "  alias ll=eza\n",
+    "sh"
+   ],
+   "out": [
+    "eza"
+   ]
+  },
+  {
+   "name": "\"\\talias ll=eza\\n\"",
+   "args": [
+    "\talias ll=eza\n",
+    "sh"
+   ],
+   "out": [
+    "eza"
+   ]
+  },
+  {
+   "name": "\"alias ll=eza # c\\n\"",
+   "args": [
+    "alias ll=eza # c\n",
+    "sh"
+   ],
+   "out": [
+    "eza"
+   ]
+  },
+  {
+   "name": "\"alias ll='eza' && alias lg='lazygit'\\n\"",
+   "args": [
+    "alias ll='eza' && alias lg='lazygit'\n",
+    "sh"
+   ],
+   "out": [
+    "eza",
+    "lazygit"
+   ]
+  },
+  {
+   "name": "\"alias gs='git status'; gs\\n\"",
+   "args": [
+    "alias gs='git status'; gs\n",
+    "sh"
+   ],
+   "out": [
+    "git"
+   ]
+  },
+  {
+   "name": "\"alias ll='eza -l'\\nll\\n\"",
+   "args": [
+    "alias ll='eza -l'\nll\n",
+    "sh"
+   ],
+   "out": [
+    "eza"
+   ]
+  },
+  {
+   "name": "\"alias ll='sudo eza'\\n\"",
+   "args": [
+    "alias ll='sudo eza'\n",
+    "sh"
+   ],
+   "out": [
+    "eza"
+   ]
+  },
+  {
+   "name": "\"autoload foo bar\\nfoo\\nbar\\nbaz\\n\"",
+   "args": [
+    "autoload foo bar\nfoo\nbar\nbaz\n",
+    "sh"
+   ],
+   "out": [
+    "baz"
+   ]
+  },
+  {
+   "name": "\"autoload -U\\nU\\n\"",
+   "args": [
+    "autoload -U\nU\n",
+    "sh"
+   ],
+   "out": [
+    "U"
+   ]
+  },
+  {
+   "name": "\"autoload +X foo\\n\"",
+   "args": [
+    "autoload +X foo\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"autoload -Uz\\n\"",
+   "args": [
+    "autoload -Uz\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"autoload -Uz compinit\\ncompinit\\n\"",
+   "args": [
+    "autoload -Uz compinit\ncompinit\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"foo ()\\n{\\n  :\\n}\\nfoo\\n\"",
+   "args": [
+    "foo ()\n{\n  :\n}\nfoo\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"function foo-bar { :; }\\nfoo-bar\\n\"",
+   "args": [
+    "function foo-bar { :; }\nfoo-bar\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"function foo- { :; }\\nfoo\\n\"",
+   "args": [
+    "function foo- { :; }\nfoo\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"# foo() { :; }\\nfoo\\n\"",
+   "args": [
+    "# foo() { :; }\nfoo\n",
+    "sh"
+   ],
+   "out": [
+    "foo"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\nfoo() { :; }\\nEOF\\nfoo\\n\"",
+   "args": [
+    "cat <<EOF\nfoo() { :; }\nEOF\nfoo\n",
+    "sh"
+   ],
+   "out": [
+    "cat"
+   ]
+  },
+  {
+   "name": "\"x; foo() { :; }\\nfoo\\n\"",
+   "args": [
+    "x; foo() { :; }\nfoo\n",
+    "sh"
+   ],
+   "out": [
+    "x",
+    "foo"
+   ]
+  },
+  {
+   "name": "\"if x; then foo() { :; }; fi\\nfoo\\n\"",
+   "args": [
+    "if x; then foo() { :; }; fi\nfoo\n",
+    "sh"
+   ],
+   "out": [
+    "x",
+    "foo"
+   ]
+  },
+  {
+   "name": "\"  foo() { :; }\\nfoo\\n\"",
+   "args": [
+    "  foo() { :; }\nfoo\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"foo( )\\nfoo\\n\"",
+   "args": [
+    "foo( )\nfoo\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"function  foo\\nfoo\\n\"",
+   "args": [
+    "function  foo\nfoo\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"foo.bar() { :; }\\nfoo.bar\\n\"",
+   "args": [
+    "foo.bar() { :; }\nfoo.bar\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"foo+bar() { :; }\\nfoo+bar\\n\"",
+   "args": [
+    "foo+bar() { :; }\nfoo+bar\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"1f() { :; }\\n1f\\n\"",
+   "args": [
+    "1f() { :; }\n1f\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"function() { :; }\\nfunction\\n\"",
+   "args": [
+    "function() { :; }\nfunction\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool(){ :; }\\ntool\\n\"",
+   "args": [
+    "tool(){ :; }\ntool\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"mytool\\nmytool() { :; }\\n\"",
+   "args": [
+    "mytool\nmytool() { :; }\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"arr+=(a b)\\nafter\\n\"",
+   "args": [
+    "arr+=(a b)\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"arr[0]=(a)\\nafter\\n\"",
+   "args": [
+    "arr[0]=(a)\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"echo a=(b)\\nafter\\n\"",
+   "args": [
+    "echo a=(b)\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"--opt=(x) tool\\n\"",
+   "args": [
+    "--opt=(x) tool\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"x==(a)\\nb\\n\"",
+   "args": [
+    "x==(a)\nb\n",
+    "sh"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"=(a)\\nb\\n\"",
+   "args": [
+    "=(a)\nb\n",
+    "sh"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"x=( a ) y\\n\"",
+   "args": [
+    "x=( a ) y\n",
+    "sh"
+   ],
+   "out": [
+    "y"
+   ]
+  },
+  {
+   "name": "\"x=(a)y\\n\"",
+   "args": [
+    "x=(a)y\n",
+    "sh"
+   ],
+   "out": [
+    "y"
+   ]
+  },
+  {
+   "name": "\"x=(a\\\\)b)\\nafter\\n\"",
+   "args": [
+    "x=(a\\)b)\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"x=('a)')\\nafter\\n\"",
+   "args": [
+    "x=('a)')\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"x=(a 'b\\\\')c')\\nafter\\n\"",
+   "args": [
+    "x=(a 'b\\')c')\nafter\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"x=(open\\nnever\\n\"",
+   "args": [
+    "x=(open\nnever\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"x=$(a)\\n\"",
+   "args": [
+    "x=$(a)\n",
+    "sh"
+   ],
+   "out": [
+    "a"
+   ]
+  },
+  {
+   "name": "\"x=((1+2))\\n\"",
+   "args": [
+    "x=((1+2))\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"x=(a (b) c) tool\\n\"",
+   "args": [
+    "x=(a (b) c) tool\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"x=(a\\nb) tool\\n\"",
+   "args": [
+    "x=(a\nb) tool\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"# c =(x)\\nafter\\n\"",
+   "args": [
+    "# c =(x)\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"x=(a)#c\\nafter\\n\"",
+   "args": [
+    "x=(a)#c\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"x=(a) #c\\nafter\\n\"",
+   "args": [
+    "x=(a) #c\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"x=(a # b )\\nc)\\nafter\\n\"",
+   "args": [
+    "x=(a # b )\nc)\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"x=(\\\"a)\\\"\\nb)\\nafter\\n\"",
+   "args": [
+    "x=(\"a)\"\nb)\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"a=(b (#c)\\n)z\\n\"",
+   "args": [
+    "a=(b (#c)\n)z\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"arr=(\\n  one # (c)\\n  (two three)\\n)\\nafter\\n\"",
+   "args": [
+    "arr=(\n  one # (c)\n  (two three)\n)\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"x=(\\n<<EOF\\n)\\nafter\\n\"",
+   "args": [
+    "x=(\n<<EOF\n)\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "after"
+   ]
+  },
+  {
+   "name": "\"tool-x\\n\"",
+   "args": [
+    "tool-x\n",
+    "sh"
+   ],
+   "out": [
+    "tool-x"
+   ]
+  },
+  {
+   "name": "\"tool.x\\n\"",
+   "args": [
+    "tool.x\n",
+    "sh"
+   ],
+   "out": [
+    "tool.x"
+   ]
+  },
+  {
+   "name": "\"tool+x\\n\"",
+   "args": [
+    "tool+x\n",
+    "sh"
+   ],
+   "out": [
+    "tool+x"
+   ]
+  },
+  {
+   "name": "\"tool_x\\n\"",
+   "args": [
+    "tool_x\n",
+    "sh"
+   ],
+   "out": [
+    "tool_x"
+   ]
+  },
+  {
+   "name": "\"Tool\\n\"",
+   "args": [
+    "Tool\n",
+    "sh"
+   ],
+   "out": [
+    "Tool"
+   ]
+  },
+  {
+   "name": "\"1tool\\n\"",
+   "args": [
+    "1tool\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool@x\\n\"",
+   "args": [
+    "tool@x\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool=1\\n\"",
+   "args": [
+    "tool=1\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool\\nTOOL\\ntool\\n\"",
+   "args": [
+    "tool\nTOOL\ntool\n",
+    "sh"
+   ],
+   "out": [
+    "tool",
+    "TOOL"
+   ]
+  },
+  {
+   "name": "\"other\\ntool\\nother\\n\"",
+   "args": [
+    "other\ntool\nother\n",
+    "sh"
+   ],
+   "out": [
+    "other",
+    "tool"
+   ]
+  },
+  {
+   "name": "\"tool\\r\\nother\\r\\n\"",
+   "args": [
+    "tool\r\nother\r\n",
+    "sh"
+   ],
+   "out": [
+    "tool",
+    "other"
+   ]
+  },
+  {
+   "name": "\"tool a\\n\\n\\ntool b\\n\"",
+   "args": [
+    "tool a\n\n\ntool b\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"command -v tool\\n\"",
+   "args": [
+    "command -v tool\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool --version\\n\"",
+   "args": [
+    "tool --version\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool -v\\n\"",
+   "args": [
+    "tool -v\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool --help\\n\"",
+   "args": [
+    "tool --help\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"which tool\\n\"",
+   "args": [
+    "which tool\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command tool\\n\"",
+   "args": [
+    "command tool\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"FOO=\\\"a b\\\" tool\\n\"",
+   "args": [
+    "FOO=\"a b\" tool\n",
+    "sh"
+   ],
+   "out": [
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo \\\"a $(tool x) b\\\"\\n\"",
+   "args": [
+    "echo \"a $(tool x) b\"\n",
+    "sh"
+   ],
+   "out": [
+    "tool",
+    "b"
+   ]
+  },
+  {
+   "name": "\"sh -c 'tool x'\\n\"",
+   "args": [
+    "sh -c 'tool x'\n",
+    "sh"
+   ],
+   "out": [
+    "sh"
+   ]
+  },
+  {
+   "name": "\"cat <<EOF\\ntool\\nEOF\\nafter\\n\"",
+   "args": [
+    "cat <<EOF\ntool\nEOF\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "cat",
+    "after"
+   ]
+  },
+  {
+   "name": "\"cat <<-EOF\\n\\ttool\\n\\tEOF\\nafter\\n\"",
+   "args": [
+    "cat <<-EOF\n\ttool\n\tEOF\nafter\n",
+    "sh"
+   ],
+   "out": [
+    "cat",
+    "after"
+   ]
+  },
+  {
+   "name": "\"tool # c\\n\"",
+   "args": [
+    "tool # c\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"# tool\\n\"",
+   "args": [
+    "# tool\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"tool \\\\\\n  arg\\nother\\n\"",
+   "args": [
+    "tool \\\n  arg\nother\n",
+    "sh"
+   ],
+   "out": [
+    "tool",
+    "other"
+   ]
+  },
+  {
+   "name": "\"echo $(tool x)\\n\"",
+   "args": [
+    "echo $(tool x)\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"echo `tool x`\\n\"",
+   "args": [
+    "echo `tool x`\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"echo \\\"$(tool x)\\\"\\n\"",
+   "args": [
+    "echo \"$(tool x)\"\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"if tool; then other; fi\\n\"",
+   "args": [
+    "if tool; then other; fi\n",
+    "sh"
+   ],
+   "out": [
+    "tool",
+    "other"
+   ]
+  },
+  {
+   "name": "\"case x in a) tool;; esac\\n\"",
+   "args": [
+    "case x in a) tool;; esac\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"[ -f x ] && tool\\n\"",
+   "args": [
+    "[ -f x ] && tool\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"export FOO=1 && tool\\n\"",
+   "args": [
+    "export FOO=1 && tool\n",
+    "sh"
+   ],
+   "out": [
+    "tool"
+   ]
+  },
+  {
+   "name": "\"zshz\\n\"",
+   "args": [
+    "zshz\n",
+    "sh"
+   ],
+   "out": [
+    "zshz"
+   ]
+  },
+  {
+   "name": "\"bat\\n\"",
+   "args": [
+    "bat\n",
+    "sh"
+   ],
+   "out": [
+    "bat"
+   ]
+  },
+  {
+   "name": "\"fd\\n\"",
+   "args": [
+    "fd\n",
+    "sh"
+   ],
+   "out": [
+    "fd"
+   ]
+  },
+  {
+   "name": "\"sched2\\n\"",
+   "args": [
+    "sched2\n",
+    "sh"
+   ],
+   "out": [
+    "sched2"
+   ]
+  },
+  {
+   "name": "\"compdescribe2\\n\"",
+   "args": [
+    "compdescribe2\n",
+    "sh"
+   ],
+   "out": [
+    "compdescribe2"
+   ]
+  },
+  {
+   "name": "\"\"",
+   "args": [
+    "",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "fish yields nothing",
+   "args": [
+    "tool\n",
+    "fish"
+   ],
+   "out": []
+  },
+  {
+   "name": "fish config",
+   "args": [
+    "set -gx EDITOR nvim\nstarship init fish | source\n",
+    "fish"
+   ],
+   "out": []
+  }
+ ],
+ "called_commands_rc_builtin": [
+  {
+   "name": "\"autoload\\n\"",
+   "args": [
+    "autoload\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"bg\\n\"",
+   "args": [
+    "bg\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"bindkey\\n\"",
+   "args": [
+    "bindkey\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"bye\\n\"",
+   "args": [
+    "bye\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"chdir\\n\"",
+   "args": [
+    "chdir\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"compadd\\n\"",
+   "args": [
+    "compadd\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"compdef\\n\"",
+   "args": [
+    "compdef\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"compdescribe\\n\"",
+   "args": [
+    "compdescribe\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"compinit\\n\"",
+   "args": [
+    "compinit\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"complete\\n\"",
+   "args": [
+    "complete\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"compgen\\n\"",
+   "args": [
+    "compgen\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"compopt\\n\"",
+   "args": [
+    "compopt\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"coproc\\n\"",
+   "args": [
+    "coproc\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"dirs\\n\"",
+   "args": [
+    "dirs\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"disable\\n\"",
+   "args": [
+    "disable\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"disown\\n\"",
+   "args": [
+    "disown\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echotc\\n\"",
+   "args": [
+    "echotc\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echoti\\n\"",
+   "args": [
+    "echoti\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"emulate\\n\"",
+   "args": [
+    "emulate\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"enable\\n\"",
+   "args": [
+    "enable\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"fc\\n\"",
+   "args": [
+    "fc\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"fg\\n\"",
+   "args": [
+    "fg\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"float\\n\"",
+   "args": [
+    "float\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"functions\\n\"",
+   "args": [
+    "functions\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"getln\\n\"",
+   "args": [
+    "getln\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"getopts\\n\"",
+   "args": [
+    "getopts\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"hash\\n\"",
+   "args": [
+    "hash\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"history\\n\"",
+   "args": [
+    "history\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"in\\n\"",
+   "args": [
+    "in\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"integer\\n\"",
+   "args": [
+    "integer\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"jobs\\n\"",
+   "args": [
+    "jobs\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"let\\n\"",
+   "args": [
+    "let\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"limit\\n\"",
+   "args": [
+    "limit\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"logout\\n\"",
+   "args": [
+    "logout\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"mapfile\\n\"",
+   "args": [
+    "mapfile\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"nocorrect\\n\"",
+   "args": [
+    "nocorrect\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"noglob\\n\"",
+   "args": [
+    "noglob\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"popd\\n\"",
+   "args": [
+    "popd\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"print\\n\"",
+   "args": [
+    "print\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"private\\n\"",
+   "args": [
+    "private\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"pushd\\n\"",
+   "args": [
+    "pushd\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"pushln\\n\"",
+   "args": [
+    "pushln\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"r\\n\"",
+   "args": [
+    "r\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"readarray\\n\"",
+   "args": [
+    "readarray\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"rehash\\n\"",
+   "args": [
+    "rehash\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"repeat\\n\"",
+   "args": [
+    "repeat\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"sched\\n\"",
+   "args": [
+    "sched\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"select\\n\"",
+   "args": [
+    "select\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"setopt\\n\"",
+   "args": [
+    "setopt\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"shopt\\n\"",
+   "args": [
+    "shopt\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"suspend\\n\"",
+   "args": [
+    "suspend\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"times\\n\"",
+   "args": [
+    "times\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"ttyctl\\n\"",
+   "args": [
+    "ttyctl\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"umask\\n\"",
+   "args": [
+    "umask\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"unalias\\n\"",
+   "args": [
+    "unalias\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"unfunction\\n\"",
+   "args": [
+    "unfunction\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"unhash\\n\"",
+   "args": [
+    "unhash\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"unlimit\\n\"",
+   "args": [
+    "unlimit\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"unsetopt\\n\"",
+   "args": [
+    "unsetopt\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"vared\\n\"",
+   "args": [
+    "vared\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"whence\\n\"",
+   "args": [
+    "whence\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"where\\n\"",
+   "args": [
+    "where\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zcompile\\n\"",
+   "args": [
+    "zcompile\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zformat\\n\"",
+   "args": [
+    "zformat\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zle\\n\"",
+   "args": [
+    "zle\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zmodload\\n\"",
+   "args": [
+    "zmodload\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zparseopts\\n\"",
+   "args": [
+    "zparseopts\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zprof\\n\"",
+   "args": [
+    "zprof\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zstyle\\n\"",
+   "args": [
+    "zstyle\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"add-zsh-hook\\n\"",
+   "args": [
+    "add-zsh-hook\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"add-zle-hook-widget\\n\"",
+   "args": [
+    "add-zle-hook-widget\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"bashcompinit\\n\"",
+   "args": [
+    "bashcompinit\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"colors\\n\"",
+   "args": [
+    "colors\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"compaudit\\n\"",
+   "args": [
+    "compaudit\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"is-at-least\\n\"",
+   "args": [
+    "is-at-least\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"promptinit\\n\"",
+   "args": [
+    "promptinit\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"prompt\\n\"",
+   "args": [
+    "prompt\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"run-help\\n\"",
+   "args": [
+    "run-help\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"select-word-style\\n\"",
+   "args": [
+    "select-word-style\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"vcs_info\\n\"",
+   "args": [
+    "vcs_info\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zargs\\n\"",
+   "args": [
+    "zargs\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zcalc\\n\"",
+   "args": [
+    "zcalc\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zed\\n\"",
+   "args": [
+    "zed\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zmv\\n\"",
+   "args": [
+    "zmv\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"zrecompile\\n\"",
+   "args": [
+    "zrecompile\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"bracketed-paste-magic\\n\"",
+   "args": [
+    "bracketed-paste-magic\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"url-quote-magic\\n\"",
+   "args": [
+    "url-quote-magic\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"edit-command-line\\n\"",
+   "args": [
+    "edit-command-line\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"up-line-or-beginning-search\\n\"",
+   "args": [
+    "up-line-or-beginning-search\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"down-line-or-beginning-search\\n\"",
+   "args": [
+    "down-line-or-beginning-search\n",
+    "sh"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"history-search-end\\n\"",
+   "args": [
+    "history-search-end\n",
+    "sh"
+   ],
+   "out": []
+  }
+ ],
+ "drop_plugins": [
+  {
+   "name": "\"plugins=(git) eza\\n\"",
+   "args": [
+    "plugins=(git) eza\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(git)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(git eza)\\n\"",
+   "args": [
+    "plugins=(git eza)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(git)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(z) eza # eza\\n\"",
+   "args": [
+    "plugins=(z) eza # eza\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z) # eza\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(z) ; eza\\n\"",
+   "args": [
+    "plugins=(z) ; eza\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z) ;\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(a\\n b) c eza\\n\"",
+   "args": [
+    "plugins=(a\n b) c eza\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(a\n b) c\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(eza)(eza)\\n\"",
+   "args": [
+    "plugins=(eza)(eza)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=()()\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(a (eza) b)\\n\"",
+   "args": [
+    "plugins=(a (eza) b)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(a () b)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=((eza))\\n\"",
+   "args": [
+    "plugins=((eza))\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(())\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins +=(eza z)\\n\"",
+   "args": [
+    "plugins +=(eza z)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins +=(eza z)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins = (eza z)\\n\"",
+   "args": [
+    "plugins = (eza z)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins = (eza z)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"export plugins=(eza z)\\n\"",
+   "args": [
+    "export plugins=(eza z)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "export plugins=(eza z)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=eza\\n\"",
+   "args": [
+    "plugins=eza\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=eza\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"\\tplugins+=(eza z)\\n\"",
+   "args": [
+    "\tplugins+=(eza z)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "\tplugins+=(z)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"  plugins=(eza z)\\n\"",
+   "args": [
+    "  plugins=(eza z)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "  plugins=(z)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(eza z) plugins=(eza z)\\n\"",
+   "args": [
+    "plugins=(eza z) plugins=(eza z)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z) plugins=(z)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(z\\n plugins=(eza z)\\n)\\n\"",
+   "args": [
+    "plugins=(z\n plugins=(eza z)\n)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z\n plugins=(z)\n)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(\\\"eza\\\" git)\\n\"",
+   "args": [
+    "plugins=(\"eza\" git)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(\"eza\" git)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=('eza' z)\\n\"",
+   "args": [
+    "plugins=('eza' z)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=('eza' z)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(eza,z)\\n\"",
+   "args": [
+    "plugins=(eza,z)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(eza,z)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(eza-x z)\\n\"",
+   "args": [
+    "plugins=(eza-x z)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(eza-x z)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(a $eza b)\\n\"",
+   "args": [
+    "plugins=(a $eza b)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(a $eza b)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(z#c eza)\\n\"",
+   "args": [
+    "plugins=(z#c eza)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z#c)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(\\n  eza#t\\n)\\n\"",
+   "args": [
+    "plugins=(\n  eza#t\n)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(\n  eza#t\n)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(a ${eza} eza)\\n\"",
+   "args": [
+    "plugins=(a ${eza} eza)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(a ${eza})\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=( eza )\\n\"",
+   "args": [
+    "plugins=( eza )\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=( )\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(git  eza  z)\\n\"",
+   "args": [
+    "plugins=(git  eza  z)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(git  z)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(git\\teza\\tz)\\n\"",
+   "args": [
+    "plugins=(git\teza\tz)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(git\tz)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(z eza eza z)\\n\"",
+   "args": [
+    "plugins=(z eza eza z)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z z)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(eza # c )\\n  eza\\n  z\\n)\\nafter eza\\n\"",
+   "args": [
+    "plugins=(eza # c )\n  eza\n  z\n)\nafter eza\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(# c )\n  z\n)\nafter eza\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(z # c )\\n)\\n\"",
+   "args": [
+    "plugins=(z # c )\n)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z # c )\n)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(z #c)\\n)\\n\"",
+   "args": [
+    "plugins=(z #c)\n)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z #c)\n)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(z eza)# trailing\\n\"",
+   "args": [
+    "plugins=(z eza)# trailing\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z)# trailing\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(z eza)  # trailing\\n\"",
+   "args": [
+    "plugins=(z eza)  # trailing\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z)  # trailing\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(\\n  eza # a\\n  z\\n)\\n\"",
+   "args": [
+    "plugins=(\n  eza # a\n  z\n)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(\n  # a\n  z\n)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(\\n eza)\\n\"",
+   "args": [
+    "plugins=(\n eza)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(\n)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(\\n z eza)\\n\"",
+   "args": [
+    "plugins=(\n z eza)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(\n z)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(z\\neza)\\n\"",
+   "args": [
+    "plugins=(z\neza)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z\n)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(a \\\\\\n eza)\\n\"",
+   "args": [
+    "plugins=(a \\\n eza)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(a \\\n)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(\\n\\n  eza\\n\\n)\\n\"",
+   "args": [
+    "plugins=(\n\n  eza\n\n)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(\n\n\n)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(eza\"",
+   "args": [
+    "plugins=(eza",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(\\n  eza\"",
+   "args": [
+    "plugins=(\n  eza",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(\"",
+   "args": [
+    "plugins=(",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(\\n\"",
+   "args": [
+    "plugins=(\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=( )\\n\"",
+   "args": [
+    "plugins=( )\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=( )\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=()\\n\"",
+   "args": [
+    "plugins=()\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=()\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(z) # eza\\n\"",
+   "args": [
+    "plugins=(z) # eza\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z) # eza\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(z\\n)\\neza\\n\"",
+   "args": [
+    "plugins=(z\n)\neza\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z\n)\neza\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(eza # c\\n z\\n)\\n\"",
+   "args": [
+    "plugins=(eza # c\n z\n)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(# c\n z\n)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(\\n  # eza\\n  z\\n)\\n\"",
+   "args": [
+    "plugins=(\n  # eza\n  z\n)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(\n  # eza\n  z\n)\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(git eza)\\nfoo\\r\\nbar\\n\"",
+   "args": [
+    "plugins=(git eza)\nfoo\r\nbar\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(git)\r\nfoo\r\nbar\r\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(eza z)\\r\"",
+   "args": [
+    "plugins=(eza z)\r",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z)\r",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(git eza)\\r\\nfoo\\r\\n\"",
+   "args": [
+    "plugins=(git eza)\r\nfoo\r\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(git)\r\nfoo\r\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(eza)\\r\\n\\r\\n\"",
+   "args": [
+    "plugins=(eza)\r\n\r\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=()\r\n\r\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"\"",
+   "args": [
+    "",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"\\n\"",
+   "args": [
+    "\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "\n",
+    "dropped": []
+   }
+  },
+  {
+   "name": "\"plugins=(eza)\"",
+   "args": [
+    "plugins=(eza)",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=()",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(eza)\\n\\n\\n\"",
+   "args": [
+    "plugins=(eza)\n\n\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=()\n\n\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(git eza)\\nplugins=(git eza)\\n\"",
+   "args": [
+    "plugins=(git eza)\nplugins=(git eza)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(git)\nplugins=(git)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(z)\\nplugins+=(eza)\\nplugins+=(\\n eza\\n)\\n\"",
+   "args": [
+    "plugins=(z)\nplugins+=(eza)\nplugins+=(\n eza\n)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": {
+    "text": "plugins=(z)\nplugins+=()\nplugins+=(\n)\n",
+    "dropped": [
+     "eza"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(x git)\\n\"",
+   "args": [
+    "plugins=(x git)\n",
+    [
+     "x",
+     "git",
+     "plugins"
+    ]
+   ],
+   "out": {
+    "text": "plugins=()\n",
+    "dropped": [
+     "x",
+     "git"
+    ]
+   }
+  },
+  {
+   "name": "\"plugins=(plugins x)\\n\"",
+   "args": [
+    "plugins=(plugins x)\n",
+    [
+     "x",
+     "git",
+     "plugins"
+    ]
+   ],
+   "out": {
+    "text": "plugins=()\n",
+    "dropped": [
+     "plugins",
+     "x"
+    ]
+   }
+  }
+ ],
+ "drop_plugins_calls": [
+  {
+   "name": "drop is offered every word part, repeats included",
+   "args": [
+    "plugins=(git eza z eza)\nplugins+=(x)\n",
+    [
+     "eza",
+     "gcloud",
+     "kubectl"
+    ]
+   ],
+   "out": [
+    "git",
+    "eza",
+    "z",
+    "eza",
+    "x"
+   ]
+  }
+ ],
+ "guard_commands": [
+  {
+   "name": "a file, one name",
+   "args": [
+    "a\nb\n",
+    [
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\nb\n"
+  },
+  {
+   "name": "empty text",
+   "args": [
+    "",
+    [
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\n"
+  },
+  {
+   "name": "plugins only, empty text",
+   "args": [
+    "",
+    [],
+    [
+     "p"
+    ]
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\n# plugin p left out: p is not on the image\n# <<< wsp guard <<<\n\n"
+  },
+  {
+   "name": "nothing to say, empty text",
+   "args": [
+    "",
+    [],
+    []
+   ],
+   "out": ""
+  },
+  {
+   "name": "no trailing newline",
+   "args": [
+    "a",
+    [
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na"
+  },
+  {
+   "name": "nothing to say, no newline",
+   "args": [
+    "a",
+    [],
+    []
+   ],
+   "out": "a"
+  },
+  {
+   "name": "duplicate names",
+   "args": [
+    "a\n",
+    [
+     "x",
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x, x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\n"
+  },
+  {
+   "name": "a name with a space",
+   "args": [
+    "a\n",
+    [
+     "x y"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx y() { if (unset -f x y; command -v x y) >/dev/null 2>&1; then unset -f x y; x y \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x y. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\n"
+  },
+  {
+   "name": "names are pasted raw",
+   "args": [
+    "a\n",
+    [
+     "a.b",
+     "c-d",
+     "e+f",
+     "$HOME",
+     "x\"y"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\na.b() { if (unset -f a.b; command -v a.b) >/dev/null 2>&1; then unset -f a.b; a.b \"$@\"; else return 127; fi; }\nc-d() { if (unset -f c-d; command -v c-d) >/dev/null 2>&1; then unset -f c-d; c-d \"$@\"; else return 127; fi; }\ne+f() { if (unset -f e+f; command -v e+f) >/dev/null 2>&1; then unset -f e+f; e+f \"$@\"; else return 127; fi; }\n$HOME() { if (unset -f $HOME; command -v $HOME) >/dev/null 2>&1; then unset -f $HOME; $HOME \"$@\"; else return 127; fi; }\nx\"y() { if (unset -f x\"y; command -v x\"y) >/dev/null 2>&1; then unset -f x\"y; x\"y \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: a.b, c-d, e+f, $HOME, x\"y. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\n"
+  },
+  {
+   "name": "duplicate plugin notes",
+   "args": [
+    "a\n",
+    [
+     "x"
+    ],
+    [
+     "p",
+     "p"
+    ]
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# plugin p left out: p is not on the image\n# plugin p left out: p is not on the image\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\n"
+  },
+  {
+   "name": "plugin notes alone, duplicated",
+   "args": [
+    "a\n",
+    [],
+    [
+     "p",
+     "p"
+    ]
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\n# plugin p left out: p is not on the image\n# plugin p left out: p is not on the image\n# <<< wsp guard <<<\n\na\n"
+  },
+  {
+   "name": "one plugin, one name",
+   "args": [
+    "a\n",
+    [
+     "x"
+    ],
+    [
+     "p"
+    ]
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# plugin p left out: p is not on the image\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\n"
+  },
+  {
+   "name": "empty block, nothing to say",
+   "args": [
+    "# >>> wsp guard: commands this machine does not have >>>\n# <<< wsp guard <<<\n",
+    [],
+    []
+   ],
+   "out": ""
+  },
+  {
+   "name": "empty block, one name",
+   "args": [
+    "# >>> wsp guard: commands this machine does not have >>>\n# <<< wsp guard <<<\n",
+    [
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n"
+  },
+  {
+   "name": "block in the middle, one blank after, nothing to say",
+   "args": [
+    "before\n# >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<<\n\nafter\n",
+    [],
+    []
+   ],
+   "out": "before\nafter\n"
+  },
+  {
+   "name": "block in the middle, one name",
+   "args": [
+    "before\n# >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<<\n\nafter\n",
+    [
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\nbefore\nafter\n"
+  },
+  {
+   "name": "no blank after the block",
+   "args": [
+    "before\n# >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<<\nafter\n",
+    [],
+    []
+   ],
+   "out": "before\nafter\n"
+  },
+  {
+   "name": "two blanks after the block",
+   "args": [
+    "before\n# >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<<\n\n\nafter\n",
+    [],
+    []
+   ],
+   "out": "before\n\nafter\n"
+  },
+  {
+   "name": "two blocks, nothing to say",
+   "args": [
+    "# >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<<\n# >>> wsp guard: commands this machine does not have >>>\nold2\n# <<< wsp guard <<<\n\nafter\n",
+    [],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nold2\n# <<< wsp guard <<<\n\nafter\n"
+  },
+  {
+   "name": "two blocks, one name",
+   "args": [
+    "# >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<<\n# >>> wsp guard: commands this machine does not have >>>\nold2\n# <<< wsp guard <<<\n\nafter\n",
+    [
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\n# >>> wsp guard: commands this machine does not have >>>\nold2\n# <<< wsp guard <<<\n\nafter\n"
+  },
+  {
+   "name": "end before begin, nothing to say",
+   "args": [
+    "# <<< wsp guard <<<\nx\n# >>> wsp guard: commands this machine does not have >>>\ny\n",
+    [],
+    []
+   ],
+   "out": "# <<< wsp guard <<<\nx\n# >>> wsp guard: commands this machine does not have >>>\ny\n"
+  },
+  {
+   "name": "end before begin, one name",
+   "args": [
+    "# <<< wsp guard <<<\nx\n# >>> wsp guard: commands this machine does not have >>>\ny\n",
+    [
+     "z"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nz() { if (unset -f z; command -v z) >/dev/null 2>&1; then unset -f z; z \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: z. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\n# <<< wsp guard <<<\nx\n# >>> wsp guard: commands this machine does not have >>>\ny\n"
+  },
+  {
+   "name": "no end line, nothing to say",
+   "args": [
+    "# >>> wsp guard: commands this machine does not have >>>\nold\nno end\n",
+    [],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nold\nno end\n"
+  },
+  {
+   "name": "no end line, one name",
+   "args": [
+    "# >>> wsp guard: commands this machine does not have >>>\nold\nno end\n",
+    [
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\n# >>> wsp guard: commands this machine does not have >>>\nold\nno end\n"
+  },
+  {
+   "name": "end line is the last, no newline, nothing to say",
+   "args": [
+    "# >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<<",
+    [],
+    []
+   ],
+   "out": ""
+  },
+  {
+   "name": "end line is the last, no newline, one name",
+   "args": [
+    "# >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<<",
+    [
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n"
+  },
+  {
+   "name": "end line with a trailing space",
+   "args": [
+    "# >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<< \n\nafter",
+    [],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<< \n\nafter"
+  },
+  {
+   "name": "begin line indented",
+   "args": [
+    " # >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<<\nafter",
+    [],
+    []
+   ],
+   "out": " # >>> wsp guard: commands this machine does not have >>>\nold\n# <<< wsp guard <<<\nafter"
+  },
+  {
+   "name": "CRLF block, nothing to say",
+   "args": [
+    "# >>> wsp guard: commands this machine does not have >>>\r\nold\r\n# <<< wsp guard <<<\r\n\r\nafter\r\n",
+    [],
+    []
+   ],
+   "out": "after\r\n"
+  },
+  {
+   "name": "CRLF block, one name",
+   "args": [
+    "# >>> wsp guard: commands this machine does not have >>>\r\nold\r\n# <<< wsp guard <<<\r\n\r\nafter\r\n",
+    [
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\r\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\r\n# <<< wsp guard <<<\r\n\r\nafter\r\n"
+  },
+  {
+   "name": "mixed endings, LF first",
+   "args": [
+    "a\nb\r\nc\n",
+    [
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\r\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\r\n# <<< wsp guard <<<\r\n\r\na\r\nb\r\nc\r\n"
+  },
+  {
+   "name": "mixed endings, CRLF first",
+   "args": [
+    "a\r\nb\nc\n",
+    [
+     "x"
+    ],
+    []
+   ],
+   "out": "# >>> wsp guard: commands this machine does not have >>>\r\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\r\n# <<< wsp guard <<<\r\n\r\na\r\nb\r\nc\r\n"
+  }
+ ]
+}

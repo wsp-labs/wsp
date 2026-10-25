@@ -1,0 +1,3706 @@
+{
+ "is_rc_path": [
+  {
+   "name": "\".config/fish/conf.d/.fish\"",
+   "args": [
+    ".config/fish/conf.d/.fish"
+   ],
+   "out": true
+  },
+  {
+   "name": "\".config/fish/conf.d/x.FISH\"",
+   "args": [
+    ".config/fish/conf.d/x.FISH"
+   ],
+   "out": false
+  },
+  {
+   "name": "\".config/fish/conf.d/a.fish.bak\"",
+   "args": [
+    ".config/fish/conf.d/a.fish.bak"
+   ],
+   "out": false
+  },
+  {
+   "name": "\".config/fish/conf.d/\"",
+   "args": [
+    ".config/fish/conf.d/"
+   ],
+   "out": false
+  },
+  {
+   "name": "\".config/fish/conf.d//x.fish\"",
+   "args": [
+    ".config/fish/conf.d//x.fish"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"/.config/fish/conf.d/x.fish\"",
+   "args": [
+    "/.config/fish/conf.d/x.fish"
+   ],
+   "out": false
+  },
+  {
+   "name": "\".zshrc/\"",
+   "args": [
+    ".zshrc/"
+   ],
+   "out": false
+  },
+  {
+   "name": "\".config/fish/config.fish/\"",
+   "args": [
+    ".config/fish/config.fish/"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"x.fish\"",
+   "args": [
+    "x.fish"
+   ],
+   "out": false
+  },
+  {
+   "name": "\".config/fish/conf.d\"",
+   "args": [
+    ".config/fish/conf.d"
+   ],
+   "out": false
+  },
+  {
+   "name": "\".zshrc\"",
+   "args": [
+    ".zshrc"
+   ],
+   "out": true
+  },
+  {
+   "name": "\".config/fish/config.fish\"",
+   "args": [
+    ".config/fish/config.fish"
+   ],
+   "out": true
+  },
+  {
+   "name": "\".config/fish/conf.d/work.fish\"",
+   "args": [
+    ".config/fish/conf.d/work.fish"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"x/.zshrc\"",
+   "args": [
+    "x/.zshrc"
+   ],
+   "out": false
+  },
+  {
+   "name": "\".config/fish/conf.d/sub/deep.fish\"",
+   "args": [
+    ".config/fish/conf.d/sub/deep.fish"
+   ],
+   "out": false
+  }
+ ],
+ "rc_files": [
+  {
+   "name": "empty listing is RC_PATHS",
+   "args": [
+    []
+   ],
+   "out": [
+    ".zshrc",
+    ".zshenv",
+    ".zprofile",
+    ".zlogin",
+    ".bashrc",
+    ".bash_profile",
+    ".profile",
+    ".inputrc",
+    ".aliases",
+    ".zsh_aliases",
+    ".config/fish/config.fish"
+   ]
+  },
+  {
+   "name": "hidden, duplicate, sub folder, other extensions",
+   "args": [
+    [
+     ".fish",
+     "a.fish",
+     "a.fish",
+     "b.fish.bak",
+     "sub/c.fish",
+     "A.FISH"
+    ]
+   ],
+   "out": [
+    ".zshrc",
+    ".zshenv",
+    ".zprofile",
+    ".zlogin",
+    ".bashrc",
+    ".bash_profile",
+    ".profile",
+    ".inputrc",
+    ".aliases",
+    ".zsh_aliases",
+    ".config/fish/config.fish",
+    ".config/fish/conf.d/.fish",
+    ".config/fish/conf.d/a.fish",
+    ".config/fish/conf.d/a.fish",
+    ".config/fish/conf.d/sub/c.fish"
+   ]
+  }
+ ],
+ "is_secret_name": [
+  {
+   "name": "\"CLAUDE_CODE_SKIP_É_AUTH\"",
+   "args": [
+    "CLAUDE_CODE_SKIP_É_AUTH"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"CLAUDE_CODE_SKIP__AUTH\"",
+   "args": [
+    "CLAUDE_CODE_SKIP__AUTH"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"claude_code_skip_x_auth\"",
+   "args": [
+    "claude_code_skip_x_auth"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"CLAUDE_CODE_SKIP_X_AUTHX\"",
+   "args": [
+    "CLAUDE_CODE_SKIP_X_AUTHX"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"password_store_dir\"",
+   "args": [
+    "password_store_dir"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"PASSWORD_STORE_EXTRA\"",
+   "args": [
+    "PASSWORD_STORE_EXTRA"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"PASSWORD_STORE_DIR_X\"",
+   "args": [
+    "PASSWORD_STORE_DIR_X"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"FISH_KEY_BINDINGS_X\"",
+   "args": [
+    "FISH_KEY_BINDINGS_X"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"tiktoken_cache_dir\"",
+   "args": [
+    "tiktoken_cache_dir"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"\"",
+   "args": [
+    ""
+   ],
+   "out": false
+  },
+  {
+   "name": "\"_\"",
+   "args": [
+    "_"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"__KEY__\"",
+   "args": [
+    "__KEY__"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"KEY_2\"",
+   "args": [
+    "KEY_2"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"TOKEN1\"",
+   "args": [
+    "TOKEN1"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"MyToken\"",
+   "args": [
+    "MyToken"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"Github_Token\"",
+   "args": [
+    "Github_Token"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"apikey\"",
+   "args": [
+    "apikey"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"API-KEY\"",
+   "args": [
+    "API-KEY"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"MY-TOKEN\"",
+   "args": [
+    "MY-TOKEN"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"DB__PAT\"",
+   "args": [
+    "DB__PAT"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"PAT_\"",
+   "args": [
+    "PAT_"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"XPASS\"",
+   "args": [
+    "XPASS"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"PREPASS\"",
+   "args": [
+    "PREPASS"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"OUTPASS\"",
+   "args": [
+    "OUTPASS"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"TRESPASS\"",
+   "args": [
+    "TRESPASS"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"NONTRESPASS\"",
+   "args": [
+    "NONTRESPASS"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"PASS_\"",
+   "args": [
+    "PASS_"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"SSTOKEN\"",
+   "args": [
+    "SSTOKEN"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"ßtoken\"",
+   "args": [
+    "ßtoken"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"ß_token\"",
+   "args": [
+    "ß_token"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"TOKEN\\n\"",
+   "args": [
+    "TOKEN\n"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"KEY \"",
+   "args": [
+    "KEY "
+   ],
+   "out": false
+  },
+  {
+   "name": "\"MYSQL_pwd\"",
+   "args": [
+    "MYSQL_pwd"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"X_AUTH\"",
+   "args": [
+    "X_AUTH"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"AUTH_X\"",
+   "args": [
+    "AUTH_X"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"x_auth\"",
+   "args": [
+    "x_auth"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"PWD\"",
+   "args": [
+    "PWD"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"_PWD\"",
+   "args": [
+    "_PWD"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"MYSQL_PWD\"",
+   "args": [
+    "MYSQL_PWD"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"password_store_token\"",
+   "args": [
+    "password_store_token"
+   ],
+   "out": true
+  },
+  {
+   "name": "\"PASSWORD_STORE_GPG_OPTS\"",
+   "args": [
+    "PASSWORD_STORE_GPG_OPTS"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"fish_key_bindings\"",
+   "args": [
+    "fish_key_bindings"
+   ],
+   "out": false
+  },
+  {
+   "name": "\"PASSWORD_STORE_X_SELECTION\"",
+   "args": [
+    "PASSWORD_STORE_X_SELECTION"
+   ],
+   "out": false
+  }
+ ],
+ "simple_commands": [
+  {
+   "name": "\"a#b\"",
+   "args": [
+    "a#b"
+   ],
+   "out": [
+    "a#b"
+   ]
+  },
+  {
+   "name": "\"(#x\"",
+   "args": [
+    "(#x"
+   ],
+   "out": [
+    "#x"
+   ]
+  },
+  {
+   "name": "\"echo a(#c\"",
+   "args": [
+    "echo a(#c"
+   ],
+   "out": [
+    "echo a",
+    "#c"
+   ]
+  },
+  {
+   "name": "\"echo a{#c\"",
+   "args": [
+    "echo a{#c"
+   ],
+   "out": [
+    "echo a",
+    "#c"
+   ]
+  },
+  {
+   "name": "\"echo ${#v}\"",
+   "args": [
+    "echo ${#v}"
+   ],
+   "out": [
+    "echo $",
+    "#v"
+   ]
+  },
+  {
+   "name": "\"echo a;#c\"",
+   "args": [
+    "echo a;#c"
+   ],
+   "out": [
+    "echo a"
+   ]
+  },
+  {
+   "name": "\"echo a&#c\"",
+   "args": [
+    "echo a&#c"
+   ],
+   "out": [
+    "echo a"
+   ]
+  },
+  {
+   "name": "\"echo a|#c\"",
+   "args": [
+    "echo a|#c"
+   ],
+   "out": [
+    "echo a"
+   ]
+  },
+  {
+   "name": "\"echo \\\\#x\"",
+   "args": [
+    "echo \\#x"
+   ],
+   "out": [
+    "echo \\#x"
+   ]
+  },
+  {
+   "name": "\"echo a\\\\ #c\"",
+   "args": [
+    "echo a\\ #c"
+   ],
+   "out": [
+    "echo a\\ "
+   ]
+  },
+  {
+   "name": "\"echo a\\t#c\"",
+   "args": [
+    "echo a\t#c"
+   ],
+   "out": [
+    "echo a\t"
+   ]
+  },
+  {
+   "name": "\"echo a #c\"",
+   "args": [
+    "echo a #c"
+   ],
+   "out": [
+    "echo a "
+   ]
+  },
+  {
+   "name": "\"echo a﻿#c\"",
+   "args": [
+    "echo a﻿#c"
+   ],
+   "out": [
+    "echo a﻿"
+   ]
+  },
+  {
+   "name": "\"a#c\"",
+   "args": [
+    "a#c"
+   ],
+   "out": [
+    "a#c"
+   ]
+  },
+  {
+   "name": "\"echo a #c\"",
+   "args": [
+    "echo a #c"
+   ],
+   "out": [
+    "echo a "
+   ]
+  },
+  {
+   "name": "\"x=(#c) y\"",
+   "args": [
+    "x=(#c) y"
+   ],
+   "out": [
+    "x="
+   ]
+  },
+  {
+   "name": "\"a=(#c\\n)\"",
+   "args": [
+    "a=(#c\n)"
+   ],
+   "out": [
+    "a="
+   ]
+  },
+  {
+   "name": "\"echo $'a\\\\'b;c'\"",
+   "args": [
+    "echo $'a\\'b;c'"
+   ],
+   "out": [
+    "echo $'a\\'b",
+    "c'"
+   ]
+  },
+  {
+   "name": "\"echo `a;b`\"",
+   "args": [
+    "echo `a;b`"
+   ],
+   "out": [
+    "echo `a",
+    "b`"
+   ]
+  },
+  {
+   "name": "\"echo $(a;b)\"",
+   "args": [
+    "echo $(a;b)"
+   ],
+   "out": [
+    "echo $",
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo 'a\\\\';b\"",
+   "args": [
+    "echo 'a\\';b"
+   ],
+   "out": [
+    "echo 'a\\'",
+    "b"
+   ]
+  },
+  {
+   "name": "\"echo \\\"a\\\\\\\";b\\\"\"",
+   "args": [
+    "echo \"a\\\";b\""
+   ],
+   "out": [
+    "echo \"a\\\";b\""
+   ]
+  },
+  {
+   "name": "\"echo \\\"a;b\"",
+   "args": [
+    "echo \"a;b"
+   ],
+   "out": [
+    "echo \"a;b"
+   ]
+  },
+  {
+   "name": "\"echo 'a;b\"",
+   "args": [
+    "echo 'a;b"
+   ],
+   "out": [
+    "echo 'a;b"
+   ]
+  },
+  {
+   "name": "\"echo a\\\\\"",
+   "args": [
+    "echo a\\"
+   ],
+   "out": [
+    "echo a\\"
+   ]
+  },
+  {
+   "name": "\"then\"",
+   "args": [
+    "then"
+   ],
+   "out": [
+    "then"
+   ]
+  },
+  {
+   "name": "\"time\"",
+   "args": [
+    "time"
+   ],
+   "out": [
+    "time"
+   ]
+  },
+  {
+   "name": "\"time \"",
+   "args": [
+    "time "
+   ],
+   "out": []
+  },
+  {
+   "name": "\"command -v x\"",
+   "args": [
+    "command -v x"
+   ],
+   "out": [
+    "-v x"
+   ]
+  },
+  {
+   "name": "\"- x\"",
+   "args": [
+    "- x"
+   ],
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "name": "\"done x\"",
+   "args": [
+    "done x"
+   ],
+   "out": [
+    "done x"
+   ]
+  },
+  {
+   "name": "\"\\\\time x\"",
+   "args": [
+    "\\time x"
+   ],
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "name": "\"\\\\then x\"",
+   "args": [
+    "\\then x"
+   ],
+   "out": [
+    "\\then x"
+   ]
+  },
+  {
+   "name": "\"repeat x\"",
+   "args": [
+    "repeat x"
+   ],
+   "out": [
+    "repeat x"
+   ]
+  },
+  {
+   "name": "\"repeat 3 x\"",
+   "args": [
+    "repeat 3 x"
+   ],
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "name": "\"exec -cl cmd\"",
+   "args": [
+    "exec -cl cmd"
+   ],
+   "out": [
+    "cmd"
+   ]
+  },
+  {
+   "name": "\"exec -c -l cmd\"",
+   "args": [
+    "exec -c -l cmd"
+   ],
+   "out": [
+    "cmd"
+   ]
+  },
+  {
+   "name": "\"exec -a n cmd\"",
+   "args": [
+    "exec -a n cmd"
+   ],
+   "out": [
+    "cmd"
+   ]
+  },
+  {
+   "name": "\"do if ! x\"",
+   "args": [
+    "do if ! x"
+   ],
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "name": "\"if if x\"",
+   "args": [
+    "if if x"
+   ],
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "name": "\"time  time x\"",
+   "args": [
+    "time  time x"
+   ],
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "name": "\"  a ;  b\"",
+   "args": [
+    "  a ;  b"
+   ],
+   "out": [
+    "  a ",
+    "  b"
+   ]
+  },
+  {
+   "name": "\"then x\"",
+   "args": [
+    "then x"
+   ],
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "name": "\"thenx\"",
+   "args": [
+    "thenx"
+   ],
+   "out": [
+    "thenx"
+   ]
+  },
+  {
+   "name": "\" then x\"",
+   "args": [
+    " then x"
+   ],
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "name": "\"then\\tx\"",
+   "args": [
+    "then\tx"
+   ],
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "name": "\"then\\nx\"",
+   "args": [
+    "then\nx"
+   ],
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "name": "\"a && b || c | d & e\"",
+   "args": [
+    "a && b || c | d & e"
+   ],
+   "out": [
+    "a ",
+    " b ",
+    " c ",
+    " d ",
+    " e"
+   ]
+  },
+  {
+   "name": "\"\"",
+   "args": [
+    ""
+   ],
+   "out": []
+  },
+  {
+   "name": "\"a;;b\"",
+   "args": [
+    "a;;b"
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "\"if true; then export A=1; fi\"",
+   "args": [
+    "if true; then export A=1; fi"
+   ],
+   "out": [
+    "true",
+    "export A=1",
+    " fi"
+   ]
+  },
+  {
+   "name": "\"echo 'a;b' \\\"c|d\\\" e;f # g; h\"",
+   "args": [
+    "echo 'a;b' \"c|d\" e;f # g; h"
+   ],
+   "out": [
+    "echo 'a;b' \"c|d\" e",
+    "f "
+   ]
+  },
+  {
+   "name": "\"f() { x; }\"",
+   "args": [
+    "f() { x; }"
+   ],
+   "out": [
+    "f",
+    " x"
+   ]
+  },
+  {
+   "name": "\"a}b{c\"",
+   "args": [
+    "a}b{c"
+   ],
+   "out": [
+    "a",
+    "b",
+    "c"
+   ]
+  }
+ ],
+ "source_command": [
+  {
+   "name": "\"source ~/a\"",
+   "args": [
+    "source ~/a"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "~/a",
+    "rest": ""
+   }
+  },
+  {
+   "name": "\"source\\t~/a\"",
+   "args": [
+    "source\t~/a"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "~/a",
+    "rest": ""
+   }
+  },
+  {
+   "name": "\"\\tsource ~/a\"",
+   "args": [
+    "\tsource ~/a"
+   ],
+   "out": {
+    "indent": "\t",
+    "word": "source",
+    "token": "~/a",
+    "rest": ""
+   }
+  },
+  {
+   "name": "\" . ~/a\"",
+   "args": [
+    " . ~/a"
+   ],
+   "out": {
+    "indent": " ",
+    "word": ".",
+    "token": "~/a",
+    "rest": ""
+   }
+  },
+  {
+   "name": "\"\\\\. ~/a\"",
+   "args": [
+    "\\. ~/a"
+   ],
+   "out": {
+    "indent": "",
+    "word": "\\.",
+    "token": "~/a",
+    "rest": ""
+   }
+  },
+  {
+   "name": "\"source  ~/a  x\"",
+   "args": [
+    "source  ~/a  x"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "~/a",
+    "rest": "  x"
+   }
+  },
+  {
+   "name": "\"source ~/a>/dev/null\"",
+   "args": [
+    "source ~/a>/dev/null"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "~/a",
+    "rest": ">/dev/null"
+   }
+  },
+  {
+   "name": "\"source ~/a;b\"",
+   "args": [
+    "source ~/a;b"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "~/a",
+    "rest": ";b"
+   }
+  },
+  {
+   "name": "\"source ~/a(x)\"",
+   "args": [
+    "source ~/a(x)"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "~/a",
+    "rest": "(x)"
+   }
+  },
+  {
+   "name": "\"source ~/a x\"",
+   "args": [
+    "source ~/a x"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "~/a",
+    "rest": " x"
+   }
+  },
+  {
+   "name": "\"source \\\"a b\\\" c\"",
+   "args": [
+    "source \"a b\" c"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "\"a b\"",
+    "rest": " c"
+   }
+  },
+  {
+   "name": "\"source ''\"",
+   "args": [
+    "source ''"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "''",
+    "rest": ""
+   }
+  },
+  {
+   "name": "\"source \\\"\\\"\"",
+   "args": [
+    "source \"\""
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "\"\"",
+    "rest": ""
+   }
+  },
+  {
+   "name": "\"source ~/a\\rfoo\"",
+   "args": [
+    "source ~/a\rfoo"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source ~/a\\r\"",
+   "args": [
+    "source ~/a\r"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source ~/a x\"",
+   "args": [
+    "source ~/a x"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source ~/a\"",
+   "args": [
+    "source ~/a"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source \\\"a\\\"b\"",
+   "args": [
+    "source \"a\"b"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source ~/a'b'\"",
+   "args": [
+    "source ~/a'b'"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source ~/a\\\\ b\"",
+   "args": [
+    "source ~/a\\ b"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source ~/a`x`\"",
+   "args": [
+    "source ~/a`x`"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source <(x)\"",
+   "args": [
+    "source <(x)"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source\"",
+   "args": [
+    "source"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source \"",
+   "args": [
+    "source "
+   ],
+   "out": null
+  },
+  {
+   "name": "\".x ~/a\"",
+   "args": [
+    ".x ~/a"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"..  ~/a\"",
+   "args": [
+    "..  ~/a"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"\\\\\\\\. ~/a\"",
+   "args": [
+    "\\\\. ~/a"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"SOURCE ~/a\"",
+   "args": [
+    "SOURCE ~/a"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"builtin source ~/a\"",
+   "args": [
+    "builtin source ~/a"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"x=1 source ~/a\"",
+   "args": [
+    "x=1 source ~/a"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source \\\"unterminated\"",
+   "args": [
+    "source \"unterminated"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source ~/a\\nsource ~/b\"",
+   "args": [
+    "source ~/a\nsource ~/b"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"sourcex ~/a\"",
+   "args": [
+    "sourcex ~/a"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"source ~/a|x\"",
+   "args": [
+    "source ~/a|x"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "~/a",
+    "rest": "|x"
+   }
+  },
+  {
+   "name": "\"source ~/a&\"",
+   "args": [
+    "source ~/a&"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "~/a",
+    "rest": "&"
+   }
+  },
+  {
+   "name": "\"source ~/a<x\"",
+   "args": [
+    "source ~/a<x"
+   ],
+   "out": {
+    "indent": "",
+    "word": "source",
+    "token": "~/a",
+    "rest": "<x"
+   }
+  }
+ ],
+ "sourced_path": [
+  {
+   "name": "\"'$HOME/x'\" home \"/h\"",
+   "args": [
+    "'$HOME/x'",
+    "/h"
+   ],
+   "out": "/h/x"
+  },
+  {
+   "name": "\"\\\"~/x\\\"\" home \"/h\"",
+   "args": [
+    "\"~/x\"",
+    "/h"
+   ],
+   "out": "/h/x"
+  },
+  {
+   "name": "\"\\\"/a'b\\\"\" home \"/h\"",
+   "args": [
+    "\"/a'b\"",
+    "/h"
+   ],
+   "out": "/a'b"
+  },
+  {
+   "name": "\"'/a\\\"b'\" home \"/h\"",
+   "args": [
+    "'/a\"b'",
+    "/h"
+   ],
+   "out": "/a\"b"
+  },
+  {
+   "name": "\"\\\"\" home \"/h\"",
+   "args": [
+    "\"",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"''\" home \"/h\"",
+   "args": [
+    "''",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"\\\"\\\"\" home \"/h\"",
+   "args": [
+    "\"\"",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"/a\\nb\" home \"/h\"",
+   "args": [
+    "/a\nb",
+    "/h"
+   ],
+   "out": "/a\nb"
+  },
+  {
+   "name": "\"\\\"/a\\nb\\\"\" home \"/h\"",
+   "args": [
+    "\"/a\nb\"",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"/a{b,c}/x\" home \"/h\"",
+   "args": [
+    "/a{b,c}/x",
+    "/h"
+   ],
+   "out": "/a{b,c}/x"
+  },
+  {
+   "name": "\"/a b/c\" home \"/h\"",
+   "args": [
+    "/a b/c",
+    "/h"
+   ],
+   "out": "/a b/c"
+  },
+  {
+   "name": "\"\\\"/a b/c\\\"\" home \"/h\"",
+   "args": [
+    "\"/a b/c\"",
+    "/h"
+   ],
+   "out": "/a b/c"
+  },
+  {
+   "name": "\"/a#b\" home \"/h\"",
+   "args": [
+    "/a#b",
+    "/h"
+   ],
+   "out": "/a#b"
+  },
+  {
+   "name": "\"/a!b\" home \"/h\"",
+   "args": [
+    "/a!b",
+    "/h"
+   ],
+   "out": "/a!b"
+  },
+  {
+   "name": "\"/a;b\" home \"/h\"",
+   "args": [
+    "/a;b",
+    "/h"
+   ],
+   "out": "/a;b"
+  },
+  {
+   "name": "\"/a/.hidden/b\" home \"/h\"",
+   "args": [
+    "/a/.hidden/b",
+    "/h"
+   ],
+   "out": "/a/.hidden/b"
+  },
+  {
+   "name": "\"/a/.../b\" home \"/h\"",
+   "args": [
+    "/a/.../b",
+    "/h"
+   ],
+   "out": "/a/.../b"
+  },
+  {
+   "name": "\"/a/..b\" home \"/h\"",
+   "args": [
+    "/a/..b",
+    "/h"
+   ],
+   "out": "/a/..b"
+  },
+  {
+   "name": "\"~/a~/b\" home \"/h\"",
+   "args": [
+    "~/a~/b",
+    "/h"
+   ],
+   "out": "/h/a~/b"
+  },
+  {
+   "name": "\"~/.\" home \"/h\"",
+   "args": [
+    "~/.",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~/..\" home \"/h\"",
+   "args": [
+    "~/..",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~//a\" home \"/h\"",
+   "args": [
+    "~//a",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~/\" home \"/h\"",
+   "args": [
+    "~/",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"/\" home \"/h\"",
+   "args": [
+    "/",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"/a/\" home \"/h\"",
+   "args": [
+    "/a/",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~\" home \"/h\"",
+   "args": [
+    "~",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"$HOME\" home \"/h\"",
+   "args": [
+    "$HOME",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"${HOME}\" home \"/h\"",
+   "args": [
+    "${HOME}",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~user/x\" home \"/h\"",
+   "args": [
+    "~user/x",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"$HOMEX/x\" home \"/h\"",
+   "args": [
+    "$HOMEX/x",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"$HOME/a/$HOME/b\" home \"/h\"",
+   "args": [
+    "$HOME/a/$HOME/b",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"\\\"$HOME\\\"/x\" home \"/h\"",
+   "args": [
+    "\"$HOME\"/x",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"\\\\$HOME/x\" home \"/h\"",
+   "args": [
+    "\\$HOME/x",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"'/a\" home \"/h\"",
+   "args": [
+    "'/a",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"\\\"/a'\" home \"/h\"",
+   "args": [
+    "\"/a'",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~/a/b\" home \"/h\"",
+   "args": [
+    "~/a/b",
+    "/h"
+   ],
+   "out": "/h/a/b"
+  },
+  {
+   "name": "\"\\\"$HOME/x\\\"\" home \"/h\"",
+   "args": [
+    "\"$HOME/x\"",
+    "/h"
+   ],
+   "out": "/h/x"
+  },
+  {
+   "name": "\"${HOME}/y\" home \"/h\"",
+   "args": [
+    "${HOME}/y",
+    "/h"
+   ],
+   "out": "/h/y"
+  },
+  {
+   "name": "\"'/abs/z'\" home \"/h\"",
+   "args": [
+    "'/abs/z'",
+    "/h"
+   ],
+   "out": "/abs/z"
+  },
+  {
+   "name": "\"~/a//b\" home \"/h\"",
+   "args": [
+    "~/a//b",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"/a/./b\" home \"/h\"",
+   "args": [
+    "/a/./b",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~/a*\" home \"/h\"",
+   "args": [
+    "~/a*",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"rel\" home \"/h\"",
+   "args": [
+    "rel",
+    "/h"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"/A/é\" home \"/h\"",
+   "args": [
+    "/A/é",
+    "/h"
+   ],
+   "out": "/A/é"
+  },
+  {
+   "name": "\"~/a\" home \"/h/\"",
+   "args": [
+    "~/a",
+    "/h/"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~/a\" home \"\"",
+   "args": [
+    "~/a",
+    ""
+   ],
+   "out": "/a"
+  },
+  {
+   "name": "\"~/a\" home \"/\"",
+   "args": [
+    "~/a",
+    "/"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~/a\" home \"/h$1\"",
+   "args": [
+    "~/a",
+    "/h$1"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~/a\" home \"/h*\"",
+   "args": [
+    "~/a",
+    "/h*"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~/a\" home \"/h$&x\"",
+   "args": [
+    "~/a",
+    "/h$&x"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~/a\" home \"relative\"",
+   "args": [
+    "~/a",
+    "relative"
+   ],
+   "out": null
+  },
+  {
+   "name": "\"~/a\" home \"/h/x\"",
+   "args": [
+    "~/a",
+    "/h/x"
+   ],
+   "out": "/h/x/a"
+  },
+  {
+   "name": "\"~/a\" home \"/h w\"",
+   "args": [
+    "~/a",
+    "/h w"
+   ],
+   "out": "/h w/a"
+  },
+  {
+   "name": "\"/x/a\" home \"\"",
+   "args": [
+    "/x/a",
+    ""
+   ],
+   "out": "/x/a"
+  }
+ ],
+ "sourced_paths": [
+  {
+   "name": "\"\" home \"/h\"",
+   "args": [
+    "",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"\\n\" home \"/h\"",
+   "args": [
+    "\n",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo $(source ~/a.sh)\" home \"/h\"",
+   "args": [
+    "echo $(source ~/a.sh)",
+    "/h"
+   ],
+   "out": [
+    "/h/a.sh"
+   ]
+  },
+  {
+   "name": "\"{ source ~/a.sh; }\" home \"/h\"",
+   "args": [
+    "{ source ~/a.sh; }",
+    "/h"
+   ],
+   "out": [
+    "/h/a.sh"
+   ]
+  },
+  {
+   "name": "\"time source ~/a.sh\" home \"/h\"",
+   "args": [
+    "time source ~/a.sh",
+    "/h"
+   ],
+   "out": [
+    "/h/a.sh"
+   ]
+  },
+  {
+   "name": "\"then source ~/a.sh\" home \"/h\"",
+   "args": [
+    "then source ~/a.sh",
+    "/h"
+   ],
+   "out": [
+    "/h/a.sh"
+   ]
+  },
+  {
+   "name": "\"! source ~/a.sh\" home \"/h\"",
+   "args": [
+    "! source ~/a.sh",
+    "/h"
+   ],
+   "out": [
+    "/h/a.sh"
+   ]
+  },
+  {
+   "name": "\"exec source ~/a.sh\" home \"/h\"",
+   "args": [
+    "exec source ~/a.sh",
+    "/h"
+   ],
+   "out": [
+    "/h/a.sh"
+   ]
+  },
+  {
+   "name": "\"command source ~/a.sh\" home \"/h\"",
+   "args": [
+    "command source ~/a.sh",
+    "/h"
+   ],
+   "out": [
+    "/h/a.sh"
+   ]
+  },
+  {
+   "name": "\"a=$(source ~/a.sh)\" home \"/h\"",
+   "args": [
+    "a=$(source ~/a.sh)",
+    "/h"
+   ],
+   "out": [
+    "/h/a.sh"
+   ]
+  },
+  {
+   "name": "\"(source ~/a.sh)\" home \"/h\"",
+   "args": [
+    "(source ~/a.sh)",
+    "/h"
+   ],
+   "out": [
+    "/h/a.sh"
+   ]
+  },
+  {
+   "name": "\"x | source ~/a.sh\" home \"/h\"",
+   "args": [
+    "x | source ~/a.sh",
+    "/h"
+   ],
+   "out": [
+    "/h/a.sh"
+   ]
+  },
+  {
+   "name": "\"x && source ~/a || source ~/b\" home \"/h\"",
+   "args": [
+    "x && source ~/a || source ~/b",
+    "/h"
+   ],
+   "out": [
+    "/h/a",
+    "/h/b"
+   ]
+  },
+  {
+   "name": "\"sudo source ~/a\" home \"/h\"",
+   "args": [
+    "sudo source ~/a",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"\\\\source ~/a\" home \"/h\"",
+   "args": [
+    "\\source ~/a",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"eval \\\"source ~/a\\\"\" home \"/h\"",
+   "args": [
+    "eval \"source ~/a\"",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo \\\"a; source ~/a\\\"\" home \"/h\"",
+   "args": [
+    "echo \"a; source ~/a\"",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"echo 'a; source ~/a'\" home \"/h\"",
+   "args": [
+    "echo 'a; source ~/a'",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/a#c\" home \"/h\"",
+   "args": [
+    "source ~/a#c",
+    "/h"
+   ],
+   "out": [
+    "/h/a#c"
+   ]
+  },
+  {
+   "name": "\"source ~/a # c\" home \"/h\"",
+   "args": [
+    "source ~/a # c",
+    "/h"
+   ],
+   "out": [
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"source '~/a'\" home \"/h\"",
+   "args": [
+    "source '~/a'",
+    "/h"
+   ],
+   "out": [
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"source ${HOME}/a/${HOME}/b\" home \"/h\"",
+   "args": [
+    "source ${HOME}/a/${HOME}/b",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ${HOME}x/a\" home \"/h\"",
+   "args": [
+    "source ${HOME}x/a",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ${HOME}\" home \"/h\"",
+   "args": [
+    "source ${HOME}",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ${HOME}/a\" home \"/h\"",
+   "args": [
+    "source ${HOME}/a",
+    "/h"
+   ],
+   "out": [
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"source \\\"${HOME}/a\\\"\" home \"/h\"",
+   "args": [
+    "source \"${HOME}/a\"",
+    "/h"
+   ],
+   "out": [
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"echo ${#v}; source ~/a\" home \"/h\"",
+   "args": [
+    "echo ${#v}; source ~/a",
+    "/h"
+   ],
+   "out": [
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"# ${HOME}\\nsource ~/a\" home \"/h\"",
+   "args": [
+    "# ${HOME}\nsource ~/a",
+    "/h"
+   ],
+   "out": [
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"source ~/a \\\\\\n  ~/b\" home \"/h\"",
+   "args": [
+    "source ~/a \\\n  ~/b",
+    "/h"
+   ],
+   "out": [
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"source ~/a\\nsource /h/a\\n\" home \"/h\"",
+   "args": [
+    "source ~/a\nsource /h/a\n",
+    "/h"
+   ],
+   "out": [
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"source ~/a\\nsource $HOME/a\\nsource ${HOME}/a\\nsource \\\"~/a\\\"\\n\" home \"/h\"",
+   "args": [
+    "source ~/a\nsource $HOME/a\nsource ${HOME}/a\nsource \"~/a\"\n",
+    "/h"
+   ],
+   "out": [
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"source /h/b\\nsource ~/a\\nsource /h/b\\n\" home \"/h\"",
+   "args": [
+    "source /h/b\nsource ~/a\nsource /h/b\n",
+    "/h"
+   ],
+   "out": [
+    "/h/b",
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"source ~/a\\r\\nsource ~/b\\r\\n\" home \"/h\"",
+   "args": [
+    "source ~/a\r\nsource ~/b\r\n",
+    "/h"
+   ],
+   "out": [
+    "/h/a",
+    "/h/b"
+   ]
+  },
+  {
+   "name": "\"source ~/a\\rsource ~/b\" home \"/h\"",
+   "args": [
+    "source ~/a\rsource ~/b",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/a source ~/b\" home \"/h\"",
+   "args": [
+    "source ~/a source ~/b",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/a; source ~/b; source ~/a\" home \"/h\"",
+   "args": [
+    "source ~/a; source ~/b; source ~/a",
+    "/h"
+   ],
+   "out": [
+    "/h/a",
+    "/h/b"
+   ]
+  },
+  {
+   "name": "\"source ~/b/../a\" home \"/h\"",
+   "args": [
+    "source ~/b/../a",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/a/\" home \"/h\"",
+   "args": [
+    "source ~/a/",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source /\" home \"/h\"",
+   "args": [
+    "source /",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~\" home \"/h\"",
+   "args": [
+    "source ~",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/a b c\" home \"/h\"",
+   "args": [
+    "source ~/a b c",
+    "/h"
+   ],
+   "out": [
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"source ~/a\\n\\nsource ~/c\" home \"/h\"",
+   "args": [
+    "source ~/a\n\nsource ~/c",
+    "/h"
+   ],
+   "out": [
+    "/h/a",
+    "/h/c"
+   ]
+  },
+  {
+   "name": "\"source $HOME/a\" home \"/h\"",
+   "args": [
+    "source $HOME/a",
+    "/h"
+   ],
+   "out": [
+    "/h/a"
+   ]
+  },
+  {
+   "name": "\"source \\\\$HOME/a\" home \"/h\"",
+   "args": [
+    "source \\$HOME/a",
+    "/h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/a\" home \"/h w\"",
+   "args": [
+    "source ~/a",
+    "/h w"
+   ],
+   "out": [
+    "/h w/a"
+   ]
+  },
+  {
+   "name": "\"source ~/a\" home \"/h/\"",
+   "args": [
+    "source ~/a",
+    "/h/"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/a\" home \"/h$\"",
+   "args": [
+    "source ~/a",
+    "/h$"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/a\" home \"h\"",
+   "args": [
+    "source ~/a",
+    "h"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/a\" home \"\"",
+   "args": [
+    "source ~/a",
+    ""
+   ],
+   "out": [
+    "/a"
+   ]
+  },
+  {
+   "name": "\"source /x/a\" home \"\"",
+   "args": [
+    "source /x/a",
+    ""
+   ],
+   "out": [
+    "/x/a"
+   ]
+  }
+ ],
+ "strip_exports_assigned": [
+  {
+   "name": "\"X=1 export Y_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "X=1 export Y_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "X=1 export Y_TOKEN=2\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"X_TOKEN=1 export Y_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "X_TOKEN=1 export Y_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "X_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"A=1 set -gx A_TOKEN x\\nnext\\n\"",
+   "args": [
+    "A=1 set -gx A_TOKEN x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "A=1 set -gx A_TOKEN x\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"X=1 eval Y_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "X=1 eval Y_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "Y_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export X Y_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "export X Y_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "Y_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A=1 foo B_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "export A=1 foo B_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "B_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A=\\\"x B_TOKEN=y\\\"\\nnext\\n\"",
+   "args": [
+    "export A=\"x B_TOKEN=y\"\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "B_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A='x B_TOKEN=y'\\nnext\\n\"",
+   "args": [
+    "export A='x B_TOKEN=y'\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "B_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"sudo cmd arg A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "sudo cmd arg A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"env echo A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "env echo A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN =1\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN =1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export A_TOKEN =1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN= 1\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN= 1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"ENV A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "ENV A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "ENV A_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export -x\\nnext\\n\"",
+   "args": [
+    "export -x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export -x\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export\\nnext\\n\"",
+   "args": [
+    "export\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export -p A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "export -p A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export -- A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "export -- A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export  -x  A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "export  -x  A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"\\\\export A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "\\export A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"'export' A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "'export' A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export A_TOKEN\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"readonly A_TOKEN\\nnext\\n\"",
+   "args": [
+    "readonly A_TOKEN\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "readonly A_TOKEN\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=\\\"x y\\\"\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=\"x y\"\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export A_TOKEN=\"x y\"\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=\\\"x\\ry\\\"\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=\"x\ry\"\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export A_TOKEN=\"x\ry\"\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=x y\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=x y\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A=1B_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "export A=1B_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export A=1B_TOKEN=2\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A=1﻿B_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "export A=1﻿B_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "B_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A=1 B_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "export A=1 B_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "B_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=1\\\\\\nB_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=1\\\nB_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A=\\\"x\\ny B_TOKEN=2\\\"\\nnext\\n\"",
+   "args": [
+    "export A=\"x\ny B_TOKEN=2\"\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export A=\"x\ny B_TOKEN=2\"\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"\\\"then x\\\" A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "\"then x\" A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "\"then x\" A_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"'' A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "'' A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "'' A_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -l A_TOKEN x B_TOKEN y\\nnext\\n\"",
+   "args": [
+    "set -l A_TOKEN x B_TOKEN y\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -x A_TOKEN -e\\nnext\\n\"",
+   "args": [
+    "set -x A_TOKEN -e\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -g A_TOKEN -q\\nnext\\n\"",
+   "args": [
+    "set -g A_TOKEN -q\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -U -e A_TOKEN\\nnext\\n\"",
+   "args": [
+    "set -U -e A_TOKEN\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set -U -e A_TOKEN\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -ex A_TOKEN\\nnext\\n\"",
+   "args": [
+    "set -ex A_TOKEN\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set -ex A_TOKEN\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -- A_TOKEN x\\nnext\\n\"",
+   "args": [
+    "set -- A_TOKEN x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -x -- A_TOKEN x\\nnext\\n\"",
+   "args": [
+    "set -x -- A_TOKEN x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -gx A_TOKEN[1] x\\nnext\\n\"",
+   "args": [
+    "set -gx A_TOKEN[1] x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set -gx A_TOKEN[1] x\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -gx A_TOKEN=x\\nnext\\n\"",
+   "args": [
+    "set -gx A_TOKEN=x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set -gx A_TOKEN=x\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set A_TOKEN=x\\nnext\\n\"",
+   "args": [
+    "set A_TOKEN=x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set A_TOKEN=x\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -gx 1X x\\nnext\\n\"",
+   "args": [
+    "set -gx 1X x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set -gx 1X x\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -Ux A_TOKEN x\\nnext\\n\"",
+   "args": [
+    "set -Ux A_TOKEN x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set A_TOKEN\\nnext\\n\"",
+   "args": [
+    "set A_TOKEN\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -S\\nnext\\n\"",
+   "args": [
+    "set -S\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set -S\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set\\nnext\\n\"",
+   "args": [
+    "set\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -gx\\nnext\\n\"",
+   "args": [
+    "set -gx\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set -gx\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -n\\nnext\\n\"",
+   "args": [
+    "set -n\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set -n\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set --names A_TOKEN\\nnext\\n\"",
+   "args": [
+    "set --names A_TOKEN\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set --names A_TOKEN\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set --show A_TOKEN\\nnext\\n\"",
+   "args": [
+    "set --show A_TOKEN\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "set --show A_TOKEN\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set --path A_TOKEN x\\nnext\\n\"",
+   "args": [
+    "set --path A_TOKEN x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"not and set A_TOKEN x\\nnext\\n\"",
+   "args": [
+    "not and set A_TOKEN x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -gx 'A_TOKEN' x\\nnext\\n\"",
+   "args": [
+    "set -gx 'A_TOKEN' x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval -- A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "eval -- A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "eval -- A_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval eval A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "eval eval A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval \\\"a=1\\nB_TOKEN=2\\\"\\nnext\\n\"",
+   "args": [
+    "eval \"a=1\nB_TOKEN=2\"\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "B_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval \\\"A_TOKEN=1\\\" B_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "eval \"A_TOKEN=1\" B_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval\\nnext\\n\"",
+   "args": [
+    "eval\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "eval\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval set -gx A_TOKEN x\\nnext\\n\"",
+   "args": [
+    "eval set -gx A_TOKEN x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"\\\\eval A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "\\eval A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval 'A_TOKEN=1; B_TOKEN=2'\\nnext\\n\"",
+   "args": [
+    "eval 'A_TOKEN=1; B_TOKEN=2'\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"alias - A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "alias - A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"alias + A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "alias + A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"alias A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "alias A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "alias A_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"alias x A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "alias x A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"alias x A_TOKEN=1 y\\nnext\\n\"",
+   "args": [
+    "alias x A_TOKEN=1 y\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"alias x=1 y=A_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "alias x=1 y=A_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"alias a=b=c_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "alias a=b=c_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "alias a=b=c_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"alias -x=A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "alias -x=A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "alias -x=A_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"alias x=\\nnext\\n\"",
+   "args": [
+    "alias x=\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "alias x=\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"alias -p\\nnext\\n\"",
+   "args": [
+    "alias -p\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "alias -p\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"alias -- -x=A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "alias -- -x=A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr --add x A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "abbr --add x A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr -a -f fn x A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "abbr -a -f fn x A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr -f fn x A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "abbr -f fn x A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr -ap x A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "abbr -ap x A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "abbr -ap x A_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr -pa x A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "abbr -pa x A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr -cf x A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "abbr -cf x A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr -r x A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "abbr -r x A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "abbr -r x A_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr -a -- -x A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "abbr -a -- -x A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr --regex\\nnext\\n\"",
+   "args": [
+    "abbr --regex\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "abbr --regex\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr -f\\nnext\\n\"",
+   "args": [
+    "abbr -f\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "abbr -f\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr -s x A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "abbr -s x A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr --set-cursor x A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "abbr --set-cursor x A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"abbr x=A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "abbr x=A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"X_TOKEN=1 Y_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "X_TOKEN=1 Y_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "X_TOKEN",
+     "Y_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"A_TOKEN=1 B_TOKEN=2 A_TOKEN=3\\nnext\\n\"",
+   "args": [
+    "A_TOKEN=1 B_TOKEN=2 A_TOKEN=3\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"X='a b' A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "X='a b' A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"X=a\\\\ b A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "X=a\\ b A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"'A_TOKEN'=1 cmd\\nnext\\n\"",
+   "args": [
+    "'A_TOKEN'=1 cmd\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"A_TOKEN+=x\\nnext\\n\"",
+   "args": [
+    "A_TOKEN+=x\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"A_TOKEN[0]=1\\nnext\\n\"",
+   "args": [
+    "A_TOKEN[0]=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "A_TOKEN[0]=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"1A_TOKEN=2\\nnext\\n\"",
+   "args": [
+    "1A_TOKEN=2\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "1A_TOKEN=2\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"=1\\nnext\\n\"",
+   "args": [
+    "=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"$'a\\\\nb' A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "$'a\\nb' A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "$'a\\nb' A_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"\\\"a\\\\\\\\\\\" A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "\"a\\\\\" A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "\"a\\\\\" A_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"a\\\\ A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "a\\ A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "a\\ A_TOKEN=1\nnext\n",
+    "held": []
+   }
+  }
+ ]
+}
