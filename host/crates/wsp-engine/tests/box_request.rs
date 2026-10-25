@@ -488,7 +488,12 @@ async fn a_402_and_a_503_out_of_capacity_print_boats_lines_503_only_once_the_cre
     assert_eq!(w.message, "Boat's balance is used up, so no machine starts; add time at boat.dev/dashboard. Boat stops running machines 24 hours after the balance ran out.");
     let (capped, _, _) = refused_default(error(402, "team_member_cap_reached", "Member usage cap reached.")).await;
     assert_eq!(provider(&capped).message, "this Boat organization caps your usage; ask its owner to raise your cap.");
-    let (full, api, _) = refused_default(error(503, "out_of_capacity", "No capacity.")).await;
+    // The TS draws `Math.random()` for its jitter; 48 asks hold for a draw of 0.25 or more, 51 for less. Take the middle.
+    let api = FakeBox::new().on("POST", "/sandboxes", vec![error(503, "out_of_capacity", "No capacity.").into()]);
+    let on = backend_on(&api, "standard", Default::default());
+    *on.clock.draw.lock().unwrap() = 0.5;
+    api.on("GET", "/limits", vec![limits_reply(owner_limits())]);
+    let full = on.backend.create(named_spec(), None, None).await.map(|_| ()).unwrap_err();
     let w = provider(&full);
     assert_eq!(w.kind, ErrorKind::Transient);
     assert_eq!(w.code.as_deref(), Some("out_of_capacity"));

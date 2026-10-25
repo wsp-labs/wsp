@@ -4,13 +4,28 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
 
 use crate::cancel::Cancel;
+use futures::FutureExt;
+use indexmap::IndexMap;
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::plan::BoxLimits;
-use crate::errors::{EngineError, Result, RetryClock, WspError};
-use crate::fetch::Fetch;
+use super::plan::{
+    limits_of, place_limits_of, BoxLimits, StartWindow, BACKSTOP_CAP_MS, BOX_API_URL, BOX_CREATE_MS, BOX_PAUSE_MS, BOX_POLL_MS,
+    BOX_RESTORE_MS, BOX_RESUME_MS, BOX_SNAPSHOT_MS, LIMITS_KEPT_MS, REFUSAL_LOG_QUIET_MS, TRIAL_TTL_S,
+};
+use crate::errors::{
+    abort, aborted, backoff_ms, classify, road_backoff_ms, road_code, should_retry, EngineError, ErrorKind, RealRetryClock, Result,
+    RetryClock, WspError, PROVIDER_READ_CAP_MS, ROAD_TRIES,
+};
+use crate::fetch::{platform_fetch, Fetch, FetchRequest};
 use crate::machine::{CloudLimits, TemplateRow};
+use wsp_wire::wire::machine_link::TemplateRowStatus;
+use wsp_words::js::{js_round, number_string};
+use wsp_words::words::thread::provider_road_retry_line;
+use wsp_words::words::units::{
+    boat_cancelled_line, boat_plan_words, boat_refused_log_line, boat_request_limit_wait_line, starts_used_line, BOAT_BALANCE_LINE,
+    BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, BOAT_REQUEST_LIMIT_LINE,
+};
 
 /// box-backend.ts:349. A box as the API answers it; every field but `id` and `state` may be absent or null.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
@@ -71,7 +86,7 @@ pub struct NamedSnapshotView {
     pub snapshot_id: Option<String>,
     #[serde(default, rename = "type")]
     pub kind: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_number")]
     pub size_bytes: Option<f64>,
     pub created_at: String,
 }
@@ -94,10 +109,15 @@ pub struct SnapshotView {
     pub created_at: Option<String>,
     #[serde(default)]
     pub completed_at: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_number")]
     pub size_bytes: Option<f64>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_number")]
     pub content_size_bytes: Option<f64>,
+}
+
+/// A size the TS reads as it stands: a value that is not a JSON number reads as absent, as its `typeof` checks do.
+pub fn lenient_number<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Option<f64>, D::Error> {
+    Ok(Value::deserialize(d)?.as_f64())
 }
 
 /// Reads a present null as `Some(None)` and an absent field as `None`.
@@ -107,12 +127,34 @@ pub fn double_option<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Res
 
 /// box-backend.ts:409.
 pub fn stop_refusal_of(view: &BoxView) -> String {
-    todo!()
+    if let Some(error) = view.error.as_deref().filter(|e| !e.is_empty()) {
+        return error.to_string();
+    }
+    let attempt = match &view.last_snapshot_status {
+        Some(status) => {
+            let at = view.last_snapshot_attempt_at.as_deref().map_or(String::new(), |at| format!(" at {at}"));
+            format!("its latest snapshot {status}{at}")
+        }
+        None => "it reported no snapshot attempt".to_string(),
+    };
+    let completed = view.snapshot_completed_at.as_deref().map_or("none".to_string(), |at| format!("at {at}"));
+    format!("{attempt}, and the last that completed was {completed}")
 }
 
 /// box-backend.ts:415.
 pub fn template_row_of(s: &NamedSnapshotView) -> TemplateRow {
-    todo!()
+    let status = match s.status.as_str() {
+        "ready" => TemplateRowStatus::Ready,
+        "failed" => TemplateRowStatus::Failed,
+        _ => TemplateRowStatus::Building,
+    };
+    TemplateRow {
+        id: s.name.clone(),
+        name: s.name.clone(),
+        status,
+        error: if s.status == "failed" { s.error.clone() } else { None },
+        created_at: Some(s.created_at.clone()),
+    }
 }
 
 /// box-backend.ts:426. 14 days.
@@ -126,30 +168,119 @@ pub const REQUEST_LIMIT_WINDOW_MS: u64 = 60_000;
 /// box-backend.ts:443.
 pub const REQUEST_LIMIT_TRIES: u32 = 3;
 
+/// box-backend.ts:432. The provider's words for its concurrent-box cap, read as the concurrency kind.
+const CAP_CODES: [&str; 2] = ["limit_reached", "member_limit_reached"];
+/// box-backend.ts:436. The two codes of a window of starts used.
+const START_CODES: [&str; 2] = ["rate_limited", "daily_limit_reached"];
+/// box-backend.ts:466 `REFUSAL_LINES`: refusals whose own words name nothing a person can act on.
+const REFUSAL_LINES: [(&str, &str); 3] = [
+    ("billing_required", BOAT_BALANCE_LINE),
+    ("team_member_cap_reached", BOAT_MEMBER_CAP_LINE),
+    ("out_of_capacity", BOAT_NO_CAPACITY_LINE),
+];
+
+/// `/concurrent (box|sandbox)/i`, which the TS reads off a refusal's message.
+fn names_the_concurrent_cap(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("concurrent box") || lower.contains("concurrent sandbox")
+}
+
 /// box-backend.ts:446. `body` is the refusal's parsed JSON, `Value::Null` where it was not JSON.
 pub fn request_limit_wait_ms(body: &Value) -> u64 {
-    todo!()
+    let named = match body.get("retryAfter") {
+        None | Some(Value::Null) => body.get("error").and_then(|e| e.get("details")).and_then(|d| d.get("retryAfter")),
+        top => top,
+    };
+    match named.and_then(Value::as_f64) {
+        Some(s) if s > 0.0 => ((s * 1000.0).min(REQUEST_LIMIT_WINDOW_MS as f64)) as u64,
+        _ => REQUEST_LIMIT_WINDOW_MS,
+    }
 }
 
 /// box-backend.ts:459. A refusal read by its code.
 pub fn box_refusal(e: WspError) -> WspError {
-    todo!()
+    if e.code.as_deref() == Some(REQUEST_LIMIT_CODE) {
+        return WspError { kind: ErrorKind::Transient, message: BOAT_REQUEST_LIMIT_LINE.to_string(), said: Some(e.message), ..e };
+    }
+    if let Some(code) = e.code.as_deref().filter(|c| START_CODES.contains(c)) {
+        let window = (code == "daily_limit_reached").then_some(StartWindow::Day);
+        return WspError { kind: ErrorKind::StartLimit, window: window.or(e.window), ..e };
+    }
+    let capped = e.code.as_deref().is_some_and(|c| CAP_CODES.contains(&c)) || names_the_concurrent_cap(&e.message);
+    if capped {
+        return WspError { kind: ErrorKind::Concurrency, ..e };
+    }
+    if e.status == 429 {
+        let said = Some(e.message.clone());
+        return WspError { said, ..e };
+    }
+    match e.code.as_deref().and_then(|c| REFUSAL_LINES.iter().find(|(k, _)| *k == c)).map(|(_, line)| *line) {
+        Some(line) => WspError { message: line.to_string(), said: Some(e.message.clone()), ..e },
+        None => e,
+    }
 }
 
 /// box-backend.ts:472. The provider saying the box is not ready for this call yet.
 pub fn still_restoring(e: &EngineError) -> bool {
-    todo!()
+    if e.code() == Some(REQUEST_LIMIT_CODE) {
+        return false;
+    }
+    if e.kind() == Some(ErrorKind::Transient) {
+        return true;
+    }
+    e.kind() == Some(ErrorKind::Conflict) && matches!(e.code(), Some("sandbox_restoring" | "sandbox_starting"))
 }
 
 /// box-backend.ts:480. What a call whose answer was lost said.
 pub fn road_words(e: &EngineError) -> String {
-    todo!()
+    let message = e.to_string();
+    if let Some(status) = e.status() {
+        return format!("{status} {message}");
+    }
+    match cause_code(e) {
+        Some(code) => format!("{message}: {code}"),
+        None => message,
+    }
+}
+
+/// The code of the cause under an error (errors.rs's `cause_code`, which is private there).
+fn cause_code(e: &EngineError) -> Option<&str> {
+    match e {
+        EngineError::Road(r) => r.cause.as_ref().and_then(|c| c.code.as_deref()),
+        EngineError::MoveUnanswered { cause, .. } | EngineError::ResumeUnanswered { cause, .. } => cause.as_deref().and_then(EngineError::code),
+        EngineError::Unreached { cause, .. } => cause.code(),
+        _ => None,
+    }
 }
 
 /// box-backend.ts:487. A refusal as the error it is thrown as: `EngineError::Provider` whose message is the
 /// refusal's, kept even when empty (the TS's fallback words are dead).
 pub fn fail(e: WspError) -> EngineError {
-    todo!()
+    EngineError::Provider(e)
+}
+
+pub(super) fn other(message: String) -> EngineError {
+    EngineError::Other { message, code: None }
+}
+
+/// The error a stopped wait answers: the caller's reason as words, or the default abort when it passed none.
+fn stop_error(signal: &Cancel, words: String) -> EngineError {
+    match signal.given_reason() {
+        None => aborted(),
+        Some(_) => other(words),
+    }
+}
+
+pub(super) fn encode_uri_component(text: &str) -> String {
+    let mut out = String::new();
+    for b in text.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) {
+            out.push(char::from(b));
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
 }
 
 /// box-backend.ts:491.
@@ -261,7 +392,34 @@ pub struct BoxBackend {
 impl BoxBackend {
     /// box-backend.ts:583.
     pub fn new(opts: BoxBackendOptions) -> Self {
-        todo!()
+        let ask = opts.budgets;
+        let budgets = BoxBudgets {
+            create_ms: ask.create_ms.unwrap_or(BOX_CREATE_MS),
+            pause_ms: ask.pause_ms.unwrap_or(BOX_PAUSE_MS),
+            resume_ms: ask.resume_ms.unwrap_or(BOX_RESUME_MS),
+            snapshot_ms: ask.snapshot_ms.unwrap_or(BOX_SNAPSHOT_MS),
+            restore_ms: ask.restore_ms.unwrap_or(BOX_RESTORE_MS),
+            poll_ms: ask.poll_ms.unwrap_or(BOX_POLL_MS),
+            read_ms: ask.read_ms.unwrap_or(PROVIDER_READ_CAP_MS),
+            backstop_ms: ask.backstop_ms.unwrap_or(BACKSTOP_CAP_MS),
+        };
+        let default_warn: Warn = Arc::new(|line: &str| eprintln!("{line}"));
+        let default_clock: Arc<dyn RetryClock> = Arc::new(RealRetryClock);
+        Self {
+            shared: Arc::new(BoxShared {
+                api_key: opts.api_key,
+                base_url: opts.base_url.unwrap_or_else(|| BOX_API_URL.to_string()),
+                fetch: opts.fetch.unwrap_or_else(platform_fetch),
+                clock: opts.clock.unwrap_or(default_clock),
+                budgets,
+                warn: opts.warn.unwrap_or(default_warn),
+                state: Mutex::new(BoxState::default()),
+            }),
+        }
+    }
+
+    pub(super) fn warn(&self, line: &str) {
+        (self.shared.warn)(line);
     }
 
     pub fn budgets(&self) -> BoxBudgets {
@@ -274,62 +432,237 @@ impl BoxBackend {
 
     /// box-backend.ts:603. The answer's JSON, `{}` for an empty 2xx body.
     pub async fn request(&self, method: &str, path: &str, opts: RequestOpts) -> Result<Value> {
-        todo!()
+        let mut headers: IndexMap<String, String> = IndexMap::new();
+        headers.insert("Authorization".to_string(), format!("Bearer {}", self.shared.api_key));
+        for (name, value) in &opts.headers {
+            headers.insert(name.clone(), value.clone());
+        }
+        let body: Option<Vec<u8>> = match (&opts.bytes, &opts.body) {
+            (Some(bytes), _) => Some(bytes.clone().into_bytes()),
+            (None, Some(json)) => Some(json.to_string().into_bytes()),
+            (None, None) => None,
+        };
+        if body.is_some() {
+            headers.insert("Content-Type".to_string(), "application/json".to_string());
+        }
+        let headers: Vec<(String, String)> = headers.into_iter().collect();
+        let call = format!("{method} {path}");
+        let mut road_retries: u32 = 0;
+        let mut attempt: u32 = 1;
+        let mut limited: u32 = 0;
+        loop {
+            let cap = opts.cap_ms.or(if method == "GET" { Some(self.shared.budgets.read_ms) } else { None });
+            let req = FetchRequest {
+                method: method.to_string(),
+                url: format!("{}{path}", self.shared.base_url),
+                headers: headers.clone(),
+                body: body.clone(),
+                abort: abort(cap.map(|ms| ms as f64), opts.signal.as_ref()),
+            };
+            let res = match self.shared.fetch.fetch(req).await {
+                Ok(res) => res,
+                Err(road) => {
+                    let e = EngineError::Road(road);
+                    let Some(code) = road_code(&e) else { return Err(e) };
+                    road_retries += 1;
+                    if road_retries >= if opts.once { 1 } else { ROAD_TRIES } {
+                        return Err(e);
+                    }
+                    self.warn(&provider_road_retry_line(&call, &code, f64::from(road_retries + 1), f64::from(ROAD_TRIES)));
+                    self.shared.clock.sleep(road_backoff_ms(road_retries, self.shared.clock.random())).await;
+                    continue;
+                }
+            };
+            let text = res.text();
+            if res.ok() {
+                return if text.is_empty() {
+                    Ok(Value::Object(serde_json::Map::new()))
+                } else {
+                    serde_json::from_str(&text).map_err(|e| other(e.to_string()))
+                };
+            }
+            let envelope: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+            let error = envelope.get("error");
+            let code = envelope
+                .get("code")
+                .and_then(Value::as_str)
+                .or_else(|| error.and_then(|e| e.get("code")).and_then(Value::as_str))
+                .map(str::to_string);
+            let said = envelope
+                .get("message")
+                .and_then(Value::as_str)
+                .or_else(|| error.and_then(|e| e.get("message")).and_then(Value::as_str))
+                .unwrap_or(&text)
+                .to_string();
+            let request_id = envelope.get("requestId").and_then(Value::as_str).map(str::to_string);
+            self.log_refusal(&call, res.status, code.as_deref(), request_id.as_deref(), &said);
+            let e = box_refusal(classify(res.status, code.as_deref(), Some(&said), request_id.as_deref()));
+            if e.code.as_deref() == Some(REQUEST_LIMIT_CODE) {
+                limited += 1;
+                if opts.once || limited >= REQUEST_LIMIT_TRIES {
+                    return Err(fail(e));
+                }
+                let wait = request_limit_wait_ms(&envelope);
+                self.warn(&boat_request_limit_wait_line(&call, wait as f64, f64::from(limited + 1), f64::from(REQUEST_LIMIT_TRIES)));
+                self.shared.clock.sleep(wait).await;
+                if opts.signal.as_ref().is_some_and(|c| c.is_cancelled()) {
+                    return Err(aborted());
+                }
+                continue;
+            }
+            if opts.once || !should_retry(&e, attempt) {
+                return Err(fail(e));
+            }
+            self.shared.clock.sleep(backoff_ms(attempt, self.shared.clock.random())).await;
+            attempt += 1;
+        }
     }
 
     /// box-backend.ts:653.
     pub fn log_refusal(&self, call: &str, status: u16, code: Option<&str>, request_id: Option<&str>, said: &str) {
-        todo!()
+        let key = format!("{call} {status} {}", code.unwrap_or(""));
+        let now = self.shared.clock.now();
+        let mut state = self.shared.state.lock().unwrap();
+        if state.refusals_logged.get(&key).is_some_and(|at| now - at < REFUSAL_LOG_QUIET_MS as i64) {
+            return;
+        }
+        state.refusals_logged.retain(|_, at| now - *at < REFUSAL_LOG_QUIET_MS as i64);
+        state.refusals_logged.insert(key, now);
+        drop(state);
+        self.warn(&boat_refused_log_line(call, f64::from(status), code, request_id, said));
     }
 
     /// box-backend.ts:664.
     pub async fn limits(&self) -> Result<BoxLimits> {
-        todo!()
+        let kept = self.shared.state.lock().unwrap().limits_kept.clone();
+        match kept {
+            Some((at, limits)) if self.shared.clock.now() - at < LIMITS_KEPT_MS as i64 => Ok(limits),
+            _ => self.read_limits().await,
+        }
     }
 
     /// box-backend.ts:671. `None` where the read failed.
     pub async fn place_limits(&self) -> Option<CloudLimits> {
-        todo!()
+        place_limits_of(&self.limits().await.ok()?)
     }
 
     /// box-backend.ts:677.
     pub async fn read_limits(&self) -> Result<BoxLimits> {
-        todo!()
+        let asked = {
+            let mut state = self.shared.state.lock().unwrap();
+            match &state.limits_asked {
+                Some(asked) => asked.clone(),
+                None => {
+                    let this = self.clone();
+                    let read = async move {
+                        // A fetch that answers without yielding would end before a second caller is polled; the TS's
+                        // promise is out from the call, so the second caller joins it.
+                        tokio::task::yield_now().await;
+                        let out = this.fetch_limits().await;
+                        this.shared.state.lock().unwrap().limits_asked = None;
+                        out
+                    };
+                    let asked = read.boxed_local().shared();
+                    state.limits_asked = Some(asked.clone());
+                    asked
+                }
+            }
+        };
+        asked.await
+    }
+
+    async fn fetch_limits(&self) -> Result<BoxLimits> {
+        let raw = self.request("GET", "/limits", RequestOpts::default()).await?;
+        let limits = limits_of(&raw);
+        let now = self.shared.clock.now();
+        self.shared.state.lock().unwrap().limits_kept = Some((now, limits.clone()));
+        Ok(limits)
     }
 
     /// box-backend.ts:692.
     pub async fn before_start(&self) -> Result<BoxLimits> {
-        todo!()
+        match self.limits().await {
+            Ok(limits) => Ok(limits),
+            Err(e) => {
+                let kept = self.shared.state.lock().unwrap().limits_kept.clone();
+                match kept {
+                    Some((_, limits)) => Ok(limits),
+                    None => Err(e),
+                }
+            }
+        }
     }
 
     /// box-backend.ts:702.
     pub fn counted(&self) {
-        todo!()
+        let mut state = self.shared.state.lock().unwrap();
+        if let Some((_, limits)) = state.limits_kept.as_mut() {
+            if let Some(starts) = limits.starts.as_mut() {
+                starts.minute.used += 1.0;
+                starts.hour.used += 1.0;
+                starts.day.used += 1.0;
+            }
+        }
     }
 
     /// box-backend.ts:709. The error a refused start is thrown as: `e` itself, or the start window's line.
     pub async fn start_refused(&self, e: EngineError, what: Option<&str>) -> EngineError {
-        todo!()
+        let EngineError::Provider(refused) = &e else { return e };
+        if refused.kind != ErrorKind::StartLimit {
+            return e;
+        }
+        let Ok(limits) = self.read_limits().await else { return e };
+        let Some(starts) = limits.starts else { return e };
+        let spent = |w: StartWindow| {
+            let c = starts.get(w);
+            c.used >= c.limit
+        };
+        if refused.window.is_none() && !spent(StartWindow::Hour) && !spent(StartWindow::Minute) {
+            return e;
+        }
+        let window = refused.window.unwrap_or(if spent(StartWindow::Hour) { StartWindow::Hour } else { StartWindow::Minute });
+        let count = starts.get(window);
+        let plan = boat_plan_words(limits.trial, limits.plan_usd);
+        let line = starts_used_line(window, count.used, count.limit, plan.as_deref(), what);
+        EngineError::Provider(WspError {
+            kind: refused.kind,
+            status: refused.status,
+            code: refused.code.clone(),
+            message: line,
+            request_id: refused.request_id.clone(),
+            window: Some(window),
+            said: Some(refused.message.clone()),
+        })
     }
 
     /// box-backend.ts:726. `Some(7200)` on the trial, `None` once it has paid.
     pub async fn ttl_cap(&self) -> Result<Option<u64>> {
-        todo!()
+        let kept = self.shared.state.lock().unwrap().limits_kept.as_ref().map(|(_, limits)| limits.trial);
+        let trial = match kept {
+            Some(trial) => trial,
+            None => self.read_limits().await?.trial,
+        };
+        Ok(trial.then_some(TRIAL_TTL_S))
     }
 
     /// box-backend.ts:733. `instant` in ms since the epoch on the backend's clock.
     pub async fn ttl_seconds_for(&self, instant: Option<i64>) -> Result<Option<u64>> {
-        todo!()
+        let cap = self.ttl_cap().await?;
+        let Some(instant) = instant else { return Ok(cap) };
+        let seconds = ((instant - self.shared.clock.now()) as f64 / 1000.0).ceil().max(1.0) as u64;
+        Ok(Some(cap.map_or(seconds, |cap| seconds.min(cap))))
     }
 
     /// box-backend.ts:742.
     pub fn last_timer(&self, id: &str) -> Option<Timer> {
-        todo!()
+        self.shared.state.lock().unwrap().backstops.get(id).copied()
     }
 
     /// box-backend.ts:751.
     pub async fn view(&self, id: &str) -> Result<BoxView> {
-        todo!()
+        let raw = self.request("GET", &format!("/sandboxes/{}", encode_uri_component(id)), RequestOpts::default()).await?;
+        let sandbox = raw.get("sandbox").cloned().unwrap_or(Value::Null);
+        serde_json::from_value(sandbox).map_err(|e| other(e.to_string()))
     }
 
     /// box-backend.ts:757. Reads the box until `done`, at the poll pace, inside `budget_ms`.
@@ -343,15 +676,57 @@ impl BoxBackend {
         name: Option<&str>,
         seen: Option<&(dyn Fn(&BoxView))>,
     ) -> Result<BoxView> {
-        todo!()
+        let started = self.shared.clock.now();
+        loop {
+            if let Some(stopped) = signal.filter(|c| c.is_cancelled()) {
+                return Err(stop_error(stopped, format!("{what} of {id} was stopped by its caller")));
+            }
+            let view = self.view(id).await?;
+            if let Some(seen) = seen {
+                seen(&view);
+            }
+            if done(&view) {
+                return Ok(view);
+            }
+            if view.state == "error" {
+                let suffix = view.error.as_deref().filter(|e| !e.is_empty()).map_or(String::new(), |e| format!(": {e}"));
+                return Err(other(format!("box {id} reads error during {what}{suffix}")));
+            }
+            if view.state == "cancelled" {
+                return Err(EngineError::CreateCancelled {
+                    machine_id: id.to_string(),
+                    why: view.error.clone().unwrap_or_default(),
+                    line: boat_cancelled_line(name, view.error.as_deref()),
+                });
+            }
+            if self.shared.clock.now() - started >= budget_ms as i64 {
+                let after = number_string(js_round(budget_ms as f64 / 1000.0));
+                return Err(other(format!("{what} of {id} still reads {} after {after} s", view.state)));
+            }
+            self.shared.clock.sleep(self.shared.budgets.poll_ms).await;
+        }
     }
 
     /// box-backend.ts:774. Asks `call` again while the box is still restoring, inside the restore budget.
-    pub async fn while_restoring<T, F, Fut>(&self, call: F, signal: Option<&Cancel>) -> Result<T>
+    pub async fn while_restoring<T, F, Fut>(&self, mut call: F, signal: Option<&Cancel>) -> Result<T>
     where
         F: FnMut() -> Fut,
         Fut: std::future::Future<Output = Result<T>>,
     {
-        todo!()
+        let started = self.shared.clock.now();
+        loop {
+            if let Some(stopped) = signal.filter(|c| c.is_cancelled()) {
+                return Err(stop_error(stopped, "the call was stopped by its caller".to_string()));
+            }
+            match call().await {
+                Ok(answer) => return Ok(answer),
+                Err(e) => {
+                    if !still_restoring(&e) || self.shared.clock.now() - started >= self.shared.budgets.restore_ms as i64 {
+                        return Err(e);
+                    }
+                    self.shared.clock.sleep(self.shared.budgets.poll_ms).await;
+                }
+            }
+        }
     }
 }
