@@ -16,7 +16,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::future::LocalBoxFuture;
 use indexmap::{IndexMap, IndexSet};
-use wsp_core::clock::Cancel;
+use super::helpers::Cancel;
 use wsp_core::recipe_sync::RecipeChange;
 use wsp_engine::link_backend::MachineLink;
 use wsp_wire::types::recipe_file::RecipeFile;
@@ -34,10 +34,13 @@ pub trait SetupRecords {
     async fn record_of(&self, place_id: &str) -> PlaceResult<Option<PlaceRecord>>;
     /// One change of a computer's record as it stands, in its turn (records.ts:349): `None` where `mv` answered `None`
     /// or the record is gone.
-    async fn change(&self, place_id: &str, mv: Box<dyn FnOnce(&PlaceRecord) -> Option<PlaceRecord>>) -> PlaceResult<Option<PlaceRecord>>;
+    async fn change(&self, place_id: &str, mv: RecordMove) -> PlaceResult<Option<PlaceRecord>>;
     /// A login now standing on that computer, put on its daemon's last list (records.ts:359).
     async fn login_listed(&self, place_id: &str, agent: &str) -> PlaceResult<Option<PlaceRecord>>;
 }
+
+/// A move of a record from how it stands to what is written; `None` writes nothing.
+pub type RecordMove = Box<dyn for<'a> FnOnce(&'a PlaceRecord) -> Option<PlaceRecord>>;
 
 /// One row of a setup that ended, run again: the step it is under, and the row (setup.ts:84).
 #[derive(Clone, Debug, PartialEq, Eq)]
