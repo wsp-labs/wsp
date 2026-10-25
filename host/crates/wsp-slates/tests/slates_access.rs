@@ -553,6 +553,58 @@ mod forget {
         });
     }
 
+    // slates_access Behaviour 12, 13, slates_batch Behaviour 1: slates.test.ts:1080 (a slate's files, a rewind, a delete)
+    #[test]
+    fn a_slate_s_files_are_written_before_a_run_a_rewind_runs_that_turn_s_code_and_the_folder_goes() {
+        own_group();
+        let root = support::temp_root("wsp-slates-files-");
+        local(async {
+            unsafe { libc::umask(0o022) };
+            let host = FakeHost::new(root.path(), MemStore::new());
+            let s = host.slates();
+            let dir = host.slates_dir().join(THREAD);
+            let code = "<slate>\n  <run name=\"hello\" cmd='sh \"$SLATE_DIR/hi.sh\"; pwd' />\n  <column><button id=\"go\" label=\"Go\" onPress={start($hello)} /></column>\n  <file name=\"hi.sh\">{`echo hi one`}</file>\n</slate>";
+            s.write(text(code), Some(&agent())).await.unwrap();
+            assert!(!dir.exists());
+            let asked = press(&s, "go", "f1").await;
+            let ask = asked.ask.clone().unwrap().to_json();
+            assert_eq!((ask["kind"].clone(), ask["files"].clone()), (json!("cmd"), json!({"hi.sh": "echo hi one"})));
+            approve(&s, &asked.ask.clone().unwrap().key(), ApprovalScope::Thread).await;
+            let plain = host.folder().display().to_string();
+            wait_for(&s, 10_000, |v| value(v, "hello")["state"] == json!("done") && value(v, "hello")["out"] == json!(format!("hi one\n{plain}\n"))).await;
+            let names = |d: &std::path::Path| { let mut n: Vec<String> = std::fs::read_dir(d).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect(); n.sort(); n };
+            assert_eq!(names(&dir), ["hi.sh"]);
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(dir.join("hi.sh")).unwrap().permissions().mode() & 0o777, 0o600);
+            assert_eq!(std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777, 0o700);
+            s.turn_ended(THREAD, "turn-2").await.unwrap();
+
+            // The same command over new code is a new approval, and the sheet shows the new text.
+            s.write(text("<file name=\"hi.sh\">{`echo hi two`}</file>"), Some(&agent())).await.unwrap();
+            std::fs::write(dir.join("left.txt"), "a file the slate never declared").unwrap();
+            let again = press(&s, "go", "f2").await;
+            assert_eq!(again.outcome, wsp_slates::pending::wire::SlateEventOutcome::Held);
+            assert_eq!(again.ask.clone().unwrap().to_json()["files"], json!({"hi.sh": "echo hi two"}));
+            assert_ne!(again.ask.clone().unwrap().key(), asked.ask.clone().unwrap().key());
+            approve(&s, &again.ask.unwrap().key(), ApprovalScope::Once).await;
+            wait_for(&s, 10_000, |v| value(v, "hello")["state"] == json!("done") && value(v, "hello")["out"].as_str().unwrap_or("").starts_with("hi two\n")).await;
+            assert_eq!(names(&dir), ["hi.sh"]);
+            s.turn_ended(THREAD, "turn-3").await.unwrap();
+
+            // Back at the second turn the slate holds that turn's code, which its standing approval still covers.
+            s.rewound(THREAD, "turn-2", &["turn-3".to_string()]).await.unwrap();
+            s.settled().await;
+            assert_eq!(view(&s).await.document.unwrap()["files"], json!({"hi.sh": "echo hi one"}));
+            let back = press(&s, "go", "f3").await;
+            assert!(back.ask.is_none());
+            wait_for(&s, 10_000, |v| value(v, "hello")["state"] == json!("done") && value(v, "hello")["out"].as_str().unwrap_or("").starts_with("hi one\n")).await;
+            assert_eq!(std::fs::read_to_string(dir.join("hi.sh")).unwrap(), "echo hi one");
+
+            s.forget(THREAD, false).await.unwrap();
+            assert!(!dir.exists());
+        });
+    }
+
     // slates_access Behaviour 13: forget drops the write budget too: the next write is a first
     #[test]
     fn a_forgotten_thread_s_write_budget_starts_again() {
