@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"a fresh host's lists and one refusal"}}
+{"meta":{"door":"ws","source":"a fresh host's lists and one refusal","computer":"ip-172-31-35-82"}}
 {"in":{"id":1,"op":"auth","token":"<host-token>"}}
 {"in":{"id":2,"op":"workspaces.list"}}
 {"in":{"id":3,"op":"places.list"}}

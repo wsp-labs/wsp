@@ -3,9 +3,11 @@
 //! each tape, on a temp home and state folder. The TS host is `node packages/host/dist/bin.js`; the Rust host is the
 //! same command line in one binary, so it plugs in as another program for the same `ProcessHost`.
 
-use crate::normalize::{minted, Facts};
+use crate::normalize::{iso_ms, minted, Facts, EPOCH_MS};
 use crate::seed::Order;
 use crate::tape::{Door, Tape};
+use base64::engine::general_purpose::STANDARD as B64;
+use base64::Engine as _;
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
 use std::fs;
@@ -95,6 +97,8 @@ impl Host for ProcessHost {
         facts.add(host.port.to_string(), "<port>");
         facts.add(host.pid.to_string(), "<pid>");
         facts.add(host.token.clone(), TOKEN_MARK);
+        sent_times(&Value::Array(tape.ins.clone()), &mut facts.sent);
+        facts.started = Some(now_ms());
         let (replies, events) = match tape.door {
             Door::Ws => ws(tape, order, &host, self.reply_wait),
             Door::Cli => Ok(cli(tape, &place, &self.program, self.reply_wait)),
@@ -126,6 +130,8 @@ impl Place {
             ("WSP_HOME".into(), at("state")),
             ("WSP_WEB_DIR".into(), at("web")),
             ("WSP_UPDATE_CHECK".into(), "0".into()),
+            // Days begin at the same moment on every computer, so a day's bucket reads the same wherever it is replayed.
+            ("TZ".into(), "UTC".into()),
             ("TMPDIR".into(), at("tmp")),
             ("PATH".into(), path),
         ];
@@ -211,6 +217,21 @@ impl Drop for Running {
     fn drop(&mut self) {
         kill_group(self.pid);
         let _ = self.child.wait();
+    }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
+}
+
+/// Every time a tape's frames carry, as milliseconds or as ISO text, which a host echoing it answers the same each run.
+fn sent_times(v: &Value, out: &mut std::collections::BTreeSet<i64>) {
+    match v {
+        Value::Number(n) => out.extend(n.as_i64().filter(|i| EPOCH_MS.contains(&(*i as f64)))),
+        Value::String(s) => out.extend(iso_ms(s)),
+        Value::Array(items) => items.iter().for_each(|i| sent_times(i, out)),
+        Value::Object(obj) => obj.values().for_each(|i| sent_times(i, out)),
+        _ => {}
     }
 }
 
@@ -322,7 +343,153 @@ impl Swaps {
     }
 }
 
+/// The values a tape that joins as a place names by mark, which the replay makes fresh: the joining computer's key,
+/// nonce and ephemeral for place.join, its signature for place.prove, and a join code a separate signed-in socket
+/// mints first.
+pub const JOINER_KEY: &str = "<joiner-key>";
+pub const JOINER_NONCE: &str = "<joiner-nonce>";
+pub const JOINER_EPHEMERAL: &str = "<joiner-ephemeral>";
+pub const JOINER_SIGNATURE: &str = "<joiner-signature>";
+pub const JOIN_CODE: &str = "<join-code>";
+
+/// What a place.join reply's signature reads as once the replay checked it against the key the reply names.
+pub const SIGNATURE_HOLDS: &str = "<the host's key signed this>";
+pub const SIGNATURE_FAILS: &str = "<no signature of the host's key>";
+
+/// The joining computer a replay plays, as `wsp join` and the daemon do: a key of its own, the first frame's two
+/// random values, and the seal it agrees once the host answers.
+struct Joiner {
+    key: ring::signature::Ed25519KeyPair,
+    public_der: Vec<u8>,
+    nonce: String,
+    ephemeral: Option<ring::agreement::EphemeralPrivateKey>,
+    ephemeral_public: String,
+    code: Option<(String, String)>,
+    /// The place id, the host's nonce and the host's ephemeral, off its answer to place.join.
+    answered: Option<(String, String, String)>,
+}
+
+impl Joiner {
+    fn new(code: Option<(String, String)>) -> Result<Joiner, String> {
+        use ring::signature::KeyPair as _;
+        let rng = ring::rand::SystemRandom::new();
+        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).map_err(|_| "make the joiner's key")?;
+        let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).map_err(|_| "read the joiner's key")?;
+        // An ed25519 SubjectPublicKeyInfo is this prefix and the key's 32 bytes, as node exports one.
+        let mut public_der = vec![0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00];
+        public_der.extend_from_slice(key.public_key().as_ref());
+        let mut nonce = [0u8; 32];
+        ring::rand::SecureRandom::fill(&rng, &mut nonce).map_err(|_| "draw the joiner's nonce")?;
+        let (ephemeral, public) = wsp_seal::fresh_ephemeral().ok_or("make the joiner's ephemeral")?;
+        Ok(Joiner {
+            key,
+            public_der,
+            nonce: B64.encode(nonce),
+            ephemeral: Some(ephemeral),
+            ephemeral_public: B64.encode(public),
+            code,
+            answered: None,
+        })
+    }
+
+    fn marks(&self) -> Vec<(&'static str, String)> {
+        let mut marks = vec![
+            (JOINER_KEY, B64.encode(&self.public_der)),
+            (JOINER_NONCE, self.nonce.clone()),
+            (JOINER_EPHEMERAL, self.ephemeral_public.clone()),
+        ];
+        if let Some((code, _)) = &self.code {
+            marks.push((JOIN_CODE, code.clone()));
+        }
+        if let Some((place, host_nonce, host_ephemeral)) = &self.answered {
+            let bytes = transcript("place", place, host_nonce, &self.nonce, host_ephemeral, &self.ephemeral_public);
+            marks.push((JOINER_SIGNATURE, B64.encode(self.key.sign(&bytes).as_ref())));
+        }
+        marks
+    }
+
+    /// Takes the host's answer to its place.join, and the seal every later frame rides inside.
+    fn answered(&mut self, reply: &Value) -> Option<wsp_seal::Seal> {
+        let field = |k: &str| reply.get(k).and_then(Value::as_str).map(str::to_string);
+        let (place, nonce, ephemeral) = (field("placeId")?, field("nonce")?, field("ephemeral")?);
+        let peer: [u8; 32] = B64.decode(&ephemeral).ok()?.try_into().ok()?;
+        let secret = wsp_seal::agree(self.ephemeral.take()?, &peer)?;
+        self.answered = Some((place.clone(), nonce, ephemeral));
+        Some(wsp_seal::Seal::place(&wsp_seal::seal_keys(&secret, &place)))
+    }
+}
+
+/// The bytes a place link's signature covers, as the protocol's placeLinkTranscript builds them.
+pub fn transcript(role: &str, place: &str, challenge: &str, answer: &str, challenger: &str, answerer: &str) -> Vec<u8> {
+    format!("wsp place link v2\n{role}\n{place}\n{challenge}\n{answer}\n{challenger}\n{answerer}\n").into_bytes()
+}
+
+/// A place.join reply's signature checked against the key the reply names over what the joiner sent and the host
+/// answered, and the key against the fingerprint the join code carried: a port that signs the wrong bytes, or
+/// answers with a key the code does not name, reads otherwise than one that does not.
+pub fn checked_join(sent: &Value, reply: &mut Value, fingerprint: Option<&str>) {
+    let text = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).map(str::to_string);
+    let (Some(key), Some(signature)) = (text(reply, "hostPublicKey"), text(reply, "signature")) else { return };
+    let holds = (|| {
+        let bytes = transcript(
+            "host",
+            &text(reply, "placeId")?,
+            &text(sent, "nonce")?,
+            &text(reply, "nonce")?,
+            &text(sent, "ephemeral")?,
+            &text(reply, "ephemeral")?,
+        );
+        let signature: [u8; 64] = B64.decode(&signature).ok()?.try_into().ok()?;
+        Some(wsp_seal::verify(&B64.decode(&key).ok()?, &bytes, &signature))
+    })()
+    .unwrap_or(false);
+    reply["signature"] = Value::String(if holds { SIGNATURE_HOLDS } else { SIGNATURE_FAILS }.into());
+    if let Some(named) = fingerprint {
+        if B64.decode(&key).map(|der| wsp_seal::fingerprint(&der)).ok().as_deref() != Some(named) {
+            reply["hostPublicKey"] = Value::String("<not the key the join code names>".into());
+        }
+    }
+}
+
+/// A join code minted on a socket of its own, signed in, as the app's sheet asks for one: the code a prove spends and
+/// the fingerprint of the host's key the line carries.
+fn mint(host: &Running, wait: Duration) -> Result<(String, String), String> {
+    let stream = TcpStream::connect(("127.0.0.1", host.port)).map_err(|e| format!("dial the host to mint: {e}"))?;
+    stream.set_read_timeout(Some(wait)).map_err(|e| e.to_string())?;
+    let (mut socket, _) = tungstenite::client::client(format!("ws://127.0.0.1:{}/ws", host.port), stream)
+        .map_err(|e| format!("open a socket to mint: {e}"))?;
+    let mut ask = |frame: Value| -> Result<Value, String> {
+        socket.send(Message::text(frame.to_string())).map_err(|e| format!("mint: {e}"))?;
+        loop {
+            match socket.read().map_err(|e| format!("mint: {e}"))? {
+                Message::Text(t) => {
+                    let v: Value = serde_json::from_str(t.as_str()).map_err(|e| format!("mint: {e}"))?;
+                    if v.get("id") == frame.get("id") {
+                        return Ok(v);
+                    }
+                }
+                Message::Close(_) => return Err("the host closed the socket it was to mint on".into()),
+                _ => {}
+            }
+        }
+    };
+    ask(json!({ "id": 1, "op": "auth", "token": host.token }))?;
+    let minted = ask(json!({ "id": 2, "op": "places.mint" }))?;
+    let line =
+        minted.pointer("/joins/0/line").and_then(Value::as_str).ok_or_else(|| format!("places.mint answered no join line: {minted}"))?;
+    let token = line.split(" --code ").nth(1).ok_or_else(|| format!("a join line with no code: {line}"))?;
+    let (code, fingerprint) = token.split_once('.').ok_or_else(|| format!("a join code with no fingerprint: {token}"))?;
+    let _ = socket.close(None);
+    Ok((code.replace('-', "").to_uppercase(), fingerprint.to_string()))
+}
+
 fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<(Vec<Value>, Vec<Value>), String> {
+    let text_of = |v: &Value| v.to_string();
+    let joins = tape.ins.iter().any(|f| f.get("publicKey").and_then(Value::as_str) == Some(JOINER_KEY));
+    let mints = tape.ins.iter().any(|f| text_of(f).contains(JOIN_CODE));
+    let mut joiner = if joins { Some(Joiner::new(if mints { Some(mint(host, wait)?) } else { None })?) } else { None };
+    let mut seal: Option<wsp_seal::Seal> = None;
+    let mut sent_join: HashMap<String, Value> = HashMap::new();
     let stream = TcpStream::connect(("127.0.0.1", host.port)).map_err(|e| format!("dial the host: {e}"))?;
     // The handshake reads its answer in one blocking call, which a loaded computer can keep waiting for seconds; the
     // short timeout the reading loop polls with goes on once the socket is open.
@@ -346,8 +513,15 @@ fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<
         let batch = order.window().min(tape.ins.len() - i);
         let mut waiting: Vec<String> = Vec::new();
         for frame in &tape.ins[i..i + batch] {
-            let sent = swaps.apply(frame);
+            let mut sent = swaps.apply(frame);
+            if let Some(j) = &joiner {
+                let marks = j.marks();
+                sent = placed(&sent, &marks.iter().map(|(m, v)| (*m, v.as_str())).collect::<Vec<_>>());
+            }
             if let Some(id) = request_id(&sent) {
+                if sent.get("op").and_then(Value::as_str) == Some("place.join") {
+                    sent_join.insert(id.clone(), sent.clone());
+                }
                 asked.push(id.clone());
                 waiting.push(id);
             }
@@ -355,21 +529,36 @@ fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<
                 Value::String(raw) => raw.clone(),
                 other => other.to_string(),
             };
-            if open && socket.send(Message::text(text)).is_err() {
+            let message = match seal.as_mut() {
+                Some(s) => Message::binary(s.seal(&text)),
+                None => Message::text(text),
+            };
+            if open && socket.send(message).is_err() {
                 open = false;
             }
         }
         i += batch;
         let deadline = Instant::now() + wait;
         while open && !waiting.is_empty() && Instant::now() < deadline {
-            match read(&mut socket) {
-                Heard::Frame(frame) => {
+            match read(&mut socket, seal.as_mut()) {
+                Heard::Frame(mut frame) => {
                     let id = request_id(&frame).filter(|id| frame.get("op").is_none() && waiting.contains(id));
                     match id {
                         Some(id) => {
                             waiting.remove(waiting.iter().position(|w| *w == id).expect("waiting"));
                             if let Some(own) = written.get_mut(&id).and_then(VecDeque::pop_front) {
                                 swaps.learn(&own, &frame);
+                            }
+                            if let Some(asked) = sent_join.remove(&id) {
+                                if frame.get("ok") == Some(&Value::Bool(true)) {
+                                    if let Some(j) = joiner.as_mut().filter(|_| asked.get("nonce").and_then(Value::as_str).is_some()) {
+                                        if asked.get("ephemeral").and_then(Value::as_str) == Some(j.ephemeral_public.as_str()) {
+                                            seal = j.answered(&frame);
+                                        }
+                                    }
+                                }
+                                let fingerprint = joiner.as_ref().and_then(|j| j.code.as_ref()).map(|(_, f)| f.clone());
+                                checked_join(&asked, &mut frame, fingerprint.as_deref());
                             }
                             got.entry(id).or_default().push_back(frame);
                         }
@@ -388,7 +577,7 @@ fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<
     let settle_end = Instant::now() + SETTLE_MAX;
     let mut quiet_since = Instant::now();
     while open && Instant::now() < settle_end && quiet_since.elapsed() < SETTLE_QUIET {
-        match read(&mut socket) {
+        match read(&mut socket, seal.as_mut()) {
             Heard::Frame(frame) => {
                 quiet_since = Instant::now();
                 events.push(frame);
@@ -417,10 +606,15 @@ enum Heard {
     Closed,
 }
 
-fn read(socket: &mut WebSocket<TcpStream>) -> Heard {
+/// One frame off the socket; once a place link is sealed, a binary frame opened under the seal.
+fn read(socket: &mut WebSocket<TcpStream>, seal: Option<&mut wsp_seal::Seal>) -> Heard {
+    let text = |t: &str| Heard::Frame(serde_json::from_str(t).unwrap_or_else(|_| Value::String(t.to_string())));
     match socket.read() {
-        Ok(Message::Text(t)) => Heard::Frame(serde_json::from_str(t.as_str()).unwrap_or_else(|_| Value::String(t.as_str().to_string()))),
-        Ok(Message::Binary(b)) => Heard::Frame(json!({ "binary": b.len() })),
+        Ok(Message::Text(t)) => text(t.as_str()),
+        Ok(Message::Binary(b)) => match seal.and_then(|s| s.unseal(&b)) {
+            Some(opened) => text(&opened),
+            None => Heard::Frame(json!({ "binary": b.len() })),
+        },
         Ok(Message::Close(c)) => {
             let (code, reason) = c.map(|f| (u16::from(f.code), f.reason.to_string())).unwrap_or((1005, String::new()));
             Heard::Shut(json!({ "close": { "code": code, "reason": reason } }))

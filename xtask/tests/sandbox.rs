@@ -42,7 +42,10 @@ fn a_command_inside_can_neither_add_nor_take_an_entry_at_the_top_of_the_disk_nor
     let probe = r#"test -w / && echo "/ takes writes: rm /bin would take every program off the computer"
 [ -e "$MARK" ] && echo "/tmp is the computer's own"
 true"#;
-    let Some((ran, said)) = inside(probe, &[("WSP_PARITY_WRITABLE", &parity(dir.path())), ("MARK", &mark.path().display().to_string())]) else { return };
+    let Some((ran, said)) = inside(probe, &[("WSP_PARITY_WRITABLE", &parity(dir.path())), ("MARK", &mark.path().display().to_string())])
+    else {
+        return;
+    };
     assert!(ran, "{said}");
     assert_eq!(said, "");
 }
@@ -70,7 +73,9 @@ fn a_command_inside_reaches_no_service_of_the_computer_over_a_socket() {
     let _listening = UnixListener::bind(&door).unwrap();
     let probe = r#"python3 -I -c 'import socket, sys; s = socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect(sys.argv[1])' "$DOOR" 2>/dev/null && echo "dialled a socket outside on a read-only folder"
 true"#;
-    let Some((ran, said)) = inside(probe, &[("WSP_PARITY_WRITABLE", &parity(dir.path())), ("DOOR", &door.display().to_string())]) else { return };
+    let Some((ran, said)) = inside(probe, &[("WSP_PARITY_WRITABLE", &parity(dir.path())), ("DOOR", &door.display().to_string())]) else {
+        return;
+    };
     assert!(ran, "{said}");
     assert_eq!(said, "");
 }

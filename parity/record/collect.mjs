@@ -7,8 +7,8 @@
 // The tool server's record (daemon/crates/wsp-mcp/tests/answers) joins them: each tool case it keeps becomes a tape that
 // calls that tool with the case's arguments, so every tool is asked of a real host, not the record's fake one.
 //
-// node parity/record/collect.mjs --from <folder> takes the tapes a host served with WSP_TAPE_DIR=<folder> wrote, a
-// day of real traffic, into parity/tapes/shadow instead, which no implementer is shown.
+// node parity/record/collect.mjs --from <folder> --held <dir> takes the tapes a host served with WSP_TAPE_DIR=<folder>
+// wrote, a day of real traffic, into the held-back folder's tapes/shadow instead, which no implementer is shown.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -178,8 +178,10 @@ function main() {
   const from = process.argv.indexOf("--from");
   if (from !== -1) {
     const dir = process.argv[from + 1];
+    const held = process.argv.indexOf("--held");
     if (dir === undefined) throw new Error("--from names the folder a host wrote its tapes into");
-    keep(dir, join(root, "parity/tapes/shadow"), { cut: true });
+    if (held === -1 || process.argv[held + 1] === undefined) throw new Error("--held names the held-back folder the day goes into, outside the repository");
+    keep(dir, join(process.argv[held + 1], "tapes/shadow"), { cut: true });
     return;
   }
   const tapes = runSuites();

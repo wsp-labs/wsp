@@ -39,7 +39,8 @@ fn an_op_only_ever_refused_is_not_counted_as_answered() {
     assert!(Command::new("git").args(["init", "-q"]).current_dir(dir.path()).status().unwrap().success());
     let tape = dir.path().join("parity/tapes/sessions/start.tape");
     fs::create_dir_all(tape.parent().unwrap()).unwrap();
-    fs::write(&tape, format!("{}\n{}\n", json!({ "in": { "id": 1, "op": "auth" } }), json!({ "in": { "id": 2, "op": "sessions.start" } }))).unwrap();
+    fs::write(&tape, format!("{}\n{}\n", json!({ "in": { "id": 1, "op": "auth" } }), json!({ "in": { "id": 2, "op": "sessions.start" } })))
+        .unwrap();
     let ops = vec!["auth".to_string(), "sessions.start".to_string()];
     record(dir.path(), &Refusing, &Options { jobs: 1, ..Options::default() }, &ops).unwrap();
     let report = check(dir.path(), &Refusing, &Options { jobs: 1, ..Options::default() }).unwrap();

@@ -4,6 +4,7 @@
 
 pub mod accepted;
 pub mod check;
+pub mod computer;
 pub mod diff;
 pub mod golden;
 pub mod held;

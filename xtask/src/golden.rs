@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The TS host's answers to every tape, frozen: one JSON file a tape under `parity/goldens`, the hash of the TS tree
-//! they were recorded from in `KEY`, and the host's op list as it was then in `ops.json`. A check reads these and
-//! never starts the TS host.
+//! The TS host's answers to every tape, frozen: one JSON file a tape under `parity/goldens` (or the held-back folder's
+//! `goldens`), the hash of the TS tree they were recorded from in that folder's `KEY`, and the host's op list and tool
+//! list as they were then in `ops.json` and `tools.json`. A check reads these and never starts the TS host.
 
 use serde_json::Value;
 use std::fs;
@@ -10,37 +10,42 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 pub const GOLDENS_DIR: &str = "parity/goldens";
-pub const KEY_FILE: &str = "parity/goldens/KEY";
+pub const KEY_FILE: &str = "KEY";
 pub const OPS_FILE: &str = "parity/goldens/ops.json";
+pub const TOOLS_FILE: &str = "parity/goldens/tools.json";
 
 /// What the TS host is: every file under packages that is not a test or a build, tracked or not yet.
 const TS_TREE: &[&str] =
     &["packages", ":(exclude,glob)packages/*/test/**", ":(exclude,glob)packages/**/*.test.ts", ":(exclude,glob)packages/wspx/**"];
 
-pub fn path_of(root: &Path, tape: &str) -> PathBuf {
-    root.join(GOLDENS_DIR).join(format!("{tape}.json"))
+/// The goldens folder of the repository.
+pub fn dir(root: &Path) -> PathBuf {
+    root.join(GOLDENS_DIR)
 }
 
-pub fn read(root: &Path, tape: &str) -> Result<Option<Value>, String> {
-    let path = path_of(root, tape);
+pub fn path_of(dir: &Path, tape: &str) -> PathBuf {
+    dir.join(format!("{tape}.json"))
+}
+
+pub fn read(dir: &Path, tape: &str) -> Result<Option<Value>, String> {
+    let path = path_of(dir, tape);
     match fs::read_to_string(&path) {
         Ok(text) => serde_json::from_str(&text).map(Some).map_err(|e| format!("{}: {e}", path.display())),
         Err(_) => Ok(None),
     }
 }
 
-pub fn write(root: &Path, tape: &str, golden: &Value) -> Result<(), String> {
-    let path = path_of(root, tape);
+pub fn write(dir: &Path, tape: &str, golden: &Value) -> Result<(), String> {
+    let path = path_of(dir, tape);
     fs::create_dir_all(path.parent().expect("a golden has a folder")).map_err(|e| e.to_string())?;
     let text = serde_json::to_string_pretty(golden).map_err(|e| e.to_string())? + "\n";
     fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// Every golden file on disk, as the tape id it answers.
-pub fn recorded(root: &Path) -> Vec<String> {
-    let dir = root.join(GOLDENS_DIR);
+/// Every golden file in a goldens folder, as the tape id it answers.
+pub fn recorded(dir: &Path) -> Vec<String> {
     let mut out = Vec::new();
-    collect(&dir, &dir, &mut out);
+    collect(dir, dir, &mut out);
     out.sort();
     out
 }
@@ -51,14 +56,19 @@ fn collect(top: &Path, dir: &Path, out: &mut Vec<String>) {
         let path = entry.path();
         if path.is_dir() {
             collect(top, &path, out);
-        } else if path.extension().is_some_and(|e| e == "json") && path != top.join("ops.json") {
+        } else if path.extension().is_some_and(|e| e == "json") && path != top.join("ops.json") && path != top.join("tools.json") {
             out.push(path.strip_prefix(top).expect("under goldens").with_extension("").to_string_lossy().replace('\\', "/"));
         }
     }
 }
 
-pub fn read_key(root: &Path) -> Option<String> {
-    fs::read_to_string(root.join(KEY_FILE)).ok().map(|s| s.trim().to_string())
+pub fn read_key(dir: &Path) -> Option<String> {
+    fs::read_to_string(dir.join(KEY_FILE)).ok().map(|s| s.trim().to_string())
+}
+
+pub fn write_key(dir: &Path, key: &str) -> Result<(), String> {
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    fs::write(dir.join(KEY_FILE), format!("{key}\n")).map_err(|e| e.to_string())
 }
 
 /// The hash of the TS tree as it stands in the working copy: git's hash of each file's bytes, then of the list of
@@ -105,7 +115,23 @@ pub fn read_ops(root: &Path) -> Result<Vec<String>, String> {
 }
 
 pub fn write_ops(root: &Path, ops: &[String]) -> Result<(), String> {
-    let path = root.join(OPS_FILE);
+    write_list(&root.join(OPS_FILE), ops)
+}
+
+/// The tool server's tools the goldens were recorded against, each one a verb of the command line as well; none when
+/// no list was recorded.
+pub fn read_tools(root: &Path) -> Result<Vec<String>, String> {
+    match fs::read_to_string(root.join(TOOLS_FILE)) {
+        Ok(text) => serde_json::from_str(&text).map_err(|e| format!("{TOOLS_FILE}: {e}")),
+        Err(_) => Ok(Vec::new()),
+    }
+}
+
+pub fn write_tools(root: &Path, tools: &[String]) -> Result<(), String> {
+    write_list(&root.join(TOOLS_FILE), tools)
+}
+
+fn write_list(path: &Path, list: &[String]) -> Result<(), String> {
     fs::create_dir_all(path.parent().expect("folder")).map_err(|e| e.to_string())?;
-    fs::write(&path, serde_json::to_string_pretty(ops).map_err(|e| e.to_string())? + "\n").map_err(|e| e.to_string())
+    fs::write(path, serde_json::to_string_pretty(list).map_err(|e| e.to_string())? + "\n").map_err(|e| e.to_string())
 }

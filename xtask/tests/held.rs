@@ -15,8 +15,7 @@ fn no_held_back_tape_no_golden_of_one_and_not_the_seed_is_in_the_tree() {
     let out = Command::new("git").args(["ls-files", "parity"]).current_dir(&root).output().expect("git");
     let tracked: BTreeSet<String> = String::from_utf8_lossy(&out.stdout).lines().map(str::to_string).collect();
     assert!(!tracked.contains(SEED_FILE), "{SEED_FILE} is in the tree, so cargo xtask parity held prints the held-back set there");
-    let seed = xtask::held::seed(&root).unwrap_or(2443);
-    let readable: Vec<String> = held(&tape::load(&root).expect("tapes"), seed)
+    let readable: Vec<String> = held(&tape::load(&root).expect("tapes"))
         .into_iter()
         .filter(|id| tracked.contains(&format!("parity/tapes/{id}.tape")) || tracked.contains(&format!("parity/goldens/{id}.json")))
         .collect();
