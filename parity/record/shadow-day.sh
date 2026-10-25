@@ -4,11 +4,11 @@
 #
 #   parity/record/shadow-day.sh start [<state.json>]   restart the host with the tap on
 #   parity/record/shadow-day.sh status                 how many tapes so far
-#   parity/record/shadow-day.sh stop                   restart it with the tap off, keep the day under parity/tapes/shadow
+#   parity/record/shadow-day.sh stop [<held dir>]      restart it with the tap off, keep the day in the held-back folder
 #
 # The state defaults to the dev host's, ~/wsp-work/ui-home/state.json. Each restart ends the host's sockets the way
-# any update does. The tapes hold the person's own prompts, paths and titles, so parity/tapes/shadow is ignored by git:
-# hand the folder to the reviewer's checkout by copying it, never by a commit.
+# any update does. The tapes hold the person's own prompts, paths and titles, so they go to the held-back folder
+# (default ~/wsp-work/parity-shadow/held), outside the repository: hand it to the reviewer by copying, never by a commit.
 set -eu
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -58,8 +58,9 @@ case "${1:-}" in
     rm "$work/current"
     hours=$(( ($(date -u +%s) - since) / 3600 ))
     echo "taped $label for $hours h: $(ls "$day" | wc -l | tr -d ' ') tapes in $day"
-    node "$root/parity/record/collect.mjs" --from "$day"
-    echo "copy it to a reviewer's checkout: rsync -a $root/parity/tapes/shadow/ <box>:<checkout>/parity/tapes/shadow/"
+    held="${2:-$work/held}"
+    node "$root/parity/record/collect.mjs" --from "$day" --held "$held"
+    echo "copy it to the reviewer's held-back folder: rsync -a $held/tapes/shadow/ <box>:<held dir>/tapes/shadow/"
     ;;
   *)
     sed -n 3,11p "$0" | sed 's/^# \{0,1\}//' >&2

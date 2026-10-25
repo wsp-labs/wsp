@@ -16,7 +16,7 @@ use std::process::Command;
 
 pub const UNITS_FILE: &str = "parity/units.tsv";
 /// What a unit's implementer never changes: the tapes, their answers, the spec and the harness's own lists.
-const FIXED: &[&str] = &["parity/tapes/", "parity/goldens/", "parity/accepted.tsv", "parity/held-seed", UNITS_FILE, "docs/rust-host-spec/"];
+const FIXED: &[&str] = &["parity/tapes/", "parity/goldens/", "parity/accepted.tsv", UNITS_FILE, "docs/rust-host-spec/"];
 
 #[derive(Clone, Debug)]
 pub struct Unit {
@@ -116,14 +116,36 @@ pub fn visible_tapes(unit: &Unit, tapes: &[Tape], held: &BTreeSet<String>) -> BT
         .collect()
 }
 
-/// The unit's own tests, through cargo, with the output going straight to the terminal.
+/// The unit's own tests, through cargo, with the output going straight to the terminal. They run inside the sandbox,
+/// which has no network and a read-only disk but the unit's build folder: so offline, and with no compiler wrapper,
+/// whose cache server is out of reach there.
 pub fn run_tests(root: &Path, unit: &Unit) -> Result<bool, String> {
     let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
-    cmd.current_dir(root).args(["test", "--manifest-path", &unit.manifest, "--package", &unit.package]);
+    cmd.current_dir(root).env("RUSTC_WRAPPER", "").args([
+        "test",
+        "--offline",
+        "--manifest-path",
+        &unit.manifest,
+        "--package",
+        &unit.package,
+    ]);
     if let Some(filter) = &unit.filter {
         cmd.args(["--", filter]);
     }
     cmd.status().map(|s| s.success()).map_err(|e| format!("cargo test: {e}"))
+}
+
+/// The folder cargo builds the unit in, the one the sandbox leaves writable for its tests.
+pub fn target_dir(root: &Path, unit: &Unit) -> Result<std::path::PathBuf, String> {
+    let out = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
+        .current_dir(root)
+        .args(["metadata", "--no-deps", "--format-version", "1", "--manifest-path", &unit.manifest])
+        .output()
+        .map_err(|e| format!("cargo metadata: {e}"))?;
+    let meta: serde_json::Value = serde_json::from_slice(&out.stdout).map_err(|e| format!("cargo metadata: {e}"))?;
+    let dir = meta["target_directory"].as_str().ok_or("cargo metadata named no target folder")?;
+    fs::create_dir_all(dir).map_err(|e| format!("{dir}: {e}"))?;
+    Ok(dir.into())
 }
 
 pub fn merge_base(root: &Path) -> Result<String, String> {

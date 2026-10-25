@@ -14,6 +14,10 @@ regex = "1"
 libc = "0.2"
 tempfile = "3"
 tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+# The joiner a replay plays for a place.join that succeeds, on the daemon's own seal.
+wsp-seal = { path = "../daemon/crates/wsp-seal" }
+ring = "0.17"
+base64 = "0.22"
 
 # Its own workspace, beside the daemon's rather than in it: the daemon's manifest and lock are what a deploy's
 # content hash reads, and a task of the repository's moves no version a box reads as behind.

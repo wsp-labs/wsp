@@ -53,7 +53,20 @@ fn repo(tapes: &[(&str, &[&str])]) -> tempfile::TempDir {
     dir
 }
 
+/// One tape through the command line and one through the tool server: a run with none on either door fails.
+fn doors(root: &Path) {
+    for (id, text) in [
+        ("doors/cli", "{\"meta\":{\"door\":\"cli\"}}\n{\"in\":{\"argv\":[\"projects\",\"--json\"]}}\n"),
+        ("doors/mcp", "{\"meta\":{\"door\":\"mcp\"}}\n{\"in\":{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}}\n"),
+    ] {
+        let path = root.join("parity/tapes").join(format!("{id}.tape"));
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, text).unwrap();
+    }
+}
+
 fn recorded(root: &Path) {
+    doors(root);
     let ops: Vec<String> = OPS.iter().map(|s| s.to_string()).collect();
     let done = record(root, &Fake, &Options { jobs: 2, ..Options::default() }, &ops).expect("record");
     assert!(done.failed.is_empty());
@@ -67,7 +80,7 @@ fn the_recorded_goldens_agree_with_a_replay_of_the_same_host() {
     let text = report.render();
     assert!(report.ok(), "{text}");
     assert!(text.contains("coverage: 4 of 4 host ops have a tape, 4 of them an answer on one"), "{text}");
-    assert!(text.contains("result: 2 passed, 0 accepted, 0 failed, 0 families with no tape"), "{text}");
+    assert!(text.contains("result: 4 passed, 0 accepted, 0 failed, 0 skipped, 0 families with no tape"), "{text}");
 }
 
 #[test]
@@ -88,7 +101,7 @@ fn an_edited_golden_fails_the_run_naming_the_tape_and_the_field() {
     fs::write(root.path().join("parity/accepted.tsv"), "lists/places\treplies[*].asked\tthe golden was edited by this test\n").unwrap();
     let report = check(root.path(), &Fake, &Options { jobs: 1, ..Options::default() }).expect("check");
     assert!(report.ok(), "{}", report.render());
-    assert!(report.render().contains("result: 1 passed, 1 accepted, 0 failed"), "{}", report.render());
+    assert!(report.render().contains("result: 3 passed, 1 accepted, 0 failed"), "{}", report.render());
 }
 
 #[test]
@@ -160,7 +173,8 @@ fn every_tape_block_in_a_spec_file_is_read_as_a_tape() {
 fn a_seeded_replay_that_breaks_says_its_seed_and_the_same_seed_draws_the_same_order() {
     let root = repo(&[("lists/workspaces", &["auth", "workspaces.list", "workspaces.get", "workspaces.list", "workspaces.get"])]);
     recorded(root.path());
-    let report = check(root.path(), &Fake, &Options { jobs: 1, seed: Some(42), only: Some("lists".into()), ids: None }).expect("check");
+    let report =
+        check(root.path(), &Fake, &Options { jobs: 1, seed: Some(42), only: Some("lists".into()), ..Options::default() }).expect("check");
     let text = report.render();
     assert!(!report.ok(), "{text}");
     assert!(text.contains("order: seeded, seed 42"), "{text}");
@@ -187,9 +201,10 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
         json!({ "id": 3, "hostPublicKey": "MCowBQYDK2VwAyEAspCWzRXZPeML+erN7EBimqx0zAKlhQt0JqljKMWhAWM=", "bin": "/usr/local/lib/node_modules/wsp/dist/bin.js" }),
         json!({
             "id": 4,
-            "line": "wsp join http://127.0.0.1:38729 --code 6K1A-YZD5.SHA256:4V/2FMknEFkP6jIF7509y/JUeWWkhyIlp1bnAsKCXeI",
+            "line": "wsp join http://127.0.0.1:4321 --code 6K1A-YZD5.SHA256:4V/2FMknEFkP6jIF7509y/JUeWWkhyIlp1bnAsKCXeI",
             "code": "BYB7YQKX",
-            "port": 38753,
+            "port": 4321,
+            "asked": { "port": 41139, "url": "http://127.0.0.1:41139" },
             "ssh": { "port": 2222, "url": "http://127.0.0.1:4400" },
             "exit": { "code": 0 },
             "warn": "(node:257409) ExperimentalWarning",
@@ -198,7 +213,7 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
             "ephemeral": "YAXNDdzLsQUIvQVHrmiGLyab+fuchUyNDr+xfMlDgXs=",
             "nonce": "veY79qaDz6bxYh6P2A512KiOH0/Fy83nd1s7jSDX/12s=",
             "table": "here  8      31 GB   163.1 GB   none\nup 502ms, then up 1.1s",
-            "doctor": "local workspace  wsp-doctor-ywv1Rp (made for this run) and wsp-parity-harness stays at 127.0.0.1:32923",
+            "doctor": "local workspace  wsp-doctor-ywv1Rp (made for this run) and wsp-parity-harness stays at 127.0.0.1:4321",
             "stdout": "{\"diskFreeBytes\":1,\"name\":\"lab-box\"}\n{\"ok\":true}\n",
             "text": "{\n  \"diskFreeBytes\": 2\n}",
             "placeId": "p_59d14321ab",
@@ -211,13 +226,14 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
         json!({
             "replies": [
                 { "id": 1, "workspaceId": "<ws-1>", "home": "<tmp>/home", "at": "<time>", "name": "<computer>" },
-                { "id": 2, "line": "<ws-1> and <uuid-1> at <time>", "diskFreeBytes": "<machine>" },
+                { "id": 2, "line": "<ws-1> and <uuid-1> at <time>", "diskFreeBytes": "<moving>" },
                 { "id": 3, "hostPublicKey": "<id-1>", "bin": "/usr/local/lib/node_modules/wsp/dist/bin.js" },
                 {
                     "id": 4,
                     "line": "wsp join http://127.0.0.1:<port> --code <id-2>.<id-3>",
-                    "code": "<code>",
+                    "code": "<code-1>",
                     "port": "<port>",
+                    "asked": { "port": 41139, "url": "http://127.0.0.1:41139" },
                     "ssh": { "port": 2222, "url": "http://127.0.0.1:4400" },
                     "exit": { "code": 0 },
                     "warn": "(node:<pid>) ExperimentalWarning",
@@ -225,12 +241,12 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
                     "memoryDir": "/x/<tmp-dashed>-scratch/memory",
                     "ephemeral": "<id-4>",
                     "nonce": "<id-5>",
-                    "table": "here  8  <reading>  <reading>  none\nup <reading>, then up <reading>",
+                    "table": "here  8      31 GB   163.1 GB   none\nup <moving>, then up <moving>",
                     "doctor": "local workspace  wsp-doctor-<temp> (made for this run) and wsp-parity-harness stays at 127.0.0.1:<port>",
-                    "stdout": { "jsonLines": [{ "diskFreeBytes": "<machine>", "name": "<computer>" }, { "ok": true }] },
-                    "text": { "json": { "diskFreeBytes": "<machine>" } },
+                    "stdout": { "jsonLines": [{ "diskFreeBytes": "<moving>", "name": "<computer>" }, { "ok": true }] },
+                    "text": { "json": { "diskFreeBytes": "<moving>" }, "layout": "indented" },
                     "placeId": "<p-1>",
-                    "said": "no checkpoint at thread <id-6>'s turn end, deadbeef, 12345678",
+                    "said": "no checkpoint at thread <id-6>'s turn end, deadbeef, <id-7>",
                 },
             ],
             "events": [{ "workspaceId": "<ws>" }],
@@ -277,18 +293,52 @@ fn tapes_of(families: &[(&str, usize)], shadow: usize) -> Vec<Tape> {
 }
 
 #[test]
-fn every_shadow_tape_and_one_in_five_of_each_family_is_held_back_by_the_seed() {
+fn every_shadow_tape_and_one_in_five_of_each_family_is_drawn_by_the_seed() {
     let mut tapes = tapes_of(&[("workspaces", 20), ("places", 10), ("slates", 3)], 4);
     for id in ["hand/key-order", "spec/wire/1", "spec/wire/2"] {
         tapes.push(Tape::parse(id, &format!("{}\n", json!({"in": {"id": 1, "op": "preferences.get"}})), "test", 1).unwrap());
     }
-    let held = xtask::held::held(&tapes, 2443);
-    assert!(!held.iter().any(|id| id.starts_with("hand/") || id.starts_with("spec/")), "{held:?}");
-    assert!((0..4).all(|i| held.contains(&format!("shadow/day-{i}"))));
-    let of = |family: &str| held.iter().filter(|id| id.starts_with(&format!("recorded/{family}-"))).count();
+    let drawn = xtask::held::draw(&tapes, 2443, &[]);
+    assert!(!drawn.iter().any(|id| id.starts_with("hand/") || id.starts_with("spec/")), "{drawn:?}");
+    assert!((0..4).all(|i| drawn.contains(&format!("shadow/day-{i}"))));
+    let of = |family: &str| drawn.iter().filter(|id| id.starts_with(&format!("recorded/{family}-"))).count();
     assert_eq!((of("workspaces"), of("places"), of("slates")), (4, 2, 1));
-    assert_eq!(held, xtask::held::held(&tapes, 2443));
-    assert_ne!(held, xtask::held::held(&tapes, 2444));
+    assert_eq!(drawn, xtask::held::draw(&tapes, 2443, &[]));
+    assert_ne!(drawn, xtask::held::draw(&tapes, 2444, &[]));
+}
+
+#[test]
+fn a_draw_never_takes_the_last_tape_a_family_has_to_show() {
+    // folder has one tape: holding it back would leave cargo xtask unit with "no tape sends an op" for its unit.
+    let tapes = tapes_of(&[("folder", 1), ("places", 2)], 0);
+    let drawn = xtask::held::draw(&tapes, 2443, &[]);
+    assert!(!drawn.contains("recorded/folder-0"), "{drawn:?}");
+    assert_eq!(drawn.len(), 1, "{drawn:?}");
+
+    // On the doors a tool is the family: the one command line tape of `wsp image` stays, of two of `wsp projects add`
+    // one may go.
+    let cli = |id: &str, argv: &[&str]| {
+        Tape::parse(id, &format!("{{\"meta\":{{\"door\":\"cli\"}}}}\n{}\n", json!({"in": {"argv": argv}})), "test", 1).unwrap()
+    };
+    let tools = vec!["image".to_string(), "projects_add".to_string(), "projects".to_string()];
+    let doors =
+        vec![cli("cli/image", &["image"]), cli("cli/add-1", &["projects", "add", "x"]), cli("cli/add-2", &["projects", "add", "y"])];
+    let drawn = xtask::held::draw(&doors, 2443, &tools);
+    assert!(!drawn.contains("cli/image"), "{drawn:?}");
+    assert_eq!(drawn.len(), 1, "{drawn:?}");
+}
+
+#[test]
+fn the_held_back_set_is_what_the_held_folder_holds() {
+    let root = repo(&[("lists/workspaces", &["auth", "workspaces.list"])]);
+    let held = tempfile::tempdir().unwrap();
+    let file = held.path().join("tapes/lists/places.tape");
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    fs::write(&file, format!("{}\n", json!({"in": {"id": 1, "op": "places.list"}}))).unwrap();
+    assert!(xtask::held::held(&tape::load(root.path()).unwrap()).is_empty());
+    let mut all = tape::load(root.path()).unwrap();
+    all.extend(tape::load_held(held.path()).unwrap());
+    assert_eq!(xtask::held::held(&all).into_iter().collect::<Vec<_>>(), ["lists/places"]);
 }
 
 fn unit_repo() -> (tempfile::TempDir, xtask::unit::Unit) {

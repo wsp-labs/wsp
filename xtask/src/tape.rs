@@ -56,6 +56,11 @@ pub struct Tape {
     /// Set by `"outs": "recorded"` in the meta line: the answers came from the host the tape was recorded on, which a
     /// test had set up as no fresh host is, so a replay follows the ids they name and holds nothing to them.
     pub recorded: bool,
+    /// The computer the tape was recorded on, named by the meta line's `computer`, for a tape whose answers read the
+    /// computer the host runs on: another computer answers it otherwise.
+    pub computer: Option<String>,
+    /// Read from the held-back folder, which only the reviewer has.
+    pub held: bool,
 }
 
 impl Tape {
@@ -67,6 +72,7 @@ impl Tape {
         let mut outs = Vec::new();
         let mut seen_frame = false;
         let mut recorded = false;
+        let mut computer = None;
         for (n, line) in text.lines().enumerate() {
             let at = format!("{origin}:{}", first_line + n);
             if line.trim().is_empty() {
@@ -86,6 +92,7 @@ impl Tape {
                         source = s.to_string();
                     }
                     recorded = frame.get("outs").and_then(Value::as_str) == Some("recorded");
+                    computer = frame.get("computer").and_then(Value::as_str).map(str::to_string);
                 }
                 "meta" => return Err(format!("{at}: meta comes before the first frame")),
                 "in" => {
@@ -107,7 +114,7 @@ impl Tape {
         if ins.is_empty() {
             return Err(format!("{origin}: a tape sends the host at least one frame"));
         }
-        Ok(Tape { id: id.to_string(), door, source, ins, outs, recorded })
+        Ok(Tape { id: id.to_string(), door, source, ins, outs, recorded, computer, held: false })
     }
 
     /// The ops the tape sends over the websocket, in order, repeats kept.
@@ -150,22 +157,41 @@ pub fn spec_tapes(path: &Path) -> Result<Vec<Tape>, String> {
 
 /// Every tape the repository holds: the recorded ones under `parity/tapes` and the spec's examples, sorted by id.
 pub fn load(root: &Path) -> Result<Vec<Tape>, String> {
-    let mut tapes = Vec::new();
-    let dir = root.join(TAPES_DIR);
-    let mut files = Vec::new();
-    walk(&dir, &mut files);
-    for file in files.iter().filter(|f| f.extension().is_some_and(|e| e == "tape")) {
-        let rel = file.strip_prefix(&dir).expect("under the tapes folder");
-        let id = rel.with_extension("").to_string_lossy().replace('\\', "/");
-        let text = fs::read_to_string(file).map_err(|e| format!("{}: {e}", file.display()))?;
-        tapes.push(Tape::parse(&id, &text, &format!("{TAPES_DIR}/{}", rel.display()), 1)?);
-    }
+    let mut tapes = load_dir(&root.join(TAPES_DIR), TAPES_DIR)?;
     let mut specs = Vec::new();
     walk(&root.join(SPEC_DIR), &mut specs);
     for file in specs.iter().filter(|f| f.extension().is_some_and(|e| e == "md")) {
         tapes.extend(spec_tapes(file)?);
     }
     tapes.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(tapes)
+}
+
+/// The tapes of a held-back folder (`<dir>/tapes`), each marked held, sorted by id.
+pub fn load_held(dir: &Path) -> Result<Vec<Tape>, String> {
+    let tapes_dir = dir.join("tapes");
+    if !tapes_dir.is_dir() {
+        return Err(format!("{} holds no tapes folder", dir.display()));
+    }
+    let mut tapes = load_dir(&tapes_dir, &tapes_dir.display().to_string())?;
+    for tape in &mut tapes {
+        tape.held = true;
+    }
+    tapes.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(tapes)
+}
+
+/// Every `.tape` file under `dir`, its id the path under it less `.tape`; `shown` names the folder in a refusal.
+fn load_dir(dir: &Path, shown: &str) -> Result<Vec<Tape>, String> {
+    let mut tapes = Vec::new();
+    let mut files = Vec::new();
+    walk(dir, &mut files);
+    for file in files.iter().filter(|f| f.extension().is_some_and(|e| e == "tape")) {
+        let rel = file.strip_prefix(dir).expect("under the tapes folder");
+        let id = rel.with_extension("").to_string_lossy().replace('\\', "/");
+        let text = fs::read_to_string(file).map_err(|e| format!("{}: {e}", file.display()))?;
+        tapes.push(Tape::parse(&id, &text, &format!("{shown}/{}", rel.display()), 1)?);
+    }
     Ok(tapes)
 }
 
