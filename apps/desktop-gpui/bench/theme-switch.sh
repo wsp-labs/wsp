@@ -9,7 +9,8 @@
 # loop of renders shows as; exits 1 on any switch over the line. Keep the window in front: GPUI caps a window without
 # focus at 30 fps, so the run stops and says so, exit 3, as it does on a locked screen, which draws no window.
 #   apps/desktop-gpui/bench/theme-switch.sh
-# BENCH_GPUI_APP=<path> runs that build instead of building one; BENCH_OUT=<dir> keeps the results there. Off macOS,
+# BENCH_GPUI_APP=<path> runs that build instead of building one; BENCH_OUT=<dir> keeps the results there;
+# BENCH_FIXTURE=<fixture.json> uses a host fixture.sh already started and leaves it running. Off macOS,
 # under a display and a window manager, a switch is judged by the app's own time (trace.mjs --switches --app), as the
 # software renderer's present is not the app's.
 set -eu
@@ -21,6 +22,7 @@ refuse_locked
 repo=$(cd "$bench/../../.." && pwd)
 out=${BENCH_OUT:-$(mktemp -d "${TMPDIR:-/tmp}/wsp-theme-switch-XXXXXX")}
 mkdir -p "$out"
+fixture=${BENCH_FIXTURE:-$out/fixture.json}
 app=${BENCH_GPUI_APP:-${CARGO_TARGET_DIR:-$repo/apps/desktop-gpui/target}/release/desktop-gpui}
 pid=""
 watcher=""
@@ -28,13 +30,13 @@ finish() {
   code=$?
   if [ -n "$watcher" ]; then kill "$watcher" 2>/dev/null || true; fi
   if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then kill "$pid"; fi
-  if [ -f "$out/fixture.json" ]; then "$bench/stop.sh" "$out/fixture.json" > /dev/null || true; fi
+  if [ -z "${BENCH_FIXTURE:-}" ] && [ -f "$fixture" ]; then "$bench/stop.sh" "$fixture" > /dev/null || true; fi
   [ $code -eq 0 ] || echo "theme-switch: exit $code; results in $out" >&2
 }
 trap finish EXIT
 trap 'exit 130' INT TERM HUP
 
-if [ ! -f "$repo/packages/host/dist/bin.js" ] || [ ! -f "$repo/apps/web/dist/index.html" ]; then
+if [ -z "${BENCH_FIXTURE:-}" ] && { [ ! -f "$repo/packages/host/dist/bin.js" ] || [ ! -f "$repo/apps/web/dist/index.html" ]; }; then
   echo "== building the host and the web app the fixture serves"
   (cd "$repo" && pnpm install --frozen-lockfile && pnpm build)
 fi
@@ -43,11 +45,14 @@ if [ -z "${BENCH_GPUI_APP:-}" ]; then
   (cd "$repo/apps/desktop-gpui" && cargo build --release --locked -p desktop-gpui)
 fi
 
-echo "== starting the fixture's host"
-"$bench/fixture.sh" "$out/fixture.json"
-state=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).state)' "$out/fixture.json")
+if [ -z "${BENCH_FIXTURE:-}" ]; then
+  echo "== starting the fixture's host"
+  "$bench/fixture.sh" "$fixture"
+fi
+state=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).state)' "$fixture")
 home=$(dirname "$(dirname "$state")")/theme-home
-mkdir -p "$home"
+# A fixture kept from an earlier run holds that run's home too: each run starts the app on an empty one.
+rm -rf "$home" && mkdir -p "$home"
 
 echo "== switching themes on Settings > Appearance: keep the window in front until it quits"
 code=0
