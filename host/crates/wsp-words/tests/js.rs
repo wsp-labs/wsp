@@ -5,7 +5,8 @@
 
 use std::cmp::Ordering;
 use wsp_words::js::{
-    collate, is_js_whitespace, js_collapse_whitespace, js_round, js_trim, js_trim_end, js_trim_start, locale_number, number_string, to_fixed, utf16, Grouping,
+    collate, is_js_whitespace, js_collapse_whitespace, js_round, js_trim, js_trim_end, js_trim_start, locale_number, number_string,
+    to_fixed, utf16, Grouping,
 };
 
 mod utf16_units {
@@ -95,9 +96,18 @@ mod locale_order {
     // node 22: the same words sorted with localeCompare.
     #[test]
     fn collate_orders_as_locale_compare_with_the_root_locale() {
-        let mut v = vec!["b", "A", "a", "B", "_x", "1", "a-b", "ab", "a_b", "Z", "\u{e9}", "e", "f", "", "10", "9", "a b", "\u{e4}", "\u{df}", "ss", "Ab", "aB"];
+        let mut v = vec![
+            "b", "A", "a", "B", "_x", "1", "a-b", "ab", "a_b", "Z", "\u{e9}", "e", "f", "", "10", "9", "a b", "\u{e4}", "\u{df}", "ss",
+            "Ab", "aB",
+        ];
         v.sort_by(|a, b| collate(a, b));
-        assert_eq!(v, vec!["", "_x", "1", "10", "9", "a", "A", "\u{e4}", "a b", "a_b", "a-b", "ab", "aB", "Ab", "b", "B", "e", "\u{e9}", "f", "ss", "\u{df}", "Z"]);
+        assert_eq!(
+            v,
+            vec![
+                "", "_x", "1", "10", "9", "a", "A", "\u{e4}", "a b", "a_b", "a-b", "ab", "aB", "Ab", "b", "B", "e", "\u{e9}", "f", "ss",
+                "\u{df}", "Z"
+            ]
+        );
         assert_eq!(collate("a", "A"), Ordering::Less);
         assert_eq!(collate("A", "a"), Ordering::Greater);
         assert_eq!(collate("a", "a"), Ordering::Equal);
@@ -113,7 +123,10 @@ mod whitespace {
     #[test]
     fn trim_uses_javascripts_whitespace_set() {
         assert_eq!(js_trim("\u{feff}a\u{85}"), "a\u{85}");
-        assert_eq!(js_trim(" \t\n\u{b}\u{c}\r\u{a0}\u{1680}\u{2000}\u{200a}\u{2028}\u{2029}\u{202f}\u{205f}\u{3000}\u{feff}x\u{180e}"), "x\u{180e}");
+        assert_eq!(
+            js_trim(" \t\n\u{b}\u{c}\r\u{a0}\u{1680}\u{2000}\u{200a}\u{2028}\u{2029}\u{202f}\u{205f}\u{3000}\u{feff}x\u{180e}"),
+            "x\u{180e}"
+        );
         assert_eq!(js_trim("   "), "");
         assert_eq!(js_trim(""), "");
         assert_eq!(js_trim_start("  a  "), "a  ");
@@ -123,7 +136,10 @@ mod whitespace {
 
     #[test]
     fn whitespace_set_matches_ecma_262_exactly() {
-        for c in ['\t', '\n', '\u{b}', '\u{c}', '\r', ' ', '\u{a0}', '\u{1680}', '\u{2000}', '\u{2005}', '\u{200a}', '\u{2028}', '\u{2029}', '\u{202f}', '\u{205f}', '\u{3000}', '\u{feff}'] {
+        for c in [
+            '\t', '\n', '\u{b}', '\u{c}', '\r', ' ', '\u{a0}', '\u{1680}', '\u{2000}', '\u{2005}', '\u{200a}', '\u{2028}', '\u{2029}',
+            '\u{202f}', '\u{205f}', '\u{3000}', '\u{feff}',
+        ] {
             assert!(is_js_whitespace(c), "{:?} is whitespace to JavaScript", c);
         }
         for c in ['\u{85}', '\u{180e}', '\u{200b}', 'a', '\u{0}', '\u{1c}'] {
@@ -144,7 +160,17 @@ mod numbers {
 
     #[test]
     fn math_round_takes_a_half_toward_positive_infinity() {
-        let cases: [(f64, f64); 9] = [(2.5, 3.0), (-2.5, -2.0), (0.5, 1.0), (-0.5, -0.0), (1.5, 2.0), (-1.5, -1.0), (0.49999999999999994, 0.0), (-0.49999999999999994, -0.0), (4503599627370495.5, 4503599627370496.0)];
+        let cases: [(f64, f64); 9] = [
+            (2.5, 3.0),
+            (-2.5, -2.0),
+            (0.5, 1.0),
+            (-0.5, -0.0),
+            (1.5, 2.0),
+            (-1.5, -1.0),
+            (0.49999999999999994, 0.0),
+            (-0.49999999999999994, -0.0),
+            (4503599627370495.5, 4503599627370496.0),
+        ];
         for (x, want) in cases {
             let got = js_round(x);
             assert_eq!(got, want, "Math.round({x})");
@@ -301,5 +327,37 @@ mod numbers {
             assert_eq!(value, serde_json::from_str::<serde_json::Value>(want).unwrap(), "{n} {o:?}");
         }
         assert_eq!(serde_json::to_value(Holder { n: 1.0, o: Some(5.0) }).unwrap(), serde_json::json!({ "n": 1, "o": 5 }));
+    }
+}
+
+mod replace_first {
+    use wsp_words::js::replace_first;
+
+    #[test]
+    fn reads_the_dollar_forms_of_a_string_replacement_as_javascript_does() {
+        // node 22: "a{bin}b".replace("{bin}", r) for each r below.
+        assert_eq!(replace_first("a{bin}b", "{bin}", "'/x/$&y'"), "a'/x/{bin}y'b");
+        assert_eq!(replace_first("a{bin}b", "{bin}", "'$$'"), "a'$'b");
+        assert_eq!(replace_first("a{bin}b", "{bin}", "'$`|$'"), "a'a|bb");
+        assert_eq!(replace_first("a{bin}b", "{bin}", "$1 $<n> $0 $"), "a$1 $<n> $0 $b");
+        assert_eq!(replace_first("{bin}", "{bin}", "$"), "$");
+        assert_eq!(replace_first("x", "{bin}", "y"), "x");
+        assert_eq!(replace_first("{bin}{bin}", "{bin}", "$&$&"), "{bin}{bin}{bin}");
+    }
+}
+
+mod upper_first {
+    use wsp_words::js::upper_first;
+
+    #[test]
+    fn upper_cases_the_first_utf16_unit_as_charat_does() {
+        // node 22: `${u.charAt(0).toUpperCase()}${u.slice(1)}`
+        assert_eq!(upper_first("ß"), "SS");
+        assert_eq!(upper_first("ŉ"), "ʼN");
+        assert_eq!(upper_first("ﬁne"), "FIne");
+        assert_eq!(upper_first("éa"), "Éa");
+        assert_eq!(upper_first(""), "");
+        // a first character outside the BMP is a lone surrogate to charAt, which has no case: the text comes back whole.
+        assert_eq!(upper_first("\u{10428}x"), "\u{10428}x");
     }
 }

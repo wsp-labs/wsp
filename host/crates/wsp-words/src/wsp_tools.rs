@@ -20,7 +20,10 @@ use wsp_wire::views::harness::McpServerSpec;
 //   return named !== undefined && named.server === MCP_SERVER_NAME && SPAWN_TOOLS.includes(named.tool);
 // };
 pub fn spawns_thread(tool_name: &str) -> bool {
-    todo!()
+    crate::words::tools::server_tool(tool_name).is_some_and(|named| {
+        named.server == wsp_wire::types::wsp_tools::MCP_SERVER_NAME
+            && wsp_wire::types::wsp_tools::SPAWN_TOOLS.contains(&named.tool.as_str())
+    })
 }
 
 // The slate's tools, and the name a launch serves them under again for a harness that keeps a server's tools behind
@@ -42,7 +45,7 @@ pub fn spawns_thread(tool_name: &str) -> bool {
 // }
 /// None is the TS undefined.
 pub fn launch_has_slate(servers: Option<&indexmap::IndexMap<String, McpServerSpec>>) -> bool {
-    todo!()
+    servers.and_then(|servers| servers.get(wsp_wire::types::wsp_tools::MCP_SERVER_NAME)).is_some_and(|wsp| wsp.no_slate.is_none())
 }
 
 // wsp-tools.ts:37
@@ -113,6 +116,49 @@ pub enum Followed {
 
 /// `call` is the tool call's name and its input text.
 pub fn threads_followed(tool_name: &str, input: &str) -> Option<Followed> {
-    todo!()
+    enum Follow {
+        Field(&'static str),
+        Opened,
+    }
+    let named = crate::words::tools::server_tool(tool_name)?;
+    if named.server != wsp_wire::types::wsp_tools::MCP_SERVER_NAME {
+        return None;
+    }
+    let follows = match named.tool.as_str() {
+        "send" => Follow::Field("thread"),
+        "run" => Follow::Opened,
+        "threads_wait" => Follow::Field("threads"),
+        _ => return None,
+    };
+    // A JSON array is an object to JavaScript's typeof, so it parses and names no field.
+    let args = match serde_json::from_str::<serde_json::Value>(input).ok()? {
+        serde_json::Value::Object(args) => Some(args),
+        serde_json::Value::Array(_) => None,
+        _ => return None,
+    };
+    if args.as_ref().and_then(|args| args.get("detach")) == Some(&serde_json::Value::Bool(true)) {
+        return None;
+    }
+    match follows {
+        Follow::Opened => Some(Followed::Opened),
+        Follow::Field(field) => {
+            let candidates: Vec<&serde_json::Value> = match args.as_ref().and_then(|args| args.get(field)) {
+                Some(serde_json::Value::Array(items)) => items.iter().collect(),
+                Some(value) => vec![value],
+                None => Vec::new(),
+            };
+            let refs: Vec<String> = candidates
+                .into_iter()
+                .filter_map(|value| match value {
+                    serde_json::Value::String(text) if !text.is_empty() => Some(text.clone()),
+                    _ => None,
+                })
+                .collect();
+            if refs.is_empty() {
+                None
+            } else {
+                Some(Followed::Named(refs))
+            }
+        }
+    }
 }
-

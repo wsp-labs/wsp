@@ -7,6 +7,8 @@ use wsp_wire::types::general_prefs::GeneralPreferences;
 use wsp_wire::types::outside_line::OutsideLine;
 use wsp_wire::types::plan_alerts::PlanAlert;
 
+use crate::general_prefs::{notify_by, NotifyHow};
+
 // One moment said outside the app: its title, its line, whether a notification shows it, and whether it makes a
 // sound, which with no notification is the sound alone. The id is the page's own for the line, handed back on a
 // click so the click opens what that line was about and not whatever was said after it.
@@ -52,19 +54,22 @@ pub enum OutsideMoment {
 // outside-line.ts:34
 // export const setupFailedLine = (computer: string): string => `${computer}: setup failed`;
 pub fn setup_failed_line(computer: &str) -> String {
-    todo!()
+    format!("{computer}: setup failed")
 }
 
 // outside-line.ts:35
 // export const setupNeedsYouLine = (computer: string, what: string): string => `${computer} needs you: ${what}`;
 pub fn setup_needs_you_line(computer: &str, what: &str) -> String {
-    todo!()
+    format!("{computer} needs you: {what}")
 }
 
 // outside-line.ts:36
 // export const setupReadyLine = (computer: string, missed?: string): string => `${computer} is ready${missed === undefined ? "" : `; ${missed}`}`;
 pub fn setup_ready_line(computer: &str, missed: Option<&str>) -> String {
-    todo!()
+    match missed {
+        None => format!("{computer} is ready"),
+        Some(missed) => format!("{computer} is ready; {missed}"),
+    }
 }
 
 // outside-line.ts:38
@@ -100,6 +105,32 @@ pub fn setup_ready_line(computer: &str, missed: Option<&str>) -> String {
 //   }
 // }
 pub fn outside_line(moment: &OutsideMoment, choices: &GeneralPreferences) -> Option<OutsideLine> {
-    todo!()
+    let needs = notify_by(choices.notify_needs);
+    let done = notify_by(choices.notify_done);
+    let said = |how: Option<NotifyHow>, title: String, body: String| {
+        how.map(|how| OutsideLine { title, body, show: how.show, sound: how.sound, id: None })
+    };
+    match moment {
+        OutsideMoment::Asks { line } => said(needs, crate::words::init::NEEDS_YOU.to_string(), line.clone()),
+        OutsideMoment::SignIn { what } => said(needs, crate::words::init::NEEDS_YOU.to_string(), what.clone()),
+        OutsideMoment::Finished { thread, r#where } => said(done, crate::words::places::thread_finished_line(thread), r#where.clone()),
+        OutsideMoment::Failed { thread, r#where, error } => said(
+            done,
+            crate::words::places::thread_stopped_line(thread),
+            error.as_deref().map(crate::quote::one_line).unwrap_or_else(|| r#where.clone()),
+        ),
+        OutsideMoment::Awake { workspace } => {
+            said(done, crate::words::init::NEEDS_YOU.to_string(), crate::words::computer::workspace_awake_line(workspace))
+        }
+        OutsideMoment::Plan { label, alert } => {
+            let how = choices.plan_alerts.then_some(NotifyHow { show: true, sound: false });
+            said(how, crate::plan_alerts::plan_alert_line(label, alert), String::new())
+        }
+        OutsideMoment::SetupFailed { computer, said: error } => said(needs, setup_failed_line(computer), crate::quote::one_line(error)),
+        OutsideMoment::SetupNeedsYou { computer, what } => {
+            said(needs, crate::words::init::NEEDS_YOU.to_string(), setup_needs_you_line(computer, what))
+        }
+        OutsideMoment::SetupReady { computer, missed } => said(done, setup_ready_line(computer, missed.as_deref()), String::new()),
+        OutsideMoment::ImageReady { computer, image } => said(done, setup_ready_line(computer, None), image.clone()),
+    }
 }
-

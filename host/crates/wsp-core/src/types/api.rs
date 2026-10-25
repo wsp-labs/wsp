@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use async_trait::async_trait;
 use indexmap::IndexMap;
-use tokio_util::sync::CancellationToken;
+use wsp_engine::Cancel;
 
 use wsp_engine::machine::MachineBackend;
 use wsp_engine::snapshot_storage::RetentionPlan;
@@ -703,7 +703,7 @@ pub struct BuildPlace {
 pub struct PrepareAsk {
     pub name: Option<String>,
     pub kind: Option<MachineKind>,
-    pub signal: Option<CancellationToken>,
+    pub signal: Option<Cancel>,
     pub recipe: Option<GoldenRecipe>,
     pub place: Option<String>,
     pub copy: Option<bool>,
@@ -759,7 +759,7 @@ pub struct ImageBuildAsk {
     pub place: String,
     pub name: Option<String>,
     pub force: Option<bool>,
-    pub signal: Option<CancellationToken>,
+    pub signal: Option<Cancel>,
     pub starting: Option<Rc<dyn Fn()>>,
 }
 
