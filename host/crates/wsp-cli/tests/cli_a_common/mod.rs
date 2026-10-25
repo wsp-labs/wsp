@@ -19,7 +19,7 @@ use wsp_cli::verbs::client::{Again, BoxFuture, CliIo, Dialer, Frame, FrameOff, F
 use wsp_words::exit::HostError;
 
 /// The close code a host stopping sends (`HOST_STOPPING_CLOSE`).
-pub const STOPPING_CLOSE: u16 = 4001;
+pub const STOPPING_CLOSE: u16 = wsp_wire::wire::limits::HOST_STOPPING_CLOSE as u16;
 
 /// A fixture the TS oracle wrote (`oracle/cli.oracle.ts`), with the cloud on where `cloud` says and a `_cloud` file
 /// exists, else the one file both runs wrote alike.

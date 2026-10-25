@@ -304,12 +304,7 @@ pub fn end_view(ended: &Ended) -> ThreadEndOut {
     todo!("io.ts:290-300")
 }
 
-/// How much of the reply a notify line carries (`NotifyLength`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NotifyLength {
-    Tail,
-    Whole,
-}
+pub use wsp_words::words::turn::NotifyLength;
 
 /// `waitAnswer(named, waited, length)` (io.ts:305-308): the value and the line.
 pub fn wait_answer(named: &[ThreadView], waited: &Waited, length: NotifyLength) -> (WaitOut, String) {

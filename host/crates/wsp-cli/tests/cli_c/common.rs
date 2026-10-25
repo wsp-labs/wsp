@@ -22,9 +22,9 @@ use wsp_words::exit::{HostError, Kind};
 
 /// What the TS answered an op no reply names, after the op's name.
 pub const NOT_IN_RECORD: &str = "is not in this record";
-pub const HOST_STOPPING_LINE: &str = "the host is restarting; the turn goes on and its reply lands in the thread";
-pub const HOST_CLOSED_LINE: &str = "the host closed the connection";
-pub const HOST_STOPPING_CLOSE: u16 = 4001;
+pub use wsp_wire::types::daemon_contract::HOST_CLOSED_LINE;
+pub use wsp_words::words::thread::HOST_STOPPING_LINE;
+pub const HOST_STOPPING_CLOSE: u16 = wsp_wire::wire::limits::HOST_STOPPING_CLOSE as u16;
 
 /// The host a case scripts. Keys are an op, or `<op> #<n>` for its nth ask.
 /// `replies`: the frame text answering an op. `pushed`: frames every listener hears while the op is under way,

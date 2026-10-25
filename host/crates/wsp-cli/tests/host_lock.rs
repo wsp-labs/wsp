@@ -30,8 +30,17 @@ fn me() -> u32 {
     std::process::id()
 }
 
+/// A fork while another test holds a copied program open for writing hands the child that descriptor, and the exec
+/// of the copy then fails "Text file busy"; every spawn and every copy-then-spawn of this file takes the gate.
+static FORK_GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn gate() -> std::sync::MutexGuard<'static, ()> {
+    FORK_GATE.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// A pid that was real a moment ago and is not alive now.
 fn dead_pid() -> u32 {
+    let _gate = gate();
     let mut child = Command::new("true").spawn().unwrap();
     let pid = child.id();
     child.wait().unwrap();
@@ -42,6 +51,7 @@ struct Sleeper(Child);
 
 impl Sleeper {
     fn new() -> Sleeper {
+        let _gate = gate();
         Sleeper(Command::new("sleep").arg("30").stdin(Stdio::null()).stdout(Stdio::null()).spawn().unwrap())
     }
     fn pid(&self) -> u32 {
@@ -271,8 +281,10 @@ fn a_lock_serves_only_while_it_parses_and_its_pid_lives() {
 fn a_lock_whose_program_file_is_gone_holds_nothing_and_the_next_host_takes_it() {
     let dir = Dir::new();
     let bin = dir.at("sleep");
+    let gate = gate();
     fs::copy("/bin/sleep", &bin).unwrap();
     let held = Sleeper(Command::new(&bin).arg("30").spawn().unwrap());
+    drop(gate);
     fs::remove_file(&bin).unwrap();
     let state = dir.at("state.json");
     write_lock(&lock_path_for(&state), held.pid() as f64, 4400.0, Some("service"));
@@ -291,8 +303,10 @@ fn a_lock_whose_program_file_is_gone_holds_nothing_and_the_next_host_takes_it() 
 fn a_lock_whose_program_was_upgraded_in_place_still_holds_and_refuses_a_second_host() {
     let dir = Dir::new();
     let bin = dir.at("sleep");
+    let gate = gate();
     fs::copy("/bin/sleep", &bin).unwrap();
     let held = Sleeper(Command::new(&bin).arg("30").spawn().unwrap());
+    drop(gate);
     fs::remove_file(&bin).unwrap();
     fs::copy("/bin/sleep", &bin).unwrap();
     let state = dir.at("state.json");

@@ -16,8 +16,7 @@ use wsp_cli::verbs::io::{
 };
 use wsp_wire::wire::runtime::ExecEvent;
 use wsp_words::exit::{HostError, Kind};
-
-const HOST_STOPPING_LINE: &str = "the host is restarting; the turn goes on and its reply lands in the thread";
+use wsp_words::words::thread::HOST_STOPPING_LINE;
 
 fn script(replies: &[(&str, &str)], pushed: &[(&str, &[&str])], closes: Option<&str>) -> Script {
     Script {
