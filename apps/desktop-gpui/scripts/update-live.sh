@@ -488,7 +488,7 @@ else
   pack_mac "$old_bin" "$old_v" "$work/install"
   mkdir -p "$work/pack/new"
   pack_mac "$new_bin" "$new_v" "$work/pack/new"
-  (cd "$work/pack/new" && ditto -c -k --sequesterRsrc --keepParent wsp.app "$work/feed/$asset")
+  (cd "$work/pack/new" && ditto -c -k --norsrc --noextattr --keepParent wsp.app "$work/feed/$asset")
 fi
 say "the feed offers $asset ($scenario)"
 echo "$new_v" >"$work/feed/VERSION"

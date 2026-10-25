@@ -91,6 +91,14 @@ fn each_push_moves_the_sources_the_web_folds_it_into() {
 }
 
 #[test]
+fn the_gone_words_are_wsp_mcps() {
+    let words: Value = serde_json::from_str(include_str!("../../../../../../daemon/crates/wsp-mcp/record/words.json")).unwrap();
+    for (key, template) in GONE {
+        assert_eq!(words[key].as_str(), Some(template), "{key}");
+    }
+}
+
+#[test]
 fn no_host_to_answer_reads_as_the_offline_sentence() {
     for gone in [
         Failure::new("no wsp host is serving /tmp/x/state/state.json; start one with wsp up --state /tmp/x/state/state.json"),

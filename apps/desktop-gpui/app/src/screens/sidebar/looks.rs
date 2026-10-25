@@ -14,6 +14,8 @@ use wsp_host_client::protocol::{PlaceView, Preferences};
 use crate::ui::computer_glyph::ComputerIcon;
 use crate::ui::{Glyph, Palette};
 
+pub use crate::screens::settings::pages::computers::provider_key_name;
+
 /// A project's look: its glyph by `ProjectIcon`, the hue it is drawn in where one is picked.
 pub(crate) fn project_icon(id: &str) -> Glyph {
     match id {
@@ -200,14 +202,6 @@ pub fn place_name(place: &Value) -> String {
         None if place.get("kind").and_then(Value::as_str) == Some("provider") => provider_key_name(name),
         None => name.to_owned(),
     }
-}
-
-/// `PROVIDER_KEY_WORDS`' names: each cloud's id and the name its key rows give it.
-pub const PROVIDER_NAMES: [(&str, &str); 2] = [("box", "Boat"), ("solari", "Solari")];
-
-/// `providerKeyName`: a provider by the name its key rows give it, an id with no row as itself.
-pub fn provider_key_name(provider: &str) -> String {
-    PROVIDER_NAMES.iter().find(|(id, _)| *id == provider).map_or(provider, |&(_, name)| name).to_owned()
 }
 
 #[cfg(test)]

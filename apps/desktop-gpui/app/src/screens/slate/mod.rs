@@ -550,51 +550,42 @@ pub fn refusal(failure: &Failure) -> String {
     }
 }
 
+/// wsp-mcp's words for a host that was not there to answer, by their keys in its `record/words.json`.
+pub(crate) const GONE: [(&str, &str); 9] = [
+    ("noHostServing", "no wsp host is serving {state}; start one with wsp up --state {state}"),
+    ("hostTokenMissing", "the host's token file is missing: {path}"),
+    ("noAnswer", "the host at {where} did not answer: {why}"),
+    ("noAnswerWithin", "the host at {where} did not answer: nothing came back within {ms} ms"),
+    ("hostClosed", "the host closed the connection"),
+    ("hostStopping", "the host is restarting; the turn goes on and its reply lands in the thread"),
+    ("notDelivered", "the host stopped before it took the message, so it was not delivered; send it again"),
+    ("noHostAnswered", "no host answered for {state} within 20s"),
+    ("hostExited", "the host for {state} exited with {ended} before it served; its log is {log}"),
+];
+
 /// Whether a failure says no host was there to answer: a dial that reached nobody, or a socket that went, as wsp-mcp's
 /// record words those.
 pub(crate) fn offline(failure: &Failure) -> bool {
-    static GONE: std::sync::OnceLock<Vec<Vec<String>>> = std::sync::OnceLock::new();
-    let gone = GONE.get_or_init(|| {
-        let words: Map<String, Value> =
-            serde_json::from_str(include_str!("../../../../../../daemon/crates/wsp-mcp/record/words.json")).unwrap_or_default();
-        [
-            "noHostServing",
-            "hostTokenMissing",
-            "noAnswer",
-            "noAnswerWithin",
-            "hostClosed",
-            "hostStopping",
-            "notDelivered",
-            "noHostAnswered",
-            "hostExited",
-        ]
-        .into_iter()
-        .filter_map(|key| words.get(key).and_then(Value::as_str))
-        .map(|template| {
-            template
-                .split('{')
-                .enumerate()
-                .map(|(i, p)| if i == 0 { p } else { p.split_once('}').map_or("", |(_, rest)| rest) })
-                .map(str::to_owned)
-                .collect()
-        })
-        .collect()
-    });
-    failure.kind.as_deref() == Some("unreachable") || gone.iter().any(|words| said_in(&failure.message, words))
+    failure.kind.as_deref() == Some("unreachable") || GONE.iter().any(|(_, template)| said_in(&failure.message, &pieces(template)))
 }
 
-/// Whether `message` is a template's words in order with anything between them: `a {x} b` as `["a ", " b"]`.
-fn said_in(message: &str, words: &[String]) -> bool {
+/// A template's words between its `{..}` holes: `a {x} b` as `["a ", " b"]`.
+fn pieces(template: &str) -> Vec<&str> {
+    template.split('{').enumerate().map(|(i, p)| if i == 0 { p } else { p.split_once('}').map_or("", |(_, rest)| rest) }).collect()
+}
+
+/// Whether `message` is a template's words in order with anything between them.
+fn said_in(message: &str, words: &[&str]) -> bool {
     let Some((first, after)) = words.split_first() else { return false };
-    let Some(mut rest) = message.strip_prefix(first.as_str()) else { return false };
+    let Some(mut rest) = message.strip_prefix(first) else { return false };
     let Some((last, between)) = after.split_last() else { return rest.is_empty() };
     for part in between {
-        match rest.find(part.as_str()) {
+        match rest.find(part) {
             Some(at) => rest = &rest[at + part.len()..],
             None => return false,
         }
     }
-    rest.ends_with(last.as_str())
+    rest.ends_with(last)
 }
 
 /// Opens the right panel on `pane`'s tab where this build mounts a screen for it; false where it mounts none.
