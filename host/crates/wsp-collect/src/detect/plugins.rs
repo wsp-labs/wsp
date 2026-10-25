@@ -2,12 +2,17 @@
 //! Every agent's plugins on a computer, off the shelf each catalog agent names, read under the folder its store
 //! variable names for a thread there, else under the home. Port of packages/collect/src/detect/plugins.ts at
 //! a3b870a6e; the spec is spec/plugins.md.
-use wsp_catalog::catalog::AgentEntry;
+use futures::future::join_all;
+use indexmap::{IndexMap, IndexSet};
+use wsp_catalog::catalog::{catalog_agents, harness_line, AgentEntry};
 use wsp_catalog::pending::HostError;
-use wsp_catalog::plugins::{FoundPlugin, PeekGroup, Peeked, PluginIo, PluginShelf, PluginsFound};
-use wsp_wire::types::agents_report::{AgentsProject, PluginRow};
+use wsp_catalog::plugins::{join_path, FoundPlugin, PeekGroup, Peeked, PluginIo, PluginProject, PluginShelf, PluginsFound};
+use wsp_wire::types::agents_report::{AgentsProject, PluginBrings, PluginMissing, PluginRow, PluginScope};
+use wsp_wire::types::shell_quote::shell_quote;
+use wsp_words::js::js_trim_end;
 
-use crate::host::Host;
+use crate::detect::tools::argv;
+use crate::host::{tilde, Host, RunOptions};
 
 // plugins.ts:11
 // /** One agent's plugins as its module found them, beside the rows the report carries. */
@@ -71,34 +76,6 @@ pub struct HostPluginIo<'a> {
     pub agent: String,
 }
 
-// Private helper the port keeps (name in snake case):
-// plugins.ts:54
-// /** One peek of every group as one line on the computer, and what it printed read back by path; nothing where the
-//  * answer did not come back whole. */
-// async function peekOn(run: (line: string) => Promise<string | undefined>, groups: readonly PeekGroup[]): Promise<Peeked | undefined> {
-//   const calls = groups.flatMap(g => {
-//     const what = `${shellQuote((g.files ?? []).join("\n"))} ${shellQuote((g.dirs ?? []).map(d => `${d.depth} ${d.path}`).join("\n"))}`;
-//     const named = (g.roots ?? []).length === 0 ? [] : [`peek ${what} ${g.roots!.map(shellQuote).join(" ")}`];
-//     const from = g.rootsFrom === undefined ? [] : [`from ${shellQuote(g.rootsFrom.key)} ${g.rootsFrom.files.map(shellQuote).join(" ")} | while IFS= read -r r; do peek ${what} "$r"; done`];
-//     return [...named, ...from];
-//   });
-//   const said = await run([PEEK, ...calls, String.raw`printf '\036END\n'`].join("\n"));
-//   if (said === undefined || !said.trimEnd().endsWith("\x1eEND")) return undefined;
-//   const texts = new Map<string, string>();
-//   const lists = new Map<string, string[]>();
-//   const looked = new Set<string>();
-//   for (const record of said.split("\x1e").slice(1)) {
-//     const cut = record.indexOf("\x1f");
-//     if (cut < 0) continue;
-//     const at = joinPath(record.slice(1, cut));
-//     const body = record.slice(cut + 1);
-//     if (record[0] === "f") texts.set(at, body);
-//     else if (record[0] === "d") lists.set(at, body.split("\x1f").filter(n => n !== "" && n !== "\n"));
-//     else if (record[0] === "r") looked.add(at);
-//   }
-//   return { text: path => texts.get(joinPath(path)), list: dir => lists.get(joinPath(dir)), looked: root => looked.has(joinPath(root)) };
-// }
-
 /// What `peekOn` reads back (plugins.ts:249): text and lists by `join_path` of their path, roots looked at.
 pub struct PeekedRecords {
     pub texts: indexmap::IndexMap<String, String>,
@@ -108,109 +85,170 @@ pub struct PeekedRecords {
 
 impl Peeked for PeekedRecords {
     fn text(&self, path: &str) -> Option<String> {
-        todo!()
+        self.texts.get(&join_path(&[path])).cloned()
     }
     fn list(&self, dir: &str) -> Option<Vec<String>> {
-        todo!()
+        self.lists.get(&join_path(&[dir])).cloned()
     }
     fn looked(&self, root: &str) -> bool {
-        todo!()
+        self.looked.contains(&join_path(&[root]))
     }
 }
 
 /// The one line `peekOn` runs for these groups: PEEK, a call per group, then the end mark, joined by `\n`
 /// (plugins.ts:229-235). Split out so a test can pin the line without a computer.
 pub fn peek_line(groups: &[PeekGroup]) -> String {
-    todo!()
+    let mut lines = vec![PEEK.to_string()];
+    for g in groups {
+        let files = g.files.clone().unwrap_or_default();
+        let dirs: Vec<String> = g.dirs.iter().flatten().map(|d| format!("{} {}", d.depth, d.path)).collect();
+        let what = format!("{} {}", shell_quote(&files.join("\n")), shell_quote(&dirs.join("\n")));
+        if let Some(roots) = g.roots.as_ref().filter(|r| !r.is_empty()) {
+            let quoted: Vec<String> = roots.iter().map(|r| shell_quote(r)).collect();
+            lines.push(format!("peek {what} {}", quoted.join(" ")));
+        }
+        if let Some(from) = &g.roots_from {
+            let quoted: Vec<String> = from.files.iter().map(|f| shell_quote(f)).collect();
+            lines.push(format!("from {} {} | while IFS= read -r r; do peek {what} \"$r\"; done", shell_quote(&from.key), quoted.join(" ")));
+        }
+    }
+    lines.push(r"printf '\036END\n'".to_string());
+    lines.join("\n")
 }
 
 /// What one peek printed, read back; `None` where the answer did not end with the end mark (plugins.ts:236-249).
 pub fn peek_records(said: Option<&str>) -> Option<PeekedRecords> {
-    todo!()
+    let said = said?;
+    if !js_trim_end(said).ends_with("\u{1e}END") {
+        return None;
+    }
+    let mut out = PeekedRecords { texts: IndexMap::new(), lists: IndexMap::new(), looked: IndexSet::new() };
+    for record in said.split('\u{1e}').skip(1) {
+        let Some(cut) = record.find('\u{1f}') else { continue };
+        let kind = record.chars().next();
+        let kind_len = kind.map_or(0, char::len_utf8);
+        let at = join_path(&[record.get(kind_len..cut).unwrap_or("")]);
+        let body = &record[cut + 1..];
+        match kind {
+            Some('f') => {
+                out.texts.insert(at, body.to_string());
+            }
+            Some('d') => {
+                out.lists.insert(at, body.split('\u{1f}').filter(|n| !n.is_empty() && *n != "\n").map(str::to_string).collect());
+            }
+            Some('r') => {
+                out.looked.insert(at);
+            }
+            _ => {}
+        }
+    }
+    Some(out)
 }
 
 impl PluginIo for HostPluginIo<'_> {
     fn home(&self) -> &str {
-        todo!()
+        &self.host.home
     }
     fn store(&self) -> Option<&str> {
-        todo!()
+        self.host.stores.as_ref()?.get(&self.agent).map(String::as_str)
     }
     fn seed(&self) -> Option<&str> {
-        todo!()
+        self.host.seeds.as_ref()?.get(&self.agent).map(String::as_str)
     }
     /// `sh -c <peek_line>` with a 30 s timeout.
     async fn peek(&self, groups: &[PeekGroup]) -> Option<Box<dyn Peeked>> {
-        todo!()
+        let line = peek_line(groups);
+        let opts = RunOptions { timeout_ms: Some(30_000), ..RunOptions::default() };
+        let said = self.host.exec.run("sh", &argv(&["-c", &line]), opts).await;
+        peek_records(said.as_deref()).map(|p| Box::new(p) as Box<dyn Peeked>)
     }
     /// `bash -c <harness_line(agent, line, stores)>` with a 30 s timeout.
     async fn run(&self, line: &str) -> Option<String> {
-        todo!()
+        let wrapped = harness_line(&self.agent, line, self.host.stores.as_ref(), None);
+        let opts = RunOptions { timeout_ms: Some(30_000), ..RunOptions::default() };
+        self.host.exec.run("bash", &argv(&["-c", &wrapped]), opts).await
     }
     /// The TS object has no `edit`: a collect read never writes.
     fn can_edit(&self) -> bool {
-        todo!()
+        false
     }
-    async fn edit(&self, file: &str, base: &str, change: &dyn Fn(Option<&str>) -> Result<String, HostError>) -> Result<(), HostError> {
-        todo!()
+    async fn edit(&self, _file: &str, _base: &str, _change: &dyn Fn(Option<&str>) -> Result<String, HostError>) -> Result<(), HostError> {
+        Err(HostError::plain("a plugin read never edits a file"))
     }
 }
 
-// plugins.ts:79
-// /** The module's view of the computer, for one agent: its files, and its lines run pointed at its store. */
-// export function pluginIo(host: Host, agent: string): PluginIo {
-//   const store = host.stores?.[agent];
-//   const seed = host.seeds?.[agent];
-//   return {
-//     home: host.home,
-//     ...(store !== undefined ? { store } : {}),
-//     ...(seed !== undefined ? { seed } : {}),
-//     peek: groups => peekOn(line => host.exec.run("sh", ["-c", line], { timeoutMs: 30_000 }), groups),
-//     // bash: Codex's app server script reads its answers with read -u.
-//     run: line => host.exec.run("bash", ["-c", harnessLine(agent, line, { stores: host.stores })], { timeoutMs: 30_000 }),
-//   };
-// }
+/// The module's view of the computer, for one agent: its files, and its lines run pointed at its store.
 pub fn plugin_io<'a>(host: &'a Host, agent: &str) -> HostPluginIo<'a> {
-    todo!()
+    HostPluginIo { host, agent: agent.to_string() }
 }
 
-// plugins.ts:93
-// /** A found plugin as the report's row, its paths `~`-relative. */
-// export function pluginRow(host: Pick<Host, "home">, agent: string, p: FoundPlugin): PluginRow {
-//   const { skills: _skills, project, path, setIn, ...rest } = p;
-//   return {
-//     agent,
-//     ...rest,
-//     ...(project !== undefined ? { project: { ...project, path: tilde(host.home, project.path) } } : {}),
-//     ...(path !== undefined ? { path: tilde(host.home, path) } : {}),
-//     ...(setIn !== undefined ? { setIn: tilde(host.home, setIn) } : {}),
-//   };
-// }
+fn wire_scope(s: wsp_catalog::pending::PluginScope) -> PluginScope {
+    match s {
+        wsp_catalog::pending::PluginScope::User => PluginScope::User,
+        wsp_catalog::pending::PluginScope::Project => PluginScope::Project,
+        wsp_catalog::pending::PluginScope::Local => PluginScope::Local,
+    }
+}
+
+fn wire_missing(m: wsp_catalog::pending::PluginMissing) -> PluginMissing {
+    match m {
+        wsp_catalog::pending::PluginMissing::Folder => PluginMissing::Folder,
+        wsp_catalog::pending::PluginMissing::Marketplace => PluginMissing::Marketplace,
+        wsp_catalog::pending::PluginMissing::Unlisted => PluginMissing::Unlisted,
+        wsp_catalog::pending::PluginMissing::Uninstalled => PluginMissing::Uninstalled,
+    }
+}
+
+fn wire_brings(b: &wsp_catalog::pending::PluginBrings) -> PluginBrings {
+    PluginBrings {
+        skills: b.skills.clone(),
+        commands: b.commands.clone(),
+        subagents: b.subagents.clone(),
+        hooks: b.hooks.clone(),
+        servers: b.servers.clone(),
+        lsp: b.lsp.clone(),
+        apps: b.apps.clone(),
+    }
+}
+
 /// The row's keys: `agent`, then the found plugin's own in its order less `skills`, with `project`, `path` and `setIn`
 /// `~`-relative under `home`.
 pub fn plugin_row(home: &str, agent: &str, p: &FoundPlugin) -> PluginRow {
-    todo!()
+    PluginRow {
+        agent: agent.to_string(),
+        id: p.id.clone(),
+        name: p.name.clone(),
+        marketplace: p.marketplace.clone(),
+        version: p.version.clone(),
+        scope: wire_scope(p.scope),
+        on: p.on,
+        missing: p.missing.map(wire_missing),
+        description: p.description.clone(),
+        source: p.source.clone(),
+        brings: wire_brings(&p.brings),
+        project: p.project.as_ref().map(|pr| AgentsProject { id: pr.id.clone(), name: pr.name.clone(), path: tilde(home, &pr.path) }),
+        path: p.path.as_deref().map(|x| tilde(home, x)),
+        set_in: p.set_in.as_deref().map(|x| tilde(home, x)),
+    }
 }
 
-// plugins.ts:105
-// /** Every agent's plugins, side by side: one agent's read that fails leaves the others' rows standing. */
-// export async function detectPlugins(host: Host, o: { agents?: readonly AgentEntry[]; projects?: readonly AgentsProject[] } = {}): Promise<PluginsRead> {
-//   const agents = (o.agents ?? CATALOG_AGENTS).filter(a => a.pluginShelf !== undefined);
-//   const projects: PluginProject[] = (o.projects ?? []).map(p => ({ id: p.id, name: p.name, path: p.path }));
-//   const reads = await Promise.all(
-//     agents.map(async (a): Promise<AgentPlugins> => {
-//       const shelf = a.pluginShelf!;
-//       const found = await shelf.read(pluginIo(host, a.id), projects).catch((e: unknown) => ({ plugins: [], refused: [`plugins: ${a.name}'s plugins were not read: ${e instanceof Error ? e.message : String(e)}`] }));
-//       return { agent: a.id, shelf, found };
-//     }),
-//   );
-//   return {
-//     plugins: reads.flatMap(r => r.found.plugins.map(p => pluginRow(host, r.agent, p))),
-//     refused: reads.flatMap(r => r.found.refused),
-//     agents: reads,
-//   };
-// }
 /// `agents` `None` is the catalog's agents; only those with a plugin shelf are read.
 pub async fn detect_plugins(host: &Host, agents: Option<&[&AgentEntry]>, projects: &[AgentsProject]) -> PluginsRead {
-    todo!()
+    let agents: Vec<&AgentEntry> = match agents {
+        Some(a) => a.to_vec(),
+        None => catalog_agents(),
+    };
+    let shelves: Vec<(&AgentEntry, PluginShelf)> = agents.into_iter().filter_map(|a| a.plugin_shelf.map(|s| (a, s))).collect();
+    let projects: Vec<PluginProject> = projects.iter().map(|p| PluginProject { id: p.id.clone(), name: p.name.clone(), path: p.path.clone() }).collect();
+    let projects = &projects;
+    let reads: Vec<AgentPlugins> = join_all(shelves.into_iter().map(|(a, shelf)| async move {
+        let found = shelf.read(&plugin_io(host, &a.id), projects).await;
+        AgentPlugins { agent: a.id.clone(), shelf, found }
+    }))
+    .await;
+    PluginsRead {
+        plugins: reads.iter().flat_map(|r| r.found.plugins.iter().map(|p| plugin_row(&host.home, &r.agent, p))).collect(),
+        refused: reads.iter().flat_map(|r| r.found.refused.iter().cloned()).collect(),
+        agents: reads,
+    }
 }

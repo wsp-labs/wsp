@@ -2,11 +2,20 @@
 //! Every skill on a computer, off the folders each catalog agent loads skills from: one row per folder name with every
 //! folder it lives in, whether that folder is a link, and the description off its SKILL.md's frontmatter. One command
 //! reads every folder. Port of packages/collect/src/detect/skills.ts at a3b870a6e; the spec is spec/skills.md.
-use wsp_catalog::catalog::AgentEntry;
-use wsp_wire::types::agents_report::{AgentsProject, SkillRow, SkillScope};
+use std::sync::LazyLock;
+
+use futures::future::join_all;
+use indexmap::map::Entry;
+use indexmap::{IndexMap, IndexSet};
+use regex::Regex;
+use wsp_catalog::catalog::{catalog_agents, AgentEntry};
+use wsp_catalog::plugins::in_store;
+use wsp_wire::types::agents_report::{AgentsProject, SkillPath, SkillRow, SkillScope};
+use wsp_words::js::{collate, js_trim, js_trim_end, utf16, JS_WS};
 
 use crate::detect::plugins::AgentPlugins;
-use crate::host::Host;
+use crate::detect::tools::argv;
+use crate::host::{tilde, Host, RunOptions};
 
 /// The plugin a plugin's folder comes with (skills.ts:24).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -209,114 +218,267 @@ pub const LINKED_SCRIPT: &str = concat!(
 /// A top-level `name` or `description` key, as a JavaScript regex source (skills.ts:114).
 pub const KEY: &str = r#"^(?:(name|description)|"(name|description)"|'(name|description)')\s*:(?:\s+(.*))?$"#;
 
-// Private helpers the port keeps (names in snake case):
-// skills.ts:104
-// /** A one-line YAML value as a string: a quoted one is what its quotes hold, a plain one ends where a comment starts. */
-// const scalar = (v: string): string => {
-//   const t = v.trim();
-//   const single = /^'((?:[^']|'')*)'/.exec(t);
-//   if (single !== null) return single[1]!.replaceAll("''", "'");
-//   const double = /^"((?:[^"\\]|\\.)*)"/.exec(t);
-//   if (double !== null) return double[1]!.replace(/\\(["\\])/g, "$1");
-//   return t.replace(/(^|\s+)#.*$/, "");
-// };
-// skills.ts:189
-// /** The project's skills folders that sit under a link out of the project, each with that link and where it points: a
-//  * repo that links one out would hand its skills acts the person's own folders. Nothing when the answer does not come
-//  * back whole, which leaves every one of them unread. */
-// async function linkedOut(host: Host, project: string, dirs: readonly string[]): Promise<Map<string, { link: string; to: string }> | undefined> {
-//   const said = await host.exec.run("sh", ["-c", LINKED_SCRIPT, "sh", project, ...dirs], { timeoutMs: 20_000 });
-//   if (said === undefined || !said.trimEnd().endsWith(END)) return undefined;
-//   const out = new Map<string, { link: string; to: string }>();
-//   for (const line of said.split("\n")) {
-//     const [dir = "", link = "", to = ""] = line.split("\t");
-//     if (dirs.includes(dir)) out.set(dir, { link, to });
-//   }
-//   return out;
-// }
-// skills.ts:202
-// /** What the list says of a project's skills folder it does not read: where it links out of the repo, or that the
-//  * read could not tell. */
-// function skippedLine(host: Host, dir: string, at: { link: string; to: string } | undefined): string {
-//   const folder = tilde(host.home, dir);
-//   if (at === undefined) return `skills: ${folder} was not read, since whether it links out of the repo could not be told`;
-//   return `skills: ${folder} links out of the repo${at.link === dir ? "" : ` through ${tilde(host.home, at.link)}`}, to ${at.to}, so its skills are not read`;
-// }
-// skills.ts:236
-// /** The folders each plugin read says its skills sit in, each with its plugin: none of a plugin whose folder is gone. */
-// function pluginSkillRoots(plugins: readonly AgentPlugins[]): SkillRootAt[] {
-//   return plugins.flatMap(({ agent, found }) =>
-//     found.plugins.flatMap(p => (p.skills === undefined || p.missing !== undefined ? [] : p.skills.dirs.map(dir => ({ dir, scope: "plugin" as const, agent, plugin: { id: p.id, prefix: p.skills!.prefix, on: p.on } })))),
-//   );
-// }
+static KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&KEY.replace(r"\s", &format!("[{JS_WS}]")).replace("(.*)", r"([^\n\r\x{2028}\x{2029}]*)")).expect("KEY compiles")
+});
+static BLOCK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[>|][-+]?$").expect("BLOCK compiles"));
+static CONTINUED_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r"^[{JS_WS}]+[^{JS_WS}]")).expect("CONTINUED compiles"));
+static SINGLE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^'((?:[^']|'')*)'").expect("SINGLE compiles"));
+static DOUBLE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^"((?:[^"\\]|\\[^\n\r\x{2028}\x{2029}])*)""#).expect("DOUBLE compiles"));
+static ESCAPED_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"\\(["\\])"#).expect("ESCAPED compiles"));
+static COMMENT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"([{JS_WS}]+|^)#[^\n\r\x{{2028}}\x{{2029}}]*$")).expect("COMMENT compiles"));
 
-// skills.ts:125
-// /** `name` and `description` off a SKILL.md's frontmatter lines, the first of each: a plain value, a quoted one, or a
-//  * folded or literal block, read as one line. */
-// export function skillFrontmatter(text: string): SkillFront {
-//   const out: SkillFront = {};
-//   let names = 0;
-//   const lines = text.split("\n");
-//   for (let i = 0; i < lines.length; i++) {
-//     const m = KEY.exec(lines[i]!);
-//     if (m === null) continue;
-//     const key = (m[1] ?? m[2] ?? m[3]) as "name" | "description";
-//     if (key === "name") names++;
-//     let value = (m[4] ?? "").trim();
-//     const block = /^[>|][-+]?$/.test(value);
-//     const more: string[] = [];
-//     while (i + 1 < lines.length && /^\s+\S/.test(lines[i + 1]!)) more.push(lines[++i]!.trim());
-//     value = block ? more.join(" ") : [scalar(value), ...more].filter(w => w !== "").join(" ");
-//     if (value !== "" && out[key] === undefined) out[key] = value;
-//   }
-//   if (names > 1) out.names = names;
-//   return out;
-// }
-pub fn skill_frontmatter(text: &str) -> SkillFront {
-    todo!()
+/// A one-line YAML value as a string: a quoted one is what its quotes hold, a plain one ends where a comment starts.
+fn scalar(v: &str) -> String {
+    let t = js_trim(v);
+    if let Some(m) = SINGLE_RE.captures(t) {
+        return m[1].replace("''", "'");
+    }
+    if let Some(m) = DOUBLE_RE.captures(t) {
+        return ESCAPED_RE.replace_all(&m[1], "$1").into_owned();
+    }
+    COMMENT_RE.replace(t, "").into_owned()
 }
 
-// skills.ts:147
-// /** `name` and `description` off a whole SKILL.md: the lines between its opening `---` and the next, as the reader's
-//  * script takes them. */
-// export function skillMdFrontmatter(text: string): SkillFront {
-//   const lines = text.slice(0, SKILL_HEAD_BYTES).split(/\r?\n/);
-//   if (lines[0] !== "---") return {};
-//   const end = lines.indexOf("---", 1);
-//   return skillFrontmatter(lines.slice(1, end === -1 ? undefined : end).join("\n"));
-// }
+/// Node's `path.posix` normalize of the segments: `.` and `..` resolved, repeated slashes gone, and a leading `..`
+/// kept only where `allow_above_root`.
+fn normalize_string(path: &str, allow_above_root: bool) -> String {
+    let p = path.as_bytes();
+    let mut res: Vec<u8> = Vec::new();
+    let mut last_segment_length: usize = 0;
+    let mut last_slash: isize = -1;
+    let mut dots: i32 = 0;
+    let mut code: u8 = 0;
+    for i in 0..=p.len() {
+        if i < p.len() {
+            code = p[i];
+        } else if code == b'/' {
+            break;
+        } else {
+            code = b'/';
+        }
+        let at = i as isize;
+        if code == b'/' {
+            if last_slash == at - 1 || dots == 1 {
+            } else if dots == 2 {
+                if res.len() < 2 || last_segment_length != 2 || !res.ends_with(b"..") {
+                    if res.len() > 2 {
+                        match res.iter().rposition(|&b| b == b'/') {
+                            None => {
+                                res.clear();
+                                last_segment_length = 0;
+                            }
+                            Some(k) => {
+                                res.truncate(k);
+                                let last = res.iter().rposition(|&b| b == b'/').map_or(-1, |x| x as isize);
+                                last_segment_length = (res.len() as isize - 1 - last) as usize;
+                            }
+                        }
+                        last_slash = at;
+                        dots = 0;
+                        continue;
+                    } else if !res.is_empty() {
+                        res.clear();
+                        last_segment_length = 0;
+                        last_slash = at;
+                        dots = 0;
+                        continue;
+                    }
+                }
+                if allow_above_root {
+                    if res.is_empty() {
+                        res.extend_from_slice(b"..");
+                    } else {
+                        res.extend_from_slice(b"/..");
+                    }
+                    last_segment_length = 2;
+                }
+            } else {
+                let start = (last_slash + 1) as usize;
+                if !res.is_empty() {
+                    res.push(b'/');
+                }
+                res.extend_from_slice(&p[start..i]);
+                last_segment_length = i - start;
+            }
+            last_slash = at;
+            dots = 0;
+        } else if code == b'.' && dots != -1 {
+            dots += 1;
+        } else {
+            dots = -1;
+        }
+    }
+    String::from_utf8_lossy(&res).into_owned()
+}
+
+/// Node's `path.posix.normalize`: a trailing slash is kept, an empty result is `/`, `./` or `.`.
+fn posix_normalize(path: &str) -> String {
+    if path.is_empty() {
+        return ".".to_string();
+    }
+    let absolute = path.starts_with('/');
+    let trailing = path.ends_with('/');
+    let mut out = normalize_string(path, !absolute);
+    if out.is_empty() {
+        return if absolute { "/" } else if trailing { "./" } else { "." }.to_string();
+    }
+    if trailing {
+        out.push('/');
+    }
+    if absolute {
+        format!("/{out}")
+    } else {
+        out
+    }
+}
+
+/// Node's `path.posix.join` over the non-empty parts.
+fn posix_join(parts: &[&str]) -> String {
+    let joined: Vec<&str> = parts.iter().copied().filter(|p| !p.is_empty()).collect();
+    if joined.is_empty() {
+        return ".".to_string();
+    }
+    posix_normalize(&joined.join("/"))
+}
+
+/// Node's `path.posix.resolve(base, rel)` for an absolute `base`: no trailing slash, `/` for the root.
+fn posix_resolve(base: &str, rel: &str) -> String {
+    let joined = if rel.starts_with('/') { rel.to_string() } else { format!("{base}/{rel}") };
+    format!("/{}", normalize_string(&joined, false))
+}
+
+fn posix_dirname(path: &str) -> &str {
+    match path.rfind('/') {
+        Some(0) => "/",
+        Some(i) => &path[..i],
+        None => ".",
+    }
+}
+
+fn scope_word(scope: SkillScope) -> &'static str {
+    match scope {
+        SkillScope::User => "user",
+        SkillScope::Project => "project",
+        SkillScope::Plugin => "plugin",
+    }
+}
+
+/// The project's skills folders that link out of the project, each with that link and where it points. `None` when
+/// the answer does not come back whole.
+async fn linked_out(host: &Host, project: &str, dirs: &[String]) -> Option<IndexMap<String, (String, String)>> {
+    let mut args = argv(&["-c", LINKED_SCRIPT, "sh", project]);
+    args.extend(dirs.iter().cloned());
+    let said = host.exec.run("sh", &args, RunOptions { timeout_ms: Some(20_000), ..RunOptions::default() }).await?;
+    if !js_trim_end(&said).ends_with(END) {
+        return None;
+    }
+    let mut out = IndexMap::new();
+    for line in said.split('\n') {
+        let mut cols = line.split('\t');
+        let dir = cols.next().unwrap_or("");
+        let link = cols.next().unwrap_or("");
+        let to = cols.next().unwrap_or("");
+        if dirs.iter().any(|d| d == dir) {
+            out.insert(dir.to_string(), (link.to_string(), to.to_string()));
+        }
+    }
+    Some(out)
+}
+
+fn skipped_line(home: &str, dir: &str, at: Option<&(String, String)>) -> String {
+    let folder = tilde(home, dir);
+    match at {
+        None => format!("skills: {folder} was not read, since whether it links out of the repo could not be told"),
+        Some((link, to)) => {
+            let through = if link == dir { String::new() } else { format!(" through {}", tilde(home, link)) };
+            format!("skills: {folder} links out of the repo{through}, to {to}, so its skills are not read")
+        }
+    }
+}
+
+/// Adds each folder not yet listed; a folder already listed keeps its place and takes `agent` only when it is that
+/// agent's own and has none.
+fn add_roots(out: &mut IndexMap<String, SkillRootAt>, dirs: Vec<(String, bool)>, scope: SkillScope, agent: &str, project: Option<&AgentsProject>) {
+    for (dir, own) in dirs {
+        match out.entry(dir.clone()) {
+            Entry::Vacant(v) => {
+                v.insert(SkillRootAt {
+                    dir,
+                    scope,
+                    agent: own.then(|| agent.to_string()),
+                    project: project.cloned(),
+                    skipped: None,
+                    plugin: None,
+                });
+            }
+            Entry::Occupied(mut o) => {
+                let at = o.get_mut();
+                if own && at.agent.is_none() {
+                    at.agent = Some(agent.to_string());
+                }
+            }
+        }
+    }
+}
+
+/// A `SKILL.md` frontmatter's `name` and `description`, the first non-empty of each, read as the TS reads them.
+pub fn skill_frontmatter(text: &str) -> SkillFront {
+    let mut out = SkillFront::default();
+    let mut names = 0u32;
+    let lines: Vec<&str> = text.split('\n').collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let Some(m) = KEY_RE.captures(lines[i]) else {
+            i += 1;
+            continue;
+        };
+        let key = m.get(1).or_else(|| m.get(2)).or_else(|| m.get(3)).map_or("", |g| g.as_str());
+        if key == "name" {
+            names += 1;
+        }
+        let first = js_trim(m.get(4).map_or("", |g| g.as_str())).to_string();
+        let block = BLOCK_RE.is_match(&first);
+        let mut more: Vec<String> = Vec::new();
+        while i + 1 < lines.len() && CONTINUED_RE.is_match(lines[i + 1]) {
+            i += 1;
+            more.push(js_trim(lines[i]).to_string());
+        }
+        let value = if block {
+            more.join(" ")
+        } else {
+            std::iter::once(scalar(&first)).chain(more).filter(|w| !w.is_empty()).collect::<Vec<_>>().join(" ")
+        };
+        let slot = if key == "name" { &mut out.name } else { &mut out.description };
+        if !value.is_empty() && slot.is_none() {
+            *slot = Some(value);
+        }
+        i += 1;
+    }
+    if names > 1 {
+        out.names = Some(names);
+    }
+    out
+}
+
 /// Reads at most SKILL_HEAD_BYTES UTF-16 units of the text (rule 8.2).
 pub fn skill_md_frontmatter(text: &str) -> SkillFront {
-    todo!()
+    let head = utf16::cut(text, SKILL_HEAD_BYTES);
+    let pieces: Vec<&str> = head.split('\n').collect();
+    let last = pieces.len().saturating_sub(1);
+    let lines: Vec<&str> = pieces.iter().enumerate().map(|(i, l)| if i < last { l.strip_suffix('\r').unwrap_or(l) } else { l }).collect();
+    if lines.first() != Some(&"---") {
+        return SkillFront::default();
+    }
+    let end = lines.iter().skip(1).position(|l| *l == "---").map(|p| p + 1);
+    let body = match end {
+        Some(e) => &lines[1..e],
+        None => &lines[1..],
+    };
+    skill_frontmatter(&body.join("\n"))
 }
 
-// skills.ts:211
-// /** The folders every catalog agent loads skills from on that computer, absolute, each once, an agent's own under the
-//  * folder its store variable names there: an agent's own folder carries that agent, a folder several read carries none.
-//  * Each project adds the folders the agents read inside it, and each plugin read the folders its skills sit in. */
-// export async function skillRoots(host: Host, o: { agents?: readonly AgentEntry[]; projects?: readonly AgentsProject[]; plugins?: readonly AgentPlugins[] } = {}): Promise<SkillRootAt[]> {
-//   const agents = o.agents ?? CATALOG_AGENTS;
-//   const out = new Map<string, SkillRootAt>();
-//   const add = (dirs: { dir: string; own: boolean }[], scope: SkillScope, agent: string, project?: AgentsProject): void => {
-//     for (const { dir, own } of dirs) {
-//       const at = out.get(dir);
-//       if (at === undefined) out.set(dir, { dir, scope, ...(own ? { agent } : {}), ...(project !== undefined ? { project } : {}) });
-//       else if (own && at.agent === undefined) out.set(dir, { ...at, agent });
-//     }
-//   };
-//   for (const a of agents) add(a.skillRoots.user.map((r, i) => ({ dir: inStore(a, r.dir, { home: host.home, store: host.stores?.[a.id] }), own: i === 0 })), "user", a.id);
-//   await Promise.all(
-//     (o.projects ?? []).map(async project => {
-//       const at = (r: { dir: string }): string => posix.join(project.path, r.dir);
-//       const dirs = [...new Set(agents.flatMap(a => a.skillRoots.project.map(at)))];
-//       const linked = await linkedOut(host, project.path, dirs);
-//       for (const a of agents) add(a.skillRoots.project.map((r, i) => ({ dir: at(r), own: i === 0 })), "project", a.id, project);
-//       for (const dir of dirs) if (linked === undefined || linked.has(dir)) out.set(dir, { ...out.get(dir)!, skipped: skippedLine(host, dir, linked?.get(dir)) });
-//     }),
-//   );
-//   for (const root of pluginSkillRoots(o.plugins ?? [])) if (!out.has(root.dir)) out.set(root.dir, root);
-//   return [...out.values()];
-// }
 /// `agents` `None` is the catalog's agents. Each project's link check is one `sh` run; the projects run at once and
 /// their roots land in project order.
 pub async fn skill_roots(
@@ -325,55 +487,147 @@ pub async fn skill_roots(
     projects: &[AgentsProject],
     plugins: &[AgentPlugins],
 ) -> Vec<SkillRootAt> {
-    todo!()
+    let agents: Vec<&AgentEntry> = match agents {
+        Some(a) => a.to_vec(),
+        None => catalog_agents(),
+    };
+    let mut out: IndexMap<String, SkillRootAt> = IndexMap::new();
+    for a in &agents {
+        let store = host.stores.as_ref().and_then(|s| s.get(&a.id)).map(String::as_str);
+        let dirs: Vec<(String, bool)> = a.skill_roots.user.iter().enumerate().map(|(i, r)| (in_store(&a.state_home, &r.dir, &host.home, store), i == 0)).collect();
+        add_roots(&mut out, dirs, SkillScope::User, &a.id, None);
+    }
+    let checks = join_all(projects.iter().map(|project| {
+        let agents = &agents;
+        async move {
+            let mut dirs: Vec<String> = Vec::new();
+            for a in agents.iter() {
+                for r in &a.skill_roots.project {
+                    let d = posix_join(&[&project.path, &r.dir]);
+                    if !dirs.contains(&d) {
+                        dirs.push(d);
+                    }
+                }
+            }
+            let linked = linked_out(host, &project.path, &dirs).await;
+            (dirs, linked)
+        }
+    }))
+    .await;
+    for (project, (dirs, linked)) in projects.iter().zip(checks) {
+        for a in &agents {
+            let roots: Vec<(String, bool)> = a.skill_roots.project.iter().enumerate().map(|(i, r)| (posix_join(&[&project.path, &r.dir]), i == 0)).collect();
+            add_roots(&mut out, roots, SkillScope::Project, &a.id, Some(project));
+        }
+        for dir in &dirs {
+            if linked.as_ref().is_none_or(|m| m.contains_key(dir)) {
+                if let Some(at) = out.get_mut(dir) {
+                    at.skipped = Some(skipped_line(&host.home, dir, linked.as_ref().and_then(|m| m.get(dir))));
+                }
+            }
+        }
+    }
+    for p in plugins {
+        for found in &p.found.plugins {
+            let (Some(skills), None) = (&found.skills, &found.missing) else { continue };
+            for dir in &skills.dirs {
+                out.entry(dir.clone()).or_insert_with(|| SkillRootAt {
+                    dir: dir.clone(),
+                    scope: SkillScope::Plugin,
+                    agent: Some(p.agent.clone()),
+                    project: None,
+                    skipped: None,
+                    plugin: Some(SkillPlugin { id: found.id.clone(), prefix: skills.prefix.clone(), on: found.on }),
+                });
+            }
+        }
+    }
+    out.into_values().collect()
 }
 
-// skills.ts:245
-// /** Every skill under the roots, one row per folder name and kind with every folder it lives in. A folder whose name starts
-//  * with a dot, one without a SKILL.md, and a skill inside another skill's folder are not skills. An answer cut short
-//  * is a refusal naming it, never a list that silently stops. */
-// export async function detectSkills(host: Host, all: readonly SkillRootAt[]): Promise<SkillsRead> {
-//   const outside = all.flatMap(r => (r.skipped === undefined ? [] : [r.skipped]));
-//   const roots = all.filter(r => r.skipped === undefined);
-//   if (roots.length === 0) return { skills: [], refused: outside };
-//   const said = await host.exec.run("sh", ["-c", SCRIPT, "sh", ...roots.map(r => r.dir)], { timeoutMs: 20_000 });
-//   if (said === undefined) return { skills: [], refused: ["skills: the folders could not be read", ...outside] };
-//   const refused = [...(said.trimEnd().endsWith(END) ? [] : ["skills: the answer was cut short, so the list is not whole"]), ...outside];
-//   const rootOf = new Map(roots.map(r => [r.dir, r]));
-//   const found: { root: SkillRootAt; dir: string; link: string; off: boolean; head: string }[] = [];
-//   for (const record of said.split("\x1e").slice(1)) {
-//     const [rootDir, dir, link, off, head] = record.split("\x1f");
-//     const root = rootDir === undefined ? undefined : rootOf.get(rootDir);
-//     if (root === undefined || dir === undefined || head === undefined) continue;
-//     const rel = dir.slice(root.dir.length + 1);
-//     if (!dir.startsWith(`${root.dir}/`) || rel.split("/").some(seg => seg.startsWith("."))) continue;
-//     found.push({ root, dir, link: link ?? "", off: off === "1", head });
-//   }
-//   const dirs = new Set(found.map(f => `${f.root.dir}\0${f.dir}`));
-//   const rows = new Map<string, SkillRow>();
-//   for (const f of found) {
-//     // A SKILL.md under a folder that is itself a skill belongs to that skill (its examples, its templates).
-//     const parts = f.dir.slice(f.root.dir.length + 1).split("/");
-//     if (parts.slice(1).some((_, i) => dirs.has(`${f.root.dir}\0${f.root.dir}/${parts.slice(0, i + 1).join("/")}`))) continue;
-//     const meta = skillFrontmatter(f.head);
-//     // Keyed by folder, which is what an agent loads a skill by; the frontmatter's name is the file's own claim. A
-//     // plugin's skill goes by the name the agent announces it under, its plugin's first.
-//     const plugin = f.root.plugin;
-//     const name = plugin === undefined ? posix.basename(f.dir) : `${plugin.prefix}:${posix.basename(f.dir)}`;
-//     const key = `${f.root.scope}\0${f.root.project?.id ?? plugin?.id ?? ""}\0${name}`;
-//     const path: SkillPath = {
-//       path: tilde(host.home, f.dir),
-//       ...(f.root.agent !== undefined ? { agent: f.root.agent } : {}),
-//       ...(f.link !== "" ? { linkTo: tilde(host.home, posix.resolve(posix.dirname(f.dir), f.link)) } : {}),
-//       ...(f.off || plugin?.on === false ? { off: true as const } : {}),
-//     };
-//     const row = rows.get(key);
-//     const project = f.root.project === undefined ? {} : { project: { ...f.root.project, path: tilde(host.home, f.root.project.path) } };
-//     if (row === undefined) rows.set(key, { name, ...(meta.description !== undefined ? { description: meta.description } : {}), paths: [path], scope: f.root.scope, ...project, ...(plugin !== undefined ? { plugin: plugin.id } : {}) });
-//     else if (!row.paths.some(p => p.path === path.path)) row.paths.push(path);
-//   }
-//   return { skills: [...rows.values()].sort((a, b) => a.name.localeCompare(b.name) || a.scope.localeCompare(b.scope) || (a.project?.name ?? "").localeCompare(b.project?.name ?? "")), refused };
-// }
 pub async fn detect_skills(host: &Host, all: &[SkillRootAt]) -> SkillsRead {
-    todo!()
+    let outside: Vec<String> = all.iter().filter_map(|r| r.skipped.clone()).collect();
+    let roots: Vec<&SkillRootAt> = all.iter().filter(|r| r.skipped.is_none()).collect();
+    if roots.is_empty() {
+        return SkillsRead { skills: Vec::new(), refused: outside };
+    }
+    let mut args = argv(&["-c", SCRIPT, "sh"]);
+    args.extend(roots.iter().map(|r| r.dir.clone()));
+    let Some(said) = host.exec.run("sh", &args, RunOptions { timeout_ms: Some(20_000), ..RunOptions::default() }).await else {
+        let mut refused = vec!["skills: the folders could not be read".to_string()];
+        refused.extend(outside);
+        return SkillsRead { skills: Vec::new(), refused };
+    };
+    let mut refused = Vec::new();
+    if !js_trim_end(&said).ends_with(END) {
+        refused.push("skills: the answer was cut short, so the list is not whole".to_string());
+    }
+    refused.extend(outside);
+
+    let roots_by_dir: IndexMap<&str, &SkillRootAt> = roots.iter().map(|r| (r.dir.as_str(), *r)).collect();
+    let mut found: Vec<(&SkillRootAt, &str, &str, bool, &str)> = Vec::new();
+    for record in said.split('\u{1e}').skip(1) {
+        let f: Vec<&str> = record.split('\u{1f}').collect();
+        if f.len() < 5 {
+            continue;
+        }
+        let Some(root) = roots_by_dir.get(f[0]) else { continue };
+        let dir = f[1];
+        let Some(rest) = dir.strip_prefix(format!("{}/", root.dir).as_str()) else { continue };
+        if rest.split('/').any(|seg| seg.starts_with('.')) {
+            continue;
+        }
+        found.push((*root, dir, f[2], f[3] == "1", f[4]));
+    }
+    let dirs: IndexSet<(String, String)> = found.iter().map(|(root, dir, ..)| (root.dir.clone(), dir.to_string())).collect();
+
+    let mut rows: IndexMap<String, SkillRow> = IndexMap::new();
+    for (root, dir, link, off, head) in &found {
+        let rel = &dir[root.dir.len() + 1..];
+        let parts: Vec<&str> = rel.split('/').collect();
+        let nested = (0..parts.len() - 1).any(|i| dirs.contains(&(root.dir.clone(), format!("{}/{}", root.dir, parts[..=i].join("/")))));
+        if nested {
+            continue;
+        }
+        let meta = skill_frontmatter(head);
+        let plugin = root.plugin.as_ref();
+        let base = dir.rsplit('/').next().unwrap_or(dir);
+        let name = match plugin {
+            None => base.to_string(),
+            Some(p) => format!("{}:{base}", p.prefix),
+        };
+        let owner = root.project.as_ref().map(|p| p.id.as_str()).or(plugin.map(|p| p.id.as_str())).unwrap_or("");
+        let key = format!("{}\0{owner}\0{name}", scope_word(root.scope));
+        let path = SkillPath {
+            path: tilde(&host.home, dir),
+            agent: root.agent.clone(),
+            link_to: (!link.is_empty()).then(|| tilde(&host.home, &posix_resolve(posix_dirname(dir), link))),
+            off: (*off || plugin.is_some_and(|p| !p.on)).then(Default::default),
+        };
+        if let Some(row) = rows.get_mut(&key) {
+            if !row.paths.iter().any(|p| p.path == path.path) {
+                row.paths.push(path);
+            }
+        } else {
+            let project = root.project.as_ref().map(|p| AgentsProject { id: p.id.clone(), name: p.name.clone(), path: tilde(&host.home, &p.path) });
+            rows.insert(
+                key,
+                SkillRow {
+                    name,
+                    description: meta.description,
+                    paths: vec![path],
+                    scope: root.scope,
+                    project,
+                    plugin: plugin.map(|p| p.id.clone()),
+                },
+            );
+        }
+    }
+    let mut skills: Vec<SkillRow> = rows.into_values().collect();
+    skills.sort_by(|a, b| {
+        collate(&a.name, &b.name)
+            .then_with(|| collate(scope_word(a.scope), scope_word(b.scope)))
+            .then_with(|| collate(a.project.as_ref().map_or("", |p| p.name.as_str()), b.project.as_ref().map_or("", |p| p.name.as_str())))
+    });
+    SkillsRead { skills, refused }
 }
