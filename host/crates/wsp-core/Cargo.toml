@@ -16,6 +16,12 @@ serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"
 tokio = { version = "1", features = ["process", "time", "io-util", "fs", "net", "rt", "rt-multi-thread", "macros", "sync"] }
 tokio-util = "0.7"
+tokio-tungstenite = "0.30"
+sha2 = "0.10"
+base64 = "0.22"
+hex = "0.4"
+url = "2"
+jiff = "0.2"
 wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
 wsp-wire = { path = "../wsp-wire" }
 wsp-words = { path = "../wsp-words" }
