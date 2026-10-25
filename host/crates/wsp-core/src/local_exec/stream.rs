@@ -7,8 +7,8 @@
 //! Private state sits behind a `std::sync::Mutex` that is never held across an `.await` or a call out (rule 3.3).
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
-use futures::stream::BoxStream;
+use futures::future::LocalBoxFuture;
+use futures::stream::LocalBoxStream;
 use wsp_adapters::port::{Attached, AttachRunOptions, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, Settle, SharedFuture, WriteOutcome};
 
 use super::reap::TreeWorkReader;
@@ -54,7 +54,7 @@ pub struct LocalExecOptions {
     pub read_work: Option<TreeWorkReader>,
     pub reading: Option<Arc<ReadingSet>>,
     /// Where a run's name and late-line keys are drawn from (rule 3.16); `OsIds` when `None`.
-    pub ids: Option<Arc<dyn Ids + Send + Sync>>,
+    pub ids: Option<Arc<dyn Ids>>,
 }
 
 impl LocalExecOptions {
@@ -171,7 +171,7 @@ impl ExecStreamFactory for LocalExecFactory {
     //     const taken = (readFile(`${run}.in`) ?? "").split("\n").filter(line => line !== "" && line !== endMarker(run));
     //     return open(run, input, { ...at, taken });
     //   };
-    fn attach(&self, run: &str, options: AttachRunOptions) -> Option<BoxFuture<'static, Result<Attached, ExecFailure>>> {
+    fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
         todo!()
     }
 
@@ -193,7 +193,7 @@ impl ExecStreamFactory for LocalExecFactory {
     //     await Promise.all(stale.map(base => reapRun(base)));
     //     return stale;
     //   };
-    fn sweep(&self, keep: &[String]) -> Option<BoxFuture<'static, Result<Vec<String>, ExecFailure>>> {
+    fn sweep(&self, keep: &[String]) -> Option<LocalBoxFuture<'static, Result<Vec<String>, ExecFailure>>> {
         todo!()
     }
 }
@@ -482,7 +482,7 @@ pub struct LocalStream {
 }
 
 impl ExecStream for LocalStream {
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
         todo!()
     }
     fn run(&self) -> Option<String> {
@@ -498,7 +498,7 @@ impl ExecStream for LocalStream {
     fn kill(&self) {
         todo!()
     }
-    fn write(&self, line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+    fn write(&self, line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
         todo!()
     }
     fn close_input(&self) {

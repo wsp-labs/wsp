@@ -33,8 +33,8 @@ use wsp_words::exit::HostError;
 
 use super::machines::{Entry, Ids, Row, ThreadOn};
 
-/// A builder as this host holds it (TS `LiveBuilder`, internal.ts:923, less the engine `Builder` handle wsp-core has
-/// not written yet): its record, its machine, whether a seal may be taken from it, and its life.
+/// A builder as this host holds it (TS `LiveBuilder`, internal.ts:923). wsp-core's `LiveBuilder` holds `Rc<dyn Builder>`, whose
+/// trait is empty (pending.rs:32) and has no `machine`, which the start reads: so this keeps the machine itself.
 pub struct HeldBuilder {
     pub record: BuilderRecord,
     pub machine: Arc<dyn Machine>,
@@ -135,7 +135,7 @@ pub trait BootRuntime {
 
     // The machines area.
     fn observed(&self, machine: Arc<dyn Machine>) -> Arc<dyn Machine>;
-    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry;
+    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry;
     async fn mark_gone(&self, entry: &Entry, machine_id: &str, reason: &str) -> Result<GoneOutcome, HostError>;
     fn idle_touch(&self, workspace_id: &str);
     fn sync_daemon(&self, entry: &Entry);
@@ -149,7 +149,7 @@ pub trait BootRuntime {
     fn door_backend_of(&self, place: &str) -> Option<Arc<dyn MachineBackend>>;
     /// `imageOf(golden).version?.kind`.
     async fn image_kind(&self, golden: &str) -> Result<Option<wsp_wire::views::golden_image::MachineKind>, HostError>;
-    fn attach_queued(&self, record: WorkspaceRecord);
+    fn attach_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>);
 
     // The start's other steps (boot.ts:343-618), in the order ready() calls them.
     async fn migrate_copies(&self) -> Result<(), HostError>;

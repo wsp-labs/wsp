@@ -9,7 +9,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use indexmap::{IndexMap, IndexSet};
 
-use wsp_core::types::internal::KindModule;
+use wsp_core::types::internal::{BuilderLife, KindModule};
 use wsp_core::types::pending::{Clock, PlaceDoor};
 use wsp_core::types::wiring::{CreateWorkspaceOptions, CreatedWorkspace, StageReport, WorkspaceRecord};
 use wsp_engine::machine::{Machine, MachineBackend};
@@ -53,8 +53,7 @@ pub struct RecordBranchAsk {
 pub struct KeptBuilder {
     pub id: String,
     pub name: String,
-    /// `own`, `reusable`, `stale`, `foreign`, `held`.
-    pub life: String,
+    pub life: BuilderLife,
     pub sealed_version: Option<u32>,
     pub place: Option<String>,
 }
@@ -92,9 +91,9 @@ pub trait CreateRuntime {
     /// `ctx.treeOf(spawned)`: `{rootThreadId, threadId}` written on the record, or nothing.
     fn tree_of(&self, spawned: Option<&ThreadScope>) -> serde_json::Map<String, serde_json::Value>;
     /// The machines area's `attach`.
-    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry;
+    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry;
     /// The machines area's `fork` with no override and `readsMemory` false; `bind` runs before the claim is let go.
-    async fn fork(&self, record: &mut WorkspaceRecord, bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord), report: StageReport) -> Result<Arc<dyn Machine>, HostError>;
+    async fn fork(&self, record: &Rc<RefCell<WorkspaceRecord>>, bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord), report: StageReport) -> Result<Arc<dyn Machine>, HostError>;
     async fn refresh_builders(&self) -> Result<(), HostError>;
     /// The builders in map order, as the cap road reads them.
     fn builders(&self) -> Vec<KeptBuilder>;
@@ -111,7 +110,7 @@ pub trait CreateRuntime {
     async fn daemon_reach(&self, entry: &Entry) -> Result<(), HostError>;
     async fn ping_daemon(&self, entry: &Entry) -> Option<String>;
     fn sync_daemon(&self, entry: &Entry);
-    async fn read_memory(&self, record: &mut WorkspaceRecord, machine: &Arc<dyn Machine>, sizes: &[wsp_wire::wire::capabilities::WorkspaceSize]) -> bool;
+    async fn read_memory(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: &Arc<dyn Machine>, sizes: &[wsp_wire::wire::capabilities::WorkspaceSize]) -> bool;
     fn module_of(&self, kind: &str) -> Rc<dyn KindModule>;
     async fn write_daemon_roots(&self, entry: &Entry) -> Result<(), HostError>;
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError>;

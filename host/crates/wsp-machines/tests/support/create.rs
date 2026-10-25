@@ -15,7 +15,7 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
 
 use wsp_core::ids::Ids;
-use wsp_core::types::internal::{EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad};
+use wsp_core::types::internal::{BuilderLife, EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad};
 use wsp_core::types::pending::{Clock, MachineExecOptions, PlaceDoor, ScopedRoad, TurnWaiting};
 use wsp_core::types::wiring::{
     CreateWorkspaceOptions, CreatedWorkspace, IdleWindow, LiveWorkspace, Local, ProjectImportOptions, StageReport, StageSaid, WorkspaceRecord,
@@ -552,15 +552,18 @@ impl CreateRuntime for FakeRuntime {
             }
         }
     }
-    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry {
+    fn attach(&self, handle: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry {
+        let record = handle.borrow().clone();
         self.log.push(json!(["attach", record.id, machine.id()]));
         let id = record.id.clone();
-        let entry: Entry = Rc::new(RefCell::new(live_of(record, machine)));
+        let mut live = live_of(record, machine);
+        live.record = Rc::clone(handle);
+        let entry: Entry = Rc::new(RefCell::new(live));
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
-    async fn fork(&self, record: &mut WorkspaceRecord, bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord), _report: StageReport) -> Result<Arc<dyn Machine>, HostError> {
-        self.log.push(json!(["fork", serde_json::to_value(&*record).expect("a record serializes"), null, false]));
+    async fn fork(&self, record: &Rc<RefCell<WorkspaceRecord>>, bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord), _report: StageReport) -> Result<Arc<dyn Machine>, HostError> {
+        self.log.push(json!(["fork", serde_json::to_value(&*record.borrow()).expect("a record serializes"), null, false]));
         let how = self.forks.borrow_mut().pop_front().unwrap_or_else(|| "ok".to_string());
         match how.as_str() {
             "cap" => Err(FakeRuntime::cap("you have 3 machines")),
@@ -574,10 +577,10 @@ impl CreateRuntime for FakeRuntime {
                     preview_url: m.get("previewUrl").is_some(),
                     daemon_answers: m.get("daemonAnswers").is_some(),
                 });
-                bind(&machine, &*record);
+                bind(&machine, &record.borrow());
                 let seen = {
                     let live = self.live.borrow();
-                    match live.get(&record.id) {
+                    match live.get(&record.borrow().id) {
                         None => json!({"attached": false}),
                         Some(e) => {
                             let e = e.borrow();
@@ -638,11 +641,11 @@ impl CreateRuntime for FakeRuntime {
         let id = entry.borrow().record.borrow().id.clone();
         self.log.push(json!(["syncDaemon", id]));
     }
-    async fn read_memory(&self, record: &mut WorkspaceRecord, _machine: &Arc<dyn Machine>, _sizes: &[WorkspaceSize]) -> bool {
+    async fn read_memory(&self, record: &Rc<RefCell<WorkspaceRecord>>, _machine: &Arc<dyn Machine>, _sizes: &[WorkspaceSize]) -> bool {
         self.log.push(json!(["readMemory"]));
         match self.s.get("memory") {
             Some(m) if m.is_object() => {
-                record.size = WorkspaceSize { cpu: JsNumber(m["cpu"].as_f64().expect("cpu")), mem_mb: JsNumber(m["memMb"].as_f64().expect("memMb")) };
+                record.borrow_mut().size = WorkspaceSize { cpu: JsNumber(m["cpu"].as_f64().expect("cpu")), mem_mb: JsNumber(m["memMb"].as_f64().expect("memMb")) };
                 true
             }
             _ => false,
@@ -831,7 +834,14 @@ impl World {
             .map(|b| KeptBuilder {
                 id: b["id"].as_str().expect("id").into(),
                 name: b["name"].as_str().expect("name").into(),
-                life: b["life"].as_str().expect("life").into(),
+                life: match b["life"].as_str().expect("life") {
+                    "own" => BuilderLife::Own,
+                    "reusable" => BuilderLife::Reusable,
+                    "stale" => BuilderLife::Stale,
+                    "foreign" => BuilderLife::Foreign,
+                    "held" => BuilderLife::Held,
+                    other => panic!("a builder life the oracle never writes: {other}"),
+                },
                 sealed_version: b.get("sealed").and_then(Value::as_u64).map(|n| n as u32),
                 place: b.get("place").and_then(Value::as_str).map(str::to_string),
             })

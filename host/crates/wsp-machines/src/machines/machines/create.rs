@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! machines.ts:15-362 at 65f6b89c7: the road to a new machine. Spec: spec/machines_create.md.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -116,7 +117,7 @@ impl MachinesArea {
     /// `fork` (machines.ts:307), spec rule 10. `bind` runs before the claim is released.
     pub async fn fork(
         self: &Rc<Self>,
-        record: &mut WorkspaceRecord,
+        record: &Rc<RefCell<WorkspaceRecord>>,
         bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord),
         over: Option<&WorkspaceSpec>,
         report: Option<Report>,

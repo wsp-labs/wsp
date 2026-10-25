@@ -49,10 +49,10 @@ impl Step {
 }
 
 /// The scripted guest's own answer to one exec.
-pub type Inner = Arc<dyn Fn(&str) -> Result<ExecResult> + Send + Sync>;
+pub type Inner = Arc<dyn Fn(&str) -> Result<ExecResult>>;
 /// What a test puts in front of the guest (the TS `backend.execImpl = async (m, cmd) => ...`): the command, its
 /// input, and the guest's own answer to call or not.
-pub type Hook = Arc<dyn Fn(String, Option<Vec<u8>>, Inner) -> LocalBoxFuture<'static, Result<ExecResult>> + Send + Sync>;
+pub type Hook = Arc<dyn Fn(String, Option<Vec<u8>>, Inner) -> LocalBoxFuture<'static, Result<ExecResult>>>;
 
 #[derive(Default)]
 struct State {
@@ -410,7 +410,7 @@ impl Machine for LocalGuest {
 /// A machine in front of another whose every exec goes through `f` (the TS `{ ...machine, exec: ... }`).
 pub struct Wrapped {
     pub inner: Arc<dyn Machine>,
-    pub f: Arc<dyn Fn(Arc<dyn Machine>, String, ExecOptions) -> LocalBoxFuture<'static, Result<ExecResult>> + Send + Sync>,
+    pub f: Arc<dyn Fn(Arc<dyn Machine>, String, ExecOptions) -> LocalBoxFuture<'static, Result<ExecResult>>>,
 }
 
 #[async_trait(?Send)]

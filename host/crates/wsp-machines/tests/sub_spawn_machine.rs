@@ -120,11 +120,11 @@ async fn send(f: &Fixture, entry: &Entry, prompt: &str) -> Result<Resumed, HostE
 }
 
 fn record_of(entry: &Entry) -> Rec {
-    entry.record.clone()
+    entry.borrow().record.clone()
 }
 
 fn sub_json(entry: &Entry) -> Value {
-    serde_json::to_value(entry.record.borrow().sub.as_ref().unwrap()).unwrap()
+    serde_json::to_value(entry.borrow().record.borrow().sub.as_ref().unwrap()).unwrap()
 }
 
 /// A released sub-thread whose first start failed: it ran nothing, holds no session, and keeps its opening message.
@@ -168,7 +168,7 @@ fn forks_the_image_head_lands_the_picks_by_the_file_road_and_names_only_paths_in
         assert_eq!(stored["machineId"], json!("bx_1"));
         assert!(stored["sub"]["spawn"]["readyAt"].is_number() && stored["sub"]["spawn"].get("asked").is_none());
         let entry = f.host.live.borrow().get(SUB_WS).cloned().unwrap();
-        assert_eq!((entry.machine.id().to_string(), entry.creating.get()), ("bx_1".to_string(), false));
+        assert_eq!((entry.borrow().machine.id().to_string(), entry.borrow().creating), ("bx_1".to_string(), false));
         assert_eq!(posted.get(), 1);
         // A first start announces the record; nothing wakes.
         let created = f.host.events_of("workspace.created");
@@ -269,7 +269,7 @@ fn is_deleted_and_replaced_once_for_each_fault() {
             assert_eq!(f.host.calls_of("delete_create"), vec![vec![format!("workspace/{SUB_WS}")]]);
             assert_eq!(posted.get(), 1, "only the machine that stood was announced");
             let entry = f.host.live.borrow().get(SUB_WS).cloned().unwrap();
-            assert_eq!(entry.machine.id(), made[1].id);
+            assert_eq!(entry.borrow().machine.id(), made[1].id);
             assert_eq!(f.host.calls_of("forking_remove").len(), 1);
         }
     });
@@ -340,7 +340,7 @@ fn a_send_while_the_new_machine_is_made_waits_for_it() {
         assert!(ra.notices.is_empty() && rb.notices.is_empty());
         let now = f.host.live.borrow().get(SUB_WS).cloned().unwrap();
         assert!(Rc::ptr_eq(&ra.entry, &now) && Rc::ptr_eq(&rb.entry, &now));
-        assert_eq!(now.machine.id(), "bx_1");
+        assert_eq!(now.borrow().machine.id(), "bx_1");
         assert_eq!((f.host.calls_of("fork").len(), creates(&f)), (1, 1));
         // A start that stands drops the asked text: the turn's own row and transcript hold it from here.
         let spawned = spawn_of(&record_of(&entry));
@@ -394,7 +394,7 @@ fn makes_a_new_machine_from_the_head_lands_picks_and_session_and_resumes_under_t
         // The record runs on the new machine, from the new head, with what the machine before left behind gone.
         let record = record_of(&entry);
         let rec = record.borrow();
-        assert_eq!((rec.machine_id.as_str(), rec.golden.as_str(), rec.first_life, rec.disk_gone.clone()), ("bx_1", "wsp-host-default-v2", Some(true), None));
+        assert_eq!((rec.machine_id.as_str(), rec.golden.as_str(), rec.first_life, rec.disk_gone.clone()), ("bx_1", "wsp-host-default-v2", true, None));
         assert_eq!((serde_json::to_value(&rec.phase).unwrap(), rec.sub.as_ref().unwrap().lost.clone()), (json!("running"), None));
         let spawned = serde_json::to_value(rec.sub.as_ref().unwrap().spawn.as_ref().unwrap()).unwrap();
         assert_eq!((spawned["startedAt"].clone(), spawned.get("asked").cloned(), spawned.get("notSent").cloned()), (json!(T), None, None));
@@ -404,7 +404,7 @@ fn makes_a_new_machine_from_the_head_lands_picks_and_session_and_resumes_under_t
         assert_eq!(f.host.events_of("workspace.woken"), vec![json!({ "type": "workspace.woken", "workspaceId": SUB_WS, "machineId": "bx_1" })]);
         assert!(f.host.events_of("workspace.created").is_empty());
         assert_eq!(f.host.calls_of("emit_status"), vec![vec![SUB_WS.to_string(), "reachable".to_string()]]);
-        assert_eq!(r.entry.machine.id(), "bx_1");
+        assert_eq!(r.entry.borrow().machine.id(), "bx_1");
         assert_eq!(f.host.calls_of("place_guard"), vec![vec!["box".to_string()]]);
         assert_eq!(f.host.calls_of("copy_of"), vec![vec!["box".to_string(), "default".to_string()]]);
         // The stages are told with no thread to ask them.
@@ -473,7 +473,7 @@ fn lands_codexs_rollout_at_its_dated_path() {
         let machine = machines(&f)[0].clone();
         assert_eq!(machine.files().iter().filter(|(p, _)| p == SESSION_PUT).map(|(_, b)| b.clone()).collect::<Vec<_>>(), vec![SESSION_BYTES.to_vec()]);
         assert!(machine.log().contains(&sub_session_land_command(&codex_session_file("s2"), at, SESSION_PUT)));
-        assert_eq!(r.entry.machine.id(), "bx_1");
+        assert_eq!(r.entry.borrow().machine.id(), "bx_1");
     });
 }
 
@@ -490,7 +490,7 @@ fn replaces_a_broken_box_once_and_lands_the_session_on_the_second_alone() {
         assert!(made[0].files().is_empty() && made[0].log().is_empty());
         assert_eq!(made[1].files().iter().filter(|(p, _)| p == SESSION_PUT).count(), 1);
         assert_eq!(record_of(&entry).borrow().machine_id, made[1].id);
-        assert_eq!(r.entry.machine.id(), made[1].id);
+        assert_eq!(r.entry.borrow().machine.id(), made[1].id);
         assert_eq!(r.preamble, Some(resume_preamble(true, &["CLAUDE.local.md"])));
         // The line of the replacement rides the record, not the send's notice.
         assert_eq!(spawn_of(&record_of(&entry))["replaced"].as_array().unwrap().len(), 1);
@@ -530,10 +530,10 @@ fn fails_after_a_second_broken_box_and_stays_released_with_asked_and_failed() {
         assert_eq!(spawned["asked"], json!("what was the word?"));
         assert_eq!(spawned["failed"], json!({ "step": "machine", "said": e.message.strip_suffix(FIX).unwrap(), "fix": FIX.trim_start() }));
         assert_eq!(f.host.calls_of("attach_dead").len(), 1);
-        assert_eq!(f.host.live.borrow().get(SUB_WS).unwrap().machine.id(), "");
+        assert_eq!(f.host.live.borrow().get(SUB_WS).unwrap().borrow().machine.id(), "");
         // The next send makes a machine as if the first had not been tried.
         let again = send(&f, &entry, "what was the word?").await.unwrap();
-        assert_eq!(again.entry.machine.id(), "bx_3");
+        assert_eq!(again.entry.borrow().machine.id(), "bx_3");
         assert_eq!((phase_of(&record), creates(&f)), (json!("running"), 3));
     });
 }

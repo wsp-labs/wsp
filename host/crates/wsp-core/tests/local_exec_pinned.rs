@@ -149,32 +149,34 @@ fn release_late_goes_in_once_by_its_key() {
     assert!(!exists(&format!("{b}.late")) && !exists(&format!("{b}.late.went")));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn lines_hands_every_queued_line_before_the_error_and_drops_feeds_after_let_go() {
-    let lines = Lines::new();
-    lines.feed(b"one\ntw");
-    lines.feed(b"o\nthree");
-    lines.fail(wsp_adapters::port::ExecFailure { kind: wsp_adapters::port::ExecFailureKind::Other, message: "cut".into() });
-    let got: Vec<_> = lines.iterate().collect().await;
-    assert_eq!(got.len(), 4);
-    assert_eq!(got[..3].iter().map(|r| r.as_ref().unwrap().clone()).collect::<Vec<_>>(), vec!["one", "two", "three"]);
-    assert_eq!(got[3].as_ref().unwrap_err().message, "cut");
-    // A reader dropped after its first line lets go: what is fed after is dropped, and the end hands nothing more.
-    let held = Lines::new();
-    held.feed(b"first\n");
-    let mut reader = held.iterate();
-    assert_eq!(reader.next().await.unwrap().unwrap(), "first");
-    drop(reader);
-    held.feed(b"second\nthird");
-    held.end();
-    let after: Vec<_> = held.iterate().collect().await;
-    assert!(after.is_empty(), "{after:?}");
-    // Lines fed before anyone iterates wait in the queue; a tail with no newline comes at the end.
-    let early = Lines::new();
-    early.feed(b"a\n\nb\r\nc");
-    early.end();
-    let got: Vec<String> = early.iterate().map(|r| r.unwrap()).collect().await;
-    assert_eq!(got, vec!["a", "", "b\r", "c"]);
+#[test]
+fn lines_hands_every_queued_line_before_the_error_and_drops_feeds_after_let_go() {
+    support::run_local(async {
+        let lines = Lines::new();
+        lines.feed(b"one\ntw");
+        lines.feed(b"o\nthree");
+        lines.fail(wsp_adapters::port::ExecFailure { kind: wsp_adapters::port::ExecFailureKind::Other, message: "cut".into() });
+        let got: Vec<_> = lines.iterate().collect().await;
+        assert_eq!(got.len(), 4);
+        assert_eq!(got[..3].iter().map(|r| r.as_ref().unwrap().clone()).collect::<Vec<_>>(), vec!["one", "two", "three"]);
+        assert_eq!(got[3].as_ref().unwrap_err().message, "cut");
+        // A reader dropped after its first line lets go: what is fed after is dropped, and the end hands nothing more.
+        let held = Lines::new();
+        held.feed(b"first\n");
+        let mut reader = held.iterate();
+        assert_eq!(reader.next().await.unwrap().unwrap(), "first");
+        drop(reader);
+        held.feed(b"second\nthird");
+        held.end();
+        let after: Vec<_> = held.iterate().collect().await;
+        assert!(after.is_empty(), "{after:?}");
+        // Lines fed before anyone iterates wait in the queue; a tail with no newline comes at the end.
+        let early = Lines::new();
+        early.feed(b"a\n\nb\r\nc");
+        early.end();
+        let got: Vec<String> = early.iterate().map(|r| r.unwrap()).collect().await;
+        assert_eq!(got, vec!["a", "", "b\r", "c"]);
+    });
 }
 
 own_group_test!(a_reap_with_no_readable_pid_signals_nothing_and_deletes_the_files, 20_000, {
