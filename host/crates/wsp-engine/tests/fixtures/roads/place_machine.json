@@ -1,0 +1,117 @@
+{
+ "bounds": [
+  [
+   0,
+   20000,
+   1
+  ],
+  [
+   1,
+   20000,
+   2
+  ],
+  [
+   1048576,
+   20000,
+   13128
+  ],
+  [
+   4194304,
+   52512,
+   52512
+  ],
+  [
+   67108864,
+   600000,
+   600000
+  ],
+  [
+   5000000,
+   62598,
+   62598
+  ]
+ ],
+ "putFrames": [
+  {
+   "op": "exec",
+   "params": {
+    "cmd": "umask 077\nmkdir -p '/root/x y'\ncat > '/root/x y/f'.part0",
+    "timeoutMs": 20000,
+    "stdin": "1398104 base64 chars"
+   },
+   "opts": {
+    "timeoutMs": 25000,
+    "idempotencyKey": "abababababab/0"
+   }
+  },
+  {
+   "op": "exec",
+   "params": {
+    "cmd": "umask 077\nmkdir -p '/root/x y'\ncat > '/root/x y/f'.part1",
+    "timeoutMs": 20000,
+    "stdin": "4 base64 chars"
+   },
+   "opts": {
+    "timeoutMs": 25000,
+    "idempotencyKey": "abababababab/1"
+   }
+  },
+  {
+   "op": "exec",
+   "params": {
+    "cmd": "umask 077; if [ -e '/root/x y/f'.part0 ]; then cat '/root/x y/f'.part{0..1} > '/root/x y/f' && rm -f '/root/x y/f'.part{0..1}; fi",
+    "timeoutMs": 20000
+   },
+   "opts": {
+    "timeoutMs": 25000,
+    "idempotencyKey": "abababababab/join"
+   }
+  }
+ ],
+ "folderFrames": [
+  {
+   "op": "exec",
+   "params": {
+    "cmd": "uname -s; id -u; id -un; stat -L -c %U '/home/maya' 2>/dev/null || stat -L -f %Su '/home/maya' 2>/dev/null || echo; command -v runuser >/dev/null 2>&1 && echo 1 || echo 0; printf '%s\\n' \"$HOME\" \"$PATH\"",
+    "timeoutMs": 20000
+   },
+   "opts": {
+    "timeoutMs": 25000
+   }
+  },
+  {
+   "op": "exec",
+   "params": {
+    "cmd": "export HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; s=$(getent passwd 'maya' | cut -d: -f7); timeout 15 \"${s:-/bin/sh}\" -ilc 'printf %s \"$PATH\"' < /dev/null 2> /dev/null",
+    "timeoutMs": 20000
+   },
+   "opts": {
+    "timeoutMs": 25000
+   }
+  },
+  {
+   "op": "exec",
+   "params": {
+    "cmd": "export HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; echo hi",
+    "timeoutMs": 20000
+   },
+   "opts": {
+    "timeoutMs": 25000
+   }
+  }
+ ],
+ "groupedFrames": [
+  {
+   "op": "exec",
+   "params": {
+    "cmd": "[ -f /sys/fs/cgroup/cgroup.controllers ] && mkdir -p '/sys/fs/cgroup/wsp-threads/thread-1' 2>/dev/null && { echo '+memory +pids' > '/sys/fs/cgroup/wsp-threads'/cgroup.subtree_control; echo $$ > '/sys/fs/cgroup/wsp-threads/thread-1'/cgroup.procs; } 2>/dev/null; true\nexport HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; { mkdir -p '/home/maya/.wsp/bin' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\''/home/maya/.wsp/bin'\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zshenv\" ]] && source \"$ZDOTDIR/.zshenv\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\''/home/maya/.wsp/bin'\\''\n[[ :$PATH: == '\\'':/home/maya/.wsp/bin:'\\''* ]] || PATH='\\''/home/maya/.wsp/bin'\\'':$PATH\n' > '/home/maya/.wsp/bin/.zshenv'.$$ && mv -f '/home/maya/.wsp/bin/.zshenv'.$$ '/home/maya/.wsp/bin/.zshenv' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\''/home/maya/.wsp/bin'\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zprofile\" ]] && source \"$ZDOTDIR/.zprofile\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\''/home/maya/.wsp/bin'\\''\n[[ :$PATH: == '\\'':/home/maya/.wsp/bin:'\\''* ]] || PATH='\\''/home/maya/.wsp/bin'\\'':$PATH\n' > '/home/maya/.wsp/bin/.zprofile'.$$ && mv -f '/home/maya/.wsp/bin/.zprofile'.$$ '/home/maya/.wsp/bin/.zprofile' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\''/home/maya/.wsp/bin'\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zshrc\" ]] && source \"$ZDOTDIR/.zshrc\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\''/home/maya/.wsp/bin'\\''\n[[ :$PATH: == '\\'':/home/maya/.wsp/bin:'\\''* ]] || PATH='\\''/home/maya/.wsp/bin'\\'':$PATH\n' > '/home/maya/.wsp/bin/.zshrc'.$$ && mv -f '/home/maya/.wsp/bin/.zshrc'.$$ '/home/maya/.wsp/bin/.zshrc' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\''/home/maya/.wsp/bin'\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zlogin\" ]] && source \"$ZDOTDIR/.zlogin\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\''/home/maya/.wsp/bin'\\''\n[[ :$PATH: == '\\'':/home/maya/.wsp/bin:'\\''* ]] || PATH='\\''/home/maya/.wsp/bin'\\'':$PATH\n' > '/home/maya/.wsp/bin/.zlogin'.$$ && mv -f '/home/maya/.wsp/bin/.zlogin'.$$ '/home/maya/.wsp/bin/.zlogin' && printf %s 'case :$PATH: in '\\'':/home/maya/.wsp/bin:'\\''*) ;; *) PATH='\\''/home/maya/.wsp/bin'\\'':$PATH ;; esac\n' > '/home/maya/.wsp/bin/.bash_env'.$$ && mv -f '/home/maya/.wsp/bin/.bash_env'.$$ '/home/maya/.wsp/bin/.bash_env'; } 2>/dev/null && export ZDOTDIR='/home/maya/.wsp/bin' BASH_ENV='/home/maya/.wsp/bin/.bash_env'; export PATH='/home/maya/.wsp/bin':\"$PATH\"; echo hi",
+    "timeoutMs": 20000
+   },
+   "opts": {
+    "timeoutMs": 25000
+   }
+  }
+ ],
+ "framedNoRoom": "this computer's login PATH is 13 characters, which leaves no room for a command in one frame of the daemon's 16,384, so nothing was sent; shorten it in the login's shell startup files",
+ "framedWrap": "export HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; echo hi"
+}

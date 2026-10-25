@@ -1,0 +1,1283 @@
+{
+ "machineId": [
+  {
+   "ok": "ssh://dev@10.0.0.5:2222?key=%2Ftmp%2Fk%2Fid_ed25519"
+  },
+  {
+   "ok": "ssh://dev@box:22"
+  },
+  {
+   "ok": "ssh://a%20b%40c@Box.Example.COM:22?key=%2FUsers%2FJohn+Smith%2F.ssh%2Fid%26x%3D1"
+  },
+  {
+   "ok": "ssh://root@[::1]:22"
+  },
+  {
+   "ok": "ssh://%C3%BC@h%C3%A9llo:65535"
+  }
+ ],
+ "parse": [
+  {
+   "address": "dev@box",
+   "plain": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 22
+    }
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "dev@box:2222",
+   "plain": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2222
+    }
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "box",
+   "plain": {
+    "err": "box is not an ssh address; name the machine as user@host"
+   },
+   "withPort": {
+    "err": "box is not an ssh address; name the machine as user@host"
+   }
+  },
+  {
+   "address": "@box",
+   "plain": {
+    "err": "@box is not an ssh address; name the machine as user@host"
+   },
+   "withPort": {
+    "err": "@box is not an ssh address; name the machine as user@host"
+   }
+  },
+  {
+   "address": "dev@",
+   "plain": {
+    "err": "dev@ is not an ssh address; name the machine as user@host"
+   },
+   "withPort": {
+    "err": "dev@ is not an ssh address; name the machine as user@host"
+   }
+  },
+  {
+   "address": "dev@box:",
+   "plain": {
+    "err": "dev@box: names no port ssh can dial"
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "dev@box:abc",
+   "plain": {
+    "err": "dev@box:abc names no port ssh can dial"
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "dev@box: 22",
+   "plain": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 22
+    }
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "dev@box:0x16",
+   "plain": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 22
+    }
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "dev@box:22.0",
+   "plain": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 22
+    }
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "dev@box:1e3",
+   "plain": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 1000
+    }
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "dev@box:65536",
+   "plain": {
+    "err": "dev@box:65536 names no port ssh can dial"
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "dev@box:0",
+   "plain": {
+    "err": "dev@box:0 names no port ssh can dial"
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "a@b@box",
+   "plain": {
+    "ok": {
+     "user": "a@b",
+     "host": "box",
+     "port": 22
+    }
+   },
+   "withPort": {
+    "ok": {
+     "user": "a@b",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "dev@[::1]:22",
+   "plain": {
+    "ok": {
+     "user": "dev",
+     "host": "[::1]",
+     "port": 22
+    }
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "[::1]",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "dev@::1",
+   "plain": {
+    "ok": {
+     "user": "dev",
+     "host": ":",
+     "port": 1
+    }
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": ":",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  },
+  {
+   "address": "dev@box:-1",
+   "plain": {
+    "err": "dev@box:-1 names no port ssh can dial"
+   },
+   "withPort": {
+    "ok": {
+     "user": "dev",
+     "host": "box",
+     "port": 2200,
+     "keyPath": "/tmp/k"
+    }
+   }
+  }
+ ],
+ "loginWord": [
+  "dev@10.0.0.5:2222",
+  "dev@box",
+  "a b@c@Box.Example.COM",
+  "root@[::1]",
+  "ü@héllo:65535"
+ ],
+ "machineName": [
+  "box",
+  "box",
+  "10.0.0.5",
+  "10.0.0",
+  "1",
+  "",
+  "box",
+  "[::1]"
+ ],
+ "controlPath": [
+  "/c/wsp-ssh-f5a6d7d64ab4d0a5.sock",
+  "/c/wsp-ssh-263fa7591374adf7.sock",
+  "/c/wsp-ssh-597b139b278ccea3.sock",
+  "/c/wsp-ssh-1eaf6ee63ff05cb0.sock",
+  "/c/wsp-ssh-fe9a1aa8044dcf7e.sock"
+ ],
+ "boxWord": [
+  [
+   "]0;pwnedmotd[2J",
+   "]0;pwnedmotd[2J",
+   "]0;p"
+  ],
+  [
+   "abc d",
+   "abc d",
+   "abc "
+  ],
+  [
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "xxxx"
+  ],
+  [
+   "éééééééééééééééééééééééééééééééééééééééééééééééé",
+   "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+   "éééé"
+  ],
+  [
+   "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+   "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+   "😀😀"
+  ]
+ ],
+ "sshArgs": [
+  {
+   "as": "root",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-f5a6d7d64ab4d0a5.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "2222",
+    "-i",
+    "/tmp/k/id_ed25519",
+    "-o",
+    "IdentitiesOnly=yes",
+    "dev@10.0.0.5",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -n bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-f5a6d7d64ab4d0a5.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "2222",
+    "-i",
+    "/tmp/k/id_ed25519",
+    "-o",
+    "IdentitiesOnly=yes",
+    "dev@10.0.0.5",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -n bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root-by-password",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-f5a6d7d64ab4d0a5.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "2222",
+    "-i",
+    "/tmp/k/id_ed25519",
+    "-o",
+    "IdentitiesOnly=yes",
+    "dev@10.0.0.5",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -S -k -p '\\'''\\'' bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root-by-password",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-f5a6d7d64ab4d0a5.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "2222",
+    "-i",
+    "/tmp/k/id_ed25519",
+    "-o",
+    "IdentitiesOnly=yes",
+    "dev@10.0.0.5",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -S -k -p '\\'''\\'' bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "login",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-f5a6d7d64ab4d0a5.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "2222",
+    "-i",
+    "/tmp/k/id_ed25519",
+    "-o",
+    "IdentitiesOnly=yes",
+    "dev@10.0.0.5",
+    "bash",
+    "-c",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "login",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-f5a6d7d64ab4d0a5.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "2222",
+    "-i",
+    "/tmp/k/id_ed25519",
+    "-o",
+    "IdentitiesOnly=yes",
+    "dev@10.0.0.5",
+    "bash",
+    "-c",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-263fa7591374adf7.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "dev@box",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -n bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-263fa7591374adf7.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "dev@box",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -n bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root-by-password",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-263fa7591374adf7.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "dev@box",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -S -k -p '\\'''\\'' bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root-by-password",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-263fa7591374adf7.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "dev@box",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -S -k -p '\\'''\\'' bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "login",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-263fa7591374adf7.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "dev@box",
+    "bash",
+    "-c",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "login",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-263fa7591374adf7.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "dev@box",
+    "bash",
+    "-c",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-597b139b278ccea3.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "-i",
+    "/Users/John Smith/.ssh/id&x=1",
+    "-o",
+    "IdentitiesOnly=yes",
+    "a b@c@Box.Example.COM",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -n bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-597b139b278ccea3.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "-i",
+    "/Users/John Smith/.ssh/id&x=1",
+    "-o",
+    "IdentitiesOnly=yes",
+    "a b@c@Box.Example.COM",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -n bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root-by-password",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-597b139b278ccea3.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "-i",
+    "/Users/John Smith/.ssh/id&x=1",
+    "-o",
+    "IdentitiesOnly=yes",
+    "a b@c@Box.Example.COM",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -S -k -p '\\'''\\'' bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root-by-password",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-597b139b278ccea3.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "-i",
+    "/Users/John Smith/.ssh/id&x=1",
+    "-o",
+    "IdentitiesOnly=yes",
+    "a b@c@Box.Example.COM",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -S -k -p '\\'''\\'' bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "login",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-597b139b278ccea3.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "-i",
+    "/Users/John Smith/.ssh/id&x=1",
+    "-o",
+    "IdentitiesOnly=yes",
+    "a b@c@Box.Example.COM",
+    "bash",
+    "-c",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "login",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-597b139b278ccea3.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "-i",
+    "/Users/John Smith/.ssh/id&x=1",
+    "-o",
+    "IdentitiesOnly=yes",
+    "a b@c@Box.Example.COM",
+    "bash",
+    "-c",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-1eaf6ee63ff05cb0.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "root@[::1]",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -n bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-1eaf6ee63ff05cb0.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "root@[::1]",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -n bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root-by-password",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-1eaf6ee63ff05cb0.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "root@[::1]",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -S -k -p '\\'''\\'' bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root-by-password",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-1eaf6ee63ff05cb0.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "root@[::1]",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -S -k -p '\\'''\\'' bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "login",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-1eaf6ee63ff05cb0.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "root@[::1]",
+    "bash",
+    "-c",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "login",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-1eaf6ee63ff05cb0.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "22",
+    "root@[::1]",
+    "bash",
+    "-c",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-fe9a1aa8044dcf7e.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "65535",
+    "ü@héllo",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -n bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-fe9a1aa8044dcf7e.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "65535",
+    "ü@héllo",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -n bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root-by-password",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-fe9a1aa8044dcf7e.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "65535",
+    "ü@héllo",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -S -k -p '\\'''\\'' bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "root-by-password",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-fe9a1aa8044dcf7e.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "65535",
+    "ü@héllo",
+    "bash",
+    "-c",
+    "'if [ \"$(id -u)\" -eq 0 ]; then exec bash -c \"$1\"; fi\nexec sudo -S -k -p '\\'''\\'' bash -c \"unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\n$1\"'",
+    "wsp",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "login",
+   "stdin": false,
+   "args": [
+    "-n",
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-fe9a1aa8044dcf7e.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "65535",
+    "ü@héllo",
+    "bash",
+    "-c",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  },
+  {
+   "as": "login",
+   "stdin": true,
+   "args": [
+    "-T",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/c/wsp-ssh-fe9a1aa8044dcf7e.sock",
+    "-o",
+    "ControlPersist=60",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ConnectTimeout=10",
+    "-p",
+    "65535",
+    "ü@héllo",
+    "bash",
+    "-c",
+    "'echo '\\''it works'\\'' $HOME'"
+   ]
+  }
+ ],
+ "dialArgs": [
+  [
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "StrictHostKeyChecking=accept-new",
+   "-o",
+   "ConnectTimeout=10",
+   "-p",
+   "2222",
+   "-i",
+   "/tmp/k/id_ed25519",
+   "-o",
+   "IdentitiesOnly=yes"
+  ],
+  [
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "StrictHostKeyChecking=accept-new",
+   "-o",
+   "ConnectTimeout=10",
+   "-p",
+   "22"
+  ],
+  [
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "StrictHostKeyChecking=accept-new",
+   "-o",
+   "ConnectTimeout=10",
+   "-p",
+   "22",
+   "-i",
+   "/Users/John Smith/.ssh/id&x=1",
+   "-o",
+   "IdentitiesOnly=yes"
+  ],
+  [
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "StrictHostKeyChecking=accept-new",
+   "-o",
+   "ConnectTimeout=10",
+   "-p",
+   "22"
+  ],
+  [
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "StrictHostKeyChecking=accept-new",
+   "-o",
+   "ConnectTimeout=10",
+   "-p",
+   "65535"
+  ]
+ ],
+ "backArgs": [
+  "-F",
+  "/dev/null",
+  "-o",
+  "BatchMode=yes",
+  "-o",
+  "StrictHostKeyChecking=accept-new",
+  "-o",
+  "ConnectTimeout=10",
+  "-p",
+  "2222",
+  "-i",
+  "/tmp/k/id_ed25519",
+  "-o",
+  "IdentitiesOnly=yes",
+  "-o",
+  "ProxyCommand=nc %h %p",
+  "-o",
+  "IdentityFile=\"~/my key\"",
+  "-T",
+  "-o",
+  "ExitOnForwardFailure=yes",
+  "-o",
+  "ServerAliveInterval=15",
+  "-o",
+  "ServerAliveCountMax=3",
+  "-o",
+  "ControlPath=none",
+  "-R",
+  "127.0.0.1:4640:127.0.0.1:4641",
+  "dev@10.0.0.5",
+  "echo WSP_BACK_UP; exec cat"
+ ],
+ "missingKnownHosts": [
+  "root@box: your ssh config names /etc/x as a known hosts file and this computer has no file there, so wsp will not dial back over ssh with it; create it, or rename a path that has a space in it",
+  "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu: your ssh config names /x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x as a known hosts file and this computer has no file there, so wsp will not dial back over ssh with it; create it, or rename a path that has a space in it"
+ ]
+}

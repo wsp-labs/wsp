@@ -1,0 +1,74 @@
+{
+ "sent": [
+  {
+   "op": "machine.backend",
+   "params": {},
+   "opts": {}
+  },
+  {
+   "op": "machine.create",
+   "params": {
+    "spec": {
+     "kind": "sandbox",
+     "labels": {
+      "a": "1"
+     },
+     "idempotencyKey": "k1",
+     "cpu": 2,
+     "shares": [
+      {
+       "source": "/wsp/logins/codex/auth.json",
+       "target": "/root/.codex/auth.json"
+      }
+     ]
+    }
+   },
+   "opts": {
+    "timeoutMs": 605000,
+    "idempotencyKey": "k1"
+   }
+  },
+  {
+   "op": "machine.exec",
+   "params": {
+    "cmd": "echo",
+    "timeoutMs": 7,
+    "stdin": "AP8=",
+    "machineId": "c1"
+   },
+   "opts": {
+    "timeoutMs": 5007,
+    "idempotencyKey": "e1"
+   }
+  },
+  {
+   "op": "machine.putBytes",
+   "params": {
+    "path": "/root/f",
+    "uploadId": "abababababababab",
+    "seq": 0,
+    "last": true,
+    "data": "AQID",
+    "timeoutMs": 20000,
+    "machineId": "c1"
+   },
+   "opts": {
+    "timeoutMs": 25000
+   }
+  },
+  {
+   "op": "exec",
+   "params": {
+    "cmd": "uptime",
+    "timeoutMs": 20000
+   },
+   "opts": {
+    "timeoutMs": 25000
+   }
+  }
+ ],
+ "rates": [
+  0.5,
+  0
+ ]
+}
