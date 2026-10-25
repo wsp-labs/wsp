@@ -8,8 +8,8 @@ use serde_json::json;
 use wsp_catalog::json_edit::edit_json;
 use wsp_catalog::jsonc_tree::PathSeg;
 use wsp_catalog::mcp::{EditOutcome, McpEditScope, McpFormat, McpMergeScope, McpServer, McpTransport, MergeOutcome, MCP_SERVERS_JSON};
-use wsp_catalog::road_modules::{row_road, ToolRow};
 use wsp_catalog::plugins::{plugin_id_parts, turn_claude, FoundPlugin, PeekGroup, Peeked, PluginIo};
+use wsp_catalog::road_modules::{row_road, ToolRow};
 use wsp_catalog::signin::SignIn;
 use wsp_catalog::signin_rows::sign_in_row;
 use wsp_wire::types::agents_report::{PluginBrings, PluginScope};
@@ -81,7 +81,15 @@ fn a_plugin(id: &str) -> FoundPlugin {
         set_in: None,
         description: None,
         source: None,
-        brings: PluginBrings { skills: none(), commands: none(), subagents: none(), hooks: none(), servers: none(), lsp: none(), apps: none() },
+        brings: PluginBrings {
+            skills: none(),
+            commands: none(),
+            subagents: none(),
+            hooks: none(),
+            servers: none(),
+            lsp: none(),
+            apps: none(),
+        },
         skills: None,
     }
 }
@@ -89,7 +97,8 @@ fn a_plugin(id: &str) -> FoundPlugin {
 #[test]
 fn f02_a_refused_plugin_write_keeps_its_kind_apart_from_a_failed_one() {
     let words = "~/.claude/settings.json changed since it was read";
-    let refused = block_on(turn_claude(&EditFails(HostError { kind: Some(Kind::Usage), ..HostError::new(words) }), &a_plugin("p@m"), false));
+    let refused =
+        block_on(turn_claude(&EditFails(HostError { kind: Some(Kind::Usage), ..HostError::new(words) }), &a_plugin("p@m"), false));
     let failed = block_on(turn_claude(&EditFails(HostError::new(words)), &a_plugin("p@m"), false));
     assert_ne!(refused, failed, "the TS exits 3 for the first and 1 for the second");
 }
@@ -290,4 +299,3 @@ fn f19_context_hooks_write_their_keys_in_the_ts_order() {
     let got = serde_json::to_string(&AgentContext::Claude.hooks(&input)).unwrap();
     assert!(got.starts_with(r#"{"outcome":"written","path":"/etc/claude-code/CLAUDE.md","files":"#), "{got}");
 }
-

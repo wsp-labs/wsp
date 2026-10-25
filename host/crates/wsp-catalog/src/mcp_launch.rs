@@ -8,16 +8,16 @@ use std::collections::HashSet;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 
-use crate::smol_toml::parse_toml;
-use crate::json_parse::parse_json;
 use crate::config_write::store_base;
 use crate::json_edit::{edit_json, JsonEdit};
+use crate::json_parse::parse_json;
 use crate::jsonc::{js_stringify_pretty, json_object, read_jsonc};
 use crate::jsonc_tree::PathSeg;
 use crate::mcp::{McpFormat, McpServer, McpServerScope};
 use crate::mcp_codex::codex_trusts;
 use crate::mcp_config::HeadlessKey;
 use crate::mcp_json::{entry_of, ref_re};
+use crate::smol_toml::parse_toml;
 use wsp_words::exit::HostError;
 
 /// One config file as that computer holds it (mcp-launch.ts:16).

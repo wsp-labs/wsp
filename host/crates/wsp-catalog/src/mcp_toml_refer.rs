@@ -6,7 +6,6 @@ use std::collections::{HashMap, HashSet};
 use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 
-use crate::smol_toml::parse_toml;
 use crate::json_edit::json_canonical;
 use crate::jsonc_tree::PathSeg;
 use crate::mcp::{KnownValue, McpReferred, McpTransport, ReferredServer};
@@ -14,9 +13,10 @@ use crate::mcp_refs::{
     arg_strings, codex_headers, known_hits, known_stands, oauth_secret_keys, readable, shape_refusal, still_stands, unread_line,
 };
 use crate::mcp_toml::{
-    codex_owners, read_codex, toml_header, try_read_codex, toml_inline, toml_open_array, toml_string, toml_strings, toml_value, uncomment_toml,
+    codex_owners, toml_header, toml_inline, toml_open_array, toml_string, toml_strings, toml_value, try_read_codex, uncomment_toml,
     unquote_key, TomlValue,
 };
+use crate::smol_toml::parse_toml;
 use wsp_words::exit::HostError;
 use wsp_words::js::js_trim;
 
@@ -181,7 +181,8 @@ fn edit_server(
 
 /// `CODEX_TOML.refer` (mcp.ts:1661). Errors "the file is not valid TOML (<first line of the parser's message>)".
 pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside: &IndexSet<String>) -> Result<McpReferred, HostError> {
-    let tree = parse_toml(text).map_err(|e| HostError::new(format!("the file is not valid TOML ({})", e.lines().next().unwrap_or_default())))?;
+    let tree =
+        parse_toml(text).map_err(|e| HostError::new(format!("the file is not valid TOML ({})", e.lines().next().unwrap_or_default())))?;
     let Some(table_value) = tree.get("mcp_servers") else {
         return Ok(McpReferred { text: text.to_string(), servers: Vec::new(), entries: Vec::new() });
     };

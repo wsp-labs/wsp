@@ -12,9 +12,9 @@ use wsp_wire::types::env::PLUGIN_SEED_ENV;
 use wsp_wire::types::projects::OWNER_REPO;
 use wsp_wire::types::shell_quote::shell_quote;
 
-use crate::json_parse::parse_json;
 use crate::context::SKILL_NAME;
 use crate::json_edit::{edit_json, JsonEdit};
+use crate::json_parse::parse_json;
 use crate::jsonc_tree::PathSeg;
 use crate::plugins::{js_entries, js_trim, json_of, WS};
 use crate::roads::{CLAUDE_CONFIG_DIR, CLAUDE_PLUGIN_SEED};

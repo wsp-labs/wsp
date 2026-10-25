@@ -84,7 +84,13 @@ fn message_at(text: &[u16], ptr: usize, message: &str) -> String {
 }
 
 fn is_digit(c: Option<u16>, base: u16) -> bool {
-    c.is_some_and(|c| if base == 16 { (0x30..0x3a).contains(&c) || (0x41..0x47).contains(&c) || (0x61..0x67).contains(&c) } else { c > 0x2f && c < 0x30 + base })
+    c.is_some_and(|c| {
+        if base == 16 {
+            (0x30..0x3a).contains(&c) || (0x41..0x47).contains(&c) || (0x61..0x67).contains(&c)
+        } else {
+            c > 0x2f && c < 0x30 + base
+        }
+    })
 }
 
 fn is_end_of_value(c: Option<u16>, delim: Option<u16>) -> bool {
@@ -197,7 +203,13 @@ impl Ctx {
                 if c == 0x78 || c == 0x75 || c == 0x55 {
                     let err_ptr = self.p - 1;
                     self.p += 1;
-                    let digits = if c == 0x78 { 2 } else if c == 0x75 { 4 } else { 8 };
+                    let digits = if c == 0x78 {
+                        2
+                    } else if c == 0x75 {
+                        4
+                    } else {
+                        8
+                    };
                     let mut value: i32 = 0;
                     for _ in 0..digits {
                         let Some(digit) = self.at(self.p).and_then(|h| char::from_u32(h as u32)).and_then(|h| h.to_digit(16)) else {
@@ -281,7 +293,9 @@ impl Ctx {
                     parsed.push(self.text(slice_start, self.p));
                     state = 2;
                 }
-            } else if state == 2 || c.is_some_and(|c| (c < 0x30 && c != 0x2d) || (c > 0x39 && c < 0x41) || (c > 0x5a && c < 0x61 && c != 0x5f) || c > 0x7a) {
+            } else if state == 2
+                || c.is_some_and(|c| (c < 0x30 && c != 0x2d) || (c > 0x39 && c < 0x41) || (c > 0x5a && c < 0x61 && c != 0x5f) || c > 0x7a)
+            {
                 return self.fail("illegal character in key");
             } else if state == 0 {
                 state = 1;
@@ -313,7 +327,11 @@ impl Ctx {
             for (i, k) in key.iter().enumerate() {
                 if i > 0 {
                     let previous = &key[i - 1];
-                    let Some(Node::Table(next)) = (if has_own { t.map.get_mut(previous) } else { Some(t.map.entry(previous.clone()).or_insert_with(|| Node::Table(Tbl::default()))) }) else {
+                    let Some(Node::Table(next)) = (if has_own {
+                        t.map.get_mut(previous)
+                    } else {
+                        Some(t.map.entry(previous.clone()).or_insert_with(|| Node::Table(Tbl::default())))
+                    }) else {
                         return self.fail_at("trying to redefine an already defined value", err_ptr);
                     };
                     t = next;
@@ -754,7 +772,10 @@ fn v8_date_valid(text: &str) -> bool {
         None => true,
         Some(b'Z' | b'z') => at + 1 == b.len(),
         Some(b'+' | b'-') => {
-            b.get(at + 3) == Some(&b':') && num(at + 1, 2).is_some_and(|h| h <= 23) && num(at + 4, 2).is_some_and(|m| m <= 59) && at + 6 == b.len()
+            b.get(at + 3) == Some(&b':')
+                && num(at + 1, 2).is_some_and(|h| h <= 23)
+                && num(at + 4, 2).is_some_and(|m| m <= 59)
+                && at + 6 == b.len()
         }
         _ => false,
     }
@@ -998,12 +1019,14 @@ fn date_value(text: &str) -> toml::Value {
 /// A day past the end of its month as JavaScript's `Date` takes it: the first days of the next month (`02-30` of a
 /// common year is `03-02`).
 fn roll_day(text: &str) -> String {
-    let digits = |from: usize, len: usize| text.get(from..from + len).filter(|d| d.bytes().all(|b| b.is_ascii_digit())).and_then(|d| d.parse::<u32>().ok());
+    let digits = |from: usize, len: usize| {
+        text.get(from..from + len).filter(|d| d.bytes().all(|b| b.is_ascii_digit())).and_then(|d| d.parse::<u32>().ok())
+    };
     let (Some(mut year), Some(mut month), Some(mut day)) = (digits(0, 4), digits(5, 2), digits(8, 2)) else {
         return text.to_string();
     };
     let long = |year: u32, month: u32| match month {
-        2 if (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 => 29,
+        2 if (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400) => 29,
         2 => 28,
         4 | 6 | 9 | 11 => 30,
         _ => 31,

@@ -94,7 +94,8 @@ fn mise_installed(tool: &str) -> String {
 
 fn lazy_run_installed(launcher: &str) -> String {
     let name = shell_quote(launcher.rsplit('/').next().unwrap_or_default());
-    let lazy = format!(r##"case "$(sed -n 2p {path} 2>/dev/null)" in "# ascii-lazy-harness "*) false ;; esac"##, path = shell_quote(launcher));
+    let lazy =
+        format!(r##"case "$(sed -n 2p {path} 2>/dev/null)" in "# ascii-lazy-harness "*) false ;; esac"##, path = shell_quote(launcher));
     let past = format!(
         r##"d=$(dirname "$(command -v {name})") && PATH=$(printf %s "$PATH" | tr : "\n" | grep -vxF "$d" | paste -sd: -) command -v {name} >/dev/null 2>&1"##
     );
