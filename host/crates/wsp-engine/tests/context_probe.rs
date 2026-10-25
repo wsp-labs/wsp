@@ -489,7 +489,11 @@ alias grp '{ grep -rn . ; }'";
 /// machine-context.test.ts:622
 #[tokio::test]
 async fn the_fish_alias_probe_names_only_aliases_whose_first_word_is_a_missing_command_over_a_fixed_listing() {
-    let fish = shell_of("fish").expect("fish is not installed on this box, so the fish alias probe has no shell to run under");
+    // machine-context.test.ts:622 runs this under `it.skipIf(shellOf("fish") === undefined)`: no fish, no case.
+    let Some(fish) = shell_of("fish") else {
+        eprintln!("skipped: this machine has no fish");
+        return;
+    };
     let g = Guest::new();
     let bin = g.home().join("bin");
     std::fs::create_dir_all(&bin).unwrap();
