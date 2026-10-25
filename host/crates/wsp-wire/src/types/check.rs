@@ -513,7 +513,7 @@ pub fn null_issue<T: Check>() -> SchemaError {
 
 /// A JSON value where zod reads an object: invalid_type, "Expected object, received <its word>".
 pub fn not_object(value: &Value) -> SchemaError {
-    let received = received_word(Some(value));
+    let received = received_plain(Some(value));
     let mut detail = IndexMap::new();
     detail.insert("expected".to_string(), Value::from("object"));
     detail.insert("received".to_string(), Value::from(received));
@@ -607,6 +607,15 @@ fn received_word(value: Option<&Value>) -> &'static str {
     }
 }
 
+/// What zod calls the value in a type mismatch: "float" is only the word of an `.int()` check that a fraction fails, and a
+/// fraction where some other type was wanted is a "number".
+fn received_plain(value: Option<&Value>) -> &'static str {
+    match received_word(value) {
+        "float" => "number",
+        word => word,
+    }
+}
+
 fn options_text(options: &[&str]) -> String {
     options.iter().map(|o| format!("'{o}'")).collect::<Vec<_>>().join(" | ")
 }
@@ -693,10 +702,10 @@ fn serde_issue<T: Check>(msg: &str, path: Vec<Value>, work: &Value) -> SchemaErr
             zod => {
                 let (expected, received) = match zod {
                     Some(Zod::Int) if received_word(at) == "float" => ("integer".to_string(), "float"),
-                    Some(Zod::Int) => ("number".to_string(), received_word(at)),
-                    Some(Zod::Word(w)) => (w.to_string(), received_word(at)),
-                    Some(Zod::Options(o)) => (options_text(o), received_word(at)),
-                    _ => ("unknown".to_string(), received_word(at)),
+                    Some(Zod::Int) => ("number".to_string(), received_plain(at)),
+                    Some(Zod::Word(w)) => (w.to_string(), received_plain(at)),
+                    Some(Zod::Options(o)) => (options_text(o), received_plain(at)),
+                    _ => ("unknown".to_string(), received_plain(at)),
                 };
                 let mut detail = IndexMap::new();
                 detail.insert("expected".to_string(), Value::from(expected.as_str()));

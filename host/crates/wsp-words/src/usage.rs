@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What a plan's limits and a range's use read as: who an account is, the sentences a reset ends in, the list price
 //! of a turn's tokens off LiteLLM's table, the clock words a row's windows carry, and the words of a turn a limit
-//! stopped. Port of the functions of packages/protocol/src/usage.ts at a3b870a6e; its shapes and flat constants are
+//! stopped. Port of the functions of packages/protocol/src/usage.ts at the cut (383708c78); its shapes and flat constants are
 //! wsp_wire::types::usage. See spec/usage.md.
 
 use wsp_wire::types::usage::AccountRow;
@@ -26,33 +26,28 @@ use crate::words::units::fmt_cost;
 use crate::words::units::fmt_tokens;
 use crate::words::units::LIST_PRICE_WORD;
 
-use jiff::civil::Weekday;
-use jiff::tz::TimeZone;
-use jiff::Timestamp;
-use jiff::Zoned;
+use crate::js_date::{self, DateZone, Fields};
 
 fn usage_word(key: &str) -> &'static str {
     USAGE_WORDS.iter().find(|(k, _)| *k == key).map(|(_, v)| *v).expect("a word the usage table holds")
 }
 
-fn zoned(at: f64, time_zone: Option<&str>) -> Zoned {
+/// The clock an instant reads on in the named zone, this computer's where none is named; none where `Intl` throws
+/// RangeError "Invalid time value" for it (NaN, or past 8.64e15 ms either way).
+fn clock(at: f64, time_zone: Option<&str>) -> Option<Fields> {
+    let t = js_date::time_value(at)?;
     let zone = match time_zone {
-        Some(name) => TimeZone::get(name).expect("an IANA zone name"),
-        None => TimeZone::system(),
+        Some(name) => DateZone::named(name).expect("a time zone Intl takes"),
+        None => DateZone::system(),
     };
-    Timestamp::from_millisecond(at as i64).expect("an instant in range").to_zoned(zone)
+    Some(js_date::fields(t, zone.offset_seconds(t)))
 }
 
-fn weekday_short(day: Weekday) -> &'static str {
-    match day {
-        Weekday::Monday => "Mon",
-        Weekday::Tuesday => "Tue",
-        Weekday::Wednesday => "Wed",
-        Weekday::Thursday => "Thu",
-        Weekday::Friday => "Fri",
-        Weekday::Saturday => "Sat",
-        Weekday::Sunday => "Sun",
-    }
+/// What the words say where the TS throws RangeError for an instant no `Date` holds.
+const INVALID_DATE: &str = "Invalid Date";
+
+fn weekday_short(day: u32) -> &'static str {
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day as usize]
 }
 
 // The windows a plan counts use over, as wsp names them: an agent's five-hour window is the session, its seven-day
@@ -608,7 +603,7 @@ pub fn parse_rate_table(document: &serde_json::Value) -> RateTable {
     };
     let price = |v: Option<&serde_json::Value>| v.and_then(serde_json::Value::as_f64).filter(|n| *n >= 0.0);
     let mut table = RateTable::new();
-    for (model, raw) in entries {
+    for (model, raw) in crate::js::js_key_order(entries.iter()) {
         let Some(entry) = raw.as_object() else {
             continue;
         };
@@ -707,8 +702,10 @@ pub fn price_of(model: &str, tokens: &PricedTokens, table: &RateTable) -> Option
 //   return `${part("year")}-${part("month")}-${part("day")}`;
 // }
 pub fn day_key_of(at: f64, time_zone: Option<&str>) -> String {
-    let z = zoned(at, time_zone);
-    format!("{:04}-{:02}-{:02}", z.year(), z.month(), z.day())
+    match clock(at, time_zone) {
+        Some(z) => format!("{}-{:02}-{:02}", js_date::intl_year(z.year), z.month, z.day),
+        None => INVALID_DATE.to_string(),
+    }
 }
 
 /// The hour of the day an instant falls on in a zone, 0 to 23.
@@ -718,7 +715,7 @@ pub fn day_key_of(at: f64, time_zone: Option<&str>) -> String {
 //   return Number(hour) % 24;
 // }
 pub fn hour_of(at: f64, time_zone: Option<&str>) -> f64 {
-    zoned(at, time_zone).hour() as f64
+    clock(at, time_zone).map_or(f64::NAN, |z| f64::from(z.hour))
 }
 
 /// When a window starts again, as a row's quiet word: minutes under an hour, hours under a day, then the weekday. The
@@ -743,7 +740,7 @@ pub fn resets_word(resets_at: f64, now: f64, time_zone: Option<&str>) -> String 
     if left < 86_400_000.0 {
         return format!("resets in {} h", number_string((left / 3_600_000.0).floor()));
     }
-    format!("resets on {}", weekday_short(zoned(resets_at, time_zone).weekday()))
+    format!("resets on {}", clock(resets_at, time_zone).map_or(INVALID_DATE, |z| weekday_short(z.weekday)))
 }
 
 // How long until a moment, as a row's quiet word: minutes under an hour, hours under a day, then days.
@@ -792,12 +789,14 @@ pub fn credits_word(count: f64, next_expires_at: Option<f64>, now: f64) -> Strin
 //   return `${new Intl.DateTimeFormat("en-US", { weekday: "short", ...zone }).format(at)} ${time}`;
 // }
 pub fn clock_word(at: f64, now: f64, time_zone: Option<&str>) -> String {
-    let z = zoned(at, time_zone);
-    let time = format!("{:02}:{:02}", z.hour(), z.minute());
+    let Some(z) = clock(at, time_zone) else {
+        return INVALID_DATE.to_string();
+    };
+    let time = format!("{:02}:{:02}", z.hour, z.minute);
     if day_key_of(at, time_zone) == day_key_of(now, time_zone) {
         return time;
     }
-    format!("{} {time}", weekday_short(z.weekday()))
+    format!("{} {time}", weekday_short(z.weekday))
 }
 
 /// When a limit was last read, as the row's quiet word: the time today, else the weekday and time.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Images a message carries: their types and sizes, the prompt that names the files, and the refusals of one too big. Port of the functions of packages/protocol/src/attachments.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::attachments. See spec/attachments.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::attachments. See spec/attachments.md.
 
 use indexmap::IndexSet;
 
@@ -54,7 +54,17 @@ pub const IMAGE_TYPES: &[(&str, &str, &str)] =
 // attachments.ts:49
 // export const isImage = (mediaType: string): boolean => IMAGE_TYPES[mediaType] !== undefined;
 pub fn is_image(media_type: &str) -> bool {
-    IMAGE_TYPES.iter().any(|(media, _, _)| *media == media_type)
+    image_type(media_type).is_some()
+}
+
+/// `IMAGE_TYPES[mediaType]`: the type's word and extension. The TS table is a plain object, so a key `Object.prototype`
+/// holds (`constructor`, `toString`) finds a value, whose `word` and `ext` read as the text `undefined`.
+fn image_type(media_type: &str) -> Option<(&'static str, &'static str)> {
+    IMAGE_TYPES
+        .iter()
+        .find(|(media, _, _)| *media == media_type)
+        .map(|(_, word, ext)| (*word, *ext))
+        .or_else(|| crate::js::is_object_prototype_key(media_type).then_some(("undefined", "undefined")))
 }
 
 /// What an attachment weighs, from the base64 the wire carries, without decoding it.
@@ -160,8 +170,8 @@ pub fn not_a_file_line(path: &str) -> String {
 // }
 pub fn attachment_line(file: &AttachmentRecord) -> String {
     let bytes = fmt_bytes(file.bytes.0 .0);
-    match IMAGE_TYPES.iter().find(|(media, _, _)| *media == file.media_type) {
-        Some((_, word, _)) => format!("[image {bytes} {word}]"),
+    match image_type(&file.media_type) {
+        Some((word, _)) => format!("[image {bytes} {word}]"),
         None => format!("[file {bytes}{}]", file.name.as_ref().map(|name| format!(" {name}")).unwrap_or_default()),
     }
 }
@@ -318,7 +328,7 @@ pub fn turn_images_dir(folder: &str, thread_id: &str, request_id: Option<&str>, 
 // }
 /// The TS throw is the Err.
 pub fn image_path_in(dir: &str, index: f64, media_type: &str) -> Result<String, crate::exit::HostError> {
-    let Some((_, _, ext)) = IMAGE_TYPES.iter().find(|(media, _, _)| *media == media_type) else {
+    let Some((_, ext)) = image_type(media_type) else {
         return Err(HostError::new(format!("{media_type} is not an image type a message carries")));
     };
     Ok(format!("{dir}/{}.{ext}", crate::js::number_string(index + 1.0)))

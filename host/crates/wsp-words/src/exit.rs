@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The one contract an agent reads wsp by: with --json stdout carries JSON alone, every refusal or failure is one
 //! line on stderr, and the exit code is the class the error belongs to. The class is read off the kind stamped on
-//! the error where it was born, never off its words. Port of packages/protocol/src/exit.ts at a3b870a6e, with the
+//! the error where it was born, never off its words. Port of packages/protocol/src/exit.ts at the cut (383708c78), with the
 //! one error type of spec chapter 05 (Proposal 4) standing where the TS stamps fields on an `Error`. See spec/exit.md.
 
 use serde::{Deserialize, Serialize};
@@ -217,6 +217,13 @@ pub struct HostError {
     /// The key a computer never dialled answered with, stamped by an add refused under `Kind::HostKey`
     /// (`Object.assign(new Error(..), { kind: PLACE_HOST_KEY_KIND, hostKey })`, places/install.ts:69).
     pub host_key: Option<String>,
+    /// The system error's code a Node `Error` carries (`ENOENT`, `EADDRINUSE`, `ECONNREFUSED`), where the error came from
+    /// a call that set one; read by the roads that tell one failure from another by it. Never on the wire.
+    pub code: Option<String>,
+    /// The HTTP status a provider answered with, stamped where a provider's refusal is rethrown as an error of its own
+    /// kind (`runtime/src/machines/create.ts:156`, `images/golden.ts:635`) and read by `machines/machines.ts:88`, where a
+    /// numeric status ends a keyed create. Never on the wire, and never in the failure object (exit.ts:57).
+    pub status: Option<f64>,
     /// The names of the boolean marks the TS stamps on an `Error` as `true` (`wspMachineLacks`,
     /// `wspMachineUnanswered`, words/computer.ts:594-603), read by `marked`. Never on the wire, never in a reply.
     pub marks: Vec<String>,
@@ -233,6 +240,8 @@ impl HostError {
             warnings: None,
             left: None,
             host_key: None,
+            code: None,
+            status: None,
             marks: Vec::new(),
         }
     }
@@ -361,8 +370,8 @@ pub fn escape_c1(json: &str) -> String {
 /// (an empty array `[]`, an empty object `{}`). Numbers are written by `number_string` (rule 4.25), keys in the
 /// order the value holds them (rule 4.26).
 pub fn json_line(value: &serde_json::Value, space: Option<usize>) -> String {
-    // JSON.stringify with a gap of 0 writes no white space at all, the same as no gap.
-    let space = space.filter(|n| *n > 0);
+    // JSON.stringify with a gap of 0 writes no white space at all, the same as no gap, and holds a gap to ten spaces.
+    let space = space.filter(|n| *n > 0).map(|n| n.min(10));
     let mut out = String::new();
     write_json(value, space, 0, &mut out);
     escape_c1(&out)

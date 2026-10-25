@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! When an account's plan running low is worth telling the person, and the line it is told in. Port of the functions of
-//! packages/protocol/src/plan-alerts.ts at a3b870a6e (PlanAlert, PLAN_ALERT_STEPS and UsageAlertEvent are
+//! packages/protocol/src/plan-alerts.ts at the cut (383708c78) (PlanAlert, PLAN_ALERT_STEPS and UsageAlertEvent are
 //! wsp_wire::types::plan_alerts). See spec/costs_and_alerts.md.
 
 use wsp_wire::types::js_number::JsNumber;

@@ -101,7 +101,13 @@ fn read_of(procs: Vec<Value>) -> ActivityRead {
         procs: serde_json::from_value(Value::Array(procs)).unwrap(),
         daemon: 1,
         host: 2,
-        scopes: vec![ActivityScope { thread_id: "t1".into(), title: "T".into(), workspace_id: "w".into(), roots: vec![], ..Default::default() }],
+        scopes: vec![ActivityScope {
+            thread_id: "t1".into(),
+            title: "T".into(),
+            workspace_id: "w".into(),
+            roots: vec![],
+            ..Default::default()
+        }],
         agent_bins: vec![],
         ports: None,
         cgroups: None,
@@ -132,7 +138,11 @@ fn an_end_over_two_live_rows_that_name_each_other_as_parent_answers_an_error() {
         .env("WSP_REVIEW_CYCLE_CHILD", "1")
         .output()
         .unwrap();
-    let said = String::from_utf8_lossy(&out.stderr).lines().filter(|l| l.contains("memory allocation") || l.contains("panicked")).collect::<Vec<_>>().join(" | ");
+    let said = String::from_utf8_lossy(&out.stderr)
+        .lines()
+        .filter(|l| l.contains("memory allocation") || l.contains("panicked"))
+        .collect::<Vec<_>>()
+        .join(" | ");
     assert!(out.status.success(), "the walk did not end in an error ({:?}): {said}; the TS throws RangeError", out.status);
 }
 

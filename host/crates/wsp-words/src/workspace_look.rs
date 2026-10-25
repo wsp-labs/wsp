@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The maths that turns a workspace theme's dots into colours, the harmonies and presets a picker offers, and the
 //! side and ink a theme draws under. Port of the functions and tables of packages/protocol/src/workspace-look.ts at
-//! a3b870a6e; its zod shapes and flat constants are wsp_wire::types::workspace_look. See spec/workspace_look.md.
+//! the cut (383708c78); its zod shapes and flat constants are wsp_wire::types::workspace_look. See spec/workspace_look.md.
 
 use crate::js::js_round;
 use wsp_wire::types::js_number::JsNumber;

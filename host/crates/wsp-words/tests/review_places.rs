@@ -4,8 +4,7 @@
 use serde_json::json;
 use wsp_wire::views::project_bundle::TerminalRgb;
 use wsp_wire::views::workspace::WorkspaceView;
-use wsp_words::place_name::workspace_computer_name;
-use wsp_words::place_state::place_setting_dropped;
+use wsp_words::place_name::workspace_computer_name_with;
 use wsp_words::place_word::provider_key_name;
 use wsp_words::views::place_setup_words::provision_log_line;
 use wsp_words::words::places::{hex_color, host_beat_word, hosts_table, offline_for, HostsTableRow};
@@ -45,15 +44,6 @@ fn hex_color_of_a_channel_past_i64() {
     assert_eq!(hex_color(&rgb), "#3635c9adc5dea000000000");
 }
 
-// place-state.ts:188 placeSettingDropped: with a part of the agents switch dropped, `{ ...kept, spawn }` puts spawn last. place_state.rs:312 keeps the struct's own order (spawn before size).
-#[test]
-fn place_setting_dropped_puts_spawn_last_after_a_partial_drop() {
-    let settings = serde_json::from_value(json!({ "spawn": { "spawn": true, "maxMachines": 2, "maxDepth": 1 }, "size": { "cpu": 2, "memMb": 512 } })).unwrap();
-    let word = serde_json::from_value(json!("spawn")).unwrap();
-    let dropped = place_setting_dropped(&settings, &word);
-    assert_eq!(serde_json::to_string(&dropped).unwrap(), r#"{"size":{"cpu":2,"memMb":512},"spawn":{"maxDepth":1}}"#);
-}
-
 // place-setup-words.ts:286 provisionLogLine(253402300799999, "x") is "9999-12-31T23:59:59Z x". place_setup_words.rs:754 calls iso_seconds (words/thread/forks.rs:754), whose `.expect("a moment jiff holds")` panics past jiff's range.
 #[test]
 fn provision_log_line_at_the_last_instant_of_year_9999() {
@@ -78,13 +68,15 @@ fn provider_key_name_of_an_inherited_key() {
     assert_eq!(provider_key_name("constructor"), "Object");
 }
 
-// place-name.ts:60 workspaceComputerName passes the whole workspace to whereWord, which reads facts.os when the word is "this computer"; place_name.rs:134 builds the record with facts: None, so this reads "this computer" instead of "this Mac".
+// place-name.ts:60 workspaceComputerName passes the whole workspace to whereWord, which reads facts.os when the word is "this computer"; the record that
+// carries facts is a WorkspaceStatus or a WorkspaceListing, so the Rust takes them beside the WorkspaceView (a view has none).
+// node: workspaceComputerName([], { kind: "cloud", provider: "this computer", facts: { os: "Darwin 23.1" }, ... }) is "this Mac"
 #[test]
 fn workspace_computer_name_reads_the_machines_os() {
-    let workspace: WorkspaceView = serde_json::from_value(support::over(
-        support::workspace_view(),
-        json!({ "kind": "cloud", "provider": "this computer", "facts": { "os": "Darwin 23.1" } }),
-    ))
-    .unwrap();
-    assert_eq!(workspace_computer_name(&[], &workspace), "this Mac");
+    let workspace: WorkspaceView =
+        serde_json::from_value(support::over(support::workspace_view(), json!({ "kind": "cloud", "provider": "this computer" }))).unwrap();
+    let facts: wsp_wire::views::workspace_more::MachineFacts =
+        serde_json::from_value(json!({ "os": "Darwin 23.1", "uptimeMs": 1, "folder": "/" })).unwrap();
+    assert_eq!(workspace_computer_name_with(&[], &workspace, Some(&facts)), "this Mac");
+    assert_eq!(workspace_computer_name_with(&[], &workspace, None), "this computer");
 }

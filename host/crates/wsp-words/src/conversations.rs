@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The words of a conversation a thread picks up from an agent's own store: the shapes an adapter reads it into,
 //! the command that stamps its folders, and the lines and refusals a resume says. Port of the functions of
-//! packages/protocol/src/conversations.ts at a3b870a6e; its zod shapes and flat constants are
+//! packages/protocol/src/conversations.ts at the cut (383708c78); its zod shapes and flat constants are
 //! wsp_wire::types::conversations. See spec/conversations.md.
 
 use wsp_wire::types::conversations::ConversationOrigin;

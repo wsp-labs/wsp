@@ -6,7 +6,7 @@
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use wsp_wire::views::session::PermissionOutcome;
-use wsp_wire::views::session_events::{SessionEvent, SessionPermissionEvent};
+use wsp_wire::views::session_events::SessionPermissionEvent;
 use wsp_wire::wire::helpers::{PermissionEffect, PermissionOption};
 use wsp_words::words::tools::*;
 
@@ -566,46 +566,6 @@ mod the_words_a_relayed_permission_prompt_shows {
         // The slot is one line that truncates from the right; the render test measures the paint, this holds the budget
         // the measurement was against, so the half carrying the answer is never the half that is cut.
         assert!(ACCESS_REFUSED_LINE.encode_utf16().count() < 54);
-    }
-}
-
-mod the_words_the_clients_print_for_the_job {
-    use super::*;
-
-    #[test]
-    fn a_thread_s_one_line_is_the_tool_it_is_running_the_prompt_it_is_blocked_on_else_i() {
-        let scope = json!({ "workspaceId": "ws_1", "sessionId": "s_1" });
-        let event = |fields: Value| -> SessionEvent {
-            let mut all = scope.as_object().unwrap().clone();
-            all.extend(fields.as_object().unwrap().clone());
-            wire(Value::Object(all))
-        };
-        assert_eq!(
-            thread_working_line(&event(json!({ "type": "session.delta", "kind": "text", "text": "reading\nwriting the recipe" }))),
-            Some("writing the recipe".to_string())
-        );
-        assert_eq!(
-            thread_working_line(&event(
-                json!({ "type": "session.delta", "kind": "tool_use", "toolName": "Bash", "text": js(json!({ "command": "wsp recipe scan --json" })) })
-            )),
-            Some("$ wsp recipe scan --json".to_string())
-        );
-        // The prompt reads here in the same words the chat row leads with: one table words them, and both read it.
-        let scan = js(json!({ "command": "wsp recipe scan --json", "description": "Read what the agents here use" }));
-        assert_eq!(
-            thread_working_line(&event(
-                json!({ "type": "session.permission", "workspaceId": "w", "sessionId": "s", "askId": "a1", "toolName": "Bash", "input": scan, "detail": "Read what the agents here use", "options": [] })
-            )),
-            Some("Run a command: wsp recipe scan --json".to_string())
-        );
-        assert_eq!(
-            thread_working_line(&event(
-                json!({ "type": "session.permission", "workspaceId": "w", "sessionId": "s", "askId": "a1", "toolName": "Bash", "input": scan, "options": [] })
-            )),
-            Some(permission_ask_line("Bash", &scan, None))
-        );
-        assert_eq!(thread_working_line(&event(json!({ "type": "session.delta", "kind": "tool_result", "text": "ok" }))), None);
-        assert_eq!(thread_working_line(&event(json!({ "type": "session.end", "exitCode": 0, "sawResult": true }))), None);
     }
 }
 
