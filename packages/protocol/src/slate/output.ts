@@ -29,26 +29,35 @@ const CARGO = /^\s*test result: \w+\. /;
  * lines W034 reads as a process's output. */
 const RUNNER_FAILURE = [
   "^\\s*FAIL +(?:\\|[^|]+\\| +)?\\S+\\.\\w+", "--- FAIL", "\\.\\.\\. FAILED$", "^\\s*error(?:\\[\\w+\\])?:",
-  "^\\s*[\\w.]*(?:Error|Exception)(?:\\[\\w+\\])?:", "\\bpanicked at\\b", "^Traceback \\(most recent call last\\)", "\\bnpm ERR!",
+  "^\\s*[\\w.]*(?:Error|Exception)(?:\\[\\w+\\])?:", "\\bpanicked at\\b", "^Traceback \\(most recent call last\\)", "\\bnpm ERR!", "\\berror TS\\d+:",
 ];
 /** Lines that only name a failure inside a log already known to be one, and that an agent writes as a status too
  * (FAILED, ✗ 2 failed, 1) a step, Last error: ...): the summary reads them, W034 does not. */
 const NAMED_FAILURE = ["^\\s*(?:FAIL\\b|FAILED\\b|ERROR\\b|[×✗✖❌]|\\d+\\) )", "\\berror(?:\\[\\w+\\])?:", "\\bAssertionError\\b"];
 const MATTERS = new RegExp([...RUNNER_FAILURE, ...NAMED_FAILURE].join("|"), "m");
 /** Any line a process prints rather than a person writes: a runner's failure line, an exit code, a tally, file verdict
- * or test mark with its time, a stack frame, a warning head, a terminal colour. The glance checks warn where one is
+ * or indented test mark with its time, a stack frame, a lowercase warning head, a terminal colour. The glance checks warn where one is
  * drawn outside an <output>. */
 export const SLATE_LOG_LINE = new RegExp([
-  ...RUNNER_FAILURE, "\\b[Ee]xit(?:ed)?(?: with)? code \\d", "\\btest result:", "\\b\\d+ passed; \\d+ failed", "^\\s*[Ww]arning(?:\\[|:)",
+  ...RUNNER_FAILURE, "\\b[Ee]xit(?:ed)?(?: with)? code \\d", "\\btest result:", "\\b\\d+ passed; \\d+ failed", "^\\s*warning(?:\\[|:)",
   "^\\s*Test Files {2}", "^\\s*Tests:? {2,}\\d", "^=+ .*\\bin \\d+(?:\\.\\d+)?s =+$", "^\\s*PASS {1,2}\\S+\\.\\w+",
-  "^\\s*--- PASS:", "^ok {2,}\\S+\\s+\\d", "^\\s*[✓✔×✗✖] .+ \\d+ ?ms$", "^\\s+at .+:\\d+:\\d+\\)?$", "\u001b\\[[0-9;]*m",
+  "^\\s*--- PASS:", "^ok {2,}\\S+\\s+\\d", "^\\s+[✓✔×✗✖] .+ \\d+ ?ms$", "^\\s+at .+:\\d+:\\d+\\)?$", "\u001b\\[[0-9;]*m",
 ].join("|"), "m");
 /** vitest names a failed test twice, by its mark in the tree and on its FAIL line after: the FAIL line, with the file,
  * is the one kept. */
 const FAIL_NAMES = /^\s*FAIL\s+(?:\|[^|]+\|\s+)?\S+ > (.+)$/;
 const MARK_NAMES = /^\s*[×✗✖]\s+(.+?)(?:\s+\d+(?:\.\d+)?m?s)?$/;
 const LINE_CHARS = 160;
-const cut = (line: string): string => (line.length > LINE_CHARS ? `${line.slice(0, LINE_CHARS - 1)}…` : line);
+/** A line past LINE_CHARS characters, cut on a whole one: UTF-16 units would split an emoji. */
+function cut(line: string): string {
+  if (line.length <= LINE_CHARS) return line;
+  const chars: string[] = [];
+  for (const ch of line) {
+    chars.push(ch);
+    if (chars.length > LINE_CHARS) return `${chars.slice(0, LINE_CHARS - 1).join("")}…`;
+  }
+  return line;
+}
 const ANSI = new RegExp("\u001b\\[[0-9;]*m", "g");
 
 function tally(line: string): Partial<Record<Count, number>> {
