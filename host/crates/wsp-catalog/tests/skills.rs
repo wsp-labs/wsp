@@ -5,7 +5,9 @@ use serde_json::json;
 use wsp_catalog::catalog::{catalog_agents, catalog_entry, AgentEntry};
 use wsp_catalog::context::SKILL_NAME;
 use wsp_catalog::mcp::{CODEX_TOML, OPENCODE_JSON};
-use wsp_catalog::skills::{is_system_skill, own_skill_folder, skills_dir_of, Lands, SkillRoot, SHARED_SKILLS, WSP_SKILL_NAME, XDG_SHARED_SKILLS};
+use wsp_catalog::skills::{
+    is_system_skill, own_skill_folder, skills_dir_of, Lands, SkillRoot, SHARED_SKILLS, WSP_SKILL_NAME, XDG_SHARED_SKILLS,
+};
 
 mod the_folders_each_agent_loads_skills_from {
     use super::*;

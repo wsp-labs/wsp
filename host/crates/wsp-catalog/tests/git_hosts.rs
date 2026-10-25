@@ -8,7 +8,9 @@ mod the_host_a_remote_names {
 
     #[test]
     fn reads_the_scp_form_an_ssh_url_and_an_https_url_alike_a_login_and_a_port_being_no() {
-        for remote in ["git@github.com:o/r.git", "ssh://git@GitHub.com/o/r", "https://github.com/o/r", "https://user@github.com:443/o/r.git"] {
+        for remote in
+            ["git@github.com:o/r.git", "ssh://git@GitHub.com/o/r", "https://github.com/o/r", "https://user@github.com:443/o/r.git"]
+        {
             assert_eq!(remote_host(remote).as_deref(), Some("github.com"), "{remote}");
         }
         assert_eq!(remote_host("git@gitlab.example.com:o/r.git").as_deref(), Some("gitlab.example.com"));

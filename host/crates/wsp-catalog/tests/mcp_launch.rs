@@ -200,10 +200,9 @@ mod a_codex_thread_starts_config {
 
     #[test]
     fn reads_a_folders_trust_however_the_toml_spells_it_a_dotted_key_and_an_inline_tabl() {
-        for trust in [
-            "projects.\"/root/spoo-ts\".trust_level = \"trusted\"",
-            "projects = { \"/root/spoo-ts\" = { trust_level = \"trusted\" } }",
-        ] {
+        for trust in
+            ["projects.\"/root/spoo-ts\".trust_level = \"trusted\"", "projects = { \"/root/spoo-ts\" = { trust_level = \"trusted\" } }"]
+        {
             let text = format!("{trust}\n{}", user());
             let got = codex_launch_config(&configs(Some(own(&text)), Some(vec![proj(&project())]), "/root/spoo-ts"), &values());
             assert_eq!(got.get("mcp_servers.proj.env.GH_TOKEN").map(String::as_str), Some("ghp_TESTONLY"), "{trust}");
@@ -245,15 +244,9 @@ mod the_held_names_a_launch_on_a_computer_the_person_owns_cannot_hand_a_server {
             "/root",
         );
         let held = held(&["LINEAR_TOKEN", "GH_TOKEN"]);
-        let got: Vec<(String, Vec<String>)> = servers.iter().map(|s| (s.name.clone(), launch_misses("codex", CODEX_TOML, s, &held))).collect();
-        assert_eq!(
-            got,
-            vec![
-                ("web".to_string(), strings(&["LINEAR_TOKEN"])),
-                ("gh".to_string(), vec![]),
-                ("hdr".to_string(), vec![]),
-            ]
-        );
+        let got: Vec<(String, Vec<String>)> =
+            servers.iter().map(|s| (s.name.clone(), launch_misses("codex", CODEX_TOML, s, &held))).collect();
+        assert_eq!(got, vec![("web".to_string(), strings(&["LINEAR_TOKEN"])), ("gh".to_string(), vec![]), ("hdr".to_string(), vec![]),]);
     }
 
     #[test]
