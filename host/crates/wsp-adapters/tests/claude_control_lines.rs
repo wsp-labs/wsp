@@ -208,3 +208,113 @@ fn end_answer_says_a_report_once_and_none_in_words() {
     assert_eq!(end_answer(&mut book, &stranger, "s"), vec![]);
     assert!(!book.notified.contains("bash-1"), "a background command is none of this");
 }
+
+fn option(id: &str, label: &str, effect: PermissionEffect, mode: Option<&str>) -> PermissionOption {
+    PermissionOption { id: id.into(), label: label.into(), effect, mode: mode.map(String::from) }
+}
+
+fn bash_ask(input: &str, options: Vec<PermissionOption>) -> PermissionAsk {
+    PermissionAsk { ask_id: "r1".into(), tool_name: "Bash".into(), tool_use_id: None, parent_tool_use_id: None, input: input.into(), detail: None, options }
+}
+
+fn consent() -> Vec<PermissionOption> {
+    vec![option("allow", "Allow", PermissionEffect::Allow, None), option("deny", "Deny", PermissionEffect::Deny, None), option("mode:x", "x", PermissionEffect::Mode, None)]
+}
+
+// Rule C1: the answer hands the input back as parsed: only a JSON null becomes {}; 0, false, "" and [] stay.
+#[test]
+fn an_answer_hands_back_any_parsed_input_but_null() {
+    let back: Vec<Value> = ["0", "false", "\"\"", "[]", "null"]
+        .iter()
+        .map(|input| wsp_adapters::claude::permissions::control_answer_line(&bash_ask(input, consent()), "allow", "").unwrap())
+        .map(|line| serde_json::from_str::<Value>(&line).unwrap()["response"]["response"]["updatedInput"].clone())
+        .collect();
+    assert_eq!(back, vec![json!(0), json!(false), json!(""), json!([]), json!({})]);
+}
+
+// Rule C2: a mode option with no mode writes its permission update with no mode key, byte for byte.
+#[test]
+fn a_mode_option_with_no_mode_writes_no_mode_key() {
+    let line = wsp_adapters::claude::permissions::control_answer_line(&bash_ask("{}", consent()), "mode:x", "").unwrap();
+    assert_eq!(line, r#"{"type":"control_response","response":{"subtype":"success","request_id":"r1","response":{"behavior":"allow","updatedInput":{},"updatedPermissions":[{"type":"setMode","destination":"session"}]}}}"#);
+}
+
+// Rule C3: a question offers no allow, so allowing it unasked is refused with the pick's words.
+#[test]
+fn allowing_a_question_unasked_is_refused() {
+    let question = PermissionAsk { ask_id: "q".into(), tool_name: "AskUserQuestion".into(), tool_use_id: None, parent_tool_use_id: None, input: "{}".into(), detail: None, options: vec![option("q0:o0", "A", PermissionEffect::Answer, None)] };
+    assert_eq!(wsp_adapters::claude::permissions::control_allow_line(&question).map_err(|e| e.0), Err("allow is not an option on this permission prompt".to_string()));
+}
+
+// Rule C4: empty-string ids are kept and ids that are no strings are dropped; a description that is no string is no
+// detail; a mode suggestion needs type setMode and a string mode, "" included, each mode once.
+#[test]
+fn an_ask_keeps_empty_ids_and_reads_only_string_mode_suggestions() {
+    let kept = control_line(&obj(json!({"type": "control_request", "request_id": "r1", "request": {"subtype": "can_use_tool", "tool_name": "Bash", "description": "d", "tool_use_id": "", "agent_id": "", "input": {}}})));
+    let allow_deny = vec![option("allow", "Allow", PermissionEffect::Allow, None), option("deny", "Deny", PermissionEffect::Deny, None)];
+    assert_eq!(
+        kept,
+        Some(ControlLine::Ask { ask: PermissionAsk { ask_id: "r1".into(), tool_name: "Bash".into(), tool_use_id: Some("".into()), parent_tool_use_id: None, input: "{}".into(), detail: Some("d".into()), options: allow_deny.clone() }, agent_id: Some("".into()) })
+    );
+    let suggestions = json!([{"type": "setMode", "mode": ""}, {"mode": "plan"}, null, 5, {"type": "setMode", "mode": 5}, {"type": "setMode", "mode": "plan"}, {"type": "setMode", "mode": "plan", "destination": "x"}, {"type": "setMode", "mode": "default"}]);
+    let odd = control_line(&obj(json!({"type": "control_request", "request_id": "r1", "request": {"subtype": "can_use_tool", "tool_name": "Bash", "description": 5, "tool_use_id": 7, "agent_id": 9, "input": {}, "permission_suggestions": suggestions}})));
+    let mut options = allow_deny;
+    options.extend([option("mode:", "", PermissionEffect::Mode, Some("")), option("mode:plan", "plan", PermissionEffect::Mode, Some("plan")), option("mode:default", "default", PermissionEffect::Mode, Some("default"))]);
+    assert_eq!(odd, Some(ControlLine::Ask { ask: PermissionAsk { ask_id: "r1".into(), tool_name: "Bash".into(), tool_use_id: None, parent_tool_use_id: None, input: "{}".into(), detail: None, options }, agent_id: None }));
+}
+
+// Rule C5: a lifecycle state other than queued or started (absent, a number, a new word) drops the steer, every drop
+// is told, the same id again included, and the ones still open follow in the order added.
+#[test]
+fn every_drop_is_told_in_order_and_never_deduped() {
+    let mut steers = Steers::new(&[], &[]);
+    steers.read(&init(&["msg_lifecycle_v1"]));
+    for id in ["a", "b", "c", "d"] {
+        steers.add(id);
+    }
+    steers.read(&obj(json!({"type": "command_lifecycle", "command_uuid": "a"})));
+    steers.read(&obj(json!({"type": "command_lifecycle", "command_uuid": "b", "state": 5})));
+    steers.read(&lifecycle("c", "weird"));
+    steers.read(&lifecycle("zz", "weird"));
+    steers.add("a");
+    steers.read(&lifecycle("a", "weird"));
+    assert!(steers.settle());
+    assert_eq!(told(&mut steers), vec![AdapterEvent::TurnUnread { session_id: "s".into(), ids: vec!["a".into(), "b".into(), "c".into(), "a".into(), "d".into()] }]);
+}
+
+// Rule C6: settle on a CLI that reports nothing fixes the unread list empty for good, a later report notwithstanding.
+#[test]
+fn a_settle_before_any_report_tells_nothing_ever() {
+    let mut steers = Steers::new(&[], &[]);
+    steers.add("m");
+    assert!(!steers.settle());
+    steers.read(&lifecycle("m", "queued"));
+    assert_eq!((steers.reports(), steers.open()), (true, true));
+    assert_eq!(told(&mut steers), vec![]);
+}
+
+// Rule C7: steered_ids keeps "" as an id and adds no id twice; a uuid that is no string clears the list.
+#[test]
+fn steered_ids_keep_the_empty_id_and_clear_on_a_line_with_no_string_uuid() {
+    let line = |uuid: Value| json!({"type": "user", "message": {"role": "user", "content": []}, "uuid": uuid}).to_string();
+    assert_eq!(wsp_adapters::claude::steers::steered_ids(&[line(json!("")), line(json!("a")), line(json!(""))]), vec!["", "a"]);
+    assert_eq!(wsp_adapters::claude::steers::steered_ids(&[line(json!("a")), line(json!(null)), line(json!("b")), line(json!(5)), line(json!("c"))]), vec!["c"]);
+}
+
+// Rule C8: task_ended reads the words exactly: a kill is stopped, a status word is case-sensitive, a hand-back of null
+// is no report, a blank warning is none.
+#[test]
+fn a_task_end_reads_each_word_exactly() {
+    let note = |extra: Value| {
+        let mut line = json!({"type": "system", "subtype": "task_notification", "task_id": "t"});
+        line.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        task_ended(&obj(line))
+    };
+    let end = |state: SubagentState, summary: Option<&str>| Some(TaskEnd { task: "t".into(), state, summary: summary.map(String::from) });
+    assert_eq!(task_ended(&obj(json!({"type": "system", "subtype": "task_updated", "task_id": "t", "patch": {"status": "killed"}, "summary": "s"}))), end(SubagentState::Stopped, None));
+    assert_eq!(note(json!({"status": "Completed"})), end(SubagentState::Failed, None));
+    assert_eq!(note(json!({})), None);
+    assert_eq!(note(json!({"status": "completed", "handback": null, "summary": "s"})), end(SubagentState::Done, Some(NO_REPORT_LINE)));
+    assert_eq!(note(json!({"status": "completed", "handback": "send", "handback_report": {"text": "T", "warning": ""}})), end(SubagentState::Done, None));
+    assert_eq!(note(json!({"status": "completed", "handback": "send", "handback_report": {"text": "T", "warning": "W"}})), end(SubagentState::Done, Some("W")));
+}

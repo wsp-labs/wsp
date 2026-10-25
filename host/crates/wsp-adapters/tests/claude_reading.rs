@@ -226,3 +226,82 @@ fn spend_at_end_takes_the_run_time_from_the_end_line_alone() {
     assert_eq!(subagent_spent_at_end(&book, "t1", &ended), Some(SubagentUsage { tokens: None, tool_uses: Some(4), duration_ms: Some(JsNumber(1500.0)) }));
     assert_eq!(subagent_spent_at_end(&book, "nobody", &ended), None);
 }
+
+// Rule R1: the line is trimmed as JavaScript trims, which strips U+FEFF and leaves U+0085.
+#[test]
+fn parse_line_trims_as_javascript_does() {
+    assert_eq!(parse_line("\u{FEFF}{\"type\":\"x\"}"), Some(obj(json!({"type": "x"}))));
+    assert_eq!(parse_line("\u{85}{\"type\":\"x\"}"), None, "U+0085 stays, so the line does not open with a brace");
+}
+
+// Rule R2 (a forced difference): JSON.parse takes a lone surrogate escape, which a CLI that cut a string inside a pair
+// writes; a Rust string cannot hold one, so it reads as U+FFFD and the line still reads.
+#[test]
+fn parse_line_reads_a_lone_surrogate_as_the_replacement_character() {
+    assert_eq!(parse_line(r#"{"type":"x","t":"a\ud800b","u":"😀"}"#), Some(obj(json!({"type": "x", "t": "a\u{FFFD}b", "u": "\u{1F600}"}))));
+}
+
+// Rule R3: usedPercent is JS Math.round(utilization * 1000) / 10, whose halves go up, the negative ones too.
+#[test]
+fn used_percent_rounds_as_javascript_does() {
+    let used = |u: f64| limit_of(Some(&obj(json!({"rateLimitType": "five_hour", "utilization": u})))).unwrap().windows[0].used_percent;
+    let got: Vec<JsNumber> = [0.285, 0.1235, 0.0005, 0.07, 0.29, 1.005, 0.12349, -0.0015].map(used).to_vec();
+    assert_eq!(got, [28.5, 12.4, 0.1, 7.0, 29.0, 100.5, 12.3, -0.1].map(JsNumber).to_vec());
+}
+
+// Rule R4: a stop taken back and set again goes to the end of the map; a type that is no string reads as "", a
+// string `isUsingOverage` is no overage, a string `resetsAt` no reset.
+#[test]
+fn note_rejected_moves_a_stop_set_again_to_the_end() {
+    let mut rejected: Rejected = IndexMap::new();
+    for info in [
+        json!({"status": "rejected", "rateLimitType": "five_hour", "resetsAt": 1.5, "isUsingOverage": "true"}),
+        json!({"status": "rejected", "rateLimitType": 7}),
+        json!({"status": "rejected", "rateLimitType": "seven_day", "resetsAt": "9"}),
+        json!({"status": "allowed", "rateLimitType": "five_hour"}),
+        json!({"status": "rejected", "rateLimitType": "five_hour", "resetsAt": 0}),
+    ] {
+        note_rejected(Some(&obj(info)), &mut rejected);
+    }
+    assert_eq!(rejected.into_iter().collect::<Vec<_>>(), vec![("".to_string(), None), ("seven_day".to_string(), None), ("five_hour".to_string(), Some(0.0))]);
+}
+
+// Rule R5: with_limit replaces a limit already there; a reset of zero or below still counts, the latest wins.
+#[test]
+fn with_limit_replaces_the_limit_and_counts_a_zero_reset() {
+    let mut rejected: Rejected = IndexMap::new();
+    rejected.insert("a".into(), Some(0.0));
+    rejected.insert("b".into(), Some(-5.0));
+    let had = TurnResult { limit: Some(TurnLimit { resets_at: Some(JsNumber(1.0)) }), text: Some("t".into()), ..failed() };
+    assert_eq!(with_limit(had, &rejected), TurnResult { limit: Some(TurnLimit { resets_at: Some(JsNumber(0.0)) }), text: Some("t".into()), ..failed() });
+}
+
+// Rule R6: a message seen again takes the newest line's input, cached and cacheWrite; only output keeps the largest.
+#[test]
+fn a_child_call_seen_again_keeps_the_newest_counts_but_the_largest_output() {
+    let mut book = SpendBook::default();
+    note_child_call(&mut book, "t1", &obj(json!({"type": "assistant", "message": {"id": "m1", "usage": {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 100}}})));
+    note_child_call(&mut book, "t1", &obj(json!({"type": "assistant", "message": {"id": "m1", "usage": {"input_tokens": 3, "output_tokens": 2, "cache_creation_input_tokens": 7}}})));
+    assert_eq!(subagent_spent(&book, "t1").and_then(|u| u.tokens), Some(UsageTokens { input: 10, output: 5, cached: 0, cache_write: 7, reasoning: 0 }));
+}
+
+// Rule R7: the cd rule, read against the TS regex; `current` is compared as given, never normalized.
+#[test]
+fn a_cd_moves_the_shell_only_on_the_forms_the_ts_reads() {
+    let cd = |command: &str, current: &str| wsp_adapters::claude::shell_cwd::shell_cwd_after(Some("Bash"), Some(&json!({"command": command})), current, "/w");
+    let got: Vec<Option<String>> = ["cd /a//b/./c/", "cd ''", "cd /a | ls", "cd /a&&ls", "cd -- /a", "cd /", "cd /a/..", "cd /a #x"].iter().map(|c| cd(c, "/x")).collect();
+    assert_eq!(got, vec![Some("/a/b/c".into()), None, None, Some("/a".into()), None, Some("/".into()), Some("/".into()), None]);
+    assert_eq!(cd("cd /root/x", "/root/x/"), Some("/root/x".into()), "a current with a trailing slash differs from the normalized target");
+}
+
+// Rule R8: TodoWrite reads every object entry, duplicates kept; a content or status that is no string reads "" and
+// pending.
+#[test]
+fn todo_write_keeps_duplicates_and_reads_odd_entries_as_blank_pending_steps() {
+    let mut book = PlanBook::default();
+    let todos = json!({"todos": [{"content": 5, "status": 7}, {"content": "x", "status": "completed"}, [], null, {"content": "x", "status": "completed"}]});
+    assert_eq!(
+        read_plan_call(Some("TodoWrite"), Some(&todos), Some("c1"), &mut book),
+        PlanCall::Steps(vec![PlanStep { text: "".into(), state: PlanStepState::Pending }, PlanStep { text: "x".into(), state: PlanStepState::Done }, PlanStep { text: "x".into(), state: PlanStepState::Done }])
+    );
+}
