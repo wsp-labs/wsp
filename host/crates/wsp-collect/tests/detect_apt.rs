@@ -226,7 +226,8 @@ mod a_failing_list_read {
         use wsp_collect::manifest::Rung;
         let seen = RefCell::new(Vec::new());
         let on_rung = |rung: Rung, count: usize| seen.borrow_mut().push((rung, count));
-        let err = block_on(collect(&failing("/usr/share/doc/tool"), CollectOptions { on_rung: Some(&on_rung) })).expect_err("the TS rejects");
+        let err =
+            block_on(collect(&failing("/usr/share/doc/tool"), CollectOptions { on_rung: Some(&on_rung) })).expect_err("the TS rejects");
         assert_eq!(err.message, "EIO: i/o error, read");
         assert_eq!(seen.into_inner(), vec![(Rung::Identity, 0), (Rung::Shell, 0), (Rung::Toolchains, 0)]);
     }

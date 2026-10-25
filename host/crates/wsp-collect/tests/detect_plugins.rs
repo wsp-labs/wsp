@@ -173,10 +173,12 @@ async fn reads_claude_code_under_its_store_in_one_line_and_asks_codexs_app_serve
     let counted = tapped(&h.host);
     detect_plugins(&counted.host, None, &[]).await;
     assert_eq!(not_codex(&counted.lines).len(), 1);
-    let codex_lines = h.codex_lines.borrow();
-    assert!(!codex_lines.is_empty());
-    let start = format!("export CODEX_HOME='{}/codex'; ", h.root);
-    assert!(codex_lines.iter().all(|l| l.starts_with(&start)), "{codex_lines:?}");
+    {
+        let codex_lines = h.codex_lines.borrow();
+        assert!(!codex_lines.is_empty());
+        let start = format!("export CODEX_HOME='{}/codex'; ", h.root);
+        assert!(codex_lines.iter().all(|l| l.starts_with(&start)), "{codex_lines:?}");
+    }
     // Under the home, with no store named, nothing of the store is read.
     let bare = home(false, None);
     assert_eq!(claude_rows(&detect_plugins(&bare.host, None, &[]).await), Vec::<Value>::new());
@@ -330,10 +332,10 @@ async fn peeks_a_folders_names_two_levels_down_and_a_files_text_and_nothing_of_w
 mod pins {
     use super::*;
     use crate::common::fake_host::*;
-    use wsp_catalog::pending::{PluginBrings, PluginScope};
     use wsp_catalog::plugins::Peeked;
     use wsp_catalog::plugins::{FoundPlugin, PluginProject, PluginSkillDirs, RootsFrom};
     use wsp_collect::detect::plugins::{peek_line, peek_records, plugin_row, PEEK};
+    use wsp_wire::types::agents_report::{PluginBrings, PluginScope};
 
     fn groups() -> Vec<PeekGroup> {
         vec![
@@ -456,7 +458,11 @@ mod w2_oracle {
             roots_from: v.get("rootsFrom").map(|r| RootsFrom { files: strs(&r["files"]), key: r["key"].as_str().unwrap().into() }),
             files: v.get("files").map(strs),
             dirs: v.get("dirs").map(|d| {
-                d.as_array().unwrap().iter().map(|d| PeekDir { path: d["path"].as_str().unwrap().into(), depth: d["depth"].as_u64().unwrap() as u8 }).collect()
+                d.as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|d| PeekDir { path: d["path"].as_str().unwrap().into(), depth: d["depth"].as_u64().unwrap() as u8 })
+                    .collect()
             }),
         }
     }
@@ -473,8 +479,10 @@ mod w2_oracle {
                 None => Value::Null,
                 Some(r) => {
                     let p = &case["probes"];
-                    let texts: serde_json::Map<String, Value> = strs(&p["f"]).iter().filter_map(|k| r.text(k).map(|t| (k.clone(), json!(t)))).collect();
-                    let lists: serde_json::Map<String, Value> = strs(&p["d"]).iter().filter_map(|k| r.list(k).map(|l| (k.clone(), json!(l)))).collect();
+                    let texts: serde_json::Map<String, Value> =
+                        strs(&p["f"]).iter().map(|k| (k.clone(), r.text(k).map_or(Value::Null, |t| json!(t)))).collect();
+                    let lists: serde_json::Map<String, Value> =
+                        strs(&p["d"]).iter().map(|k| (k.clone(), r.list(k).map_or(Value::Null, |l| json!(l)))).collect();
                     let looked: serde_json::Map<String, Value> = strs(&p["r"]).iter().map(|k| (k.clone(), json!(r.looked(k)))).collect();
                     json!({ "f": texts, "d": lists, "r": looked })
                 }
@@ -487,9 +495,10 @@ mod w2_oracle {
     fn detect_plugins_answers_and_runs_what_the_ts_did() {
         for case in cases(&w2("plugins"), "detect_plugins") {
             let h = host(&case["laptop"]);
-            let agents: Vec<&'static wsp_catalog::catalog::AgentEntry> = strs(&case["args"][0]).iter().map(|id| agent(id)).collect();
+            let agents: Option<Vec<&'static wsp_catalog::catalog::AgentEntry>> =
+                case["args"][0].is_array().then(|| strs(&case["args"][0]).iter().map(|id| agent(id)).collect());
             let projects: Vec<wsp_wire::types::agents_report::AgentsProject> = serde_json::from_value(case["args"][1].clone()).unwrap();
-            let got: PluginsRead = block_on(detect_plugins(&h, Some(&agents), &projects));
+            let got: PluginsRead = block_on(detect_plugins(&h, agents.as_deref(), &projects));
             let agents: Vec<Value> = got
                 .agents
                 .iter()

@@ -75,10 +75,11 @@ values printed by a gated reader in the TS.
   tools tally adds commands and installs; `in_folders` with `/`, `""`, `/ab` and a trailing slash; the
   `meets_used_floor` and `is_heavy` boundaries (`reduce_calls`, `one_holder`, `usage_of`, `in_folders`,
   `meets_used_floor`, `is_heavy`, `installed_name`, `install_key`).
-- W8. Not copied from the TS: a command named `toString`, `constructor` or `valueOf` is an ordinary name in Rust (the
-  TS object turns its count into text), and `__proto__` is an ordinary name (the TS drops it). Integer-like names keep
-  first-seen order in Rust (the TS lists them first); the fixture's cases named `[JS key order ...]` are compared as
-  maps.
+- W8. A bucket's command counts keep a JavaScript object's order and its one dead key: names that read as array indexes
+  (`7`, `42`) come first in ascending order, and `__proto__` is never kept, in `reduce_calls` and in a cache read
+  (`history_names`, `review_parse::a_history_cache_command_named_proto_*`). Not copied from the TS: a command named
+  `toString`, `constructor` or `valueOf` is an ordinary name in Rust (the TS object turns its count into text). The
+  fixture's cases named `[JS key order ...]` are compared as maps.
 
 ## Rules pinned
 

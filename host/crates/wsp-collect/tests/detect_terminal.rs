@@ -279,7 +279,8 @@ mod w2_oracle {
     #[test]
     fn every_config_parser_reads_the_font_the_ts_read() {
         let f = w2("terminal");
-        let parsers: [(&str, fn(&str) -> Option<String>); 5] = [
+        type FontParser = fn(&str) -> Option<String>;
+        let parsers: [(&str, FontParser); 5] = [
             ("kitty_font", kitty_font),
             ("wezterm_font", wezterm_font),
             ("alacritty_font", alacritty_font),
