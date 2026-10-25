@@ -79,6 +79,12 @@ impl Sidebar {
         self.prefs.project.as_deref().is_none_or(|p| project == Some(p))
     }
 
+    /// Whether a workspace stands in the list as narrowed: its project the picked one, and its computer the picked one.
+    fn in_view(&self, workspace: &str) -> bool {
+        self.in_pick(self.workspace_project(workspace).as_deref())
+            && self.computer.as_deref().is_none_or(|on| self.place_of(workspace).as_deref() == Some(on))
+    }
+
     /// WorkspaceSidebar.tsx madeIn: the workspaces being made under the pick, refused (Needs you's) and in flight (Working's).
     pub(super) fn creations_shown(&self) -> (Vec<usize>, Vec<usize>) {
         (0..self.around.creations.len())
@@ -89,10 +95,8 @@ impl Sidebar {
     /// Every row the list draws, top to bottom: the sends in flight, the threads' rows with the creations and the
     /// workspaces with no thread among them, then the forwarded ports.
     pub(crate) fn draw_rows(&self) -> Vec<Drawn> {
-        let mut out: Vec<Drawn> = (0..self.around.launches.len())
-            .filter(|&i| self.in_pick(self.workspace_project(&self.around.launches[i].workspace_id).as_deref()))
-            .map(Drawn::Launch)
-            .collect();
+        let mut out: Vec<Drawn> =
+            (0..self.around.launches.len()).filter(|&i| self.in_view(&self.around.launches[i].workspace_id)).map(Drawn::Launch).collect();
         let (failed, running) = self.creations_shown();
         let thread_workspaces: std::collections::HashSet<&str> = self.threads.iter().map(|t| t.workspace_id.as_str()).collect();
         let mut bare: Vec<(f64, String)> = self
@@ -106,11 +110,7 @@ impl Sidebar {
                 let made = w.get("createdAt").and_then(Value::as_str).and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok());
                 Some((made.map_or(0., |t| t.timestamp_millis() as f64), w.get("id")?.as_str()?.to_owned()))
             })
-            .filter(|(_, id)| {
-                !thread_workspaces.contains(id.as_str())
-                    && !self.deleted_sub_thread(id)
-                    && self.in_pick(self.workspace_project(id).as_deref())
-            })
+            .filter(|(_, id)| !thread_workspaces.contains(id.as_str()) && !self.deleted_sub_thread(id) && self.in_view(id))
             .collect();
         bare.sort_by(|a, b| b.0.total_cmp(&a.0));
         let mut failed_done = failed.is_empty();
@@ -338,8 +338,11 @@ impl Sidebar {
                 let workspace = w.get("id")?.as_str()?.to_owned();
                 let lead = w.get("parentThreadId")?.as_str()?;
                 let made = w.get("createdAt").and_then(Value::as_str).and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok());
-                (!held.contains(workspace.as_str()) && self.thread(lead).is_some() && !self.deleted_sub_thread(&workspace)).then(|| {
-                    model::Machine { lead: lead.to_owned(), workspace, started_at: made.map_or(0., |t| t.timestamp_millis() as f64) }
+                let shown = self.thread(lead).is_some() && !self.deleted_sub_thread(&workspace) && self.in_view(&workspace);
+                (!held.contains(workspace.as_str()) && shown).then(|| model::Machine {
+                    lead: lead.to_owned(),
+                    workspace,
+                    started_at: made.map_or(0., |t| t.timestamp_millis() as f64),
                 })
             })
             .collect();
