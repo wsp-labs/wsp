@@ -26,7 +26,7 @@ use wsp_adapters::port::{
 };
 use wsp_wire::types::daemon_contract::BROKER_PORT;
 use wsp_wire::types::js_number::JsNumber;
-use wsp_wire::types::pending_wire::{PermissionEffect, PermissionOption};
+use wsp_wire::wire::helpers::{PermissionEffect, PermissionOption};
 use wsp_wire::types::usage::{HarnessLimit, LimitKind, LimitStatus, LimitWindow};
 use wsp_wire::types::wsp_tools::SLATE_SERVER_NAME;
 use wsp_wire::views::session::TurnRefusal;
@@ -623,10 +623,10 @@ mod codex_adapter_over_codex_app_server {
         assert_eq!(
             changed.patch,
             Some(vec![
-                FilePatch { path: "/root/lab/f.txt".into(), hunks: vec![PatchHunk { old_start: 1, old_lines: 3, new_start: 1, new_lines: 3, lines: lines(&[" alpha", "-beta", "+BETA", " gamma"]) }], moved_to: None },
-                FilePatch { path: "/root/lab/new.txt".into(), hunks: vec![PatchHunk { old_start: 0, old_lines: 0, new_start: 1, new_lines: 2, lines: lines(&["+hi", "+there"]) }], moved_to: None },
-                FilePatch { path: "/root/lab/old.txt".into(), hunks: vec![PatchHunk { old_start: 1, old_lines: 1, new_start: 0, new_lines: 0, lines: lines(&["-gone"]) }], moved_to: None },
-                FilePatch { path: "/root/lab/a.txt".into(), hunks: vec![PatchHunk { old_start: 2, old_lines: 1, new_start: 2, new_lines: 1, lines: lines(&["-x", "+y"]) }], moved_to: Some("/root/lab/b.txt".into()) },
+                FilePatch { path: "/root/lab/f.txt".into(), hunks: vec![PatchHunk { old_start: 1.into(), old_lines: 3.into(), new_start: 1.into(), new_lines: 3.into(), lines: lines(&[" alpha", "-beta", "+BETA", " gamma"]) }], moved_to: None },
+                FilePatch { path: "/root/lab/new.txt".into(), hunks: vec![PatchHunk { old_start: 0.into(), old_lines: 0.into(), new_start: 1.into(), new_lines: 2.into(), lines: lines(&["+hi", "+there"]) }], moved_to: None },
+                FilePatch { path: "/root/lab/old.txt".into(), hunks: vec![PatchHunk { old_start: 1.into(), old_lines: 1.into(), new_start: 0.into(), new_lines: 0.into(), lines: lines(&["-gone"]) }], moved_to: None },
+                FilePatch { path: "/root/lab/a.txt".into(), hunks: vec![PatchHunk { old_start: 2.into(), old_lines: 1.into(), new_start: 2.into(), new_lines: 1.into(), lines: lines(&["-x", "+y"]) }], moved_to: Some("/root/lab/b.txt".into()) },
             ])
         );
     }
