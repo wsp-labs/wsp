@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The image tools: the record this host owns with its copies and project images, a copy built at a place, and a
-//! project image removed. What the TypeScript tool parses through the protocol's schema is typed here in that
+//! The image tools: the record this host owns with its copies, and a copy built at a place. What the TypeScript tool parses through the protocol's schema is typed here in that
 //! schema's order, a field it does not know dropped as the parse drops it; the recipe a record carries passes through
 //! as the host wrote it.
 
 use serde::{Deserialize, Serialize};
-use serde_json::value::{to_raw_value, RawValue};
+use serde_json::value::RawValue;
 use serde_json::{Map, Number, Value};
 
-use super::workspace::{self, fmt_bytes, js_prefix, params, read};
+use super::workspace::{self, fmt_bytes, params, read};
 use super::{input, Answer, Refused, Tool};
 use crate::failure::Failure;
 use crate::host::Host;
-use crate::record::fill;
 
 type Arc<T> = std::sync::Arc<T>;
 
@@ -26,8 +24,6 @@ pub struct SealedImage {
     recipe_hash: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     recipe: Option<Box<RawValue>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pins: Option<Vec<SealedPin>>,
     logins: Vec<Login>,
     sealed_at: String,
     sealed_from: String,
@@ -37,18 +33,6 @@ pub struct SealedImage {
     used_bytes: Option<Number>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     place: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SealedPin {
-    tag: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    sha256: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    latest: Option<bool>,
-    id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    road: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -84,34 +68,6 @@ pub struct SealedImageCopy {
     size_bytes: Option<Number>,
 }
 
-/// packages/protocol's ProjectGolden, and with `size_bytes` its SealedProjectImage.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectGolden {
-    snapshot_id: String,
-    projects: Vec<WorkspaceProject>,
-    golden: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    version: Option<Number>,
-    workspace_id: String,
-    workspace_name: String,
-    created_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    place: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    size_bytes: Option<Number>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkspaceProject {
-    name: String,
-    dest: String,
-    imported_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    size: Option<Number>,
-}
-
 /// packages/protocol's SealedImageView.
 #[derive(Debug, Serialize, Deserialize)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
@@ -120,8 +76,6 @@ pub struct ImageOut {
     image: Option<SealedImage>,
     #[cfg_attr(test, schemars(with = "Vec<serde_json::Value>"))]
     copies: Vec<SealedImageCopy>,
-    #[cfg_attr(test, schemars(with = "Vec<serde_json::Value>"))]
-    projects: Vec<ProjectGolden>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -162,35 +116,10 @@ fn image_line(image: &SealedImage) -> String {
     parts.join("  ")
 }
 
-fn pin_line(pin: &SealedPin) -> String {
-    let words = workspace::words();
-    let name = words.catalog_names.get(&pin.id).cloned().unwrap_or_else(|| pin.id.split('/').skip(2).collect::<Vec<_>>().join("/"));
-    let mut parts = vec![name, pin.tag.clone()];
-    parts.extend(pin.sha256.as_ref().map(|sum| format!("checksum {}", js_prefix(sum, words.sum_shown))));
-    if pin.latest == Some(true) {
-        let road = pin.road.as_ref().and_then(|r| words.road_words.get(r));
-        parts.push(road.map_or(words.installs_latest.clone(), |said| format!("{} {said}", words.installs_latest)));
-    }
-    format!("  {}", parts.join("  "))
-}
-
-fn project_line(project: &ProjectGolden) -> String {
-    let mut parts = vec![
-        project.snapshot_id.clone(),
-        format!("project {}", project.workspace_name),
-        project.projects.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", "),
-    ];
-    parts.extend(project.size_bytes.as_ref().map(|n| fmt_bytes(f64_of(n))));
-    parts.push(project.created_at.clone());
-    parts.join("  ")
-}
-
 fn image_lines(view: &ImageOut) -> String {
     let Some(image) = &view.image else { return workspace::words().no_sealed_image };
     let mut lines = vec![image_line(image)];
     lines.extend(view.copies.iter().map(|c| copy_line(image, c)));
-    lines.extend(image.pins.iter().flatten().map(pin_line));
-    lines.extend(view.projects.iter().map(project_line));
     lines.join("\n")
 }
 
@@ -266,79 +195,6 @@ async fn build(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     Ok(Answer::text(said, &built))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-pub struct RemoveIn {
-    pub image: String,
-    #[serde(default)]
-    pub confirm: Option<bool>,
-}
-
-/// packages/protocol's ProjectGoldenRemoved. The record is the list's row as the host sent it on an unconfirmed
-/// call, and the parsed record the removal answers with on a confirmed one.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-pub struct RemoveOut {
-    #[cfg_attr(test, schemars(with = "serde_json::Value"))]
-    project_golden: Box<RawValue>,
-    already_gone: bool,
-}
-
-const REMOVE_NAME: &str = "image_remove";
-
-pub const REMOVE: Tool = Tool {
-    name: REMOVE_NAME,
-    listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/image_remove.json")),
-    call: |host, args| Box::pin(remove(host, args)),
-};
-
-/// A remove takes the snapshot id alone, never a project's name. Without confirm nothing goes and the answer is what
-/// would, which is the line to put to the person.
-async fn remove(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Row {
-        snapshot_id: String,
-        workspace_name: String,
-        created_at: String,
-    }
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Listed {
-        project_goldens: Vec<Box<RawValue>>,
-    }
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Removed {
-        project_golden: ProjectGolden,
-        already_gone: bool,
-    }
-    let RemoveIn { image: id, confirm } = input(REMOVE_NAME, arguments)?;
-    let client = host.client().await?;
-    let words = workspace::words();
-    let listed: Listed = client.request("projectGoldens.list", Map::new()).await?;
-    let mut found = None;
-    for raw in listed.project_goldens {
-        let row: Row = read(&raw, "projectGoldens.list")?;
-        if row.snapshot_id == id {
-            found = Some((raw, row));
-            break;
-        }
-    }
-    let Some((raw, row)) = found else { return Err(Failure::of_kind(fill(&words.no_project_image, &[("id", &id)]), "not-found").into()) };
-    if confirm != Some(true) {
-        let notice = fill(&words.remove_notice, &[("workspace", &row.workspace_name), ("date", &js_prefix(&row.created_at, 10))]);
-        let said = fill(&words.remove_kept, &[("id", &id), ("notice", &notice)]);
-        return Ok(Answer::text_error(said, &RemoveOut { project_golden: raw, already_gone: false }));
-    }
-    let mut removed: Removed = client.request("projectGoldens.remove", params([("snapshotId", Value::from(id.as_str()))])).await?;
-    removed.project_golden.size_bytes = None;
-    let said = fill(if removed.already_gone { &words.removed_gone } else { &words.removed_now }, &[("id", &id)]);
-    let project_golden = to_raw_value(&removed.project_golden).map_err(|e| Failure::new(e.to_string()))?;
-    Ok(Answer::text(said, &RemoveOut { project_golden, already_gone: removed.already_gone }))
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::held::to_the_record;
@@ -348,6 +204,5 @@ mod tests {
     fn its_structs_are_the_recorded_schemas() {
         to_the_record::<ImageIn, ImageOut>(IMAGE.listed);
         to_the_record::<BuildIn, BuildOut>(BUILD.listed);
-        to_the_record::<RemoveIn, RemoveOut>(REMOVE.listed);
     }
 }

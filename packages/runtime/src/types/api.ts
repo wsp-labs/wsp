@@ -16,8 +16,6 @@ import type {
   PortProbeView,
   PortReachView,
   ProjectExportResult,
-  ProjectGolden,
-  ProjectGoldenRemoved,
   ProjectImportResult,
   ProjectView,
   ProjectBranch,
@@ -195,11 +193,6 @@ export interface Runtime {
      * clears it, so the colour picker and the icon picker each send their own without reading the other's. The record
      * alone changes and the machine is untouched, so this goes out as workspace.look. */
     look(id: string, look: WorkspaceLook, origin?: Caller): Promise<WorkspaceView>;
-    /** Snapshots the running machine as a project golden: the golden it stands on plus the project as it is now, so a
-     * fork of the snapshot starts a task with the project in place. Refused in one sentence when the workspace is not
-     * running or holds no project; a machine that was ever resumed is refused by the engine (kind notFirstLife). The
-     * guest freezes for about three seconds and stays first-life. */
-    snapshot(id: string, origin?: Caller): Promise<ProjectGolden>;
     /** The recipe's daemon deploy on the running machine, replacing the daemon there, then this runtime's token
      * written again so the next reach opens it. The runtime runs it by itself when a machine's daemon is older than
      * this wsp. Throws on a workspace that is not running or a runtime without the deploy. */
@@ -632,12 +625,6 @@ export interface Runtime {
      * forks boot from it from then on; one whose snapshot the provider has lost is a row saying so and nothing is
      * written. Undefined on a backend without templates; empty when every version already has one. */
     promote(name?: string): Promise<GoldenPromotion[] | undefined>;
-    /** Every project golden this runtime took, oldest first. */
-    projects(): Promise<ProjectGolden[]>;
-    /** Deletes a project golden's snapshot at the provider of its place and drops the record once the listing reads
-     * it gone, or at once where the provider already lost it. Refused while any workspace stands on it; a refusal
-     * of the provider's, or a listing that holds the id through the read-back window, keeps the record. */
-    removeProject(snapshotId: string): Promise<ProjectGoldenRemoved>;
     /** Every snapshot on the account by count, size and monthly cost past the free GB, sized from the provider's
      * listing and split by who made each one; undefined on a backend that cannot list snapshots. */
     storage(): Promise<SnapshotStorage | undefined>;

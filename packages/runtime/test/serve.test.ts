@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { connect, type Socket } from "node:net";
 import WebSocket from "ws";
 import { keyFingerprint } from "@wsp/engine";
-import { AUTH_DEADLINE_CLOSE, DAEMON_AUTH_DEADLINE_PASSED, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DOCTOR_UNSERVED, REQUEST_NOT_AN_OBJECT, doctorRowRefusal, doctorRunningLine, HERE_PLACE_ID, HOST_STOPPING_CLOSE, noSuchPlaceRefusal, tableName, PLACE_LINK_NONCE_BYTES, placeLinkTranscript, SEAL_CLIENT, SEAL_UNSERVED, SealOpenReply, WS_PATH, type AdapterEvent, type DoctorLineEvent, type ForwardEvent, type InitJob, type PortForward, type TurnResult } from "@wsp/protocol";
+import { AUTH_DEADLINE_CLOSE, DAEMON_AUTH_DEADLINE_PASSED, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DOCTOR_UNSERVED, REQUEST_NOT_AN_OBJECT, doctorRowRefusal, doctorRunningLine, HERE_PLACE_ID, HOST_STOPPING_CLOSE, noSuchPlaceRefusal, tableName, PLACE_LINK_NONCE_BYTES, placeLinkTranscript, SEAL_CLIENT, SEAL_UNSERVED, SealOpenReply, WS_PATH, type AdapterEvent, type DoctorLineEvent, type ForwardEvent, type PortForward, type TurnResult } from "@wsp/protocol";
 import { copyKey, createRuntime, type HarnessAdapterFactory, type HarnessSession, type HarnessStartOptions, type InitDoor, type Runtime } from "../src/runtime.js";
 import { newPlaceKeyPair, verifyPlaceBytes, type PlaceKeyPair, type PlaceRecord } from "../src/places.js";
 import { freshEphemeral, makeSeal, sealKeys, sharedSecret } from "@wsp/keys";
@@ -1156,12 +1156,10 @@ describe("serveRuntime workspaces.exec", () => {
   });
 });
 
-describe("serveRuntime init door (the host's init job, read and driven from the app)", () => {
-  const JOB: InitJob = { id: "init_1", road: "manual", phase: "answering", keys: { box: false, solari: true }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 0, total: 0 }, log: [] };
-  const SETUP = { keys: { box: false, solari: true }, keyProvider: "solari", home: "/Users/me", agents: [{ id: "claude", name: "Claude Code", configured: true, takesTools: true }], pricing: { size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.11 }, job: null };
+describe("serveRuntime init door (the host's cloud setup, read and keyed from the app)", () => {
+  const SETUP = { keys: { box: false, solari: true }, keyProvider: "solari", home: "/Users/me", pricing: { size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.11 } };
   function fakeDoor() {
     const calls: unknown[] = [];
-    const listeners = new Set<Parameters<InitDoor["on"]>[0]>();
     const door: InitDoor = {
       get: async () => SETUP,
       // As the host answers: one entry per provider it can hold a key for, the one just saved true.
@@ -1169,111 +1167,30 @@ describe("serveRuntime init door (the host's init job, read and driven from the 
         calls.push(["keys", k]);
         return { ...SETUP, keys: { ...SETUP.keys, ...(k.provider === undefined ? {} : { [k.provider]: true }) } };
       },
-      step: async o => {
-        calls.push(["step", o]);
-        return { ...JOB, step: o.at };
-      },
-      draft: async o => {
-        calls.push(["draft", o]);
-        return { ...JOB, drafts: [{ at: o.at, ticks: o.ticks ?? [], answers: o.answers ?? {} }] };
-      },
-      retry: async o => {
-        calls.push(["retry", o]);
-        return JOB;
-      },
-      start: async o => {
-        calls.push(["start", o]);
-        return { ...JOB, road: o.road, phase: "reading" as const };
-      },
-      answer: async o => {
-        calls.push(["answer", o]);
-        return JOB;
-      },
-      build: async o => {
-        calls.push(["build", o]);
-        return { ...JOB, phase: "building" as const };
-      },
-      signInCode: async o => {
-        calls.push(["signInCode", o]);
-        return { ...JOB, phase: "signing-in" as const };
-      },
-      cancel: async () => {
-        calls.push(["cancel"]);
-        return { ...JOB, phase: "cancelled" as const };
-      },
-      on: fn => {
-        listeners.add(fn);
-        return () => listeners.delete(fn);
-      },
     };
-    return {
-      door,
-      calls,
-      emit: (job: typeof JOB) => listeners.forEach(fn => fn({ type: "init.job", job })),
-      need: (needsYou: { what: string; since: number }) => listeners.forEach(fn => fn({ type: "job.needs-you", jobId: JOB.id, needsYou })),
-      listeners,
-    };
+    return { door, calls };
   }
 
-  it("every init op reaches the door with its fields and answers with its view; a key never comes back", async () => {
+  it("init.get and init.keys reach the door with their fields and answer with its view; a key never comes back", async () => {
     const { door, calls } = fakeDoor();
     srv = await serveRuntime(rt(), { port: 0, authToken: "secret", init: door });
     const c = await WsClient.connect(srv.port, { token: "secret" });
     expect((await c.request("init.get"))["setup"]).toEqual(SETUP);
-    const saved = await c.request("init.keys", { provider: "box", key: "ascii_live_fake", rows: { "logins/claude": "sk-ant-x" } });
+    const saved = await c.request("init.keys", { provider: "box", key: "ascii_live_fake" });
     expect(saved["setup"]).toEqual({ ...SETUP, keys: { box: true, solari: true } });
-    expect(JSON.stringify(saved)).not.toMatch(/ascii_live_fake|sk-ant-x/);
-    expect((await c.request("init.start", { road: "agent", harness: "claude" }))["job"]).toMatchObject({ road: "agent", phase: "reading" });
-    expect((await c.request("init.answer", { screen: "tools", ticks: ["gh"], answers: { "logins/gh": "machine" } }))["job"]).toEqual(JOB);
-    expect((await c.request("init.step", { at: 2 }))["job"]).toMatchObject({ step: 2 });
-    expect((await c.request("init.retry", { tool: "gh" }))["job"]).toEqual(JOB);
-    expect((await c.request("init.build", { firstWorkspace: "first", rebuild: true }))["job"]).toMatchObject({ phase: "building" });
-    expect((await c.request("init.signInCode", { tool: "gcloud", code: "4/0Afake" }))["job"]).toMatchObject({ phase: "signing-in" });
-    expect((await c.request("init.cancel"))["job"]).toMatchObject({ phase: "cancelled" });
-    // The door is the one home for what the build op takes: naming the whole object here is what makes a field the
-    // server spreads in and the door never declared a type error rather than a field nothing checks.
-    const built: Parameters<InitDoor["build"]>[0] = { firstWorkspace: "first", rebuild: true };
-    expect(calls).toEqual([
-      ["keys", { provider: "box", key: "ascii_live_fake", rows: { "logins/claude": "sk-ant-x" } }],
-      ["start", { road: "agent", harness: "claude" }],
-      ["answer", { screen: "tools", ticks: ["gh"], answers: { "logins/gh": "machine" } }],
-      ["step", { at: 2 }],
-      ["retry", { tool: "gh" }],
-      ["build", built],
-      ["signInCode", { tool: "gcloud", code: "4/0Afake" }],
-      ["cancel"],
-    ]);
+    expect(JSON.stringify(saved)).not.toMatch(/ascii_live_fake/);
+    expect(calls).toEqual([["keys", { provider: "box", key: "ascii_live_fake" }]]);
     c.close();
   });
 
-  it("without a door every init op is refused in one line, and the events channel still serves", async () => {
+  it("without a door both ops are refused in one line, and the events channel still serves", async () => {
     srv = await serveRuntime(rt(), { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
     const refused = await c.request("init.get");
     expect(refused.ok).toBe(false);
-    expect(refused["error"]).toBe("this runtime has no init job; the host that serves the app wires one");
+    expect(refused["error"]).toBe("this runtime has no cloud setup; the host that serves the app wires one");
     expect((await c.request("events.subscribe")).ok).toBe(true);
     c.close();
-  });
-
-  it("init.job and job.needs-you events reach subscribed sockets and the subscription dies with the socket", async () => {
-    const { door, emit, need, listeners } = fakeDoor();
-    srv = await serveRuntime(rt(), { port: 0, authToken: "secret", init: door });
-    const sub = await WsClient.connect(srv.port, { token: "secret" });
-    const quiet = await WsClient.connect(srv.port, { token: "secret" });
-    await sub.request("events.subscribe");
-    emit({ ...JOB, phase: "building" });
-    // The wait on the person rides the same channel, so a client that speaks once per need has its one signal.
-    need({ what: "sign in to GitHub CLI login", since: 1_760_000_000_000 });
-    await until(() => sub.events.length === 2);
-    expect(sub.events).toEqual([
-      { type: "init.job", job: { ...JOB, phase: "building" } },
-      { type: "job.needs-you", jobId: JOB.id, needsYou: { what: "sign in to GitHub CLI login", since: 1_760_000_000_000 } },
-    ]);
-    expect(quiet.events).toEqual([]);
-    sub.close();
-    await until(() => listeners.size === 0);
-    quiet.close();
   });
 });
 

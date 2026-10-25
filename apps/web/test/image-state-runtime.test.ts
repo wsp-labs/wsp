@@ -37,7 +37,7 @@ describe("the image card over a real runtime", () => {
     await building;
 
     const row = (await rt.places!.list(Date.now())).find(p => p.id === "solari")!;
-    expect(imageState(row, { view: await rt.image.get(), job: null, frames })).toEqual({ kind: "stopped", said: copyStoppedLine("no room at solari today") });
+    expect(imageState(row, { view: await rt.image.get(), frames })).toEqual({ kind: "stopped", said: copyStoppedLine("no room at solari today") });
     await rt.close();
   });
 });

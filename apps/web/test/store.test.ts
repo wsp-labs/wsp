@@ -2,7 +2,7 @@
 // The store's session folding: rows come from the sessions.list op at a bind
 // or a reconnect, and each row that moves after that lands as the host pushes it.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CLOUD_SETUP_WORDS, DEFAULT_THEME, HOSTNAME_KEPT, type GoldenManifest, type InitJob, type PlaceView, type ProjectView, type ReleaseView, type SessionView, type WorkspaceView } from "@wsp/protocol";
+import { CLOUD_SETUP_WORDS, DEFAULT_THEME, HOSTNAME_KEPT, type GoldenManifest, type PlaceView, type ProjectView, type ReleaseView, type SessionView, type WorkspaceView } from "@wsp/protocol";
 import { readProjectHome } from "../src/protocol/address.js";
 import { DisconnectedError, RequestError, type Api, type ProtocolEvent } from "../src/protocol/client.js";
 import { LAST_WORKSPACE_KEY } from "../src/protocol/lastWorkspace.js";
@@ -293,7 +293,7 @@ describe("the address is the one record of what the person is reading", () => {
 
 describe("store creations", () => {
   const HERE_PLACE: PlaceView = { id: "here", kind: "computer", name: "studio.local", default: false, present: true };
-  const HETZNER_PLACE: PlaceView = { id: "p_1", kind: "computer", name: "hetzner", default: true, engine: "docker", present: true, takesForks: true };
+  const HETZNER_PLACE: PlaceView = { id: "p_1", kind: "computer", name: "hetzner", default: true, present: true, takesForks: true };
   /** The project every create here is made of: a repo on the computer that clones it, so the work goes there. */
   const PROJECT_ON_HETZNER: ProjectView = { id: "pr_1", name: "spoo-landing", computer: "p_1", source: { kind: "git", url: "https://github.com/dev/spoo.git" }, path: "/root/spoo-landing", remote: "https://github.com/dev/spoo.git", defaultBranch: "main", memoryKey: "-root-spoo-landing", memoryDir: "/wsp/projects/pr_1/memory", createdAt: "t" };
 
@@ -999,21 +999,6 @@ describe("store connection", () => {
     expect(useStore.getState().workspaces.map(w => w.id)).toEqual(["ws_a", "ws_b"]);
     expect(Object.keys(useStore.getState().statuses)).toEqual(["ws_a", "ws_b"]);
     expect(useStore.getState().selectedId).toBe("ws_a");
-  });
-
-  it("a setup read that answers after a newer job's view never puts the older job back", async () => {
-    const ended = { id: "init_1", road: "manual", phase: "cancelled", keys: {}, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 0, total: 0 }, log: [] } as InitJob;
-    const fresh: InitJob = { ...ended, id: "init_2", phase: "reading" };
-    const { api, emit } = fakeApi([], []);
-    let answer: () => void = () => {};
-    api.initGet = () => new Promise(r => (answer = () => r({ keys: {}, home: "/Users/dev", agents: [], pricing: null, job: ended })));
-    useStore.getState().bind(api);
-    // Start over ended one job and the next one is already reading, so its view lands before the read of the setup.
-    emit({ type: "init.job", job: fresh });
-    expect(useStore.getState().initJob?.id).toBe("init_2");
-    answer();
-    await flush();
-    expect(useStore.getState().initJob?.id).toBe("init_2");
   });
 
   it("live before anything is bound pulls nothing", () => {

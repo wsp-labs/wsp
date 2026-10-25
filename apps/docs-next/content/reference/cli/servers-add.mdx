@@ -8,11 +8,9 @@ usage: wsp servers add <name> [<thread>] [--on <computer>] --agent <id>
        [--env <NAME>]... [--project [<name>]]
   writes one MCP server into an agent's own config: a command with its arguments
   and variables, or an address with its headers, each value read off this
-  terminal's environment and written into that file on this computer, a
-  variable's value kept in the vault as well; on any other the file names a
-  variable and the value goes to the vault, an argument or the address naming a
-  variable as ${NAME} keeps that name there, and an agent that reads no variable
-  there refuses it
+  terminal's environment: the file names a variable and the value goes to the
+  vault, an argument or the address naming a variable as ${NAME} keeps that name
+  there, and an agent that reads no variable there refuses it
 
   --agent      the agent whose config takes the server, by its catalog id
   --on         the computer to read, by the name wsp computers shows; this

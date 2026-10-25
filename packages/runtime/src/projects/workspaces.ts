@@ -3,9 +3,9 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { LOGIN_PATHS, remoteHost } from "@wsp/catalog";
 import { DiskGoneError, NotFirstLifeError, RestoreUnfinishedError, ResumeUnansweredError, isMissing, readGone, MachineAliveError, answerOf, diskUse, presentPaths, projectSnapshotName, syncDisk, CHECK_MS, INLINE_EXEC_MS, checkScripts, projectInstalls } from "@wsp/engine";
-import type { ProjectGolden, ProjectView, WorkspaceProject, WorkspaceStatus, WorkspaceView } from "@wsp/protocol";
-import { childStartedLine, noParentWorkspaceLine, parentProjectRefusal, BringBackResult, GitPrReply, GitPushReply, GitCommitReply, GitDiscardReply, noChangeLine, GitDiffReply, GitRunLogReply, GitPrMergeReply, GitMergeInReply, DETACHED_HEAD, leadBusyRefusal, FIX_CHECK_OR_CHILD, childOnNoBranchRefusal, mergeChildPrompt, mergeIntoOwnRefusal, noRemoteForTreeLine, type TreeRecord, GitPrReplyReply, GitPrResolveReply, GitPrReactReply, REPLY_EMPTY_LINE, type PullRequestItem, GIT_DIFF_CAP_BYTES, pullRequestSendPrompt, checkFailedPrompt, conflictsPrompt, checkNotFailedRefusal, childPushedLine, isPullRequestFact, mergeMethodRefusal, noPullRequestRefusal, noSuchCheckRefusal, notOpenRefusal, AUTO_MERGE_OFF_LINE, DRAFT_NOTES, cleanCheckoutLine, commitMessage, cutDiff, draftPrompt, agentsFrom, agentsKindRefusal, agentsMayDrive, askerOf, openingCut, scopeOf, spawnGoldenRefusal, workspaceIdOf } from "@wsp/protocol";
-import { diskGoneReleasedLine, diskGoneReplacedLine, isLocalWorkspace, kindWords, noCommandsYetLine, readingRoad, forgetUndrivenRefusal, goneRefusal, goneWords, inFolder, machineWord, deleteRefusedLine, snapshotRefusedLine, snapshotManagerLine, snapshotLoginLine, SNAPSHOT_LOGIN_FIX, noWorkspaceRefusal, threadElsewhereLine, ID_PREFIX_MIN, idPrefixRefusal, notFoundRefusal, refusalLine, notOnThisComputerLine, noBranchesLine, notMadeWorktreeLine, WORKTREE_FORCE_LINE, copiesFolder, copyTakesNone, placeBranchLine, runsInFolder, workspaceLands, shellQuote, WAKE_STOPPED, wakeAsksIn, wakeGaveUpLine, HERE_PLACE_ID, placeServesDaemonLine, placeNotAWorkspaceLine, placeNotAWorkspaceFix, refusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, folderForkRefusal, folderForkFix, providerKeyName, resizeBusyLine, resizeLandedLine, resizeNoMoveLine, RESIZE_AGAIN_FIX, RESIZE_BUSY_FIX, RESIZE_NO_MOVE_FIX, sizeRefusal, sizeWord, SIZE_PICK_FIX } from "@wsp/protocol";
+import type { ProjectView, WorkspaceProject, WorkspaceStatus, WorkspaceView } from "@wsp/protocol";
+import { spawnGoldenRefusal, childStartedLine, noParentWorkspaceLine, parentProjectRefusal, BringBackResult, GitPrReply, GitPushReply, GitCommitReply, GitDiscardReply, noChangeLine, GitDiffReply, GitRunLogReply, GitPrMergeReply, GitMergeInReply, DETACHED_HEAD, leadBusyRefusal, FIX_CHECK_OR_CHILD, childOnNoBranchRefusal, mergeChildPrompt, mergeIntoOwnRefusal, noRemoteForTreeLine, type TreeRecord, GitPrReplyReply, GitPrResolveReply, GitPrReactReply, REPLY_EMPTY_LINE, type PullRequestItem, GIT_DIFF_CAP_BYTES, pullRequestSendPrompt, checkFailedPrompt, conflictsPrompt, checkNotFailedRefusal, childPushedLine, isPullRequestFact, mergeMethodRefusal, noPullRequestRefusal, noSuchCheckRefusal, notOpenRefusal, AUTO_MERGE_OFF_LINE, DRAFT_NOTES, cleanCheckoutLine, commitMessage, cutDiff, draftPrompt, agentsFrom, askerOf, openingCut, scopeOf, workspaceIdOf } from "@wsp/protocol";
+import { diskGoneReleasedLine, diskGoneReplacedLine, isLocalWorkspace, kindWords, noCommandsYetLine, readingRoad, forgetUndrivenRefusal, goneRefusal, goneWords, inFolder, machineWord, deleteRefusedLine, noWorkspaceRefusal, threadElsewhereLine, ID_PREFIX_MIN, idPrefixRefusal, notFoundRefusal, refusalLine, notOnThisComputerLine, noBranchesLine, notMadeWorktreeLine, WORKTREE_FORCE_LINE, copiesFolder, copyTakesNone, placeBranchLine, runsInFolder, workspaceLands, shellQuote, WAKE_STOPPED, wakeAsksIn, wakeGaveUpLine, HERE_PLACE_ID, placeServesDaemonLine, placeNotAWorkspaceLine, placeNotAWorkspaceFix, refusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, folderForkRefusal, folderForkFix, providerKeyName, resizeBusyLine, resizeLandedLine, resizeNoMoveLine, RESIZE_AGAIN_FIX, RESIZE_BUSY_FIX, RESIZE_NO_MOVE_FIX, sizeRefusal, sizeWord, SIZE_PICK_FIX } from "@wsp/protocol";
 import { harnessExec, putFiles } from "@wsp/engine";
 import { ownerRepoOf, WorkspaceTalked } from "@wsp/protocol";
 import { providerSaid } from "../status.js";
@@ -105,7 +105,6 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       if (opts.parent !== undefined && runsInFolder(kind)) throw refusal(folderForkRefusal(project.name), folderForkFix(project.name), "usage");
       // The same rule and the same sentence the verb that sets the switch on a workspace that exists reads, so a
       // create on a computer whose agents could not drive this host is refused rather than given a dead switch.
-      if (o.agents?.spawn === true && !agentsMayDrive(kind)) throw Object.assign(new Error(agentsKindRefusal(kind)), { kind: "invalid" });
       // Read before anything is asked of a machine: the project rule refuses a thread naming another project here,
       // as the same reading refuses it every workspace of one. A computer that copies its folders takes no relayed
       // request at all and says so in its own words below.
@@ -114,7 +113,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       if (runsInFolder(kind)) {
         ctx.refuseRecording(o.name, origin);
         // The folder is not forked, so the words a fork takes have nothing to act on: refused rather than ignored.
-        const forkWords = [o.golden !== undefined ? "--from" : "", o.cpu !== undefined || o.memMb !== undefined ? "--size" : "", o.engine === true ? "--engine" : ""].filter(w => w !== "");
+        const forkWords = [o.golden !== undefined ? "--from" : "", o.cpu !== undefined || o.memMb !== undefined ? "--size" : ""].filter(w => w !== "");
         if (forkWords.length > 0) throw Object.assign(new Error(copyTakesNone(project.name, forkWords, ...(copiesFolder(kind) ? [] : [ctx.placeName(project.computer)]))), { kind: "invalid" });
         if (asked !== undefined && o.agents !== undefined) throw ctx.actRefusal(asked, "agents");
         const folder = await ctx.projectFolder(project);
@@ -547,57 +546,6 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       await ctx.persist(entry.record);
       bus.emit({ type: "workspace.look", workspaceId: id, theme: entry.record.theme ?? null, glyph: entry.record.glyph ?? null });
       return ctx.view(entry.record);
-    },
-
-    async snapshot(id, origin) {
-      const entry = await ctx.entryOf(id, origin);
-      ctx.refuseCannot(entry, "diskSnapshots", "be snapshotted");
-      const { name } = entry.record;
-      // The snapshot is the whole disk and carries the project in it, which is the one the workspace was made for.
-      const held = ctx.projectHeld(entry.record.project);
-      const project: WorkspaceProject = { name: held.name, dest: held.path, importedAt: held.createdAt };
-      const projects = [project];
-      if (entry.record.phase !== "running") throw new Error(`${name} is ${entry.record.phase}; only a running machine can be snapshotted`);
-      if (atProvider(ctx.placeIdOf(entry.record), ctx.places)) {
-        const logins = await presentPaths(entry.machine, LOGIN_PATHS);
-        if (logins.length > 0) throw refusal(snapshotLoginLine(name, logins), SNAPSHOT_LOGIN_FIX, "invalid");
-      }
-      // A manager that does not start in the project folder, under a thread's environment or a login shell's, never
-      // reaches an image; and a pnpm other than the folder's pin, which switches itself into a copy under PNPM_HOME on
-      // its first call there and never fetches that copy again, switches here before the disk is copied.
-      const root = await entry.machine.exec(`ls -A ${shellQuote(project.dest)}`, { timeoutMs: INLINE_EXEC_MS });
-      for (const { check } of projectInstalls(root.stdout.split("\n").map(line => line.trim()), project.dest)) {
-        if (check === undefined) continue;
-        for (const script of checkScripts(check, { dir: project.dest, env: loginEnvOn(entry.record.place, entry.record.npmBin) })) {
-          const ran = await entry.machine.run(script, { deadlineMs: CHECK_MS });
-          if (ran.exitCode === 0) continue;
-          const said = ran.stderr.split("\n").find(line => /\berror\b/i.test(line))?.trim() || lastLineOf(ran.stderr) || lastLineOf(ran.stdout) || `exit ${ran.exitCode}`;
-          throw new Error(snapshotManagerLine(name, check, project.dest, said, `${ran.stderr}\n${ran.stdout}`));
-        }
-      }
-      await syncDisk(entry.machine);
-      const disk = await diskUse(entry.machine);
-      const createdAt = new Date(clock.now()).toISOString();
-      const snapshotId = await entry.ws.checkpoint(projectSnapshotName(ctx.imageMark(), project.name, createdAt.replace(/[:.]/g, "-"))).catch((e: unknown) => {
-        if (e instanceof NotFirstLifeError) throw e;
-        const said = snapshotRefusedLine(name, answerOf(e), disk);
-        console.warn(said);
-        const { kind, status } = e as { kind?: unknown; status?: unknown };
-        throw Object.assign(new Error(said), kind !== undefined ? { kind } : {}, status !== undefined ? { status } : {});
-      });
-      const image = await ctx.imageOf(entry.record.golden);
-      const golden: ProjectGolden = {
-        snapshotId,
-        projects,
-        golden: image.golden,
-        ...(image.version !== undefined ? { version: image.version.version } : {}),
-        workspaceId: id,
-        workspaceName: name,
-        createdAt,
-        ...(entry.record.place !== undefined ? { place: entry.record.place } : {}),
-      };
-      await store.put(PROJECT_GOLDENS, snapshotId, golden);
-      return golden;
     },
 
     async updateDaemon(id, origin) {

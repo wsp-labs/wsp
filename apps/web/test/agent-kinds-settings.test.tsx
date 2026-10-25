@@ -15,7 +15,7 @@ import { HARNESSES } from "./fixtures/harnesses.js";
 import { descriptionOf, mountSettings, resetSettings, rowOf, settingsApi, settle } from "./settings-harness.js";
 
 const MAC = "zingzy's MacBook Pro";
-const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: MAC, default: true, present: true, takesForks: false, engine: "none", shape: { cpu: 8, memMb: 16384 } };
+const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: MAC, default: true, present: true, takesForks: false, shape: { cpu: 8, memMb: 16384 } };
 const HERE: AgentsTarget = { placeId: "here" };
 
 const AIRTABLE = "server-global-airtable-stdio-npx -y airtable-mcp-server";
@@ -78,7 +78,7 @@ const confirmRemove = async (): Promise<void> => {
 
 beforeEach(() => {
   resetSettings();
-  useStore.setState({ places: [here], harnesses: HARNESSES, projects: [] });
+  useStore.setState({ places: [here], harnesses: HARNESSES });
 });
 
 afterEach(() => {

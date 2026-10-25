@@ -68,7 +68,6 @@ import {
   REPO_STATE_WORDS,
   missingToolRow,
   behindGoldenLine,
-  builderStaysLine,
   DAEMON_INSTALL_FAILED,
   DAEMON_INSTALLING,
   DAEMON_UPDATE_FAILED,
@@ -97,7 +96,6 @@ import {
   fmtThreads,
   fmtUptime,
   forgetNotice,
-  goldenBuildLine,
   goneWords,
   harnessExitLine,
   isCodeSearchTool,
@@ -127,22 +125,11 @@ import {
   plural,
   providerAnswerLine,
   providerRoadRetryLine,
-  SEAL_FAILED_BUILDER_GONE_LINE,
-  SEAL_FAILED_LINE,
-  sealFailedBuilderStaysLine,
-  sealFailedBuilderUnreadLine,
   INSTALLER_MOVED_LINE,
   NO_ROAD_WORDS,
-  installedHereLine,
-  installsByLine,
-  leftOutLine,
-  notHereLine,
   thisComputer,
   SUM_SHOWN,
   pinMismatchLine,
-  pinWords,
-  pinsReadLine,
-  sealedPinLine,
   INSTALLS_LATEST,
   roadMovedLine,
   shortSum,
@@ -181,14 +168,10 @@ import {
   waitedOnYouPart,
   refusedTurn,
   signInRefusalLine,
-  upgradeSealFailedGoneLine,
-  upgradeSealFailedStaysLine,
-  upgradeSealFailedUnreadLine,
   vaultKeptLine,
   HOSTNAME_KEPT,
   hostnameSetLine,
   startingLine,
-  imageHomeKeptLine,
   CREATE_READY,
   vaultStaleLine,
   vaultOverCapLine,
@@ -1301,16 +1284,6 @@ describe("the nap's words when its vault was not stored", () => {
   });
 });
 
-describe("wsp init --on once an image stands", () => {
-  it("says in one sentence that the image is built at its own place when --on named another, and nothing when it named that place by id or name", () => {
-    const home = { id: "p_abc", name: "spoo" };
-    expect(imageHomeKeptLine("solari", home)).toBe("your image lives on spoo, so it is built there and not on solari");
-    expect(imageHomeKeptLine("spoo", home)).toBeUndefined();
-    expect(imageHomeKeptLine("p_abc", home)).toBeUndefined();
-    expect(imageHomeKeptLine(undefined, home)).toBeUndefined();
-  });
-});
-
 describe("a create's own words", () => {
   it("the fork's line names the workspace and the computer it starts on, and nothing of the image it copies", () => {
     expect(startingLine("spoo-fix", "hetzner")).toBe("starting spoo-fix on hetzner");
@@ -1381,23 +1354,6 @@ describe("a resume the provider does not take", () => {
 
   it("names the workspace in what the needs-you road says outside the app", () => {
     expect(workspaceAwakeLine("b1")).toBe("b1 is awake");
-  });
-});
-
-describe("goldenBuildLine", () => {
-  it("names the version it builds and the one it builds on top of, then what it changes", () => {
-    expect(goldenBuildLine(2, 3, [{ count: 2, noun: "tool", word: "added" }])).toBe("Builds version 3 on top of version 2: 2 tools added");
-  });
-
-  it("pluralises each noun on its own count and drops what did not change", () => {
-    expect(goldenBuildLine(1, 2, [{ count: 1, noun: "tool", word: "added" }, { count: 0, noun: "agent", word: "added" }, { count: 3, noun: "row", word: "retired" }])).toBe(
-      "Builds version 2 on top of version 1: 1 tool added, 3 rows retired",
-    );
-  });
-
-  it("a build with no version under it names no version to build on, and a build that changes nothing says only what it makes", () => {
-    expect(goldenBuildLine(0, 1, [{ count: 4, noun: "tool", word: "added" }])).toBe("Builds version 1: 4 tools added");
-    expect(goldenBuildLine(2, 3, [{ count: 0, noun: "tool", word: "added" }])).toBe("Builds version 3 on top of version 2");
   });
 });
 
@@ -1490,23 +1446,6 @@ describe("providerAnswerLine, snapshotAttemptLine and snapshotFailedLine", () =>
   });
 });
 
-describe("builderStaysLine and the seal's and the update's last lines", () => {
-  it("the stays-up sentence is one rule, and the failed seal's last line wraps it", () => {
-    const stays = builderStaysLine("m1", 0.11, "wsp init --recipe '/tmp/r.json'");
-    expect(stays).toBe("Builder m1 stays up at about $0.11/hr; wsp init --recipe '/tmp/r.json' attaches to it again, and the sweep stops it once it is six hours old.");
-    expect(sealFailedBuilderStaysLine("m1", 0.11, "wsp init --recipe '/tmp/r.json'")).toBe(`Seal failed; the builder is as you left it. ${stays}`);
-    expect(sealFailedBuilderUnreadLine("m1", 0.11, "wsp init --recipe '/tmp/r.json'")).toBe(`Seal failed; the provider could not be read about the builder, so nothing on it was touched. ${stays}`);
-    expect(SEAL_FAILED_BUILDER_GONE_LINE).toBe("Seal failed and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again; the recipe is kept.");
-  });
-
-  it("the update's last lines say the image stands and whether the provider still has the machine the new version ran on", () => {
-    expect(upgradeSealFailedStaysLine(1, "m1", 0.11)).toBe("Image v1 is unchanged. Builder m1 is as it was, up at about $0.11/hr; run wsp init again to retry, and the sweep stops it once it is six hours old.");
-    expect(upgradeSealFailedGoneLine(1)).toBe("Image v1 is unchanged and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again to retry.");
-    expect(upgradeSealFailedUnreadLine(1, "m1")).toBe("Image v1 is unchanged. The provider could not be read about builder m1, so nothing on it was touched; run wsp init again to retry, and the sweep stops it once it is six hours old.");
-    expect(SEAL_FAILED_LINE).toBe("Seal failed and the builder is gone. Run wsp init again; the recipe is kept.");
-  });
-});
-
 describe("a pinned release that moved", () => {
   it("the failure names the download, its tag, and the recorded and served sums, both cut so the reason line keeps them", () => {
     expect(SUM_SHOWN).toBe(12);
@@ -1524,41 +1463,12 @@ describe("a pinned release that moved", () => {
     expect(roadMovedLine("with Homebrew", NO_ROAD_WORDS)).toBe("now by no road, was with Homebrew");
   });
 
-  it("a pin in words: the version alone where a copy gets it, with the latest mark where the road installs the current one on every place", () => {
-    expect(INSTALLS_LATEST).toBe("installs latest");
-    expect(pinWords({ tag: "v2.86.0", sha256: "b".repeat(64) })).toBe("v2.86.0");
-    expect(pinWords({ tag: "3.3a-3", latest: true })).toBe("3.3a-3, installs latest");
-    // The record's line: the row by name, the version, the checksum where the road hashed one, the latest mark in the road's words.
-    expect(sealedPinLine("GitHub CLI", { tag: "v2.86.0", sha256: "b".repeat(64) })).toBe("GitHub CLI  v2.86.0  checksum bbbbbbbbbbbb");
-    expect(sealedPinLine("tmux", { tag: "3.3a-3", latest: true }, "by apt")).toBe("tmux  3.3a-3  installs latest by apt");
-    expect(sealedPinLine("Claude Code", { tag: "2.1.3", latest: true })).toBe("Claude Code  2.1.3  installs latest");
-    expect(sealedPinLine("wrangler", { tag: "4.1.0" })).toBe("wrangler  4.1.0");
-    // The stage's one line: the pinned rows, then once the rows that install latest with the version this build got; nothing when nothing was read.
-    expect(pinsReadLine([{ name: "wrangler", tag: "4.1.0" }, { name: "GitHub CLI", tag: "v2.86.0" }], [{ name: "tmux", tag: "3.3a-3", words: "by apt" }, { name: "Go", tag: "1.22.1", words: "with Homebrew" }])).toBe(
-      "pinned: wrangler 4.1.0, GitHub CLI v2.86.0; installs latest on every place: tmux 3.3a-3 by apt, Go 1.22.1 with Homebrew",
-    );
-    expect(pinsReadLine([], [{ name: "Claude Code", tag: "2.1.3" }])).toBe("installs latest on every place: Claude Code 2.1.3");
-    expect(pinsReadLine([{ name: "a, b", tag: "1" }], [])).toBe('pinned: "a, b" 1');
-    expect(pinsReadLine([], [])).toBeUndefined();
-  });
 });
 
 describe("the computer being read", () => {
   it("is a Mac by name on a Mac and the plain word anywhere else", () => {
     expect(thisComputer("darwin")).toBe("this Mac");
     expect(thisComputer("linux")).toBe("this computer");
-  });
-});
-
-describe("a tools row outside the catalog", () => {
-  it("says it is on this computer, what the build does with it, and when a file's tick has no row here", () => {
-    expect(installedHereLine("darwin", undefined)).toBe("installed on this Mac");
-    expect(installedHereLine("darwin", "0.1.0")).toBe("installed on this Mac, 0.1.0");
-    expect(installedHereLine("linux", "0.1.0")).toBe("installed on this computer, 0.1.0");
-    expect(installsByLine("from its release", "the v0.1.0 release of github.com/Zingzy/diskbloom")).toBe("installs from its release: the v0.1.0 release of github.com/Zingzy/diskbloom");
-    expect(leftOutLine("no Linux bottle known")).toBe("left out of the build: no Linux bottle known");
-    expect(notHereLine("darwin", "zingzy/tap/diskbloom", "/tmp/given.json")).toBe("zingzy/tap/diskbloom is ticked in /tmp/given.json, but this Mac has no row that installs it; it is left out.");
-    expect(notHereLine("linux", "direnv", "/tmp/given.json")).toBe("direnv is ticked in /tmp/given.json, but this computer has no row that installs it; it is left out.");
   });
 });
 

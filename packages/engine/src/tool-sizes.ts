@@ -20,9 +20,6 @@ export const BUILDER_DISK_GB = 20;
  * base stage installs are inside it, so it is read again on the first golden built with the base floor. */
 export const BUILDER_FREE_BYTES = 17570 * MIB;
 const UPLOAD_HEADROOM_BYTES = 256 * MIB;
-/** The most a recipe's files may add up to on this computer before the plan refuses to boot. The upload needs
- * the archive, its files and headroom under what the builder has free, and the archive is at most as large as the files. */
-export const PACK_BUDGET_BYTES = Math.floor((BUILDER_FREE_BYTES - UPLOAD_HEADROOM_BYTES) / 2);
 /** What the recipe may take: what the builder has free less the floor the tools stage keeps free for unpack peaks. */
 export const DISK_ROOM_BYTES = BUILDER_FREE_BYTES - TOOLS_DISK_FLOOR;
 
@@ -180,84 +177,4 @@ const installable = (e: RecipeEntry): boolean => e.id.slice(e.id.indexOf("/") + 
 export function agentSize(e: RecipeEntry): number | undefined {
   const entry = catalogEntry(e.id.slice(e.id.indexOf("/") + 1));
   return entry === undefined ? undefined : sizeBytes(entry.size);
-}
-
-export interface DiskEstimate {
-  /** The files that travel, as the caller counted them. */
-  files: number;
-  /** Homebrew with its glibc and gcc, when any formula brings it. */
-  toolchain: number;
-  /** Every formula the ticked rows and the plan's managers pull in, each once, plus measured globals. */
-  tools: number;
-  /** The measured agents; the Node they run on is the base's. */
-  agents: number;
-  /** Ticked rows that install something whose size nothing knows, by label. */
-  unknown: string[];
-  /** What the unknown rows count as in the total, each at the default for its kind. */
-  assumed: number;
-  total: number;
-  room: number;
-  /** How far the total is past the room; zero when it fits. */
-  over: number;
-}
-
-/** The recipe's cost on the disk from the ticked rows, the plan they make and the Mac's table; a row outside the
- * catalog counts at the size whoever added it measured, and as an install of unknown size without one. */
-export function estimateDisk(ticked: readonly RecipeEntry[], files: number, brew: BrewTable, custom: readonly RecipeCustomRow[] = []): DiskEstimate {
-  // The plan is asked only about the catalog's own steps; the rows outside it are counted by the loop below, each once.
-  const plan = toolInstallsFor(ticked, brew);
-  const installs = new Set(plan.installs.map(t => t.id));
-  const toolchain = installs.has("tools/homebrew") ? BREW_TOOLCHAIN_BYTES : 0;
-  const members = new Set<string>();
-  let tools = 0;
-  let assumed = 0;
-  const unknown: string[] = [];
-  const assume = (e: RecipeEntry): void => {
-    unknown.push(e.label);
-    assumed += assumedSize(e).bytes;
-  };
-  for (const e of ticked) {
-    if (e.rung !== "tools" || !installs.has(e.id) || isTap(e)) continue;
-    const formula = formulaOf(e);
-    // A formula the plan installs by the catalog's road counts at the catalog's measurement, not this Mac's Cellar.
-    if (formula !== undefined && catalogToolByRoad("brew", formula) === undefined && catalogToolOf(e) === undefined) {
-      if (formulaBytes(formula, brew) === undefined) assume(e);
-      else for (const m of closureOf(formula, brew)) members.add(m);
-      continue;
-    }
-    const size = toolSize(e, brew);
-    if (size === undefined) assume(e);
-    else tools += size.bytes;
-  }
-  // A manager's own step: its formula's closure when Homebrew installs it, else the catalog row's measurement.
-  for (const t of plan.installs) {
-    if (!t.id.startsWith(MANAGER_STEP)) continue;
-    const manager = t.id.slice(MANAGER_STEP.length) as RoadName;
-    const formula = t.manager === "brew" ? managerFormula(manager) : undefined;
-    if (formula !== undefined) {
-      for (const m of closureOf(formula, brew)) members.add(m);
-      continue;
-    }
-    const entry = catalogToolFor(manager);
-    const bytes = entry === undefined ? undefined : sizeBytes(entry.size);
-    if (bytes !== undefined) tools += bytes;
-  }
-  for (const m of members) tools += formulaBytes(m, brew) ?? 0;
-  for (const c of custom) {
-    if (c.size !== undefined) tools += c.size;
-    else assume({ rung: "tools", id: `${CUSTOM_PREFIX}${c.id}`, label: c.name, paths: [], bytes: 0, default: "bring" });
-  }
-  let agents = 0;
-  for (const e of ticked) {
-    if (e.rung !== "agents" || !installable(e)) continue;
-    const size = agentSize(e);
-    if (size === undefined) assume(e);
-    else agents += size;
-  }
-  // Node is not on the floor: an agent whose engines floor asks for one brings it in the harness stage, unless a row
-  // on the tools plan already puts it there. Either way the image carries one, counted once.
-  const node = catalogToolFor(NODE_BIN);
-  if (node !== undefined && agentInstallsFor(ticked).node !== undefined && !plan.installs.some(t => t.bin === NODE_BIN)) tools += sizeBytes(node.size) ?? 0;
-  const total = files + toolchain + tools + agents + assumed;
-  return { files, toolchain, tools, agents, unknown, assumed, total, room: DISK_ROOM_BYTES, over: Math.max(0, total - DISK_ROOM_BYTES) };
 }

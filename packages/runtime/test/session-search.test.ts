@@ -67,7 +67,7 @@ describe("searching inside messages", () => {
 
   it("a thread's token finds its own tree's words and nothing another tree on the same workspace said", async () => {
     const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: replying(p => `reply to ${p}: zebra`) } });
-    const ws = await createOn(rt, { golden: "snap_g", name: "a", agents: { spawn: true, maxMachines: 3, maxDepth: 3 } });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a", agents: { maxMachines: 3, maxDepth: 3 } });
     const mine = await rt.sessions.start(ws.id, { prompt: "the person's own" });
     await mine.finished;
     const lead = await rt.sessions.start(ws.id, { prompt: "lead" });

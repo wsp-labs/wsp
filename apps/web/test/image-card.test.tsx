@@ -5,7 +5,7 @@
 // sealed frame reads the image again; the ready card opens New thread on the project that lands there.
 import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { COPY_BUILD_FIX, DEFAULT_PREFERENCES, copyBuildingLine, copyStoppedLine, fmtRate, type GoldenStageEvent, type InitJob, type InitSetup, type PlaceView, type SealedImage, type SealedImageBuilt, type SealedImageCopy, type SealedImageView } from "@wsp/protocol";
+import { COPY_BUILD_FIX, DEFAULT_PREFERENCES, copyBuildingLine, copyStoppedLine, fmtRate, type GoldenStageEvent, type InitSetup, type PlaceView, type SealedImage, type SealedImageBuilt, type SealedImageCopy, type SealedImageView } from "@wsp/protocol";
 import { RequestError, type Api } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
 import { copyCost, IMAGE_WORDS } from "../src/settings/image.js";
@@ -24,8 +24,8 @@ const IMAGE: SealedImage = {
   vault: { sha256: "c".repeat(64), bytes: 4_200, paths: 7, takenAt: AT },
   usedBytes: 4.2 * 1024 ** 3,
 };
-const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", default: true, present: true, takesForks: false, engine: "none", buildsImages: false };
-const box: PlaceView = { id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, engine: "docker", buildsImages: true };
+const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", default: true, present: true, takesForks: false, buildsImages: false };
+const box: PlaceView = { id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, buildsImages: true };
 const solari: PlaceView = { id: "solari", kind: "provider", name: "solari", default: false, rateUsdPerHour: 0.11, takesForks: true, buildsImages: true };
 const copyAt = (place: string, hash = HASH): SealedImageCopy => ({ place, version: 1, hash, snapshotId: `snap_${place}`, builtAt: AT, sizeBytes: 4.2 * 1024 ** 3 });
 const setup = (over: Partial<InitSetup> = {}): InitSetup => ({ keys: { solari: true }, home: "/Users/dev", agents: [], pricing: null, job: null, ...over }) as InitSetup;
@@ -42,7 +42,6 @@ function host(view: SealedImageView, o: { build?: (place: string, force: boolean
       reads += 1;
       return held.view;
     },
-    initStart: async () => ({}) as InitJob,
     imageBuild: async (place: string, force?: boolean) => {
       builds.push({ place, force });
       return (o.build ?? (async () => ({ copy: copyAt(place), built: true })))(place, force);
@@ -67,19 +66,19 @@ const open = async (api: Api, id: string): Promise<void> => {
 
 beforeEach(() => {
   resetSettings();
-  useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, labs: false }, places: [here, box, solari], initJob: null, goldenFrames: {} });
+  useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, labs: false }, places: [here, box, solari], goldenFrames: {} });
 });
 
 afterEach(() => cleanup());
 
 describe("the Image card", () => {
   it("heads a joined computer's page with the image on it, and draws no card where no image can stand or before the image is read", async () => {
-    await open(host({ image: IMAGE, copies: [copyAt("solari")], projects: [] }).api, "p_2");
+    await open(host({ image: IMAGE, copies: [copyAt("solari")] }).api, "p_2");
     expect(card()?.querySelector("[data-settings-head]")?.textContent).toBe(IMAGE_WORDS.head("hetzner"));
     cleanup();
     resetSettings();
     useStore.setState({ places: [here, box] });
-    await open(host({ image: IMAGE, copies: [], projects: [] }).api, "here");
+    await open(host({ image: IMAGE, copies: [] }).api, "here");
     expect(card()).toBeNull();
     cleanup();
     resetSettings();
@@ -89,7 +88,7 @@ describe("the Image card", () => {
   });
 
   it("offers to copy the image where no copy stands, with the time and no rate on a computer that bills nothing, and sends image.build on the press alone", async () => {
-    const fake = host({ image: IMAGE, copies: [copyAt("solari")], projects: [] });
+    const fake = host({ image: IMAGE, copies: [copyAt("solari")] });
     await open(fake.api, "p_2");
     expect(title()).toBe(IMAGE_WORDS.state.notHere);
     expect(description()).toBe(IMAGE_WORDS.copyComes(3));
@@ -104,7 +103,7 @@ describe("the Image card", () => {
   });
 
   it("says the rate beside Copy on a cloud that bills", async () => {
-    await open(host({ image: IMAGE, copies: [copyAt("hetzner")], projects: [] }).api, "solari");
+    await open(host({ image: IMAGE, copies: [copyAt("hetzner")] }).api, "solari");
     expect(card()?.querySelector("[data-settings-head]")?.textContent).toBe(IMAGE_WORDS.head("Solari"));
     expect(cost()).toEqual(copyCost(0.11));
     expect(cost()[1]).toBe(fmtRate(0.11));
@@ -112,7 +111,7 @@ describe("the Image card", () => {
 
   it("offers Copy anyway on a record that holds no sign-ins, saying every one is asked again, and sends force", async () => {
     const { vault: _vault, ...bare } = IMAGE;
-    const fake = host({ image: bare, copies: [copyAt("solari")], projects: [] });
+    const fake = host({ image: bare, copies: [copyAt("solari")] });
     await open(fake.api, "p_2");
     expect(description()).toBe(IMAGE_WORDS.copyAsks(3));
     expect(press().textContent).toBe(IMAGE_WORDS.copyAnyway);
@@ -123,7 +122,7 @@ describe("the Image card", () => {
 
   it("says every sign-in is asked again before Copy anyway on a record with no sign-ins whose last copy stopped", async () => {
     const { vault: _vault, ...bare } = IMAGE;
-    const fake = host({ image: bare, copies: [copyAt("solari")], projects: [] });
+    const fake = host({ image: bare, copies: [copyAt("solari")] });
     useStore.setState({ goldenFrames: { p_2: [frame("p_2", "failed", "no room on hetzner")] } });
     await open(fake.api, "p_2");
     expect(description()).toBe(copyStoppedLine("no room on hetzner"));
@@ -137,7 +136,7 @@ describe("the Image card", () => {
   it("draws a refused press in the slot in its two halves, the fix in the fix ink, and clears it on the next press", async () => {
     let refuse = true;
     const fake = host(
-      { image: IMAGE, copies: [copyAt("solari")], projects: [] },
+      { image: IMAGE, copies: [copyAt("solari")] },
       {
         build: async place => {
           if (refuse) throw new RequestError(`default v3 was sealed before the image record kept the recipe it was built from, so no other place can build it. ${COPY_BUILD_FIX.noRecipe}`, "conflict", COPY_BUILD_FIX.noRecipe);
@@ -160,7 +159,7 @@ describe("the Image card", () => {
 
   it("holds the press while it is on its way, so a second press sends nothing", async () => {
     let finish: (built: SealedImageBuilt) => void = () => {};
-    const fake = host({ image: IMAGE, copies: [copyAt("solari")], projects: [] }, { build: () => new Promise(r => (finish = r)) });
+    const fake = host({ image: IMAGE, copies: [copyAt("solari")] }, { build: () => new Promise(r => (finish = r)) });
     await open(fake.api, "p_2");
     fireEvent.click(press());
     await settle();
@@ -171,14 +170,14 @@ describe("the Image card", () => {
   });
 
   it("draws a copy building off the frames with no press in it, then reads the image again on the sealed frame and stands ready", async () => {
-    const fake = host({ image: IMAGE, copies: [copyAt("solari")], projects: [] });
+    const fake = host({ image: IMAGE, copies: [copyAt("solari")] });
     await open(fake.api, "p_2");
     act(() => useStore.setState({ goldenFrames: { p_2: [frame("p_2", "creating")] } }));
     expect(title()).toBe(IMAGE_WORDS.state.copying);
     expect(description()).toBe(copyBuildingLine("creating"));
     expect(press()).toBeNull();
     const before = fake.reads();
-    fake.held.view = { image: IMAGE, copies: [copyAt("solari"), copyAt("p_2")], projects: [] };
+    fake.held.view = { image: IMAGE, copies: [copyAt("solari"), copyAt("p_2")] };
     act(() => useStore.getState().applyEvent(frame("p_2", "sealed")));
     await settle();
     expect(fake.reads()).toBe(before + 1);
@@ -187,7 +186,7 @@ describe("the Image card", () => {
   });
 
   it("says a stopped build in its own words and builds again on Try again", async () => {
-    const fake = host({ image: IMAGE, copies: [copyAt("solari")], projects: [] });
+    const fake = host({ image: IMAGE, copies: [copyAt("solari")] });
     useStore.setState({ goldenFrames: { p_2: [frame("p_2", "creating"), frame("p_2", "failed", "no room on hetzner")] } });
     await open(fake.api, "p_2");
     expect(title()).toBe(IMAGE_WORDS.state.notHere);
@@ -201,7 +200,7 @@ describe("the Image card", () => {
   });
 
   it("says a copy behind the image as a chip with Copy beside it", async () => {
-    const fake = host({ image: IMAGE, copies: [copyAt("solari"), copyAt("p_2", "b".repeat(64))], projects: [] });
+    const fake = host({ image: IMAGE, copies: [copyAt("solari"), copyAt("p_2", "b".repeat(64))] });
     await open(fake.api, "p_2");
     expect(title()).toBe(IMAGE_WORDS.state.stale);
     expect(chips()).toEqual([IMAGE_WORDS.behindChip(3), expect.stringMatching(/^built /)]);
@@ -213,39 +212,12 @@ describe("the Image card", () => {
     expect(fake.builds).toEqual([{ place: "p_2", force: undefined }]);
   });
 
-  it("opens the recipe in place from Build your image here where no image exists yet, the state row gone while it stands and back on Close", async () => {
-    const fake = settingsApi({ initGet: async () => setup(), image: async () => ({ image: null, copies: [], projects: [] }), initStart: async () => ({}) as InitJob } as Partial<Api>);
-    await open(fake.api, "p_2");
-    expect(title()).toBe(IMAGE_WORDS.state.nothing);
-    expect(description()).toBe(IMAGE_WORDS.chooseAndBuild);
-    expect(press().textContent).toBe(IMAGE_WORDS.buildHere);
-    expect(press().hasAttribute("data-held")).toBe(false);
-    expect(card()!.querySelector("[data-k='edit-image']")).toBeNull();
-    fireEvent.click(press());
-    await settle();
-    expect(card()!.querySelector("[data-k='recipe']")?.getAttribute("data-step")).toBe("choice");
-    // The state row answers what now; with the recipe open that answer is on screen, so the row goes, the head stays.
-    expect(card()!.querySelector("[data-k='image-state']")).toBeNull();
-    expect(card()?.querySelector("[data-settings-head]")?.textContent).toBe(IMAGE_WORDS.head("hetzner"));
-    fireEvent.click(card()!.querySelector("[data-k='recipe-close']")!);
-    await settle();
-    expect(title()).toBe(IMAGE_WORDS.state.nothing);
-  });
-
-  it("stands the image's own build running here in the state row's place", async () => {
-    const job = { id: "j1", road: "screens", phase: "building", place: { id: "p_2", name: "hetzner" }, progress: { done: 2, total: 9 }, rows: [], screens: [], log: [], step: 0, stoppable: true, keys: {} } as unknown as InitJob;
-    useStore.setState({ initJob: job });
-    await open(host({ image: null, copies: [], projects: [] }).api, "p_2");
-    expect(card()!.querySelector("[data-k='image-state']")).toBeNull();
-    expect(card()!.querySelector("[data-k='build']")?.getAttribute("data-step")).toBe("building");
-  });
-
   it("starts a task on a ready computer with the project that lands there picked, and holds the press where none does", async () => {
     const project = (id: string, computer: string) => ({ id, name: id, computer, source: { kind: "folder", path: `/p/${id}` }, path: `/p/${id}`, createdAt: AT }) as never;
     // A task lands on its project's computer, so the project picked is the one recorded on this one; no landing has
     // been read, as none is while Settings stands in the sidebar's place.
     useStore.setState({ projects: [project("pr_mac", "here"), project("pr_box", "p_2")], landings: {} });
-    await open(host({ image: IMAGE, copies: [copyAt("solari"), copyAt("p_2")], projects: [] }).api, "p_2");
+    await open(host({ image: IMAGE, copies: [copyAt("solari"), copyAt("p_2")] }).api, "p_2");
     expect(title()).toBe(IMAGE_WORDS.state.ready);
     expect(press().textContent).toBe(IMAGE_WORDS.startTask);
     fireEvent.click(press());
@@ -255,7 +227,7 @@ describe("the Image card", () => {
     cleanup();
     resetSettings();
     useStore.setState({ places: [here, box, solari], projects: [project("pr_mac", "here")] });
-    await open(host({ image: IMAGE, copies: [copyAt("solari"), copyAt("p_2")], projects: [] }).api, "p_2");
+    await open(host({ image: IMAGE, copies: [copyAt("solari"), copyAt("p_2")] }).api, "p_2");
     expect(press().hasAttribute("data-held")).toBe(true);
     expect(slot()).toBe(IMAGE_WORDS.startHeld("hetzner"));
   });
@@ -264,7 +236,7 @@ describe("the Image card", () => {
     const boat: PlaceView = { id: "box", kind: "provider", name: "box", default: false, rateUsdPerHour: 0.018, takesForks: true, buildsImages: true };
     const project = { id: "pr_boat", name: "pr_boat", computer: "box", source: { kind: "folder", path: "/p/pr_boat" }, path: "/p/pr_boat", createdAt: AT } as never;
     useStore.setState({ places: [here, box, boat], projects: [project], landings: {} });
-    await open(host({ image: IMAGE, copies: [copyAt("box")], projects: [] }).api, "box");
+    await open(host({ image: IMAGE, copies: [copyAt("box")] }).api, "box");
     expect(card()?.querySelector("[data-settings-head]")?.textContent).toBe(IMAGE_WORDS.head("Boat"));
     expect(title()).toBe(IMAGE_WORDS.state.ready);
     expect(stateRow().querySelector("[data-k='image-press']")).toBeNull();
@@ -275,7 +247,7 @@ describe("the Image card", () => {
     const project = (id: string, computer: string) => ({ id, name: id, computer, source: { kind: "folder", path: `/p/${id}` }, path: `/p/${id}`, createdAt: AT }) as never;
     const onSolari = (projects: never[]) => {
       useStore.setState({ places: [here, box, solari], projects, landings: {} });
-      return host({ image: IMAGE, copies: [copyAt("solari")], projects: [] }, { setup: setup({ forksOn: "solari" }) }).api;
+      return host({ image: IMAGE, copies: [copyAt("solari")] }, { setup: setup({ forksOn: "solari" }) }).api;
     };
     // A project here is a copy of its folder on this Mac and never forks on the cloud, so Solari's press stays held.
     await open(onSolari([project("pr_mac", "here")]), "solari");

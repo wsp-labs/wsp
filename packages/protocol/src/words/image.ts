@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { GoldenMissingTool, GoldenStage, GoldenStageEvent, LoginState, MachineState, ProjectGolden, SealedImage, SealedImageCopy, SealedImageExport, SealedProjectImage, ToolPin } from "../index.js";
+import type { GoldenMissingTool, GoldenStage, GoldenStageEvent, LoginState, MachineState, SealedImage, SealedImageCopy, ToolPin } from "../index.js";
 import { fmtThreads, listedName, lowerFirst, nameList, plural } from "./base.js";
 import { diskTone, fmtBytes, fmtBytesOf, fmtDuration } from "./units.js";
 import { thisComputer } from "./computer.js";
@@ -17,7 +17,7 @@ export const copyAsksSignIns = (image: Pick<SealedImage, "vault" | "noSecrets">)
 /** Why a fork at a provider is refused: the image was sealed before a provider's seal refused every sign-in, so its
  * disk may still hold them. imageRebuildFix is what to do. */
 export const imageHeldSignInsLine = (where: string): string => `Your image on ${where} was sealed with sign-ins on it`;
-export const imageRebuildFix = (place: string): string => `Rebuild it: wsp init --on ${place} --rebuild.`;
+export const imageRebuildFix = (place: string): string => `Seal your image again for ${place}.`;
 /** What to do about each refusal a copy build meets before anything boots: said after it on a terminal, and in the
  * fix ink beside the Image card's press in the app. Only the no-sign-ins one names a flag: the card sends force on
  * such a record before the host could refuse it, so that fix is read on a terminal alone. */
@@ -27,16 +27,10 @@ export const COPY_BUILD_FIX = {
   noRecipe: "Build the next version, then copy that one.",
   noVault: "Build the next version to hold them, or run it again with --force to copy this one anyway.",
 } as const;
-/** Where a run with nobody at its terminal reads the passphrase an export is sealed to; never a flag, since every
- * process on a computer can read another's command line. */
-export const IMAGE_PASSPHRASE_ENV = "WSP_IMAGE_PASSPHRASE";
 /** What a host that has sealed nothing says. Named apart from the attachment lines beside it: those are pictures. */
-export const NO_SEALED_IMAGE = "no image yet; run wsp init to build one";
+export const NO_SEALED_IMAGE = "no image yet";
 /** The same where a road needed the image to fork and there is none. */
-export const NO_IMAGE_YET = "no image yet; run wsp init";
-/** And where that road was an add carrying a person's own files onto a computer that keeps an image. */
-export const NO_IMAGE_FOR_SEED = `${NO_IMAGE_YET}; the seed lands inside a copy of your image, so there is nowhere for it to go yet`;
-
+export const NO_IMAGE_YET = "no image yet";
 /** Whether a copy stands on the record as it is now: built at the record's hash, which is the whole of it. The
  * version is the place's own manifest number and says nothing about which record the copy came from, so a second
  * place's v1 built from the record's v2 is current. A copy with no hash was built before hashes were recorded and
@@ -111,52 +105,6 @@ export function sealedBuiltLine(image: SealedImage, built: { copy: SealedImageCo
   return built.built ? line : `${line}  already built from this image; nothing was built`;
 }
 
-/** One project image under the image, as a line: the id a remove or a --from takes, the workspace it was taken off,
- * the projects on that disk, its size where the provider lists one, and when. */
-export function sealedProjectLine(project: SealedProjectImage): string {
-  const size = project.sizeBytes === undefined ? [] : [fmtBytes(project.sizeBytes)];
-  return [project.snapshotId, `project ${project.workspaceName}`, project.projects.map(p => p.name).join(", "), ...size, project.createdAt].join("  ");
-}
-
-/** Why a word names no project image here: a golden version's snapshot, a project's name and a typo alike, since a
- * remove takes the id alone. */
-export const noProjectImageLine = (word: string): string => `no project image ${word}; wsp image lists them with their ids`;
-
-/** Why a project image cannot be removed yet, with the workspaces standing on it whatever their phase: a gone one's
- * record stands on it too until a forget takes it. */
-export const projectImageInUseRefusal = (id: string, workspaces: readonly string[]): string =>
-  `project image ${id} has ${workspaces.length === 1 ? "a workspace" : "workspaces"} standing on it: ${nameList(workspaces)}; delete ${workspaces.length === 1 ? "it" : "them"} first, and forget any whose machine is already gone`;
-
-/** What a removal takes, the one sentence the command line's question and the tool's unconfirmed answer both say. */
-export const projectImageRemoveNotice = (g: Pick<ProjectGolden, "workspaceName" | "createdAt">): string =>
-  `Its snapshot, taken from ${g.workspaceName} on ${g.createdAt.slice(0, 10)}, is deleted at the provider, and no workspace starts from it again.`;
-
-/** What a removal came to: a snapshot the provider had already lost is gone either way, so its record went too. */
-export const projectImageRemovedLine = (id: string, alreadyGone: boolean): string =>
-  alreadyGone ? `project image ${id} was already gone at the provider; its record is removed` : `removed project image ${id}: its snapshot is gone at the provider, and its record with it`;
-
-/** The delete answered and no read of the listing within the window showed the id gone, whether the listing held it
- * or would not answer, so the record stays. */
-export const projectImageStillListedLine = (id: string, graceMs: number): string =>
-  `project image ${id} could not be read gone within ${Math.round(graceMs / 1000)} s of the delete answering, so its record stays; run wsp image remove ${id} again`;
-
-export const projectImageRefusedLine = (id: string, answer: ProviderAnswer): string =>
-  `project image ${id} was not removed: the provider answered ${providerAnswerLine(answer)}; its record stays`;
-
-/** What an export wrote, as the line a person reads after it. */
-export function sealedExportLine(exported: SealedImageExport): string {
-  return `${exported.path}  ${fmtBytes(exported.bytes)}  opens with the passphrase you typed and nothing else`;
-}
-
-/** What the copy answer reads as on the row of a tool signed in as one account at a time: the answer's own words and
- * the login a copy would carry, so the row says whose sign-in lands on the machine before anyone answers it. */
-export const copyNamesLogin = (copy: string, login: string): string => `${copy} (${login})`;
-
-/** That row's own detail: the login the tool is in use as here, and the accounts a copy leaves where they are,
- * since the machine is signed in as one of them and a file naming the rest would hold no token for them. */
-export const loginsHereLine = (login: string, left: readonly string[]): string =>
-  left.length === 0 ? `signed in here as ${login}` : `signed in here as ${login}; ${nameList(left)} ${left.length === 1 ? "stays" : "stay"} on this computer`;
-
 /** What forgetting a workspace takes off this computer, the one sentence every client's confirmation shows. */
 export function forgetNotice(threads: number): string {
   return `Its record and ${fmtThreads(threads)} leave this computer; the computer it ran on is already gone.`;
@@ -168,15 +116,6 @@ export interface GoldenChange {
   /** Singular; the line pluralises it. */
   noun: string;
   word: string;
-}
-
-/** The wizard's build line and the app's word for what a re-run does: which version it makes, the version it is
- * built on top of, and what it changes. `from` is 0 before any golden was sealed, and the line says so instead of
- * naming a version nothing was built on. */
-export function goldenBuildLine(from: number, to: number, changes: readonly GoldenChange[]): string {
-  const what = changes.filter(c => c.count > 0).map(c => `${plural(c.count, c.noun)} ${c.word}`);
-  const head = from === 0 ? `Builds version ${to}` : `Builds version ${to} on top of version ${from}`;
-  return what.length === 0 ? head : `${head}: ${what.join(", ")}`;
 }
 
 /** How much of a checksum a line shows: enough to tell two apart, short enough that a reason line with both fits its cut. */
@@ -205,69 +144,8 @@ export const NO_ROAD_WORDS = "by no road";
 /** What a row marked latest does on every place: the words `wsp recipe`, `wsp image` and the seal's stage all use. */
 export const INSTALLS_LATEST = "installs latest";
 
-/** A pin beside its row, as `wsp recipe` shows it: the version, and for a road that fixes none that it installs
- * latest wherever it is built. */
-export function pinWords(pin: ToolPin): string {
-  return pin.latest === true ? `${pin.tag}, ${INSTALLS_LATEST}` : pin.tag;
-}
-
-/** The one line a stage says about what its installs read back: the rows fixed to what they installed, then, once,
- * the rows whose road installs latest wherever the image is built, each with the version this build got and the
- * road's own words. Nothing when no row read a version. */
-export function pinsReadLine(fixed: readonly { name: string; tag: string }[], latest: readonly { name: string; tag: string; words?: string }[]): string | undefined {
-  const parts = [
-    ...(fixed.length > 0 ? [`pinned: ${fixed.map(p => `${listedName(p.name)} ${p.tag}`).join(", ")}`] : []),
-    ...(latest.length > 0 ? [`${INSTALLS_LATEST} on every place: ${latest.map(p => `${listedName(p.name)} ${p.tag}${p.words === undefined ? "" : ` ${p.words}`}`).join(", ")}`] : []),
-  ];
-  return parts.length === 0 ? undefined : parts.join("; ");
-}
-
-/** One of the record's pins in one line, under `wsp image`: the row by name, what it installed, the checksum where the
- * road recorded one, and for a road that fixes none that it installs latest, in the road's words. */
-export function sealedPinLine(name: string, pin: ToolPin, words?: string): string {
-  const sum = pin.sha256 === undefined ? [] : [`checksum ${shortSum(pin.sha256)}`];
-  const latest = pin.latest === true ? [`${INSTALLS_LATEST}${words === undefined ? "" : ` ${words}`}`] : [];
-  return [name, pin.tag, ...sum, ...latest].join("  ");
-}
-
 /** Why a tool installs differently now when its road stands: the lines the road runs are not the golden's. */
 export const INSTALLER_MOVED_LINE = "its install lines changed";
-
-/** The detail of a tools row the catalog does not carry: it is on this computer, at the version this computer runs
- * when the collector read one. */
-export function installedHereLine(platform: "darwin" | "linux", version: string | undefined): string {
-  const here = `installed on ${thisComputer(platform)}`;
-  return version === undefined ? here : `${here}, ${version}`;
-}
-
-/** What the build does with a tools row it installs: the road in its own words, then the line the step runs. */
-export function installsByLine(words: string, shown: string): string {
-  return `installs ${words}: ${shown}`;
-}
-
-/** What the build does with a ticked tools row it sets aside, with the plan's reason. */
-export function leftOutLine(note: string): string {
-  return `left out of the build: ${note}`;
-}
-
-/** Why `wsp recipe --add` refuses a package a manager on this computer already has: that package is a row of its own,
- * which the build installs by the road the plan resolves for it (a tap formula from its GitHub release, pinned),
- * and a second row would install it twice by a line the image can refuse. The word that ticks the row instead. */
-export function addAlreadyHereLine(platform: "darwin" | "linux", id: string): string {
-  return `--add ${id}: a package manager on ${thisComputer(platform)} already has ${id}, so it is a row of its own.`;
-}
-
-/** What to do about it: the word that ticks that row, which installs the package by its own road rather than by a
- * second row that installs it again. */
-export function addAlreadyHereFix(scanId: string): string {
-  return `Tick it with --set ${scanId}=on.`;
-}
-
-/** A recipe file's tick on a tool outside the catalog that this computer has no row for: nothing here says how to install
- * it, so the tick is said and left out rather than dropped in silence. */
-export function notHereLine(platform: "darwin" | "linux", name: string, file: string): string {
-  return `${name} is ticked in ${file}, but ${thisComputer(platform)} has no row that installs it; it is left out.`;
-}
 
 /** The app's line for a workspace still forked from an older golden version, offered the way the helper update is:
  * a state in words, never a badge. The move is the person's; nothing replaces a machine they are working on. */
@@ -318,43 +196,8 @@ export function providerAnswerLine(a: ProviderAnswer): string {
   return `${a.status} ${a.message} (${a.requestId !== undefined ? `request ${a.requestId}` : `no request id from the provider, at ${a.at}`})`;
 }
 
-/** What df read of a machine's root disk before a snapshot was asked for, or why it read nothing. */
+/** What df read of a machine's root disk, or why it read nothing. */
 export type DiskUse = { kind: "use"; usedBytes: number; sizeBytes: number } | { kind: "unknown"; reason: string };
-
-/** A workspace snapshot the provider refused: its answer, and the disk read before the ask, named the reason only at
- * the danger tier the disk meter uses. */
-export function snapshotRefusedLine(name: string, answer: ProviderAnswer, disk: DiskUse): string {
-  const answered = `the provider answered ${providerAnswerLine(answer)}`;
-  if (disk.kind === "unknown") return `${name} was not snapshotted: ${answered}; the disk could not be read (${disk.reason})`;
-  const full = `its disk is ${Math.floor((disk.usedBytes / disk.sizeBytes) * 100)} percent full (${fmtBytesOf(disk.usedBytes, disk.sizeBytes)})`;
-  if (diskTone(disk.usedBytes, disk.sizeBytes) === "danger") return `${name} was not snapshotted: ${full} and ${answered}; free space on it or delete the workspace, then snapshot again`;
-  return `${name} was not snapshotted: ${answered}; ${full}, so the disk is not the reason`;
-}
-
-/** The folders that hold a pnpm switched to the version a folder pins, read off everything the failed call printed:
- * pnpm 10 keeps the copy in PNPM_HOME/.tools/pnpm/<v> beside its <v>_tmp_ stage, pnpm 11 in its store's
- * links/@/pnpm/<v>. Either is trusted while it stands and never fetched again, so removing it is the repair. */
-function switchedPnpm(output: string): string | undefined {
-  const tools = /([^\s'"]*\/\.tools\/pnpm\/)([^/]+?)(?:_tmp_[^/]*)?\//.exec(output);
-  if (tools !== null) return `${tools[1]}${tools[2]} and ${tools[1]}${tools[2]}_tmp_*`;
-  return /([^\s'"]*\/store\/v\d+\/links\/@\/pnpm\/[^/\s'"]+)\//.exec(output)?.[1];
-}
-
-/** A workspace snapshot refused because the manager the project's install runs does not start in its folder: every
- * fork of that disk would fail its first install the same way. `output` is all the call printed, where a switched
- * pnpm's folder may show only in a stack below the error line. */
-export function snapshotManagerLine(name: string, check: string, dir: string, said: string, output: string = said): string {
-  const copy = switchedPnpm(output);
-  const fix = copy === undefined ? `make ${check} answer there` : `remove ${copy}, run ${check} in ${dir} to fetch it again`;
-  return `${name} was not snapshotted: ${check} fails in ${dir} (${said}), so every fork of it would fail the same way; ${fix}, then snapshot again`;
-}
-
-/** What happened when a workspace snapshot at a provider is refused while the machine holds a sign-in, every path
- * named; SNAPSHOT_LOGIN_FIX is what to do. */
-export function snapshotLoginLine(name: string, paths: readonly string[]): string {
-  return `${name} was not snapshotted: it holds sign-in files (${paths.join(", ")}), which every workspace forked from the snapshot would carry`;
-}
-export const SNAPSHOT_LOGIN_FIX = "Remove them on the machine, then snapshot again.";
 
 /** The snapshotting stage's line after one refused attempt with another to come: which attempt, what the provider
  * said, what the builder reads at the provider, and when the next attempt is. */
@@ -418,49 +261,8 @@ export function otherHostsMachinesLine(machines: readonly { id: string; owner?: 
   return `left alone ${plural(machines.length, "machine")} this host did not make: ${named.join(", ")}`;
 }
 
-/** The one sentence every road that leaves a builder running says: its id, what it costs, how to attach to it
- * again, and that the sweep ends it. */
-export function builderStaysLine(builderId: string, rateUsdPerHour: number, attachCommand: string): string {
-  return `Builder ${builderId} stays up at about $${rateUsdPerHour.toFixed(2)}/hr; ${attachCommand} attaches to it again, and the sweep stops it once it is six hours old.`;
-}
-
-/** The wizard's last line when the snapshot failed and the provider still has the builder: nothing on it changed. */
-export function sealFailedBuilderStaysLine(builderId: string, rateUsdPerHour: number, attachCommand: string): string {
-  return `Seal failed; the builder is as you left it. ${builderStaysLine(builderId, rateUsdPerHour, attachCommand)}`;
-}
-
-/** The wizard's last line when the snapshot failed and the provider would not say what became of the builder: it
- * was not touched, and the attach is offered as when it is known to be up. */
-export function sealFailedBuilderUnreadLine(builderId: string, rateUsdPerHour: number, attachCommand: string): string {
-  return `Seal failed; the provider could not be read about the builder, so nothing on it was touched. ${builderStaysLine(builderId, rateUsdPerHour, attachCommand)}`;
-}
-
 /** Why a seal was refused before it took the snapshot: the builder holds a file a sign-in leaves behind. The paths
  * are the guest's own, so whoever reads the line can go and look at them. */
 export function credentialOnBuilderLine(paths: readonly string[]): string {
   return `the builder holds a sign-in file at ${paths.join(", ")}; sign-ins never sit in an image, so nothing was sealed`;
-}
-
-/** The wizard's last line when the seal failed on any road but a refused snapshot: the builder was consumed. */
-export const SEAL_FAILED_LINE = "Seal failed and the builder is gone. Run wsp init again; the recipe is kept.";
-
-/** The wizard's last line when the snapshot failed and the provider answers 404 for the builder: the provider
- * dropped it, not wsp. */
-export const SEAL_FAILED_BUILDER_GONE_LINE = "Seal failed and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again; the recipe is kept.";
-
-/** The update's last line when the snapshot of the new version failed and the provider still has the machine it
- * ran on: the golden stands, the machine is as it was, the retry runs on it or the sweep ends it. */
-export function upgradeSealFailedStaysLine(version: number, builderId: string, rateUsdPerHour: number): string {
-  return `Image v${version} is unchanged. Builder ${builderId} is as it was, up at about $${rateUsdPerHour.toFixed(2)}/hr; run wsp init again to retry, and the sweep stops it once it is six hours old.`;
-}
-
-/** The update's last line when the snapshot failed and the provider would not say what became of the machine it
- * ran on: nothing on it was touched, the retry runs on it or the sweep ends it. */
-export function upgradeSealFailedUnreadLine(version: number, builderId: string): string {
-  return `Image v${version} is unchanged. The provider could not be read about builder ${builderId}, so nothing on it was touched; run wsp init again to retry, and the sweep stops it once it is six hours old.`;
-}
-
-/** The update's last line when the snapshot failed and the provider answers 404 for the machine it ran on. */
-export function upgradeSealFailedGoneLine(version: number): string {
-  return `Image v${version} is unchanged and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again to retry.`;
 }

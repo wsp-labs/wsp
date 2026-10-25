@@ -445,8 +445,8 @@ export const PlaceSettings = PlaceCapSet.extend({
   napMs: z.number().int().min(60_000).max(NAP_AFTER_MAX_MS).nullable().optional(),
   /** How long one turn there may run before the runtime stops it; null never stops one. */
   turnLimitMs: z.number().int().min(3_600_000).max(TURN_LIMIT_MAX_MS).nullable().optional(),
-  /** What the agents on a workspace there may ask of this host where the workspace holds no switch of its own: only
-   * the parts the person set, so every other part follows AGENTS_ON as it reads now. */
+  /** The caps on what the agents on a workspace there may start where the workspace holds none of its own: only the
+   * parts the person set, so every other part follows AGENTS_ON as it reads now. */
   spawn: WorkspaceAgents.partial().optional(),
   /** On a cloud, the size a sub-thread's machine gets when the thread starting it names none. */
   size: z.object({ cpu: z.number().int(), memMb: z.number().int() }).optional(),
@@ -454,7 +454,7 @@ export const PlaceSettings = PlaceCapSet.extend({
   deleteAfterMs: z.number().int().min(0).max(DELETE_AFTER_MAX_MS).optional(),
 });
 export type PlaceSettings = z.infer<typeof PlaceSettings>;
-/** What a set asks for: the settings, with the agents switch as a patch over the parts the place holds. */
+/** What a set asks for: the settings, with the agents caps as a patch over the parts the place holds. */
 export const PlaceSettingsAsk = PlaceSettings;
 export type PlaceSettingsAsk = z.infer<typeof PlaceSettingsAsk>;
 /** What a set takes on a computer the person added beside its settings: a new name, a new ssh login and the recipe
@@ -465,7 +465,7 @@ export interface PlaceSetAlso {
   recipe?: string | undefined;
 }
 /** A setting on a place by the word the command line and the tool name it with, which a reset takes. */
-export const PlaceSettingWord = z.enum(["threads", "machines", "spend", "size", "delete-after", "nap", "turn-limit", "spawn", "max-depth"]);
+export const PlaceSettingWord = z.enum(["threads", "machines", "spend", "size", "delete-after", "nap", "turn-limit", "max-machines", "max-depth"]);
 export type PlaceSettingWord = z.infer<typeof PlaceSettingWord>;
 
 /** A cloud's plan as its own limits read answers it: the plan's key, whether it is the trial, how many machines the
@@ -524,8 +524,6 @@ export const PlaceView = z.object({
   os: z.string().optional(),
   shape: WorkspaceSize.optional(),
   diskFreeBytes: z.number().int().optional(),
-  /** The engine a project's own containers run on there. Absent on a place that has never said what it is. */
-  engine: z.enum(["none", "docker", "podman"]).optional(),
   /** How a workspace's copy of a project is made there, as that computer last reported it. Absent on a place
    * that runs no workspaces and on one that has never said. */
   copies: CopyWord.optional(),
@@ -632,10 +630,10 @@ export const PlaceView = z.object({
   turnLimitMs: z.number().int().nullable().optional(),
   /** The turn limit this kind of place has when nobody set one: what a reset of `turnLimitMs` goes back to. */
   turnLimitDefault: z.number().int().nullable().optional(),
-  /** What the agents on a workspace here may ask of this host where it holds no switch of its own: the person's
+  /** The caps on what the agents on a workspace here may start where it holds none of its own: the person's
    * setting for this place, else `spawnDefault`. */
   spawn: WorkspaceAgents.optional(),
-  /** The switch a place nobody set one on gives its workspaces: what a reset of `spawn` goes back to. */
+  /** The caps a place nobody set any on gives its workspaces: what a reset of `max-machines` or `max-depth` goes back to. */
   spawnDefault: WorkspaceAgents.optional(),
   /** What its cap counts, at list time: threads running on a computer, machines holding a slot on a cloud. */
   running: z.number().int().nonnegative().optional(),

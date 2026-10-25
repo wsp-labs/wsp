@@ -4,27 +4,19 @@ import { readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { connect as connectTcp } from "node:net";
 import type { Readable, Writable } from "node:stream";
-import { ROAD_MODULES, agentName, catalogEntry, isRoad } from "@wsp/catalog";
+import { agentName } from "@wsp/catalog";
 import {
   capWaitLine,
   LOOPBACK,
   SSH_ALIAS_PREFIX,
   sshAlias,
-  ProjectGolden,
-  ProjectGoldenRemoved,
   SealedImage,
   SealedImageBuilt,
   SealedImageView,
   NO_SEALED_IMAGE,
-  IMAGE_PASSPHRASE_ENV,
-  IMAGE_PASSPHRASE_MIN,
   GOLDEN_STAGE_WORDS,
   sealedCopyLine,
-  sealedPinLine,
   sealedImageLine,
-  sealedProjectLine,
-  noProjectImageLine,
-  projectImageRemoveNotice,
   type GoldenStageEvent,
   PlaceView,
   SessionInterruptOutcome,
@@ -87,8 +79,6 @@ import {
   isLocalWorkspace,
   runsInFolder,
   namesPlace,
-  packageOf,
-  type SealedPin,
   CommitDraft,
   GitCommitReply,
   FixResult,
@@ -274,24 +264,18 @@ export async function buildImageAt(client: HostClient, out: Out, word: string, f
   }
 }
 
-/** A pin's row by name: the catalog's for a catalog id, else the package a row outside the catalog names. */
-const pinName = (pin: SealedPin): string => catalogEntry(pin.id)?.name ?? packageOf(pin);
-
-/** What every director prints for the image: the record, a row per place, what each row installed at the seal, and
- * the project images under it. */
+/** What every director prints for the image: the record and a row per place. */
 export function imageLines(view: SealedImageView): string[] {
   if (view.image === null) return [NO_SEALED_IMAGE];
   const image = view.image;
   return [
     sealedImageLine(image),
     ...view.copies.map(c => sealedCopyLine(image, c)),
-    ...(image.pins ?? []).map(p => `  ${sealedPinLine(pinName(p), p, isRoad(p.road) ? ROAD_MODULES[p.road].words : undefined)}`),
-    ...view.projects.map(sealedProjectLine),
   ];
 }
 
-/** Why an export runs at its own host's terminal: the bytes it writes are the person's sign-ins, so the file lands
- * on the computer whose terminal asked for it and the passphrase never crosses to another. */
+/** Why a line that reads the vault runs at its own host's terminal: the sign-ins it holds are the person's, so the
+ * line is typed on the computer that holds them. */
 export const HOST_SIDE_VAULT = "The vault leaves the host only as a sealed file on the computer that typed the line.";
 
 /** wsp ssh on a line with no stdin and stdout of this computer's: carried from a machine, it has nothing to pipe. */
@@ -322,27 +306,6 @@ export function pipeBytes(port: number, bytes: { input: Readable; output: Writab
       resolve();
     });
   });
-}
-
-/** The passphrase an export is sealed to: typed twice at a terminal, read from the environment where there is none,
- * and never taken from the command line, which every process on this computer can read. */
-export async function imagePassphrase(ctx: VerbContext): Promise<string> {
-  const short = (word: string): string => (word.length < IMAGE_PASSPHRASE_MIN ? `the passphrase is ${IMAGE_PASSPHRASE_MIN} characters at least` : "");
-  if (ctx.io.isTTY !== true) {
-    const held = ctx.env[IMAGE_PASSPHRASE_ENV];
-    if (held === undefined || held === "") throw usageRefusal("nobody is at this terminal to type a passphrase.", `Set ${IMAGE_PASSPHRASE_ENV} for this run instead.`);
-    const why = short(held);
-    if (why !== "") throw usageRefusal(`${IMAGE_PASSPHRASE_ENV} is too short: ${why}.`, "Set a longer one and run this again.");
-    return held;
-  }
-  // Through the run's own io, as every other question this command line asks is: it is what a terminal answers
-  // without echo and what a test answers in its place.
-  const typed = await ctx.io.askSecret(`A passphrase for this export\n${IMAGE_PASSPHRASE_MIN} characters at least; it is the only way back into the file`);
-  const why = short(typed);
-  if (why !== "") throw usageRefusal(`${why}.`, "Nothing was exported; run it again and type a longer one.");
-  const again = await ctx.io.askSecret("The same passphrase again");
-  if (again !== typed) throw usageRefusal("the two passphrases are not the same.", "Nothing was exported; run it again and type the same one twice.");
-  return typed;
 }
 
 /** What a workspace rename came to, as every director prints it: the name it went in under and the record after. */
@@ -693,11 +656,6 @@ export function deleteQuestion(d: Dropping): string {
   return `Delete ${d.workspace.name}?\n${deleteNotice(d.threads, workspaceKind(d.workspace), madeWorktree(d.workspace), d.workspace.machineId, d.on)}`;
 }
 
-/** The one confirmation a project image's removal asks: the id, and what goes with it. */
-export function imageRemoveQuestion(g: ProjectGolden): string {
-  return `Remove project image ${g.snapshotId}?\n${projectImageRemoveNotice(g)}`;
-}
-
 /** Kills the workspace's machine at the provider, then drops its record here; a machine already gone is no error. */
 export async function deleteWorkspace(client: HostClient, d: Dropping): Promise<void> {
   await client.request("workspaces.delete", { workspaceId: d.workspace.id });
@@ -864,21 +822,13 @@ export async function projectsHere(client: HostClient): Promise<Pick<ProjectView
   return [...byId.values()];
 }
 
-/** What a --spawn line and its caps ask for, the one reading of them: nothing when none was named, so a workspace
- * made without them takes the default, and a cap named alone tightens the switch as it stands, on or off. */
-export function agentsAsked(spawn: string | boolean | undefined, maxMachines?: string | number, maxDepth?: string | number, computer?: string): Partial<WorkspaceAgents> | undefined {
-  const on = typeof spawn === "string" ? onOffWord(spawn, computer) : spawn;
+/** What the caps a line names ask for, the one reading of them: nothing when none was named, so a workspace made
+ * without them takes the default. */
+export function agentsAsked(maxMachines?: string | number, maxDepth?: string | number, computer?: string): Partial<WorkspaceAgents> | undefined {
   const machines = maxMachines === undefined ? undefined : countAsked("--max-machines", maxMachines, 0, computer);
-  // One level is the least a switch that is on can mean; none of them is what --spawn off already says.
   const depth = maxDepth === undefined ? undefined : countAsked("--max-depth", maxDepth, 1, computer);
-  if (on === undefined && machines === undefined && depth === undefined) return undefined;
-  return { ...(on !== undefined ? { spawn: on } : {}), ...(machines !== undefined ? { maxMachines: machines } : {}), ...(depth !== undefined ? { maxDepth: depth } : {}) };
-}
-
-function onOffWord(word: string, computer?: string): boolean {
-  if (word === "on") return true;
-  if (word === "off") return false;
-  throw usageRefusal(`${flagFor("--spawn", computer)} takes on or off, and got ${JSON.stringify(word)}.`, "Write --spawn on or --spawn off.");
+  if (machines === undefined && depth === undefined) return undefined;
+  return { ...(machines !== undefined ? { maxMachines: machines } : {}), ...(depth !== undefined ? { maxDepth: depth } : {}) };
 }
 
 export function countAsked(flagName: string, word: string | number, least: number, computer?: string): number {
@@ -894,31 +844,6 @@ export function sizeChosen(sizes: readonly MachineSizeOffer[], word: string): Wo
   const size = sizeFromWord(word);
   if (size === undefined || !offeredSize(sizes, size)) throw usageRefusal(sizeRefusal(word, sizes), "Name one of those with --size.");
   return size;
-}
-
-/** The project image a snapshot id names, and nothing else: a remove never picks one by a project's name. */
-export async function projectImageOf(client: HostClient, id: string): Promise<ProjectGolden> {
-  const { projectGoldens } = await client.request<{ projectGoldens: ProjectGolden[] }>("projectGoldens.list");
-  const golden = projectGoldens.find(g => g.snapshotId === id);
-  if (golden === undefined) throw notFoundRefusal(noProjectImageLine(id));
-  return golden;
-}
-
-export async function removeProjectImage(client: HostClient, id: string): Promise<ProjectGoldenRemoved> {
-  return ProjectGoldenRemoved.parse(await client.request("projectGoldens.remove", { snapshotId: id }));
-}
-
-
-/** Snapshots the workspace a person names as a project golden; the record, as every director shows it. */
-export async function snapshot(client: HostClient, ref: string): Promise<ProjectGolden> {
-  const source = await workspaceOf(client, ref);
-  return (await client.request<{ projectGolden: ProjectGolden }>("workspaces.snapshot", { workspaceId: source.id })).projectGolden;
-}
-
-export function projectGoldenLine(g: ProjectGolden): string {
-  const version = g.version !== undefined ? `image v${g.version}` : `image ${g.golden}`;
-  const carried = g.projects.map(p => `${p.name} imported ${p.importedAt.slice(0, 10)}`).join(", ");
-  return `project image ${g.snapshotId}: ${version} plus ${carried}, taken from ${g.workspaceName}`;
 }
 
 /** The words a person gave beside the address, read once for the command line and the tool alike: a port that is a

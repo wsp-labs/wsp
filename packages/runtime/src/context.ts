@@ -36,7 +36,6 @@ import type {
   RecipeDigest,
   SealedImage,
   SealedImageBuilt,
-  ProjectGolden,
   ProjectRef,
   ProjectSource,
   ProjectView,
@@ -412,9 +411,7 @@ export interface RecordsArea {
   readonly migrateCopies: () => Promise<void>;
   readonly recordOf: (name: string) => Promise<SealedImage | undefined>;
   readonly recordedImages: () => Promise<Set<string>>;
-  readonly recipeAsksEngine: (version: GoldenVersion) => Promise<boolean>;
-  readonly imageOf: (snapshotId: string) => Promise<{ golden: string; version?: GoldenVersion; projects?: WorkspaceProject[] }>;
-  readonly projectGoldenOf: (raw: unknown) => ProjectGolden;
+  readonly imageOf: (snapshotId: string) => Promise<{ golden: string; version?: GoldenVersion }>;
 }
 
 export interface ReachArea {

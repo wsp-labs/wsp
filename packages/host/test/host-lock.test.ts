@@ -199,41 +199,6 @@ describe("serve takes host.lock next to the state file", () => {
     expect(existsSync(join(dir, "user", ".wsp"))).toBe(false);
   });
 
-  it("wsp init refuses when the host holding the lock cannot take the build, naming wsp down before any pid, and boots nothing", async () => {
-    // A lock a live process holds whose host answers nowhere: the build cannot go through its door, so the run says
-    // how to take that host down. A host that does answer takes the build instead; that road is init-beside's test.
-    mkdirSync(join(home, "state"), { recursive: true });
-    writeFileSync(lockPath, JSON.stringify({ pid: process.pid, port: 1, address: "127.0.0.1", startedAt: new Date().toISOString() }));
-    writeFileSync(join(home, "state", "host-token"), "tok");
-    // A host somewhere else is where every other verb would go; the build belongs to the process holding this lock.
-    vi.stubEnv("WSP_HOST", "elsewhere");
-    const errors: string[] = [];
-    const code = await cli(["init", "--state", statePath], { ...quietIO, error: line => errors.push(line) });
-    expect(code).toBe(1);
-    expect(errors).toHaveLength(1);
-    expect(errors[0]).toContain(`wsp init: the wsp host serving ${statePath} (pid ${process.pid}) cannot take this build`);
-    expect(errors[0]).toContain(`Take it down first (wsp down for a service, Ctrl-C in its terminal or kill ${process.pid} for one started by hand)`);
-    expect(errors[0]).not.toContain("elsewhere");
-    expect(readLock(lockPath).pid).toBe(process.pid);
-  });
-
-  it.runIf(CLOUD_ON)("wsp init --provider beside a serving host is refused, naming the provider that host forks on and the wsp up that moves it", async () => {
-    // The host serving this state file is the process that runs the build, on the provider it started on: a
-    // provider named on this line reaches no runtime of this run's, so it is said out loud rather than dropped.
-    vi.stubEnv("WSP_PROVIDER", "solari");
-    const first = await start();
-    const errors: string[] = [];
-    const code = await cli(["init", "--provider", "box", "--state", statePath], { ...quietIO, error: line => errors.push(line) });
-    expect(code).toBe(3);
-    // The wsp up the sentence hands over is this run's own line, so it names the state file this home keeps its
-    // host under: without the --state it would start a host on this computer's default state file instead.
-    expect(errors).toEqual([
-      `wsp init: the wsp host serving ${statePath} (pid ${process.pid}) runs this build and forks on solari, not box. Drop --provider, or take that host down and start it again with wsp up --state '${statePath}' --provider 'box'.`,
-    ]);
-    // Refused before the run opens: the host is still serving and nothing of the build was read or booted.
-    expect((await fetch(`http://127.0.0.1:${first.port}/`)).status).toBe(200);
-  });
-
   it("does not leave a lock behind when the host fails to start", async () => {
     const broken = join(home, "broken-web");
     mkdirSync(broken);

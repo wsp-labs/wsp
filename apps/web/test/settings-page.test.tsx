@@ -28,7 +28,7 @@ import { crumb, descriptionOf, liftedRowIds, lineLabels, mountSettings, pageAt, 
 
 const FILE: TerminalConfig = { files: ["/Users/dev/.config/ghostty/config"], fontFamily: [], fontSize: 16, palette: Array<null>(16).fill(null) };
 const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: "zingzy's MacBook Pro", default: true, present: true, takesForks: false, shape: { cpu: 8, memMb: 16384 }, diskFreeBytes: 210 * 1024 ** 3 };
-const box: PlaceView = { id: "p_spoo", kind: "computer", name: "spoo", default: false, present: true, takesForks: true, engine: "docker", os: "Ubuntu 24.04", shape: { cpu: 4, memMb: 8192 }, diskFreeBytes: 63 * 1024 ** 3, joinedAt: "2026-09-12T11:00:00.000Z", lastSeenAt: "2026-09-12T11:59:00.000Z", road: { ssh: "root@spoo" } };
+const box: PlaceView = { id: "p_spoo", kind: "computer", name: "spoo", default: false, present: true, takesForks: true, os: "Ubuntu 24.04", shape: { cpu: 4, memMb: 8192 }, diskFreeBytes: 63 * 1024 ** 3, joinedAt: "2026-09-12T11:00:00.000Z", lastSeenAt: "2026-09-12T11:59:00.000Z", road: { ssh: "root@spoo" } };
 const solari: PlaceView = { id: "solari", kind: "provider", name: "solari", default: false, rateUsdPerHour: 0.11, takesForks: true };
 const project = (id: string, name: string, computer = "here"): ProjectView => ({ id, name, computer, source: { kind: "folder", path: `/Users/dev/${name}` }, path: `/Users/dev/${name}`, remote: `https://github.com/dev/${name}.git`, defaultBranch: "main", memoryKey: `-Users-dev-${name}`, memoryDir: `/Users/dev/.claude-cfg/projects/-Users-dev-${name}/memory`, createdAt: "2026-09-12T09:14:00.000Z" });
 const view = (id: string, name: string): WorkspaceView => ({ id, name, machineId: `m_${id}`, kind: "local", project: { id: "pr_spoo", name: "spoo", path: "/Users/dev/spoo", computer: "here" }, phase: "running", golden: "", createdAt: "2026-09-01T00:00:00Z" });
@@ -217,7 +217,7 @@ describe("search", () => {
 
 describe("search over a computer", () => {
   it("finds a computer by its name", async () => {
-    useStore.setState({ places: [here, box], projects: [] });
+    useStore.setState({ places: [here, box] });
     mountSettings({ api: settingsApi().api });
     await settle();
     fireEvent.change(field(), { target: { value: "spoo" } });
@@ -323,7 +323,7 @@ describe("the row grammar", () => {
       account: async () => ({ signedIn: false }),
       devicesList: async () => devices,
       editorList: async () => [{ id: "cursor", name: "Cursor" }],
-      image: async () => ({ image: null, copies: [], projects: [] }),
+      image: async () => ({ image: null, copies: [] }),
       initGet: async () => ({ keys: { solari: true }, home: "/Users/dev", agents: [{ id: "claude", name: "Claude Code", configured: false, takesTools: true }], pricing: null, job: null }),
       hostTerminalConfig: async () => FILE,
       agentsRead: async () => AGENTS_REPORT,
@@ -662,7 +662,7 @@ describe("Appearance's fonts", () => {
 describe("the doors and the memory", () => {
   it("Add a computer opens Settings on Computers with the sheet over it whatever was remembered", async () => {
     useStore.setState({ places: [here, solari] });
-    const api = settingsApi({ initGet: async () => ({ keys: { solari: true }, home: "/Users/dev", agents: [], pricing: null, job: null }), image: async () => ({ image: null, copies: [], projects: [] }) } as Partial<Api>).api;
+    const api = settingsApi({ initGet: async () => ({ keys: { solari: true }, home: "/Users/dev", agents: [], pricing: null, job: null }), image: async () => ({ image: null, copies: [] }) } as Partial<Api>).api;
     useSettingsStore.getState().go({ kind: "group", group: "general" });
     useStore.setState({ api });
     useStore.getState().openAddComputer();

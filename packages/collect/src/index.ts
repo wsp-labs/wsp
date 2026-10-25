@@ -19,7 +19,6 @@ export { LINUX_BOTTLES } from "./data/linux-bottles.js";
 export { AGENTS, agentRowId, detectAgents } from "./detect/agents.js";
 export { type Presence, presenceOf } from "./detect/presence.js";
 export * from "./history/index.js";
-export { type CommandCount, type RecipeOptions, computeRecipe, floorApplies, unknownCommands, withProject } from "./recipe.js";
 export { PROJECT_READERS, type ProjectNeed, type ProjectScan, scanProject } from "./project/index.js";
 export type { ProjectFile, ProjectFinding, ProjectReader } from "./project/reader.js";
 export { KEYLIKE_SEGMENT, MCP_BIN_DIRS, MCP_REMOTE_ID, MCP_REMOTE_LABEL, detectMcp, hidesValue, homePaths, linuxFit, mcpRemoteHash, mcpRemoteOf, mcpRemoteTokenFile, plainArg, readArgs, secretNamed, stdioLine, type ArgRead, type LinuxFit } from "./detect/mcp.js";

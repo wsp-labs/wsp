@@ -239,7 +239,6 @@ function provisioner(
   const picked: RecipeFile[] = [];
   const rows = { ...ROWS, ...o.rows };
   const wired: PlaceProvisioner = {
-    plan: async () => ({ noRecipe: "/nowhere/recipe.json" }),
     setup: async picks => {
       picked.push(picks);
       return o.plan ?? PLAN;
@@ -581,78 +580,7 @@ describe("a remove of a computer set up with picks", () => {
     expect(removed.note).toBe(pluginsKeptLine("spoo", ["stuck@market"]));
   });
 
-  it("carries a folder's own servers into the project it became there once the servers step has ended, though the folder landed before it started", async () => {
-    const { folder, seed } = seededFolder();
-    // The skills hold the files lane, so the servers step cannot start while the folder lands.
-    const p = provisioner({ projectServers: true, holds: ["skills"] });
-    await hosting({ provision: p.wired, checkouts: {}, seed });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, name: "app", keep: [] } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => (await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")?.outcome === "installed" && p.ran.includes("skills"));
-    const path = (await runtime!.projects.list())[0]!.path;
-    await new Promise(r => setTimeout(r, 20));
-    expect(p.ran).not.toContain("mcp");
-    expect(p.carried).toEqual([]);
-    p.let("skills");
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    expect(p.carried).toEqual([{ key: "app", path, after: expect.arrayContaining(["mcp", "plugins"]) }]);
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === `agents/mcp/claude/@${encodeURIComponent(path)}/kept`)).toMatchObject({ outcome: "installed", step: "folderServers" });
-  });
-
-  it("carries nothing into the agents' files where the servers step did not land them, and says the servers wait", async () => {
-    const { folder, seed } = seededFolder();
-    const p = provisioner({ projectServers: true, rows: { mcp: [{ id: "files/.claude-cfg/.claude.json", label: "Claude Code", outcome: "failed", note: "the landing failed" }] } });
-    await hosting({ provision: p.wired, checkouts: {}, seed });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, name: "app", keep: [] } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => ["done", "failed"].includes((await rowOf(place.id)).setup?.state ?? ""));
-    expect(p.carried).toEqual([]);
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app/servers")).toMatchObject({ outcome: "skipped", note: FOLDER_SERVERS_WAIT_LINE, step: "folderServers" });
-  });
-
-  it("lands a file of values a recipe folder keeps on a box, as a box of the person's own gets one", async () => {
-    const { folder, seed } = seededFolder([{ path: ".env", dir: false, bytes: 120, kind: "secret", row: { id: "node", name: "Node" }, ticked: true }]);
-    const packed: string[][] = [];
-    await hosting({ provision: provisioner().wired, checkouts: {}, seed: { ...seed, pack: async o => (packed.push(o.choice.files), seed.pack(o)) } });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, name: "app", keep: [".env"] } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    expect(packed).toEqual([[".env"]]);
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed" });
-  });
-
-  it("reads a folder a setup made as wsp's through a second setup, which ends ready, and the remove takes its project off", async () => {
-    const { folder, seed } = seededFolder();
-    const { frames } = await hosting({ provision: provisioner().wired, checkouts: {}, seed });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, name: "app", keep: [] } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const again = await runtime!.places!.setUp(place.id, {});
-    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed", step: "folders" });
-    expect(ended(frames).map(f => f.end)).toEqual(["ready", "ready"]);
-    const removed = await runtime!.places!.remove(place.id);
-    expect(removed.removed).toBe(true);
-    expect(await runtime!.projects.list()).toEqual([]);
-  });
-
   const appPicks = (folder: string, pick: Record<string, unknown> = {}): RecipeFile => RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, name: "app", keep: [], ...pick } } });
-
-  it("moves the project a setup made to the folder a second setup's picks name, one project on that computer", async () => {
-    const { folder, seed } = seededFolder();
-    const other = seededFolder().folder;
-    const { frames } = await hosting({ provision: provisioner().wired, checkouts: {}, seed, answer: folderGone });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: appPicks(folder) }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const again = await runtime!.places!.setUp(place.id, { choices: appPicks(other) });
-    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
-    const projects = await runtime!.projects.list();
-    expect(projects.map(p => p.source)).toEqual([{ kind: "folder", path: other }]);
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed", project: { id: projects[0]!.id } });
-    expect(ended(frames).map(f => f.end)).toEqual(["ready", "ready"]);
-    expect((await runtime!.places!.remove(place.id)).removed).toBe(true);
-    expect(await runtime!.projects.list()).toEqual([]);
-  });
 
   /** The person takes the project a setup made off this host and records the same folder there by hand, under its
    * name: theirs, which no later setup takes as wsp's, and which a remove takes with the computer as it takes any. */
@@ -661,95 +589,10 @@ describe("a remove of a computer set up with picks", () => {
     return (await runtime!.projects.add({ source: folder, on: placeId, name: "app", seed: seedChoiceFrom(await seed.plan(folder, {}), [], []) })).id;
   };
 
-  it("leaves a project the person recorded by hand where a setup's stood through a second setup, and the remove takes it with the computer", async () => {
-    const { folder, seed } = seededFolder();
-    await hosting({ provision: provisioner().wired, checkouts: {}, seed });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: appPicks(folder) }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const theirs = await theirsInItsPlace(folder, seed, place.id);
-    const again = await runtime!.places!.setUp(place.id, {});
-    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")?.outcome).toBe("failed");
-    expect((await runtime!.projects.list()).map(p => p.id)).toEqual([theirs]);
-    expect((await runtime!.places!.remove(place.id)).took).toEqual({ forks: [], projects: [{ name: "app", threads: 0 }] });
-    expect(await runtime!.projects.list()).toEqual([]);
-  });
-
-  it("takes a project the person recorded by hand where a setup's stood when the remove comes straight after", async () => {
-    const { folder, seed } = seededFolder();
-    await hosting({ provision: provisioner().wired, checkouts: {}, seed });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: appPicks(folder) }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const theirs = await theirsInItsPlace(folder, seed, place.id);
-    expect((await runtime!.projects.list()).map(p => p.id)).toEqual([theirs]);
-    expect((await runtime!.places!.remove(place.id)).took).toEqual({ forks: [], projects: [{ name: "app", threads: 0 }] });
-    expect(await runtime!.projects.list()).toEqual([]);
-  });
-
-  it("keeps a folder with no name of its own wsp's through a second setup cut at its floor, and the remove after a third takes it off", async () => {
-    const { folder, seed } = seededFolder();
-    const floor: PlaceProvisionRow[] = [];
-    await hosting({ provision: provisioner({ rows: { floor } }).wired, checkouts: {}, seed });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, keep: [] } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    floor.push({ id: "floor/apt", label: "apt", outcome: "failed", note: "apt lock held" });
-    const second = await runtime!.places!.setUp(place.id, {});
-    await until(async () => (await rowOf(place.id)).setup?.addId === second.addId && (await rowOf(place.id)).setup?.state === "failed");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed", earlier: true });
-    floor.length = 0;
-    const third = await runtime!.places!.setUp(place.id, {});
-    await until(async () => (await rowOf(place.id)).setup?.addId === third.addId && (await rowOf(place.id)).setup?.state === "done");
-    const row = await rowOf(place.id);
-    expect(row.applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed", earlier: true, step: "folders" });
-    expect(placeWord(row, null).word).toBe("Ready");
-    expect((await runtime!.places!.remove(place.id)).removed).toBe(true);
-    expect(await runtime!.projects.list()).toEqual([]);
-  });
-
-  it("counts a folder an earlier setup made as already there in the second setup's lines", async () => {
-    const { folder, seed } = seededFolder();
-    await hosting({ provision: provisioner().wired, checkouts: {}, seed });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: appPicks(folder) }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const again = await runtime!.places!.setUp(place.id, {});
-    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
-    const row = await rowOf(place.id);
-    expect(setupLines("spoo", row.setup!, row.applied)[0]).toBe("spoo: 2 installed: Claude Code, GitHub CLI, 2 already there");
-  });
-
-  it("keeps the project a setup made where the folder a second setup names needs GitHub to clone and GitHub is not signed in there", async () => {
-    const { folder, seed } = seededFolder();
-    const repo = privateRepo();
-    await hosting({ local: true, provision: provisioner().wired, checkouts: {}, seed, answer: cmd => (cmd.includes("ls-remote") ? { exitCode: 128 } : undefined) });
-    const skip = { configs: { github: { signin: "skip" } } };
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: appPicks(folder, skip) }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const was = (await runtime!.projects.list())[0]!.id;
-    const again = await runtime!.places!.setUp(place.id, { choices: RecipeFile.parse({ ...appPicks(repo), ...skip }) });
-    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "failed", note: NEEDS_GITHUB_LINE, project: { id: was } });
-    expect((await runtime!.projects.list()).map(p => [p.id, p.source])).toEqual([[was, { kind: "folder", path: folder }]]);
-    expect((await runtime!.places!.remove(place.id)).removed).toBe(true);
-  });
-
   for (const [what, to, said] of [
     ["has no remote", "remote", noRemoteLine],
     ["is not there", "missing", recipeFolderGoneLine],
   ] as const) {
-    it(`keeps the project a setup made where the folder a second setup names ${what}, and the row says why`, async () => {
-      const { folder, seed } = seededFolder();
-      const other = to === "remote" ? seededFolder().folder : join(folder, "gone");
-      const plan = await seed.plan(folder, {});
-      await hosting({ provision: provisioner().wired, checkouts: {}, seed: { ...seed, plan: async f => (f === folder ? plan : { ...plan, source: f, remote: null }) } });
-      const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: appPicks(folder) }, Date.now());
-      await until(async () => (await rowOf(place.id)).setup?.state === "done");
-      const was = (await runtime!.projects.list())[0]!.id;
-      const again = await runtime!.places!.setUp(place.id, { choices: appPicks(other) });
-      await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
-      expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "failed", note: said(other), project: { id: was } });
-      expect((await runtime!.projects.list()).map(p => [p.id, p.source])).toEqual([[was, { kind: "folder", path: folder }]]);
-    });
   }
 
   it("takes a project the person recorded there by hand with it too, in the same remove", async () => {
@@ -1269,28 +1112,6 @@ describe("a computer added with its picks", () => {
     expect(row.setup?.waiting).toEqual([]);
   });
 
-  it("carries a folder that waited on GitHub its own servers after every step has ended, and still says the end once", async () => {
-    const s = signIns();
-    const { folder: repo, seed } = seededFolder();
-    execFileSync("git", ["init", "-q", repo]);
-    execFileSync("git", ["-C", repo, "remote", "add", "origin", "git@github.com:acme/private.git"]);
-    const p = provisioner({ projectServers: true });
-    const { frames } = await hosting({ local: true, provision: p.wired, acts: s.acts, cmds: [], checkouts: {}, seed, answer: cmd => (cmd.includes("ls-remote") ? { exitCode: 128 } : undefined) });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: repo, keep: [] } }, configs: { github: { signin: "machine" } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    await until(async () => (await rowOf(place.id)).setup?.waiting.some(w => w.code !== undefined) === true);
-    expect(p.carried).toEqual([]);
-    const heard = frames.length;
-    s.end("gh", { state: "signed-in" });
-    await until(async () => (await rowOf(place.id)).applied?.rows.some(r => r.id.startsWith("agents/mcp/claude/@")) === true);
-    await new Promise(resolve => setTimeout(resolve, 30));
-    const path = (await runtime!.projects.list())[0]!.path;
-    expect(p.carried).toEqual([{ key: "app", path, after: expect.arrayContaining(["mcp", "plugins", "context"]) }]);
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === `agents/mcp/claude/@${encodeURIComponent(path)}/kept`)).toMatchObject({ outcome: "installed", step: "folderServers" });
-    expect(ended(frames.slice(heard))).toHaveLength(1);
-  });
-
   it("reads a private folder as needing GitHub once the GitHub sign-in on the box failed", async () => {
     const s = signIns();
     const repo = privateRepo();
@@ -1301,79 +1122,6 @@ describe("a computer added with its picks", () => {
     s.end("gh", { state: "failed", said: "gh refused" });
     await until(async () => (await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")?.outcome === "failed");
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "failed", note: NEEDS_GITHUB_LINE, step: "folders" });
-  });
-
-  it("lands a recipe folder as a project on that computer, the setup's own clone let past the setup it runs in", async () => {
-    const { folder, seed } = seededFolder();
-    await hosting({ provision: provisioner().wired, checkouts: {}, seed });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, keep: [] } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed", step: "folders" });
-    expect((await runtime!.projects.list()).map(p => [p.computer, p.source])).toEqual([[place.id, { kind: "folder", path: folder }]]);
-  });
-
-  it("writes what a folder's clone and seed say to the folders step's own log as they go, while the step still runs", async () => {
-    const { folder, seed } = seededFolder();
-    let clone = (): void => {};
-    const created = new Promise<void>(resolve => (clone = resolve));
-    const cmds: string[] = [];
-    await hosting({ provision: provisioner().wired, checkouts: { created }, seed, cmds });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, keep: [] } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.steps.some(l => l.step === "folders" && l.state === "running") === true);
-    const at = placeProvisionPaths("/home/maya");
-    const written = (cmd: string): string => Buffer.from(/printf %s '([A-Za-z0-9+/=]*)'/.exec(cmd)![1]!, "base64").toString("utf8");
-    const folderLines = (): string[] => cmds.filter(c => c.includes(at.log) && c.includes("printf")).flatMap(c => written(c).split("\n")).filter(l => / \[folders\] app: /.test(l));
-    await until(() => folderLines().length > 0);
-    expect((await rowOf(place.id)).setup?.steps.find(l => l.step === "folders")?.state).toBe("running");
-    expect(folderLines()[0]?.endsWith(` from ${folder}.`)).toBe(true);
-    clone();
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    await until(() => folderLines().some(l => / \[folders\] app: Cloning /.test(l)));
-  });
-
-  it("refuses a fork there while its folders clone, the setup's own clone going on past it", async () => {
-    const { folder, seed } = seededFolder();
-    let clone = (): void => {};
-    const created = new Promise<void>(resolve => (clone = resolve));
-    await hosting({ provision: provisioner().wired, checkouts: { created }, seed });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, keep: [] } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.steps.some(l => l.step === "folders" && l.state === "running") === true);
-    await expect(runtime!.places!.forkingBackend(place.id)).rejects.toThrow(placeProvisioningLine("spoo", "folders"));
-    clone();
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed" });
-  });
-
-  it("keeps what the computer forks with on its record when the folder add first reads it under a setup write in flight", async () => {
-    const { folder, seed } = seededFolder();
-    const store = memoryStore();
-    let letWrite = (): void => {};
-    const held = new Promise<void>(resolve => (letWrite = resolve));
-    let holding = false;
-    const put = store.put.bind(store);
-    // The setup's write of its folders line has read the record and is held before it lands.
-    store.put = async (collection, id, value) => {
-      const steps = (value as PlaceRecord).setup?.steps ?? [];
-      if (collection === "places" && !holding && steps.some(l => l.step === "folders" && l.state === "running")) {
-        holding = true;
-        await held;
-      }
-      return put(collection, id, value);
-    };
-    // The ask at the join goes unanswered, so the folder add is the first to read what the computer forks with.
-    let asked = 0;
-    await hosting({ provision: provisioner().wired, store, checkouts: { answers: () => ++asked > 1 }, seed });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, keep: [] } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(() => holding && asked > 1);
-    await new Promise(resolve => setTimeout(resolve, 30));
-    letWrite();
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed" });
-    expect(((await store.get("places", place.id)) as PlaceRecord).backendFacts).toMatchObject({ projects: "/wsp/projects" });
   });
 
   it("refuses a fork there while it runs, naming the step, and takes one once it is done", async () => {
@@ -1565,26 +1313,6 @@ describe("a host that stops in the middle of a setup", () => {
     await until(async () => (await rowOf(place.id)).setup?.waiting.some(w => w.url !== undefined) === true);
     expect(s2.started).toEqual(["codex"]);
     expect((await rowOf(place.id)).setup?.waiting).toEqual([expect.objectContaining({ row: "signins/codex", url: "https://auth.example/codex/1", code: "CODE-1" })]);
-  });
-
-  it("resumes a setup that stopped after its folders and servers steps by carrying the folders those steps landed", async () => {
-    const store = memoryStore();
-    const { folder, seed } = seededFolder();
-    const first = await hosting({ provision: provisioner({ projectServers: true }).wired, store, checkouts: {}, seed });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, name: "app", keep: [] } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    // Written back as a host that stopped before the folders' servers were carried would have left it.
-    const held = (await store.get("places", place.id)) as PlaceRecord;
-    const steps = held.setup!.steps.filter(l => l.step !== "folderServers" && l.step !== "context");
-    await store.put("places", place.id, { ...held, setup: { ...held.setup!, state: "running", steps, finishedAt: undefined }, applied: { ...held.applied!, rows: held.applied!.rows.filter(r => r.step !== "folderServers") } });
-    await stopHost();
-    const again = provisioner({ projectServers: true });
-    await hosting({ provision: again.wired, store, hostKey: first.hostKey, checkouts: {}, seed });
-    await dialsBack(first.hostKey, place.id, first.joined[0]!.pair);
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    expect(again.ran).toEqual(["context"]);
-    expect(again.carried.map(c => c.key)).toEqual(["app"]);
   });
 
   it("resumes a waiting sign-in the person finished by hand between runs as already there, with no second start", async () => {
@@ -1838,19 +1566,6 @@ describe("one row of a setup that ended, run again", () => {
     const again = await runtime!.places!.setUp(place.id, { row: "tools/brew/gh" });
     await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "mcp/github")).toMatchObject({ outcome: "installed", step: "mcp" });
-  });
-
-  it("carries no project's servers into the agents' files on a folders Retry after a servers step that failed", async () => {
-    const { folder, seed } = seededFolder();
-    const p = provisioner({ projectServers: true, rows: { mcp: [{ id: "files/.claude-cfg/.claude.json", label: "Claude Code", outcome: "failed", note: "the landing failed" }] } });
-    await hosting({ provision: p.wired, checkouts: {}, seed });
-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, name: "app", keep: [] } } });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => ["done", "failed"].includes((await rowOf(place.id)).setup?.state ?? ""));
-    const again = await runtime!.places!.setUp(place.id, { row: "folders" });
-    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && ["done", "failed"].includes((await rowOf(place.id)).setup?.state ?? ""));
-    expect(p.carried).toEqual([]);
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app/servers")).toMatchObject({ outcome: "skipped", note: FOLDER_SERVERS_WAIT_LINE });
   });
 
   it("runs one agent's sign-in again on its way's change, and starts no login for another the person set aside", async () => {
@@ -2645,219 +2360,8 @@ describe("a computer that follows a recipe", () => {
     expect((await rowOf(place.id)).applied?.rows.find(row => row.id === "signins/codex")).toMatchObject({ outcome: "present", note: SIGNED_IN_THERE, step: "signins" });
   });
 
-  it("lands a folder a sync adds as a project on that computer", async () => {
-    const { folder, seed } = seededFolder();
-    const r = shelf(V1, ITEMS);
-    await hosting({ provision: provisioner().wired, recipes: r.recipes, checkouts: {}, seed });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: V1, recipe: "laptop" }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    r.move({ ...V1, folders: { app: { from: folder, keep: [] } } }, ITEMS, "h10");
-    await runtime!.places!.recipeChanged("laptop");
-    await until(async () => (await rowOf(place.id)).applied?.hash === "h10");
-    expect((await rowOf(place.id)).applied?.rows.find(row => row.id === "folders/app")).toMatchObject({ outcome: "installed", step: "folders" });
-    expect((await runtime!.projects.list()).map(p => p.computer)).toEqual([place.id]);
-  });
-
-  it("puts the image a recipe's folder names on the project the box gets where the host keeps it, and the glyph where it does not", async () => {
-    const { folder, seed } = seededFolder();
-    const state = tempDir();
-    const held = "a".repeat(64);
-    mkdirSync(join(state, "project-icons"));
-    writeFileSync(join(state, "project-icons", `${held}.png`), SQUARE_PNG);
-    const pick: RecipeFile = { ...V1, folders: { app: { from: folder, name: "app", keep: [], icon: "rocket", image: held }, site: { from: seededFolder().folder, name: "site", keep: [], hue: "teal", image: "b".repeat(64) } } };
-    await hosting({ provision: provisioner().wired, recipes: shelf(pick, ITEMS).recipes, checkouts: {}, seed, statePath: join(state, "state.json") });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: pick, recipe: "laptop" }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const ids = Object.fromEntries((await runtime!.projects.list()).map(p => [p.name, p.id]));
-    const prefs = await runtime!.preferences.get();
-    expect(prefs.projectIcon).toEqual({ [ids["app"]!]: held });
-    expect(prefs.projectLook[ids["site"]!]).toEqual({ hue: "teal" });
-  });
-
-  it("takes the image off the project a setup made once the recipe's folder stops naming it", async () => {
-    const { folder, seed } = seededFolder();
-    const state = tempDir();
-    const held = "a".repeat(64);
-    mkdirSync(join(state, "project-icons"));
-    writeFileSync(join(state, "project-icons", `${held}.png`), SQUARE_PNG);
-    const pick = (more: object): RecipeFile => ({ ...V1, folders: { app: { from: folder, name: "app", keep: [], ...more } } });
-    const r = shelf(pick({ image: held }), ITEMS);
-    await hosting({ provision: provisioner().wired, recipes: r.recipes, checkouts: {}, seed, statePath: join(state, "state.json") });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: pick({ image: held }), recipe: "laptop" }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const id = (await runtime!.projects.list()).find(p => p.name === "app")!.id;
-    expect((await runtime!.preferences.get()).projectIcon).toEqual({ [id]: held });
-    r.move(pick({ icon: "rocket" }), ITEMS, "h16");
-    await runtime!.places!.recipeChanged("laptop");
-    await until(async () => (await rowOf(place.id)).applied?.hash === "h16");
-    expect((await runtime!.preferences.get()).projectLook[id]).toEqual({ icon: "rocket" });
-    expect((await runtime!.preferences.get()).projectIcon[id]).toBeUndefined();
-  });
-
-  it("puts a folder's hue the recipe moved on the project a setup made, and reads it installed", async () => {
-    const { folder, seed } = seededFolder();
-    const pick = (hue: string): RecipeFile => ({ ...V1, folders: { app: { from: folder, name: "app", keep: [], hue: hue as "red" } } });
-    const r = shelf(pick("red"), ITEMS);
-    await hosting({ provision: provisioner().wired, recipes: r.recipes, checkouts: {}, seed });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: pick("red"), recipe: "laptop" }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const id = (await runtime!.projects.list()).find(p => p.name === "app")!.id;
-    r.move(pick("blue"), ITEMS, "h15");
-    await runtime!.places!.recipeChanged("laptop");
-    await until(async () => (await rowOf(place.id)).applied?.hash === "h15");
-    expect((await runtime!.preferences.get()).projectLook[id]).toEqual({ hue: "blue" });
-    expect((await rowOf(place.id)).applied?.rows.find(row => row.id === "folders/app")).toMatchObject({ outcome: "installed", step: "folders" });
-    expect((await runtime!.projects.list()).map(p => p.id)).toEqual([id]);
-  });
-
-  it("answers a folder's row with the id of the project a setup made and none of the folder's pick", async () => {
-    const { folder, seed } = seededFolder();
-    await hosting({ provision: provisioner().wired, checkouts: {}, seed });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: { ...V1, folders: { app: { from: folder, name: "app", keep: [] } } } }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const id = (await runtime!.projects.list()).find(p => p.name === "app")!.id;
-    const view = await rowOf(place.id);
-    expect(view.applied?.rows.find(row => row.id === "folders/app")?.project).toEqual({ id });
-    expect(JSON.stringify(view.applied)).not.toContain(folder);
-  });
-
-  it("answers one version of a folder whose moved hue could not be put on, in the picks alone", async () => {
-    const { folder, seed } = seededFolder();
-    const pick = (hue: string): RecipeFile => ({ ...V1, folders: { app: { from: folder, name: "app", keep: [], hue: hue as "red" } } });
-    const r = shelf(pick("red"), ITEMS);
-    await hosting({ provision: provisioner().wired, recipes: r.recipes, checkouts: {}, seed });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: pick("red"), recipe: "laptop" }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const id = (await runtime!.projects.list()).find(p => p.name === "app")!.id;
-    const set = runtime!.preferences.set;
-    runtime!.preferences.set = () => Promise.reject(new Error("preferences locked"));
-    r.move(pick("blue"), ITEMS, "h17");
-    await runtime!.places!.recipeChanged("laptop");
-    await until(async () => (await rowOf(place.id)).applied?.hash === "h17");
-    runtime!.preferences.set = set;
-    const view = await rowOf(place.id);
-    expect(view.applied?.rows.find(row => row.id === "folders/app")).toMatchObject({ outcome: "failed", note: "preferences locked", project: { id } });
-    expect(view.picks?.folders["app"]?.hue).toBe("blue");
-    expect(JSON.stringify(view.applied)).not.toContain(folder);
-    expect(syncs.some(e => e.applied !== undefined)).toBe(true);
-    expect(JSON.stringify(syncs.map(e => e.applied))).not.toContain(folder);
-  });
-
   for (const [moved, to] of [["source", (other: string) => ({ from: other })], ["name", () => ({ name: "web" })]] as const) {
-    it(`keeps the project a setup made where a recipe moved its folder's ${moved} and its folder still stands there, the row naming that folder, and moves it under its id once it is gone`, async () => {
-      const { folder, seed } = seededFolder();
-      const other = seededFolder().folder;
-      const pick = (more: object): RecipeFile => ({ ...V1, folders: { app: { from: folder, name: "app", keep: [], ...more } } });
-      const r = shelf(pick({}), ITEMS);
-      const cmds: string[] = [];
-      let gone = false;
-      await hosting({ provision: provisioner().wired, recipes: r.recipes, checkouts: {}, seed, cmds, answer: cmd => (gone ? folderGone(cmd) : undefined) });
-      const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: pick({}), recipe: "laptop" }, Date.now());
-      await until(async () => (await rowOf(place.id)).setup?.state === "done");
-      const { id: was, createdAt, path: old, source } = (await runtime!.projects.list())[0]!;
-      const now = pick(to(other)).folders["app"]!;
-      r.move(pick(to(other)), ITEMS, "h18");
-      await runtime!.places!.recipeChanged("laptop");
-      await until(async () => (await rowOf(place.id)).applied?.hash === "h18");
-      expect((await rowOf(place.id)).applied?.rows.find(row => row.id === "folders/app")).toMatchObject({ outcome: "failed", note: folderMoveStandsLine(old, "spoo"), project: { id: was } });
-      expect((await runtime!.projects.list()).map(p => [p.id, p.source])).toEqual([[was, source]]);
-      gone = true;
-      const again = await runtime!.places!.setUp(place.id, {});
-      await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
-      const projects = await runtime!.projects.list();
-      expect(projects.map(p => [p.name, p.source])).toEqual([[now.name, { kind: "folder", path: now.from }]]);
-      expect(projects.map(p => [p.id, p.createdAt])).toEqual([[was, createdAt]]);
-      expect(cmds.filter(c => c.includes("rm -rf") && c.includes(`'${old}'`))).toEqual([]);
-      expect((await rowOf(place.id)).applied?.rows.find(row => row.id === "folders/app")).toMatchObject({ outcome: "installed", project: { id: was } });
-      expect((await runtime!.places!.remove(place.id)).removed).toBe(true);
-      expect(await runtime!.projects.list()).toEqual([]);
-    });
   }
-
-  it("copies the files a recipe newly keeps into the standing folder of the project a setup made, and moves nothing", async () => {
-    const { folder, seed } = seededFolder([{ path: ".env", dir: false, bytes: 12, kind: "config", ticked: false }]);
-    const packed: SeedChoice[] = [];
-    const pack = seed.pack;
-    seed.pack = async o => {
-      packed.push(o.choice);
-      return pack(o);
-    };
-    const pick = (keep: string[]): RecipeFile => ({ ...V1, folders: { app: { from: folder, name: "app", keep } } });
-    const r = shelf(pick([]), ITEMS);
-    const cmds: string[] = [];
-    await hosting({ provision: provisioner().wired, recipes: r.recipes, checkouts: {}, seed, cmds });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: pick([]), recipe: "laptop" }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const before = (await runtime!.projects.list())[0]!;
-    packed.length = 0;
-    cmds.length = 0;
-    r.move(pick([".env"]), ITEMS, "h18");
-    await runtime!.places!.recipeChanged("laptop");
-    await until(async () => (await rowOf(place.id)).applied?.hash === "h18");
-    expect(await runtime!.projects.list()).toEqual([before]);
-    expect(packed).toEqual([{ files: [".env"], memory: false, commits: false }]);
-    expect(cmds.some(c => c.includes("tar -xzf") && c.includes(`-C '${before.path}'`))).toBe(true);
-    expect(cmds.filter(c => c.includes("git clone") || (c.includes("rm -rf") && c.includes(`'${before.path}'`)))).toEqual([]);
-    const view = await rowOf(place.id);
-    expect(view.applied?.rows.find(row => row.id === "folders/app")).toMatchObject({ outcome: "installed", project: { id: before.id } });
-    expect(view.picks?.folders["app"]?.keep).toEqual([".env"]);
-    expect((await runtime!.places!.remove(place.id)).removed).toBe(true);
-  });
-
-  it("carries what the person set on a project through a move, the recipe's moved icon on top, and leaves its old folder on the box as it is", async () => {
-    const { folder, seed } = seededFolder();
-    const pick = (more: object): RecipeFile => ({ ...V1, folders: { app: { from: folder, name: "app", keep: [], icon: "code", ...more } } });
-    const r = shelf(pick({}), ITEMS);
-    const cmds: string[] = [];
-    await hosting({ provision: provisioner().wired, recipes: r.recipes, checkouts: {}, seed, cmds, answer: folderGone, statePath: join(tempDir(), "state.json") });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: pick({}), recipe: "laptop" }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const { id: was, path: old } = (await runtime!.projects.list())[0]!;
-    await runtime!.preferences.set({ projectDefaults: { [was]: { effort: "low" } }, projectLook: { [was]: { icon: "code", hue: "blue" } }, projectOrder: ["pr_other", was] });
-    const { image } = await runtime!.projects.icon(was, SQUARE_PNG.toString("base64"));
-    cmds.length = 0;
-    r.move(pick({ name: "web", icon: "rocket" }), ITEMS, "h20");
-    await runtime!.places!.recipeChanged("laptop");
-    await until(async () => (await rowOf(place.id)).applied?.hash === "h20");
-    const projects = await runtime!.projects.list();
-    expect(projects.map(p => p.name)).toEqual(["web"]);
-    const prefs = await runtime!.preferences.get();
-    expect(prefs.projectDefaults[projects[0]!.id]).toEqual({ effort: "low" });
-    expect(prefs.projectLook[projects[0]!.id]).toEqual({ icon: "rocket", hue: "blue" });
-    expect(prefs.projectIcon).toEqual({ [projects[0]!.id]: image });
-    expect(prefs.projectOrder).toEqual(["pr_other", projects[0]!.id]);
-    expect(Object.keys(prefs.projectDefaults).filter(id => id !== projects[0]!.id)).toEqual([]);
-    expect(Object.keys(prefs.projectLook).filter(id => id !== projects[0]!.id)).toEqual([]);
-    expect(cmds.filter(c => c.includes("rm -rf") && c.includes(`'${old}'`))).toEqual([]);
-  });
-
-  it("carries the person's look and the project's age through a retry after a move whose landing failed, the recipe's icon on top", async () => {
-    const { folder, seed } = seededFolder();
-    const pick = (more: object): RecipeFile => ({ ...V1, folders: { app: { from: folder, name: "app", keep: [], icon: "code", ...more } } });
-    const r = shelf(pick({}), ITEMS);
-    const pack = seed.pack;
-    let breaks = false;
-    seed.pack = async o => {
-      if (breaks) throw new Error("the seed pack broke");
-      return pack(o);
-    };
-    await hosting({ provision: provisioner().wired, recipes: r.recipes, checkouts: {}, seed, answer: folderGone });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: pick({}), recipe: "laptop" }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const was = (await runtime!.projects.list())[0]!;
-    await runtime!.preferences.set({ projectLook: { [was.id]: { icon: "code", hue: "blue" } } });
-    breaks = true;
-    r.move(pick({ name: "web", icon: "rocket" }), ITEMS, "h21");
-    await runtime!.places!.recipeChanged("laptop");
-    await until(async () => (await rowOf(place.id)).applied?.hash === "h21");
-    expect((await rowOf(place.id)).applied?.rows.find(row => row.id === "folders/app")).toMatchObject({ outcome: "failed", note: "the seed pack broke", project: { id: was.id } });
-    expect(await runtime!.projects.list()).toEqual([]);
-    breaks = false;
-    const again = await runtime!.places!.setUp(place.id, {});
-    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
-    expect((await runtime!.preferences.get()).projectLook[was.id]).toEqual({ icon: "rocket", hue: "blue" });
-    expect((await runtime!.projects.list()).map(p => [p.id, p.name, p.createdAt])).toEqual([[was.id, "web", was.createdAt]]);
-  });
 
   /** A harness whose turn answers at once, so a thread stands in the project's folder. */
   const answers: HarnessAdapterFactory = () => ({
@@ -2873,33 +2377,6 @@ describe("a computer that follows a recipe", () => {
 
   /** The login a thread there runs as, which wsp takes only as root. */
   const rootLogin = (cmd: string): { exitCode: number; stdout: string } | undefined => (cmd.includes("command -v runuser") ? { exitCode: 0, stdout: "Linux\n0\nroot\nroot\n1\n/root\n/usr/bin\n" } : undefined);
-
-  it("keeps the project a setup made where a thread stands on it, the row saying how to move it, and moves it once that is gone", async () => {
-    const { folder, seed } = seededFolder();
-    const other = seededFolder().folder;
-    const pick = (from: string): RecipeFile => ({ ...V1, folders: { app: { from, name: "app", keep: [] } } });
-    const r = shelf(pick(folder), ITEMS);
-    await hosting({ provision: provisioner().wired, recipes: r.recipes, checkouts: {}, seed, adapters: { claude: answers }, answer: cmd => rootLogin(cmd) ?? folderGone(cmd) });
-    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: pick(folder), recipe: "laptop" }, Date.now());
-    await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const was = (await runtime!.projects.list())[0]!.id;
-    const ws = await runtime!.workspaces.create({ project: was, name: "work" });
-    const run = await runtime!.sessions.start(ws.id, { prompt: "work", harness: "claude" });
-    await run.finished;
-    r.move(pick(other), ITEMS, "h19");
-    await runtime!.places!.recipeChanged("laptop");
-    await until(async () => (await rowOf(place.id)).applied?.hash === "h19");
-    const held = (await rowOf(place.id)).applied?.rows.find(row => row.id === "folders/app");
-    expect(held).toMatchObject({ outcome: "failed", note: folderMoveHeldLine(projectInUseRefusal("app", [ws.name])), project: { id: was } });
-    expect(held?.fix).toBeUndefined();
-    expect((await runtime!.projects.list()).map(p => p.id)).toEqual([was]);
-    await runtime!.sessions.delete(run.view().threadId!);
-    const again = await runtime!.places!.setUp(place.id, {});
-    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
-    const projects = await runtime!.projects.list();
-    expect(projects.map(p => p.source)).toEqual([{ kind: "folder", path: other }]);
-    expect((await runtime!.places!.remove(place.id)).removed).toBe(true);
-  });
 
   it("keeps a sign-in that lands while a sync runs signed in once the sync writes its rows back", async () => {
     const s = signIns();

@@ -91,10 +91,10 @@ describe("a place's cap and what runs there", () => {
   it("refuses a number the row's kind does not take, a place this host does not hold and a set with no number, as usage, and writes nothing", async () => {
     const { store } = await serving({ provider: { id: "solari", rateUsdPerHour: 0.11 } });
     const host = await WsClient.connect(ctx.srv!.port, { token: "host-token" });
-    expect(await capOf(host, HERE_PLACE_ID, { machines: 2 })).toMatchObject({ ok: false, kind: "usage", error: `${HERE.name} takes threads at once, turn limit, agents may start agents and levels deep, not machines at once` });
-    expect(await capOf(host, "solari", { threads: 2 })).toMatchObject({ ok: false, kind: "usage", error: "Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once" });
+    expect(await capOf(host, HERE_PLACE_ID, { machines: 2 })).toMatchObject({ ok: false, kind: "usage", error: `${HERE.name} takes threads at once, turn limit, machines under a root thread and levels deep, not machines at once` });
+    expect(await capOf(host, "solari", { threads: 2 })).toMatchObject({ ok: false, kind: "usage", error: "Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once" });
     expect(await capOf(host, "p_nothing", { threads: 2 })).toMatchObject({ ok: false, kind: "usage", error: noSuchPlaceRefusal("p_nothing", [HERE.name, "Solari"]) });
-    expect(await capOf(host, "solari", {})).toMatchObject({ ok: false, kind: "usage", error: "nothing to set on Solari: it takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep" });
+    expect(await capOf(host, "solari", {})).toMatchObject({ ok: false, kind: "usage", error: "nothing to set on Solari: it takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep" });
     host.close();
     expect(await store.keys("caps")).toEqual([]);
   });
@@ -296,7 +296,7 @@ describe("a place's nap after", () => {
   it("is refused on the computer the host runs on, whose workspaces are folders that never nap, and says nothing of it on that row", async () => {
     await serving();
     const host = await WsClient.connect(ctx.srv!.port, { token: "host-token" });
-    expect(await host.request("places.set", { placeId: HERE_PLACE_ID, napMs: 5 * MIN })).toMatchObject({ ok: false, kind: "usage", error: `${HERE.name} takes threads at once, turn limit, agents may start agents and levels deep, not nap after` });
+    expect(await host.request("places.set", { placeId: HERE_PLACE_ID, napMs: 5 * MIN })).toMatchObject({ ok: false, kind: "usage", error: `${HERE.name} takes threads at once, turn limit, machines under a root thread and levels deep, not nap after` });
     expect(await host.request("places.set", { placeId: "p_1", napMs: 30_000 })).toMatchObject({ ok: false });
     host.close();
     expect((await placesOf()).find(p => p.id === HERE_PLACE_ID)!.napMs).toBeUndefined();
@@ -433,64 +433,6 @@ describe("a place's turn limit", () => {
     await ctx.runtime.sessions.interrupt(open.id);
     await open.finished;
   }, 20_000);
-});
-
-describe("whether agents may start agents, as a place's default", () => {
-  it("gives a workspace with no switch of its own its place's, keeps one a workspace was given, and patches a workspace's switch over the one it inherits", async () => {
-    const root = mkdtempSync(joinPath(tmpdir(), "wsp-spawn-place-"));
-    try {
-      const backend = stubBackend();
-      ctx.runtime = createRuntime({ backend, places: wiredPlace("solari", backend), store: memoryStore(), adapters: {}, placeLinks: wiring(newPlaceKeyPair(), { id: "solari", rateUsdPerHour: 0.11 }), local: fakeLocal(root) });
-      ctx.srv = await serveRuntime(ctx.runtime, { port: 0, authToken: "host-token", devices: ctx.runtime.devices });
-      const c = await WsClient.connect(ctx.srv.port, { token: "host-token" });
-      expect((await placesOf()).find(p => p.id === "solari")).toMatchObject({ spawn: AGENTS_ON, spawnDefault: AGENTS_ON });
-      const before = await createOn(ctx.runtime, { on: "solari", golden: "snap_g", name: "before" });
-      expect(await c.request("places.set", { placeId: "solari", spawn: { spawn: false } })).toMatchObject({ ok: true, place: { spawn: { ...AGENTS_ON, spawn: false }, settings: { spawn: { spawn: false } } } });
-      expect(await c.request("places.set", { placeId: HERE_PLACE_ID, spawn: { maxMachines: 1 } })).toMatchObject({ ok: true, place: { spawn: { ...AGENTS_ON, maxMachines: 1 } } });
-      // Read at every ask rather than copied at the create, so a workspace made before the change follows it.
-      expect((await ctx.runtime.workspaces.get(before.id)).agents).toEqual({ ...AGENTS_ON, spawn: false });
-      const after = await createOn(ctx.runtime, { on: "solari", golden: "snap_g", name: "after" });
-      expect((await ctx.runtime.workspaces.get(after.id)).agents).toEqual({ ...AGENTS_ON, spawn: false });
-      const own = await createOn(ctx.runtime, { on: "solari", golden: "snap_g", name: "own", agents: { maxDepth: 3 } });
-      expect((await ctx.runtime.workspaces.get(own.id)).agents).toEqual({ ...AGENTS_ON, spawn: false, maxDepth: 3 });
-      const mac = await createOn(ctx.runtime, { on: HERE_PLACE_ID, name: "mac" });
-      expect((await ctx.runtime.workspaces.get(mac.id)).agents).toEqual({ ...AGENTS_ON, maxMachines: 1 });
-      expect(await c.request("places.set", { placeId: "solari", reset: ["spawn"] })).toMatchObject({ ok: true, place: { spawn: AGENTS_ON } });
-      expect((await ctx.runtime.workspaces.get(before.id)).agents).toEqual(AGENTS_ON);
-      c.close();
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it("stores only the parts a person set, so a switch turned off and on again follows a later default, and levels deep resets alone", async () => {
-    const root = mkdtempSync(joinPath(tmpdir(), "wsp-spawn-parts-"));
-    const shipped = AGENTS_ON.maxDepth;
-    try {
-      ctx.runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: {}, placeLinks: wiring(newPlaceKeyPair()), local: fakeLocal(root) });
-      ctx.srv = await serveRuntime(ctx.runtime, { port: 0, authToken: "host-token", devices: ctx.runtime.devices });
-      const c = await WsClient.connect(ctx.srv.port, { token: "host-token" });
-      await c.request("places.set", { placeId: HERE_PLACE_ID, spawn: { spawn: false } });
-      const back = (await c.request("places.set", { placeId: HERE_PLACE_ID, spawn: { spawn: true } })) as { place: PlaceView };
-      expect(back.place.settings).toEqual({ spawn: { spawn: true } });
-      const mac = await createOn(ctx.runtime, { on: HERE_PLACE_ID, name: "mac" });
-      // The default moves under a computer that toggled, and both its row and its workspace read the new one.
-      (AGENTS_ON as { maxDepth: number }).maxDepth = shipped + 3;
-      expect((await placesOf()).find(p => p.id === HERE_PLACE_ID)!.spawn?.maxDepth).toBe(shipped + 3);
-      expect((await ctx.runtime.workspaces.get(mac.id)).agents?.maxDepth).toBe(shipped + 3);
-      (AGENTS_ON as { maxDepth: number }).maxDepth = shipped;
-      // A depth set and taken back leaves the rest of the switch as the person set it.
-      expect(await c.request("places.set", { placeId: HERE_PLACE_ID, spawn: { maxDepth: 4 } })).toMatchObject({ place: { settings: { spawn: { spawn: true, maxDepth: 4 } }, spawn: { maxDepth: 4 } } });
-      const reset = (await c.request("places.set", { placeId: HERE_PLACE_ID, reset: ["max-depth"] })) as { place: PlaceView };
-      expect(reset.place.settings).toEqual({ spawn: { spawn: true } });
-      expect(reset.place.spawn).toEqual(AGENTS_ON);
-      expect((await c.request("places.set", { placeId: HERE_PLACE_ID, reset: ["spawn"] })) as { place: PlaceView }).not.toHaveProperty("place.settings");
-      c.close();
-    } finally {
-      (AGENTS_ON as { maxDepth: number }).maxDepth = shipped;
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
 });
 
 describe("a cloud's spend per day", () => {

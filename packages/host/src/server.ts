@@ -23,7 +23,6 @@ import { editorHost } from "./editor.js";
 import { loginEnv } from "./login-path.js";
 import { hostFolders } from "./host-folders.js";
 import { projectBundler } from "./project-bundle.js";
-import { imageExporter } from "./image.js";
 import { projectLander } from "./project-export.js";
 import { guestKinds } from "./guest-tools.js";
 import { guestDoor } from "./guest.js";
@@ -73,11 +72,9 @@ export interface HostOptions {
   autoOpen?: (workspaceId: string, url: string, port?: number) => boolean;
   /** The line logged when a sign-in page arrives and nothing opens, given the workspace name and the page's hostname. */
   openLine?: (workspace: string, hostname: string, url: string) => string;
-  /** The saved recipe file, read for the terminal font its ticks name. */
-  recipePath?: string;
   /** The state file this host serves, named in the boot object so the page scopes its memory to it. */
   statePath?: string;
-  /** The init job on this computer, served to the app as the init.* ops and the init.job events; absent, they are refused. */
+  /** The cloud setup on this computer, served to the app as init.get and init.keys; absent, they are refused. */
   init?: InitDoor;
   /** How an editor's ssh reaches a workspace; the relay below and this computer's own ssh files when absent. */
   ssh?: HostSsh;
@@ -119,12 +116,12 @@ export interface HostOptions {
 }
 
 /** The two readings the doctor's computer road needs of the host it runs on: what the vault holds right now, read
- * at the ask rather than copied, and the recipe this computer holds planned for a computer somebody owns. The plan
+ * at the ask rather than copied, and the plan a computer's picks come to. The plan
  * is the host's own place wiring's, so the recipe job and this road cannot read this computer two ways; a host
  * whose wiring plans none leaves the step saying so. */
 export interface HostDoctorReaders {
   vault(): Readonly<Record<string, string>>;
-  plan?(computer?: PlaceView): Promise<ProvisionPlan | { noRecipe: string }>;
+  plan?(computer?: PlaceView): Promise<ProvisionPlan | undefined>;
 }
 
 /** The roads to a workspace and its project that the host's handle and wsp init share, so a workspace made without a
@@ -182,18 +179,6 @@ const CONTENT_TYPES: Record<string, string> = {
   ".woff2": "font/woff2",
   ".wasm": "application/wasm",
 };
-
-/** The ticked shell row's font from the saved recipe; nothing when the file is missing, unreadable or names none. */
-function terminalFontOf(recipePath: string | undefined): string | undefined {
-  if (recipePath === undefined) return undefined;
-  try {
-    const data = JSON.parse(readFileSync(recipePath, "utf8")) as { entries?: { rung?: unknown; bring?: unknown; font?: unknown }[] };
-    const row = data.entries?.find(e => e.rung === "shell" && e.bring === true && typeof e.font === "string" && e.font !== "");
-    return row?.font as string | undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 /** JSON fit for an inline script: the font family comes from a config file, so `<` and the line terminators JSON allows
  * but a script does not are written as escapes, and no value can end the script or the page. */
@@ -355,14 +340,14 @@ function builderCost(b: GoldenBuilderView, ageMs: number): string {
 /** A builder from an earlier run that can still be sealed is claimed, so the sweep never names it; the person still sees what bills. */
 function describeKept(b: GoldenBuilderView): string {
   const ageMs = Date.now() - Date.parse(b.createdAt);
-  return `reap: left alone ${b.id}: your earlier builder from this setup, still sealable, ${describeAge(ageMs)}${builderCost(b, ageMs)}; reuse it with wsp init, or it is stopped at six hours`;
+  return `reap: left alone ${b.id}: your earlier builder from this setup, still sealable, ${describeAge(ageMs)}${builderCost(b, ageMs)}; it is stopped at six hours`;
 }
 
 /** A builder kept after its save is claimed, so the sweep never names it; the person still sees what bills and why. */
 function describeSealed(b: GoldenBuilderView, sealed: { at: string; version: number }): string {
   const ageMs = Date.now() - Date.parse(b.createdAt);
   const since = describeAge(Date.now() - Date.parse(sealed.at)).replace(/ old$/, "");
-  return `reap: left alone ${b.id}: your builder saved as image v${sealed.version}, kept ${since} since the save and holding one of the account's machine slots${builderCost(b, ageMs)}; wsp init updates your image on it, or it is stopped ten minutes after the save`;
+  return `reap: left alone ${b.id}: your builder saved as image v${sealed.version}, kept ${since} since the save and holding one of the account's machine slots${builderCost(b, ageMs)}; it is stopped ten minutes after the save`;
 }
 
 /** Kills what this host owns and nothing claims, says which machines it is stopping and
@@ -403,7 +388,7 @@ export function workspaceRoads(rt: Runtime, opts: Pick<HostOptions, "workspaceEn
       // and takes none; every other computer's copy does.
       const kind = (await rt.workspaces.landing({ project: project.id }, caller)).kind;
       const forks = kind === undefined || !runsInFolder(kind);
-      if (!head && forks) throw new Error("no image yet; run wsp init first");
+      if (!head && forks) throw new Error("no image yet");
       return rt.workspaces.create(
         {
           project: project.id,
@@ -478,18 +463,15 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
     ...(opts.openLine !== undefined ? { openLine: opts.openLine } : {}),
   });
 
-  // Rendered per request: wsp init saves the recipe while a host may already be serving.
   // `here` is false on the door a computer you own dials: that page is the pairing screen and carries nothing of
   // this computer, neither the token's digest nor the state file's path nor the runtime's own port, whatever the
   // address this host bound says. The loopback page writes the port first, where the desktop shell's probe reads it.
   const page = (here: boolean): string => {
-    const terminalFont = terminalFontOf(opts.recipePath);
     return loadPage(webDir, {
       ...(here ? { tokenHash: tokenDigest(authToken) } : {}),
       wsPath: WS_PATH,
       paired: here,
       version: VERSION,
-      ...(terminalFont !== undefined ? { terminalFont } : {}),
       ...(here && opts.statePath !== undefined ? { statePath: opts.statePath } : {}),
       ...(opts.productUsageOff !== undefined ? { productUsageOff: opts.productUsageOff } : {}),
     });
@@ -650,7 +632,6 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
       forwards: relay,
       projects: bundlerFor,
       landing: lander,
-      imageExport: imageExporter,
       folders: hostFolders(() => rt.workspaces.list()),
       terminalConfig: { read: scheme => readGhosttyConfig(nodeHost(), scheme) },
       editor: editorHost({ loginEnv }),
