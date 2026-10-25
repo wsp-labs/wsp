@@ -1,0 +1,46 @@
+<slate title="Move to the new logger">
+  <value name="files" start={[
+    {file: "api/src/db/migrate.ts", done: true, note: ""},
+    {file: "api/src/db/pool.ts", done: true, note: ""},
+    {file: "api/src/middleware/auth.ts", done: true, note: ""},
+    {file: "api/src/middleware/errors.ts", done: true, note: ""},
+    {file: "api/src/routes/health.ts", done: true, note: ""},
+    {file: "api/src/routes/orders.ts", done: true, note: ""},
+    {file: "api/src/routes/users.ts", done: true, note: ""},
+    {file: "api/src/server.ts", done: true, note: ""},
+    {file: "auth/src/login.ts", done: true, note: ""},
+    {file: "auth/src/oauth.ts", done: true, note: ""},
+    {file: "auth/src/tokens.ts", done: true, note: ""},
+    {file: "billing/src/coupons.ts", done: true, note: ""},
+    {file: "billing/src/invoices.ts", done: true, note: ""},
+    {file: "billing/src/payouts.ts", done: true, note: ""},
+    {file: "billing/src/refunds.ts", done: true, note: ""},
+    {file: "billing/src/taxes.ts", done: true, note: ""},
+    {file: "cli/src/commands/deploy.ts", done: true, note: ""},
+    {file: "cli/src/commands/logs.ts", done: true, note: ""},
+    {file: "cli/src/main.ts", done: true, note: ""},
+    {file: "emails/src/send.ts", done: true, note: ""},
+    {file: "emails/src/templates.ts", done: true, note: ""},
+    {file: "flags/src/client.ts", done: true, note: ""},
+    {file: "sdk/src/client.ts", done: true, note: ""},
+    {file: "search/src/indexer.ts", done: true, note: ""},
+    {file: "search/src/query.ts", done: true, note: ""},
+    {file: "web/src/server/render.ts", done: true, note: ""},
+    {file: "web/src/server/session.ts", done: true, note: ""},
+    {file: "worker/src/jobs/cleanup.ts", done: true, note: ""},
+    {file: "worker/src/jobs/email.ts", done: true, note: ""},
+    {file: "worker/src/jobs/export.ts", done: true, note: ""},
+    {file: "worker/src/main.ts", done: true, note: ""},
+    {file: "billing/src/subscriptions.ts", done: false, note: "Uses log.child with custom fields"},
+    {file: "billing/src/webhooks.ts", done: false, note: "Logs raw card payloads, needs redaction"},
+    {file: "auth/src/saml.ts", done: false, note: "Logger passed in by a vendored lib"},
+    {file: "worker/src/jobs/reindex.ts", done: false, note: "Next"},
+    {file: "web/src/server/proxy.ts", done: false, note: "Next"},
+    {file: "search/src/ranker.ts", done: false, note: "Queued"},
+    {file: "cli/src/commands/init.ts", done: false, note: "Queued"}
+  ]} />
+  <column>
+    <status tone="good">Typecheck and tests pass</status>
+    <progress label="files on the new logger" items={$files} key={item.file} name={item.file} done={item.done} note={item.note} />
+  </column>
+</slate>

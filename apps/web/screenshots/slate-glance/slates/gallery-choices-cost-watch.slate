@@ -1,0 +1,23 @@
+<slate title="AWS spend, October">
+  <value name="spent" start={18240} />
+  <value name="budget" start={22000} />
+  <value name="forecast" start={22900} />
+  <value name="alertAt" start="80" />
+  <value name="alertTo" start="slack" />
+  <column>
+    <stats>
+      <stat label="Spent" value={$spent} max={$budget} format="usd" window="Oct 1 to 25, of $22,000" />
+      <stat label="Forecast" value={$forecast} format="usd" window="by Oct 31 at this pace" tone="warning" />
+    </stats>
+    <choices id="alert-at" label="Alert me when" value={$alertAt} onChange={send("Spend alert", $alertAt)}>
+      <option value="80" label="Spend passes 80% of budget" note="$17,600, passed on Oct 22" />
+      <option value="90" label="Spend passes 90% of budget" note="$19,800, about Oct 27 at this pace" />
+      <option value="spike" label="A day doubles the 7-day average" note="Catches a runaway job within a day" />
+    </choices>
+    <choices id="alert-to" label="Send alerts to" value={$alertTo} onChange={send("Spend alerts go to", $alertTo)}>
+      <option value="slack" label="Slack #infra-costs" />
+      <option value="email" label="Email to finance@acme.com" />
+      <option value="both" label="Both" />
+    </choices>
+  </column>
+</slate>

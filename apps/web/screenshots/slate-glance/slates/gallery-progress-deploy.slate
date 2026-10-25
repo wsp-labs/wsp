@@ -1,0 +1,22 @@
+<slate title="Deploy api v2.14.0">
+  <value name="regions" start={[
+    {name: "us-east-1", done: true, note: ""},
+    {name: "us-west-2", done: true, note: ""},
+    {name: "eu-west-1", done: true, note: ""},
+    {name: "eu-central-1", done: true, note: ""},
+    {name: "ap-south-1", done: false, note: "Rolling, 6 of 10 pods"},
+    {name: "ap-southeast-1", done: false, note: "Starts after ap-south-1"},
+    {name: "sa-east-1", done: false, note: "Queued"}
+  ]} />
+  <value name="errors" start={0.11} />
+  <value name="p95" start={184} />
+  <value name="errorTrend" start={[0.14, 0.12, 0.13, 0.11, 0.12, 0.11]} />
+  <value name="p95Trend" start={[179, 183, 181, 186, 182, 184]} />
+  <column>
+    <progress label="regions on v2.14.0" items={$regions} key={item.name} name={item.name} done={item.done} note={item.note} />
+    <stats>
+      <stat label="Errors" value={$errors} unit="%" window="all regions, 15 min" trend={$errorTrend} tone="good" />
+      <stat label="p95" value={$p95} unit="ms" window="all regions, 15 min" trend={$p95Trend} />
+    </stats>
+  </column>
+</slate>

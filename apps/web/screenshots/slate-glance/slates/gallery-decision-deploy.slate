@@ -1,0 +1,19 @@
+<slate title="Deploy api v2.14.0">
+  <value name="canaryErrors" start={0.12} />
+  <value name="canaryP95" start={182} />
+  <value name="errorTrend" start={[0.16, 0.13, 0.12, 0.14, 0.11, 0.12]} />
+  <value name="p95Trend" start={[176, 181, 179, 185, 180, 182]} />
+  <value name="promote" start="" />
+  <column>
+    <stats>
+      <stat label="Canary errors" value={$canaryErrors} unit="%" window="20 min at 10%" trend={$errorTrend} tone="good" />
+      <stat label="Canary p95" value={$canaryP95} unit="ms" window="baseline 179 ms" trend={$p95Trend} />
+    </stats>
+    <decision id="promote" label="Promote v2.14.0 to all traffic?" value={$promote} pick="promote"
+        onChange={send("Promote v2.14.0", $promote)}>
+      <option value="promote" label="Promote to 100%" note="Errors sit under the 0.14% baseline" />
+      <option value="hold" label="Hold at 10% an hour" note="One more hour of canary traffic" />
+      <option value="rollback" label="Roll back" note="v2.13.4 serves all traffic again" />
+    </decision>
+  </column>
+</slate>

@@ -1,0 +1,15 @@
+<slate title="Split billing.ts">
+  <value name="landing" start="" />
+  <column>
+    <facts>
+      <fact label="billing.ts" value="3,412 lines, 61 exports" />
+      <fact label="Importers" value="14 files in 4 packages" />
+      <fact label="Plan" value="7 modules under billing/" />
+    </facts>
+    <choices id="landing" label="How to land it" value={$landing} onChange={send("How to land the split", $landing)}>
+      <option value="stacked" label="Stacked PRs, one per module" note="7 PRs, each under 500 lines" />
+      <option value="one" label="One PR" note="41 files in one review" />
+      <option value="facade" label="One PR, billing.ts kept as a facade" note="Importers move later, file by file" />
+    </choices>
+  </column>
+</slate>

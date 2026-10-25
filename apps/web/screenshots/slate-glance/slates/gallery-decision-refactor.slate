@@ -1,0 +1,26 @@
+<slate title="Split billing.ts">
+  <value name="modules" start={[
+    {name: "invoices.ts", done: true, note: ""},
+    {name: "taxes.ts", done: true, note: ""},
+    {name: "coupons.ts", done: true, note: ""},
+    {name: "refunds.ts", done: true, note: ""},
+    {name: "payouts.ts", done: true, note: ""},
+    {name: "subscriptions.ts", done: false, note: "Moving, 3 circular imports left"},
+    {name: "webhooks.ts", done: false, note: "Next"}
+  ]} />
+  <value name="folder" start="billing" />
+  <value name="reexports" start="" />
+  <column>
+    <progress label="modules moved out of billing.ts" items={$modules} key={item.name} name={item.name} done={item.done} note={item.note} />
+    <decision id="folder" label="Name the new folder billing/ or payments/?" value={$folder} pick="billing"
+        onChange={send("Folder name", $folder)}>
+      <option value="billing" label="billing/" note="Matches the table names" />
+      <option value="payments" label="payments/" />
+    </decision>
+    <decision id="reexports" label="Keep re-exports in billing.ts for old imports?" value={$reexports} pick="remove"
+        onChange={send("Re-exports in billing.ts", $reexports)}>
+      <option value="remove" label="Remove them" note="All 14 importers live in this repo and are updated" />
+      <option value="keep" label="Keep for one release" note="Lint warns on each old import" />
+    </decision>
+  </column>
+</slate>

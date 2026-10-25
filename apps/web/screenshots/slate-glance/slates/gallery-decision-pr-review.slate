@@ -1,0 +1,16 @@
+<slate title="PR #482: rate limit the public API">
+  <value name="verdict" start="" />
+  <column>
+    <facts>
+      <fact label="Author" value="mkowalski" mono={true} />
+      <fact label="Diff" value="+412 −88 in 9 files" />
+    </facts>
+    <status tone="good">Checks passed</status>
+    <decision id="verdict" label="Approve #482 or ask for changes?" value={$verdict} pick="changes"
+        onChange={send("Review verdict for #482", $verdict)}>
+      <option value="changes" label="Request changes" note="A retry on timeout can charge a card twice" />
+      <option value="approve" label="Approve" note="The retry gets fixed in a follow-up PR" />
+      <option value="comment" label="Comment only" />
+    </decision>
+  </column>
+</slate>

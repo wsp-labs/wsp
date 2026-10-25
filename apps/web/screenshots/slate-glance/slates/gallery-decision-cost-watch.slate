@@ -1,0 +1,35 @@
+<slate title="OpenAI spend, October">
+  <value name="spent" start={3412} />
+  <value name="budget" start={4000} />
+  <value name="forecast" start={4860} />
+  <value name="daily" start={[
+    {at: "Oct 12", usd: 118},
+    {at: "Oct 13", usd: 124},
+    {at: "Oct 14", usd: 131},
+    {at: "Oct 15", usd: 127},
+    {at: "Oct 16", usd: 139},
+    {at: "Oct 17", usd: 102},
+    {at: "Oct 18", usd: 96},
+    {at: "Oct 19", usd: 148},
+    {at: "Oct 20", usd: 162},
+    {at: "Oct 21", usd: 171},
+    {at: "Oct 22", usd: 168},
+    {at: "Oct 23", usd: 184},
+    {at: "Oct 24", usd: 176},
+    {at: "Oct 25", usd: 191}
+  ]} />
+  <value name="summaries" start="" />
+  <column>
+    <stats>
+      <stat label="Spent" value={$spent} max={$budget} format="usd" window="Oct 1 to 25, of $4,000" />
+      <stat label="Forecast" value={$forecast} format="usd" window="by Oct 31 at this pace" tone="warning" />
+    </stats>
+    <chart label="Spend per day, last 14 days" items={$daily} x={item.at} value={item.usd} format="usd" height="small" />
+    <decision id="summaries" label="Move ticket summaries to gpt-5-mini?" value={$summaries} pick="switch"
+        onChange={send("Ticket summaries model", $summaries)}>
+      <option value="switch" label="Switch now" note="Saves about $1,100 a month, eval 0.91 against 0.93" />
+      <option value="eval" label="Run 500 more evals first" note="About $40 and two hours" />
+      <option value="raise" label="Raise the budget to $5,000" />
+    </decision>
+  </column>
+</slate>
