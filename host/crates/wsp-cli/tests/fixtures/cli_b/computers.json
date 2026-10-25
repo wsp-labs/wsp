@@ -1,0 +1,3635 @@
+{
+ "source": "TS command line at 65f6b89c7 against daemon/crates/wsp-mcp/tests/answers; recorded by the cli-b recorder",
+ "cases": [
+  {
+   "tool": "computers",
+   "case": "rows",
+   "argv": [
+    "computers"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "cost.spend": "{\"id\":1,\"ok\":true,\"places\":[{\"place\":\"place-solari\",\"todayUsd\":1.25,\"monthUsd\":30,\"rateUsdPerHour\":0.035}]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "cost.spend"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computers\": [\n    {\n      \"id\": \"place-9\",\n      \"kind\": \"computer\",\n      \"name\": \"attic\",\n      \"label\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n      \"default\": false,\n      \"os\": \"linux\",\n      \"shape\": {\n        \"cpu\": 8,\n        \"memMb\": 16384\n      },\n      \"diskFreeBytes\": 123456789012,\n      \"present\": true,\n      \"agentVersions\": {\n        \"2\": \"an index key\",\n        \"claude\": \"2.1.0\"\n      },\n      \"forks\": {\n        \"running\": 1,\n        \"room\": 2\n      }\n    },\n    {\n      \"id\": \"place-solari\",\n      \"kind\": \"provider\",\n      \"name\": \"solari\",\n      \"default\": true,\n      \"rateUsdPerHour\": 0.30000000000000004\n    }\n  ],\n  \"spend\": [\n    {\n      \"place\": \"place-solari\",\n      \"todayUsd\": 1.25,\n      \"monthUsd\": 30,\n      \"rateUsdPerHour\": 0.035\n    }\n  ],\n  \"pending\": []\n}"
+     }
+    ],
+    "structuredContent": {
+     "computers": [
+      {
+       "id": "place-9",
+       "kind": "computer",
+       "name": "attic",
+       "label": "zingzy's box \"one\" \\ two\nthree 🧪",
+       "default": false,
+       "os": "linux",
+       "shape": {
+        "cpu": 8,
+        "memMb": 16384
+       },
+       "diskFreeBytes": 123456789012,
+       "present": true,
+       "agentVersions": {
+        "2": "an index key",
+        "claude": "2.1.0"
+       },
+       "forks": {
+        "running": 1,
+        "room": 2
+       }
+      },
+      {
+       "id": "place-solari",
+       "kind": "provider",
+       "name": "solari",
+       "default": true,
+       "rateUsdPerHour": 0.30000000000000004
+      }
+     ],
+     "spend": [
+      {
+       "place": "place-solari",
+       "todayUsd": 1.25,
+       "monthUsd": 30,
+       "rateUsdPerHour": 0.035
+      }
+     ],
+     "pending": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"id\":3,\"op\":\"cost.spend\"}"
+    ],
+    "stdout": [
+     "COMPUTER  KIND   CORES  MEMORY  DISK FREE  COPIES  PRESENT   WORKSPACES  THREADS  MACHINES  SPEND  STATE  LAST SEEN  BEHIND  IMAGE  TOOLS  AGENTS\nattic     box    8      16 GB   115 GB             yes       1 of 3                                Ready\nSolari    cloud                                    $0.30/hr                                        Ready"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"id\":3,\"op\":\"cost.spend\"}"
+    ],
+    "stdout": [
+     "{\"computers\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}],\"spend\":[{\"place\":\"place-solari\",\"todayUsd\":1.25,\"monthUsd\":30,\"rateUsdPerHour\":0.035}],\"pending\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers",
+   "case": "an add pending",
+   "argv": [
+    "computers"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}}],\"pending\":[{\"id\":\"a_1\",\"address\":\"root@203.0.113.7\",\"sshPort\":2222,\"name\":\"attic\",\"placeId\":\"place-9\",\"step\":\"choosing\",\"choices\":{\"name\":\"laptop  \\\"one\\\" 🧪\",\"agents\":{},\"mcp\":{},\"clis\":{\"ripgrep\":{\"via\":\"brew\"}},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}},\"startedAt\":\"2026-10-03T10:00:00.000Z\",\"failed\":{\"said\":\"attic said \\\"no\\\"\\nat the floor\",\"fix\":\"Run it again.\"}}]}",
+    "cost.spend": "{\"id\":1,\"ok\":true,\"places\":[]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "cost.spend"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computers\": [\n    {\n      \"id\": \"place-9\",\n      \"kind\": \"computer\",\n      \"name\": \"attic\",\n      \"label\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n      \"default\": false,\n      \"os\": \"linux\",\n      \"shape\": {\n        \"cpu\": 8,\n        \"memMb\": 16384\n      },\n      \"diskFreeBytes\": 123456789012,\n      \"present\": true,\n      \"agentVersions\": {\n        \"2\": \"an index key\",\n        \"claude\": \"2.1.0\"\n      },\n      \"forks\": {\n        \"running\": 1,\n        \"room\": 2\n      }\n    }\n  ],\n  \"spend\": [],\n  \"pending\": [\n    {\n      \"id\": \"a_1\",\n      \"address\": \"root@203.0.113.7\",\n      \"sshPort\": 2222,\n      \"name\": \"attic\",\n      \"placeId\": \"place-9\",\n      \"step\": \"choosing\",\n      \"choices\": {\n        \"name\": \"laptop \\u0085 \\\"one\\\" 🧪\",\n        \"agents\": {},\n        \"mcp\": {},\n        \"clis\": {\n          \"ripgrep\": {\n            \"via\": \"brew\"\n          }\n        },\n        \"skills\": {},\n        \"plugins\": {},\n        \"folders\": {},\n        \"configs\": {}\n      },\n      \"startedAt\": \"2026-10-03T10:00:00.000Z\",\n      \"failed\": {\n        \"said\": \"attic said \\\"no\\\"\\nat the floor\",\n        \"fix\": \"Run it again.\"\n      }\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "computers": [
+      {
+       "id": "place-9",
+       "kind": "computer",
+       "name": "attic",
+       "label": "zingzy's box \"one\" \\ two\nthree 🧪",
+       "default": false,
+       "os": "linux",
+       "shape": {
+        "cpu": 8,
+        "memMb": 16384
+       },
+       "diskFreeBytes": 123456789012,
+       "present": true,
+       "agentVersions": {
+        "2": "an index key",
+        "claude": "2.1.0"
+       },
+       "forks": {
+        "running": 1,
+        "room": 2
+       }
+      }
+     ],
+     "spend": [],
+     "pending": [
+      {
+       "id": "a_1",
+       "address": "root@203.0.113.7",
+       "sshPort": 2222,
+       "name": "attic",
+       "placeId": "place-9",
+       "step": "choosing",
+       "choices": {
+        "name": "laptop  \"one\" 🧪",
+        "agents": {},
+        "mcp": {},
+        "clis": {
+         "ripgrep": {
+          "via": "brew"
+         }
+        },
+        "skills": {},
+        "plugins": {},
+        "folders": {},
+        "configs": {}
+       },
+       "startedAt": "2026-10-03T10:00:00.000Z",
+       "failed": {
+        "said": "attic said \"no\"\nat the floor",
+        "fix": "Run it again."
+       }
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"id\":3,\"op\":\"cost.spend\"}"
+    ],
+    "stdout": [
+     "COMPUTER  KIND  CORES  MEMORY  DISK FREE  COPIES  PRESENT  WORKSPACES  THREADS  MACHINES  SPEND  STATE         LAST SEEN  BEHIND  IMAGE  TOOLS                               AGENTS\nattic     box   8      16 GB   115 GB             yes      1 of 3                                Setup failed                            joined; waiting on what goes on it"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"id\":3,\"op\":\"cost.spend\"}"
+    ],
+    "stdout": [
+     "{\"computers\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}}],\"spend\":[],\"pending\":[{\"id\":\"a_1\",\"address\":\"root@203.0.113.7\",\"sshPort\":2222,\"name\":\"attic\",\"placeId\":\"place-9\",\"step\":\"choosing\",\"choices\":{\"name\":\"laptop \\u0085 \\\"one\\\" 🧪\",\"agents\":{},\"mcp\":{},\"clis\":{\"ripgrep\":{\"via\":\"brew\"}},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}},\"startedAt\":\"2026-10-03T10:00:00.000Z\",\"failed\":{\"said\":\"attic said \\\"no\\\"\\nat the floor\",\"fix\":\"Run it again.\"}}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers",
+   "case": "a cloud with its plan and the starts used",
+   "argv": [
+    "computers"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}",
+    "cost.spend": "{\"id\":1,\"ok\":true,\"places\":[]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "cost.spend"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computers\": [\n    {\n      \"id\": \"place-9\",\n      \"kind\": \"computer\",\n      \"name\": \"attic\",\n      \"label\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n      \"default\": false,\n      \"os\": \"linux\",\n      \"shape\": {\n        \"cpu\": 8,\n        \"memMb\": 16384\n      },\n      \"diskFreeBytes\": 123456789012,\n      \"present\": true,\n      \"agentVersions\": {\n        \"2\": \"an index key\",\n        \"claude\": \"2.1.0\"\n      },\n      \"forks\": {\n        \"running\": 1,\n        \"room\": 2\n      }\n    },\n    {\n      \"id\": \"box\",\n      \"kind\": \"provider\",\n      \"name\": \"box\",\n      \"default\": false,\n      \"rateUsdPerHour\": 0.018,\n      \"sizes\": [\n        {\n          \"cpu\": 2,\n          \"memMb\": 4096,\n          \"rateUsdPerHour\": 0.018\n        },\n        {\n          \"cpu\": 4,\n          \"memMb\": 8192,\n          \"rateUsdPerHour\": 0.036\n        },\n        {\n          \"cpu\": 8,\n          \"memMb\": 16384,\n          \"rateUsdPerHour\": 0.072\n        }\n      ],\n      \"plan\": {\n        \"key\": \"box_20\",\n        \"trial\": false,\n        \"machinesAtOnce\": 100,\n        \"sizes\": [\n          \"2x4\",\n          \"4x8\",\n          \"8x16\"\n        ]\n      },\n      \"starts\": {\n        \"minute\": {\n          \"used\": 0,\n          \"limit\": 12\n        },\n        \"hour\": {\n          \"used\": 9,\n          \"limit\": 60\n        },\n        \"day\": {\n          \"used\": 187,\n          \"limit\": 200\n        }\n      },\n      \"size\": {\n        \"cpu\": 2,\n        \"memMb\": 4096\n      },\n      \"sizeDefault\": {\n        \"cpu\": 2,\n        \"memMb\": 4096\n      },\n      \"deleteAfterMs\": 1800000\n    }\n  ],\n  \"spend\": [],\n  \"pending\": []\n}"
+     }
+    ],
+    "structuredContent": {
+     "computers": [
+      {
+       "id": "place-9",
+       "kind": "computer",
+       "name": "attic",
+       "label": "zingzy's box \"one\" \\ two\nthree 🧪",
+       "default": false,
+       "os": "linux",
+       "shape": {
+        "cpu": 8,
+        "memMb": 16384
+       },
+       "diskFreeBytes": 123456789012,
+       "present": true,
+       "agentVersions": {
+        "2": "an index key",
+        "claude": "2.1.0"
+       },
+       "forks": {
+        "running": 1,
+        "room": 2
+       }
+      },
+      {
+       "id": "box",
+       "kind": "provider",
+       "name": "box",
+       "default": false,
+       "rateUsdPerHour": 0.018,
+       "sizes": [
+        {
+         "cpu": 2,
+         "memMb": 4096,
+         "rateUsdPerHour": 0.018
+        },
+        {
+         "cpu": 4,
+         "memMb": 8192,
+         "rateUsdPerHour": 0.036
+        },
+        {
+         "cpu": 8,
+         "memMb": 16384,
+         "rateUsdPerHour": 0.072
+        }
+       ],
+       "plan": {
+        "key": "box_20",
+        "trial": false,
+        "machinesAtOnce": 100,
+        "sizes": [
+         "2x4",
+         "4x8",
+         "8x16"
+        ]
+       },
+       "starts": {
+        "minute": {
+         "used": 0,
+         "limit": 12
+        },
+        "hour": {
+         "used": 9,
+         "limit": 60
+        },
+        "day": {
+         "used": 187,
+         "limit": 200
+        }
+       },
+       "size": {
+        "cpu": 2,
+        "memMb": 4096
+       },
+       "sizeDefault": {
+        "cpu": 2,
+        "memMb": 4096
+       },
+       "deleteAfterMs": 1800000
+      }
+     ],
+     "spend": [],
+     "pending": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"id\":3,\"op\":\"cost.spend\"}"
+    ],
+    "stdout": [
+     "COMPUTER  KIND   CORES  MEMORY  DISK FREE  COPIES  PRESENT    WORKSPACES  THREADS  MACHINES  SPEND  STARTS         STATE  LAST SEEN  BEHIND  IMAGE  TOOLS  AGENTS\nattic     box    8      16 GB   115 GB             yes        1 of 3                                               Ready\nBoat      cloud                                    $0.018/hr                                        187/200 today  Ready"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"id\":3,\"op\":\"cost.spend\"}"
+    ],
+    "stdout": [
+     "{\"computers\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}],\"spend\":[],\"pending\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers",
+   "case": "empty",
+   "argv": [
+    "computers"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[]}",
+    "cost.spend": "{\"id\":1,\"ok\":true,\"places\":[]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "cost.spend"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computers\": [],\n  \"spend\": [],\n  \"pending\": []\n}"
+     }
+    ],
+    "structuredContent": {
+     "computers": [],
+     "spend": [],
+     "pending": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"id\":3,\"op\":\"cost.spend\"}"
+    ],
+    "stdout": [
+     "This host holds no computer. wsp add prints the join line for a computer you are sitting at."
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"id\":3,\"op\":\"cost.spend\"}"
+    ],
+    "stdout": [
+     "{\"computers\":[],\"spend\":[],\"pending\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers",
+   "case": "refused",
+   "argv": [
+    "computers"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":false,\"error\":\"the token this line presented is not one this host holds\",\"kind\":\"auth\"}",
+    "cost.spend": "{\"id\":1,\"ok\":true,\"places\":[]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "cost.spend"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "the token this line presented is not one this host holds"
+     }
+    ],
+    "structuredContent": {
+     "error": "the token this line presented is not one this host holds",
+     "class": "auth",
+     "exit": 2
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"id\":3,\"op\":\"cost.spend\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp computers: the token this line presented is not one this host holds"
+    ],
+    "exit": 2
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"id\":3,\"op\":\"cost.spend\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"the token this line presented is not one this host holds\",\"class\":\"auth\",\"exit\":2}"
+    ],
+    "exit": 2
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "threads set",
+   "argv": [
+    "computers",
+    "set",
+    "attic",
+    "--threads=2"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":2},\"capDefault\":{\"threads\":8},\"settings\":{\"threads\":2},\"running\":0}}"
+   },
+   "tool_arguments": {
+    "computer": "attic",
+    "threads": 2
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9",
+     "threads": 2
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computer\": {\n    \"id\": \"place-9\",\n    \"kind\": \"computer\",\n    \"name\": \"attic\",\n    \"label\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n    \"default\": false,\n    \"os\": \"linux\",\n    \"shape\": {\n      \"cpu\": 8,\n      \"memMb\": 16384\n    },\n    \"diskFreeBytes\": 123456789012,\n    \"present\": true,\n    \"agentVersions\": {\n      \"2\": \"an index key\",\n      \"claude\": \"2.1.0\"\n    },\n    \"forks\": {\n      \"running\": 1,\n      \"room\": 2\n    },\n    \"cap\": {\n      \"threads\": 2\n    },\n    \"capDefault\": {\n      \"threads\": 8\n    },\n    \"settings\": {\n      \"threads\": 2\n    },\n    \"running\": 0\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "computer": {
+      "id": "place-9",
+      "kind": "computer",
+      "name": "attic",
+      "label": "zingzy's box \"one\" \\ two\nthree 🧪",
+      "default": false,
+      "os": "linux",
+      "shape": {
+       "cpu": 8,
+       "memMb": 16384
+      },
+      "diskFreeBytes": 123456789012,
+      "present": true,
+      "agentVersions": {
+       "2": "an index key",
+       "claude": "2.1.0"
+      },
+      "forks": {
+       "running": 1,
+       "room": 2
+      },
+      "cap": {
+       "threads": 2
+      },
+      "capDefault": {
+       "threads": 8
+      },
+      "settings": {
+       "threads": 2
+      },
+      "running": 0
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"threads\":2,\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "attic: 2 threads at once (8 by default)"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"threads\":2,\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":2},\"capDefault\":{\"threads\":8},\"settings\":{\"threads\":2},\"running\":0}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "reset by id",
+   "argv": [
+    "computers",
+    "set",
+    "place-9",
+    "--reset=threads"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":1}}"
+   },
+   "tool_arguments": {
+    "computer": "place-9",
+    "reset": [
+     "threads"
+    ]
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9",
+     "reset": [
+      "threads"
+     ]
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computer\": {\n    \"id\": \"place-9\",\n    \"kind\": \"computer\",\n    \"name\": \"attic\",\n    \"label\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n    \"default\": false,\n    \"os\": \"linux\",\n    \"shape\": {\n      \"cpu\": 8,\n      \"memMb\": 16384\n    },\n    \"diskFreeBytes\": 123456789012,\n    \"present\": true,\n    \"agentVersions\": {\n      \"2\": \"an index key\",\n      \"claude\": \"2.1.0\"\n    },\n    \"forks\": {\n      \"running\": 1,\n      \"room\": 2\n    },\n    \"cap\": {\n      \"threads\": 8\n    },\n    \"capDefault\": {\n      \"threads\": 8\n    },\n    \"running\": 1\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "computer": {
+      "id": "place-9",
+      "kind": "computer",
+      "name": "attic",
+      "label": "zingzy's box \"one\" \\ two\nthree 🧪",
+      "default": false,
+      "os": "linux",
+      "shape": {
+       "cpu": 8,
+       "memMb": 16384
+      },
+      "diskFreeBytes": 123456789012,
+      "present": true,
+      "agentVersions": {
+       "2": "an index key",
+       "claude": "2.1.0"
+      },
+      "forks": {
+       "running": 1,
+       "room": 2
+      },
+      "cap": {
+       "threads": 8
+      },
+      "capDefault": {
+       "threads": 8
+      },
+      "running": 1
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"reset\":[\"threads\"],\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "attic: 8 threads at once (the default)"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"reset\":[\"threads\"],\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":1}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a cloud by the name its rows give it, in any case",
+   "argv": [
+    "computers",
+    "set",
+    "Solari",
+    "--machines=5",
+    "--reset=threads"
+   ],
+   "cloud": true,
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":false,\"error\":\"Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once\",\"kind\":\"usage\"}"
+   },
+   "tool_arguments": {
+    "computer": "Solari",
+    "machines": 5,
+    "reset": [
+     "threads"
+    ]
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-solari",
+     "machines": 5,
+     "reset": [
+      "threads"
+     ]
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once"
+     }
+    ],
+    "structuredContent": {
+     "error": "Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-solari\",\"machines\":5,\"reset\":[\"threads\"],\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-solari\",\"machines\":5,\"reset\":[\"threads\"],\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a cloud's machines and spend",
+   "argv": [
+    "computers",
+    "set",
+    "solari",
+    "--machines=5",
+    "--spend=2.5",
+    "--reset=threads"
+   ],
+   "cloud": true,
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":false,\"error\":\"Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once\",\"kind\":\"usage\"}"
+   },
+   "tool_arguments": {
+    "computer": "solari",
+    "machines": 5,
+    "spend": 2.5,
+    "reset": [
+     "threads"
+    ]
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-solari",
+     "machines": 5,
+     "spendPerDayUsd": 2.5,
+     "reset": [
+      "threads"
+     ]
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once"
+     }
+    ],
+    "structuredContent": {
+     "error": "Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-solari\",\"machines\":5,\"spendPerDayUsd\":2.5,\"reset\":[\"threads\"],\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-solari\",\"machines\":5,\"spendPerDayUsd\":2.5,\"reset\":[\"threads\"],\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a sub-thread's size and delete delay on a cloud",
+   "argv": [
+    "computers",
+    "set",
+    "boat",
+    "--size=4x8",
+    "--delete-after=60"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}",
+    "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":4,\"memMb\":8192},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":3600000,\"settings\":{\"size\":{\"cpu\":4,\"memMb\":8192},\"deleteAfterMs\":3600000}}}"
+   },
+   "tool_arguments": {
+    "computer": "boat",
+    "size": "4x8",
+    "delete_after": 60
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "box",
+     "size": {
+      "cpu": 4,
+      "memMb": 8192
+     },
+     "deleteAfterMs": 3600000
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computer\": {\n    \"id\": \"box\",\n    \"kind\": \"provider\",\n    \"name\": \"box\",\n    \"default\": false,\n    \"rateUsdPerHour\": 0.018,\n    \"sizes\": [\n      {\n        \"cpu\": 2,\n        \"memMb\": 4096,\n        \"rateUsdPerHour\": 0.018\n      },\n      {\n        \"cpu\": 4,\n        \"memMb\": 8192,\n        \"rateUsdPerHour\": 0.036\n      },\n      {\n        \"cpu\": 8,\n        \"memMb\": 16384,\n        \"rateUsdPerHour\": 0.072\n      }\n    ],\n    \"plan\": {\n      \"key\": \"box_20\",\n      \"trial\": false,\n      \"machinesAtOnce\": 100,\n      \"sizes\": [\n        \"2x4\",\n        \"4x8\",\n        \"8x16\"\n      ]\n    },\n    \"starts\": {\n      \"minute\": {\n        \"used\": 0,\n        \"limit\": 12\n      },\n      \"hour\": {\n        \"used\": 9,\n        \"limit\": 60\n      },\n      \"day\": {\n        \"used\": 187,\n        \"limit\": 200\n      }\n    },\n    \"size\": {\n      \"cpu\": 4,\n      \"memMb\": 8192\n    },\n    \"sizeDefault\": {\n      \"cpu\": 2,\n      \"memMb\": 4096\n    },\n    \"deleteAfterMs\": 3600000,\n    \"settings\": {\n      \"size\": {\n        \"cpu\": 4,\n        \"memMb\": 8192\n      },\n      \"deleteAfterMs\": 3600000\n    }\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "computer": {
+      "id": "box",
+      "kind": "provider",
+      "name": "box",
+      "default": false,
+      "rateUsdPerHour": 0.018,
+      "sizes": [
+       {
+        "cpu": 2,
+        "memMb": 4096,
+        "rateUsdPerHour": 0.018
+       },
+       {
+        "cpu": 4,
+        "memMb": 8192,
+        "rateUsdPerHour": 0.036
+       },
+       {
+        "cpu": 8,
+        "memMb": 16384,
+        "rateUsdPerHour": 0.072
+       }
+      ],
+      "plan": {
+       "key": "box_20",
+       "trial": false,
+       "machinesAtOnce": 100,
+       "sizes": [
+        "2x4",
+        "4x8",
+        "8x16"
+       ]
+      },
+      "starts": {
+       "minute": {
+        "used": 0,
+        "limit": 12
+       },
+       "hour": {
+        "used": 9,
+        "limit": 60
+       },
+       "day": {
+        "used": 187,
+        "limit": 200
+       }
+      },
+      "size": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "sizeDefault": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "deleteAfterMs": 3600000,
+      "settings": {
+       "size": {
+        "cpu": 4,
+        "memMb": 8192
+       },
+       "deleteAfterMs": 3600000
+      }
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"box\",\"deleteAfterMs\":3600000,\"size\":{\"cpu\":4,\"memMb\":8192},\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "Boat: size 4 vCPU, 8 GB (2x4 by default), deleted after 60 min (30 min by default)"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"box\",\"deleteAfterMs\":3600000,\"size\":{\"cpu\":4,\"memMb\":8192},\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "{\"computer\":{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":4,\"memMb\":8192},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":3600000,\"settings\":{\"size\":{\"cpu\":4,\"memMb\":8192},\"deleteAfterMs\":3600000}}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a delete delay of none",
+   "argv": [
+    "computers",
+    "set",
+    "boat",
+    "--delete-after=0",
+    "--reset=size"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}",
+    "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":0,\"settings\":{\"deleteAfterMs\":0}}}"
+   },
+   "tool_arguments": {
+    "computer": "boat",
+    "delete_after": 0,
+    "reset": [
+     "size"
+    ]
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "box",
+     "deleteAfterMs": 0,
+     "reset": [
+      "size"
+     ]
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computer\": {\n    \"id\": \"box\",\n    \"kind\": \"provider\",\n    \"name\": \"box\",\n    \"default\": false,\n    \"rateUsdPerHour\": 0.018,\n    \"sizes\": [\n      {\n        \"cpu\": 2,\n        \"memMb\": 4096,\n        \"rateUsdPerHour\": 0.018\n      },\n      {\n        \"cpu\": 4,\n        \"memMb\": 8192,\n        \"rateUsdPerHour\": 0.036\n      },\n      {\n        \"cpu\": 8,\n        \"memMb\": 16384,\n        \"rateUsdPerHour\": 0.072\n      }\n    ],\n    \"plan\": {\n      \"key\": \"box_20\",\n      \"trial\": false,\n      \"machinesAtOnce\": 100,\n      \"sizes\": [\n        \"2x4\",\n        \"4x8\",\n        \"8x16\"\n      ]\n    },\n    \"starts\": {\n      \"minute\": {\n        \"used\": 0,\n        \"limit\": 12\n      },\n      \"hour\": {\n        \"used\": 9,\n        \"limit\": 60\n      },\n      \"day\": {\n        \"used\": 187,\n        \"limit\": 200\n      }\n    },\n    \"size\": {\n      \"cpu\": 2,\n      \"memMb\": 4096\n    },\n    \"sizeDefault\": {\n      \"cpu\": 2,\n      \"memMb\": 4096\n    },\n    \"deleteAfterMs\": 0,\n    \"settings\": {\n      \"deleteAfterMs\": 0\n    }\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "computer": {
+      "id": "box",
+      "kind": "provider",
+      "name": "box",
+      "default": false,
+      "rateUsdPerHour": 0.018,
+      "sizes": [
+       {
+        "cpu": 2,
+        "memMb": 4096,
+        "rateUsdPerHour": 0.018
+       },
+       {
+        "cpu": 4,
+        "memMb": 8192,
+        "rateUsdPerHour": 0.036
+       },
+       {
+        "cpu": 8,
+        "memMb": 16384,
+        "rateUsdPerHour": 0.072
+       }
+      ],
+      "plan": {
+       "key": "box_20",
+       "trial": false,
+       "machinesAtOnce": 100,
+       "sizes": [
+        "2x4",
+        "4x8",
+        "8x16"
+       ]
+      },
+      "starts": {
+       "minute": {
+        "used": 0,
+        "limit": 12
+       },
+       "hour": {
+        "used": 9,
+        "limit": 60
+       },
+       "day": {
+        "used": 187,
+        "limit": 200
+       }
+      },
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "sizeDefault": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "deleteAfterMs": 0,
+      "settings": {
+       "deleteAfterMs": 0
+      }
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"box\",\"deleteAfterMs\":0,\"reset\":[\"size\"],\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "Boat: size 2 vCPU, 4 GB (the default), deleted once done (30 min by default)"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"box\",\"deleteAfterMs\":0,\"reset\":[\"size\"],\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "{\"computer\":{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":0,\"settings\":{\"deleteAfterMs\":0}}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a size no cloud sells",
+   "argv": [
+    "computers",
+    "set",
+    "boat",
+    "--size=3x5"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}",
+    "places.set": "{\"id\":1,\"ok\":false,\"error\":\"3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead.\",\"kind\":\"usage\"}"
+   },
+   "tool_arguments": {
+    "computer": "boat",
+    "size": "3x5"
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "box",
+     "size": {
+      "cpu": 3,
+      "memMb": 5120
+     }
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead."
+     }
+    ],
+    "structuredContent": {
+     "error": "3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"box\",\"size\":{\"cpu\":3,\"memMb\":5120},\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: 3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"box\",\"size\":{\"cpu\":3,\"memMb\":5120},\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a size word that names no size",
+   "argv": [
+    "computers",
+    "set",
+    "boat",
+    "--size=0x4"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}"
+   },
+   "tool_arguments": {
+    "computer": "boat",
+    "size": "0x4"
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "0x4 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Name one of those with --size."
+     }
+    ],
+    "structuredContent": {
+     "error": "0x4 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Name one of those with --size.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: 0x4 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Name one of those with --size."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"0x4 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Name one of those with --size.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a size word on a computer, which takes no size",
+   "argv": [
+    "computers",
+    "set",
+    "attic",
+    "--size=0x4"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}",
+    "places.set": "{\"id\":1,\"ok\":false,\"error\":\"attic takes threads at once, nap after, turn limit, machines under a root thread and levels deep, not size\",\"kind\":\"usage\"}"
+   },
+   "tool_arguments": {
+    "computer": "attic",
+    "size": "0x4"
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9",
+     "reset": [
+      "size"
+     ]
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "attic takes threads at once, nap after, turn limit, machines under a root thread and levels deep, not size"
+     }
+    ],
+    "structuredContent": {
+     "error": "attic takes threads at once, nap after, turn limit, machines under a root thread and levels deep, not size",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"reset\":[\"size\"],\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: attic takes threads at once, nap after, turn limit, machines under a root thread and levels deep, not size"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"reset\":[\"size\"],\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"attic takes threads at once, nap after, turn limit, machines under a root thread and levels deep, not size\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "nap after and never",
+   "argv": [
+    "computers",
+    "set",
+    "attic",
+    "--nap=0"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"settings\":{\"napMs\":null},\"napMs\":null,\"running\":0}}"
+   },
+   "tool_arguments": {
+    "computer": "attic",
+    "nap": 0
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9",
+     "napMs": null
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computer\": {\n    \"id\": \"place-9\",\n    \"kind\": \"computer\",\n    \"name\": \"attic\",\n    \"label\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n    \"default\": false,\n    \"os\": \"linux\",\n    \"shape\": {\n      \"cpu\": 8,\n      \"memMb\": 16384\n    },\n    \"diskFreeBytes\": 123456789012,\n    \"present\": true,\n    \"agentVersions\": {\n      \"2\": \"an index key\",\n      \"claude\": \"2.1.0\"\n    },\n    \"forks\": {\n      \"running\": 1,\n      \"room\": 2\n    },\n    \"cap\": {\n      \"threads\": 8\n    },\n    \"capDefault\": {\n      \"threads\": 8\n    },\n    \"settings\": {\n      \"napMs\": null\n    },\n    \"napMs\": null,\n    \"running\": 0\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "computer": {
+      "id": "place-9",
+      "kind": "computer",
+      "name": "attic",
+      "label": "zingzy's box \"one\" \\ two\nthree 🧪",
+      "default": false,
+      "os": "linux",
+      "shape": {
+       "cpu": 8,
+       "memMb": 16384
+      },
+      "diskFreeBytes": 123456789012,
+      "present": true,
+      "agentVersions": {
+       "2": "an index key",
+       "claude": "2.1.0"
+      },
+      "forks": {
+       "running": 1,
+       "room": 2
+      },
+      "cap": {
+       "threads": 8
+      },
+      "capDefault": {
+       "threads": 8
+      },
+      "settings": {
+       "napMs": null
+      },
+      "napMs": null,
+      "running": 0
+     }
+    }
+   },
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: --nap for attic takes whole minutes from 1 to 180, or off, and got \"0\". Write it as --nap 20 or --nap off."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--nap for attic takes whole minutes from 1 to 180, or off, and got \\\"0\\\". Write it as --nap 20 or --nap off.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "nap after in minutes",
+   "argv": [
+    "computers",
+    "set",
+    "attic",
+    "--nap=45",
+    "--threads=3"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":3},\"capDefault\":{\"threads\":8},\"settings\":{\"threads\":3,\"napMs\":2700000},\"napMs\":2700000,\"running\":0}}"
+   },
+   "tool_arguments": {
+    "computer": "attic",
+    "nap": 45,
+    "threads": 3
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9",
+     "threads": 3,
+     "napMs": 2700000
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computer\": {\n    \"id\": \"place-9\",\n    \"kind\": \"computer\",\n    \"name\": \"attic\",\n    \"label\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n    \"default\": false,\n    \"os\": \"linux\",\n    \"shape\": {\n      \"cpu\": 8,\n      \"memMb\": 16384\n    },\n    \"diskFreeBytes\": 123456789012,\n    \"present\": true,\n    \"agentVersions\": {\n      \"2\": \"an index key\",\n      \"claude\": \"2.1.0\"\n    },\n    \"forks\": {\n      \"running\": 1,\n      \"room\": 2\n    },\n    \"cap\": {\n      \"threads\": 3\n    },\n    \"capDefault\": {\n      \"threads\": 8\n    },\n    \"settings\": {\n      \"threads\": 3,\n      \"napMs\": 2700000\n    },\n    \"napMs\": 2700000,\n    \"running\": 0\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "computer": {
+      "id": "place-9",
+      "kind": "computer",
+      "name": "attic",
+      "label": "zingzy's box \"one\" \\ two\nthree 🧪",
+      "default": false,
+      "os": "linux",
+      "shape": {
+       "cpu": 8,
+       "memMb": 16384
+      },
+      "diskFreeBytes": 123456789012,
+      "present": true,
+      "agentVersions": {
+       "2": "an index key",
+       "claude": "2.1.0"
+      },
+      "forks": {
+       "running": 1,
+       "room": 2
+      },
+      "cap": {
+       "threads": 3
+      },
+      "capDefault": {
+       "threads": 8
+      },
+      "settings": {
+       "threads": 3,
+       "napMs": 2700000
+      },
+      "napMs": 2700000,
+      "running": 0
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"threads\":3,\"napMs\":2700000,\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "attic: 3 threads at once (8 by default)"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"threads\":3,\"napMs\":2700000,\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":3},\"capDefault\":{\"threads\":8},\"settings\":{\"threads\":3,\"napMs\":2700000},\"napMs\":2700000,\"running\":0}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "no turn limit",
+   "argv": [
+    "computers",
+    "set",
+    "attic",
+    "--turn-limit=0"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"settings\":{\"turnLimitMs\":null},\"turnLimitMs\":null,\"turnLimitDefault\":null,\"running\":0}}"
+   },
+   "tool_arguments": {
+    "computer": "attic",
+    "turn_limit": 0
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9",
+     "turnLimitMs": null
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computer\": {\n    \"id\": \"place-9\",\n    \"kind\": \"computer\",\n    \"name\": \"attic\",\n    \"label\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n    \"default\": false,\n    \"os\": \"linux\",\n    \"shape\": {\n      \"cpu\": 8,\n      \"memMb\": 16384\n    },\n    \"diskFreeBytes\": 123456789012,\n    \"present\": true,\n    \"agentVersions\": {\n      \"2\": \"an index key\",\n      \"claude\": \"2.1.0\"\n    },\n    \"forks\": {\n      \"running\": 1,\n      \"room\": 2\n    },\n    \"cap\": {\n      \"threads\": 8\n    },\n    \"capDefault\": {\n      \"threads\": 8\n    },\n    \"settings\": {\n      \"turnLimitMs\": null\n    },\n    \"turnLimitMs\": null,\n    \"turnLimitDefault\": null,\n    \"running\": 0\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "computer": {
+      "id": "place-9",
+      "kind": "computer",
+      "name": "attic",
+      "label": "zingzy's box \"one\" \\ two\nthree 🧪",
+      "default": false,
+      "os": "linux",
+      "shape": {
+       "cpu": 8,
+       "memMb": 16384
+      },
+      "diskFreeBytes": 123456789012,
+      "present": true,
+      "agentVersions": {
+       "2": "an index key",
+       "claude": "2.1.0"
+      },
+      "forks": {
+       "running": 1,
+       "room": 2
+      },
+      "cap": {
+       "threads": 8
+      },
+      "capDefault": {
+       "threads": 8
+      },
+      "settings": {
+       "turnLimitMs": null
+      },
+      "turnLimitMs": null,
+      "turnLimitDefault": null,
+      "running": 0
+     }
+    }
+   },
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: --turn-limit for attic takes whole hours from 1 to 24, or off, and got \"0\". Write it as --turn-limit 6 or --turn-limit off."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--turn-limit for attic takes whole hours from 1 to 24, or off, and got \\\"0\\\". Write it as --turn-limit 6 or --turn-limit off.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a turn limit in hours",
+   "argv": [
+    "computers",
+    "set",
+    "solari",
+    "--turn-limit=12"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004,\"settings\":{\"turnLimitMs\":43200000},\"turnLimitMs\":43200000,\"turnLimitDefault\":21600000}}"
+   },
+   "tool_arguments": {
+    "computer": "solari",
+    "turn_limit": 12
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-solari",
+     "turnLimitMs": 43200000
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computer\": {\n    \"id\": \"place-solari\",\n    \"kind\": \"provider\",\n    \"name\": \"solari\",\n    \"default\": true,\n    \"rateUsdPerHour\": 0.30000000000000004,\n    \"settings\": {\n      \"turnLimitMs\": 43200000\n    },\n    \"turnLimitMs\": 43200000,\n    \"turnLimitDefault\": 21600000\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "computer": {
+      "id": "place-solari",
+      "kind": "provider",
+      "name": "solari",
+      "default": true,
+      "rateUsdPerHour": 0.30000000000000004,
+      "settings": {
+       "turnLimitMs": 43200000
+      },
+      "turnLimitMs": 43200000,
+      "turnLimitDefault": 21600000
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-solari\",\"turnLimitMs\":43200000,\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "Solari: stops a turn at 12h (6h by default)"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-solari\",\"turnLimitMs\":43200000,\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "{\"computer\":{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004,\"settings\":{\"turnLimitMs\":43200000},\"turnLimitMs\":43200000,\"turnLimitDefault\":21600000}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a new name",
+   "argv": [
+    "computers",
+    "set",
+    "attic",
+    "--name=hetzner"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"hetzner\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}"
+   },
+   "tool_arguments": {
+    "computer": "attic",
+    "name": "hetzner"
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9",
+     "name": "hetzner"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computer\": {\n    \"id\": \"place-9\",\n    \"kind\": \"computer\",\n    \"name\": \"hetzner\",\n    \"label\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n    \"default\": false,\n    \"os\": \"linux\",\n    \"shape\": {\n      \"cpu\": 8,\n      \"memMb\": 16384\n    },\n    \"diskFreeBytes\": 123456789012,\n    \"present\": true,\n    \"agentVersions\": {\n      \"2\": \"an index key\",\n      \"claude\": \"2.1.0\"\n    },\n    \"forks\": {\n      \"running\": 1,\n      \"room\": 2\n    },\n    \"cap\": {\n      \"threads\": 8\n    },\n    \"capDefault\": {\n      \"threads\": 8\n    },\n    \"running\": 0\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "computer": {
+      "id": "place-9",
+      "kind": "computer",
+      "name": "hetzner",
+      "label": "zingzy's box \"one\" \\ two\nthree 🧪",
+      "default": false,
+      "os": "linux",
+      "shape": {
+       "cpu": 8,
+       "memMb": 16384
+      },
+      "diskFreeBytes": 123456789012,
+      "present": true,
+      "agentVersions": {
+       "2": "an index key",
+       "claude": "2.1.0"
+      },
+      "forks": {
+       "running": 1,
+       "room": 2
+      },
+      "cap": {
+       "threads": 8
+      },
+      "capDefault": {
+       "threads": 8
+      },
+      "running": 0
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"name\":\"hetzner\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "attic is hetzner now"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"name\":\"hetzner\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"hetzner\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a name another computer holds",
+   "argv": [
+    "computers",
+    "set",
+    "attic",
+    "--name=spoo",
+    "--threads=2"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-7\",\"kind\":\"computer\",\"name\":\"spoo\",\"default\":false,\"present\":true}]}",
+    "places.set": "{\"id\":1,\"ok\":false,\"error\":\"spoo is already the name of another computer. Pick a name no other computer goes by.\",\"kind\":\"usage\",\"fix\":\"Pick a name no other computer goes by.\"}"
+   },
+   "tool_arguments": {
+    "computer": "attic",
+    "name": "spoo",
+    "threads": 2
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9",
+     "threads": 2,
+     "name": "spoo"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "spoo is already the name of another computer. Pick a name no other computer goes by."
+     }
+    ],
+    "structuredContent": {
+     "error": "spoo is already the name of another computer. Pick a name no other computer goes by.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"threads\":2,\"name\":\"spoo\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: spoo is already the name of another computer. Pick a name no other computer goes by."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"threads\":2,\"name\":\"spoo\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"spoo is already the name of another computer. Pick a name no other computer goes by.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a new ssh login",
+   "argv": [
+    "computers",
+    "set",
+    "attic",
+    "--ssh=root@hetzner"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}"
+   },
+   "tool_arguments": {
+    "computer": "attic",
+    "ssh": "root@hetzner"
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9",
+     "ssh": "root@hetzner"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computer\": {\n    \"id\": \"place-9\",\n    \"kind\": \"computer\",\n    \"name\": \"attic\",\n    \"label\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n    \"default\": false,\n    \"os\": \"linux\",\n    \"shape\": {\n      \"cpu\": 8,\n      \"memMb\": 16384\n    },\n    \"diskFreeBytes\": 123456789012,\n    \"present\": true,\n    \"agentVersions\": {\n      \"2\": \"an index key\",\n      \"claude\": \"2.1.0\"\n    },\n    \"forks\": {\n      \"running\": 1,\n      \"room\": 2\n    },\n    \"cap\": {\n      \"threads\": 8\n    },\n    \"capDefault\": {\n      \"threads\": 8\n    },\n    \"running\": 0\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "computer": {
+      "id": "place-9",
+      "kind": "computer",
+      "name": "attic",
+      "label": "zingzy's box \"one\" \\ two\nthree 🧪",
+      "default": false,
+      "os": "linux",
+      "shape": {
+       "cpu": 8,
+       "memMb": 16384
+      },
+      "diskFreeBytes": 123456789012,
+      "present": true,
+      "agentVersions": {
+       "2": "an index key",
+       "claude": "2.1.0"
+      },
+      "forks": {
+       "running": 1,
+       "room": 2
+      },
+      "cap": {
+       "threads": 8
+      },
+      "capDefault": {
+       "threads": 8
+      },
+      "running": 0
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"ssh\":\"root@hetzner\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "attic is reached over ssh as root@hetzner from now"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"ssh\":\"root@hetzner\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a login that reaches another computer",
+   "argv": [
+    "computers",
+    "set",
+    "attic",
+    "--ssh=root@spoo"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":false,\"error\":\"root@spoo reaches a computer that is not attic, so nothing was saved. Give the login that reaches attic itself.\",\"kind\":\"usage\",\"fix\":\"Give the login that reaches attic itself.\"}"
+   },
+   "tool_arguments": {
+    "computer": "attic",
+    "ssh": "root@spoo"
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9",
+     "ssh": "root@spoo"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "root@spoo reaches a computer that is not attic, so nothing was saved. Give the login that reaches attic itself."
+     }
+    ],
+    "structuredContent": {
+     "error": "root@spoo reaches a computer that is not attic, so nothing was saved. Give the login that reaches attic itself.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"ssh\":\"root@spoo\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: root@spoo reaches a computer that is not attic, so nothing was saved. Give the login that reaches attic itself."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"ssh\":\"root@spoo\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"root@spoo reaches a computer that is not attic, so nothing was saved. Give the login that reaches attic itself.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "a recipe beside a new name, in one set",
+   "argv": [
+    "computers",
+    "set",
+    "attic",
+    "--name=hetzner",
+    "--recipe=laptop"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"hetzner\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"recipe\":\"laptop\",\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}"
+   },
+   "tool_arguments": {
+    "computer": "attic",
+    "name": "hetzner",
+    "recipe": "laptop"
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9",
+     "name": "hetzner",
+     "recipe": "laptop"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"computer\": {\n    \"id\": \"place-9\",\n    \"kind\": \"computer\",\n    \"name\": \"hetzner\",\n    \"label\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n    \"default\": false,\n    \"os\": \"linux\",\n    \"shape\": {\n      \"cpu\": 8,\n      \"memMb\": 16384\n    },\n    \"diskFreeBytes\": 123456789012,\n    \"present\": true,\n    \"agentVersions\": {\n      \"2\": \"an index key\",\n      \"claude\": \"2.1.0\"\n    },\n    \"forks\": {\n      \"running\": 1,\n      \"room\": 2\n    },\n    \"recipe\": \"laptop\",\n    \"cap\": {\n      \"threads\": 8\n    },\n    \"capDefault\": {\n      \"threads\": 8\n    },\n    \"running\": 0\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "computer": {
+      "id": "place-9",
+      "kind": "computer",
+      "name": "hetzner",
+      "label": "zingzy's box \"one\" \\ two\nthree 🧪",
+      "default": false,
+      "os": "linux",
+      "shape": {
+       "cpu": 8,
+       "memMb": 16384
+      },
+      "diskFreeBytes": 123456789012,
+      "present": true,
+      "agentVersions": {
+       "2": "an index key",
+       "claude": "2.1.0"
+      },
+      "forks": {
+       "running": 1,
+       "room": 2
+      },
+      "recipe": "laptop",
+      "cap": {
+       "threads": 8
+      },
+      "capDefault": {
+       "threads": 8
+      },
+      "running": 0
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"name\":\"hetzner\",\"recipe\":\"laptop\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "attic is hetzner now\nhetzner follows laptop; a change to it reaches hetzner on its own"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"name\":\"hetzner\",\"recipe\":\"laptop\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [
+     "{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"hetzner\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"recipe\":\"laptop\",\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "nothing to set",
+   "argv": [
+    "computers",
+    "set",
+    "attic"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+    "places.set": "{\"id\":1,\"ok\":false,\"error\":\"nothing to set on attic: it takes threads at once, nap after, turn limit, machines under a root thread, levels deep, a new name and a new ssh login\",\"kind\":\"usage\"}"
+   },
+   "tool_arguments": {
+    "computer": "attic"
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    },
+    {
+     "op": "places.set",
+     "placeId": "place-9"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "nothing to set on attic: it takes threads at once, nap after, turn limit, machines under a root thread, levels deep, a new name and a new ssh login"
+     }
+    ],
+    "structuredContent": {
+     "error": "nothing to set on attic: it takes threads at once, nap after, turn limit, machines under a root thread, levels deep, a new name and a new ssh login",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: nothing to set on attic: it takes threads at once, nap after, turn limit, machines under a root thread, levels deep, a new name and a new ssh login"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}",
+     "{\"placeId\":\"place-9\",\"id\":3,\"op\":\"places.set\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"nothing to set on attic: it takes threads at once, nap after, turn limit, machines under a root thread, levels deep, a new name and a new ssh login\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "computers_set",
+   "case": "no such computer",
+   "argv": [
+    "computers",
+    "set",
+    "nowhere",
+    "--threads=1"
+   ],
+   "replies": {
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}"
+   },
+   "tool_arguments": {
+    "computer": "nowhere",
+    "threads": 1
+   },
+   "tool_asked": [
+    {
+     "op": "places.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "no place named nowhere; you have attic, Solari. Run wsp computers."
+     }
+    ],
+    "structuredContent": {
+     "error": "no place named nowhere; you have attic, Solari. Run wsp computers.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: no place named nowhere; you have attic, Solari. Run wsp computers."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"places.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"no place named nowhere; you have attic, Solari. Run wsp computers.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "recipes",
+   "case": "one",
+   "argv": [
+    "recipes"
+   ],
+   "replies": {
+    "recipes.list": "{\"id\":1,\"ok\":true,\"recipes\":[{\"name\":\"laptop  \\\"one\\\" 🧪\",\"slug\":\"laptop-one\",\"summary\":\"2 agents, 1 CLI\",\"machines\":[\"attic\"],\"file\":{\"name\":\"laptop  \\\"one\\\" 🧪\",\"agents\":{\"claude\":{\"signin\":\"vault\"},\"codex\":{\"signin\":\"machine\"}},\"mcp\":{},\"clis\":{\"cargo-nextest\":{\"via\":\"cargo\",\"needs\":[\"build-essential\"]}},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}}]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "recipes.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"recipes\": [\n    {\n      \"name\": \"laptop \\u0085 \\\"one\\\" 🧪\",\n      \"slug\": \"laptop-one\",\n      \"summary\": \"2 agents, 1 CLI\",\n      \"machines\": [\n        \"attic\"\n      ],\n      \"file\": {\n        \"name\": \"laptop \\u0085 \\\"one\\\" 🧪\",\n        \"agents\": {\n          \"claude\": {\n            \"signin\": \"vault\"\n          },\n          \"codex\": {\n            \"signin\": \"machine\"\n          }\n        },\n        \"mcp\": {},\n        \"clis\": {\n          \"cargo-nextest\": {\n            \"via\": \"cargo\",\n            \"needs\": [\n              \"build-essential\"\n            ]\n          }\n        },\n        \"skills\": {},\n        \"plugins\": {},\n        \"folders\": {},\n        \"configs\": {}\n      }\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "recipes": [
+      {
+       "name": "laptop  \"one\" 🧪",
+       "slug": "laptop-one",
+       "summary": "2 agents, 1 CLI",
+       "machines": [
+        "attic"
+       ],
+       "file": {
+        "name": "laptop  \"one\" 🧪",
+        "agents": {
+         "claude": {
+          "signin": "vault"
+         },
+         "codex": {
+          "signin": "machine"
+         }
+        },
+        "mcp": {},
+        "clis": {
+         "cargo-nextest": {
+          "via": "cargo",
+          "needs": [
+           "build-essential"
+          ]
+         }
+        },
+        "skills": {},
+        "plugins": {},
+        "folders": {},
+        "configs": {}
+       }
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"recipes.list\"}"
+    ],
+    "stdout": [
+     "RECIPE             HOLDS            SAVED  COMPUTERS\nlaptop  \"one\" 🧪  2 agents, 1 CLI         attic"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"recipes.list\"}"
+    ],
+    "stdout": [
+     "{\"recipes\":[{\"name\":\"laptop \\u0085 \\\"one\\\" 🧪\",\"slug\":\"laptop-one\",\"summary\":\"2 agents, 1 CLI\",\"machines\":[\"attic\"],\"file\":{\"name\":\"laptop \\u0085 \\\"one\\\" 🧪\",\"agents\":{\"claude\":{\"signin\":\"vault\"},\"codex\":{\"signin\":\"machine\"}},\"mcp\":{},\"clis\":{\"cargo-nextest\":{\"via\":\"cargo\",\"needs\":[\"build-essential\"]}},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "recipes",
+   "case": "none",
+   "argv": [
+    "recipes"
+   ],
+   "replies": {
+    "recipes.list": "{\"id\":1,\"ok\":true,\"recipes\":[]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "recipes.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"recipes\": []\n}"
+     }
+    ],
+    "structuredContent": {
+     "recipes": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"recipes.list\"}"
+    ],
+    "stdout": [
+     "No recipe is saved yet. The app's Add a computer saves one, and wsp recipes save <name> --from <computer> saves what a computer was set up with."
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"recipes.list\"}"
+    ],
+    "stdout": [
+     "{\"recipes\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "recipes_show",
+   "case": "one",
+   "argv": [
+    "recipes",
+    "show",
+    "laptop-one"
+   ],
+   "replies": {
+    "recipes.get": "{\"id\":1,\"ok\":true,\"recipe\":{\"name\":\"laptop  \\\"one\\\" 🧪\",\"slug\":\"laptop-one\",\"summary\":\"2 agents, 1 CLI\",\"machines\":[\"attic\"],\"file\":{\"name\":\"laptop  \\\"one\\\" 🧪\",\"agents\":{\"claude\":{\"signin\":\"vault\"},\"codex\":{\"signin\":\"machine\"}},\"mcp\":{},\"clis\":{\"cargo-nextest\":{\"via\":\"cargo\",\"needs\":[\"build-essential\"]}},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}},\"hash\":\"sha256:9f\"}"
+   },
+   "tool_arguments": {
+    "name": "laptop-one"
+   },
+   "tool_asked": [
+    {
+     "op": "recipes.get",
+     "name": "laptop-one"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"recipe\": {\n    \"name\": \"laptop \\u0085 \\\"one\\\" 🧪\",\n    \"slug\": \"laptop-one\",\n    \"summary\": \"2 agents, 1 CLI\",\n    \"machines\": [\n      \"attic\"\n    ],\n    \"file\": {\n      \"name\": \"laptop \\u0085 \\\"one\\\" 🧪\",\n      \"agents\": {\n        \"claude\": {\n          \"signin\": \"vault\"\n        },\n        \"codex\": {\n          \"signin\": \"machine\"\n        }\n      },\n      \"mcp\": {},\n      \"clis\": {\n        \"cargo-nextest\": {\n          \"via\": \"cargo\",\n          \"needs\": [\n            \"build-essential\"\n          ]\n        }\n      },\n      \"skills\": {},\n      \"plugins\": {},\n      \"folders\": {},\n      \"configs\": {}\n    }\n  },\n  \"hash\": \"sha256:9f\"\n}"
+     }
+    ],
+    "structuredContent": {
+     "recipe": {
+      "name": "laptop  \"one\" 🧪",
+      "slug": "laptop-one",
+      "summary": "2 agents, 1 CLI",
+      "machines": [
+       "attic"
+      ],
+      "file": {
+       "name": "laptop  \"one\" 🧪",
+       "agents": {
+        "claude": {
+         "signin": "vault"
+        },
+        "codex": {
+         "signin": "machine"
+        }
+       },
+       "mcp": {},
+       "clis": {
+        "cargo-nextest": {
+         "via": "cargo",
+         "needs": [
+          "build-essential"
+         ]
+        }
+       },
+       "skills": {},
+       "plugins": {},
+       "folders": {},
+       "configs": {}
+      }
+     },
+     "hash": "sha256:9f"
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"name\":\"laptop-one\",\"id\":2,\"op\":\"recipes.get\"}"
+    ],
+    "stdout": [
+     "laptop  \"one\" 🧪: 2 agents, 1 CLI\n  agents   claude (signin vault), codex (signin machine)\n  clis     cargo-nextest (via cargo; needs build-essential)\n  followed by attic\n  hash     sha256:9f"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"name\":\"laptop-one\",\"id\":2,\"op\":\"recipes.get\"}"
+    ],
+    "stdout": [
+     "{\"recipe\":{\"name\":\"laptop \\u0085 \\\"one\\\" 🧪\",\"slug\":\"laptop-one\",\"summary\":\"2 agents, 1 CLI\",\"machines\":[\"attic\"],\"file\":{\"name\":\"laptop \\u0085 \\\"one\\\" 🧪\",\"agents\":{\"claude\":{\"signin\":\"vault\"},\"codex\":{\"signin\":\"machine\"}},\"mcp\":{},\"clis\":{\"cargo-nextest\":{\"via\":\"cargo\",\"needs\":[\"build-essential\"]}},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}},\"hash\":\"sha256:9f\"}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "recipes_show",
+   "case": "no such recipe",
+   "argv": [
+    "recipes",
+    "show",
+    "desk"
+   ],
+   "replies": {
+    "recipes.get": "{\"id\":1,\"ok\":false,\"error\":\"there is no recipe desk; the recipes are laptop-one\",\"kind\":\"not-found\"}"
+   },
+   "tool_arguments": {
+    "name": "desk"
+   },
+   "tool_asked": [
+    {
+     "op": "recipes.get",
+     "name": "desk"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "there is no recipe desk; the recipes are laptop-one"
+     }
+    ],
+    "structuredContent": {
+     "error": "there is no recipe desk; the recipes are laptop-one",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"name\":\"desk\",\"id\":2,\"op\":\"recipes.get\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp recipes show: there is no recipe desk; the recipes are laptop-one"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"name\":\"desk\",\"id\":2,\"op\":\"recipes.get\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"there is no recipe desk; the recipes are laptop-one\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "recipes_save",
+   "case": "saved",
+   "argv": [
+    "recipes",
+    "save",
+    "laptop one",
+    "--from=attic"
+   ],
+   "replies": {
+    "recipes.save": "{\"id\":1,\"ok\":true,\"recipe\":{\"name\":\"laptop  \\\"one\\\" 🧪\",\"slug\":\"laptop-one\",\"summary\":\"2 agents, 1 CLI\",\"machines\":[\"attic\"],\"file\":{\"name\":\"laptop  \\\"one\\\" 🧪\",\"agents\":{\"claude\":{\"signin\":\"vault\"},\"codex\":{\"signin\":\"machine\"}},\"mcp\":{},\"clis\":{\"cargo-nextest\":{\"via\":\"cargo\",\"needs\":[\"build-essential\"]}},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}}}"
+   },
+   "tool_arguments": {
+    "name": "laptop one",
+    "from": "attic"
+   },
+   "tool_asked": [
+    {
+     "op": "recipes.save",
+     "name": "laptop one",
+     "from": "attic"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"recipe\": {\n    \"name\": \"laptop \\u0085 \\\"one\\\" 🧪\",\n    \"slug\": \"laptop-one\",\n    \"summary\": \"2 agents, 1 CLI\",\n    \"machines\": [\n      \"attic\"\n    ],\n    \"file\": {\n      \"name\": \"laptop \\u0085 \\\"one\\\" 🧪\",\n      \"agents\": {\n        \"claude\": {\n          \"signin\": \"vault\"\n        },\n        \"codex\": {\n          \"signin\": \"machine\"\n        }\n      },\n      \"mcp\": {},\n      \"clis\": {\n        \"cargo-nextest\": {\n          \"via\": \"cargo\",\n          \"needs\": [\n            \"build-essential\"\n          ]\n        }\n      },\n      \"skills\": {},\n      \"plugins\": {},\n      \"folders\": {},\n      \"configs\": {}\n    }\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "recipe": {
+      "name": "laptop  \"one\" 🧪",
+      "slug": "laptop-one",
+      "summary": "2 agents, 1 CLI",
+      "machines": [
+       "attic"
+      ],
+      "file": {
+       "name": "laptop  \"one\" 🧪",
+       "agents": {
+        "claude": {
+         "signin": "vault"
+        },
+        "codex": {
+         "signin": "machine"
+        }
+       },
+       "mcp": {},
+       "clis": {
+        "cargo-nextest": {
+         "via": "cargo",
+         "needs": [
+          "build-essential"
+         ]
+        }
+       },
+       "skills": {},
+       "plugins": {},
+       "folders": {},
+       "configs": {}
+      }
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"name\":\"laptop one\",\"from\":\"attic\",\"id\":2,\"op\":\"recipes.save\"}"
+    ],
+    "stdout": [
+     "saved laptop  \"one\" 🧪 (2 agents, 1 CLI), followed by attic"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"name\":\"laptop one\",\"from\":\"attic\",\"id\":2,\"op\":\"recipes.save\"}"
+    ],
+    "stdout": [
+     "{\"recipe\":{\"name\":\"laptop \\u0085 \\\"one\\\" 🧪\",\"slug\":\"laptop-one\",\"summary\":\"2 agents, 1 CLI\",\"machines\":[\"attic\"],\"file\":{\"name\":\"laptop \\u0085 \\\"one\\\" 🧪\",\"agents\":{\"claude\":{\"signin\":\"vault\"},\"codex\":{\"signin\":\"machine\"}},\"mcp\":{},\"clis\":{\"cargo-nextest\":{\"via\":\"cargo\",\"needs\":[\"build-essential\"]}},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "recipes_save",
+   "case": "a computer set up before picks",
+   "argv": [
+    "recipes",
+    "save",
+    "desk",
+    "--from=attic"
+   ],
+   "replies": {
+    "recipes.save": "{\"id\":1,\"ok\":false,\"error\":\"attic was set up before picks were kept\",\"kind\":\"usage\"}"
+   },
+   "tool_arguments": {
+    "name": "desk",
+    "from": "attic"
+   },
+   "tool_asked": [
+    {
+     "op": "recipes.save",
+     "name": "desk",
+     "from": "attic"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "attic was set up before picks were kept"
+     }
+    ],
+    "structuredContent": {
+     "error": "attic was set up before picks were kept",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"name\":\"desk\",\"from\":\"attic\",\"id\":2,\"op\":\"recipes.save\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp recipes save: attic was set up before picks were kept"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"name\":\"desk\",\"from\":\"attic\",\"id\":2,\"op\":\"recipes.save\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"attic was set up before picks were kept\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "recipes_remove",
+   "case": "removed",
+   "argv": [
+    "recipes",
+    "remove",
+    "laptop-one",
+    "--yes"
+   ],
+   "replies": {
+    "recipes.remove": "{\"id\":1,\"ok\":true,\"recipe\":{\"name\":\"laptop  \\\"one\\\" 🧪\",\"slug\":\"laptop-one\",\"summary\":\"2 agents, 1 CLI\",\"machines\":[\"attic\"],\"file\":{\"name\":\"laptop  \\\"one\\\" 🧪\",\"agents\":{\"claude\":{\"signin\":\"vault\"},\"codex\":{\"signin\":\"machine\"}},\"mcp\":{},\"clis\":{\"cargo-nextest\":{\"via\":\"cargo\",\"needs\":[\"build-essential\"]}},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}}}"
+   },
+   "tool_arguments": {
+    "name": "laptop-one"
+   },
+   "tool_asked": [
+    {
+     "op": "recipes.remove",
+     "name": "laptop-one"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"recipe\": {\n    \"name\": \"laptop \\u0085 \\\"one\\\" 🧪\",\n    \"slug\": \"laptop-one\",\n    \"summary\": \"2 agents, 1 CLI\",\n    \"machines\": [\n      \"attic\"\n    ],\n    \"file\": {\n      \"name\": \"laptop \\u0085 \\\"one\\\" 🧪\",\n      \"agents\": {\n        \"claude\": {\n          \"signin\": \"vault\"\n        },\n        \"codex\": {\n          \"signin\": \"machine\"\n        }\n      },\n      \"mcp\": {},\n      \"clis\": {\n        \"cargo-nextest\": {\n          \"via\": \"cargo\",\n          \"needs\": [\n            \"build-essential\"\n          ]\n        }\n      },\n      \"skills\": {},\n      \"plugins\": {},\n      \"folders\": {},\n      \"configs\": {}\n    }\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "recipe": {
+      "name": "laptop  \"one\" 🧪",
+      "slug": "laptop-one",
+      "summary": "2 agents, 1 CLI",
+      "machines": [
+       "attic"
+      ],
+      "file": {
+       "name": "laptop  \"one\" 🧪",
+       "agents": {
+        "claude": {
+         "signin": "vault"
+        },
+        "codex": {
+         "signin": "machine"
+        }
+       },
+       "mcp": {},
+       "clis": {
+        "cargo-nextest": {
+         "via": "cargo",
+         "needs": [
+          "build-essential"
+         ]
+        }
+       },
+       "skills": {},
+       "plugins": {},
+       "folders": {},
+       "configs": {}
+      }
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"name\":\"laptop-one\",\"check\":true,\"id\":2,\"op\":\"recipes.remove\"}",
+     "{\"name\":\"laptop-one\",\"id\":3,\"op\":\"recipes.remove\"}"
+    ],
+    "stdout": [
+     "removed laptop  \"one\" 🧪; attic keep what it put there and follow no recipe"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"name\":\"laptop-one\",\"check\":true,\"id\":2,\"op\":\"recipes.remove\"}",
+     "{\"name\":\"laptop-one\",\"id\":3,\"op\":\"recipes.remove\"}"
+    ],
+    "stdout": [
+     "{\"recipe\":{\"name\":\"laptop \\u0085 \\\"one\\\" 🧪\",\"slug\":\"laptop-one\",\"summary\":\"2 agents, 1 CLI\",\"machines\":[\"attic\"],\"file\":{\"name\":\"laptop \\u0085 \\\"one\\\" 🧪\",\"agents\":{\"claude\":{\"signin\":\"vault\"},\"codex\":{\"signin\":\"machine\"}},\"mcp\":{},\"clis\":{\"cargo-nextest\":{\"via\":\"cargo\",\"needs\":[\"build-essential\"]}},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "usage",
+   "case": "an account read and one with no reading, and a day of use by agent",
+   "argv": [
+    "usage"
+   ],
+   "replies": {
+    "usage.accounts": "{\"id\":1,\"ok\":true,\"accounts\":[{\"key\":\"claude:vault-token\",\"agent\":\"claude\",\"label\":\"Claude Code with your sign-in\",\"computers\":[\"zingzy's MacBook Pro\",\"Boat\"],\"note\":\"not read yet: shows after its next turn\"},{\"key\":\"codex:acct_7f3a\",\"agent\":\"codex\",\"label\":\"dév@example.com\",\"computers\":[\"Boat\"],\"plan\":\"plus\",\"windows\":[{\"kind\":\"session\",\"usedPercent\":34.5,\"resetsAt\":1790700000000},{\"kind\":\"week\",\"usedPercent\":12}],\"status\":\"ok\",\"readAt\":1790650000000}]}",
+    "usage.used": "{\"id\":1,\"ok\":true,\"used\":{\"range\":\"day\",\"split\":\"agent\",\"rows\":[{\"key\":\"codex\",\"label\":\"Codex  \\\"cli\\\"\",\"tokens\":{\"input\":1500,\"output\":150,\"cached\":400},\"costList\":0.0123,\"priced\":true},{\"key\":\"claude\",\"label\":\"Claude Code\",\"tokens\":{\"input\":7,\"output\":3,\"cached\":0},\"costReported\":0.5,\"costList\":0.01,\"priced\":false}],\"series\":[{\"t\":1790640000000,\"tokens\":1660}],\"since\":1790640000000,\"until\":1790650000000}}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "usage.accounts",
+     "fresh": true
+    },
+    {
+     "op": "usage.used",
+     "range": "day",
+     "split": "agent",
+     "outside": true
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"accounts\": [\n    {\n      \"key\": \"claude:vault-token\",\n      \"agent\": \"claude\",\n      \"label\": \"Claude Code with your sign-in\",\n      \"computers\": [\n        \"zingzy's MacBook Pro\",\n        \"Boat\"\n      ],\n      \"note\": \"not read yet: shows after its next turn\"\n    },\n    {\n      \"key\": \"codex:acct_7f3a\",\n      \"agent\": \"codex\",\n      \"label\": \"dév@example.com\",\n      \"computers\": [\n        \"Boat\"\n      ],\n      \"plan\": \"plus\",\n      \"windows\": [\n        {\n          \"kind\": \"session\",\n          \"usedPercent\": 34.5,\n          \"resetsAt\": 1790700000000\n        },\n        {\n          \"kind\": \"week\",\n          \"usedPercent\": 12\n        }\n      ],\n      \"status\": \"ok\",\n      \"readAt\": 1790650000000\n    }\n  ],\n  \"used\": {\n    \"range\": \"day\",\n    \"split\": \"agent\",\n    \"rows\": [\n      {\n        \"key\": \"codex\",\n        \"label\": \"Codex \\u0085 \\\"cli\\\"\",\n        \"tokens\": {\n          \"input\": 1500,\n          \"output\": 150,\n          \"cached\": 400\n        },\n        \"costList\": 0.0123,\n        \"priced\": true\n      },\n      {\n        \"key\": \"claude\",\n        \"label\": \"Claude Code\",\n        \"tokens\": {\n          \"input\": 7,\n          \"output\": 3,\n          \"cached\": 0\n        },\n        \"costReported\": 0.5,\n        \"costList\": 0.01,\n        \"priced\": false\n      }\n    ],\n    \"series\": [\n      {\n        \"t\": 1790640000000,\n        \"tokens\": 1660\n      }\n    ],\n    \"since\": 1790640000000,\n    \"until\": 1790650000000\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "accounts": [
+      {
+       "key": "claude:vault-token",
+       "agent": "claude",
+       "label": "Claude Code with your sign-in",
+       "computers": [
+        "zingzy's MacBook Pro",
+        "Boat"
+       ],
+       "note": "not read yet: shows after its next turn"
+      },
+      {
+       "key": "codex:acct_7f3a",
+       "agent": "codex",
+       "label": "dév@example.com",
+       "computers": [
+        "Boat"
+       ],
+       "plan": "plus",
+       "windows": [
+        {
+         "kind": "session",
+         "usedPercent": 34.5,
+         "resetsAt": 1790700000000
+        },
+        {
+         "kind": "week",
+         "usedPercent": 12
+        }
+       ],
+       "status": "ok",
+       "readAt": 1790650000000
+      }
+     ],
+     "used": {
+      "range": "day",
+      "split": "agent",
+      "rows": [
+       {
+        "key": "codex",
+        "label": "Codex  \"cli\"",
+        "tokens": {
+         "input": 1500,
+         "output": 150,
+         "cached": 400
+        },
+        "costList": 0.0123,
+        "priced": true
+       },
+       {
+        "key": "claude",
+        "label": "Claude Code",
+        "tokens": {
+         "input": 7,
+         "output": 3,
+         "cached": 0
+        },
+        "costReported": 0.5,
+        "costList": 0.01,
+        "priced": false
+       }
+      ],
+      "series": [
+       {
+        "t": 1790640000000,
+        "tokens": 1660
+       }
+      ],
+      "since": 1790640000000,
+      "until": 1790650000000
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"fresh\":true,\"id\":2,\"op\":\"usage.accounts\"}",
+     "{\"range\":\"day\",\"split\":\"agent\",\"outside\":true,\"id\":3,\"op\":\"usage.used\"}"
+    ],
+    "stdout": [
+     "AGENT        ACCOUNT                        COMPUTERS                   SESSION    WEEK  RESETS  PLAN  STATE\nClaude Code  Claude Code with your sign-in  zingzy's MacBook Pro, Boat                                 not read yet: shows after its next turn\nCodex        dév@example.com                Boat                        35% reset  12%           plus\n\nAGENT          FRESH IN  WRITTEN  CACHED  OUT  PRICE\nCodex  \"cli\"  1.1k      0        400     150  $0.01 list price\nClaude Code    7         0        0       3    $0.51 not priced"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"fresh\":true,\"id\":2,\"op\":\"usage.accounts\"}",
+     "{\"range\":\"day\",\"split\":\"agent\",\"outside\":true,\"id\":3,\"op\":\"usage.used\"}"
+    ],
+    "stdout": [
+     "{\"accounts\":[{\"key\":\"claude:vault-token\",\"agent\":\"claude\",\"label\":\"Claude Code with your sign-in\",\"computers\":[\"zingzy's MacBook Pro\",\"Boat\"],\"note\":\"not read yet: shows after its next turn\"},{\"key\":\"codex:acct_7f3a\",\"agent\":\"codex\",\"label\":\"dév@example.com\",\"computers\":[\"Boat\"],\"plan\":\"plus\",\"windows\":[{\"kind\":\"session\",\"usedPercent\":34.5,\"resetsAt\":1790700000000},{\"kind\":\"week\",\"usedPercent\":12}],\"status\":\"ok\",\"readAt\":1790650000000}],\"used\":{\"range\":\"day\",\"split\":\"agent\",\"rows\":[{\"key\":\"codex\",\"label\":\"Codex \\u0085 \\\"cli\\\"\",\"tokens\":{\"input\":1500,\"output\":150,\"cached\":400},\"costList\":0.0123,\"priced\":true},{\"key\":\"claude\",\"label\":\"Claude Code\",\"tokens\":{\"input\":7,\"output\":3,\"cached\":0},\"costReported\":0.5,\"costList\":0.01,\"priced\":false}],\"series\":[{\"t\":1790640000000,\"tokens\":1660}],\"since\":1790640000000,\"until\":1790650000000}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "usage",
+   "case": "a week by project with nothing used",
+   "argv": [
+    "usage",
+    "--range=week",
+    "--by=project"
+   ],
+   "replies": {
+    "usage.accounts": "{\"id\":1,\"ok\":true,\"accounts\":[]}",
+    "usage.used": "{\"id\":1,\"ok\":true,\"used\":{\"range\":\"week\",\"split\":\"project\",\"rows\":[],\"series\":[],\"since\":1790130000000,\"until\":1790650000000}}"
+   },
+   "tool_arguments": {
+    "range": "week",
+    "by": "project"
+   },
+   "tool_asked": [
+    {
+     "op": "usage.accounts",
+     "fresh": true
+    },
+    {
+     "op": "usage.used",
+     "range": "week",
+     "split": "project",
+     "outside": true
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"accounts\": [],\n  \"used\": {\n    \"range\": \"week\",\n    \"split\": \"project\",\n    \"rows\": [],\n    \"series\": [],\n    \"since\": 1790130000000,\n    \"until\": 1790650000000\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "accounts": [],
+     "used": {
+      "range": "week",
+      "split": "project",
+      "rows": [],
+      "series": [],
+      "since": 1790130000000,
+      "until": 1790650000000
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"fresh\":true,\"id\":2,\"op\":\"usage.accounts\"}",
+     "{\"range\":\"week\",\"split\":\"project\",\"outside\":true,\"id\":3,\"op\":\"usage.used\"}"
+    ],
+    "stdout": [
+     "No agent is signed in on any computer.\n\nNothing used in this range."
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"fresh\":true,\"id\":2,\"op\":\"usage.accounts\"}",
+     "{\"range\":\"week\",\"split\":\"project\",\"outside\":true,\"id\":3,\"op\":\"usage.used\"}"
+    ],
+    "stdout": [
+     "{\"accounts\":[],\"used\":{\"range\":\"week\",\"split\":\"project\",\"rows\":[],\"series\":[],\"since\":1790130000000,\"until\":1790650000000}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "usage",
+   "case": "a day by source",
+   "argv": [
+    "usage",
+    "--by=source"
+   ],
+   "replies": {
+    "usage.accounts": "{\"id\":1,\"ok\":true,\"accounts\":[]}",
+    "usage.used": "{\"id\":1,\"ok\":true,\"used\":{\"range\":\"day\",\"split\":\"source\",\"rows\":[{\"key\":\"log\",\"label\":\"Outside wsp\",\"tokens\":{\"input\":11,\"output\":1,\"cached\":0},\"costList\":0.0001,\"priced\":true,\"turns\":0},{\"key\":\"wsp\",\"label\":\"wsp threads\",\"tokens\":{\"input\":10,\"output\":1,\"cached\":0},\"costReported\":0.5,\"priced\":true,\"turns\":1}],\"series\":[],\"since\":1790130000000,\"until\":1790650000000}}"
+   },
+   "tool_arguments": {
+    "by": "source"
+   },
+   "tool_asked": [
+    {
+     "op": "usage.accounts",
+     "fresh": true
+    },
+    {
+     "op": "usage.used",
+     "range": "day",
+     "split": "source",
+     "outside": true
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"accounts\": [],\n  \"used\": {\n    \"range\": \"day\",\n    \"split\": \"source\",\n    \"rows\": [\n      {\n        \"key\": \"log\",\n        \"label\": \"Outside wsp\",\n        \"tokens\": {\n          \"input\": 11,\n          \"output\": 1,\n          \"cached\": 0\n        },\n        \"costList\": 0.0001,\n        \"priced\": true,\n        \"turns\": 0\n      },\n      {\n        \"key\": \"wsp\",\n        \"label\": \"wsp threads\",\n        \"tokens\": {\n          \"input\": 10,\n          \"output\": 1,\n          \"cached\": 0\n        },\n        \"costReported\": 0.5,\n        \"priced\": true,\n        \"turns\": 1\n      }\n    ],\n    \"series\": [],\n    \"since\": 1790130000000,\n    \"until\": 1790650000000\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "accounts": [],
+     "used": {
+      "range": "day",
+      "split": "source",
+      "rows": [
+       {
+        "key": "log",
+        "label": "Outside wsp",
+        "tokens": {
+         "input": 11,
+         "output": 1,
+         "cached": 0
+        },
+        "costList": 0.0001,
+        "priced": true,
+        "turns": 0
+       },
+       {
+        "key": "wsp",
+        "label": "wsp threads",
+        "tokens": {
+         "input": 10,
+         "output": 1,
+         "cached": 0
+        },
+        "costReported": 0.5,
+        "priced": true,
+        "turns": 1
+       }
+      ],
+      "series": [],
+      "since": 1790130000000,
+      "until": 1790650000000
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"fresh\":true,\"id\":2,\"op\":\"usage.accounts\"}",
+     "{\"range\":\"day\",\"split\":\"source\",\"outside\":true,\"id\":3,\"op\":\"usage.used\"}"
+    ],
+    "stdout": [
+     "No agent is signed in on any computer.\n\nSOURCE       FRESH IN  WRITTEN  CACHED  OUT  PRICE\nOutside wsp  11        0        0       1    $0.00 list price\nwsp threads  10        0        0       1    $0.50"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"fresh\":true,\"id\":2,\"op\":\"usage.accounts\"}",
+     "{\"range\":\"day\",\"split\":\"source\",\"outside\":true,\"id\":3,\"op\":\"usage.used\"}"
+    ],
+    "stdout": [
+     "{\"accounts\":[],\"used\":{\"range\":\"day\",\"split\":\"source\",\"rows\":[{\"key\":\"log\",\"label\":\"Outside wsp\",\"tokens\":{\"input\":11,\"output\":1,\"cached\":0},\"costList\":0.0001,\"priced\":true,\"turns\":0},{\"key\":\"wsp\",\"label\":\"wsp threads\",\"tokens\":{\"input\":10,\"output\":1,\"cached\":0},\"costReported\":0.5,\"priced\":true,\"turns\":1}],\"series\":[],\"since\":1790130000000,\"until\":1790650000000}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "usage",
+   "case": "refused",
+   "argv": [
+    "usage"
+   ],
+   "replies": {
+    "usage.accounts": "{\"id\":1,\"ok\":false,\"error\":\"usage.accounts is not a thread's to ask for\",\"kind\":\"auth\"}",
+    "usage.used": "{\"id\":1,\"ok\":true,\"used\":{\"range\":\"day\",\"split\":\"agent\",\"rows\":[],\"series\":[],\"since\":0,\"until\":0}}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "usage.accounts",
+     "fresh": true
+    },
+    {
+     "op": "usage.used",
+     "range": "day",
+     "split": "agent",
+     "outside": true
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "usage.accounts is not a thread's to ask for"
+     }
+    ],
+    "structuredContent": {
+     "error": "usage.accounts is not a thread's to ask for",
+     "class": "auth",
+     "exit": 2
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"fresh\":true,\"id\":2,\"op\":\"usage.accounts\"}",
+     "{\"range\":\"day\",\"split\":\"agent\",\"outside\":true,\"id\":3,\"op\":\"usage.used\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp usage: usage.accounts is not a thread's to ask for"
+    ],
+    "exit": 2
+   },
+   "json": {
+    "frames": [
+     "{\"fresh\":true,\"id\":2,\"op\":\"usage.accounts\"}",
+     "{\"range\":\"day\",\"split\":\"agent\",\"outside\":true,\"id\":3,\"op\":\"usage.used\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"usage.accounts is not a thread's to ask for\",\"class\":\"auth\",\"exit\":2}"
+    ],
+    "exit": 2
+   }
+  },
+  {
+   "hand": true,
+   "case": "usage reset by key, said yes",
+   "argv": [
+    "usage",
+    "reset",
+    "codex:acct_7f3a",
+    "--credit",
+    "cr-1",
+    "--on",
+    "attic",
+    "--yes"
+   ],
+   "replies": {
+    "usage.accounts": "{\"id\":1,\"ok\":true,\"accounts\":[{\"key\":\"claude:vault-token\",\"agent\":\"claude\",\"label\":\"Claude Code with your sign-in\",\"computers\":[\"zingzy's MacBook Pro\",\"Boat\"],\"note\":\"not read yet: shows after its next turn\"},{\"key\":\"codex:acct_7f3a\",\"agent\":\"codex\",\"label\":\"dév@example.com\",\"computers\":[\"Boat\"],\"plan\":\"plus\",\"windows\":[{\"kind\":\"session\",\"usedPercent\":34.5,\"resetsAt\":1790700000000},{\"kind\":\"week\",\"usedPercent\":12}],\"status\":\"ok\",\"readAt\":1790650000000}]}",
+    "usage.reset": "{\"id\":1,\"ok\":true,\"outcome\":\"reset\",\"said\":\"used a reset on dév@example.com; its windows start again now\"}"
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"usage.accounts\"}",
+     "{\"account\":\"codex:acct_7f3a\",\"creditId\":\"cr-1\",\"on\":\"attic\",\"id\":3,\"op\":\"usage.reset\"}"
+    ],
+    "stdout": [
+     "used a reset on dév@example.com; its windows start again now"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"usage.accounts\"}",
+     "{\"account\":\"codex:acct_7f3a\",\"creditId\":\"cr-1\",\"on\":\"attic\",\"id\":3,\"op\":\"usage.reset\"}"
+    ],
+    "stdout": [
+     "{\"outcome\":\"reset\",\"said\":\"used a reset on dév@example.com; its windows start again now\"}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "usage reset by label in another case, off a terminal",
+   "argv": [
+    "usage",
+    "reset",
+    "DÉV@example.com"
+   ],
+   "replies": {
+    "usage.accounts": "{\"id\":1,\"ok\":true,\"accounts\":[{\"key\":\"claude:vault-token\",\"agent\":\"claude\",\"label\":\"Claude Code with your sign-in\",\"computers\":[\"zingzy's MacBook Pro\",\"Boat\"],\"note\":\"not read yet: shows after its next turn\"},{\"key\":\"codex:acct_7f3a\",\"agent\":\"codex\",\"label\":\"dév@example.com\",\"computers\":[\"Boat\"],\"plan\":\"plus\",\"windows\":[{\"kind\":\"session\",\"usedPercent\":34.5,\"resetsAt\":1790700000000},{\"kind\":\"week\",\"usedPercent\":12}],\"status\":\"ok\",\"readAt\":1790650000000}]}"
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"usage.accounts\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp usage reset: Use a reset banked on dév@example.com? Its five-hour and weekly windows start again now. There is no undo. There is no terminal to answer on. Pass --yes to say yes."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"usage.accounts\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"Use a reset banked on dév@example.com? Its five-hour and weekly windows start again now. There is no undo. There is no terminal to answer on. Pass --yes to say yes.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "usage reset of an account nobody holds",
+   "argv": [
+    "usage",
+    "reset",
+    "nobody",
+    "--yes"
+   ],
+   "replies": {
+    "usage.accounts": "{\"id\":1,\"ok\":true,\"accounts\":[{\"key\":\"claude:vault-token\",\"agent\":\"claude\",\"label\":\"Claude Code with your sign-in\",\"computers\":[\"zingzy's MacBook Pro\",\"Boat\"],\"note\":\"not read yet: shows after its next turn\"},{\"key\":\"codex:acct_7f3a\",\"agent\":\"codex\",\"label\":\"dév@example.com\",\"computers\":[\"Boat\"],\"plan\":\"plus\",\"windows\":[{\"kind\":\"session\",\"usedPercent\":34.5,\"resetsAt\":1790700000000},{\"kind\":\"week\",\"usedPercent\":12}],\"status\":\"ok\",\"readAt\":1790650000000}]}"
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"usage.accounts\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp usage reset: no account nobody; wsp usage lists every account"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"usage.accounts\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"no account nobody; wsp usage lists every account\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "recipes remove off a terminal after the check",
+   "argv": [
+    "recipes",
+    "remove",
+    "laptop-one"
+   ],
+   "replies": {
+    "recipes.remove": "{\"id\":1,\"ok\":true,\"recipe\":{\"name\":\"laptop  \\\"one\\\" 🧪\",\"slug\":\"laptop-one\",\"summary\":\"2 agents, 1 CLI\",\"machines\":[\"attic\"],\"file\":{\"name\":\"laptop  \\\"one\\\" 🧪\",\"agents\":{\"claude\":{\"signin\":\"vault\"},\"codex\":{\"signin\":\"machine\"}},\"mcp\":{},\"clis\":{\"cargo-nextest\":{\"via\":\"cargo\",\"needs\":[\"build-essential\"]}},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}}}"
+   },
+   "text": {
+    "frames": [
+     "{\"name\":\"laptop-one\",\"check\":true,\"id\":2,\"op\":\"recipes.remove\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp recipes remove: Remove the recipe laptop-one? There is no terminal to answer on. Pass --yes to say yes."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"name\":\"laptop-one\",\"check\":true,\"id\":2,\"op\":\"recipes.remove\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"Remove the recipe laptop-one? There is no terminal to answer on. Pass --yes to say yes.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "computers with a word",
+   "argv": [
+    "computers",
+    "x"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers takes no positional arguments. usage: wsp computers"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp computers takes no positional arguments. usage: wsp computers\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set with none",
+   "argv": [
+    "computers",
+    "set"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set takes one computer. usage: wsp computers set <computer> [--name <new>] [--ssh <login>] [--threads <n>] [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>] [--delete-after <minutes>] [--nap <minutes>|off] [--turn-limit <hours>|off] [--max-machines <n>] [--max-depth <n>] [--recipe <name>|none] [--reset <setting>]..."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp computers set takes one computer. usage: wsp computers set <computer> [--name <new>] [--ssh <login>] [--threads <n>] [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>] [--delete-after <minutes>] [--nap <minutes>|off] [--turn-limit <hours>|off] [--max-machines <n>] [--max-depth <n>] [--recipe <name>|none] [--reset <setting>]...\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set with two",
+   "argv": [
+    "computers",
+    "set",
+    "a",
+    "b"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set takes one computer. usage: wsp computers set <computer> [--name <new>] [--ssh <login>] [--threads <n>] [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>] [--delete-after <minutes>] [--nap <minutes>|off] [--turn-limit <hours>|off] [--max-machines <n>] [--max-depth <n>] [--recipe <name>|none] [--reset <setting>]..."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp computers set takes one computer. usage: wsp computers set <computer> [--name <new>] [--ssh <login>] [--threads <n>] [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>] [--delete-after <minutes>] [--nap <minutes>|off] [--turn-limit <hours>|off] [--max-machines <n>] [--max-depth <n>] [--recipe <name>|none] [--reset <setting>]...\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set threads 0",
+   "argv": [
+    "computers",
+    "set",
+    "a",
+    "--threads",
+    "0"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: --threads for a takes a whole number of one or more, and got \"0\". Write it as --threads <n>."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--threads for a takes a whole number of one or more, and got \\\"0\\\". Write it as --threads <n>.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set threads a word",
+   "argv": [
+    "computers",
+    "set",
+    "a",
+    "--threads",
+    "many"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: --threads for a takes a whole number of one or more, and got \"many\". Write it as --threads <n>."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--threads for a takes a whole number of one or more, and got \\\"many\\\". Write it as --threads <n>.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set a negative spend",
+   "argv": [
+    "computers",
+    "set",
+    "a",
+    "--spend=-1"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: --spend for a takes dollars a day, zero or more, and got \"-1\". Write it as --spend 10."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--spend for a takes dollars a day, zero or more, and got \\\"-1\\\". Write it as --spend 10.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set nap a word",
+   "argv": [
+    "computers",
+    "set",
+    "a",
+    "--nap",
+    "soon"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: --nap for a takes whole minutes from 1 to 180, or off, and got \"soon\". Write it as --nap 20 or --nap off."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--nap for a takes whole minutes from 1 to 180, or off, and got \\\"soon\\\". Write it as --nap 20 or --nap off.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set turn limit a word",
+   "argv": [
+    "computers",
+    "set",
+    "a",
+    "--turn-limit",
+    "long"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: --turn-limit for a takes whole hours from 1 to 24, or off, and got \"long\". Write it as --turn-limit 6 or --turn-limit off."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--turn-limit for a takes whole hours from 1 to 24, or off, and got \\\"long\\\". Write it as --turn-limit 6 or --turn-limit off.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set delete-after a word",
+   "argv": [
+    "computers",
+    "set",
+    "a",
+    "--delete-after",
+    "later"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: --delete-after for a takes whole minutes from 0 to 1440, and got \"later\". Write it as --delete-after 30, or 0 to delete once it is done."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--delete-after for a takes whole minutes from 0 to 1440, and got \\\"later\\\". Write it as --delete-after 30, or 0 to delete once it is done.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set a reset off the list",
+   "argv": [
+    "computers",
+    "set",
+    "a",
+    "--reset",
+    "colour"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: --reset for a takes one of threads, machines, spend, size, delete-after, nap, turn-limit, max-machines, max-depth, and got \"colour\". Name one of those."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--reset for a takes one of threads, machines, spend, size, delete-after, nap, turn-limit, max-machines, max-depth, and got \\\"colour\\\". Name one of those.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set max-depth 0",
+   "argv": [
+    "computers",
+    "set",
+    "a",
+    "--max-depth",
+    "0"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp computers set: --max-depth for a takes a whole number of one or more, and got \"0\". Write it as --max-depth <n>."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--max-depth for a takes a whole number of one or more, and got \\\"0\\\". Write it as --max-depth <n>.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "recipes with a word",
+   "argv": [
+    "recipes",
+    "x"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp recipes takes no positional arguments. usage: wsp recipes"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp recipes takes no positional arguments. usage: wsp recipes\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "recipes show with none",
+   "argv": [
+    "recipes",
+    "show"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp recipes show takes one recipe. usage: wsp recipes show <name>"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp recipes show takes one recipe. usage: wsp recipes show <name>\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "recipes save without --from",
+   "argv": [
+    "recipes",
+    "save",
+    "lab"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp recipes save takes one name and the computer to save it from. usage: wsp recipes save <name> --from <computer>"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp recipes save takes one name and the computer to save it from. usage: wsp recipes save <name> --from <computer>\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "recipes remove with none",
+   "argv": [
+    "recipes",
+    "remove"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp recipes remove takes one recipe. usage: wsp recipes remove <name> [--yes]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp recipes remove takes one recipe. usage: wsp recipes remove <name> [--yes]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "recipes remove off a terminal",
+   "argv": [
+    "recipes",
+    "remove",
+    "lab"
+   ],
+   "replies": {
+    "recipes.remove": "{\"id\":1,\"ok\":true}"
+   },
+   "text": {
+    "frames": [
+     "{\"name\":\"lab\",\"check\":true,\"id\":2,\"op\":\"recipes.remove\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp recipes remove: Remove the recipe lab? There is no terminal to answer on. Pass --yes to say yes."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"name\":\"lab\",\"check\":true,\"id\":2,\"op\":\"recipes.remove\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"Remove the recipe lab? There is no terminal to answer on. Pass --yes to say yes.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "usage with a word",
+   "argv": [
+    "usage",
+    "x"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp usage takes no positional arguments. usage: wsp usage [--range day|week|month] [--by agent|account|computer|project|model|source]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp usage takes no positional arguments. usage: wsp usage [--range day|week|month] [--by agent|account|computer|project|model|source]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "usage a range off the list",
+   "argv": [
+    "usage",
+    "--range",
+    "year"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp usage: --range takes one of day, week, month, and got \"year\". Name one of those."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--range takes one of day, week, month, and got \\\"year\\\". Name one of those.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "usage a split off the list",
+   "argv": [
+    "usage",
+    "--by",
+    "colour"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp usage: --by takes one of agent, account, computer, project, model, source, and got \"colour\". Name one of those."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--by takes one of agent, account, computer, project, model, source, and got \\\"colour\\\". Name one of those.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "usage reset with none",
+   "argv": [
+    "usage",
+    "reset"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp usage reset takes one account. usage: wsp usage reset <account> [--credit <id>] [--on <computer>] [--yes]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp usage reset takes one account. usage: wsp usage reset <account> [--credit <id>] [--on <computer>] [--yes]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "usage reset with two",
+   "argv": [
+    "usage",
+    "reset",
+    "a",
+    "b"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp usage reset takes one account. usage: wsp usage reset <account> [--credit <id>] [--on <computer>] [--yes]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp usage reset takes one account. usage: wsp usage reset <account> [--credit <id>] [--on <computer>] [--yes]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  }
+ ]
+}
