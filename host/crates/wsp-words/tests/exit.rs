@@ -237,3 +237,23 @@ mod pinned {
         assert_eq!(json_line(&json!("\u{2028}é/"), None), "\"\u{2028}é/\"");
     }
 }
+
+mod the_host_key_an_installer_error_carries {
+    use super::*;
+
+    #[test]
+    fn rides_an_error_of_kind_host_key_and_is_offered_back_only_there() {
+        // install.ts:69: Object.assign(new Error(line), { kind: "host-key", hostKey: key }); manage.ts:321 reads it
+        // only when the kind is host-key and the key is a string.
+        let e = HostError::with_host_key("the key is not confirmed", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK");
+        assert_eq!(e.kind, Some(Kind::HostKey));
+        assert_eq!(e.offered_host_key(), Some("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK"));
+        assert_eq!(exit_class_of(&e), ExitClass::Provider);
+        assert_eq!(e.message, "the key is not confirmed");
+
+        let other = HostError { host_key: Some("ssh-ed25519 AAAA".to_string()), ..err_with_kind("no", "refused") };
+        assert_eq!(other.offered_host_key(), None);
+        assert_eq!(HostError::new("plain").offered_host_key(), None);
+        assert_eq!(err_with_kind("no key", "host-key").offered_host_key(), None);
+    }
+}

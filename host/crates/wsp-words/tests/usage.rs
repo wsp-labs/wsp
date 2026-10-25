@@ -256,7 +256,6 @@ mod a_limits_windows_and_words {
     }
 
     #[test]
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn keeps_every_sentence_a_row_may_carry_in_one_table() {
         assert_eq!(words("notPriced"), "not priced");
         assert_eq!(words("listPrice"), "list price");

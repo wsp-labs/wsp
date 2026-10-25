@@ -31,7 +31,6 @@ mod what_the_two_screens_say_wsp_puts_on_a_computer {
 
     #[test]
 
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn writes_what_remove_takes_off_from_the_same_list_so_neither_screen_can_hold_a_wor() {
         // Every one of the three, in the sentence, off the list rather than spelled again beside it.
         for said in [place_install::taken::SERVICE, place_install::taken::FILES, place_install::taken::OPENER] {

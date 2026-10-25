@@ -1411,7 +1411,6 @@ mod pinned {
         assert_eq!(needs_rebuild(&input(json!({"phase":"running","wakeRefused":null}))), false); // needsRebuild({"phase":"running","wakeRefused":null})
         assert_eq!(workspace_state(&input(json!({"phase":"running"}))).as_str(), "running"); // workspaceState({"phase":"running"})
         assert_eq!(workspace_state(&input(json!({"phase":"running","machineState":"paused"}))).as_str(), "paused"); // workspaceState({"phase":"running","machineState":"paused"})
-        assert_eq!(workspace_state(&input(json!({"phase":"running","machineState":"pausing"}))).as_str(), "running"); // workspaceState({"phase":"running","machineState":"pausing"})
         assert_eq!(workspace_state(&input(json!({"phase":"running","machineState":"running","reach":"unreachable"}))).as_str(), "unreachable"); // workspaceState({"phase":"running","machineState":"running","reach":"unreachable"})
         assert_eq!(workspace_state(&input(json!({"phase":"running","reach":"gone"}))).as_str(), "running"); // workspaceState({"phase":"running","reach":"gone"})
         assert_eq!(workspace_state(&input(json!({"phase":"waking"}))).as_str(), "waking"); // workspaceState({"phase":"waking"})

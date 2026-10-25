@@ -97,7 +97,6 @@ mod a_resume_the_provider_does_not_take {
 
     // Constants only: no stub function is called, so this passes against the stubs.
     #[test]
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn says_the_provider_has_not_answered_and_that_the_machine_is_being_read_since_a_hung() {
         assert_eq!(RESUME_UNANSWERED, "the provider has not answered the resume request; reading the machine");
         // Neither a refusal nor a retry of the person's: the machine's own state settles it and the host asks again.
@@ -133,7 +132,6 @@ mod a_resume_the_provider_does_not_take {
 
     // Constants only: no stub function is called, so this passes against the stubs.
     #[test]
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn says_the_machine_is_still_paused_when_the_person_stopped_the_asking() {
         assert_eq!(WAKE_STOPPED, "waking stopped; the machine is still paused");
     }

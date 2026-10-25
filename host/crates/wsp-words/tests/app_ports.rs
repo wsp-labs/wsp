@@ -103,7 +103,6 @@ mod the_address_the_port_is_bound_on {
     }
 
     #[test]
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn serves_the_runtime_on_one_path_so_a_forwarded_port_carries_the_page_and_the_prot() {
         assert_eq!(WS_PATH, "/ws");
     }
@@ -173,7 +172,6 @@ mod who_holds_a_port_and_the_lines_about_it {
     }
 
     #[test]
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn the_refusal_offers_stopping_the_holder_or_naming_a_free_port_with_port() {
         assert_eq!(PORT_TAKEN_REFUSAL, "Nothing was booted. Stop that process, or name a free port with --port.");
         assert!(!PORT_TAKEN_REFUSAL.contains('\u{2014}'), "{PORT_TAKEN_REFUSAL}");

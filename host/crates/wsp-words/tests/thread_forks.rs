@@ -223,7 +223,6 @@ mod not_gone {
 
     #[test]
 
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn says_the_record_follows_the_state_read_whichever_state_it_holds_the_machine_in() {
         // Only a constant: NOT_GONE already holds its value, so this test does not fail against todo!().
         assert_eq!(NOT_GONE, "not gone at the provider after all; the record follows the state read");
@@ -257,7 +256,6 @@ mod daemon_updating_and_daemon_update_failed {
 
     #[test]
 
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn says_what_is_being_done_and_that_it_failed_in_fixed_words_no_daemon_named_no_rea() {
         assert_eq!(DAEMON_UPDATING, "updating the helper");
         assert_eq!(DAEMON_UPDATE_FAILED, "could not update the helper");
@@ -271,7 +269,6 @@ mod daemon_updating_and_daemon_update_failed {
 
     #[test]
 
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn has_its_own_pair_for_the_first_daemon_a_machine_takes_since_nothing_that_machine() {
         assert_eq!(DAEMON_INSTALLING, "installing the helper");
         assert_eq!(DAEMON_INSTALL_FAILED, "could not install the helper");
@@ -384,7 +381,6 @@ mod a_create_s_own_words {
 
     #[test]
 
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn a_refused_hostname_reads_as_what_it_means_for_the_workspace_with_no_shell_s_word() {
         // Only constants: HOSTNAME_KEPT already holds its value, so this test does not fail against todo!().
         assert_eq!(HOSTNAME_KEPT, "hostname not set; the workspace keeps the machine's own name");
