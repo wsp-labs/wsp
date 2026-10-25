@@ -2,21 +2,16 @@
   "replies": [
     {
       "id": 1,
-      "ok": false,
-      "error": "unauthorized",
-      "kind": "auth"
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
     },
     {
-      "parity": "no reply",
-      "id": "2"
+      "id": 2,
+      "ok": false,
+      "error": "no such workspace: nope",
+      "kind": "not-found"
     }
   ],
-  "events": [
-    {
-      "close": {
-        "code": 4401,
-        "reason": "unauthorized"
-      }
-    }
-  ]
+  "events": []
 }

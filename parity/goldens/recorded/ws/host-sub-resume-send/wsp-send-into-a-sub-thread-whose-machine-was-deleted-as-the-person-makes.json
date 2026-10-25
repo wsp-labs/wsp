@@ -2,33 +2,32 @@
   "replies": [
     {
       "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "sessions": []
+    },
+    {
+      "id": 3,
       "ok": false,
-      "error": "unauthorized",
-      "kind": "auth"
+      "error": "no such workspace: <ws-1>",
+      "kind": "not-found"
     },
     {
-      "parity": "no reply",
-      "id": "2"
+      "id": 4,
+      "ok": false,
+      "error": "no workspace <ws-1>",
+      "kind": "not-found"
     },
     {
-      "parity": "no reply",
-      "id": "3"
-    },
-    {
-      "parity": "no reply",
-      "id": "4"
-    },
-    {
-      "parity": "no reply",
-      "id": "5"
+      "id": 5,
+      "ok": false,
+      "error": "no thread <uuid-1> in this folder"
     }
   ],
-  "events": [
-    {
-      "close": {
-        "code": 4401,
-        "reason": "unauthorized"
-      }
-    }
-  ]
+  "events": []
 }

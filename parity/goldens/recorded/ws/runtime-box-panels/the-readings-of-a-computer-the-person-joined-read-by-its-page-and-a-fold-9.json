@@ -2,25 +2,19 @@
   "replies": [
     {
       "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
       "ok": false,
-      "error": "unauthorized",
-      "kind": "auth"
+      "error": "no place named <p-1>; you have "
     },
     {
-      "parity": "no reply",
-      "id": "2"
-    },
-    {
-      "parity": "no reply",
-      "id": "3"
+      "id": 3,
+      "ok": true
     }
   ],
-  "events": [
-    {
-      "close": {
-        "code": 4401,
-        "reason": "unauthorized"
-      }
-    }
-  ]
+  "events": []
 }

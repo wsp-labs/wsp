@@ -2,57 +2,68 @@
   "replies": [
     {
       "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
       "ok": false,
-      "error": "unauthorized",
-      "kind": "auth"
+      "error": "no place named <p-1>; you have <computer>",
+      "kind": "usage"
     },
     {
-      "parity": "no reply",
-      "id": "2"
+      "id": 3,
+      "ok": false,
+      "error": "That sign-in is not running any more.",
+      "kind": "usage"
     },
     {
-      "parity": "no reply",
-      "id": "3"
+      "id": 4,
+      "ok": false,
+      "error": "no place named <p-1>; you have <computer>",
+      "kind": "usage"
     },
     {
-      "parity": "no reply",
-      "id": "4"
+      "id": 5,
+      "ok": true,
+      "ticket": "<id-1>",
+      "expiresAt": "<time>"
     },
     {
-      "parity": "no reply",
-      "id": "5"
+      "id": 6,
+      "ok": false,
+      "error": "That is not a Claude Code token."
     },
     {
-      "parity": "no reply",
-      "id": "6"
+      "id": 7,
+      "ok": true
     },
     {
-      "parity": "no reply",
-      "id": "7"
+      "id": 8,
+      "ok": false,
+      "error": "That sign-in is not running any more.",
+      "kind": "usage"
     },
     {
-      "parity": "no reply",
-      "id": "8"
+      "id": 9,
+      "ok": true,
+      "code": "<code>",
+      "expiresAt": "<time>",
+      "hostKey": "<id-2>"
     },
     {
-      "parity": "no reply",
-      "id": "9"
+      "id": 10,
+      "ok": false,
+      "error": "no place named <p-1>; you have <computer>",
+      "kind": "usage"
     },
     {
-      "parity": "no reply",
-      "id": "10"
-    },
-    {
-      "parity": "no reply",
-      "id": "11"
+      "id": 11,
+      "ok": false,
+      "error": "no place named <p-1>; you have <computer>",
+      "kind": "usage"
     }
   ],
-  "events": [
-    {
-      "close": {
-        "code": 4401,
-        "reason": "unauthorized"
-      }
-    }
-  ]
+  "events": []
 }
