@@ -643,9 +643,10 @@ pub enum ResetSpend {
 
 /// TS adapter-port.ts:577.
 pub trait PlanResets: Send + Sync {
-    fn read_command(&self, road: &ResetRoad) -> String;
+    /// `Err` where the TS throws building the script (a launch the road cannot run).
+    fn read_command(&self, road: &ResetRoad) -> Result<String, AdapterError>;
     fn parse_read(&self, stdout: &str) -> Option<ResetReading>;
-    fn spend_command(&self, road: &ResetRoad, idempotency_key: &str, credit_id: Option<&str>) -> String;
+    fn spend_command(&self, road: &ResetRoad, idempotency_key: &str, credit_id: Option<&str>) -> Result<String, AdapterError>;
     fn parse_spend(&self, stdout: &str) -> ResetSpend;
     fn too_old(&self) -> &str;
 }
