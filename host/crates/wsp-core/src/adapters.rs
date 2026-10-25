@@ -9,11 +9,7 @@ use wsp_adapters::port::{HarnessAdapter, PlanResets};
 use wsp_wire::types::usage::HarnessLimit;
 use wsp_words::exit::HostError;
 
-use crate::types::harness::HarnessAdapterContext;
-
-/// A factory that can refuse, as the TS's do by throwing (a relative config folder, a key beside a ChatGPT broker).
-/// `types::harness::HarnessAdapterFactory` cannot fail; the join reconciles the two (spec, Decisions 1).
-pub type AdapterFactory = Arc<dyn Fn(HarnessAdapterContext) -> Result<Arc<dyn HarnessAdapter>, HostError>>;
+use crate::types::harness::HarnessAdapterFactory;
 
 /// What the vault holds for one agent: its token, else its key with the variable it travels under, never both.
 /// adapters.ts:37.
@@ -41,7 +37,7 @@ pub fn machine_login(id: &str) -> Result<String, HostError> {
 }
 
 /// One factory per THREAD_AGENTS id, in that order: claude, codex, opencode, cursor. adapters.ts:57.
-pub fn harness_adapters() -> IndexMap<&'static str, AdapterFactory> {
+pub fn harness_adapters() -> IndexMap<&'static str, HarnessAdapterFactory> {
     todo!()
 }
 

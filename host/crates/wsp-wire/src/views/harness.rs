@@ -249,36 +249,44 @@ impl Check for HarnessCatalogUnshaped {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HarnessCatalog {
-    pub harness: String,
-    pub label: String,
+    // Field order is the order the host writes a catalog's keys: the table row's (harness-catalog.ts `fromTable`), then
+    // the adapter's declarations (threads/agents.ts `catalogOn`), then the person's shaping (thread-defaults.ts, runtime.ts).
     pub source: HarnessCatalogSource,
     #[serde(deserialize_with = "crate::types::check::nullable")]
     pub version: Option<String>,
-    pub models: Vec<HarnessModel>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub legacy_models: Option<Vec<HarnessModel>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub legacy_listed: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub hidden_models: Option<Vec<HarnessModel>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub unshaped: Option<HarnessCatalogUnshaped>,
-    pub efforts: Vec<HarnessOption>,
     pub context_windows: Vec<HarnessOption>,
-    pub permission_modes: Vec<HarnessOption>,
     pub steers: bool,
     pub renames: bool,
     pub images: bool,
+    pub harness: String,
+    pub label: String,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub mcp_servers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub screen_commands: Option<Vec<ScreenCommand>>,
+    pub asides: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub moves_access: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub steers_images: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub asides: Option<bool>,
+    pub screen_commands: Option<Vec<ScreenCommand>>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub small_model: Option<String>,
+    pub models: Vec<HarnessModel>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub legacy_listed: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub legacy_models: Option<Vec<HarnessModel>>,
+    pub efforts: Vec<HarnessOption>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    pub access: Option<IndexMap<AccessChoice, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub bypass_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub read_only_tools_free: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub read_only_mode: Option<String>,
+    pub permission_modes: Vec<HarnessOption>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub compacts: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -292,19 +300,13 @@ pub struct HarnessCatalog {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub forks_by_count: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub is_default: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub refusal: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub small_model: Option<String>,
+    pub hidden_models: Option<Vec<HarnessModel>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub bypass_mode: Option<String>,
+    pub unshaped: Option<HarnessCatalogUnshaped>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub read_only_mode: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub read_only_tools_free: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
-    pub access: Option<IndexMap<AccessChoice, String>>,
+    pub is_default: Option<bool>,
 }
 
 impl Check for HarnessCatalog {

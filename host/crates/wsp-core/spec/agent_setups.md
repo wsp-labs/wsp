@@ -67,9 +67,9 @@ thread-defaults.test.ts drives `serveRuntime` and stays with the agents area. Ru
 - **D4** `BROKERED_AGENTS` is claude and codex; `plan_resets` and `log_limits` hold codex alone.
 
 ## Decisions
-1. Factories answer `Result` (`AdapterFactory`): the adapters refuse a relative home and a key beside a ChatGPT
-   broker, which the TS throws from the factory. `types::harness::HarnessAdapterFactory` cannot fail; the join makes it
-   fallible or wraps these.
+1. Factories answer `Result`: the adapters refuse a relative home and a key beside a ChatGPT broker, which the TS
+   throws from the factory. `types::harness::HarnessAdapterFactory` is that fallible type (settled in the join);
+   `harness_adapters` returns it.
 2. `set` takes the folder resolver and the agent's name as `SetupSetOptions`.
 
 ## Tests

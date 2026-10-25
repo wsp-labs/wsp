@@ -1051,3 +1051,25 @@ fn an_unknown_harness_has_no_row_as_in_the_ts() {
     assert_eq!(fx["unknown"], Value::Null);
     assert_eq!(json(&harness_catalog("aider")), fx["unknown"]);
 }
+
+// fixture: harness_catalog.json catalogs; key order is the TS's (ruling 6402177374 rule 1)
+#[test]
+fn every_table_row_writes_its_keys_in_the_ts_order() {
+    let fx = fixture("harness_catalog");
+    let keys = |v: &Value| v.as_object().expect("an object").keys().cloned().collect::<Vec<_>>();
+    let wanted = fx["catalogs"].as_array().unwrap();
+    let got = harness_catalogs();
+    assert_eq!(got.len(), wanted.len());
+    for (row, want) in got.iter().zip(wanted) {
+        assert_eq!(keys(&json(row)), keys(want), "{}", row.harness);
+    }
+}
+
+// fixture: harness_catalog.json probes; `catalog_from_probe` keeps the table's order
+#[test]
+fn a_catalog_from_a_probe_keeps_the_tables_key_order() {
+    let table = table("claude");
+    let got = catalog_from_probe(&table, &probe());
+    let keys = |v: &Value| v.as_object().expect("an object").keys().cloned().collect::<Vec<_>>();
+    assert_eq!(keys(&json(&got)), keys(&json(&table)));
+}

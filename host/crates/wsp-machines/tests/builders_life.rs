@@ -356,7 +356,6 @@ fn recording_creates_holds_a_placeholder_before_answering() {
 
 // L11: the placeholder carries the import the prepare asked for.
 #[test]
-#[ignore = "waits on wsp-core's types::pending::ImportLedger carrying the engine ledger's fields (BuilderRecord.import)"]
 fn recording_creates_stamps_the_import_mark() {
     let w = World::new();
     let b = FakeBackend::new("pl_1");

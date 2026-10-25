@@ -82,16 +82,9 @@ pub type ImageResult<T> = Result<T, ImageError>;
 /// A future a second caller joins (TS: the same `Promise` handed to both).
 pub type Joined<T> = Shared<LocalBoxFuture<'static, ImageResult<T>>>;
 
-/// internal.ts:923 `LiveBuilder`: a builder as this host holds it. machines-a's `machines::boot::HeldBuilder` is the
-/// same thing less the engine builder, the reach and the recipe; the join makes them one type.
-pub struct LiveBuilder {
-    pub record: BuilderRecord,
-    pub builder: EngineBuilder,
-    pub sealable: bool,
-    pub life: BuilderLife,
-    pub reach: Option<PreviewReach>,
-    pub recipe: Option<GoldenRecipe>,
-}
+/// internal.ts:923 `LiveBuilder`: a builder as this host holds it, the one type the boot's load and the image areas
+/// share.
+pub use wsp_core::types::internal::LiveBuilder;
 
 /// One builder, shared and changed in place; two refs are the same builder only where `Rc::ptr_eq`.
 pub type BuilderRef = Rc<RefCell<LiveBuilder>>;

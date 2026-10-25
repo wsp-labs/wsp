@@ -971,7 +971,12 @@ fn builder_full() -> Value {
     json!({
         "id": "b1", "name": "img", "kind": "sandbox", "baseTemplate": "tpl", "setupSha": "sha", "createdAt": "2026-10-01T00:00:00.000Z",
         "size": {"cpu": 2, "memMb": 4096}, "streamUrl": "https://s", "firstLife": true,
-        "heldBy": {"host": "h1", "pid": 7, "heartbeat": "2026-10-01T00:01:00.000Z"}, "building": true, "import": {},
+        "heldBy": {"host": "h1", "pid": 7, "heartbeat": "2026-10-01T00:01:00.000Z"}, "building": true,
+        "import": {
+            "recipeHash": "rh", "recipe": {"ticks": [{"id": "tools/brew/gh"}], "login": "l", "files": []}, "applied": ["applying-setup", "installing-mcp"],
+            "smoke": "claude --version", "missingTools": [{"id": "tools/mac/app", "name": "App", "outcome": "skipped", "note": "macOS only"}],
+            "silenced": ["nvm"], "shellNoise": "warn", "leftBehind": [{"id": "files/a", "path": "~/a", "note": "too big"}]
+        },
         "base": [{"name": "node", "version": "22"}], "parentSnapshotId": "snap1", "retired": [{"id": "g0", "name": "old"}],
         "sealed": {"at": "2026-10-01T00:02:00.000Z", "version": 3}, "place": "p1",
     })
