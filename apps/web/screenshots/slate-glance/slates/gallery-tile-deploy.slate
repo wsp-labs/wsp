@@ -1,0 +1,20 @@
+<slate title="Canary for web 3.8.1">
+  <value name="podsNew" start={6} />
+  <value name="pods" start={24} />
+  <value name="errorRate" start={0.18} />
+  <value name="canary" start={25} />
+  <value name="next" start="" />
+  <column>
+    <row>
+      <number label="Canary" value={$canary} unit="%" note="of traffic" />
+      <ring label="New pods" value={$podsNew} max={$pods} format="fraction" />
+      <number label="5xx rate" value={$errorRate} unit="%" />
+      <status tone="good">Normal</status>
+    </row>
+    <decision id="next" label="Move the canary to 50%?" value={$next} pick="step" onChange={send("Canary step", $next)}>
+      <option value="step" label="Go to 50%" note="15 minutes at 25% with no change in 5xx or p95" />
+      <option value="hold" label="Hold at 25%" />
+      <option value="back" label="Roll back" />
+    </decision>
+  </column>
+</slate>

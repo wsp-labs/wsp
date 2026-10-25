@@ -1,0 +1,20 @@
+<slate title="Strict TypeScript in web">
+  <value name="strictFiles" start={412} />
+  <value name="files" start={538} />
+  <value name="typeErrors" start={1204} />
+  <value name="anyLeft" start={318} />
+  <value name="build" start={41000} />
+  <value name="newFiles" start="" />
+  <column>
+    <stats>
+      <stat label="Files strict" value={$strictFiles} max={$files} window="apps/web" />
+      <stat label="Type errors" value={$typeErrors} window="3,870 on Monday" />
+      <stat label="any left" value={$anyLeft} window="in strict files" tone="warning" />
+      <stat label="Typecheck" value={$build} format="duration" window="was 38s" />
+    </stats>
+    <decision id="newFiles" label="Hold new files to strict now?" value={$newFiles} pick="now" onChange={send("Strict for new files", $newFiles)}>
+      <option value="now" label="From today" note="Stops the 126 loose files growing" />
+      <option value="later" label="When all 538 are strict" note="One switch at the end" />
+    </decision>
+  </column>
+</slate>

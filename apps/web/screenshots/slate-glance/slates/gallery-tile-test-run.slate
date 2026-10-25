@@ -1,0 +1,24 @@
+<slate title="Fixing the billing failures">
+  <value name="suitesPassed" start={209} />
+  <value name="suites" start={214} />
+  <value name="flaky" start={2} />
+  <value name="duration" start={252000} />
+  <value name="failures" start={[
+    {name: "refund applies partial tax", done: true, note: "Fixed"},
+    {name: "invoice totals round half-even", done: true, note: "Fixed"},
+    {name: "credit note keeps the original rate", done: true, note: "Fixed"},
+    {name: "proration across a DST change", done: false, note: "Working on it"},
+    {name: "search ranks exact SKU first", done: false, note: "Queued"},
+    {name: "cart merges on sign-in", done: false, note: "Queued"},
+    {name: "export streams 10k rows", done: false, note: "Needs a 2 GB runner"}
+  ]} />
+  <column>
+    <row>
+      <ring label="Suites" value={$suitesPassed} max={$suites} tone="warning" note="209 of 214 pass" />
+      <number label="Flaky" value={$flaky} />
+      <status tone="warning">Passed on retry</status>
+      <number label="Duration" value={$duration} format="duration" note="was 3m 40s" />
+    </row>
+    <progress label="failures fixed" items={$failures} key="name" name={item.name} done={item.done} note={item.note} />
+  </column>
+</slate>

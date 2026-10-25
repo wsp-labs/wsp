@@ -1,0 +1,21 @@
+<slate title="Review #4127, session store on SQLite">
+  <value name="findings" start={[
+    {at: "migrate.ts:88", what: "Drops rows with a null expires_at", weight: "Blocking", tone: "bad"},
+    {at: "sqlite.ts:41", what: "No WAL mode, writers lock", weight: "Blocking", tone: "bad"},
+    {at: "sqlite.ts:120", what: "Prepares on every call", weight: "Should fix", tone: "warning"},
+    {at: "store.test.ts:203", what: "No test for a rerun", weight: "Should fix", tone: "warning"},
+    {at: "session/gc.ts:17", what: "Sweep fixed at 60 s", weight: "Nit", tone: "muted"}
+  ]} />
+  <value name="verdict" start="" />
+  <column>
+    <table items={$findings} key={item.at}>
+      <col title="Where" value={item.at} mono={true} />
+      <col title="Finding" value={item.what} />
+      <col title="Weight" value={item.weight} tone={item.tone} />
+    </table>
+    <decision id="verdict" label="Request changes on #4127?" value={$verdict} pick="changes" onChange={send("Review verdict for #4127", $verdict)}>
+      <option value="changes" label="Request changes" note="Two findings lose or lock data" />
+      <option value="comment" label="Comment only" />
+    </decision>
+  </column>
+</slate>

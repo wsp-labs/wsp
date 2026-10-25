@@ -1,0 +1,18 @@
+<slate title="Review #881, rate limiter rewrite">
+  <value name="checksPassed" start={14} />
+  <value name="checks" start={14} />
+  <value name="openThreads" start={3} />
+  <value name="verdict" start="" />
+  <column>
+    <row>
+      <ring label="Checks" value={$checksPassed} max={$checks} format="fraction" tone="good" />
+      <number label="Files" value={9} note="+204 −311" />
+      <number label="Open threads" value={$openThreads} />
+      <status tone="warning">1 blocking</status>
+    </row>
+    <decision id="verdict" label="Approve #881?" value={$verdict} pick="approve" onChange={send("Review verdict for #881", $verdict)}>
+      <option value="approve" label="Approve" note="The blocking thread is a rename, fixed in its last push" />
+      <option value="wait" label="Wait for the author" note="Lets them resolve all 3 threads first" />
+    </decision>
+  </column>
+</slate>

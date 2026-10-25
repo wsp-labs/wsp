@@ -1,0 +1,19 @@
+<slate title="moment to date-fns">
+  <value name="moved" start={84} />
+  <value name="files" start={131} />
+  <value name="importsLeft" start={212} />
+  <value name="bundle" start={1.21} />
+  <value name="codemod" start="" />
+  <column>
+    <row>
+      <ring label="Files done" value={$moved} max={$files} format="fraction" />
+      <number label="Imports left" value={$importsLeft} note="1,140 on Monday" />
+      <number label="Bundle" value={$bundle} unit="MB" note="was 1.5 MB" />
+      <status tone="good">Smaller</status>
+    </row>
+    <decision id="codemod" label="Codemod the last 47 files?" value={$codemod} pick="codemod" onChange={send("Codemod the rest", $codemod)}>
+      <option value="codemod" label="Codemod them" note="Same pattern as the 84 done, tests cover them" />
+      <option value="hand" label="Move them by hand" note="About two days" />
+    </decision>
+  </column>
+</slate>

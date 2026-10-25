@@ -1,0 +1,21 @@
+<slate title="A job queue for the email sender">
+  <value name="queues" start={[
+    {name: "Graphile Worker", store: "Postgres", rate: "4,200", p99: "38 ms"},
+    {name: "pg-boss", store: "Postgres", rate: "2,900", p99: "61 ms"},
+    {name: "BullMQ", store: "Redis", rate: "9,800", p99: "12 ms"},
+    {name: "Agenda", store: "MongoDB", rate: "640", p99: "220 ms"}
+  ]} />
+  <value name="queue" start="" />
+  <column>
+    <table items={$queues} key={item.name}>
+      <col title="Queue" value={item.name} />
+      <col title="Runs on" value={item.store} />
+      <col title="Jobs/s" value={item.rate} />
+      <col title="p99" value={item.p99} />
+    </table>
+    <decision id="queue" label="Use Graphile Worker?" value={$queue} pick="graphile" onChange={send("Job queue", $queue)}>
+      <option value="graphile" label="Graphile Worker" note="Peak is 300 jobs/s, and it needs no new service" />
+      <option value="bullmq" label="BullMQ" note="Fastest, but adds Redis to run and back up" />
+    </decision>
+  </column>
+</slate>

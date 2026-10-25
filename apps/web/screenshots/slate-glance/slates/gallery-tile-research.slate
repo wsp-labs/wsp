@@ -1,0 +1,18 @@
+<slate title="Does PgBouncer hold 4,000 clients?">
+  <value name="p99Pooled" start={41} />
+  <value name="p99Direct" start={118} />
+  <value name="serverConns" start={96} />
+  <value name="serverMax" start={100} />
+  <value name="pooler" start="" />
+  <column>
+    <row>
+      <number label="p99, pooled" value={$p99Pooled} unit="ms" tone="good" />
+      <number label="p99, direct" value={$p99Direct} unit="ms" />
+      <meter label="DB conns" value={$serverConns} max={$serverMax} format="fraction" tone="warning" note="at 4,000 clients" />
+    </row>
+    <decision id="pooler" label="Put PgBouncer in front of orders-db?" value={$pooler} pick="yes" onChange={send("PgBouncer for orders-db", $pooler)}>
+      <option value="yes" label="Yes, transaction mode" note="p99 a third of direct at 4,000 clients" />
+      <option value="no" label="No, raise max_connections" note="Costs about 10 MB of memory per connection" />
+    </decision>
+  </column>
+</slate>
