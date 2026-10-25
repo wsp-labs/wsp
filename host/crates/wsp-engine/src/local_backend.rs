@@ -129,7 +129,7 @@ fn meminfo_kb(text: &str, key: &str) -> Option<f64> {
 
 /// local-backend.ts:43. MemAvailable and MemTotal off /proc/meminfo.
 pub fn memory_of_meminfo(meminfo: &str) -> Option<MemoryHere> {
-    let mb = |key: &str| meminfo_kb(meminfo, key).map(|kb| js_round(kb / 1024.0) as u64);
+    let mb = |key: &str| meminfo_kb(meminfo, key).map(|kb| (kb / 1024.0).floor() as u64);
     Some(MemoryHere { free_mb: mb("MemAvailable")?, total_mb: mb("MemTotal")? })
 }
 

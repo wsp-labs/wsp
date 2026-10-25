@@ -28,7 +28,7 @@ use wsp_engine::snapshot_storage::{
 };
 
 fn iso(ms: i64) -> String {
-    jiff::Timestamp::from_millisecond(ms).unwrap().to_string().replace('Z', ".000Z")
+    jiff::Timestamp::from_millisecond(ms).unwrap().strftime("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
 }
 
 fn close(a: f64, b: f64) {
