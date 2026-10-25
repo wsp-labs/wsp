@@ -7,8 +7,12 @@
 // trace cannot stand as a measurement (a debug build, a window without focus, no frames, no wheel event that moved the
 // list). With --app a frame is judged by the UI thread's own time alone (its draw and the traced work before it), for a
 // machine with no GPU, where the present is the software rasteriser's. With --latency it is judged as the person sees
-// it: late when a wheel event it shows reached the screen more than the limit after the event was due.
+// it: late when a wheel event it shows reached the screen more than the limit after the event was due. With --switches
+// it reads a `--bench-themes` trace instead: one line per theme switch, and exits 1 when any took over 100 ms to reach
+// the screen, drew a frame over the limit, drew nothing, or kept drawing after it settled; --app judges both by the
+// app's own time.
 //   node trace.mjs [--app | --latency] <trace.json>
+//   node trace.mjs --switches [--app] <trace.json>
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -29,6 +33,27 @@ export function unfit(trace) {
 }
 
 const ms = v => `${v.toFixed(1)} ms`;
+
+/** A theme switch must be on screen this soon after it was sent. */
+export const SWITCH_MS = 100;
+
+/** Each theme switch of a `--bench-themes` trace as one line, with why it fails, if it does; with `app`, its time and
+ * frames are the app's own, without the presents. */
+export function switchVerdicts(trace, { app = false } = {}) {
+  const limit = trace.limit_ms ?? 50;
+  return (trace.switches ?? []).map((s, ix) => {
+    const took = app ? s.took_app_ms : s.took_ms;
+    const slowest = app ? s.slowest_app_ms : s.slowest_ms;
+    const fails = [];
+    if (took == null) fails.push("drew no frame");
+    else if (took > SWITCH_MS) fails.push(`took over ${SWITCH_MS} ms`);
+    if (slowest > limit) fails.push(`a frame over ${limit} ms`);
+    if (s.frames_after > 0) fails.push("kept drawing after it settled");
+    const after = Object.entries(s.views_after ?? {}).map(([view, n]) => `${view} ${n}`).join(", ");
+    const line = `switch ${ix + 1} ${s.word}: on screen in ${took == null ? "never" : ms(took)}, slowest frame ${ms(slowest)}, write ${ms(s.write_ms)}, ${s.frames} frame${s.frames === 1 ? "" : "s"}; ${s.frames_after === 0 ? "none" : `${s.frames_after} (${s.renders_after_per_frame.toFixed(1)} renders each${after ? `: ${after}` : ""})`} after it settled${fails.length > 0 ? `; FAIL: ${fails.join(", ")}` : ""}`;
+    return { line, fails };
+  });
+}
 
 /** One line for a slow frame: when, how long, and what the app did since the frame before. */
 export function describe(f) {
@@ -55,12 +80,27 @@ export function describe(f) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const app = process.argv.includes("--app");
   const latency = process.argv.includes("--latency");
+  const switches = process.argv.includes("--switches");
   const path = process.argv.slice(2).find(a => !a.startsWith("--"));
-  if (path === undefined || (app && latency)) {
-    console.error("usage: node trace.mjs [--app | --latency] <trace.json>");
+  if (path === undefined || (app && latency) || (switches && latency)) {
+    console.error("usage: node trace.mjs [--app | --latency] <trace.json>\n       node trace.mjs --switches [--app] <trace.json>");
     process.exit(2);
   }
   const trace = JSON.parse(readFileSync(path, "utf8"));
+  if (switches) {
+    const by = app ? " by app" : "";
+    const verdicts = switchVerdicts(trace, { app });
+    console.log(`${trace.thread}: ${verdicts.length} theme switches, ${trace.frames.length} frames over ${((trace.frames.at(-1)?.at ?? 0) / 1000).toFixed(1)} s, scale ${trace.scale}, judged${by || " by draw and present"}`);
+    for (const v of verdicts) console.log(v.line);
+    const why = verdicts.length === 0 ? "the trace holds no theme switch" : unfit(trace);
+    if (why !== null) {
+      console.error(`trace: ${why}`);
+      process.exit(2);
+    }
+    const failed = verdicts.filter(v => v.fails.length > 0).length;
+    console.log(failed === 0 ? `every switch on screen within ${SWITCH_MS} ms${by}, no frame over ${trace.limit_ms} ms, no frame after it settled` : `${failed} of ${verdicts.length} switches failed`);
+    process.exit(failed === 0 ? 0 : 1);
+  }
   const slow = slowFrames(trace, { app, latency });
   const draws = trace.frames.map(f => f.draw + f.present).sort((a, b) => a - b);
   const pages = trace.frames.flatMap(f => f.pages);

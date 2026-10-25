@@ -12,7 +12,7 @@ import { EVENTS_PER_CALL, EVENTS_PER_TURN, THREADS, eventsOf, lastWords, rendere
 import { MOMENTUM_FLOOR, SPACING, momentum } from "./momentum.mjs";
 import { OUTPUT_MAX, shot } from "./real.mjs";
 import { fps, median, row } from "./table.mjs";
-import { describe, slowFrames, unfit } from "./trace.mjs";
+import { describe, slowFrames, switchVerdicts, unfit } from "./trace.mjs";
 import * as ctrlTab from "./ctrl-tab.mjs";
 import { seededState } from "./seed.mjs";
 import { sessionFolder, sessionNames, sessionPlan, sessionState } from "./session.mjs";
@@ -161,6 +161,35 @@ test("the trace reader finds every frame over the limit and refuses a trace that
     const quick = run([frame(0, 10, 5, 20)]);
     assert.equal(quick.status, 0, quick.stdout);
     assert.match(quick.stdout, /no frame over 50 ms/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("the theme switch reader fails a switch slow to the screen, with a slow frame, drawing nothing or still drawing after it settled", () => {
+  const sw = (word, more = {}) => ({ word, at_ms: 0, write_ms: 2, frames: 3, took_ms: 40, took_app_ms: 20, slowest_ms: 20, slowest_app_ms: 10, frames_after: 0, renders_after_per_frame: 0, views_after: {}, ...more });
+  const switches = [sw("paper"), sw("moss", { took_ms: 140, took_app_ms: 60 }), sw("pitch", { slowest_ms: 70, slowest_app_ms: 30 }), sw("solid", { took_ms: null, took_app_ms: null, frames: 0 }), sw("transparent", { frames_after: 18, renders_after_per_frame: 3, views_after: { Spinner: 54 } })];
+  const frame = { at: 0, draw: 5, present: 5, late: 0, app: 5, focused: true, pages: [] };
+  const trace = { release: true, limit_ms: 50, mode: "themes", thread: "settings:appearance", scale: 1, inputs: [], frames: [frame], switches };
+  const fails = opts => switchVerdicts(trace, opts).map(v => v.fails);
+  assert.deepEqual(fails(), [[], ["took over 100 ms"], ["a frame over 50 ms"], ["drew no frame"], ["kept drawing after it settled"]]);
+  assert.deepEqual(fails({ app: true }).map(f => f.length), [0, 0, 0, 1, 1], "by the app's own time the presents are left out");
+  assert.match(switchVerdicts(trace)[4].line, /18 \(3\.0 renders each: Spinner 54\) after it settled; FAIL/);
+  const tmp = mkdtempSync(join(tmpdir(), "wsp-trace-test-"));
+  try {
+    const run = (t, ...flags) => {
+      writeFileSync(join(tmp, "t.json"), JSON.stringify(t));
+      return spawnSync(process.execPath, [join(here, "trace.mjs"), "--switches", ...flags, join(tmp, "t.json")], { encoding: "utf8", env: { PATH: "/usr/bin:/bin" } });
+    };
+    const failed = run(trace);
+    assert.equal(failed.status, 1, failed.stdout);
+    assert.match(failed.stdout, /^switch 2 moss: on screen in 140\.0 ms.*FAIL: took over 100 ms$/m);
+    assert.match(failed.stdout, /4 of 5 switches failed/);
+    const quick = run({ ...trace, switches: [switches[0], switches[1], switches[2]] }, "--app");
+    assert.equal(quick.status, 0, quick.stdout);
+    assert.match(quick.stdout, /every switch on screen within 100 ms by app/);
+    assert.equal(run({ ...trace, release: false }).status, 2);
+    assert.equal(run({ ...trace, switches: [] }).status, 2);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
