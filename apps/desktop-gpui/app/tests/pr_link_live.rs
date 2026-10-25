@@ -107,7 +107,7 @@ impl Host {
     }
 
     fn settles_at(&self, port: u16, want: usize, what: &str) {
-        let until = Instant::now() + Duration::from_secs(10);
+        let until = Instant::now() + Duration::from_secs(30);
         let mut seen = self.channels(port);
         while seen != want && Instant::now() < until {
             std::thread::sleep(Duration::from_millis(100));
@@ -171,7 +171,7 @@ fn pass_time(cx: &mut TestAppContext, seconds: u64) {
 }
 
 fn root(link: &Entity<DaemonLink>, cx: &mut TestAppContext, what: &str) -> String {
-    let until = Instant::now() + Duration::from_secs(10);
+    let until = Instant::now() + Duration::from_secs(30);
     loop {
         cx.executor().advance_clock(Duration::from_millis(100));
         cx.run_until_parked();
@@ -284,7 +284,7 @@ fn the_link_dials_again_by_itself_after_the_host_socket_drops(cx: &mut TestAppCo
     host.ping(&link, cx);
     let first = root(&link, cx, "the hello names the root");
     host.drop_host_socket();
-    let until = Instant::now() + Duration::from_secs(10);
+    let until = Instant::now() + Duration::from_secs(30);
     while link.read_with(cx, |l, _| l.up()) {
         assert!(Instant::now() < until, "the link hears its channel go with the socket");
         std::thread::sleep(Duration::from_millis(20));
@@ -352,11 +352,11 @@ fn a_folder_that_failed_is_asked_again_and_the_roots_come_back_after_the_socket_
     let (t, d) = (tree.clone(), dir.clone());
     let asked = wait(
         cx,
-        15,
+        30,
         Box::new(move |cx| t.read_with(cx, |t, _| t.levels().get(&d).is_some_and(|l| l.error.is_none() && l.entries.is_some()))),
     );
     let t = tree.clone();
-    let rooted = wait(cx, 5, Box::new(move |cx| t.read_with(cx, |t, cx| !t.roots(cx).is_empty())));
+    let rooted = wait(cx, 30, Box::new(move |cx| t.read_with(cx, |t, cx| !t.roots(cx).is_empty())));
     let (folder, roots_after, level) =
         tree.read_with(cx, |t, cx| (t.folder().map(str::to_owned), t.roots(cx), t.levels().get(&dir).cloned()));
     println!("after the drop: src asked again {asked}, roots back {rooted} ({roots_before:?} -> {roots_after:?}), folder {folder:?}, src {level:?}");

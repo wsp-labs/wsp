@@ -87,6 +87,8 @@ pub struct Shell {
     /// When the sidebar last opened or closed, while its slide runs.
     sidebar_moved: Option<Instant>,
     sidebar_width: Pixels,
+    /// The width the last preferences record said, which a record moves the rail away from only by saying another.
+    width_read: Option<Pixels>,
     /// Under 768 px the sidebar is a sheet over the window, shut until asked for (`openMobile` in `sidebar.tsx`).
     sheet_open: bool,
     /// The sheet's own focus, which a press inside it takes (the popup's `tabIndex={-1}`), and its toggle's, which
@@ -332,6 +334,7 @@ impl Shell {
             sidebar_open: true,
             sidebar_moved: None,
             sidebar_width: frame::SIDEBAR_DEFAULT,
+            width_read: None,
             sheet_open: false,
             sheet_focus: cx.focus_handle(),
             sheet_toggle: cx.focus_handle(),
