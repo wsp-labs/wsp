@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The tapes held back from whoever implements a unit: every shadow-traffic tape, and about one in five of the
-//! tapes of each op family, the cheapest by a seeded hash of their ids. `cargo xtask unit` never runs them; the
-//! reviewer and `cargo xtask parity` always do, so a unit fitted to the tapes it was shown fails on the ones it was not.
+//! tapes of each op family, the cheapest by a seeded hash of their ids; never a spec example or a hand-written tape.
+//! `cargo xtask unit` never runs them; the reviewer and `cargo xtask parity` always do, so a unit fitted to the tapes
+//! it was shown fails on the ones it was not.
 
 use crate::check::family;
 use crate::tape::{Door, Tape};
@@ -15,6 +16,9 @@ pub const SEED_FILE: &str = "parity/held-seed";
 pub const SHADOW_DIR: &str = "shadow/";
 /// One tape in this many of each family is held back.
 pub const ONE_IN: usize = 5;
+/// Tapes every implementer is shown: the spec's own examples, and the ones written by hand to pin one rule down, as
+/// key order is.
+pub const ALWAYS_SHOWN: &[&str] = &["spec/", "hand/"];
 
 pub fn seed(root: &Path) -> Result<u64, String> {
     let text = fs::read_to_string(root.join(SEED_FILE)).map_err(|_| format!("{SEED_FILE} is missing"))?;
@@ -25,7 +29,7 @@ pub fn seed(root: &Path) -> Result<u64, String> {
 pub fn held(tapes: &[Tape], seed: u64) -> BTreeSet<String> {
     let mut out: BTreeSet<String> = tapes.iter().filter(|t| t.id.starts_with(SHADOW_DIR)).map(|t| t.id.clone()).collect();
     let mut groups: BTreeMap<String, Vec<&Tape>> = BTreeMap::new();
-    for tape in tapes.iter().filter(|t| !t.id.starts_with(SHADOW_DIR)) {
+    for tape in tapes.iter().filter(|t| !t.id.starts_with(SHADOW_DIR) && !ALWAYS_SHOWN.iter().any(|p| t.id.starts_with(p))) {
         // Every websocket tape sends auth first, so auth names no family of its own here.
         let families: BTreeSet<String> = match tape.door {
             Door::Ws => tape.ops().iter().map(|op| family(op).to_string()).filter(|f| f != "auth").collect(),

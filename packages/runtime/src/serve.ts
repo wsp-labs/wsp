@@ -601,7 +601,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
       held.add(bound);
     };
 
-    const tape = tapeOf(opts.tapes ?? process.env, "ws", [opts.authToken]);
+    const tape = tapeOf(opts.tapes ?? process.env, "ws", opts.authToken);
     const send = (payload: Record<string, unknown>): void => {
       if (ws.readyState !== ws.OPEN) return;
       tape?.out(payload);

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Tapes from the suites that drive the host from outside: each runs once with the tap on, and every sequence of
-// frames a socket, the tool server or the command line was sent becomes a tape under parity/tapes/recorded, its
-// answers left out, since the goldens are what a fresh host answers. A sequence seen twice is kept once.
+// frames a socket, the tool server or the command line was sent becomes a tape under parity/tapes/recorded. Its
+// answers stay beside the frames, marked "outs": "recorded": a replay follows the ids they name and holds nothing to
+// them, since the goldens are what a fresh host answers. A sequence of frames seen twice is kept once.
 //
 // The tool server's record (daemon/crates/wsp-mcp/tests/answers) joins them: each tool case it keeps becomes a tape that
 // calls that tool with the case's arguments, so every tool is asked of a real host, not the record's fake one.
@@ -18,6 +19,8 @@ const root = fileURLToPath(new URL("../..", import.meta.url));
 /** A test's tape past this is a test of a size limit, which says nothing about a host's answers that a short one does
  * not; a real host's longer connections are cut to it. */
 const MAX_TAPE_BYTES = 64 * 1024;
+/** A tape with the answers its recording's host gave beside its frames, past which the answers are left off. */
+const ANSWERS_MAX_BYTES = 4 * MAX_TAPE_BYTES;
 /** The temp folder of the run the tapes came from, as the test environment names it, which each replay points inside
  * its own folder: the harness's RUN_MARK. */
 const RUN_DIR = new RegExp(`${tmpdir().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/wsp-run-\\d+`, "g");
@@ -142,12 +145,17 @@ function keep(from, out, { cut = false } = {}) {
         big++;
         continue;
       }
-      kept.push({ meta, ins });
+      // What the recording's own host answered, kept beside what it was sent so a replay follows an id the test's
+      // host minted to the one a fresh host mints; a cut piece no longer lines up with them, and a page of answers
+      // past the cap is left out rather than the tape.
+      const frames = lines.filter(l => "in" in l || "out" in l);
+      const answered = !cut && frames.length > ins.length && JSON.stringify(frames).length <= ANSWERS_MAX_BYTES;
+      kept.push(answered ? { meta: { ...meta, outs: "recorded" }, lines: frames } : { meta, lines: ins.map(f => ({ in: f })) });
     }
   }
   rmSync(out, { recursive: true, force: true });
   const taken = new Map();
-  for (const { meta, ins } of kept) {
+  for (const { meta, lines } of kept) {
     const [file, ...names] = meta.source.split(" > ");
     const folder = slug((file ?? "host").replace(/^packages\//, "").replace(/\.test\.ts$/, "").replace("/test/", "-"));
     const base = join(meta.door, folder, slug(names.join(" ")) || "case");
@@ -155,7 +163,7 @@ function keep(from, out, { cut = false } = {}) {
     taken.set(base, n);
     const path = join(out, `${base}${n === 1 ? "" : `-${n}`}.tape`);
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, [JSON.stringify({ meta }), ...ins.map(f => JSON.stringify({ in: f }))].join("\n") + "\n");
+    writeFileSync(path, [JSON.stringify({ meta }), ...lines.map(l => JSON.stringify(l))].join("\n") + "\n");
   }
   const doors = {};
   for (const { meta } of kept) doors[meta.door] = (doors[meta.door] ?? 0) + 1;
