@@ -1,0 +1,878 @@
+[
+ {
+  "type": "SubHeld",
+  "case": "full",
+  "input": {
+   "files": 7,
+   "commits": 7
+  },
+  "output": "{\"files\":7,\"commits\":7}"
+ },
+ {
+  "type": "SubHeld",
+  "case": "missing files",
+  "input": {
+   "commits": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "files"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubHeld",
+  "case": "files: not an integer",
+  "input": {
+   "files": 2.5,
+   "commits": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "files"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubHeld",
+  "case": "files: under 0",
+  "input": {
+   "files": -1,
+   "commits": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "files"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SubHeld",
+  "case": "commits: not an integer",
+  "input": {
+   "files": 7,
+   "commits": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubHeld",
+  "case": "commits: under 0",
+  "input": {
+   "files": 7,
+   "commits": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SubResult",
+  "case": "full",
+  "input": {
+   "branch": "text é",
+   "pushedSha": "text é",
+   "commits": 7,
+   "unpushed": 7,
+   "changed": 7,
+   "onBranch": "text é",
+   "norepo": true,
+   "readFailed": "text é",
+   "readAt": "text é",
+   "pushRefused": "text é"
+  },
+  "output": "{\"branch\":\"text é\",\"pushedSha\":\"text é\",\"commits\":7,\"unpushed\":7,\"changed\":7,\"onBranch\":\"text é\",\"norepo\":true,\"readFailed\":\"text é\",\"readAt\":\"text é\",\"pushRefused\":\"text é\"}"
+ },
+ {
+  "type": "SubResult",
+  "case": "minimal",
+  "input": {
+   "branch": "s",
+   "pushedSha": "s",
+   "commits": 7,
+   "unpushed": 7,
+   "changed": 7,
+   "readAt": "s"
+  },
+  "output": "{\"branch\":\"s\",\"pushedSha\":\"s\",\"commits\":7,\"unpushed\":7,\"changed\":7,\"readAt\":\"s\"}"
+ },
+ {
+  "type": "SubResult",
+  "case": "nulls",
+  "input": {
+   "branch": "s",
+   "pushedSha": null,
+   "commits": 7,
+   "unpushed": 7,
+   "changed": 7,
+   "onBranch": "s",
+   "norepo": true,
+   "readFailed": "s",
+   "readAt": "s",
+   "pushRefused": "s"
+  },
+  "output": "{\"branch\":\"s\",\"pushedSha\":null,\"commits\":7,\"unpushed\":7,\"changed\":7,\"onBranch\":\"s\",\"norepo\":true,\"readFailed\":\"s\",\"readAt\":\"s\",\"pushRefused\":\"s\"}"
+ },
+ {
+  "type": "SubResult",
+  "case": "missing pushedSha, which is null or a value but never absent",
+  "input": {
+   "branch": "text é",
+   "commits": 7,
+   "unpushed": 7,
+   "changed": 7,
+   "onBranch": "text é",
+   "norepo": true,
+   "readFailed": "text é",
+   "readAt": "text é",
+   "pushRefused": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pushedSha"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubResult",
+  "case": "missing branch",
+  "input": {
+   "pushedSha": "text é",
+   "commits": 7,
+   "unpushed": 7,
+   "changed": 7,
+   "onBranch": "text é",
+   "norepo": true,
+   "readFailed": "text é",
+   "readAt": "text é",
+   "pushRefused": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "branch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubResult",
+  "case": "commits: not an integer",
+  "input": {
+   "branch": "text é",
+   "pushedSha": "text é",
+   "commits": 2.5,
+   "unpushed": 7,
+   "changed": 7,
+   "onBranch": "text é",
+   "norepo": true,
+   "readFailed": "text é",
+   "readAt": "text é",
+   "pushRefused": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubResult",
+  "case": "commits: under 0",
+  "input": {
+   "branch": "text é",
+   "pushedSha": "text é",
+   "commits": -1,
+   "unpushed": 7,
+   "changed": 7,
+   "onBranch": "text é",
+   "norepo": true,
+   "readFailed": "text é",
+   "readAt": "text é",
+   "pushRefused": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SubResult",
+  "case": "unpushed: not an integer",
+  "input": {
+   "branch": "text é",
+   "pushedSha": "text é",
+   "commits": 7,
+   "unpushed": 2.5,
+   "changed": 7,
+   "onBranch": "text é",
+   "norepo": true,
+   "readFailed": "text é",
+   "readAt": "text é",
+   "pushRefused": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "unpushed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubResult",
+  "case": "unpushed: under 0",
+  "input": {
+   "branch": "text é",
+   "pushedSha": "text é",
+   "commits": 7,
+   "unpushed": -1,
+   "changed": 7,
+   "onBranch": "text é",
+   "norepo": true,
+   "readFailed": "text é",
+   "readAt": "text é",
+   "pushRefused": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "unpushed"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SubResult",
+  "case": "changed: not an integer",
+  "input": {
+   "branch": "text é",
+   "pushedSha": "text é",
+   "commits": 7,
+   "unpushed": 7,
+   "changed": 2.5,
+   "onBranch": "text é",
+   "norepo": true,
+   "readFailed": "text é",
+   "readAt": "text é",
+   "pushRefused": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "changed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubResult",
+  "case": "changed: under 0",
+  "input": {
+   "branch": "text é",
+   "pushedSha": "text é",
+   "commits": 7,
+   "unpushed": 7,
+   "changed": -1,
+   "onBranch": "text é",
+   "norepo": true,
+   "readFailed": "text é",
+   "readAt": "text é",
+   "pushRefused": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "changed"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SubRow",
+  "case": "full",
+  "input": {
+   "state": "released",
+   "on": "text é",
+   "machine": "text é",
+   "size": {
+    "cpu": 7,
+    "memMb": 7,
+    "name": "text é"
+   },
+   "rateUsdPerHour": 2.5,
+   "branch": "text é",
+   "result": {
+    "branch": "text é",
+    "pushedSha": "text é",
+    "commits": 7,
+    "unpushed": 7,
+    "changed": 7,
+    "onBranch": "text é",
+    "norepo": true,
+    "readFailed": "text é",
+    "readAt": "text é",
+    "pushRefused": "text é"
+   },
+   "held": {
+    "files": 7,
+    "commits": 7
+   },
+   "deleteAt": 2.5,
+   "releasedAt": 2.5,
+   "cloudGone": true,
+   "sessionNotKept": "text é",
+   "spawn": {
+    "startedAt": 2.5,
+    "branch": {
+     "branch": "text é",
+     "sha": "text é",
+     "ms": 7
+    },
+    "machine": {
+     "since": 2.5,
+     "id": "text é",
+     "states": [
+      "text é"
+     ],
+     "ms": 7
+    },
+    "files": {
+     "since": 2.5,
+     "paths": [
+      "text é"
+     ],
+     "bytes": 7,
+     "ms": 7
+    },
+    "readyAt": 2.5,
+    "failed": {
+     "step": "files",
+     "said": "text é",
+     "fix": "text é"
+    },
+    "uncommitted": 7,
+    "asked": "text é",
+    "notSent": "text é",
+    "replaced": [
+     "text é"
+    ],
+    "log": [
+     "text é"
+    ]
+   }
+  },
+  "output": "{\"state\":\"released\",\"on\":\"text é\",\"machine\":\"text é\",\"size\":{\"cpu\":7,\"memMb\":7,\"name\":\"text é\"},\"rateUsdPerHour\":2.5,\"branch\":\"text é\",\"result\":{\"branch\":\"text é\",\"pushedSha\":\"text é\",\"commits\":7,\"unpushed\":7,\"changed\":7,\"onBranch\":\"text é\",\"norepo\":true,\"readFailed\":\"text é\",\"readAt\":\"text é\",\"pushRefused\":\"text é\"},\"held\":{\"files\":7,\"commits\":7},\"deleteAt\":2.5,\"releasedAt\":2.5,\"cloudGone\":true,\"sessionNotKept\":\"text é\",\"spawn\":{\"startedAt\":2.5,\"branch\":{\"branch\":\"text é\",\"sha\":\"text é\",\"ms\":7},\"machine\":{\"since\":2.5,\"id\":\"text é\",\"states\":[\"text é\"],\"ms\":7},\"files\":{\"since\":2.5,\"paths\":[\"text é\"],\"bytes\":7,\"ms\":7},\"readyAt\":2.5,\"failed\":{\"step\":\"files\",\"said\":\"text é\",\"fix\":\"text é\"},\"uncommitted\":7,\"asked\":\"text é\",\"notSent\":\"text é\",\"replaced\":[\"text é\"],\"log\":[\"text é\"]}}"
+ },
+ {
+  "type": "SubRow",
+  "case": "minimal",
+  "input": {
+   "state": "waiting",
+   "on": "s",
+   "machine": "s",
+   "size": {
+    "cpu": 7,
+    "memMb": 7
+   },
+   "branch": "s"
+  },
+  "output": "{\"state\":\"waiting\",\"on\":\"s\",\"machine\":\"s\",\"size\":{\"cpu\":7,\"memMb\":7},\"branch\":\"s\"}"
+ },
+ {
+  "type": "SubRow",
+  "case": "nulls",
+  "input": {
+   "state": "waiting",
+   "on": "s",
+   "machine": "s",
+   "size": {
+    "cpu": 7,
+    "memMb": 7
+   },
+   "rateUsdPerHour": 3,
+   "branch": "s",
+   "result": {
+    "branch": "s",
+    "pushedSha": null,
+    "commits": 7,
+    "unpushed": 7,
+    "changed": 7,
+    "readAt": "s"
+   },
+   "held": {
+    "files": 7,
+    "commits": 7
+   },
+   "deleteAt": 3,
+   "releasedAt": 3,
+   "cloudGone": true,
+   "sessionNotKept": "s",
+   "spawn": {
+    "startedAt": 3,
+    "log": []
+   }
+  },
+  "output": "{\"state\":\"waiting\",\"on\":\"s\",\"machine\":\"s\",\"size\":{\"cpu\":7,\"memMb\":7},\"rateUsdPerHour\":3,\"branch\":\"s\",\"result\":{\"branch\":\"s\",\"pushedSha\":null,\"commits\":7,\"unpushed\":7,\"changed\":7,\"readAt\":\"s\"},\"held\":{\"files\":7,\"commits\":7},\"deleteAt\":3,\"releasedAt\":3,\"cloudGone\":true,\"sessionNotKept\":\"s\",\"spawn\":{\"startedAt\":3,\"log\":[]}}"
+ },
+ {
+  "type": "SubRow",
+  "case": "missing state",
+  "input": {
+   "on": "text é",
+   "machine": "text é",
+   "size": {
+    "cpu": 7,
+    "memMb": 7,
+    "name": "text é"
+   },
+   "rateUsdPerHour": 2.5,
+   "branch": "text é",
+   "result": {
+    "branch": "text é",
+    "pushedSha": "text é",
+    "commits": 7,
+    "unpushed": 7,
+    "changed": 7,
+    "onBranch": "text é",
+    "norepo": true,
+    "readFailed": "text é",
+    "readAt": "text é",
+    "pushRefused": "text é"
+   },
+   "held": {
+    "files": 7,
+    "commits": 7
+   },
+   "deleteAt": 2.5,
+   "releasedAt": 2.5,
+   "cloudGone": true,
+   "sessionNotKept": "text é",
+   "spawn": {
+    "startedAt": 2.5,
+    "branch": {
+     "branch": "text é",
+     "sha": "text é",
+     "ms": 7
+    },
+    "machine": {
+     "since": 2.5,
+     "id": "text é",
+     "states": [
+      "text é"
+     ],
+     "ms": 7
+    },
+    "files": {
+     "since": 2.5,
+     "paths": [
+      "text é"
+     ],
+     "bytes": 7,
+     "ms": 7
+    },
+    "readyAt": 2.5,
+    "failed": {
+     "step": "files",
+     "said": "text é",
+     "fix": "text é"
+    },
+    "uncommitted": 7,
+    "asked": "text é",
+    "notSent": "text é",
+    "replaced": [
+     "text é"
+    ],
+    "log": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubRow",
+  "case": "state: not one of its values",
+  "input": {
+   "state": "not-a-value",
+   "on": "text é",
+   "machine": "text é",
+   "size": {
+    "cpu": 7,
+    "memMb": 7,
+    "name": "text é"
+   },
+   "rateUsdPerHour": 2.5,
+   "branch": "text é",
+   "result": {
+    "branch": "text é",
+    "pushedSha": "text é",
+    "commits": 7,
+    "unpushed": 7,
+    "changed": 7,
+    "onBranch": "text é",
+    "norepo": true,
+    "readFailed": "text é",
+    "readAt": "text é",
+    "pushRefused": "text é"
+   },
+   "held": {
+    "files": 7,
+    "commits": 7
+   },
+   "deleteAt": 2.5,
+   "releasedAt": 2.5,
+   "cloudGone": true,
+   "sessionNotKept": "text é",
+   "spawn": {
+    "startedAt": 2.5,
+    "branch": {
+     "branch": "text é",
+     "sha": "text é",
+     "ms": 7
+    },
+    "machine": {
+     "since": 2.5,
+     "id": "text é",
+     "states": [
+      "text é"
+     ],
+     "ms": 7
+    },
+    "files": {
+     "since": 2.5,
+     "paths": [
+      "text é"
+     ],
+     "bytes": 7,
+     "ms": 7
+    },
+    "readyAt": 2.5,
+    "failed": {
+     "step": "files",
+     "said": "text é",
+     "fix": "text é"
+    },
+    "uncommitted": 7,
+    "asked": "text é",
+    "notSent": "text é",
+    "replaced": [
+     "text é"
+    ],
+    "log": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubSpawn",
+  "case": "full",
+  "input": {
+   "startedAt": 2.5,
+   "branch": {
+    "branch": "text é",
+    "sha": "text é",
+    "ms": 7
+   },
+   "machine": {
+    "since": 2.5,
+    "id": "text é",
+    "states": [
+     "text é"
+    ],
+    "ms": 7
+   },
+   "files": {
+    "since": 2.5,
+    "paths": [
+     "text é"
+    ],
+    "bytes": 7,
+    "ms": 7
+   },
+   "readyAt": 2.5,
+   "failed": {
+    "step": "files",
+    "said": "text é",
+    "fix": "text é"
+   },
+   "uncommitted": 7,
+   "asked": "text é",
+   "notSent": "text é",
+   "replaced": [
+    "text é"
+   ],
+   "log": [
+    "text é"
+   ]
+  },
+  "output": "{\"startedAt\":2.5,\"branch\":{\"branch\":\"text é\",\"sha\":\"text é\",\"ms\":7},\"machine\":{\"since\":2.5,\"id\":\"text é\",\"states\":[\"text é\"],\"ms\":7},\"files\":{\"since\":2.5,\"paths\":[\"text é\"],\"bytes\":7,\"ms\":7},\"readyAt\":2.5,\"failed\":{\"step\":\"files\",\"said\":\"text é\",\"fix\":\"text é\"},\"uncommitted\":7,\"asked\":\"text é\",\"notSent\":\"text é\",\"replaced\":[\"text é\"],\"log\":[\"text é\"]}"
+ },
+ {
+  "type": "SubSpawn",
+  "case": "minimal",
+  "input": {
+   "startedAt": 3,
+   "log": []
+  },
+  "output": "{\"startedAt\":3,\"log\":[]}"
+ },
+ {
+  "type": "SubSpawn",
+  "case": "nulls",
+  "input": {
+   "startedAt": 3,
+   "branch": {
+    "branch": "s",
+    "sha": "s",
+    "ms": 7
+   },
+   "machine": {
+    "since": 3,
+    "states": []
+   },
+   "files": {
+    "since": 3,
+    "paths": [],
+    "bytes": 7
+   },
+   "readyAt": 3,
+   "failed": {
+    "step": "machine",
+    "said": "s"
+   },
+   "uncommitted": 7,
+   "asked": "s",
+   "notSent": "s",
+   "replaced": [],
+   "log": []
+  },
+  "output": "{\"startedAt\":3,\"branch\":{\"branch\":\"s\",\"sha\":\"s\",\"ms\":7},\"machine\":{\"since\":3,\"states\":[]},\"files\":{\"since\":3,\"paths\":[],\"bytes\":7},\"readyAt\":3,\"failed\":{\"step\":\"machine\",\"said\":\"s\"},\"uncommitted\":7,\"asked\":\"s\",\"notSent\":\"s\",\"replaced\":[],\"log\":[]}"
+ },
+ {
+  "type": "SubSpawn",
+  "case": "missing startedAt",
+  "input": {
+   "branch": {
+    "branch": "text é",
+    "sha": "text é",
+    "ms": 7
+   },
+   "machine": {
+    "since": 2.5,
+    "id": "text é",
+    "states": [
+     "text é"
+    ],
+    "ms": 7
+   },
+   "files": {
+    "since": 2.5,
+    "paths": [
+     "text é"
+    ],
+    "bytes": 7,
+    "ms": 7
+   },
+   "readyAt": 2.5,
+   "failed": {
+    "step": "files",
+    "said": "text é",
+    "fix": "text é"
+   },
+   "uncommitted": 7,
+   "asked": "text é",
+   "notSent": "text é",
+   "replaced": [
+    "text é"
+   ],
+   "log": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "startedAt"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubSpawn",
+  "case": "uncommitted: not an integer",
+  "input": {
+   "startedAt": 2.5,
+   "branch": {
+    "branch": "text é",
+    "sha": "text é",
+    "ms": 7
+   },
+   "machine": {
+    "since": 2.5,
+    "id": "text é",
+    "states": [
+     "text é"
+    ],
+    "ms": 7
+   },
+   "files": {
+    "since": 2.5,
+    "paths": [
+     "text é"
+    ],
+    "bytes": 7,
+    "ms": 7
+   },
+   "readyAt": 2.5,
+   "failed": {
+    "step": "files",
+    "said": "text é",
+    "fix": "text é"
+   },
+   "uncommitted": 2.5,
+   "asked": "text é",
+   "notSent": "text é",
+   "replaced": [
+    "text é"
+   ],
+   "log": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "uncommitted"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubSpawn",
+  "case": "uncommitted: under 0",
+  "input": {
+   "startedAt": 2.5,
+   "branch": {
+    "branch": "text é",
+    "sha": "text é",
+    "ms": 7
+   },
+   "machine": {
+    "since": 2.5,
+    "id": "text é",
+    "states": [
+     "text é"
+    ],
+    "ms": 7
+   },
+   "files": {
+    "since": 2.5,
+    "paths": [
+     "text é"
+    ],
+    "bytes": 7,
+    "ms": 7
+   },
+   "readyAt": 2.5,
+   "failed": {
+    "step": "files",
+    "said": "text é",
+    "fix": "text é"
+   },
+   "uncommitted": -1,
+   "asked": "text é",
+   "notSent": "text é",
+   "replaced": [
+    "text é"
+   ],
+   "log": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "uncommitted"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SubState",
+  "case": "full",
+  "input": "released",
+  "output": "\"released\""
+ },
+ {
+  "type": "SubState",
+  "case": "minimal",
+  "input": "waiting",
+  "output": "\"waiting\""
+ },
+ {
+  "type": "SubState",
+  "case": "value starting",
+  "input": "starting",
+  "output": "\"starting\""
+ },
+ {
+  "type": "SubState",
+  "case": "value running",
+  "input": "running",
+  "output": "\"running\""
+ },
+ {
+  "type": "SubState",
+  "case": "value napping",
+  "input": "napping",
+  "output": "\"napping\""
+ },
+ {
+  "type": "SubState",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ }
+]

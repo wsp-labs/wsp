@@ -1,0 +1,202 @@
+[
+ {
+  "type": "ProjectHue",
+  "case": "full",
+  "input": "pink",
+  "output": "\"pink\""
+ },
+ {
+  "type": "ProjectHue",
+  "case": "minimal",
+  "input": "neutral",
+  "output": "\"neutral\""
+ },
+ {
+  "type": "ProjectHue",
+  "case": "value red",
+  "input": "red",
+  "output": "\"red\""
+ },
+ {
+  "type": "ProjectHue",
+  "case": "value orange",
+  "input": "orange",
+  "output": "\"orange\""
+ },
+ {
+  "type": "ProjectHue",
+  "case": "value amber",
+  "input": "amber",
+  "output": "\"amber\""
+ },
+ {
+  "type": "ProjectHue",
+  "case": "value green",
+  "input": "green",
+  "output": "\"green\""
+ },
+ {
+  "type": "ProjectHue",
+  "case": "value teal",
+  "input": "teal",
+  "output": "\"teal\""
+ },
+ {
+  "type": "ProjectHue",
+  "case": "value blue",
+  "input": "blue",
+  "output": "\"blue\""
+ },
+ {
+  "type": "ProjectHue",
+  "case": "value violet",
+  "input": "violet",
+  "output": "\"violet\""
+ },
+ {
+  "type": "ProjectHue",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "full",
+  "input": "wrench",
+  "output": "\"wrench\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "minimal",
+  "input": "folder",
+  "output": "\"folder\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value code",
+  "input": "code",
+  "output": "\"code\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value terminal",
+  "input": "terminal",
+  "output": "\"terminal\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value globe",
+  "input": "globe",
+  "output": "\"globe\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value rocket",
+  "input": "rocket",
+  "output": "\"rocket\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value box",
+  "input": "box",
+  "output": "\"box\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value database",
+  "input": "database",
+  "output": "\"database\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value server",
+  "input": "server",
+  "output": "\"server\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value cpu",
+  "input": "cpu",
+  "output": "\"cpu\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value zap",
+  "input": "zap",
+  "output": "\"zap\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value flame",
+  "input": "flame",
+  "output": "\"flame\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value leaf",
+  "input": "leaf",
+  "output": "\"leaf\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value star",
+  "input": "star",
+  "output": "\"star\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value heart",
+  "input": "heart",
+  "output": "\"heart\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value book",
+  "input": "book",
+  "output": "\"book\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value music",
+  "input": "music",
+  "output": "\"music\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value camera",
+  "input": "camera",
+  "output": "\"camera\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value gamepad",
+  "input": "gamepad",
+  "output": "\"gamepad\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "value shield",
+  "input": "shield",
+  "output": "\"shield\""
+ },
+ {
+  "type": "ProjectIcon",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectIconHash",
+  "case": "full",
+  "input": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "output": "\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\""
+ }
+]

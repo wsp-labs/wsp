@@ -1,0 +1,154 @@
+[
+ {
+  "type": "Attachment",
+  "case": "full",
+  "input": {
+   "mediaType": "text é",
+   "bytes": "text é",
+   "name": "text é"
+  },
+  "output": "{\"mediaType\":\"text é\",\"bytes\":\"text é\",\"name\":\"text é\"}"
+ },
+ {
+  "type": "Attachment",
+  "case": "minimal",
+  "input": {
+   "mediaType": "s",
+   "bytes": "s"
+  },
+  "output": "{\"mediaType\":\"s\",\"bytes\":\"s\"}"
+ },
+ {
+  "type": "Attachment",
+  "case": "nulls",
+  "input": {
+   "mediaType": "s",
+   "bytes": "s",
+   "name": "s"
+  },
+  "output": "{\"mediaType\":\"s\",\"bytes\":\"s\",\"name\":\"s\"}"
+ },
+ {
+  "type": "Attachment",
+  "case": "missing mediaType",
+  "input": {
+   "bytes": "text é",
+   "name": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "mediaType"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AttachmentRecord",
+  "case": "full",
+  "input": {
+   "mediaType": "text é",
+   "bytes": 7,
+   "name": "text é"
+  },
+  "output": "{\"mediaType\":\"text é\",\"bytes\":7,\"name\":\"text é\"}"
+ },
+ {
+  "type": "AttachmentRecord",
+  "case": "minimal",
+  "input": {
+   "mediaType": "s",
+   "bytes": 7
+  },
+  "output": "{\"mediaType\":\"s\",\"bytes\":7}"
+ },
+ {
+  "type": "AttachmentRecord",
+  "case": "nulls",
+  "input": {
+   "mediaType": "s",
+   "bytes": 7,
+   "name": "s"
+  },
+  "output": "{\"mediaType\":\"s\",\"bytes\":7,\"name\":\"s\"}"
+ },
+ {
+  "type": "AttachmentRecord",
+  "case": "missing mediaType",
+  "input": {
+   "bytes": 7,
+   "name": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "mediaType"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AttachmentRecord",
+  "case": "bytes: not an integer",
+  "input": {
+   "mediaType": "text é",
+   "bytes": 2.5,
+   "name": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "AttachmentRecord",
+  "case": "bytes: under 0",
+  "input": {
+   "mediaType": "text é",
+   "bytes": -1,
+   "name": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "KeptAttachment",
+  "case": "full",
+  "input": {
+   "mediaType": "text é",
+   "bytes": "text é"
+  },
+  "output": "{\"mediaType\":\"text é\",\"bytes\":\"text é\"}"
+ },
+ {
+  "type": "KeptAttachment",
+  "case": "minimal",
+  "input": {
+   "mediaType": "s",
+   "bytes": "s"
+  },
+  "output": "{\"mediaType\":\"s\",\"bytes\":\"s\"}"
+ },
+ {
+  "type": "KeptAttachment",
+  "case": "missing mediaType",
+  "input": {
+   "bytes": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "mediaType"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

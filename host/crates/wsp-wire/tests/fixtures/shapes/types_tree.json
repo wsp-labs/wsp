@@ -1,0 +1,784 @@
+[
+ {
+  "type": "GitBranchCompareReply",
+  "case": "full",
+  "input": {
+   "pushed": true,
+   "aheadBy": 7,
+   "behindBy": 7,
+   "status": "text é"
+  },
+  "output": "{\"pushed\":true,\"aheadBy\":7,\"behindBy\":7,\"status\":\"text é\"}"
+ },
+ {
+  "type": "GitBranchCompareReply",
+  "case": "minimal",
+  "input": {
+   "pushed": false
+  },
+  "output": "{\"pushed\":false}"
+ },
+ {
+  "type": "GitBranchCompareReply",
+  "case": "nulls",
+  "input": {
+   "pushed": false,
+   "aheadBy": 7,
+   "behindBy": 7,
+   "status": "s"
+  },
+  "output": "{\"pushed\":false,\"aheadBy\":7,\"behindBy\":7,\"status\":\"s\"}"
+ },
+ {
+  "type": "GitBranchCompareReply",
+  "case": "missing pushed",
+  "input": {
+   "aheadBy": 7,
+   "behindBy": 7,
+   "status": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pushed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitBranchCompareReply",
+  "case": "pushed: not a boolean",
+  "input": {
+   "pushed": "yes",
+   "aheadBy": 7,
+   "behindBy": 7,
+   "status": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pushed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitBranchCompareReply",
+  "case": "aheadBy: not an integer",
+  "input": {
+   "pushed": true,
+   "aheadBy": 2.5,
+   "behindBy": 7,
+   "status": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "aheadBy"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitBranchCompareReply",
+  "case": "aheadBy: under 0",
+  "input": {
+   "pushed": true,
+   "aheadBy": -1,
+   "behindBy": 7,
+   "status": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "aheadBy"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "GitBranchCompareReply",
+  "case": "behindBy: not an integer",
+  "input": {
+   "pushed": true,
+   "aheadBy": 7,
+   "behindBy": 2.5,
+   "status": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "behindBy"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitBranchCompareReply",
+  "case": "behindBy: under 0",
+  "input": {
+   "pushed": true,
+   "aheadBy": 7,
+   "behindBy": -1,
+   "status": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "behindBy"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "GitMergeInReply",
+  "case": "full",
+  "input": {
+   "branch": "text é",
+   "merged": true,
+   "commits": 7,
+   "oid": "text é",
+   "head": "text é",
+   "conflicts": [
+    "text é"
+   ]
+  },
+  "output": "{\"branch\":\"text é\",\"merged\":true,\"commits\":7,\"oid\":\"text é\",\"head\":\"text é\",\"conflicts\":[\"text é\"]}"
+ },
+ {
+  "type": "GitMergeInReply",
+  "case": "minimal",
+  "input": {
+   "branch": "s",
+   "merged": false,
+   "commits": 7,
+   "conflicts": []
+  },
+  "output": "{\"branch\":\"s\",\"merged\":false,\"commits\":7,\"conflicts\":[]}"
+ },
+ {
+  "type": "GitMergeInReply",
+  "case": "nulls",
+  "input": {
+   "branch": "s",
+   "merged": false,
+   "commits": 7,
+   "oid": "s",
+   "head": "s",
+   "conflicts": []
+  },
+  "output": "{\"branch\":\"s\",\"merged\":false,\"commits\":7,\"oid\":\"s\",\"head\":\"s\",\"conflicts\":[]}"
+ },
+ {
+  "type": "GitMergeInReply",
+  "case": "missing branch",
+  "input": {
+   "merged": true,
+   "commits": 7,
+   "oid": "text é",
+   "head": "text é",
+   "conflicts": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "branch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitMergeInReply",
+  "case": "merged: not a boolean",
+  "input": {
+   "branch": "text é",
+   "merged": "yes",
+   "commits": 7,
+   "oid": "text é",
+   "head": "text é",
+   "conflicts": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "merged"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitMergeInReply",
+  "case": "commits: not an integer",
+  "input": {
+   "branch": "text é",
+   "merged": true,
+   "commits": 2.5,
+   "oid": "text é",
+   "head": "text é",
+   "conflicts": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "GitMergeInReply",
+  "case": "commits: under 0",
+  "input": {
+   "branch": "text é",
+   "merged": true,
+   "commits": -1,
+   "oid": "text é",
+   "head": "text é",
+   "conflicts": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "GitStartOnReply",
+  "case": "full",
+  "input": {
+   "branch": "text é",
+   "oid": "text é"
+  },
+  "output": "{\"branch\":\"text é\",\"oid\":\"text é\"}"
+ },
+ {
+  "type": "GitStartOnReply",
+  "case": "minimal",
+  "input": {
+   "branch": "s",
+   "oid": "s"
+  },
+  "output": "{\"branch\":\"s\",\"oid\":\"s\"}"
+ },
+ {
+  "type": "GitStartOnReply",
+  "case": "missing branch",
+  "input": {
+   "oid": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "branch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MergeInResult",
+  "case": "full",
+  "input": {
+   "lead": "text é",
+   "child": "text é",
+   "branch": "text é",
+   "merged": true,
+   "commits": 7,
+   "conflicts": [
+    "text é"
+   ],
+   "unpushed": 7
+  },
+  "output": "{\"lead\":\"text é\",\"child\":\"text é\",\"branch\":\"text é\",\"merged\":true,\"commits\":7,\"conflicts\":[\"text é\"],\"unpushed\":7}"
+ },
+ {
+  "type": "MergeInResult",
+  "case": "minimal",
+  "input": {
+   "lead": "s",
+   "child": "s",
+   "branch": "s",
+   "merged": false,
+   "commits": 7,
+   "conflicts": []
+  },
+  "output": "{\"lead\":\"s\",\"child\":\"s\",\"branch\":\"s\",\"merged\":false,\"commits\":7,\"conflicts\":[]}"
+ },
+ {
+  "type": "MergeInResult",
+  "case": "nulls",
+  "input": {
+   "lead": "s",
+   "child": "s",
+   "branch": "s",
+   "merged": false,
+   "commits": 7,
+   "conflicts": [],
+   "unpushed": 7
+  },
+  "output": "{\"lead\":\"s\",\"child\":\"s\",\"branch\":\"s\",\"merged\":false,\"commits\":7,\"conflicts\":[],\"unpushed\":7}"
+ },
+ {
+  "type": "MergeInResult",
+  "case": "missing lead",
+  "input": {
+   "child": "text é",
+   "branch": "text é",
+   "merged": true,
+   "commits": 7,
+   "conflicts": [
+    "text é"
+   ],
+   "unpushed": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "lead"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MergeInResult",
+  "case": "merged: not a boolean",
+  "input": {
+   "lead": "text é",
+   "child": "text é",
+   "branch": "text é",
+   "merged": "yes",
+   "commits": 7,
+   "conflicts": [
+    "text é"
+   ],
+   "unpushed": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "merged"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MergeInResult",
+  "case": "commits: not an integer",
+  "input": {
+   "lead": "text é",
+   "child": "text é",
+   "branch": "text é",
+   "merged": true,
+   "commits": 2.5,
+   "conflicts": [
+    "text é"
+   ],
+   "unpushed": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MergeInResult",
+  "case": "commits: under 0",
+  "input": {
+   "lead": "text é",
+   "child": "text é",
+   "branch": "text é",
+   "merged": true,
+   "commits": -1,
+   "conflicts": [
+    "text é"
+   ],
+   "unpushed": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "MergeInResult",
+  "case": "unpushed: not an integer",
+  "input": {
+   "lead": "text é",
+   "child": "text é",
+   "branch": "text é",
+   "merged": true,
+   "commits": 7,
+   "conflicts": [
+    "text é"
+   ],
+   "unpushed": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "unpushed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MergeInResult",
+  "case": "unpushed: under 0",
+  "input": {
+   "lead": "text é",
+   "child": "text é",
+   "branch": "text é",
+   "merged": true,
+   "commits": 7,
+   "conflicts": [
+    "text é"
+   ],
+   "unpushed": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "unpushed"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TreeChild",
+  "case": "full",
+  "input": {
+   "merged": {
+    "oid": "text é",
+    "at": 2.5,
+    "head": "text é"
+   },
+   "conflicts": [
+    "text é"
+   ],
+   "pushRefused": "text é",
+   "workspaceId": "text é",
+   "threadId": "text é",
+   "branch": "text é",
+   "pushed": true,
+   "aheadOfLead": 7,
+   "behindLead": 7
+  },
+  "output": "{\"merged\":{\"oid\":\"text é\",\"at\":2.5,\"head\":\"text é\"},\"conflicts\":[\"text é\"],\"pushRefused\":\"text é\",\"workspaceId\":\"text é\",\"threadId\":\"text é\",\"branch\":\"text é\",\"pushed\":true,\"aheadOfLead\":7,\"behindLead\":7}"
+ },
+ {
+  "type": "TreeChild",
+  "case": "minimal",
+  "input": {
+   "workspaceId": "s",
+   "branch": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"branch\":\"s\"}"
+ },
+ {
+  "type": "TreeChild",
+  "case": "nulls",
+  "input": {
+   "merged": {
+    "oid": "s",
+    "at": 3
+   },
+   "conflicts": [],
+   "pushRefused": "s",
+   "workspaceId": "s",
+   "threadId": "s",
+   "branch": "s",
+   "pushed": false,
+   "aheadOfLead": 7,
+   "behindLead": 7
+  },
+  "output": "{\"merged\":{\"oid\":\"s\",\"at\":3},\"conflicts\":[],\"pushRefused\":\"s\",\"workspaceId\":\"s\",\"threadId\":\"s\",\"branch\":\"s\",\"pushed\":false,\"aheadOfLead\":7,\"behindLead\":7}"
+ },
+ {
+  "type": "TreeChild",
+  "case": "missing workspaceId",
+  "input": {
+   "merged": {
+    "oid": "text é",
+    "at": 2.5,
+    "head": "text é"
+   },
+   "conflicts": [
+    "text é"
+   ],
+   "pushRefused": "text é",
+   "threadId": "text é",
+   "branch": "text é",
+   "pushed": true,
+   "aheadOfLead": 7,
+   "behindLead": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TreeChild",
+  "case": "pushed: not a boolean",
+  "input": {
+   "merged": {
+    "oid": "text é",
+    "at": 2.5,
+    "head": "text é"
+   },
+   "conflicts": [
+    "text é"
+   ],
+   "pushRefused": "text é",
+   "workspaceId": "text é",
+   "threadId": "text é",
+   "branch": "text é",
+   "pushed": "yes",
+   "aheadOfLead": 7,
+   "behindLead": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pushed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TreeChild",
+  "case": "aheadOfLead: not an integer",
+  "input": {
+   "merged": {
+    "oid": "text é",
+    "at": 2.5,
+    "head": "text é"
+   },
+   "conflicts": [
+    "text é"
+   ],
+   "pushRefused": "text é",
+   "workspaceId": "text é",
+   "threadId": "text é",
+   "branch": "text é",
+   "pushed": true,
+   "aheadOfLead": 2.5,
+   "behindLead": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "aheadOfLead"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TreeChild",
+  "case": "aheadOfLead: under 0",
+  "input": {
+   "merged": {
+    "oid": "text é",
+    "at": 2.5,
+    "head": "text é"
+   },
+   "conflicts": [
+    "text é"
+   ],
+   "pushRefused": "text é",
+   "workspaceId": "text é",
+   "threadId": "text é",
+   "branch": "text é",
+   "pushed": true,
+   "aheadOfLead": -1,
+   "behindLead": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "aheadOfLead"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TreeChild",
+  "case": "behindLead: not an integer",
+  "input": {
+   "merged": {
+    "oid": "text é",
+    "at": 2.5,
+    "head": "text é"
+   },
+   "conflicts": [
+    "text é"
+   ],
+   "pushRefused": "text é",
+   "workspaceId": "text é",
+   "threadId": "text é",
+   "branch": "text é",
+   "pushed": true,
+   "aheadOfLead": 7,
+   "behindLead": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "behindLead"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TreeChild",
+  "case": "behindLead: under 0",
+  "input": {
+   "merged": {
+    "oid": "text é",
+    "at": 2.5,
+    "head": "text é"
+   },
+   "conflicts": [
+    "text é"
+   ],
+   "pushRefused": "text é",
+   "workspaceId": "text é",
+   "threadId": "text é",
+   "branch": "text é",
+   "pushed": true,
+   "aheadOfLead": 7,
+   "behindLead": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "behindLead"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TreeFact",
+  "case": "full",
+  "input": {
+   "leadBranch": "text é",
+   "children": [
+    {
+     "merged": {
+      "oid": "text é",
+      "at": 2.5,
+      "head": "text é"
+     },
+     "conflicts": [
+      "text é"
+     ],
+     "pushRefused": "text é",
+     "workspaceId": "text é",
+     "threadId": "text é",
+     "branch": "text é",
+     "pushed": true,
+     "aheadOfLead": 7,
+     "behindLead": 7
+    }
+   ],
+   "readAt": 2.5
+  },
+  "output": "{\"leadBranch\":\"text é\",\"children\":[{\"merged\":{\"oid\":\"text é\",\"at\":2.5,\"head\":\"text é\"},\"conflicts\":[\"text é\"],\"pushRefused\":\"text é\",\"workspaceId\":\"text é\",\"threadId\":\"text é\",\"branch\":\"text é\",\"pushed\":true,\"aheadOfLead\":7,\"behindLead\":7}],\"readAt\":2.5}"
+ },
+ {
+  "type": "TreeFact",
+  "case": "minimal",
+  "input": {
+   "leadBranch": "s",
+   "children": [],
+   "readAt": 3
+  },
+  "output": "{\"leadBranch\":\"s\",\"children\":[],\"readAt\":3}"
+ },
+ {
+  "type": "TreeFact",
+  "case": "missing leadBranch",
+  "input": {
+   "children": [
+    {
+     "merged": {
+      "oid": "text é",
+      "at": 2.5,
+      "head": "text é"
+     },
+     "conflicts": [
+      "text é"
+     ],
+     "pushRefused": "text é",
+     "workspaceId": "text é",
+     "threadId": "text é",
+     "branch": "text é",
+     "pushed": true,
+     "aheadOfLead": 7,
+     "behindLead": 7
+    }
+   ],
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "leadBranch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TreeRecord",
+  "case": "full",
+  "input": {
+   "merged": {
+    "oid": "text é",
+    "at": 2.5,
+    "head": "text é"
+   },
+   "conflicts": [
+    "text é"
+   ],
+   "pushRefused": "text é"
+  },
+  "output": "{\"merged\":{\"oid\":\"text é\",\"at\":2.5,\"head\":\"text é\"},\"conflicts\":[\"text é\"],\"pushRefused\":\"text é\"}"
+ },
+ {
+  "type": "TreeRecord",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "TreeRecord",
+  "case": "nulls",
+  "input": {
+   "merged": {
+    "oid": "s",
+    "at": 3
+   },
+   "conflicts": [],
+   "pushRefused": "s"
+  },
+  "output": "{\"merged\":{\"oid\":\"s\",\"at\":3},\"conflicts\":[],\"pushRefused\":\"s\"}"
+ }
+]

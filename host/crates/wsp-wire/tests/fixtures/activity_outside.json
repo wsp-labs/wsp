@@ -1,0 +1,200 @@
+{
+ "start": 1760000000000,
+ "procs": [
+  {
+   "pid": 1,
+   "ppid": 0,
+   "user": "dev",
+   "state": "S",
+   "comm": "launchd",
+   "cmdline": "/sbin/launchd",
+   "cpu": 0,
+   "rss": 10485760,
+   "startedAt": 1760000000001
+  },
+  {
+   "pid": 10,
+   "ppid": 1,
+   "user": "dev",
+   "state": "S",
+   "comm": "node",
+   "cmdline": "node wsp host",
+   "cpu": 0,
+   "rss": 209715200,
+   "startedAt": 1760000000010
+  },
+  {
+   "pid": 20,
+   "ppid": 10,
+   "user": "dev",
+   "state": "S",
+   "comm": "wsp-daemon",
+   "cmdline": "wsp-daemon serve",
+   "cpu": 0,
+   "rss": 4194304,
+   "startedAt": 1760000000020
+  },
+  {
+   "pid": 400,
+   "ppid": 1,
+   "user": "dev",
+   "state": "S",
+   "comm": "Electron",
+   "cmdline": "/Applications/wsp.app/Contents/MacOS/wsp",
+   "cpu": 0,
+   "rss": 314572800,
+   "startedAt": 1760000000400
+  },
+  {
+   "pid": 410,
+   "ppid": 400,
+   "user": "dev",
+   "state": "S",
+   "comm": "wsp-daemon",
+   "cmdline": "/Applications/wsp.app/Contents/Resources/daemon/wsp-daemon serve",
+   "cpu": 0,
+   "rss": 6291456,
+   "startedAt": 1760000000410
+  },
+  {
+   "pid": 450,
+   "ppid": 410,
+   "user": "dev",
+   "state": "S",
+   "comm": "bash",
+   "cmdline": "bash /home/dev/wsp-work/state/runs/0a1b2c3d4e5f.sh",
+   "cpu": 0,
+   "rss": 2097152,
+   "startedAt": 1760000000450,
+   "owner": {
+    "by": "env",
+    "thread": "th_other"
+   }
+  },
+  {
+   "pid": 500,
+   "ppid": 450,
+   "user": "dev",
+   "state": "S",
+   "comm": "2.1.296",
+   "cmdline": "claude -p --input-format stream-json --output-format stream-json --verbose --model claude-opus-5-5",
+   "cpu": 3,
+   "rss": 671088640,
+   "startedAt": 1760000000500,
+   "owner": {
+    "by": "env",
+    "thread": "th_other"
+   }
+  },
+  {
+   "pid": 510,
+   "ppid": 500,
+   "user": "dev",
+   "state": "S",
+   "comm": "uv",
+   "cmdline": "/opt/homebrew/bin/uv tool uvx mcp-search-console",
+   "cpu": 0,
+   "rss": 31457280,
+   "startedAt": 1760000000510,
+   "owner": {
+    "by": "env",
+    "thread": "th_other"
+   }
+  },
+  {
+   "pid": 511,
+   "ppid": 510,
+   "user": "dev",
+   "state": "S",
+   "comm": "python3.13",
+   "cmdline": "/home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console",
+   "cpu": 0,
+   "rss": 67108864,
+   "startedAt": 1760000000511,
+   "owner": {
+    "by": "env",
+    "thread": "th_other"
+   }
+  },
+  {
+   "pid": 520,
+   "ppid": 500,
+   "user": "dev",
+   "state": "S",
+   "comm": "node",
+   "cmdline": "node /home/dev/.npm/_npx/9f1/node_modules/.bin/mcp-server-github",
+   "cpu": 0,
+   "rss": 83886080,
+   "startedAt": 1760000000520,
+   "owner": {
+    "by": "env",
+    "thread": "th_other"
+   }
+  },
+  {
+   "pid": 530,
+   "ppid": 500,
+   "user": "dev",
+   "state": "S",
+   "comm": "zsh",
+   "cmdline": "/bin/zsh -c ls",
+   "cpu": 0,
+   "rss": 3145728,
+   "startedAt": 1760000000530,
+   "owner": {
+    "by": "env",
+    "thread": "th_other"
+   }
+  },
+  {
+   "pid": 600,
+   "ppid": 1,
+   "user": "dev",
+   "state": "S",
+   "comm": "node",
+   "cmdline": "node /opt/homebrew/bin/codex exec --json -",
+   "cpu": 0,
+   "rss": 41943040,
+   "startedAt": 1760000000600,
+   "owner": {
+    "by": "env",
+    "thread": "th_third"
+   }
+  },
+  {
+   "pid": 601,
+   "ppid": 600,
+   "user": "dev",
+   "state": "S",
+   "comm": "codex",
+   "cmdline": "/opt/homebrew/lib/node_modules/@openai/codex/vendor/aarch64-apple-darwin/codex/codex exec --json -",
+   "cpu": 0,
+   "rss": 220200960,
+   "startedAt": 1760000000601,
+   "owner": {
+    "by": "env",
+    "thread": "th_third"
+   }
+  },
+  {
+   "pid": 700,
+   "ppid": 1,
+   "user": "dev",
+   "state": "S",
+   "comm": "2.1.296",
+   "cmdline": "claude --resume",
+   "cpu": 0,
+   "rss": 440401920,
+   "startedAt": 1760000000700
+  }
+ ],
+ "ports": {
+  "400": [
+   4400,
+   4420
+  ],
+  "410": [
+   58815
+  ]
+ }
+}
