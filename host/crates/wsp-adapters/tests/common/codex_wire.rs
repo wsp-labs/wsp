@@ -8,8 +8,8 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use futures::future::{BoxFuture, FutureExt};
-use futures::stream::{BoxStream, StreamExt};
+use futures::future::{LocalBoxFuture, FutureExt};
+use futures::stream::{LocalBoxStream, StreamExt};
 use serde_json::{Map, Value};
 use tokio::sync::{watch, Notify};
 use wsp_adapters::port::{AdapterEvent, AttachRunOptions, Attached, Env, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, OnEvent, SharedFuture, WriteOutcome};
@@ -45,8 +45,8 @@ pub enum Fault {
     Landed,
 }
 
-pub type OnWrite = Arc<dyn Fn(&Value, &Wire) + Send + Sync>;
-pub type WriteFault = Arc<dyn Fn(&Value) -> Option<(Fault, ExecFailure)> + Send + Sync>;
+pub type OnWrite = Arc<dyn Fn(&Value, &Wire)>;
+pub type WriteFault = Arc<dyn Fn(&Value) -> Option<(Fault, ExecFailure)>>;
 
 #[derive(Clone, Default)]
 pub struct WireOpts {
@@ -156,11 +156,11 @@ impl Wire {
 }
 
 impl ExecStream for Wire {
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
         {
             let mut s = self.state.lock().unwrap();
             if s.taken {
-                return futures::stream::empty().boxed();
+                return futures::stream::empty().boxed_local();
             }
             s.taken = true;
         }
@@ -187,7 +187,7 @@ impl ExecStream for Wire {
                 notified.await;
             }
         })
-        .boxed()
+        .boxed_local()
     }
     fn run(&self) -> Option<String> {
         self.run.clone()
@@ -202,23 +202,23 @@ impl ExecStream for Wire {
         self.state.lock().unwrap().order.push("kill".into());
         self.exit(None);
     }
-    fn write(&self, line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+    fn write(&self, line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
         if self.state.lock().unwrap().done {
-            return async { Ok(WriteOutcome::Gone) }.boxed();
+            return async { Ok(WriteOutcome::Gone) }.boxed_local();
         }
         let message = parse(&line);
         let fault = self.opts.fault.as_ref().and_then(|f| f(&message));
         if let Some((Fault::Lost, failure)) = &fault {
             let failure = failure.clone();
-            return async move { Err(failure) }.boxed();
+            return async move { Err(failure) }.boxed_local();
         }
         self.state.lock().unwrap().written.push(message.clone());
         if let Some(on_write) = &self.opts.on_write {
             on_write(&message, self);
         }
         match fault {
-            Some((_, failure)) => async move { Err(failure) }.boxed(),
-            None => async { Ok(WriteOutcome::Written) }.boxed(),
+            Some((_, failure)) => async move { Err(failure) }.boxed_local(),
+            None => async { Ok(WriteOutcome::Written) }.boxed_local(),
         }
     }
     fn close_input(&self) {
@@ -226,7 +226,7 @@ impl ExecStream for Wire {
         if !self.opts.hang {
             let me = self.clone();
             let code = self.opts.exit_code.unwrap_or(0);
-            tokio::spawn(async move {
+            tokio::task::spawn_local(async move {
                 tokio::task::yield_now().await;
                 me.exit(Some(code));
             });
@@ -244,14 +244,14 @@ impl ExecStream for Wire {
                 }
             }
         }
-        .boxed()
+        .boxed_local()
         .shared()
     }
 }
 
 /// A recorded server: everything up to its answer to the thread request once that request arrives, the rest once a
 /// turn starts. TS adapter.test.ts:107.
-pub fn server(lines: Vec<String>, opts: WireOpts) -> impl Fn(&[String]) -> Wire + Send + Sync + 'static {
+pub fn server(lines: Vec<String>, opts: WireOpts) -> impl Fn(&[String]) -> Wire + 'static {
     let split = lines.iter().position(|l| l.contains(r#""id":"wsp-thread""#)).map(|i| i + 1).unwrap_or(0);
     let head: Vec<String> = lines[..split].to_vec();
     let tail: Vec<String> = lines[split..].to_vec();
@@ -273,7 +273,7 @@ pub fn server(lines: Vec<String>, opts: WireOpts) -> impl Fn(&[String]) -> Wire 
 }
 
 /// A server scripted by hand: `on_write` answers what wsp writes; the seed goes through it.
-pub fn scripted_server(opts: WireOpts) -> impl Fn(&[String]) -> Wire + Send + Sync + 'static {
+pub fn scripted_server(opts: WireOpts) -> impl Fn(&[String]) -> Wire + 'static {
     move |seed: &[String]| {
         let w = wire(opts.clone());
         w.seed(seed);
@@ -289,8 +289,8 @@ pub struct Call {
     pub secret_input: bool,
 }
 
-type Make = Arc<dyn Fn(&[String]) -> Wire + Send + Sync>;
-type AttachFn = Arc<dyn Fn(&str, AttachRunOptions) -> BoxFuture<'static, Result<Attached, ExecFailure>> + Send + Sync>;
+type Make = Arc<dyn Fn(&[String]) -> Wire>;
+type AttachFn = Arc<dyn Fn(&str, AttachRunOptions) -> LocalBoxFuture<'static, Result<Attached, ExecFailure>>>;
 
 /// The exec factory under test: every launch recorded, each process a wire.
 #[derive(Clone)]
@@ -301,7 +301,7 @@ pub struct Launch {
     pub attach_with: Arc<Mutex<Option<AttachFn>>>,
 }
 
-pub fn launcher(make: impl Fn(&[String]) -> Wire + Send + Sync + 'static) -> Launch {
+pub fn launcher(make: impl Fn(&[String]) -> Wire + 'static) -> Launch {
     Launch { make: Arc::new(make), calls: Arc::new(Mutex::new(Vec::new())), wires: Arc::new(Mutex::new(Vec::new())), attach_with: Arc::new(Mutex::new(None)) }
 }
 
@@ -321,7 +321,7 @@ impl Launch {
     pub fn wire_count(&self) -> usize {
         self.wires.lock().unwrap().len()
     }
-    pub fn set_attach(&self, f: impl Fn(&str, AttachRunOptions) -> BoxFuture<'static, Result<Attached, ExecFailure>> + Send + Sync + 'static) {
+    pub fn set_attach(&self, f: impl Fn(&str, AttachRunOptions) -> LocalBoxFuture<'static, Result<Attached, ExecFailure>> + 'static) {
         *self.attach_with.lock().unwrap() = Some(Arc::new(f));
     }
 }
@@ -334,7 +334,7 @@ impl ExecStreamFactory for Launch {
         self.wires.lock().unwrap().push(w.clone());
         w.stream()
     }
-    fn attach(&self, run: &str, options: AttachRunOptions) -> Option<BoxFuture<'static, Result<Attached, ExecFailure>>> {
+    fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
         let f = self.attach_with.lock().unwrap().clone()?;
         Some(f(run, options))
     }

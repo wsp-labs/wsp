@@ -13,9 +13,10 @@ draft, rename, conversation read, a terminal's `codex`) is started with.
 ## Behaviour
 1. `slug(name, v)` passes `^[A-Za-z0-9][A-Za-z0-9._:-]*$` or refuses with `<name> must be a plain slug, got "<v>"` (command.ts:257).
 2. `build_env` (command.ts:66): the home is `js_trim`med and must start with `/`, else `home must be an absolute path, got "<home as given>"`.
-   The base drops entries whose value is absent, keeps order, then sets `CODEX_HOME`, then the key variables. A base that already
-   holds `CODEX_HOME` keeps its position with the new value (JS spread; `IndexMap::insert` does the same).
-3. Keys with no broker (command.ts:62): an API key goes under `CODEX_API_KEY` then `OPENAI_API_KEY`, none where no key.
+   The base drops entries whose value is absent, keeps order, then sets `CODEX_HOME`, then the key variables. Every key set after the base
+   (`CODEX_HOME`, the key variables, `WSP_CODEX_KEY`, the two overrides) keeps the base's position where the base holds it (JS spread;
+   `IndexMap::insert` does the same, CM1).
+3. Keys with no broker (command.ts:62): an API key goes under `CODEX_API_KEY` then `OPENAI_API_KEY`, none where the key is absent; an empty key is a key (CM2).
 4. Keys under a broker (command.ts:52): ChatGPT mode with a key refuses `a turn on the host's ChatGPT login carries no key; its login is
    a placeholder`. API-key mode with no key sets nothing; a key not matching `^[A-Za-z0-9._~+/=-]+$` refuses `a turn on the host's API key
    needs the placeholder key the host shaped for it, one plain word`; else `WSP_CODEX_KEY=<key>`. `brokered_codex_env` adds
@@ -24,12 +25,13 @@ draft, rename, conversation read, a terminal's `codex`) is started with.
 6. `build_command` (command.ts:326): `inFolder(cwd, [...steps, server].join(" && "))`, server being `agentWord("codex", launch) app-server`,
    the launch words, `-c tools.update_plan.enabled='true'`, the broker's flags, the MCP servers' flags, the off servers' flags, joined
    by one space. Steps and flags: no broker gives none; `side_run: true` (the TS `turn: false`) gives the no-login line; else the turn's brokered line at `now`.
-   With no cwd the line starts `cd ~ && `.
+   With no cwd the line starts `cd ~ && `; an empty cwd is a folder (`cd '' && `). The launch words follow `app-server` at once, each
+   shell-quoted, before `-c tools.update_plan.enabled='true'` (CM3).
 7. Placeholder login (command.ts:103), exact text: the body is `umask 077 && mkdir -p "$CODEX_HOME"` then the write steps, joined by
    ` && `. A turn wraps it as `( : "${WSP_HOST_TOKEN:?a turn whose credentials the host keeps was launched without its token}"<guard> && <body> )`,
    the guard being ` && : "${WSP_CODEX_KEY:?a turn on the key the host keeps was launched without its placeholder key}"` in API-key mode.
    Any other launch writes `{ [ -z "${<needs>:-}" ] || ( <body> ); }`, needs being `WSP_CODEX_KEY` (API key) or `WSP_HOST_TOKEN`.
-8. API-key login file: `{"auth_mode":"apikey","OPENAI_API_KEY":<mark>}`. ChatGPT: payload `{"exp":floor(now/1000)+31536000,
+8. API-key login file: `{"auth_mode":"apikey","OPENAI_API_KEY":<mark>}`. ChatGPT: payload `{"exp":floor(now/1000)+31536000` (a floor: `div_euclid`, so a negative now rounds down),
    "https://api.openai.com/auth":{"chatgpt_account_id":..,["chatgpt_plan_type"],["chatgpt_user_id"],"chatgpt_account_is_fedramp":fedramp===true},
    "https://wsp.dev/turn":<turn mark>}`; jwt `<base64url({"alg":"none","typ":"JWT"})>.<$jwt>.wsp`; file `{"auth_mode":"chatgpt",
    "OPENAI_API_KEY":null,"tokens":{"id_token":jwt,"access_token":jwt,"refresh_token":"rt_wsp_"+turn mark,"account_id":..},
@@ -49,13 +51,13 @@ draft, rename, conversation read, a terminal's `codex`) is started with.
     auth command becomes `auth.command="sh"` and `auth.args=["-c","printf %s \"sk-wsp-$WSP_HOST_TOKEN\""]`; a bearer token becomes
     `-c model_providers.<id>.experimental_bearer_token='"sk-wsp-'"$WSP_HOST_TOKEN"'"'`; a keyed entry gets `env_key="WSP_CODEX_PROVIDER_KEY"`;
     then every `http_headers` key blanked as `{"K"=""}` joined by commas.
-12. MCP servers (command.ts:272), in the record's key order: a name failing `^[A-Za-z0-9_-]+$` refuses `an MCP server name must be one
+12. MCP servers (command.ts:272), in JS object order: integer-like names first, ascending, then the rest as inserted (CM4): a name failing `^[A-Za-z0-9_-]+$` refuses `an MCP server name must be one
     plain word of a config key, got "<name>"`. Each entry is `command` then `args` (JSON); the servers named `wsp` and `wsp_slate` also
     get `env_vars` = `["WSP_HOST_URL","WSP_HOST_TOKEN","WSP_HOST_KEY","WSP_TURN","WSP_THREAD"]` and `tool_timeout_sec='3600'`. The `wsp`
     server of a launch with a slate (`wsp` present and not `noSlate`) is followed by `wsp.disabled_tools` = the four slate tools, the
     whole `wsp_slate` entry on the same spec, `wsp_slate.enabled_tools`, `wsp_slate.omit_tools_from='["deferred"]'`, and one
     `wsp_slate.tools.<tool>.approval_mode="approve"` per slate tool (`slate_catalog`, `slate_write`, `slate_state`, `slate_read`).
-13. Off servers (command.ts:306): a name failing the server-name pattern is dropped silently; each other is
+13. Off servers (command.ts:306): a name failing the server-name pattern is dropped silently, and a repeated name is written again (CM4); each other is
     `$(grep -Eqs '^[[:space:]]*(\[mcp_servers\.<n>[].]|mcp_servers\.<n>\.)' "$CODEX_HOME/config.toml" && printf %s '-c mcp_servers.<n>.enabled=false')`.
 14. `access_params(None | "danger-full-access")` is `danger-full-access`/`never`; `read-only` and `workspace-write` keep their sandbox with
     `on-request`; anything else refuses `permissionMode must be one of read-only, workspace-write, danger-full-access, got "<mode>"`.
@@ -82,6 +84,18 @@ draft, rename, conversation read, a terminal's `codex`) is started with.
 ## After the port
 - An `http_headers` array is blanked by index; a person's config never holds one, but the TS would write `{"0"=""}`.
 
+## Rules added for the port (each value printed by the TS at 65f6b89c7)
+
+- **CM1.** Base `{A, CODEX_HOME:/old, B, CODEX_API_KEY:old, OPENAI_API_KEY:old2, GONE:absent}`, home `/h`, key `k` gives, in order,
+  `A=1, CODEX_HOME=/h, B=2, CODEX_API_KEY=k, OPENAI_API_KEY=k`.
+- **CM2.** An empty base and key `""` give `CODEX_HOME=/h, CODEX_API_KEY=, OPENAI_API_KEY=`.
+- **CM3.** cwd `""` and launch `{program: /opt/cx, args: ["--x", "a b", "it's", ""]}` give
+  `cd '' && <agent word> '/opt/cx' app-server '--x' 'a b' 'it'\''s' '' -c tools.update_plan.enabled='true'`.
+- **CM4.** Servers inserted `b, 10, 2, a` are written `2, 10, b, a`; off names `dup, dup, "", "b c", a.b, ok` write `dup, dup, ok`.
+- After-port: a user's own `wsp_slate` server beside a slate launch is written twice, the generated block first; `apiKey: ""` with no
+  broker writes empty key variables.
+- **CM5.** `now = -1500` writes `"exp":31535998` (a floor, not a truncation) and `"last_refresh":"1969-12-31T23:59:58.500Z"`.
+
 ## Tests (tests/codex_command.rs, 42; TS 18 + 29 less 5 moved)
 - Rules 1, 17: through the store and title files (`refuse_an_id_that_is_not_a_plain_slug_before_anything_runs`); images in
   `codex_turn.rs` `images_ride_the_turn_as_local_paths_and_one_with_no_path_on_the_machine_is_refus`.
@@ -95,3 +109,5 @@ draft, rename, conversation read, a terminal's `codex`) is started with.
 - Rule 14: `access_params_cases::*` (4).
 - Rules 15, 16: `every_other_codex_launch_on_a_brokered_machine::a_title_hands_codex_the_broker_s_overrides_after_exec_beside_its_own`,
   `codex_typed_in_a_terminal_on_a_brokered_machine::*` (5: PATH filter, `--skip-git-repo-check` once, key file, CODEX_HOME default, no token).
+- CM1 to CM4: `rules_added::*` in `codex_command.rs` (3 tests).
+- CM5: `rules_added_now::the_login_s_expiry_floors_a_negative_now_and_its_stamp_is_the_js_iso_string`.
