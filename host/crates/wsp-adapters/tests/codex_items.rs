@@ -355,3 +355,102 @@ fn a_threads_rollout_is_found_three_folders_under_sessions_by_its_name_end() {
     let file = rollout_in("/root/.codex", "01a0");
     assert_eq!((file.folder.as_str(), file.name.as_str(), file.depth), ("/root/.codex/sessions", "-01a0.jsonl", 3));
 }
+
+/// Rules CI1 to CI9 of spec/codex_items.md, "Rules added for the port", each value printed by the TS at 65f6b89c7 (the
+/// module-private helpers run from a copy of adapter.ts with exports added).
+mod rules_added {
+    use super::*;
+
+    const ROAD: &str = ". Put a working key in ~/.wsp/.env, or sign Codex in where this thread runs with codex login --device-auth.";
+
+    fn words(line: &str) -> Option<FailureWords> {
+        Some(FailureWords { line: line.into(), cause: Some(TurnRefusal::SignIn) })
+    }
+
+    #[test]
+    fn a_refused_key_s_reason_is_cut_to_80_units_an_empty_key_env_is_one_and_401_beats_a_missing_variable() {
+        // CI1; adapter.ts:288-295, words/places.ts:315.
+        let long = "x".repeat(100);
+        assert_eq!(failure_words(&format!("401 Unauthorized: {long}"), LOGIN, Some("OPENAI_API_KEY")), words(&format!("OpenAI refused your OPENAI_API_KEY: {}{ROAD}", "x".repeat(80))));
+        assert_eq!(failure_words("401 Unauthorized:", LOGIN, Some("OPENAI_API_KEY")), words(&format!("OpenAI refused your OPENAI_API_KEY{ROAD}")));
+        assert_eq!(failure_words("401 Unauthorized: bad", LOGIN, Some("")), words(&format!("OpenAI refused your : bad{ROAD}")));
+        assert_eq!(failure_words("401 Unauthorized and Missing environment variable: `K`", LOGIN, None), words("Codex is not signed in where this thread runs; run codex login --device-auth there"));
+        assert_eq!(failure_words("Missing environment variable: ``", LOGIN, None), None);
+    }
+
+    #[test]
+    fn a_patch_takes_the_diff_road_for_any_kind_but_add_and_delete_and_a_move_alone_is_a_patch() {
+        // CI2; adapter.ts:305-338. changes_of keeps an empty kind, file_patches has no "change" default.
+        let hunk = |os: i64, ol: i64, ns: i64, nl: i64, lines: &[&str]| PatchHunk { old_start: os.into(), old_lines: ol.into(), new_start: ns.into(), new_lines: nl.into(), lines: lines.iter().map(|s| s.to_string()).collect() };
+        assert_eq!(file_patches(Some(&json!([{"path": "a", "diff": "@@ -1 +1 @@\n-a\n+b\n"}]))), Some(vec![FilePatch { path: "a".into(), hunks: vec![hunk(1, 1, 1, 1, &["-a", "+b"])], moved_to: None }]));
+        assert_eq!(file_patches(Some(&json!([{"path": "n", "kind": {"type": "add"}, "diff": "\n"}]))), Some(vec![FilePatch { path: "n".into(), hunks: vec![hunk(0, 0, 1, 1, &["+"])], moved_to: None }]));
+        assert_eq!(file_patches(Some(&json!([{"path": "m", "kind": {"type": "update"}, "diff": "\n\nMoved to: b.ts"}]))), Some(vec![FilePatch { path: "m".into(), hunks: vec![], moved_to: Some("b.ts".into()) }]));
+        assert_eq!(changes_of(Some(&json!([{"path": "p", "kind": {"type": ""}}, null, {}]))), vec![Change { path: "p".into(), kind: String::new() }, Change { path: String::new(), kind: "change".into() }]);
+        assert_eq!(change_lines(Some(&json!([{"path": "p", "kind": {"type": ""}}]))), "p");
+    }
+
+    #[test]
+    fn reasoning_reads_summary_whenever_it_holds_a_string_even_an_empty_one() {
+        // CI3; adapter.ts:410-414.
+        let reasoning = |summary: Value, content: Value| deltas(item_deltas(true, &obj(json!({"type": "reasoning", "id": "r", "summary": summary, "content": content})), "S"));
+        assert_eq!(reasoning(json!([""]), json!(["c"])), vec![]);
+        assert_eq!(reasoning(json!(["", ""]), json!([])), vec![TurnDelta::new("S", DeltaKind::Thinking, "\n")]);
+        assert_eq!(reasoning(json!([5]), json!(["c"])), vec![TurnDelta::new("S", DeltaKind::Thinking, "c")]);
+    }
+
+    #[test]
+    fn only_completed_is_success_and_a_failed_call_with_null_content_says_an_empty_list() {
+        // CI4; adapter.ts:425-460.
+        let mcp = deltas(item_deltas(true, &obj(json!({"type": "mcpToolCall", "id": "m", "server": "", "tool": "", "status": "failed", "result": {"content": null}})), "S"));
+        assert_eq!(mcp, vec![TurnDelta { tool_use_id: Some("m".into()), is_error: Some(true), ..TurnDelta::new("S", DeltaKind::ToolResult, "[]") }]);
+        let command = deltas(item_deltas(true, &obj(json!({"type": "commandExecution", "id": "c", "command": "ls"})), "S"));
+        assert_eq!(command, vec![TurnDelta { tool_use_id: Some("c".into()), is_error: Some(true), ..TurnDelta::new("S", DeltaKind::ToolResult, "") }]);
+    }
+
+    #[test]
+    fn a_path_s_depth_counts_its_non_empty_segments_less_one_never_below_one() {
+        // CI5; adapter.ts:467.
+        assert_eq!(["", "/", "x/y/z/w", "//root//a//"].map(depth_of), [1, 1, 3, 1]);
+    }
+
+    #[test]
+    fn a_compaction_is_the_js_trimmed_prompt_alone_and_drops_images_and_effort() {
+        // CI6; adapter.ts:495-499. JS trim takes U+2003 and U+FEFF, not U+200B; an empty effort is written.
+        let compact = r#"{"id":"wsp-turn","method":"thread/compact/start","params":{"threadId":"T"}}"#;
+        assert_eq!(turn_line_for("T", "/compact", &["/a.png".into()], Some("high")), compact);
+        assert_eq!(turn_line_for("T", "\u{2003}/compact\u{FEFF}", &[], None), compact);
+        assert_eq!(turn_line_for("T", "/compact\u{200B}", &[], None), "{\"id\":\"wsp-turn\",\"method\":\"turn/start\",\"params\":{\"threadId\":\"T\",\"input\":[{\"type\":\"text\",\"text\":\"/compact\u{200B}\"}]}}");
+        assert_eq!(turn_line_for("T", "x", &[], Some("")), r#"{"id":"wsp-turn","method":"turn/start","params":{"threadId":"T","input":[{"type":"text","text":"x"}],"effort":""}}"#);
+    }
+
+    #[test]
+    fn a_turn_start_is_an_object_line_whose_method_starts_a_turn_or_a_compaction() {
+        // CI7; adapter.ts:501-509.
+        let got = ["null", "5", "[]", r#""turn/start""#, r#"{"method":5}"#, "", r#" {"id":"wsp-turn","method":"turn/start"} "#, r#"{"method":"thread/compact/start"}"#].map(is_turn_start);
+        assert_eq!(got, [false, false, false, false, false, false, true, true]);
+    }
+
+    #[test]
+    fn a_call_s_arguments_are_written_as_js_writes_them_integer_keys_first_and_js_numbers() {
+        // CI8; adapter.ts:397 (`JSON.stringify(item.arguments)`), the coordinator's ruling on a whole-value JS writer.
+        let call = deltas(item_deltas(false, &obj(json!({"type": "mcpToolCall", "id": "m", "server": "s", "tool": "t", "arguments": {"b": 1, "2": "x", "a": 2, "1": "y", "f": 1.0, "g": 1e21}})), "S"));
+        assert_eq!(
+            call,
+            vec![TurnDelta { tool_name: Some("mcp__s__t".into()), tool_use_id: Some("m".into()), ..TurnDelta::new("S", DeltaKind::ToolUse, r#"{"1":"y","2":"x","b":1,"a":2,"f":1,"g":1e+21}"#) }]
+        );
+    }
+
+    #[test]
+    fn child_tokens_over_no_lead_start_from_zero_and_only_breakdown_names_count() {
+        // CI9; adapter.ts:476-493.
+        let mut bogus = ChildTokens::new();
+        bogus.insert("bogus".into(), 5.0);
+        let n = |v: f64| Some(JsNumber(v));
+        assert_eq!(with_child_tokens(None, &bogus), Some(TurnTokens { input: JsNumber(0.0), output: JsNumber(0.0), cached: None, cache_write: None, reasoning: None, context: n(0.0), window: None }));
+        let mut kids = ChildTokens::new();
+        kids.insert("reasoning".into(), 2.0);
+        kids.insert("input".into(), 1.0);
+        let lead = TurnTokens { input: JsNumber(6.0), output: JsNumber(2.0), cached: None, cache_write: None, reasoning: None, context: n(3.0), window: n(9.0) };
+        assert_eq!(with_child_tokens(Some(lead), &kids), Some(TurnTokens { input: JsNumber(7.0), output: JsNumber(2.0), cached: None, cache_write: None, reasoning: n(2.0), context: n(3.0), window: n(9.0) }));
+    }
+}

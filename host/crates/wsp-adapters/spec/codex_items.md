@@ -19,9 +19,9 @@ keys on.
    `{attempt: n, of: m, why}`; why is `the provider answered <status>` where `info.responseStreamDisconnected.httpStatusCode` is a number,
    else `the connection dropped`. `Reconnecting...` alone gives none.
 4. `item_of(params)` (:297): `params.item` an object with string `id` and string `type` (`""` counts).
-5. `changes_of` (:305): each object of an array as `{path: string or "", kind: kind.type, else kind as a string, else "change"}`; not an
+5. `changes_of` (:305): each object of an array as `{path: string or "", kind: kind.type (`""` counts, CI2), else kind as a string, else "change"}`; not an
    array is `[]`. `change_lines` is each `"<kind> <path>"` trimmed, joined by `\n`.
-6. `file_patches` (:319): each change object with a non-empty string `path`; kind as in 5. `add` and `delete` with a non-empty diff are one
+6. `file_patches` (:319): each change object with a non-empty string `path`; the kind has no default here: anything but `add` or `delete`, absent included, takes the diff road (CI2). `add` and `delete` with a non-empty diff are one
    `wholeFileHunk(diff, "+" | "-")`; empty diff gives nothing. Any other kind: a diff ending `\n\nMoved to: <path>` (no newline in the path,
    at the very end) is cut there and carries `movedTo`; `unifiedHunks` of the rest; no hunks and no move gives nothing. No patch at all is
    absent, never `[]`. Read only off a completed item (rule 8).
@@ -67,11 +67,34 @@ keys on.
 - Rule 4.25: a number written into a sentence (`the provider answered 401`) or re-stringified JSON uses the JS formatter.
 
 ## Decisions
-1. `JSON.stringify(item.arguments)` re-writes a parsed value. serde_json writes an integral float such as `1.0` as `1.0` where JS writes `1`;
-   the port writes the value through `wsp_wire`'s JS stringify where it exists, else serde_json (an accepted difference, numbers only).
+1. `JSON.stringify(item.arguments)` re-writes a parsed value: integer-like keys first ascending, then the rest as inserted, and every
+   number by JS rules (`1.0` is `1`, `1e21` is `1e+21`). The port writes it through `wsp_wire`'s whole-value JS writer (the coordinator's
+   ruling on #2447, item 4), not serde_json (CI8).
 
 ## After the port
 - Nothing.
+
+## Rules added for the port (each value printed by the TS at 65f6b89c7; the private helpers run from a copy of adapter.ts)
+
+- **CI1.** A refused key's reason is cut with `trim().slice(0, 80).trim()` in UTF-16 units and dropped with its `: ` where empty; an
+  empty `key_env` is a key env (`OpenAI refused your : bad. ...`); `401 Unauthorized` beats a missing variable in one message; a
+  missing variable named `` ` ` `` (empty) is no match.
+- **CI2.** `file_patches`: a change with no kind and a diff `@@ -1 +1 @@\n-a\n+b\n` is one hunk `{1,1,1,1,["-a","+b"]}`; an add of
+  `"\n"` is one hunk `{0,0,1,1,["+"]}`; an update of `"\n\nMoved to: b.ts"` is `{path, hunks: [], movedTo: "b.ts"}`. `changes_of` keeps
+  `kind: {type: ""}` as `""`, drops `null`, and reads `{}` as `{path: "", kind: "change"}`; `change_lines` of `{p, ""}` is `p`.
+- **CI3.** Reasoning reads `summary`'s string entries whenever there is one, even `""`: `summary: [""]` with `content: ["c"]` says
+  nothing; `["", ""]` says thinking `"\n"`; `[5]` falls to `content`.
+- **CI4.** Only the status string `completed` is success: a `commandExecution` with no status ends `isError: true` with text `""`; a
+  failed `mcpToolCall` whose `result.content` is `null` says `[]`.
+- **CI5.** `depth_of`: `""` 1, `"/"` 1, `"x/y/z/w"` 3, `"//root//a//"` 1.
+- **CI6.** `/compact` with images and effort is the compaction line alone; JS trim takes U+2003 and U+FEFF, not U+200B; `effort: ""` is written.
+- **CI7.** `is_turn_start`: `null`, `5`, `[]`, `"turn/start"`, `{"method":5}`, `""` are false; a padded turn start and a compaction are true.
+- **CI8.** A call's `arguments` `{b:1, "2":"x", a:2, "1":"y", f:1.0, g:1e21}` draw `{"1":"y","2":"x","b":1,"a":2,"f":1,"g":1e+21}`.
+- **CI9.** `with_child_tokens(None, {bogus: 5})` is `{input 0, output 0, context 0}` (a name outside the breakdown never lands);
+  lead `{6, 2, context 3, window 9}` with children `{reasoning 2, input 1}` is `{input 7, output 2, reasoning 2, context 3, window 9}`.
+  The TS key order (lead's keys, then new ones) is wsp-wire's struct order here, the same accepted difference as the TurnResult's.
+- After-port: a `reasoning` item with `summary: [""]` drops a non-empty `content`; `file_patches` and `changes_of` read the kind
+  differently; `failure_words` is fed `message + " " + additionalDetails`, so the reason runs on into the details.
 
 ## Tests (tests/codex_items.rs, 30, written for this port; red on todo!())
 - Rule 1: `a_401_with_a_key_handed_is_the_refused_key_line_with_the_providers_reason_and_no`,
@@ -92,3 +115,4 @@ keys on.
 - Rule 11: `a_childs_end_depth_and_a_plan_steps_state_read_in_the_shared_words`, `the_plan_reads_each_step_and_its_state_skipping_what_is_not_an_object`.
 - Rules 12, 13: `compact_alone_is_the_servers_compaction_and_with_words_after_it_a_turn`, `a_line_already_starting_a_turn_is_told_apart_from_any_other`,
   `a_threads_rollout_is_found_three_folders_under_sessions_by_its_name_end`.
+- CI1 to CI9: `rules_added::*` in `codex_items.rs` (9 tests).

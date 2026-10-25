@@ -1288,3 +1288,172 @@ mod what_the_machine_holds_for_a_session_codex_would_not_resume {
         assert!(shape.is_match(&line), "{line}");
     }
 }
+
+/// Rules CA1 to CA6 of spec/codex_adapter.md, "Rules added for the port", each value printed by the TS at 65f6b89c7.
+mod rules_added {
+    use super::*;
+    use wsp_adapters::codex::adapter::AttachedSession;
+    use wsp_adapters::port::{AdapterAttachOptions, AnswerOutcome, PermissionAnswer, PermissionOutcome, SteerOutcome, TaskStop, TurnImage, PERMISSION_ALLOW};
+
+    fn image(path: Option<&str>) -> TurnImage {
+        TurnImage { media_type: "image/png".into(), bytes: String::new(), path: path.map(String::from) }
+    }
+
+    fn refusal(adapter: &CodexAdapter, o: HarnessStartOptions) -> String {
+        match adapter.start(HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..o }) {
+            Ok(_) => panic!("the start was taken"),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    #[test]
+    fn a_start_refuses_in_one_order_before_anything_launches() {
+        // CA1; adapter.ts:1262-1277: the context window, each image in order, the permission mode, then fork with resume.
+        let launch = launcher(scripted(vec![], false));
+        let a = adapter_over(&launch);
+        let fork = Some(("s".to_string(), "t".to_string()));
+        let all = HarnessStartOptions { context_window: Some(String::new()), images: vec![image(Some("rel")), image(None)], permission_mode: Some("bogus".into()), resume: Some(THREAD_ID.into()), fork: fork.clone(), ..Default::default() };
+        assert_eq!(refusal(&a, all), "codex takes no context window");
+        let bad_first = HarnessStartOptions { images: vec![image(Some("rel")), image(None)], permission_mode: Some("bogus".into()), resume: Some(THREAD_ID.into()), fork: fork.clone(), ..Default::default() };
+        assert_eq!(refusal(&a, bad_first), r#"an image path must be one absolute path on the machine, got "rel""#);
+        assert_eq!(refusal(&a, HarnessStartOptions { images: vec![image(None), image(Some("rel"))], ..Default::default() }), "codex reads images off the machine's disk; this one has no path on it");
+        let mode = HarnessStartOptions { permission_mode: Some(String::new()), resume: Some(THREAD_ID.into()), fork: fork.clone(), ..Default::default() };
+        assert_eq!(refusal(&a, mode), r#"permissionMode must be one of read-only, workspace-write, danger-full-access, got """#);
+        assert_eq!(refusal(&a, HarnessStartOptions { resume: Some(THREAD_ID.into()), copy: true, fork, ..Default::default() }), "a codex start forks a thread or resumes one, never both");
+        assert_eq!(launch.wire_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn an_empty_resume_is_a_resume_under_the_empty_id() {
+        // CA2; adapter.ts:1268 (`resume ?? randomUUID()`), no slug check.
+        let launch = answering(|m, w| match method(m) {
+            "thread/resume" => w.push(&opened(THREAD_ID)),
+            "turn/start" => w.push(&[turn_started(), completed("completed")]),
+            _ => {}
+        });
+        let a = adapter_over(&launch);
+        let session = a.start(HarnessStartOptions { prompt: "go".into(), resume: Some(String::new()), on_event: Some(no_events()), ..Default::default() }).unwrap();
+        let _ = session.finished().await;
+        assert_eq!(session.local_id(), "");
+        assert_eq!(find_method(&launch.wire(0), "thread/resume"), json!({"id":"wsp-thread","method":"thread/resume","params":{"threadId":"","excludeTurns":true,"sandbox":"danger-full-access","approvalPolicy":"never"}}));
+        assert_eq!(a.sessions().keys().cloned().collect::<Vec<_>>(), vec![String::new()]);
+    }
+
+    #[tokio::test]
+    async fn a_kept_server_s_next_turn_joins_the_registry_under_the_thread_id_beside_the_first() {
+        // CA3; adapter.ts:1229-1255 (`nextOn` follows with the thread id as its local id), 1225.
+        let launch = answering(|m, w| match method(m) {
+            "thread/start" | "thread/resume" => w.push(&opened(THREAD_ID)),
+            "turn/start" => w.push(&[turn_started(), agent_message("m1", "ok"), completed("completed")]),
+            _ => {}
+        });
+        let a = create_codex_adapter(CodexAdapterDeps { result_exit_ms: Some(10), interrupt_grace_ms: Some(10), ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", LOGIN) }).unwrap();
+        let first = a.start(HarnessStartOptions { prompt: "go".into(), keep: true, on_event: Some(no_events()), ..Default::default() }).unwrap();
+        let _ = first.finished().await;
+        let kept = first.kept().expect("the server is kept");
+        let next = (kept.next)(KeptTurn { prompt: "again".into(), images: vec![], after: None, on_event: no_events() }).unwrap();
+        let _ = next.finished().await;
+        assert_eq!(a.sessions().keys().cloned().collect::<Vec<_>>(), vec![first.local_id(), THREAD_ID.to_string()]);
+        assert_eq!(next.local_id(), THREAD_ID);
+        assert_eq!(launch.wire_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_lost_session_whose_second_launch_is_refused_fails_in_its_words_under_the_new_launch_s_id() {
+        // CA4; lost-session.ts:66-96. Only the second launch's end reaches the caller; the registry holds the first
+        // launch's local id (the resume) and the second launch's own fresh id.
+        let launch = answering(|m, w| match method(m) {
+            "thread/resume" => w.push(&[opened(THREAD_ID)[0].clone(), format!(r#"{{"error":{{"code":-32600,"message":"no rollout found for thread id {THREAD_ID}"}},"id":"wsp-thread"}}"#)]),
+            "thread/start" => w.push(&[opened(THREAD_ID)[0].clone(), r#"{"error":{"code":-32600,"message":"boom on second"},"id":"wsp-thread"}"#.to_string()]),
+            _ => {}
+        });
+        let a = adapter_over(&launch);
+        let events = Events::default();
+        let session = a
+            .start(HarnessStartOptions {
+                prompt: "what?".into(),
+                resume: Some(THREAD_ID.into()),
+                seed: Some(Arc::new(|| async { Ok("person: hi".to_string()) }.boxed_local())),
+                on_event: Some(events.on_event()),
+                ..Default::default()
+            })
+            .unwrap();
+        let words = "codex could not open the thread: boom on second";
+        assert_eq!(session.finished().await, TurnResult { error: Some(words.into()), ..result_of(TurnStatus::Failed) });
+        assert_eq!(events.kinds(), ["turn.done", "session.end"]);
+        let second = match &events.all()[1] {
+            AdapterEvent::SessionEnd { session_id, exit_code: Some(0), saw_result: true, .. } => session_id.clone(),
+            other => panic!("{other:?}"),
+        };
+        assert_ne!(second, THREAD_ID);
+        assert_eq!(launch.wire_count(), 2);
+        assert_eq!(session.local_id(), THREAD_ID);
+        let keys: Vec<String> = a.sessions().keys().cloned().collect();
+        assert_eq!(keys, vec![THREAD_ID.to_string(), second]);
+    }
+
+    #[tokio::test]
+    async fn a_revert_by_count_pages_at_most_100_at_a_time_and_a_count_of_none_writes_nothing_past_the_resume() {
+        // CA5; turn-pages.ts:44-88.
+        let ids: Vec<String> = (0..250).map(|i| format!("r{i}")).collect();
+        let launch = answering(move |m, w| match method(m) {
+            "thread/resume" => w.push1(json!({"id":"wsp-thread","result":{"thread":{"id":THREAD_ID,"turns":[]},"model":"gpt-5.6-sol"}}).to_string()),
+            "thread/turns/list" => {
+                let from = m["params"]["cursor"].as_str().map(|c| c.parse::<usize>().unwrap()).unwrap_or(0);
+                let limit = m["params"]["limit"].as_u64().unwrap() as usize;
+                let data: Vec<Value> = ids.iter().skip(from).take(limit).map(|id| json!({"id": id, "items": [], "status": "completed"})).collect();
+                let next = if from + limit < ids.len() { json!((from + limit).to_string()) } else { Value::Null };
+                w.push1(json!({"id": m["id"], "result": {"data": data, "nextCursor": next}}).to_string());
+            }
+            "thread/revert" => w.push1(json!({"id":"wsp-revert","result":{"thread":{"id":THREAD_ID,"turns":[]}}}).to_string()),
+            _ => {}
+        });
+        let reverted = adapter_over(&launch).revert(RevertAsk { session: THREAD_ID.into(), cwd: None, at: RevertAt::Turns((0..250).map(|_| done("x")).collect()) }).await.unwrap();
+        assert_eq!(reverted, Reverted::Cut);
+        let w = launch.wire(0);
+        let limits: Vec<Value> = w.written_method("thread/turns/list").into_iter().map(|m| m["params"]["limit"].clone()).collect();
+        assert_eq!(limits, [json!(100), json!(100), json!(50)]);
+        assert_eq!(find_method(&w, "thread/revert"), json!({"id":"wsp-revert","method":"thread/revert","params":{"threadId":THREAD_ID,"beforeTurnId":"r249"}}));
+
+        let zero = answering(|m, w| {
+            if method(m) == "thread/resume" {
+                w.push1(json!({"id":"wsp-thread","result":{"thread":{"id":THREAD_ID,"turns":[]}}}).to_string());
+            }
+        });
+        assert_eq!(adapter_over(&zero).revert(RevertAsk { session: THREAD_ID.into(), cwd: None, at: RevertAt::Turns(vec![]) }).await, Ok(Reverted::Cut));
+        let methods: Vec<String> = zero.wire(0).written().iter().map(|m| method(m).to_string()).collect();
+        assert_eq!(methods, ["initialize", "initialized", "thread/resume"]);
+    }
+
+    #[tokio::test]
+    async fn an_attached_run_that_never_spoke_answers_every_method_as_not_running_and_a_stop_tears_it_down_alone() {
+        // CA6; adapter.ts:1397-1413 with follow's methods before any line.
+        let launch = launcher(scripted(vec![], false));
+        let quiet = wire(WireOpts::default());
+        let stream = quiet.stream();
+        launch.set_attach(move |_, _| {
+            let stream = stream.clone();
+            async move { Ok(wsp_adapters::port::Attached::Stream(stream)) }.boxed_local()
+        });
+        let a = create_codex_adapter(CodexAdapterDeps { steer_join_ms: Some(5), ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", LOGIN) }).unwrap();
+        let events = Events::default();
+        let attached = a
+            .attach(AdapterAttachOptions { run: "/tmp/wsp-run/cd34".into(), session_id: "SESS-1".into(), started_at: 77.0, model: None, cwd: None, prompt: None, effort: None, from: None, steered: None, on_event: events.on_event() })
+            .expect("the factory attaches")
+            .await
+            .unwrap();
+        let AttachedSession::Session(session) = attached else { panic!("gone") };
+        assert_eq!(session.thread_id(), "SESS-1");
+        assert_eq!(session.steer("x".into()).await, SteerOutcome::NotRunning);
+        let allow = PermissionAnswer { option_id: PERMISSION_ALLOW.into(), outcome: PermissionOutcome::Allowed, deny_message: String::new(), reason: None };
+        assert_eq!(session.answer("1".into(), allow).await, Ok(AnswerOutcome::Gone));
+        assert_eq!(session.stop_task("k".into()).await, TaskStop::NotRunning);
+        assert!(session.kept().is_none());
+        session.interrupt().await;
+        assert_eq!(session.finished().await, result_of(TurnStatus::Interrupted));
+        assert_eq!(events.kinds(), ["turn.done", "session.end"]);
+        assert!(matches!(&events.all()[1], AdapterEvent::SessionEnd { session_id, exit_code: Some(0), saw_result: false, .. } if session_id == "SESS-1"));
+        assert!(quiet.written().is_empty());
+        assert_eq!(quiet.order(), ["teardown"]);
+    }
+}
