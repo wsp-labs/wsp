@@ -90,10 +90,10 @@ one `try` with a `finally` that undoes whatever a start that never reached its m
 
 | Rule | Test |
 |---|---|
-| L1, L3 | `the_row_is_held_before_the_machine_is_asked` (session-held.test.ts), `a_send_into_a_running_thread_holds_no_second_row` |
-| L4 | `starting_is_said_once_after_four_seconds_and_not_once_started` (session-opening.test.ts) |
+| L1, L3 | `the_row_is_held_before_the_machine_is_asked` (session-held.test.ts:15; the kept opening, session-opening.test.ts:42), `a_send_into_a_running_thread_holds_no_second_row` |
+| L4 | `starting_is_said_once_after_four_seconds_and_not_once_started` (host/test/first-run.test.ts:128, :173) |
 | L6 | `a_send_behind_a_stops_owed_end_waits_and_says_the_computer` (owed-box.test.ts) |
-| L7, L12 | `a_second_send_queues_behind_the_running_turn` (waiting-behind.test.ts), `a_steering_harness_steers_into_the_running_turn` (runtime-steer.test.ts), `a_lost_steer_falls_to_the_person` (steer-lines.test.ts) |
+| L7, L12 | `a_second_send_queues_behind_the_running_turn` (runtime-steer.test.ts:539, :570), `a_steering_harness_steers_into_the_running_turn` (runtime-steer.test.ts), `a_lost_steer_falls_to_the_person` (sessions.ts:724-727; no TS case) |
 | L10 | `a_full_computer_holds_the_turn_and_tells_the_caller_once` (thread-cap.test.ts) |
 | L11 | `images_land_in_a_folder_of_their_own_per_send` (session-images.test.ts) |
 | L14 | `a_gone_worktree_moves_the_turn_and_says_so` (folder-threads.test.ts) |
