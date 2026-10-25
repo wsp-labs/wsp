@@ -1,0 +1,25 @@
+<slate title="Checkout returning 502s">
+  <value name="endpoints" start={[
+    {path: "POST /payments/confirm", rate: "6.2%", p95: "3.4 s", since: "14:02", tone: "bad"},
+    {path: "POST /checkout", rate: "4.8%", p95: "2.9 s", since: "14:02", tone: "bad"},
+    {path: "POST /cart/coupon", rate: "2.1%", p95: "1.4 s", since: "14:05", tone: "warning"},
+    {path: "GET /orders/:id", rate: "0.3%", p95: "310 ms", since: "14:11", tone: "default"}
+  ]} />
+  <value name="rollback" start="" />
+  <column>
+    <row>
+      <status tone="bad">Investigating</status>
+      <text tone="muted">Started 14:02, 38 min ago</text>
+    </row>
+    <table items={$endpoints} key={item.path}>
+      <col title="Endpoint" value={item.path} mono={true} />
+      <col title="5xx" value={item.rate} tone={item.tone} />
+      <col title="p95" value={item.p95} />
+      <col title="Since" value={item.since} mono={true} />
+    </table>
+    <decision id="rollback" label="Roll back release 2026.10.25-3?" value={$rollback} pick="rollback" onChange={send("Roll back checkout", $rollback)}>
+      <option value="rollback" label="Roll back now" note="It cut the payments pool from 20 to 8" />
+      <option value="patch" label="Raise the pool size" note="A config push, about 6 minutes" />
+    </decision>
+  </column>
+</slate>

@@ -1,0 +1,32 @@
+{
+  "stats": [
+    {"slate": "gallery-stats-pr-review", "scenario": "PR review", "caption": "Checks, resolved threads, files and coverage, over the verdict the agent would post"},
+    {"slate": "gallery-stats-deploy", "scenario": "Deploy", "caption": "Pods on the new version, 5xx and p95 with their trend, then whether to roll the rest"},
+    {"slate": "gallery-stats-test-run", "scenario": "Test run", "caption": "How much of the suite has run, what failed and how long, over the shards still going"},
+    {"slate": "gallery-stats-incident", "scenario": "Incident", "caption": "Error rate climbing, orders falling and time open, then the rollback call"},
+    {"slate": "gallery-stats-research", "scenario": "Research", "caption": "Three figures that answer whether Node 18 can go, and the agent's answer"},
+    {"slate": "gallery-stats-onboarding", "scenario": "Onboarding", "caption": "Accounts ready, first build time and local tests, over the setup steps left"},
+    {"slate": "gallery-stats-cost-watch", "scenario": "Cost watch", "caption": "Spend against budget and the month's projection, over spend a day"},
+    {"slate": "gallery-stats-refactor", "scenario": "Refactor", "caption": "Files strict, type errors, any left and typecheck time, then when strict starts"}
+  ],
+  "table": [
+    {"slate": "gallery-table-pr-review", "scenario": "PR review", "caption": "Each finding with its file and line and how much it weighs"},
+    {"slate": "gallery-table-deploy", "scenario": "Deploy", "caption": "Every region's version, pods and state, the one paused in red"},
+    {"slate": "gallery-table-test-run", "scenario": "Test run", "caption": "The nine failing tests, their suite and how often they fail, each one press to fix"},
+    {"slate": "gallery-table-incident", "scenario": "Incident", "caption": "The endpoints hit, their 5xx, p95 and when it started"},
+    {"slate": "gallery-table-research", "scenario": "Research", "caption": "Four job queues side by side on store, throughput and p99"},
+    {"slate": "gallery-table-onboarding", "scenario": "Onboarding", "caption": "Every system's owner and access state, a nudge on the ones not granted"},
+    {"slate": "gallery-table-cost-watch", "scenario": "Cost watch", "caption": "The bill by service with its change on last month, the jumps in red"},
+    {"slate": "gallery-table-refactor", "scenario": "Refactor", "caption": "Calls left per package and what blocks each"}
+  ],
+  "tile": [
+    {"slate": "gallery-tile-pr-review", "scenario": "PR review", "caption": "A ring of checks beside the files and open threads, one blocking"},
+    {"slate": "gallery-tile-deploy", "scenario": "Deploy", "caption": "Canary share, a ring of new pods and a 5xx rate marked normal"},
+    {"slate": "gallery-tile-test-run", "scenario": "Test run", "caption": "A ring of suites passing beside flaky tests and duration, over the fixes left"},
+    {"slate": "gallery-tile-incident", "scenario": "Incident", "caption": "5xx rising, orders down and the database pool full as a ring"},
+    {"slate": "gallery-tile-research", "scenario": "Research", "caption": "Pooled against direct p99 beside connections used, then the agent's pick"},
+    {"slate": "gallery-tile-onboarding", "scenario": "Onboarding", "caption": "A ring of accounts ready beside build time and tickets, over the new hire's own checklist"},
+    {"slate": "gallery-tile-cost-watch", "scenario": "Cost watch", "caption": "Budget used as a ring beside today and the projection, over spend a day"},
+    {"slate": "gallery-tile-refactor", "scenario": "Refactor", "caption": "A ring of files done beside imports left and a smaller bundle"}
+  ]
+}

@@ -1,0 +1,18 @@
+<slate title="Access for Priya Raman">
+  <value name="access" start={[
+    {system: "GitHub org", owner: "@platform", state: "Granted", tone: "good"},
+    {system: "AWS, read-only", owner: "@platform", state: "Granted", tone: "good"},
+    {system: "Sentry", owner: "@platform", state: "Granted", tone: "good"},
+    {system: "PagerDuty", owner: "@dana", state: "Waiting 2 days", tone: "warning"},
+    {system: "1Password vault", owner: "@it-help", state: "Requested", tone: "info"},
+    {system: "Staging database", owner: "@data", state: "Needs a ticket", tone: "warning"}
+  ]} />
+  <column>
+    <table items={$access} key={item.system}>
+      <col title="System" value={item.system} />
+      <col title="Owner" value={item.owner} mono={true} />
+      <col title="State" value={item.state} tone={item.tone} />
+      <action label="Nudge" when={item.state != "Granted"} onPress={send("Nudge the owner of", item.system)} />
+    </table>
+  </column>
+</slate>

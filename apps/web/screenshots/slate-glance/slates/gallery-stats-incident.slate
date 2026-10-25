@@ -1,0 +1,22 @@
+<slate title="Checkout returning 502s">
+  <value name="errorRate" start={4.8} />
+  <value name="errorTrend" start={[0.2, 0.3, 1.1, 2.6, 3.9, 4.8]} />
+  <value name="ordersPerMin" start={212} />
+  <value name="ordersTrend" start={[640, 622, 480, 330, 251, 212]} />
+  <value name="openFor" start={2280000} />
+  <value name="rollback" start="" />
+  <column>
+    <stats>
+      <stat label="5xx rate" value={$errorRate} unit="%" trend={$errorTrend} window="checkout, 5 min" tone="bad" />
+      <stat label="Orders/min" value={$ordersPerMin} trend={$ordersTrend} window="normally 640" tone="warning" />
+      <stat label="Open for" value={$openFor} format="duration" window="since 14:02" />
+    </stats>
+    <facts>
+      <fact label="Suspect" value="Release 2026.10.25-3, pool size 20 to 8" />
+    </facts>
+    <decision id="rollback" label="Roll back release 2026.10.25-3?" value={$rollback} pick="rollback" onChange={send("Roll back checkout", $rollback)}>
+      <option value="rollback" label="Roll back now" note="Errors began 2 minutes after it shipped" />
+      <option value="patch" label="Raise the pool size" note="A config push, about 6 minutes" />
+    </decision>
+  </column>
+</slate>

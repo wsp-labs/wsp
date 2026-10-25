@@ -1,0 +1,16 @@
+<slate title="moment to date-fns, what is left">
+  <value name="packages" start={[
+    {pkg: "@shop/checkout", left: 62, blocker: "Merchant time zones"},
+    {pkg: "@shop/scheduler", left: 48, blocker: "Cron time zones"},
+    {pkg: "@shop/admin", left: 41, blocker: ""},
+    {pkg: "@shop/emails", left: 33, blocker: "Handlebars date helper"},
+    {pkg: "@shop/reports", left: 28, blocker: ""}
+  ]} />
+  <column>
+    <table items={$packages} key={item.pkg}>
+      <col title="Package" value={item.pkg} mono={true} />
+      <col title="Calls left" value={item.left} />
+      <col title="Blocker" value={item.blocker} />
+    </table>
+  </column>
+</slate>

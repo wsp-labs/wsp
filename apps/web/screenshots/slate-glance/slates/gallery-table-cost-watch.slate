@@ -1,0 +1,21 @@
+<slate title="AWS bill, October to date">
+  <value name="services" start={[
+    {name: "EC2", usd: "$1,840", change: "+4%", tone: "default"},
+    {name: "RDS", usd: "$920", change: "-2%", tone: "good"},
+    {name: "NAT gateway", usd: "$640", change: "+38%", tone: "bad"},
+    {name: "CloudWatch logs", usd: "$388", change: "+61%", tone: "bad"},
+    {name: "S3", usd: "$212", change: "+1%", tone: "default"}
+  ]} />
+  <value name="sampling" start="" />
+  <column>
+    <table items={$services} key={item.name}>
+      <col title="Service" value={item.name} />
+      <col title="To date" value={item.usd} />
+      <col title="vs September" value={item.change} tone={item.tone} />
+    </table>
+    <decision id="sampling" label="Sample debug logs at 10%?" value={$sampling} pick="sample" onChange={send("Debug log sampling", $sampling)}>
+      <option value="sample" label="Sample at 10%" note="Saves about $230 a month on CloudWatch" />
+      <option value="keep" label="Keep every line" />
+    </decision>
+  </column>
+</slate>
