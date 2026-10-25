@@ -131,16 +131,43 @@ impl Host {
         last
     }
 
-    /// Drops every socket to the host from this process, as a network blip or a sleeping laptop does.
-    fn drop_host_socket(&self) {
+    /// This process's sockets to the host, by their local address and port.
+    fn host_sockets(&self, port: u64) -> std::collections::BTreeSet<String> {
+        let out = Command::new("ss").args(["-tnH", "state", "established", &format!("( dport = :{port} )")]).output().unwrap();
+        String::from_utf8_lossy(&out.stdout).lines().filter_map(|l| l.split_whitespace().nth(2).map(str::to_owned)).collect()
+    }
+
+    /// Drops every socket to the host from this process, as a network blip or a sleeping laptop does, and waits for
+    /// each to be gone; the link may dial new ones at once. False where `ss -K` destroys nothing, which needs
+    /// CAP_NET_ADMIN: a run under CI fails then, and any other says so and skips the test.
+    fn drop_host_socket(&self) -> bool {
         let lock = std::fs::read_to_string(self.server.state().with_file_name("host.lock")).unwrap();
         let port = serde_json::from_str::<serde_json::Value>(&lock).unwrap()["port"].as_u64().unwrap();
-        let ok = Command::new("ss")
+        let held = self.host_sockets(port);
+        let out = Command::new("ss")
             .args(["-K", "-tnH", "state", "established", &format!("( dport = :{port} )")])
             .stdout(std::process::Stdio::null())
-            .status()
+            .output()
             .unwrap();
-        assert!(ok.success(), "ss -K");
+        let said = String::from_utf8_lossy(&out.stderr).trim().to_owned();
+        let refused = !out.status.success() || said.contains("not permitted");
+        let until = Instant::now() + Duration::from_secs(10);
+        let mut left = self.host_sockets(port);
+        while !refused && held.intersection(&left).next().is_some() && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(50));
+            left = self.host_sockets(port);
+        }
+        let stands = held.intersection(&left).count();
+        if !refused && stands == 0 {
+            return true;
+        }
+        let why = format!(
+            "ss -K was refused: the workflow must give ss CAP_NET_ADMIN ({stands} of {} sockets stand; ss said {said:?})",
+            held.len()
+        );
+        assert!(std::env::var("CI").as_deref() != Ok("true"), "{why}");
+        println!("skipped: {why}");
+        false
     }
 }
 
@@ -288,7 +315,9 @@ fn the_link_dials_again_by_itself_after_the_host_socket_drops(cx: &mut TestAppCo
     let link = cx.update(|cx| DaemonLink::of(&host.shell(), &host.workspace_id, cx));
     host.ping(&link, cx);
     let first = root(&link, cx, "the hello names the root");
-    host.drop_host_socket();
+    if !host.drop_host_socket() {
+        return;
+    }
     let until = Instant::now() + Duration::from_secs(30);
     while link.read_with(cx, |l, _| l.up()) {
         assert!(Instant::now() < until, "the link hears its channel go with the socket");
@@ -353,7 +382,9 @@ fn a_folder_that_failed_is_asked_again_and_the_roots_come_back_after_the_socket_
     );
     std::fs::create_dir_all(&src).unwrap();
     std::fs::write(src.join("b.txt"), "b\n").unwrap();
-    host.drop_host_socket();
+    if !host.drop_host_socket() {
+        return;
+    }
     let (t, d) = (tree.clone(), dir.clone());
     let asked = wait(
         cx,
