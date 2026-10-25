@@ -34,7 +34,7 @@ use wsp_words::exit::{HostError, Kind};
 
 /// `new Error(message)`, built from fields so no wsp-words body is needed.
 pub fn plain(message: &str) -> HostError {
-    HostError { message: message.to_owned(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }
+    HostError { message: message.to_owned(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, marks: vec![] }
 }
 
 /// `Object.assign(new Error(message), { kind })`.
