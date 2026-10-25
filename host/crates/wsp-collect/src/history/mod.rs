@@ -9,21 +9,30 @@ pub mod hermes;
 pub mod reader;
 pub mod tally;
 
+use std::cell::{Cell, RefCell};
+
 use wsp_catalog::catalog::{AgentEntry, HistoryFormat};
 use wsp_wire::views::golden_image::RecipeHistoryState;
 use wsp_words::exit::HostError;
 
 use crate::history::cache::HistoryCache;
-use crate::history::reader::HistoryReader;
-use crate::history::tally::Usage;
-use crate::host::Host;
+use crate::history::claude::ClaudeReader;
+use crate::history::codex::CodexReader;
+use crate::history::hermes::HermesReader;
+use crate::history::reader::{HistoryFile, HistoryReader};
+use crate::history::tally::{one_holder, reduce_calls, usage_of, Held, Usage};
+use crate::host::{expand, Host};
 
 /// How many of a store's files are read at once (index.ts:39).
 pub const FILES_AT_ONCE: usize = 4;
 
 /// `HISTORY_READERS[format]` (index.ts:16).
 pub fn history_reader(format: HistoryFormat) -> &'static dyn HistoryReader {
-    todo!()
+    match format {
+        HistoryFormat::ClaudeJsonl => &ClaudeReader,
+        HistoryFormat::CodexRollout => &CodexReader,
+        HistoryFormat::HermesSqlite => &HermesReader,
+    }
 }
 
 /// index.ts:22: the recipe's history line for one agent, with the counts it kept.
@@ -46,44 +55,64 @@ pub struct StoreOptions<'a> {
     pub on_file: Option<&'a dyn Fn(usize, usize)>,
 }
 
+/// One of the store's workers: takes the next file until none is left, or until one of them fails.
+async fn reading(
+    host: &Host,
+    reader: &dyn HistoryReader,
+    root: &str,
+    files: &[HistoryFile],
+    opts: &StoreOptions<'_>,
+    next: &Cell<usize>,
+    read: &Cell<usize>,
+    held: &RefCell<Vec<Option<Held>>>,
+) -> Result<(), HostError> {
+    loop {
+        let i = next.get();
+        next.set(i + 1);
+        if i >= files.len() {
+            return Ok(());
+        }
+        let f = &files[i];
+        let buckets = match opts.cache.and_then(|c| c.get(&f.path, &f.stamp)) {
+            Some(buckets) => buckets,
+            None => {
+                let buckets = reduce_calls(reader.read(host, root, &f.path)).await?;
+                if let Some(cache) = opts.cache {
+                    cache.set(&f.path, &f.stamp, &buckets);
+                }
+                buckets
+            }
+        };
+        held.borrow_mut()[i] = Some(Held { holder: reader.holder(root, &f.path), buckets });
+        read.set(read.get() + 1);
+        if let Some(on_file) = opts.on_file {
+            on_file(read.get(), files.len());
+        }
+    }
+}
+
 /// What one agent's store came to: each file from the cache when its stamp matches, else read, FILES_AT_ONCE at a
 /// time; the first file that cannot be read ends the store with its error once the reads already open settle.
-// history/index.ts:37
-// /** How many of a store's files are read at once: a first read of a busy computer's sessions spent a quarter of its time
-//  * waiting on the disk one file at a time, and another file's lines are parsed while one waits. */
-// const FILES_AT_ONCE = 4;
-//
-// /** What one agent's store came to. Every session file is either taken from the cache, when its stamp says it has
-//  * not changed, or read; the folders are weighed after the merge, so one cache serves a run for any project. */
-// export async function readStore(host: Host, reader: HistoryReader, root: string, opts: StoreOptions = {}): Promise<Usage> {
-//   const files = await reader.files(host, root);
-//   const held: { holder: string; buckets: readonly HistoryBucket[] }[] = new Array(files.length);
-//   let next = 0;
-//   let read = 0;
-//   const reading = async (): Promise<void> => {
-//     for (let i = next++; i < files.length; i = next++) {
-//       const f = files[i]!;
-//       let buckets = opts.cache?.get(f.path, f.stamp);
-//       if (buckets === undefined) {
-//         buckets = await reduceCalls(reader.read(host, root, f.path));
-//         opts.cache?.set(f.path, f.stamp, buckets);
-//       }
-//       held[i] = { holder: reader.holder(root, f.path), buckets };
-//       opts.onFile?.(++read, files.length);
-//     }
-//   };
-//   // A file that cannot be read ends the store: no file is started after it, and the throw waits for the reads already
-//   // open, so nothing reports on a store after it was said unreadable.
-//   const ran = await Promise.allSettled(Array.from({ length: Math.min(FILES_AT_ONCE, files.length) }, () => reading().catch((e: unknown) => {
-//     next = files.length;
-//     throw e;
-//   })));
-//   const failed = ran.find((r): r is PromiseRejectedResult => r.status === "rejected");
-//   if (failed !== undefined) throw failed.reason;
-//   return usageOf(oneHolder(held), opts.folders);
-// }
 pub async fn read_store(host: &Host, reader: &dyn HistoryReader, root: &str, opts: StoreOptions<'_>) -> Result<Usage, HostError> {
-    todo!()
+    let files = reader.files(host, root).await;
+    let n = files.len();
+    let next = Cell::new(0);
+    let read = Cell::new(0);
+    let held: RefCell<Vec<Option<Held>>> = RefCell::new(vec![None; n]);
+    let (files, opts, next, read, held) = (&files, &opts, &next, &read, &held);
+    let ran = futures::future::join_all((0..n.min(FILES_AT_ONCE)).map(|_| async move {
+        let result = reading(host, reader, root, files, opts, next, read, held).await;
+        if result.is_err() {
+            next.set(n);
+        }
+        result
+    }))
+    .await;
+    if let Some(error) = ran.into_iter().find_map(Result::err) {
+        return Err(error);
+    }
+    let held: Vec<Held> = held.take().into_iter().flatten().collect();
+    Ok(usage_of(&one_holder(&held), opts.folders))
 }
 
 /// index.ts:72.
@@ -105,33 +134,49 @@ pub struct HistoryOptions<'a> {
 
 /// What each agent's session store says it used, in the agents' order: read, empty, unreadable, or no reader. The
 /// cache is saved once after the last agent; its write error is the only error.
-// history/index.ts:91
-// /** What each agent's session store on this computer says it used, read-only. A store that is there but cannot be
-//  * read is said so and counts nothing; a format with no reader is said so too. */
-// export async function readHistories(host: Host, agents: readonly AgentEntry[] = CATALOG_AGENTS, opts: HistoryOptions = {}): Promise<AgentHistory[]> {
-//   const { onAgent, folders, cache, onProgress } = opts;
-//   const out: AgentHistory[] = [];
-//   for (const a of agents) {
-//     let h: AgentHistory;
-//     if (a.history === undefined) h = { agent: a.id, state: "no-reader", sessions: 0, calls: 0, usage: EMPTY };
-//     else {
-//       try {
-//         const usage = await readStore(host, HISTORY_READERS[a.history.format], expand(host, a.history.root), {
-//           ...(folders !== undefined ? { folders } : {}),
-//           ...(cache !== undefined ? { cache } : {}),
-//           ...(onProgress !== undefined ? { onFile: (read, files) => onProgress({ agent: a.id, read, files }) } : {}),
-//         });
-//         h = { agent: a.id, state: usage.sessions === 0 ? "empty" : "read", sessions: usage.sessions, calls: usage.calls, usage };
-//       } catch {
-//         h = { agent: a.id, state: "unreadable", sessions: 0, calls: 0, usage: EMPTY };
-//       }
-//     }
-//     onAgent?.(h);
-//     out.push(h);
-//   }
-//   cache?.save();
-//   return out;
-// }
 pub async fn read_histories(host: &Host, agents: &[&AgentEntry], opts: HistoryOptions<'_>) -> Result<Vec<AgentHistory>, HostError> {
-    todo!()
+    let mut out = Vec::new();
+    for a in agents {
+        let history = match &a.history {
+            None => AgentHistory {
+                agent: a.id.clone(),
+                state: RecipeHistoryState::NoReader,
+                sessions: 0,
+                calls: 0,
+                usage: Usage::default(),
+            },
+            Some(store) => {
+                let progress = |read: usize, files: usize| {
+                    if let Some(on_progress) = opts.on_progress {
+                        on_progress(HistoryProgress { agent: a.id.clone(), read, files });
+                    }
+                };
+                let store_opts = StoreOptions { folders: opts.folders, cache: opts.cache, on_file: Some(&progress) };
+                match read_store(host, history_reader(store.format), &expand(&host.home, &store.root), store_opts).await {
+                    Ok(usage) => AgentHistory {
+                        agent: a.id.clone(),
+                        state: if usage.sessions == 0 { RecipeHistoryState::Empty } else { RecipeHistoryState::Read },
+                        sessions: usage.sessions,
+                        calls: usage.calls,
+                        usage,
+                    },
+                    Err(_) => AgentHistory {
+                        agent: a.id.clone(),
+                        state: RecipeHistoryState::Unreadable,
+                        sessions: 0,
+                        calls: 0,
+                        usage: Usage::default(),
+                    },
+                }
+            }
+        };
+        if let Some(on_agent) = opts.on_agent {
+            on_agent(&history);
+        }
+        out.push(history);
+    }
+    if let Some(cache) = opts.cache {
+        cache.save()?;
+    }
+    Ok(out)
 }

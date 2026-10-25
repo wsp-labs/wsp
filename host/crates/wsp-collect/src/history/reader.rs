@@ -7,7 +7,7 @@ use futures::stream::LocalBoxStream;
 use serde_json::Value;
 use wsp_words::exit::HostError;
 
-use crate::host::Host;
+use crate::host::{Host, StatKind};
 
 /// What one call came to (reader.ts:18): a shell line, or any other tool by name.
 #[derive(Debug, Clone, PartialEq)]
@@ -51,62 +51,149 @@ pub const PARSE_VERSION: u32 = 2;
 
 /// The file with its stamp: `${mtimeMs}:${bytes}`, the mtime written as JavaScript writes a number (`1000`, `1.5`).
 /// `None` when the path is not a file.
-// history/reader.ts:44
-// /** The file with the stamp a cache compares: its modification time and its size, so a rewrite that keeps either one
-//  * is still read again. Nothing when the path is not a file. */
-// export async function stampOf(host: Host, path: string): Promise<HistoryFile | undefined> {
-//   const st = await host.fs.stat(path);
-//   return st === undefined || st.kind !== "file" ? undefined : { path, stamp: `${st.mtimeMs}:${st.bytes}` };
-// }
 pub async fn stamp_of(host: &Host, path: &str) -> Option<HistoryFile> {
-    todo!()
+    let st = host.fs.stat(path).await?;
+    (st.kind == StatKind::File).then(|| HistoryFile {
+        path: path.to_string(),
+        stamp: format!("{}:{}", wsp_words::js::number_string(st.mtime_ms), st.bytes),
+    })
 }
 
 /// Every `.jsonl` file under root the session rule has an answer for, stamped, in walk order.
-// history/reader.ts:51
-// /** Every jsonl file under root the reader keeps a session for, stamped, in the order the walk found them. The one
-//  * walk both jsonl formats take: a file the session rule has no answer for is not a transcript and is left out. */
-// export async function jsonlFiles(host: Host, root: string, session: (file: string) => string | undefined): Promise<HistoryFile[]> {
-//   const out: HistoryFile[] = [];
-//   for (const file of await host.fs.walk(root)) {
-//     if (!file.endsWith(".jsonl") || session(file) === undefined) continue;
-//     const stamped = await stampOf(host, file);
-//     if (stamped !== undefined) out.push(stamped);
-//   }
-//   return out;
-// }
 pub async fn jsonl_files(host: &Host, root: &str, session: &dyn Fn(&str) -> Option<String>) -> Vec<HistoryFile> {
-    todo!()
+    let mut out = Vec::new();
+    for file in host.fs.walk(root).await {
+        if !file.ends_with(".jsonl") || session(&file).is_none() {
+            continue;
+        }
+        out.extend(stamp_of(host, &file).await);
+    }
+    out
 }
 
 /// A JSON object (not an array, not null).
 pub fn is_record(v: &Value) -> bool {
-    todo!()
+    v.is_object()
 }
 
 /// `JSON.parse(text)`, or `None` where it throws.
 pub fn try_json(text: &str) -> Option<Value> {
-    todo!()
+    serde_json::from_str(text).ok()
 }
 
 /// A store's timestamp as ms epoch: a JSON string that is an RFC 3339 instant; `None` for anything else.
-// history/reader.ts:76
-// /** A store's timestamp as ms epoch, or nothing where it is not one. */
-// export const timeOf = (v: unknown): number | undefined => {
-//   const at = typeof v === "string" ? Date.parse(v) : NaN;
-//   return Number.isFinite(at) ? at : undefined;
-// };
 pub fn time_of(v: Option<&Value>) -> Option<f64> {
-    todo!()
+    iso_ms(v?.as_str()?)
+}
+
+/// The ES5 date-time form Date.parse reads (spec rule 4): a year, an optional month and day, an optional `T` time
+/// with optional seconds and fraction, and an optional offset. A date with no offset is read as UTC.
+fn iso_ms(s: &str) -> Option<f64> {
+    let b = s.as_bytes();
+    let at = |i: usize| b.get(i).copied();
+    let num = |lo: usize, hi: usize| -> Option<i64> {
+        let digits = b.get(lo..hi)?;
+        if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
+            return None;
+        }
+        Some(digits.iter().fold(0, |acc, d| acc * 10 + i64::from(d - b'0')))
+    };
+
+    let (year, mut p) = match at(0) {
+        Some(sign @ (b'+' | b'-')) => {
+            let y = num(1, 7)?;
+            if sign == b'-' && y == 0 {
+                return None;
+            }
+            (if sign == b'-' { -y } else { y }, 7)
+        }
+        _ => (num(0, 4)?, 4),
+    };
+    let (mut month, mut day) = (1, 1);
+    if at(p) == Some(b'-') {
+        month = num(p + 1, p + 3)?;
+        p += 3;
+        if at(p) == Some(b'-') {
+            day = num(p + 1, p + 3)?;
+            p += 3;
+        }
+    }
+
+    let (mut hour, mut minute, mut second, mut milli) = (0, 0, 0, 0);
+    let timed = matches!(at(p), Some(b'T' | b't'));
+    if timed {
+        hour = num(p + 1, p + 3)?;
+        if at(p + 3) != Some(b':') {
+            return None;
+        }
+        minute = num(p + 4, p + 6)?;
+        p += 6;
+        if at(p) == Some(b':') {
+            second = num(p + 1, p + 3)?;
+            p += 3;
+            if at(p) == Some(b'.') {
+                let start = p + 1;
+                let end = start + b[start..].iter().take_while(|d| d.is_ascii_digit()).count();
+                if end == start {
+                    return None;
+                }
+                let frac = &b[start..end.min(start + 3)];
+                milli = frac.iter().fold(0, |acc, d| acc * 10 + i64::from(d - b'0')) * 10i64.pow(3 - frac.len() as u32);
+                p = end;
+            }
+        }
+    }
+
+    let mut offset = 0;
+    if timed {
+        match at(p) {
+            None => {}
+            Some(b'Z' | b'z') => p += 1,
+            Some(sign @ (b'+' | b'-')) => {
+                let oh = num(p + 1, p + 3)?;
+                let om = if at(p + 3) == Some(b':') {
+                    p += 6;
+                    num(p - 2, p)?
+                } else {
+                    p += 5;
+                    num(p - 2, p)?
+                };
+                if oh > 23 || om > 59 {
+                    return None;
+                }
+                offset = if sign == b'-' { -(oh * 60 + om) } else { oh * 60 + om };
+            }
+            Some(_) => return None,
+        }
+    }
+    if p != b.len() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+    if hour > 24 || minute > 59 || second > 59 || (hour == 24 && (minute != 0 || second != 0 || milli != 0)) {
+        return None;
+    }
+
+    let days = days_from_civil(year, month, 1) + day - 1;
+    let ms = days * 86_400_000 + (hour * 3600 + minute * 60 + second) * 1000 + milli - offset * 60_000;
+    (ms.abs() <= 8_640_000_000_000_000).then_some(ms as f64)
+}
+
+/// Days from 1970-01-01 to the given proleptic Gregorian date, month 1 to 12.
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = (if y >= 0 { y } else { y - 399 }) / 400;
+    let yoe = y - era * 400;
+    let mp = (month + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
 }
 
 /// The file's name without its directory or its last extension; a leading dot is not an extension.
-// history/reader.ts:82
-// export function stem(path: string): string {
-//   const base = path.slice(path.lastIndexOf("/") + 1);
-//   const dot = base.lastIndexOf(".");
-//   return dot > 0 ? base.slice(0, dot) : base;
-// }
 pub fn stem(path: &str) -> String {
-    todo!()
+    let base = &path[path.rfind('/').map_or(0, |p| p + 1)..];
+    match base.rfind('.') {
+        Some(dot) if dot > 0 => base[..dot].to_string(),
+        _ => base.to_string(),
+    }
 }

@@ -3,11 +3,15 @@
 //! file is trusted while its stamp and the parse version behind its counts both match. Port of
 //! packages/collect/src/history/cache.ts at a3b870a6e; the spec is spec/history_store.md.
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use indexmap::IndexMap;
+use serde::Serialize;
+use serde_json::Value;
 use wsp_words::exit::HostError;
 
+use crate::history::reader::PARSE_VERSION;
 use crate::history::tally::HistoryBucket;
 
 /// cache.ts:15. `&self` throughout: a cache is shared by the reads one store runs at once, on one thread.
@@ -20,7 +24,7 @@ pub trait HistoryCache {
 }
 
 /// One file's entry as the cache file keeps it.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CacheEntry {
     pub stamp: String,
     pub buckets: Vec<HistoryBucket>,
@@ -34,84 +38,112 @@ pub struct FileHistoryCache {
     pub changed: RefCell<bool>,
 }
 
-/// The file's entries, or none when there is no file, it cannot be read, or its shape is not version 1 with this
-/// PARSE_VERSION.
-// history/cache.ts:24
-// const Bucket = z.object({
-//   session: z.string(),
-//   folder: z.string().optional(),
-//   at: z.number().optional(),
-//   calls: z.number().int().nonnegative(),
-//   commands: z.record(z.number().int().nonnegative()),
-//   installs: z.record(z.number().int().nonnegative()),
-// });
-//
-// /** Version 1 and nothing else is read: a file this version does not know is one whole re-read, never half-trusted counts.
-//  * `parse` is that same rule for the code that filled the buckets, which a file's stamp cannot see. */
-// const CacheFile = z.object({ version: z.literal(1), parse: z.literal(PARSE_VERSION), files: z.record(z.object({ stamp: z.string(), buckets: z.array(Bucket) })) });
-// type CacheFile = z.infer<typeof CacheFile>;
-//
-// type Entry = CacheFile["files"][string];
-//
-// /** The file's entries, or none when there is no file, it cannot be read, or its shape is not this version's. */
-// function read(path: string): Map<string, Entry> {
-//   let parsed: unknown;
-//   try {
-//     parsed = JSON.parse(readFileSync(path, "utf8"));
-//   } catch {
-//     return new Map();
-//   }
-//   const r = CacheFile.safeParse(parsed);
-//   return r.success ? new Map(Object.entries(r.data.files)) : new Map();
-// }
-//
-pub fn read_cache_file(path: &std::path::Path) -> IndexMap<String, CacheEntry> {
-    todo!()
+#[derive(Serialize)]
+struct CacheFile<'a> {
+    version: u32,
+    parse: u32,
+    files: &'a IndexMap<String, CacheEntry>,
 }
 
-// history/cache.ts:52
-// export function fileHistoryCache(path: string): HistoryCache {
-//   const stored = read(path);
-//   const kept = new Map<string, Entry>();
-//   let changed = false;
-//   return {
+/// A count as the cache file writes it: a whole number, not negative.
+fn count(v: &Value) -> Option<u64> {
+    let n = v.as_f64()?;
+    (n >= 0.0 && n.fract() == 0.0).then_some(n as u64)
+}
+
+fn counts(v: Option<&Value>) -> Option<IndexMap<String, u64>> {
+    v?.as_object()?.iter().map(|(name, c)| Some((name.clone(), count(c)?))).collect()
+}
+
+/// One bucket as the cache file shape holds it; a `null` where the shape has an optional field is refused.
+fn bucket_of(v: &Value) -> Option<HistoryBucket> {
+    let folder = match v.get("folder") {
+        None => None,
+        Some(f) => Some(f.as_str()?.to_string()),
+    };
+    let at = match v.get("at") {
+        None => None,
+        Some(a) => Some(a.as_f64()?),
+    };
+    Some(HistoryBucket {
+        session: v.get("session")?.as_str()?.to_string(),
+        folder,
+        calls: count(v.get("calls")?)?,
+        commands: counts(v.get("commands"))?,
+        installs: counts(v.get("installs"))?,
+        at,
+    })
+}
+
+/// The entries of a parsed cache file, or none when its version, parse version or shape is not this code's.
+fn cache_entries(top: &Value) -> Option<IndexMap<String, CacheEntry>> {
+    if top.get("version")?.as_f64()? != 1.0 || top.get("parse")?.as_f64()? != f64::from(PARSE_VERSION) {
+        return None;
+    }
+    top.get("files")?
+        .as_object()?
+        .iter()
+        .map(|(path, entry)| {
+            let stamp = entry.get("stamp")?.as_str()?.to_string();
+            let buckets = entry.get("buckets")?.as_array()?.iter().map(bucket_of).collect::<Option<Vec<_>>>()?;
+            Some((path.clone(), CacheEntry { stamp, buckets }))
+        })
+        .collect()
+}
+
+/// The file's entries, or none when there is no file, it cannot be read, or its shape is not version 1 with this
+/// PARSE_VERSION.
+pub fn read_cache_file(path: &std::path::Path) -> IndexMap<String, CacheEntry> {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|top| cache_entries(&top))
+        .unwrap_or_default()
+}
+
 pub fn file_history_cache(path: impl Into<PathBuf>) -> FileHistoryCache {
-    todo!()
+    let path = path.into();
+    let stored = read_cache_file(&path);
+    FileHistoryCache { path, stored, kept: RefCell::new(IndexMap::new()), changed: RefCell::new(false) }
+}
+
+/// A short random-looking name for the temp file beside the cache: six base-36 characters from the clock and the pid.
+fn temp_suffix() -> String {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    let mut n = u64::from(now.subsec_nanos()) ^ (u64::from(std::process::id()) << 20);
+    (0..6).map(|_| {
+        let digit = char::from_digit((n % 36) as u32, 36).unwrap_or('0');
+        n /= 36;
+        digit
+    })
+    .collect()
 }
 
 impl HistoryCache for FileHistoryCache {
-    // history/cache.ts:57
-    //     get(file, stamp) {
-    //       const e = stored.get(file);
-    //       if (e === undefined || e.stamp !== stamp) return undefined;
-    //       kept.set(file, e);
-    //       return e.buckets;
-    //     },
     fn get(&self, path: &str, stamp: &str) -> Option<Vec<HistoryBucket>> {
-        todo!()
+        let entry = self.stored.get(path).filter(|e| e.stamp == stamp)?;
+        self.kept.borrow_mut().insert(path.to_string(), entry.clone());
+        Some(entry.buckets.clone())
     }
 
-    // history/cache.ts:63
-    //     set(file, stamp, buckets) {
-    //       kept.set(file, { stamp, buckets: [...buckets] });
-    //       changed = true;
-    //     },
     fn set(&self, path: &str, stamp: &str, buckets: &[HistoryBucket]) {
-        todo!()
+        self.kept.borrow_mut().insert(path.to_string(), CacheEntry { stamp: stamp.to_string(), buckets: buckets.to_vec() });
+        *self.changed.borrow_mut() = true;
     }
 
-    // history/cache.ts:67
-    //     save() {
-    //       if (!changed && kept.size === stored.size) return;
-    //       const out: CacheFile = { version: 1, parse: PARSE_VERSION, files: Object.fromEntries(kept) };
-    //       mkdirSync(dirname(path), { recursive: true });
-    //       // Write-through with rename, as the state file beside it does: a wsp init and an MCP scan over one state folder
-    //       // otherwise leave a torn file, which reads as no cache and costs the whole read this one exists to remove.
-    //       const tmp = join(dirname(path), `.${Date.now()}-${Math.random().toString(36).slice(2, 8)}.tmp`);
-    //       writeFileSync(tmp, `${JSON.stringify(out)}\n`);
-    //       renameSync(tmp, path);
-    //     },
     fn save(&self) -> Result<(), HostError> {
-        todo!()
+        let kept = self.kept.borrow();
+        if !*self.changed.borrow() && kept.len() == self.stored.len() {
+            return Ok(());
+        }
+        let out = CacheFile { version: 1, parse: PARSE_VERSION, files: &kept };
+        let text = serde_json::to_string(&out).map_err(|e| HostError::new(e.to_string()))?;
+        let io = |e: std::io::Error| HostError::new(e.to_string());
+        let dir = self.path.parent().unwrap_or(Path::new(""));
+        std::fs::create_dir_all(dir).map_err(io)?;
+        let now_ms = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
+        let tmp = dir.join(format!(".{now_ms}-{}.tmp", temp_suffix()));
+        std::fs::write(&tmp, format!("{text}\n")).map_err(io)?;
+        std::fs::rename(&tmp, &self.path).map_err(io)
     }
 }

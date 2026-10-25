@@ -4,75 +4,83 @@
 //! packages/collect/src/history/claude.ts at a3b870a6e; the spec is spec/history_readers.md.
 use futures::future::LocalBoxFuture;
 use futures::stream::LocalBoxStream;
+use futures::{FutureExt, StreamExt};
 use serde_json::Value;
 use wsp_words::exit::HostError;
 
-use crate::history::reader::{Call, HistoryFile, HistoryReader};
+use crate::history::reader::{is_record, jsonl_files, stem, time_of, try_json, Call, CallKind, HistoryFile, HistoryReader};
 use crate::host::Host;
 
 pub const CLEARED: &str = "_cleared_sessions";
 
 /// The top-level session a transcript belongs to, from its path under the projects root.
-// history/claude.ts:11
-// /** The top-level session a transcript belongs to, from its path under the projects root. */
-// export function claudeSession(rel: string): string | undefined {
-//   const parts = rel.split("/");
-//   const second = parts[1];
-//   if (second === undefined) return undefined;
-//   if (second === CLEARED) return parts[2] === undefined ? undefined : stem(parts[2]);
-//   return second.endsWith(".jsonl") ? stem(second) : second;
-// }
 pub fn claude_session(rel: &str) -> Option<String> {
-    todo!()
+    let parts: Vec<&str> = rel.split('/').collect();
+    let second = parts.get(1)?;
+    if *second == CLEARED {
+        return parts.get(2).map(|p| stem(p));
+    }
+    Some(if second.ends_with(".jsonl") { stem(second) } else { second.to_string() })
 }
 
-// history/claude.ts:20
-// export function claudeCall(session: string, name: string, input: unknown, folder?: string, at?: number): Call {
-//   const arg = isRecord(input) ? input : {};
-//   const where = { ...(folder !== undefined ? { folder } : {}), ...(at !== undefined ? { at } : {}) };
-//   if (name === "Bash" && typeof arg["command"] === "string") return { session, ...where, kind: "shell", line: arg["command"] };
-//   return { session, ...where, kind: "other", name };
-// }
 pub fn claude_call(session: &str, name: &str, input: Option<&Value>, folder: Option<&str>, at: Option<f64>) -> Call {
-    todo!()
+    let command = input.filter(|v| is_record(v)).and_then(|v| v.get("command")).and_then(Value::as_str);
+    let kind = match command {
+        Some(line) if name == "Bash" => CallKind::Shell { line: line.to_string() },
+        _ => CallKind::Other { name: name.to_string() },
+    };
+    Call { session: session.to_string(), folder: folder.map(str::to_string), at, kind }
+}
+
+/// The part of a walked file's path under the projects root.
+fn under_root<'s>(file: &'s str, root: &str) -> &'s str {
+    file.get(root.len() + 1..).unwrap_or("")
+}
+
+/// The calls one transcript line holds: only an assistant line's tool_use blocks.
+fn calls_of_line(session: &str, line: &str) -> Vec<Call> {
+    if !line.contains("\"tool_use\"") || !line.contains("\"assistant\"") {
+        return Vec::new();
+    }
+    let Some(row) = try_json(line) else { return Vec::new() };
+    if row.get("type").and_then(Value::as_str) != Some("assistant") {
+        return Vec::new();
+    }
+    let Some(content) = row.get("message").filter(|m| is_record(m)).and_then(|m| m.get("content")).and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    let folder = row.get("cwd").and_then(Value::as_str);
+    let at = time_of(row.get("timestamp"));
+    content
+        .iter()
+        .filter(|block| is_record(block) && block.get("type").and_then(Value::as_str) == Some("tool_use"))
+        .filter_map(|block| Some((block.get("name")?.as_str()?, block.get("input"))))
+        .map(|(name, input)| claude_call(session, name, input, folder, at))
+        .collect()
 }
 
 pub struct ClaudeReader;
 
 impl HistoryReader for ClaudeReader {
-    // history/claude.ts:28
-    //   files: (host, root) => jsonlFiles(host, root, file => claudeSession(file.slice(root.length + 1))),
     fn files<'a>(&'a self, host: &'a Host, root: &'a str) -> LocalBoxFuture<'a, Vec<HistoryFile>> {
-        todo!()
+        async move { jsonl_files(host, root, &|file: &str| claude_session(under_root(file, root))).await }.boxed_local()
     }
 
-    // history/claude.ts:30
-    //   async *read(host: Host, root: string, file: string): AsyncIterable<Call> {
-    //     const session = claudeSession(file.slice(root.length + 1));
-    //     if (session === undefined) return;
-    //     for await (const line of host.fs.lines(file, '"tool_use"')) {
-    //       // Only an assistant line holds a tool_use block; the two checks keep the large tool-result lines unparsed.
-    //       if (!line.includes('"tool_use"') || !line.includes('"assistant"')) continue;
-    //       const row = tryJson(line);
-    //       if (!isRecord(row) || row["type"] !== "assistant" || !isRecord(row["message"])) continue;
-    //       const content = row["message"]["content"];
-    //       if (!Array.isArray(content)) continue;
-    //       // Every line of a transcript carries the folder the session ran in, this one included.
-    //       const folder = typeof row["cwd"] === "string" ? row["cwd"] : undefined;
-    //       const at = timeOf(row["timestamp"]);
-    //       for (const block of content) {
-    //         if (!isRecord(block) || block["type"] !== "tool_use" || typeof block["name"] !== "string") continue;
-    //         yield claudeCall(session, block["name"], block["input"], folder, at);
-    //       }
-    //     }
-    //   },
     fn read<'a>(&'a self, host: &'a Host, root: &'a str, file: &'a str) -> LocalBoxStream<'a, Result<Call, HostError>> {
-        todo!()
+        let Some(session) = claude_session(under_root(file, root)) else {
+            return futures::stream::empty().boxed_local();
+        };
+        host.fs
+            .lines(file, Some("\"tool_use\""))
+            .map(move |item| match item {
+                Ok(line) => calls_of_line(&session, &line).into_iter().map(Ok).collect::<Vec<_>>(),
+                Err(e) => vec![Err(HostError::new(e.to_string()))],
+            })
+            .flat_map(futures::stream::iter)
+            .boxed_local()
     }
 
-    // history/claude.ts:29
-    //   holder: (root, file) => file.slice(root.length + 1).split("/")[0]!,
     fn holder(&self, root: &str, file: &str) -> String {
-        todo!()
+        under_root(file, root).split('/').next().unwrap_or_default().to_string()
     }
 }
