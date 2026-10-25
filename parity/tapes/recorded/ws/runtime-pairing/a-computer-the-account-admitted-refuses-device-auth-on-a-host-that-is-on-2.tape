@@ -1,2 +1,2 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > refuses device.auth on a host that is on no account, and on a socket that agreed no key"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEArbwuJTv4WlG2t5NJQy7Y6XOcuxcG6BSH0KfOzvglmy8=","name":"the laptop","signature":"GuajyqR5Evvf3ULF+wGIf7yBkgg5+kZdpIkBPfnBGX4RM00431iKgJiPd0WaWJYrZVGmrMpZKM5ptfJi2nVWDA==","id":1,"op":"device.auth"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEA8Ie+pz7hzibZyH1xNVutLOvJ54kr7x0jASpNOWMJa6o=","name":"the laptop","signature":"+jP7w2M7R3c1IKoMlFgrqNXsgZxo9nB64yPscBb5rnHMqhl6vGgQHF0a/e8dSGMg/LIr2hoTus+6sR96z21mAw==","id":1,"op":"device.auth"}}

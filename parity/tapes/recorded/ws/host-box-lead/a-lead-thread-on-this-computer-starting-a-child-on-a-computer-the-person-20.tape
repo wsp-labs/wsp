@@ -1,7 +1,7 @@
-{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > wsp run on the project of its repository there opens the child in that project's folder, under the lead, lists it, and wakes the lead at its end"}}
+{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there reaches its lead by its words alone: no stop of the lead, no send that waits on its reply or carries a file"}}
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"ref":"lab-box","id":2,"op":"projects.resolve"}}
-{"in":{"project":"pr_d1be7509","id":3,"op":"workspaces.landing"}}
-{"in":{"ref":"pr_d1be7509","id":4,"op":"projects.resolve"}}
-{"in":{"id":5,"op":"harnesses.list"}}
-{"in":{"project":"pr_d1be7509","prompt":"build it","notify":["me"],"turnToken":"ad03ec8fc8771234644aea131f39ad60","startedBy":"cli","requestId":"4ad5e806-f3ce-4709-9441-e40f6b413b54","answerHeld":true,"id":6,"op":"sessions.start"}}
+{"in":{"id":2,"op":"sessions.list"}}
+{"in":{"workspaceId":"ws_00000001","id":3,"op":"harnesses.list"}}
+{"in":{"ref":"ws_00000001","id":4,"op":"workspaces.resolve"}}
+{"in":{"workspaceId":"ws_00000001","id":5,"op":"workspaces.wake"}}
+{"in":{"workspaceId":"ws_00000001","prompt":"which branch do I push to?","harness":"claude","thread":"00000000-0000-4000-8000-000000000002","followed":true,"startedBy":"cli","requestId":"00000000-0000-4000-8000-000000000005","answerHeld":true,"id":6,"op":"sessions.start"}}

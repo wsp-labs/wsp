@@ -1,3 +1,3 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/places-update.test.ts > moving a place onto the daemon this host deploys > is asked again by an update, so the row it answers with carries the new daemon's facts rather than none"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"placeId":"p_0300777ff68c602c","id":2,"op":"places.update"}}
+{"in":{"placeId":"p_00000001","nonce":"1PhLZa2yNmUn/EfkHGI4wuC8PBuZfv2TYonhqYhvBr8=","ephemeral":"GHykyoKxMrhXBvk/xiP+0lx6xC5po1UUgFGWdFtmnRY=","id":1,"op":"place.auth"}}
+{"in":{"signature":"ii/2J+Ft8t81W0fubc5jZMwc2/Y+28trTsuFGOoKpNYuXzwQMkx45Iko/XIcjHID/4clHhN2cWjDHRU3fwolAw==","report":{"name":"old-macbook","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/home/maya","USER":"maya","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":167,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"id":2,"op":"place.prove"}}

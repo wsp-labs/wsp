@@ -2,4 +2,4 @@
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"in":{"id":2,"op":"harnesses.list"}}
 {"in":{"id":3,"op":"sessions.list"}}
-{"in":{"threadId":"372eec6e-674e-4d0c-98bf-d5b95f3c45c6","id":4,"op":"sessions.replaceable"}}
+{"in":{"threadId":"00000000-0000-4000-8000-000000000004","id":4,"op":"sessions.replaceable"}}

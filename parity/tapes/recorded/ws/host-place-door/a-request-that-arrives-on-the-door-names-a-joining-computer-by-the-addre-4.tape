@@ -1,2 +1,2 @@
 {"meta":{"door":"ws","source":"packages/host/test/place-door.test.ts > a request that arrives on the door > names a joining computer by the address the connector carried, and never by one a box on the door wrote"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEA2uUeSgfdvrFlWjUtaE1rM18iTH68GRJ2QrkE5TL1dbQ=","nonce":"gK+dBj7KmpqipKNbvxmuTkRCuRBGROly8Rhjbtaz8YE=","ephemeral":"Zr0YiLJ/fkI625UqQQ46nu7a+NCh/mgJvDe21IWQxFE=","id":1,"op":"place.join"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAxGqsT7N2XV8i+79vy3LbcrNtqyoOWx5WTbPPYE83Ugg=","nonce":"5f2bUrAmJw4UXu91XuqV9vm9m00h4ihl7clGOsHjdIg=","ephemeral":"URb+ZyF4dILaENwb7I6KaWKsfWmagojS9VtD4ctkbEs=","id":1,"op":"place.join"}}

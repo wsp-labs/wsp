@@ -1,7 +1,3 @@
-{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there sends into its lead with wsp send and lists it with wsp threads"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"ref":"lab-box","id":2,"op":"projects.resolve"}}
-{"in":{"project":"pr_a4065d3c","id":3,"op":"workspaces.landing"}}
-{"in":{"ref":"pr_a4065d3c","id":4,"op":"projects.resolve"}}
-{"in":{"id":5,"op":"harnesses.list"}}
-{"in":{"project":"pr_a4065d3c","prompt":"hold: build it","turnToken":"ae1b0a93e928a14561531d0a56490f23","startedBy":"cli","requestId":"3a8c78a7-7405-405e-97f0-7c828b6a592a","answerHeld":true,"id":6,"op":"sessions.start"}}
+{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > the run tool on that project does the same from the lead's own tool server, and names the folder there whole"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEA7Rym9WDHis0qJ0StfmJX/5ns7b9sn/V+ZGZy7PEBeQc=","nonce":"5rlKiySqWBcyhaaZL4amYuq7Ehp3Oa5jw0UAQsAs6uU=","ephemeral":"4w3IBnmZWklDtDXn9Us4uBHk4tKn6jg5RctSs6ms8V0=","id":1,"op":"place.join"}}
+{"in":{"signature":"Ja32p4q8To7XZOCG9XR488icYbcE772lh1cguKwywxCcA/wt86wBtV3Cb8zsUZTfWbdl65Ejt9yrEFHkR5iADA==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}
