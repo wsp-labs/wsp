@@ -92,19 +92,23 @@ pub struct Host {
 }
 
 /// Absolute path for a `~/`-relative one (host.ts:66).
-// export function expand(host: Pick<Host, "home">, path: string): string {
-//   if (path === "~") return host.home;
-//   return path.startsWith("~/") ? `${host.home}/${path.slice(2)}` : path;
-// }
 pub fn expand(home: &str, path: &str) -> String {
-    todo!()
+    if path == "~" {
+        return home.to_string();
+    }
+    match path.strip_prefix("~/") {
+        Some(rest) => format!("{home}/{rest}"),
+        None => path.to_string(),
+    }
 }
 
 /// `~`-relative form of an absolute path under home; other paths come back unchanged (host.ts:72).
-// export function tilde(home: string, path: string): string {
-//   if (path === home) return "~";
-//   return path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
-// }
 pub fn tilde(home: &str, path: &str) -> String {
-    todo!()
+    if path == home {
+        return "~".to_string();
+    }
+    match path.strip_prefix(&format!("{home}/")) {
+        Some(rest) => format!("~/{rest}"),
+        None => path.to_string(),
+    }
 }

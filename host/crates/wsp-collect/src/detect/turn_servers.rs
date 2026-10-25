@@ -2,10 +2,11 @@
 //! The servers a turn of an agent gets in a folder, read off one Host by the catalog's resolver, keyed by the folder's
 //! checkout as git answers it on that Host. Port of packages/collect/src/detect/turn-servers.ts at a3b870a6e; the
 //! spec is spec/detect_turn_servers.md.
+use futures::future::join_all;
 use wsp_catalog::catalog::AgentEntry;
-use wsp_catalog::mcp_launch::{Checkout, TurnServer};
+use wsp_catalog::mcp_launch::{checkout_args, checkout_of, turn_server_files, turn_servers, Checkout, LaunchConfigs, TurnAgent, TurnFile, TurnServer};
 
-use crate::host::Host;
+use crate::host::{Host, RunOptions};
 
 /// The TS options object `{ checkout?, own? }` (turn-servers.ts:15).
 #[derive(Debug, Clone, Default)]
@@ -17,33 +18,40 @@ pub struct TurnRead {
 }
 
 /// The folder's checkout on that Host: `git <checkout_args(folder)>` read by `checkout_of`.
-// detect/turn-servers.ts:8
-// /** The folder's checkout on that Host: its top, and the main checkout both agents key a turn's servers by. */
-// export const readCheckout = async (host: Pick<Host, "exec">, folder: string): Promise<Checkout> => checkoutOf(await host.exec.run("git", checkoutArgs(folder)), folder);
 pub async fn read_checkout(host: &Host, folder: &str) -> Checkout {
-    todo!()
+    let args = checkout_args(folder);
+    let said = host.exec.run("git", &args, RunOptions::default()).await;
+    checkout_of(said.as_deref(), folder)
 }
 
 /// Every server a turn of the agent in `folder` gets there, by scope, read off the files that Host holds. The agent is
 /// TS `McpAgent` (an entry with `mcp` set); the resolver's TurnAgent is its id and its `mcp` format, files and
 /// project files. An entry with no `mcp` gets no servers.
-// detect/turn-servers.ts:11
-// /** Every server a turn of the agent in `folder` gets there, by scope, read off the files that Host holds. `checkout` is
-//  * the folder's, read off the Host where it is not handed in; `own` reads the agent's own file alone, keyed by the folder
-//  * itself. The first of the own file's candidates that is there is the one, as the agent reads it, so none after it is
-//  * read. */
-// export async function readTurnServers(host: Pick<Host, "home" | "stores" | "fs" | "exec">, agent: McpAgent, folder: string, o: { checkout?: Checkout; own?: true } = {}): Promise<TurnServer[]> {
-//   const checkout = o.checkout ?? (o.own === true ? { key: folder } : await readCheckout(host, folder));
-//   const files = turnServerFiles(agent, folder, host.home, host.stores?.[agent.id], checkout.top);
-//   const read = async (path: string): Promise<TurnFile | undefined> => {
-//     const text = await host.fs.readText(path);
-//     return text === undefined ? undefined : { path, text };
-//   };
-//   let user: TurnFile | undefined;
-//   for (const path of files.user) if ((user = await read(path)) !== undefined) break;
-//   const projects = o.own === true ? [] : (await Promise.all(files.projects.map(read))).filter(f => f !== undefined);
-//   return turnServers(agent, { ...(user !== undefined ? { user } : {}), projects, folder, key: checkout.key });
-// }
 pub async fn read_turn_servers(host: &Host, agent: &AgentEntry, folder: &str, o: TurnRead) -> Vec<TurnServer> {
-    todo!()
+    let Some(mcp) = &agent.mcp else {
+        return Vec::new();
+    };
+    let checkout = match o.checkout {
+        Some(checkout) => checkout,
+        None if o.own => Checkout { top: None, key: folder.to_string() },
+        None => read_checkout(host, folder).await,
+    };
+    let turn = TurnAgent { id: agent.id.clone(), format: mcp.format, files: mcp.files.clone(), project_files: mcp.project_files.clone() };
+    let store = host.stores.as_ref().and_then(|s| s.get(&agent.id)).map(String::as_str);
+    let files = turn_server_files(&turn, folder, &host.home, store, checkout.top.as_deref());
+    let mut user = None;
+    for path in &files.user {
+        if let Some(text) = host.fs.read_text(path).await {
+            user = Some(TurnFile { path: path.clone(), text });
+            break;
+        }
+    }
+    let projects: Vec<TurnFile> = if o.own {
+        Vec::new()
+    } else {
+        let reads = files.projects.iter().map(|path| async move { host.fs.read_text(path).await.map(|text| TurnFile { path: path.clone(), text }) });
+        join_all(reads).await.into_iter().flatten().collect()
+    };
+    let configs = LaunchConfigs { user, projects: Some(projects), folder: folder.to_string(), key: Some(checkout.key) };
+    turn_servers(&turn, &configs)
 }
