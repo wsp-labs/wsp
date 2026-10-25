@@ -1,0 +1,26 @@
+<slate title="Why both builders lost their edits">
+  <value name="fix" start="" />
+  <column>
+    <text>Every worktree of a repo shares one stash list, so a pop takes the top entry, whoever pushed it.</text>
+    <table id="steps" items={[
+      { n: "1", who: "A", cmd: "git stash push", list: "A's edit" },
+      { n: "2", who: "B", cmd: "git stash push", list: "B's edit, then A's" },
+      { n: "3", who: "A", cmd: "git stash pop", list: "A's edit; A now holds B's" },
+      { n: "4", who: "B", cmd: "git stash pop", list: "empty; B now holds A's" }
+    ]} key={item.n}>
+      <col title="Step" value={item.n} width="fit" />
+      <col title="Who" value={item.who} width="fit" />
+      <col title="Command" value={item.cmd} mono width="fit" />
+      <col title="Stash list after" value={item.list} width="fill" />
+    </table>
+    <stats id="hit">
+      <stat label="Builders hit" value={2} format="integer" window="2026-10-16" />
+      <stat label="Edits swapped" value={2} format="integer" window="each holds the other's" />
+      <stat label="Warnings" value={0} format="integer" window="both pops applied cleanly" />
+    </stats>
+    <decision id="fix" label="How do builders set work aside from now on?" value={$fix} pick="patch" onChange={send("Set aside", $fix)}>
+      <option value="patch" label="A patch file" note="git diff to a file in its own worktree, then git apply" />
+      <option value="tagged" label="A tagged stash" note="push with -m and a tag, apply by sha, never pop" />
+    </decision>
+  </column>
+</slate>

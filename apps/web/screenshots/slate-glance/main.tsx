@@ -2,9 +2,10 @@
 // One slate drawn by the real renderer with fixed values, for the #2439 shots: ?slate=<name>&theme=graphite|paper, and
 // &three=pairs for three stat tiles two a row in a narrow panel.
 // The slate's text comes from slates/ here or the glance test's own files, its values from the glance test's.
+// A frame's src is a page in slates/ here, read as the host reads it from the thread's folder.
 // ?runs=<name> draws a cold writer's slate (cold/written/) with its runs.json as the runs' results instead.
 import { createRoot } from "react-dom/client";
-import { parseSlate, slateStartValues, type SlateJson } from "@wsp/protocol/slate";
+import { parseSlate, slateFrameSource, slateImageMissing, slateStartValues, type SlateJson } from "@wsp/protocol/slate";
 import "../../src/index.css";
 import "../../src/themes/index.js";
 import { ActionRunner, StateSender, type SlateLink } from "../../src/slate/actions.js";
@@ -20,6 +21,7 @@ const texts = {
   ...import.meta.glob("./slates/*.slate", { query: "?raw", import: "default", eager: true }),
   ...import.meta.glob("./cold/written/*.slate", { query: "?raw", import: "default", eager: true }),
 } as Record<string, string>;
+const pages = import.meta.glob("./slates/*.html", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 const written = import.meta.glob("./cold/written/*.runs.json", { import: "default", eager: true }) as Record<string, Record<string, unknown>>;
 const at = new URLSearchParams(location.search);
 const name = at.get("slate") ?? "before";
@@ -55,6 +57,12 @@ if (parsed?.document === undefined) {
     revoke: async () => ({ ok: true }),
     consent: () => {},
     fill: () => {},
+    page: async src => {
+      const said = slateFrameSource(src);
+      if ("problem" in said) return said;
+      const html = Object.entries(pages).find(([path]) => path.endsWith(`/slates/${said.path}`))?.[1];
+      return html === undefined ? { problem: slateImageMissing(said.path) } : { html };
+    },
   };
   const sender = new StateSender(engine, () => link);
   const runner = new ActionRunner(engine, () => link);

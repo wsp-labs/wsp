@@ -59,7 +59,7 @@ const useAllowedRound = (slate: SlateEngine): number =>
 const sentence = (s: string): string => (/^[a-z]+ /.test(s) ? s[0]!.toUpperCase() + s.slice(1) : s);
 
 /** How many times the slate's runs have finished, which moves when a run ends and not while it ticks along. */
-function runsEnded(slate: SlateEngine): number {
+export function runsEnded(slate: SlateEngine): number {
   const values = slate.values;
   return Object.keys(slate.document?.runs ?? {}).reduce((n, name) => {
     const run = values[name];

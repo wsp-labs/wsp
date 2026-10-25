@@ -1,0 +1,26 @@
+<slate title="How a box's turns dial back after a blip">
+  <column>
+    <text>Each turn redials the daemon at 0.5 s doubling to 10 s, plus up to 0.25 s of jitter. With the daemon gone 12 s, the fifth dial gets through.</text>
+    <table id="dials" items={[
+      { n: "1", wait: "0.5 s", at: "0.5 s", got: "No" },
+      { n: "2", wait: "1 s", at: "1.5 s", got: "No" },
+      { n: "3", wait: "2 s", at: "3.5 s", got: "No" },
+      { n: "4", wait: "4 s", at: "7.5 s", got: "No" },
+      { n: "5", wait: "8 s", at: "15.5 s", got: "Yes" }
+    ]} key={item.n}>
+      <col title="Dial" value={item.n} width="fit" />
+      <col title="Wait" value={item.wait} width="fit" />
+      <col title="At, before jitter" value={item.at} width="fill" />
+      <col title="Answered" value={item.got} tone={item.got == 'Yes' ? 'good' : 'muted'} width="fit" />
+    </table>
+    <stats id="blip">
+      <stat label="Daemon back" value={12} unit="s" window="after the link dropped" />
+      <stat label="All 6 turns back" value={16.4} unit="s" window="from 16.0 s, spread by jitter" />
+      <stat label="Dials" value={30} format="integer" window="5 for each turn" />
+    </stats>
+    <facts id="rule">
+      <fact label="Without jitter" value="all 6 back at 15.5 s, the same instant" />
+      <fact label="Turn cut after" value="60 s with no answer" />
+    </facts>
+  </column>
+</slate>

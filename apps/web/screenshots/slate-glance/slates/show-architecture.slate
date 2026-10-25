@@ -1,0 +1,16 @@
+<slate title="Why dev4 went Unreachable">
+  <value name="resend" start="" />
+  <column>
+    <frame id="map" src="show-architecture.html" caption="Press a part for what it did; the red path is where it broke" />
+    <stats id="hit">
+      <stat label="Test runs at once" value={3} format="integer" window="on a 4 GB box" />
+      <stat label="Turns failed" value={3} max={3} format="fraction" window="2026-09-06" tone="bad" />
+      <stat label="Link silent for" value={60} unit="s" window="then the host cut each turn" />
+    </stats>
+    <decision id="resend" label="Resend the three cut turns?" value={$resend} pick="queue" onChange={send("Resend", $resend)}>
+      <option value="queue" label="Resend all three" note="Two run, one per 2048 MB; the third waits" />
+      <option value="one" label="Resend the review only" />
+      <option value="none" label="Leave them" />
+    </decision>
+  </column>
+</slate>

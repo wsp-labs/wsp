@@ -1,0 +1,15 @@
+<slate title="Why both builders lost their edits">
+  <value name="fix" start="" />
+  <column>
+    <frame id="race" src="show-stash-race.html" caption="One stash list per repo, and a pop takes the top" />
+    <stats id="hit">
+      <stat label="Builders hit" value={2} format="integer" window="2026-10-16" />
+      <stat label="Edits swapped" value={2} format="integer" window="each holds the other's" />
+      <stat label="Warnings" value={0} format="integer" window="both pops applied cleanly" />
+    </stats>
+    <decision id="fix" label="How do builders set work aside from now on?" value={$fix} pick="patch" onChange={send("Set aside", $fix)}>
+      <option value="patch" label="A patch file" note="git diff to a file in its own worktree, then git apply" />
+      <option value="tagged" label="A tagged stash" note="push with -m and a tag, apply by sha, never pop" />
+    </decision>
+  </column>
+</slate>
