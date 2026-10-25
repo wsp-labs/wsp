@@ -1,0 +1,197 @@
+{
+  "suite": {
+    "state": "done",
+    "exit": 0,
+    "startedAt": 1761384599100,
+    "endedAt": 1761384599300,
+    "ms": 200,
+    "runs": 37,
+    "out": "{\"state\": \"running\", \"startedAt\": 1761384040000, \"elapsedMs\": 560000, \"passed\": 2701, \"failed\": 11, \"skipped\": 19, \"packages\": [{\"name\": \"config\", \"state\": \"done\", \"start\": 1761384040000, \"end\": 1761384058000, \"tests\": 48, \"failed\": 0}, {\"name\": \"utils\", \"state\": \"done\", \"start\": 1761384040000, \"end\": 1761384106000, \"tests\": 412, \"failed\": 0}, {\"name\": \"core\", \"state\": \"done\", \"start\": 1761384046000, \"end\": 1761384184000, \"tests\": 688, \"failed\": 0}, {\"name\": \"db\", \"state\": \"done\", \"start\": 1761384106000, \"end\": 1761384256000, \"tests\": 231, \"failed\": 0}, {\"name\": \"auth\", \"state\": \"failed\", \"start\": 1761384184000, \"end\": 1761384292000, \"tests\": 174, \"failed\": 2}, {\"name\": \"cli\", \"state\": \"done\", \"start\": 1761384256000, \"end\": 1761384334000, \"tests\": 96, \"failed\": 0}, {\"name\": \"billing\", \"state\": \"failed\", \"start\": 1761384292000, \"end\": 1761384448000, \"tests\": 357, \"failed\": 6}, {\"name\": \"ui\", \"state\": \"failed\", \"start\": 1761384334000, \"end\": 1761384526000, \"tests\": 725, \"failed\": 3}, {\"name\": \"api\", \"state\": \"running\", \"start\": 1761384448000, \"end\": null, \"tests\": 0, \"failed\": 0}, {\"name\": \"web\", \"state\": \"running\", \"start\": 1761384526000, \"end\": null, \"tests\": 0, \"failed\": 0}, {\"name\": \"mobile\", \"state\": \"waiting\", \"start\": null, \"end\": null, \"tests\": 0, \"failed\": 0}, {\"name\": \"worker\", \"state\": \"waiting\", \"start\": null, \"end\": null, \"tests\": 0, \"failed\": 0}], \"failures\": [{\"id\": \"billing::issues an invoice dated the last day of the month\", \"package\": \"billing\", \"test\": \"issues an invoice dated the last day of the month\", \"file\": \"src/invoice.test.ts\", \"error\": \"AssertionError: expected '2026-10-30' to be '2026-10-31'\"}, {\"id\": \"billing::rolls a monthly plan over at midnight\", \"package\": \"billing\", \"test\": \"rolls a monthly plan over at midnight\", \"file\": \"src/renewal.test.ts\", \"error\": \"AssertionError: expected 2026-11-01T00:00 to equal 2026-10-31T18:30\"}, {\"id\": \"billing::prorates an upgrade on the renewal day\", \"package\": \"billing\", \"test\": \"prorates an upgrade on the renewal day\", \"file\": \"src/proration.test.ts\", \"error\": \"AssertionError: expected 1450 to be 1500\"}, {\"id\": \"billing::groups usage by calendar day\", \"package\": \"billing\", \"test\": \"groups usage by calendar day\", \"file\": \"src/usage.test.ts\", \"error\": \"AssertionError: expected 31 buckets, got 32\"}, {\"id\": \"billing::shows the due date on the receipt\", \"package\": \"billing\", \"test\": \"shows the due date on the receipt\", \"file\": \"src/receipt.test.ts\", \"error\": \"AssertionError: expected 'Oct 31' to be 'Nov 1'\"}, {\"id\": \"billing::skips a trial that ends today\", \"package\": \"billing\", \"test\": \"skips a trial that ends today\", \"file\": \"src/trial.test.ts\", \"error\": \"AssertionError: expected true to be false\"}, {\"id\": \"ui::Button renders the primary variant\", \"package\": \"ui\", \"test\": \"Button renders the primary variant\", \"file\": \"src/Button.test.tsx\", \"error\": \"Error: Snapshot `Button renders the primary variant 1` mismatched\"}, {\"id\": \"ui::Button renders the quiet variant\", \"package\": \"ui\", \"test\": \"Button renders the quiet variant\", \"file\": \"src/Button.test.tsx\", \"error\": \"Error: Snapshot `Button renders the quiet variant 1` mismatched\"}, {\"id\": \"ui::Toolbar lays out three buttons\", \"package\": \"ui\", \"test\": \"Toolbar lays out three buttons\", \"file\": \"src/Toolbar.test.tsx\", \"error\": \"Error: Snapshot `Toolbar lays out three buttons 1` mismatched\"}, {\"id\": \"auth::refreshes a token one minute before expiry\", \"package\": \"auth\", \"test\": \"refreshes a token one minute before expiry\", \"file\": \"src/refresh.test.ts\", \"error\": \"Error: Test timed out in 5000ms.\"}, {\"id\": \"auth::rejects a token that just expired\", \"package\": \"auth\", \"test\": \"rejects a token that just expired\", \"file\": \"src/verify.test.ts\", \"error\": \"AssertionError: expected [Function] to throw TokenExpiredError\"}]}",
+    "err": "",
+    "json": {
+      "state": "running",
+      "startedAt": 1761384040000,
+      "elapsedMs": 560000,
+      "passed": 2701,
+      "failed": 11,
+      "skipped": 19,
+      "packages": [
+        {
+          "name": "config",
+          "state": "done",
+          "start": 1761384040000,
+          "end": 1761384058000,
+          "tests": 48,
+          "failed": 0
+        },
+        {
+          "name": "utils",
+          "state": "done",
+          "start": 1761384040000,
+          "end": 1761384106000,
+          "tests": 412,
+          "failed": 0
+        },
+        {
+          "name": "core",
+          "state": "done",
+          "start": 1761384046000,
+          "end": 1761384184000,
+          "tests": 688,
+          "failed": 0
+        },
+        {
+          "name": "db",
+          "state": "done",
+          "start": 1761384106000,
+          "end": 1761384256000,
+          "tests": 231,
+          "failed": 0
+        },
+        {
+          "name": "auth",
+          "state": "failed",
+          "start": 1761384184000,
+          "end": 1761384292000,
+          "tests": 174,
+          "failed": 2
+        },
+        {
+          "name": "cli",
+          "state": "done",
+          "start": 1761384256000,
+          "end": 1761384334000,
+          "tests": 96,
+          "failed": 0
+        },
+        {
+          "name": "billing",
+          "state": "failed",
+          "start": 1761384292000,
+          "end": 1761384448000,
+          "tests": 357,
+          "failed": 6
+        },
+        {
+          "name": "ui",
+          "state": "failed",
+          "start": 1761384334000,
+          "end": 1761384526000,
+          "tests": 725,
+          "failed": 3
+        },
+        {
+          "name": "api",
+          "state": "running",
+          "start": 1761384448000,
+          "end": null,
+          "tests": 0,
+          "failed": 0
+        },
+        {
+          "name": "web",
+          "state": "running",
+          "start": 1761384526000,
+          "end": null,
+          "tests": 0,
+          "failed": 0
+        },
+        {
+          "name": "mobile",
+          "state": "waiting",
+          "start": null,
+          "end": null,
+          "tests": 0,
+          "failed": 0
+        },
+        {
+          "name": "worker",
+          "state": "waiting",
+          "start": null,
+          "end": null,
+          "tests": 0,
+          "failed": 0
+        }
+      ],
+      "failures": [
+        {
+          "id": "billing::issues an invoice dated the last day of the month",
+          "package": "billing",
+          "test": "issues an invoice dated the last day of the month",
+          "file": "src/invoice.test.ts",
+          "error": "AssertionError: expected '2026-10-30' to be '2026-10-31'"
+        },
+        {
+          "id": "billing::rolls a monthly plan over at midnight",
+          "package": "billing",
+          "test": "rolls a monthly plan over at midnight",
+          "file": "src/renewal.test.ts",
+          "error": "AssertionError: expected 2026-11-01T00:00 to equal 2026-10-31T18:30"
+        },
+        {
+          "id": "billing::prorates an upgrade on the renewal day",
+          "package": "billing",
+          "test": "prorates an upgrade on the renewal day",
+          "file": "src/proration.test.ts",
+          "error": "AssertionError: expected 1450 to be 1500"
+        },
+        {
+          "id": "billing::groups usage by calendar day",
+          "package": "billing",
+          "test": "groups usage by calendar day",
+          "file": "src/usage.test.ts",
+          "error": "AssertionError: expected 31 buckets, got 32"
+        },
+        {
+          "id": "billing::shows the due date on the receipt",
+          "package": "billing",
+          "test": "shows the due date on the receipt",
+          "file": "src/receipt.test.ts",
+          "error": "AssertionError: expected 'Oct 31' to be 'Nov 1'"
+        },
+        {
+          "id": "billing::skips a trial that ends today",
+          "package": "billing",
+          "test": "skips a trial that ends today",
+          "file": "src/trial.test.ts",
+          "error": "AssertionError: expected true to be false"
+        },
+        {
+          "id": "ui::Button renders the primary variant",
+          "package": "ui",
+          "test": "Button renders the primary variant",
+          "file": "src/Button.test.tsx",
+          "error": "Error: Snapshot `Button renders the primary variant 1` mismatched"
+        },
+        {
+          "id": "ui::Button renders the quiet variant",
+          "package": "ui",
+          "test": "Button renders the quiet variant",
+          "file": "src/Button.test.tsx",
+          "error": "Error: Snapshot `Button renders the quiet variant 1` mismatched"
+        },
+        {
+          "id": "ui::Toolbar lays out three buttons",
+          "package": "ui",
+          "test": "Toolbar lays out three buttons",
+          "file": "src/Toolbar.test.tsx",
+          "error": "Error: Snapshot `Toolbar lays out three buttons 1` mismatched"
+        },
+        {
+          "id": "auth::refreshes a token one minute before expiry",
+          "package": "auth",
+          "test": "refreshes a token one minute before expiry",
+          "file": "src/refresh.test.ts",
+          "error": "Error: Test timed out in 5000ms."
+        },
+        {
+          "id": "auth::rejects a token that just expired",
+          "package": "auth",
+          "test": "rejects a token that just expired",
+          "file": "src/verify.test.ts",
+          "error": "AssertionError: expected [Function] to throw TokenExpiredError"
+        }
+      ]
+    }
+  }
+}

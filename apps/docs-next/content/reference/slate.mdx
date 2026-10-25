@@ -7,16 +7,12 @@ What `slate_catalog` answers, and `wsp slate catalog` prints: the index with no 
 ## The index
 
 ```text
-Slate kit wsp/2, JSX-like text. Pieces (attributes, ! required, (a|b) the only values; <items>):
-column: gap(tight|normal|loose) align; children
-grid: columns! gap(tight|normal|loose) align; children
-row: gap(tight|normal|loose) align wrap; children
-section: title! note collapsible open align onChange; children
-text: value! tone emphasis mono size(small|normal|large) lines placeholder
-heading: value! level(title|section|label)
-markdown: value!
+The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it.
+Pieces, visual first (! required, (a|b) the only values, <items>):
+decision: label! value! pick held onChange; <option value! label! note>
+stats: <stat label! value! format unit window max trend tone>
+progress: label! items! key name! done! note
 number: label! value! format unit tone note size(normal|large) trend
-meter: label! value! max note tone format(percent|value|fraction|tokens|bytes|none)
 bars: label! items! key name! value! tone max format(percent|value|none)
 chart: label! items! x value format unit tone height(small|normal|large) stack; <series label! value! tone>
 diagram: value! label
@@ -26,22 +22,25 @@ donut: label! items! name! value! format unit
 image: src! caption
 images: items! src! caption layout(strip|gallery|compare)
 sparkline: label! values! tone
-table: items! key empty rows; <col title! value! tone emphasis mono align width(fit|fill)> <action label! onPress>
-checklist: items! key title! done! state(pending|working|done) note editable empty onChange
-facts: layout(line|grid); <fact label! value! tone emphasis mono>
-status: value! tone
-chip: value!
 ring: label! value! max format(percent|value|fraction) tone note
-output: run! label lines wrap
 button: label! variant(default|primary|quiet|danger) held note size(normal|small) onPress
 input: label! value! lines kind(text|number|password) placeholder held mono submit onChange onSubmit
 select: label! value! placeholder held onChange; <option value! label>
-choices: label! value! answer held onChange; <option value! label note>
 toggle: label! value! note held onChange
+text: value! tone emphasis mono size(small|normal|large) lines placeholder
+markdown: value!
+table: items! key empty rows; <col title! value! tone emphasis mono align width(fit|fill)> <action label! onPress>
+checklist: items! key title! done! state(pending|working|done) note editable empty onChange
+facts: layout(line|grid); <fact label! value! tone emphasis mono>
+column: gap align; children
+grid: columns! gap align; children
+row: gap align wrap; children
+section: title! note collapsible open align onChange; children
+status: value! tone
+output: run! label lines wrap
 empty: title! body
-Every piece: id, when={cond}; items take when too. tone: default muted good warning bad info accent. emphasis: normal strong quiet. format, where a line lists none: plain tokens bytes percent usd inr duration integer.
-section, column, grid: pad none tight normal loose; surface="inset" sets the card ground; align start center end, else children fill the width.
-bars compare categories; time is a chart, x in ms or ISO; shares a donut, sizes a treemap, spans on a clock a timeline; a flow is a diagram; a screenshot or plot is an image from its path on the thread's computer, or an https address the person allows.
+Every piece: id, when={cond}; items take when too. tone: default muted good warning bad info accent. emphasis: normal strong quiet. gap: tight normal loose. format, where a line lists none: plain tokens bytes percent usd inr duration integer fraction.
+Pick by question: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram.
 Sources, read only:
 thread: id title agent model status turns lastTurn cost tokens context changes plan waitingOn subagents[] ...
 usage: account windows[] session week status note ...
@@ -50,8 +49,8 @@ time: now today zone
 git: branch head ahead behind changed ...
 pr: number url state draft branch headSubject mergeable review checks[] word ...
 Declarations: <value name start> <secret name> <derived name value> <run name cmd env args stdin on timeout every always once confirm then tool resource description> <file name> <when change={$path} or done={$run} do={steps}>
-Steps: set toggle start cancel send steer queue fill open copy pane. Functions: percent pct tokens bytes usd number duration ago until date time weekday plural word upper lower trim short round floor ceil abs min max clamp str num bool concat json lines split replace contains startsWith endsWith orElse exists isNull coalesce if len count sum avg first last at append pluck join. ago(t) "30s ago", until(t) "in 4m".
-After |: where sortBy groupBy take skip count sum min max avg first last pick map distinct flatten join format. $run reads state exit out err json; a secret only .set .len.
+Steps: set toggle start cancel send steer queue fill open copy pane. Functions: slate_catalog functions; ago(t) "30s ago", until(t) "in 4m".
+After |: where sortBy take count and more. $run reads state exit out err json; a secret only .set .len.
 Rules:
 1. One <slate>, one root piece, declarations beside it. Give an id to a piece you will change.
 2. prop="text" is literal; prop={formula} reads live data or $values with operators, a ? b : c, [lists], {records} and functions, never methods or =>. A text child with {holes} fills a sentence.
@@ -59,27 +58,27 @@ Rules:
 4. A list binds to items; item and index read the row.
 5. A press reaches you only through send("literal text", $path); <when> chains run without you.
 6. Small edit: patch by id, <props id="price" value={$spot.json.v} />; bigger: resend the whole slate with if_version.
-7. Simple and airy unless asked for more: few pieces, one idea per section, short labels, no emoji. Separate things by layout, never by ·, • or |.
-8. One heading per section: its title or a heading, in sentence case, never bold text.
-9. Status and last-checked lines small and muted, beside their subject.
-10. Actions at the end of their row; one primary per section.
-11. mono only for figures, ids, times and paths.
-12. Every live number says its window and unit. Show a run's json fields, never its raw out; times through date(), time() or ago().
-13. Nothing centered but a lone figure or card.
-14. Use the slate tools, never wsp from a shell.
-15. A secret the person types goes in a <secret> input, never a file or the chat. One in a file stays there for the run to read, never you.
-16. A button asked for where the project has no UI goes here: the slate is its UI, and the reply says so.
-<slate title="Issue">
-  <value name="id" start="" />
-  <run name="check" cmd='gh api "repos/{owner}/{repo}/issues/$ID"' env={{ ID: $id }} />
-  <when change={$id} do={start($check)} />
+7. At a glance: at most 4 sections open, the rest collapsible open={false}; 1 table of 4 columns; notes, cells to 12 words, texts to 30; no logs, drawn tables. Replace a section, never add one beside it.
+8. Fill pieces, not layout: no card in a card, never ·, • or | between things, short labels, no emoji. Heads in sentence case, never bold text.
+9. A live number shows once, with its window and unit: never a progress count as a stat too. Show a run's json fields, never its raw out; times through date(), time() or ago(). A run's every= keeps it fresh: never poll in chat.
+10. Use the slate tools, never wsp from a shell.
+11. A secret the person types goes in a <secret> input, never a file or the chat. One in a file stays there for the run to read, never you.
+12. A button asked for where the project has no UI goes here: the slate is its UI, and the reply says so.
+<slate title="Deploy">
+  <run name="ci" cmd="./ci-status --json" every={30} />
+  <value name="ship" start="" />
   <column>
-    <input label="Issue" value={$id} />
-    <text when={$check.exit == 0}>{$check.json.title}</text>
-    <button label="Fix it" onPress={send("Fix this issue.", $id)} />
+    <stats>
+      <stat label="Passed" value={$ci.json.passed} max={$ci.json.total} window="this run" />
+      <stat label="Spent" value={thread.cost.usd} format="usd" window="this thread" />
+    </stats>
+    <chart label="Build, s" items={$ci.json.runs} x={item.at} value={item.s} />
+    <decision label="Ship it?" value={$ship} pick="yes" onChange={send("Ship it?", $ship)}>
+      <option value="yes" label="Ship now" /><option value="no" label="Wait" />
+    </decision>
   </column>
 </slate>
-More: slate_catalog <piece, source, runs, patch, functions, steps, handlers or examples>.
+More: slate_catalog <piece, source, runs, patch, functions or examples>.
 ```
 
 ## Pieces
@@ -158,7 +157,7 @@ example: <text tone="muted">{tokens(thread.context.free)} free</text>
 ### heading
 
 ```text
-heading (core): A heading on the app's type ladder: title, section, or label in small caps.
+heading (working): A heading on the app's type ladder: title, section, or label in small caps.
   value: text or number, required, formula
   level: title|section|label
 events: none; a text child fills value
@@ -182,7 +181,7 @@ example: <markdown>**Why.** The host keeps the last 5,000 events.</markdown>
 number (core): A figure with a label.
   label: string, required, formula
   value: text or number, required, formula
-  format: plain|tokens|bytes|percent|usd|inr|duration|integer
+  format: plain|tokens|bytes|percent|usd|inr|duration|integer|fraction
   unit: string, formula
   tone: tone, formula
   note: string, formula
@@ -196,7 +195,7 @@ example: <number label="Spent" value={thread.cost.usd} format="usd" />
 ### meter
 
 ```text
-meter (core): One value against a maximum.
+meter (working): One value against a maximum.
   label: string, required, formula
   value: number, required, formula
   max: number, formula
@@ -233,7 +232,7 @@ chart (core): Lines over a list, oldest first; stack piles the <series>.
   items: list, required, formula
   x: any, per row; a time on x (ISO or ms) labels the axis by clock, in this computer's time zone; a number by its value
   value: number, per row
-  format: plain|tokens|bytes|percent|usd|inr|duration|integer
+  format: plain|tokens|bytes|percent|usd|inr|duration|integer|fraction
   unit: string, formula
   tone: tone, formula
   height: small|normal|large
@@ -284,7 +283,7 @@ treemap (core): Sizes of one whole's parts as nested boxes, such as a bundle by 
   name: string, required, per row
   value: number, required, per row
   group: string, per row
-  format: plain|tokens|bytes|percent|usd|inr|duration|integer
+  format: plain|tokens|bytes|percent|usd|inr|duration|integer|fraction
 events: none
 sketch: Bundle  boxes of {$stats.json.modules}  [treemap-1 treemap format=bytes]
 example: <treemap label="Bundle" items={$stats.json.modules} name={item.name} value={item.bytes} group={item.package} format="bytes" />
@@ -298,7 +297,7 @@ donut (core): Shares of one whole, five parts at most with the rest as Other; ne
   items: list, required, formula
   name: string, required, per row
   value: number, required, per row
-  format: plain|tokens|bytes|percent|usd|inr|duration|integer
+  format: plain|tokens|bytes|percent|usd|inr|duration|integer|fraction
   unit: string, formula
 events: none
 sketch: By country  shares of {$countries}  [donut-1 donut format=integer]
@@ -387,7 +386,7 @@ example: <facts><fact label="State" value={pr.word} /><fact label="Review" value
 ### status
 
 ```text
-status (core): A dot in a tone with a word: Live, Down, Waiting.
+status (core): A state word in its tone: Live, Down, Waiting.
   value: text or number, required, formula
   tone: default|muted|good|warning|bad|info, formula
 events: none; a text child fills value
@@ -398,7 +397,7 @@ example: <status tone={$up ? 'good' : 'bad'}>{$up ? 'Live' : 'Down'}</status>
 ### chip
 
 ```text
-chip (core): A short fact in a small framed chip.
+chip (working): A short fact in a small framed chip.
   value: text or number, required, formula
 events: none; a text child fills value
 sketch: [{git.branch}]  [chip-1 chip]
@@ -423,10 +422,10 @@ example: <ring label="Done" value={$done} max={len($steps)} format="fraction" />
 ### output
 
 ```text
-output (core): A run's output as it streams, with its state and a Cancel.
+output (core): A run's output summary first: its state, what passed and failed, the lines that failed, the raw lines folded.
   run: $run, required
   label: string, formula
-  lines: integer, 3 to 40; how many of the newest lines show, out then err, 8 by default
+  lines: integer, 3 to 40; how many of the newest raw lines show once unfolded, out then err, 8 by default
   wrap: boolean
 events: none
 sketch: output $tests: not run yet  [output-1 output lines=12]
@@ -481,7 +480,7 @@ example: <select label="Hide" value={$hide}><option value="Done" /><option value
 ### choices
 
 ```text
-choices (core): Large options to pick one, written to its $value; answer marks the right one once picked.
+choices (working): Large options to pick one, written to its $value; answer marks the right one once picked.
   label: string, required, formula
   value: any, required, two-way $value
   answer: any, formula
@@ -490,6 +489,45 @@ choices (core): Large options to pick one, written to its $value; answer marks t
 events: onChange
 sketch: Which layer routes packets?: {$pick}  [choices-1 choices]
 example: <choices label="Which layer routes packets?" value={$pick} options={$q.options} answer={$q.answer} />
+```
+
+### decision
+
+```text
+decision (core): A question the person answers with one press: 2 to 4 answers, pick marks yours, onChange sends the answer.
+  label: string, required, formula
+  value: any, required, two-way $value
+  pick: any, formula; the answer you would take, marked as yours
+  held: string, formula
+  <option> value! label! note when
+events: onChange
+sketch: Fix inset shadows once?  answered: {$shadows}  [decision-1 decision]
+example: <decision label="Fix inset shadows once?" value={$shadows} pick="yes" onChange={send("Inset shadows.", $shadows)}><option value="yes" label="Yes, in the engine" /><option value="no" label="No" /></decision>
+```
+
+### stats
+
+```text
+stats (core): 2 to 4 figures as equal tiles in one card: <stat> per figure; max draws a ring, trend a sparkline.
+  <stat> label! value! format unit window max trend tone when
+events: none
+sketch: Tests  {$t.json.passed}  this run  |  Spent  {thread.cost.usd}  this thread  [stats-1 stats]
+example: <stats><stat label="Tests" value={$t.json.passed} max={$t.json.total} format="fraction" window="this run" /><stat label="Spent" value={thread.cost.usd} format="usd" window="this thread" /></stats>
+```
+
+### progress
+
+```text
+progress (core): A count of rows done, then only the rows not done, each with its note; items holds every row, done ones too.
+  label: string, required, formula; what the count counts, after "12 of 14": screens in the app
+  items: list, required, formula
+  key: any, per row
+  name: string, required, per row
+  done: boolean, required, per row
+  note: string, per row; a few words on a row not done
+events: none
+sketch: screens in the app  count of {$p.json.screens}  [progress-1 progress]
+example: <progress label="screens in the app" items={$p.json.screens} name={item.name} done={item.state == "in"} note={item.state} />
 ```
 
 ### toggle

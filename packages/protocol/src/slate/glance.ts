@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Whether a slate reads at a glance (#2439): the person glances at it beside the chat, so a slate heavy with words,
+// Whether a slate reads at a glance: the person glances at it beside the chat, so a slate heavy with words,
 // open sections, tables, logs and rows that all say the same is warned back to the agent in its sketch, against the
 // bounds in SLATE_GLANCE. Read off what the person sees now: hidden pieces and folded sections' children count for
 // nothing.
 import { evaluateSlateExpression, resolveSlateProp, slatePropDependencies, slateTruthy, type SlateEvalContext } from "./expr.js";
 import { SLATE_PIECES } from "./kit.js";
-import { SLATE_GLANCE } from "./limits.js";
-import { parseSlateOwnPath } from "./paths.js";
+import { SLATE_GLANCE, SLATE_LIMITS } from "./limits.js";
+import { SLATE_LOG_LINE as LOG_LINE } from "./output.js";
+import { parseSlateOwnPath, slateEqual } from "./paths.js";
 import { slateProblem } from "./problems.js";
 import { isSlateBinding, type SlateDoc, type SlateJson, type SlatePiece, type SlateProblem, type SlatePropValue } from "./types.js";
 
@@ -14,14 +15,6 @@ import { isSlateBinding, type SlateDoc, type SlateJson, type SlatePiece, type Sl
 const CELL_FIELDS: ReadonlySet<string> = new Set(["note", "title", "name", "value", "label", "window"]);
 /** A run's raw result, which a slate shows through json fields instead. */
 const RAW_FIELDS: ReadonlySet<string> = new Set(["out", "err", "lines"]);
-/** Lines a process prints: an exit code; a test runner's tally, file verdict, test mark with its time or stack frame
- * (vitest, jest, pytest, cargo, go, mocha); a compiler's error or warning head; a traceback; a terminal colour. */
-const LOG_LINE = new RegExp([
-  "\\bexit(?:ed)?(?: with)? code \\d", "\\btest result:", "\\b\\d+ passed; \\d+ failed", "^\\s*(?:error|warning)(?:\\[|:)",
-  "^\\s*Test Files {2}", "^\\s*Tests:? {2,}\\d", "^=+ .*\\bin \\d+(?:\\.\\d+)?s =+$", "^\\s*(?:FAIL|PASS) {1,2}\\S+\\.\\w+",
-  "^\\s*--- (?:FAIL|PASS):", "^ok {2,}\\S+\\s+\\d", "^\\s*[✓✔×✗✖] .+ \\d+ ?ms$", "^\\s+at .+:\\d+:\\d+\\)?$",
-  "^Traceback \\(most recent call last\\)", "\\bnpm ERR!", "\\bpanicked at\\b", "\u001b\\[[0-9;]*m",
-].join("|"), "im");
 /** A table's ruler line, dashes with spaces, pipes or plus signs between. */
 const RULER = /^[\s|+:]*-{3,}[\s|+:-]*$/;
 
@@ -63,6 +56,10 @@ function asciiColumns(text: string): number | undefined {
 }
 
 interface Said { piece: string; prop: string; value: string; row?: number }
+
+/** The rows of a list the person can see: a table stops drawing at SLATE_LIMITS.rowsDrawn, so no check reads past
+ * them; a checklist and a progress draw every row, so theirs are read whole. */
+const seenRows = (type: string, items: SlateJson | undefined): SlateJson[] => (!Array.isArray(items) ? [] : columned(type) ? items.slice(0, SLATE_LIMITS.rowsDrawn) : items);
 
 /** Warnings for a slate the person cannot take in at a glance; `sketchWords` counts the words of its sketch's lines. */
 export function slateGlanceProblems(doc: SlateDoc, read: SlateEvalContext, sketchWords: number): SlateProblem[] {
@@ -122,7 +119,7 @@ export function slateGlanceProblems(doc: SlateDoc, read: SlateEvalContext, sketc
       const module = SLATE_PIECES[piece.type];
       if (module === undefined) continue;
       const items = module.repeating === true ? prop(piece, "items") : undefined;
-      const rows = Array.isArray(items) ? items : [];
+      const rows = seenRows(piece.type, items);
       for (const [name, spec] of Object.entries(module.props)) {
         if (spec.binds === "item" && CELL_FIELDS.has(name)) {
           rows.forEach((item, index) => { const v = prop(piece, name, { ...read, item, index }); if (typeof v === "string") said.push({ piece: id, prop: name, value: v, row: index }); });
@@ -202,19 +199,31 @@ export function slateGlanceProblems(doc: SlateDoc, read: SlateEvalContext, sketc
     const cols = (doc.pieces[id]!.props?.["columns"] as SlatePropValue[] | undefined) ?? [];
     if (cols.length > SLATE_GLANCE.columns) out.push(slateProblem("W032", `${id} has ${cols.length} columns; at most ${SLATE_GLANCE.columns} read at a glance in the panel: keep the columns that answer the question, the rest go in the chat`, { piece: id, prop: "columns" }));
     const items = prop(doc.pieces[id]!, "items");
-    if (!Array.isArray(items) || items.length < SLATE_GLANCE.sameRows) continue;
+    const rows = seenRows(doc.pieces[id]!.type, items);
+    const of = Array.isArray(items) && items.length > rows.length ? ` that draw, of ${items.length}` : "";
+    if (rows.length < SLATE_GLANCE.sameRows) continue;
     for (const col of cols) {
       if (col === null || typeof col !== "object" || Array.isArray(col)) continue;
       const c = col as Record<string, SlatePropValue>;
-      const per = (name: string): SlateJson[] => (c[name] === undefined ? [] : items.map((item, index) => resolveSlateProp(c[name]!, { ...read, item, index }) ?? null));
-      const values = per("value");
-      const tones = per("tone");
-      const one = (list: SlateJson[]): boolean => list.length === items.length && list.every(v => JSON.stringify(v) === JSON.stringify(list[0]));
+      // What a field reads on every row, read row by row and given up at the first row that differs.
+      const every = <T>(name: string, as: (v: SlateJson) => T | undefined): { v: T } | undefined => {
+        if (c[name] === undefined) return undefined;
+        let first: T | undefined;
+        for (const [index, item] of rows.entries()) {
+          const v = as(resolveSlateProp(c[name]!, { ...read, item, index }) ?? null);
+          if (v === undefined || (index > 0 && !slateEqual(v as SlateJson, first as SlateJson))) return undefined;
+          if (index === 0) first = v;
+        }
+        return { v: first as T };
+      };
       const title = typeof c["title"] === "string" ? c["title"] : "a column";
-      const states = values.map(stateWord);
-      if (one(values)) out.push(slateProblem("W036", `${title} reads ${JSON.stringify(values[0])} on all ${items.length} rows of ${id}, which says nothing row by row; say it once above the table, or show only the rows that differ`, { piece: id, prop: "columns" }));
-      else if (states[0] !== undefined && one(states as SlateJson[])) out.push(slateProblem("W036", `${title} says ${states[0]} on all ${items.length} rows of ${id}: a state the same on every row says nothing; say it once as a count, <progress> or <stats>, and list only the rows that differ`, { piece: id, prop: "columns", fix: "<progress>" }));
-      else if (one(tones) && tones[0] !== null && tones[0] !== "default") out.push(slateProblem("W036", `${title} is ${String(tones[0])} on all ${items.length} rows of ${id}: a state the same on every row says nothing; show the count with the exceptions, <progress>`, { piece: id, prop: "columns", fix: "<progress>" }));
+      const value = every("value", v => v);
+      const state = value === undefined ? every("value", stateWord) : undefined;
+      const tone = value === undefined && state === undefined ? every("tone", v => (v === null || v === "default" ? undefined : v)) : undefined;
+      if (value !== undefined) out.push(slateProblem("W036", `${title} reads ${JSON.stringify(value.v)} on all ${rows.length} rows of ${id}${of}, which says nothing row by row; say it once above the table, or show only the rows that differ`, { piece: id, prop: "columns" }));
+      else if (state !== undefined) out.push(slateProblem("W036", `${title} says ${state.v} on all ${rows.length} rows of ${id}${of}: a state the same on every row says nothing; say it once as a count, <progress> or <stats>, and list only the rows that differ`, { piece: id, prop: "columns", fix: "<progress>" }));
+      // A tone on every row is most often a list of one state's rows already (the failures alone): the rows stay, the tone goes.
+      else if (tone !== undefined) out.push(slateProblem("W036", `${title} is ${String(tone.v)} on all ${rows.length} rows of ${id}${of}: a tone the same on every row says nothing; drop the tone, and name the state once in the section's title or a count above`, { piece: id, prop: "columns" }));
     }
   }
 
@@ -230,9 +239,9 @@ export function slateGlanceProblems(doc: SlateDoc, read: SlateEvalContext, sketc
       if (pairs.length >= SLATE_GLANCE.sameRows && states[0] !== undefined && states.every(s => s === states[0])) out.push(slateProblem("W036", `all ${pairs.length} lines of ${id} say ${states[0]}: a state the same on every line says nothing; say it once as a count, <progress> or <stats>, and list only what differs`, { piece: id, prop: item.prop, fix: "<progress>" }));
     }
     if (module?.ticks === true && prop(piece, "editable") !== true) {
-      const items = prop(piece, "items");
-      const done = Array.isArray(items) ? items.map((item, index) => prop(piece, "done", { ...read, item, index })) : [];
-      if (done.length >= SLATE_GLANCE.sameRows && done.every(d => d === true)) out.push(slateProblem("W036", `every row of ${id} is done, all ${done.length}; a tick on every row says nothing: say it once, "All ${done.length} done", or a <progress> that lists only the rows not done`, { piece: id, fix: "<progress>" }));
+      const rows = seenRows(piece.type, prop(piece, "items"));
+      const done = rows.length >= SLATE_GLANCE.sameRows && rows.every((item, index) => prop(piece, "done", { ...read, item, index }) === true) ? rows : [];
+      if (done.length > 0) out.push(slateProblem("W036", `every row of ${id} is done, all ${done.length}; a tick on every row says nothing: say it once, "All ${done.length} done", or a <progress> that lists only the rows not done`, { piece: id, fix: "<progress>" }));
     }
   }
 
