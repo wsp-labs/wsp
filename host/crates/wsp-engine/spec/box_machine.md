@@ -169,3 +169,8 @@ every other budget 100) unless a line says.
 - B-M24 describe: `memoryGB` 0.5 is `memMb` 512; an absent `vcpu`, a class the table does not know and a null
   `createdAt` each leave their key out
   (`describe_reads_half_a_gigabyte_and_leaves_out_what_is_missing`).
+- B-M25 A refusal whose `error` is a string, not an object, is said as the whole body text, and the refusal log reads
+  `code=none requestId=none` for an absent code and a null request id
+  (`a_refusal_whose_error_is_a_string_says_the_whole_body`).
+- B-M26 settle on a box in `error` with `error: ""` has no `: ` suffix: `box <id> reads error during resume`
+  (`a_box_left_in_error_with_empty_words_has_no_colon`).

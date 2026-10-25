@@ -101,6 +101,9 @@ it("box scenes", async () => {
   await add("firewall_standing_read_that_throws_reads_as_not_standing", { [`POST ${P("/commands")}`]: [ERR(400, "bad_request", "no shell"), CMD(0), CMD(0), CMD(0), CMD(0), CMD(0), CMD(0), CMD(0)], [`POST ${P("/host")}`]: [host("https://x.on.boat.dev/")] }, {}, (_b, m) => m.previewUrl(8080));
   await add("route_token_is_the_decoded_query_value", { [`POST ${P("/host")}`]: [host("https://7070-x.on.boat.dev/p?a=1&_token=a+b%2Fc&_token=second")] }, {}, (_b, m) => m.previewUrl(7070));
 
+  // Refusal envelopes and settle's error words (:629, :764).
+  await add("a_refusal_whose_error_is_a_string_says_the_whole_body", { [`GET ${P()}`]: [{ status: 400, body: { error: "boom", requestId: null } }] }, {}, (_b, m) => m.state());
+  await add("a_box_left_in_error_with_empty_words_has_no_colon", { "POST /sandboxes/bx_tumrjngm/resume": [OK()], [`GET ${P()}`]: [INFO(ID, "error", { error: "" })] }, {}, (_b, m) => m.resume());
   // pause (:1221).
   await add("pause_of_an_archived_box_sends_nothing_and_sleeps_not", { [`GET ${P()}`]: [INFO(ID, "archived")] }, {}, (_b, m) => m.pause());
   await add("pause_archived_at_the_budget_read_is_done", { [`GET ${P()}`]: [INFO(ID, "running"), ...Array(9).fill(INFO(ID, "archiving")), INFO(ID, "archived")], [`POST ${P("/stop")}`]: [OK()] }, {}, (_b, m) => m.pause());

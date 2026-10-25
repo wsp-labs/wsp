@@ -1035,6 +1035,21 @@
   }
  },
  "fake_backend": {
+  "zeros": {
+   "shape": {
+    "cpu": 0,
+    "memMb": 0,
+    "diskGb": 0,
+    "createdAt": "2026-10-25T15:33:59.992Z"
+   },
+   "listed": [
+    {
+     "id": "fk_abababababab",
+     "state": "running",
+     "labels": {}
+    }
+   ]
+  },
   "rates": [
    {
     "in": {

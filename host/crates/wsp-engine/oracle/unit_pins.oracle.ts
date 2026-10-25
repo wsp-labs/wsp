@@ -143,7 +143,10 @@ it("unit pins", async () => {
     emptyLine: await tryAsync(() => new none.NoProviderBackend("").get("x")),
   };
 
+  const zeroed = new fake.FakeBackend();
+  const zero = await zeroed.create({ kind: "sandbox", cpu: 0, memMb: 0, diskGb: 0, labels: {} } as never);
   const fakePins = {
+    zeros: { shape: await zero.describe!(), listed: await zeroed.list() },
     rates: [{ cpu: 0, memMb: 3200 }, { cpu: 0, memMb: 9600 }, { cpu: 1, memMb: 512 }, { cpu: 0.5, memMb: 0 }].map(s => ({ in: s, out: new fake.FakeBackend({ path: "/nonexistent/records.json" }).pricing.rateUsdPerHour(s) })),
   };
 
