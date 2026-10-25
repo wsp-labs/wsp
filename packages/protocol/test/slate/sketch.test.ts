@@ -107,7 +107,7 @@ describe("the catalog", () => {
     console.log(`catalog index: ${tokens} tokens; with the frame's look rule and clause: ${withFrame}; budget ${SLATE_LIMITS.catalogIndexTokens}`);
     expect(withFrame).toBeLessThan(SLATE_LIMITS.catalogIndexTokens);
     expect(slateCatalog().startsWith(SLATE_PURPOSE)).toBe(true);
-    for (const said of ["short labels, no emoji.", "in sentence case, never bold text.", "Show a run's json fields, never its raw out; times through date(), time() or ago()."]) expect(slateCatalog(), said).toContain(said);
+    for (const said of ["short labels, no emoji.", "in sentence case, never bold text.", "Show a run's json fields, never its raw out or error lines, which its <output> leads with; times through date(), time() or ago()."]) expect(slateCatalog(), said).toContain(said);
     expect(slateCatalog()).toContain("One in a file stays there for the run to read, never you.");
     expect(slateCatalog()).not.toMatch(/Zingzy|repos\/[a-z]+\/wsp/i);
     expect(slateCatalog("runs")).toContain("one in a file, the command reads itself, never through you.");

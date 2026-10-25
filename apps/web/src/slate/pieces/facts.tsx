@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Label and value pairs. In a grid, settings lines: the label 14 px at the left, the value at the right, a hairline
-// between, filling the card they stand in. In a line, one row of pairs 12 px apart that wraps; under 30rem one pair a
-// line, the labels a column of their own so the values start at one edge.
+// between, filling the card they stand in. In a line, one row of pairs 12 px apart that wraps; under 30rem of its own
+// width one pair a line, the labels a column of their own so the values start at one edge. In a row it stays a line.
 import type { SlateJson, SlatePropValue } from "@wsp/protocol/slate";
 import type { SlateEngine } from "../engine.js";
 import { cn } from "../../lib/utils.js";
@@ -51,12 +51,13 @@ export const facts: PieceView = {
     };
     if (props["layout"] !== "grid") {
       return (
-        <div className="@container min-w-0">
-          <p data-slate-facts className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 @max-[30rem]:grid @max-[30rem]:grid-cols-[fit-content(40%)_minmax(0,1fr)] @max-[30rem]:gap-y-1.5">
+        // A container's width never comes from what it holds, so in a row, sized by its content, it would be none.
+        <div className={cn("min-w-0", slate.parent(id)?.type !== "row" && "@container/facts")}>
+          <p data-slate-facts className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 @max-[30rem]/facts:grid @max-[30rem]/facts:grid-cols-[fit-content(40%)_minmax(0,1fr)] @max-[30rem]/facts:gap-y-1.5">
             {list.map((fact, at) => (
-              <span key={at} className="inline-flex items-baseline gap-1.5 whitespace-nowrap @max-[30rem]:contents">
-                <span data-settings-label className="text-xs leading-4 text-muted-foreground @max-[30rem]:whitespace-normal">{fact.label}</span>
-                <span data-settings-word className={cn(ink(fact), "@max-[30rem]:min-w-0 @max-[30rem]:break-words @max-[30rem]:whitespace-normal")}>{fact.value}</span>
+              <span key={at} className="inline-flex items-baseline gap-1.5 whitespace-nowrap @max-[30rem]/facts:contents">
+                <span data-settings-label className="text-xs leading-4 text-muted-foreground @max-[30rem]/facts:whitespace-normal">{fact.label}</span>
+                <span data-settings-word className={cn(ink(fact), "@max-[30rem]/facts:min-w-0 @max-[30rem]/facts:break-words @max-[30rem]/facts:whitespace-normal")}>{fact.value}</span>
               </span>
             ))}
           </p>
