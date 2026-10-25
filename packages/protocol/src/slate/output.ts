@@ -25,20 +25,23 @@ const WORD: Readonly<Record<string, Count>> = {
 const TALLY = /(\d[\d,]*) (passed|passing|failed|failing|failures|errors?|skipped|pending|ignored|todo)\b/gi;
 /** cargo prints one per test binary, so a run of several crates sums them. */
 const CARGO = /^\s*test result: \w+\. /;
-/** Lines that name a failure in vitest, jest, mocha, pytest, cargo, go, tsc, eslint and plain shells, an exception's
- * class line among them (AssertionError:, TypeError:, Error:). */
-const FAILURE = [
-  "^\\s*(?:FAIL\\b|FAILED\\b|ERROR\\b|--- FAIL|[×✗✖❌]|\\d+\\) )", "\\.\\.\\. FAILED$", "\\berror(?:\\[\\w+\\])?:",
-  "^\\s*[\\w.]*(?:Error|Exception)(?:\\[\\w+\\])?:", "\\bpanicked at\\b", "\\bAssertionError\\b", "^Traceback \\(most recent call last\\)", "\\bnpm ERR!",
+/** Lines a test runner or a language prints on its own, at a line's start where a person's words would not be: the
+ * lines W034 reads as a process's output. */
+const RUNNER_FAILURE = [
+  "^\\s*FAIL +(?:\\|[^|]+\\| +)?\\S+\\.\\w+", "--- FAIL", "\\.\\.\\. FAILED$", "^\\s*error(?:\\[\\w+\\])?:",
+  "^\\s*[\\w.]*(?:Error|Exception)(?:\\[\\w+\\])?:", "\\bpanicked at\\b", "^Traceback \\(most recent call last\\)", "\\bnpm ERR!",
 ];
-const MATTERS = new RegExp(FAILURE.join("|"), "m");
-/** Any line a process prints rather than a person writes: a failure line, an exit code, a runner's tally, file verdict
+/** Lines that only name a failure inside a log already known to be one, and that an agent writes as a status too
+ * (FAILED, ✗ 2 failed, 1) a step, Last error: ...): the summary reads them, W034 does not. */
+const NAMED_FAILURE = ["^\\s*(?:FAIL\\b|FAILED\\b|ERROR\\b|[×✗✖❌]|\\d+\\) )", "\\berror(?:\\[\\w+\\])?:", "\\bAssertionError\\b"];
+const MATTERS = new RegExp([...RUNNER_FAILURE, ...NAMED_FAILURE].join("|"), "m");
+/** Any line a process prints rather than a person writes: a runner's failure line, an exit code, a tally, file verdict
  * or test mark with its time, a stack frame, a warning head, a terminal colour. The glance checks warn where one is
  * drawn outside an <output>. */
 export const SLATE_LOG_LINE = new RegExp([
-  ...FAILURE, "\\b[Ee]xit(?:ed)?(?: with)? code \\d", "\\btest result:", "\\b\\d+ passed; \\d+ failed", "^\\s*[Ww]arning(?:\\[|:)",
+  ...RUNNER_FAILURE, "\\b[Ee]xit(?:ed)?(?: with)? code \\d", "\\btest result:", "\\b\\d+ passed; \\d+ failed", "^\\s*[Ww]arning(?:\\[|:)",
   "^\\s*Test Files {2}", "^\\s*Tests:? {2,}\\d", "^=+ .*\\bin \\d+(?:\\.\\d+)?s =+$", "^\\s*PASS {1,2}\\S+\\.\\w+",
-  "^\\s*--- PASS:", "^ok {2,}\\S+\\s+\\d", "^\\s*[✓✔] .+ \\d+ ?ms$", "^\\s+at .+:\\d+:\\d+\\)?$", "\u001b\\[[0-9;]*m",
+  "^\\s*--- PASS:", "^ok {2,}\\S+\\s+\\d", "^\\s*[✓✔×✗✖] .+ \\d+ ?ms$", "^\\s+at .+:\\d+:\\d+\\)?$", "\u001b\\[[0-9;]*m",
 ].join("|"), "m");
 /** vitest names a failed test twice, by its mark in the tree and on its FAIL line after: the FAIL line, with the file,
  * is the one kept. */
