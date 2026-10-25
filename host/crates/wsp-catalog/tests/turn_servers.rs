@@ -88,7 +88,8 @@ mod a_claude_code_turns_servers {
     fn parent() -> TurnFile {
         file(
             "/root/.mcp.json",
-            json!({ "mcpServers": { "parentone": stdio("parentone"), "parenttwo": stdio("parenttwo"), "leftout": stdio("leftout") } }).to_string(),
+            json!({ "mcpServers": { "parentone": stdio("parentone"), "parenttwo": stdio("parenttwo"), "leftout": stdio("leftout") } })
+                .to_string(),
         )
     }
 
@@ -229,15 +230,14 @@ mod a_codex_turns_servers {
                 row("off", "user", &user.path, "off"),
             ]
         );
-        assert_eq!(
-            name_scope(&started_servers(&servers)),
-            pairs(&[("cproj", "project"), ("shared", "project"), ("cuser", "user")])
-        );
+        assert_eq!(name_scope(&started_servers(&servers)), pairs(&[("cproj", "project"), ("shared", "project"), ("cuser", "user")]));
     }
 
     #[test]
     fn reads_no_project_file_in_a_folder_its_own_file_does_not_trust() {
-        for trust in ["", "[projects.\"/root/acme\"]\ntrust_level = \"untrusted\"\n", "[projects.\"/root/other\"]\ntrust_level = \"trusted\"\n"] {
+        for trust in
+            ["", "[projects.\"/root/acme\"]\ntrust_level = \"untrusted\"\n", "[projects.\"/root/other\"]\ntrust_level = \"trusted\"\n"]
+        {
             let servers = turn_servers(
                 &agent("codex"),
                 &LaunchConfigs { user: Some(own(trust)), projects: Some(vec![project()]), folder: "/root/acme".to_string(), key: None },

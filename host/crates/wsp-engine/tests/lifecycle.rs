@@ -3,10 +3,12 @@
 //! a hook that wants its own entry in the same order writes into the machine's `log`.
 //!
 //! The TS hooks reach back into the workspace (`ws.daemonReach()`, `ws.currentPhase` inside `wakeCheck`); a Rust hook
-//! cannot, since the workspace's `wake` holds `&mut self` for its whole run. The two cases that did read the workspace
-//! from a hook are noted on their tests.
+//! holds the `Rc<Workspace>` and does the same, since every method takes `&self`. The two cases that do are the last
+//! of the verified-wake group, beside the cases that pin the machine's own order.
 mod common;
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -105,7 +107,7 @@ fn missing(message: &str) -> EngineError {
 #[tokio::test]
 async fn checkpoint_hands_the_machine_the_life_it_tracked_true_before_a_wake_and_false_after() {
     let m = FakeMachine::new("m1");
-    let mut ws = Workspace::new(machine_ref(&m), base(2), running());
+    let ws = Workspace::new(machine_ref(&m), base(2), running());
     assert_eq!(ws.checkpoint("v1").await.unwrap(), "snap_x");
     ws.nap().await.unwrap();
     ws.wake(false).await.unwrap();
@@ -118,7 +120,7 @@ async fn checkpoint_hands_the_machine_the_life_it_tracked_true_before_a_wake_and
 async fn a_backends_refusal_of_a_resumed_machine_comes_through_checkpoint_as_itself() {
     let m = FakeMachine::new("m1");
     m.refuse_resumed_snapshots();
-    let mut ws = Workspace::new(machine_ref(&m), base(2), running());
+    let ws = Workspace::new(machine_ref(&m), base(2), running());
     ws.nap().await.unwrap();
     ws.wake(false).await.unwrap();
     let e = ws.checkpoint("v2").await.unwrap_err();
@@ -139,7 +141,7 @@ async fn a_wake_of_a_machine_that_vanished_while_paused_throws_the_providers_404
             async { Ok(machine_ref(&FakeMachine::new("m2"))) }.boxed_local()
         })
     };
-    let mut ws = Workspace::new(machine_ref(&dead), WorkspaceHooks { resurrect: Some(resurrect), ..base(2) }, running());
+    let ws = Workspace::new(machine_ref(&dead), WorkspaceHooks { resurrect: Some(resurrect), ..base(2) }, running());
     ws.nap().await.unwrap();
     let e = ws.wake(false).await.unwrap_err();
     assert_eq!(e.kind(), Some(ErrorKind::Missing), "{e:?}");
@@ -149,14 +151,13 @@ async fn a_wake_of_a_machine_that_vanished_while_paused_throws_the_providers_404
     assert_eq!(dead.calls(), strs(&["pause", "resume:failed"]));
 }
 
-/// lifecycle.test.ts:62. The TS check dials `ws.daemonReach()` itself, which a Rust hook cannot; the workspace is
-/// asked for the route after each wake instead, and the machine's own order shows whether it was minted again or
-/// handed from the cache, on both roads into the check.
+/// lifecycle.test.ts:62. A check that does not dial; the workspace is asked for the route after each wake, and the
+/// machine's own order shows whether it was minted again or handed from the cache, on both roads into the check.
 #[tokio::test]
 async fn the_wake_check_dials_a_route_minted_after_the_resume_not_the_one_cached_before_the_nap() {
     let order = log();
     let m = FakeMachine::with_log("m1", order.clone());
-    let mut ws = Workspace::new(machine_ref(&m), WorkspaceHooks { wake_check: Some(check_failing(&order, 0, "")), ..base(2) }, running());
+    let ws = Workspace::new(machine_ref(&m), WorkspaceHooks { wake_check: Some(check_failing(&order, 0, "")), ..base(2) }, running());
     let before = ws.daemon_reach().await.unwrap();
     ws.nap().await.unwrap();
     ws.wake(false).await.unwrap();
@@ -173,13 +174,12 @@ async fn the_wake_check_dials_a_route_minted_after_the_resume_not_the_one_cached
     );
 }
 
-/// lifecycle.test.ts:84. The TS check also records `ws.currentPhase` and expects `["waking"]`: a hook cannot read the
-/// workspace's phase while `wake` holds it, so that one assertion has no Rust form.
+/// lifecycle.test.ts:84, less the check's read of the phase, which the next case makes.
 #[tokio::test]
 async fn holds_the_phase_until_the_check_passes_then_stays_on_the_same_machine() {
     let order = log();
     let m = FakeMachine::with_log("m1", order.clone());
-    let mut ws = Workspace::new(
+    let ws = Workspace::new(
         machine_ref(&m),
         WorkspaceHooks { resurrect: Some(resurrect_m2()), wake_check: Some(check_failing(&order, 0, "")), ..base(2) },
         running(),
@@ -193,13 +193,76 @@ async fn holds_the_phase_until_the_check_passes_then_stays_on_the_same_machine()
     assert_eq!(m.count("resume"), 1);
 }
 
+/// lifecycle.test.ts:62 as the TS writes it: the check dials `ws.daemonReach()` through the workspace it belongs to.
+#[tokio::test]
+async fn a_wake_check_that_dials_through_the_workspace_gets_a_route_minted_after_the_resume() {
+    let m = FakeMachine::new("m1");
+    let slot: Rc<RefCell<Option<Rc<Workspace>>>> = Rc::default();
+    let handed: Rc<RefCell<Vec<String>>> = Rc::default();
+    let check: WakeCheckHook = {
+        let (slot, handed) = (slot.clone(), handed.clone());
+        Arc::new(move |_m| {
+            let ws = slot.borrow().clone().unwrap();
+            let handed = handed.clone();
+            async move {
+                let reach = ws.daemon_reach().await.unwrap();
+                handed.borrow_mut().push(reach.token);
+                Ok(None)
+            }
+            .boxed_local()
+        })
+    };
+    let ws = Rc::new(Workspace::new(machine_ref(&m), WorkspaceHooks { wake_check: Some(check), ..base(2) }, running()));
+    *slot.borrow_mut() = Some(ws.clone());
+    let before = ws.daemon_reach().await.unwrap();
+    ws.nap().await.unwrap();
+    ws.wake(false).await.unwrap();
+    assert_eq!(before.token, "t1");
+    // The check's own dial minted again; the route cached before the nap was not what it went through.
+    assert_eq!(*handed.borrow(), vec!["t2".to_string()]);
+    ws.nap().await.unwrap();
+    ws.wake(true).await.unwrap();
+    assert_eq!(*handed.borrow(), vec!["t2".to_string(), "t3".to_string()]);
+    slot.borrow_mut().take();
+}
+
+/// lifecycle.test.ts:84 as the TS writes it: the check reads `ws.currentPhase` and sees `waking`.
+#[tokio::test]
+async fn a_wake_check_that_reads_the_workspace_sees_waking_and_the_wake_ends_running() {
+    let m = FakeMachine::new("m1");
+    let slot: Rc<RefCell<Option<Rc<Workspace>>>> = Rc::default();
+    let seen: Rc<RefCell<Vec<WorkspacePhase>>> = Rc::default();
+    let check: WakeCheckHook = {
+        let (slot, seen) = (slot.clone(), seen.clone());
+        Arc::new(move |_m| {
+            let ws = slot.borrow().clone().unwrap();
+            seen.borrow_mut().push(ws.current_phase());
+            async { Ok(None) }.boxed_local()
+        })
+    };
+    let ws = Rc::new(Workspace::new(
+        machine_ref(&m),
+        WorkspaceHooks { resurrect: Some(resurrect_m2()), wake_check: Some(check), ..base(2) },
+        running(),
+    ));
+    *slot.borrow_mut() = Some(ws.clone());
+    ws.nap().await.unwrap();
+    let result = ws.wake(false).await.unwrap();
+    assert_eq!(*seen.borrow(), vec![WorkspacePhase::Waking]);
+    assert_eq!(ws.current_phase(), WorkspacePhase::Running);
+    assert_eq!(ws.machine_id(), "m1");
+    assert_eq!(result, WakeResult::default());
+    assert_eq!(m.count("resume"), 1);
+    slot.borrow_mut().take();
+}
+
 /// lifecycle.test.ts:102
 #[tokio::test]
 async fn a_check_that_fails_once_is_paused_and_resumed_again_and_a_passing_second_try_keeps_the_machine() {
     let m = FakeMachine::new("m1");
     let hooks =
         WorkspaceHooks { resurrect: Some(resurrect_m2()), wake_check: Some(check_failing(&log(), 1, "daemon did not answer")), ..base(2) };
-    let mut ws = Workspace::new(machine_ref(&m), hooks, running());
+    let ws = Workspace::new(machine_ref(&m), hooks, running());
     ws.nap().await.unwrap();
     let result = ws.wake(false).await.unwrap();
     assert_eq!(m.calls(), strs(&["pause", "resume", "pause", "resume"]));
@@ -231,7 +294,7 @@ async fn two_failed_checks_fail_the_wake_with_both_faults_and_the_machine_stays(
         wake_check: Some(wake_check),
         ..base(2)
     };
-    let mut ws = Workspace::new(machine_ref(&m), hooks, running());
+    let ws = Workspace::new(machine_ref(&m), hooks, running());
     ws.nap().await.unwrap();
     let e = ws.wake(false).await.unwrap_err();
     assert_eq!(
@@ -251,7 +314,7 @@ async fn a_workspace_given_wake_attempts_1_never_re_pauses() {
     let m = FakeMachine::new("m1");
     let hooks =
         WorkspaceHooks { resurrect: Some(resurrect_m2()), wake_check: Some(check_failing(&log(), 99, "daemon did not answer")), ..base(1) };
-    let mut ws = Workspace::new(machine_ref(&m), hooks, running());
+    let ws = Workspace::new(machine_ref(&m), hooks, running());
     ws.nap().await.unwrap();
     let e = ws.wake(false).await.unwrap_err();
     assert!(e.to_string().contains("the wake of m1 did not finish: attempt 1: daemon did not answer"), "{e}");
@@ -286,7 +349,7 @@ async fn a_resume_that_ends_with_the_guest_unusable_fails_the_wake_with_the_prov
         })
     };
     let hooks = WorkspaceHooks { resurrect: Some(resurrect_into(&order)), wake_check: Some(wake_check), ..base(2) };
-    let mut ws = Workspace::new(machine_ref(&m), hooks, running());
+    let ws = Workspace::new(machine_ref(&m), hooks, running());
     ws.nap().await.unwrap();
     let e = ws.wake(false).await.unwrap_err();
     assert!(e.to_string().contains("Boat left m1 running but nothing on it can run: Error 24"), "{e}");
@@ -314,7 +377,7 @@ async fn nap_stashes_the_vault_before_the_pause() {
             .boxed_local()
         })
     };
-    let mut ws = Workspace::new(machine_ref(&m), WorkspaceHooks { stash_vault: Some(stash), ..base(2) }, running());
+    let ws = Workspace::new(machine_ref(&m), WorkspaceHooks { stash_vault: Some(stash), ..base(2) }, running());
     ws.nap().await.unwrap();
     assert_eq!(lines(&order), strs(&["stash", "pause"]));
 }
@@ -323,7 +386,7 @@ async fn nap_stashes_the_vault_before_the_pause() {
 #[tokio::test]
 async fn note_running_puts_a_napping_phase_back_to_running_so_the_next_nap_pauses_the_machine_for_real() {
     let m = FakeMachine::new("m1");
-    let mut ws = Workspace::new(machine_ref(&m), base(2), WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
+    let ws = Workspace::new(machine_ref(&m), base(2), WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
     ws.nap().await.unwrap();
     assert_eq!(m.count("pause"), 0);
     ws.note_running();
@@ -338,7 +401,7 @@ async fn note_running_puts_a_napping_phase_back_to_running_so_the_next_nap_pause
 async fn a_failed_wake_with_no_resurrect_hook_throws_and_leaves_the_workspace_napping() {
     let m = FakeMachine::new("m1");
     let wake_check: WakeCheckHook = Arc::new(|_m| async { Ok(Some("no daemon".to_string())) }.boxed_local());
-    let mut ws = Workspace::new(machine_ref(&m), WorkspaceHooks { wake_check: Some(wake_check), ..base(2) }, running());
+    let ws = Workspace::new(machine_ref(&m), WorkspaceHooks { wake_check: Some(wake_check), ..base(2) }, running());
     ws.nap().await.unwrap();
     let e = ws.wake(false).await.unwrap_err();
     assert!(e.to_string().contains("no daemon"), "{e}");
@@ -371,7 +434,7 @@ async fn nap_and_wake_run_their_pause_and_resume_through_the_move_hook_with_the_
             .boxed_local()
         })
     };
-    let mut ws = Workspace::new(machine_ref(&m), WorkspaceHooks { move_hook: Some(move_hook), ..base(2) }, running());
+    let ws = Workspace::new(machine_ref(&m), WorkspaceHooks { move_hook: Some(move_hook), ..base(2) }, running());
     ws.nap().await.unwrap();
     ws.wake(false).await.unwrap();
     assert_eq!(lines(&moves), strs(&["pause@m1", "resume@m1"]));
@@ -410,7 +473,7 @@ async fn a_wakes_re_pause_goes_through_the_hook_too_and_a_move_the_hook_gives_up
         move_hook: Some(move_hook),
         ..base(2)
     };
-    let mut ws = Workspace::new(machine_ref(&m), hooks, running());
+    let ws = Workspace::new(machine_ref(&m), hooks, running());
     let e = ws.nap().await.unwrap_err();
     assert!(e.to_string().contains("pause did not complete"), "{e}");
     assert_eq!(ws.current_phase(), WorkspacePhase::Running);
@@ -439,7 +502,7 @@ async fn rebuild_replaces_a_running_machine_with_a_golden_fork_restores_the_vaul
         })
     };
     let hooks = WorkspaceHooks { resurrect: Some(resurrect_into(&order)), restore_vault: Some(restore_vault), ..base(2) };
-    let mut ws = Workspace::new(machine_ref(&zombie), hooks, WorkspaceInitial { phase: None, first_life: Some(false) });
+    let ws = Workspace::new(machine_ref(&zombie), hooks, WorkspaceInitial { phase: None, first_life: Some(false) });
     ws.rebuild().await.unwrap();
     assert_eq!(lines(&order), strs(&["resurrect", "restore:m2"]));
     assert_eq!(zombie.calls(), strs(&["kill"]));
@@ -452,7 +515,7 @@ async fn rebuild_replaces_a_running_machine_with_a_golden_fork_restores_the_vaul
 #[tokio::test]
 async fn a_napping_workspace_rebuilds_too_and_comes_back_running() {
     let m = FakeMachine::new("m1");
-    let mut ws = Workspace::new(machine_ref(&m), WorkspaceHooks { resurrect: Some(resurrect_m2()), ..base(2) }, running());
+    let ws = Workspace::new(machine_ref(&m), WorkspaceHooks { resurrect: Some(resurrect_m2()), ..base(2) }, running());
     ws.nap().await.unwrap();
     ws.rebuild().await.unwrap();
     assert_eq!(ws.machine_id(), "m2");
@@ -464,7 +527,7 @@ async fn a_napping_workspace_rebuilds_too_and_comes_back_running() {
 #[tokio::test]
 async fn rebuild_refuses_without_a_resurrect_hook_and_keeps_the_machine() {
     let m = FakeMachine::new("m1");
-    let mut ws = Workspace::new(machine_ref(&m), base(2), running());
+    let ws = Workspace::new(machine_ref(&m), base(2), running());
     let e = ws.rebuild().await.unwrap_err();
     assert!(e.to_string().contains("resurrect"), "{e}");
     assert_eq!(ws.machine_id(), "m1");

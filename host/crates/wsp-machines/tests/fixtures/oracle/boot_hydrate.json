@@ -1,0 +1,2335 @@
+{
+ "T0": 1790000000000,
+ "scenes": [
+  {
+   "name": "phase running, provider running",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "running"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "idle.touch",
+     "a"
+    ]
+   ],
+   "answer": {
+    "entry": "a"
+   },
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase running, provider paused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "paused"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left running and its machine is paused at the provider; the record hydrates napping"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase running, provider starting",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "starting"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "idle.touch",
+     "a"
+    ]
+   ],
+   "answer": {
+    "entry": "a"
+   },
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase running, provider seen-paused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "seen": {
+      "state": "paused"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left running and its machine is paused at the provider; the record hydrates napping"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase running, provider 404",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "kind": "missing",
+      "status": 404,
+      "message": "no such machine"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase running, provider refused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "message": "503 busy"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase running, provider state-fails",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "stateThrows": true
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "idle.touch",
+     "a"
+    ]
+   ],
+   "answer": {
+    "entry": "a"
+   },
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase napping, provider running",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "running"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left napping and its machine is running at the provider; the record hydrates running"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     }
+    ],
+    [
+     "idle.touch",
+     "a"
+    ]
+   ],
+   "answer": {
+    "entry": "a"
+   },
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase napping, provider paused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "paused"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase napping, provider starting",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "starting"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase napping, provider seen-paused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "seen": {
+      "state": "paused"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase napping, provider 404",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "kind": "missing",
+      "status": 404,
+      "message": "no such machine"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase napping, provider refused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "message": "503 busy"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase napping, provider state-fails",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "stateThrows": true
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase pausing, provider running",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "running"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left pausing and its machine is running at the provider; the record hydrates running"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     }
+    ],
+    [
+     "idle.touch",
+     "a"
+    ]
+   ],
+   "answer": {
+    "entry": "a"
+   },
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase pausing, provider paused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "paused"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left pausing and its machine is paused at the provider; the record hydrates napping"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase pausing, provider starting",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "starting"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left pausing and its machine is starting at the provider; the record hydrates napping"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase pausing, provider seen-paused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "seen": {
+      "state": "paused"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left pausing and its machine is paused at the provider; the record hydrates napping"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase pausing, provider 404",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "kind": "missing",
+      "status": 404,
+      "message": "no such machine"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "pausing",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase pausing, provider refused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "message": "503 busy"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "pausing",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase pausing, provider state-fails",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "stateThrows": true
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "pausing",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase waking, provider running",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "running"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left waking and its machine is running at the provider; the record hydrates running"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     }
+    ],
+    [
+     "idle.touch",
+     "a"
+    ]
+   ],
+   "answer": {
+    "entry": "a"
+   },
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase waking, provider paused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "paused"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left waking and its machine is paused at the provider; the record hydrates napping"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase waking, provider starting",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "starting"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "waking",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase waking, provider seen-paused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "seen": {
+      "state": "paused"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left waking and its machine is paused at the provider; the record hydrates napping"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase waking, provider 404",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "kind": "missing",
+      "status": 404,
+      "message": "no such machine"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "waking",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase waking, provider refused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "message": "503 busy"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "waking",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase waking, provider state-fails",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "stateThrows": true
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "waking",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase gone, provider running",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "running"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left gone and its machine is running at the provider; the record hydrates running"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     }
+    ],
+    [
+     "idle.touch",
+     "a"
+    ]
+   ],
+   "answer": {
+    "entry": "a"
+   },
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase gone, provider paused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "paused"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left gone and its machine is paused at the provider; the record hydrates napping"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase gone, provider starting",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "starting"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "gone",
+      "golden": "img",
+      "project": "p",
+      "gone": "kept words"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase gone, provider seen-paused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "seen": {
+      "state": "paused"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left gone and its machine is paused at the provider; the record hydrates napping"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase gone, provider 404",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "kind": "missing",
+      "status": 404,
+      "message": "no such machine"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "gone",
+      "golden": "img",
+      "project": "p",
+      "gone": "kept words"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase gone, provider refused",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "message": "503 busy"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "gone",
+      "golden": "img",
+      "project": "p",
+      "gone": "kept words"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "phase gone, provider state-fails",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "stateThrows": true
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "gone",
+      "golden": "img",
+      "project": "p",
+      "gone": "kept words"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a queued spawn waits as it was",
+   "store": {},
+   "answers": {
+    "m-a": {}
+   },
+   "log": [
+    [
+     "attachQueued",
+     "a"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": []
+  },
+  {
+   "name": "a released record stands on no machine",
+   "store": {},
+   "answers": {
+    "m-a": {}
+   },
+   "log": [
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "released",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a sub whose cloud left is not read",
+   "store": {},
+   "answers": {
+    "m-a": {}
+   },
+   "log": [
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p",
+      "sub": {
+       "cloudGone": true
+      }
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a kind with no module is left as it was",
+   "store": {},
+   "answers": {
+    "m-a": {}
+   },
+   "log": [
+    [
+     "warn",
+     "workspace a is left as it was: no module wired for unwired"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": []
+  },
+  {
+   "name": "a desktop golden's stand-in is a desktop",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "message": "503 busy"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "desktop-img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "desktop-img",
+      "project": "p"
+     },
+     "m-a",
+     "desktop"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a folder record names no image and reads none",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "message": "503 busy"
+     }
+    }
+   },
+   "log": [
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "an image that does not read is a sandbox",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "throws": {
+      "message": "503 busy"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "bad"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "bad",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a nap the provider read moves nappedAt and writes once",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "paused",
+     "seen": {
+      "state": "paused",
+      "pausedAt": "2026-09-21T14:13:19.000Z"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p",
+      "nappedAt": 1789999999000
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p",
+      "nappedAt": 1789999999000
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "the same nappedAt writes nothing",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "seen": {
+      "state": "paused",
+      "pausedAt": "2026-09-21T14:13:19.000Z"
+     }
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p",
+      "nappedAt": 1789999999000
+     },
+     "m-a",
+     "sandbox"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a nap clears the disk-gone line a wake left",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "paused"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left running and its machine is paused at the provider; the record hydrates napping"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "napping",
+      "golden": "img",
+      "project": "p"
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a stream url rides the record",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "running",
+     "streamUrl": "wss://screen"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p",
+      "screen": {
+       "streamUrl": "wss://screen"
+      }
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "idle.touch",
+     "a"
+    ]
+   ],
+   "answer": {
+    "entry": "a"
+   },
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a running record that napped or woke is unchecked",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "state": "running"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "machine.state",
+     "m-a"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "warn",
+     "workspace a was left waking and its machine is running at the provider; the record hydrates running"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     }
+    ],
+    [
+     "idle.touch",
+     "a"
+    ]
+   ],
+   "answer": {
+    "entry": "a"
+   },
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "a found machine is read once from the sighting",
+   "store": {},
+   "answers": {},
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     null
+    ],
+    [
+     "warn",
+     "workspace a was left napping and its machine is running at the provider; the record hydrates running"
+    ],
+    [
+     "persist",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     }
+    ],
+    [
+     "idle.touch",
+     "a"
+    ]
+   ],
+   "answer": {
+    "entry": "a"
+   },
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  },
+  {
+   "name": "the load's deadline holds a late read and loads it when it lands",
+   "store": {},
+   "answers": {
+    "m-a": {
+     "hang": true,
+     "state": "running"
+    }
+   },
+   "log": [
+    [
+     "imageOf",
+     "img"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "m-a"
+    ],
+    [
+     "mark",
+     "at 1499"
+    ],
+    [
+     "attach",
+     {
+      "id": "a",
+      "name": "w-a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "golden": "img",
+      "project": "p"
+     },
+     "m-a",
+     "sandbox"
+    ],
+    [
+     "answered",
+     null,
+     "isHeldAway",
+     true,
+     "isHeldAway of none",
+     true
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": [
+    "a"
+   ]
+  }
+ ]
+}

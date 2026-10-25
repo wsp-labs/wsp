@@ -1,0 +1,931 @@
+[
+ {
+  "name": "remove, computer away: owed, nothing said",
+  "seed": {},
+  "world": {
+   "linked": [],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.put",
+    "thread-ends",
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ],
+   [
+    "answer",
+    null
+   ]
+  ],
+  "rows": [
+   [
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ]
+  ]
+ },
+ {
+  "name": "stop, computer away: nothing owed, nothing said",
+  "seed": {},
+  "world": {
+   "linked": [],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "answer",
+    null
+   ]
+  ],
+  "rows": []
+ },
+ {
+  "name": "away, no link: owed and the away line",
+  "seed": {},
+  "world": {
+   "linked": [],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.put",
+    "thread-ends",
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ],
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "answer",
+    "hetzner is not answering, so the turn ends there, with what this thread started, once hetzner connects again"
+   ]
+  ],
+  "rows": [
+   [
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ]
+  ]
+ },
+ {
+  "name": "away, linked: owed, the late line, then paid in the background",
+  "seed": {},
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.put",
+    "thread-ends",
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ],
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "ready"
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "answer",
+    "hetzner did not answer within 3 s, so the turn ends there, with what this thread started, once hetzner answers"
+   ],
+   [
+    "runningOn",
+    "t1"
+   ],
+   [
+    "launchingOn",
+    "t1"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/t1' 1",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.delete",
+    "thread-ends",
+    "p1"
+   ]
+  ],
+  "rows": []
+ },
+ {
+  "name": "away, linked, already owed: not owed twice",
+  "seed": {
+   "p1": {
+    "threads": [
+     "t1"
+    ]
+   }
+  },
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "ready"
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "answer",
+    "hetzner did not answer within 3 s, so the turn ends there, with what this thread started, once hetzner answers"
+   ],
+   [
+    "runningOn",
+    "t1"
+   ],
+   [
+    "launchingOn",
+    "t1"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/t1' 1",
+    {
+     "timeoutMs": 20000
+    }
+   ]
+  ],
+  "rows": [
+   [
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ]
+  ]
+ },
+ {
+  "name": "stop, linked, all ended",
+  "seed": {},
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/t1' 0",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "answer",
+    null
+   ]
+  ],
+  "rows": []
+ },
+ {
+  "name": "stop, linked, survivors named",
+  "seed": {
+   "p1": {
+    "threads": [
+     "t1"
+    ]
+   }
+  },
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/t1' 0",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.delete",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "answer",
+    "2 processes this thread started on hetzner still run after Stop (12, 345); end them in Processes, or restart hetzner"
+   ]
+  ],
+  "rows": []
+ },
+ {
+  "name": "stop, linked, nonzero with no pids named",
+  "seed": {},
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/t1' 0",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "answer",
+    "hetzner did not say that what this thread started there has ended; look in Processes and end what still runs there"
+   ]
+  ],
+  "rows": []
+ },
+ {
+  "name": "stop, linked, the exec throws: the empty left line, nothing cleared",
+  "seed": {
+   "p1": {
+    "threads": [
+     "t1"
+    ]
+   }
+  },
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/t1' 0",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "answer",
+    "hetzner did not say that what this thread started there has ended; look in Processes and end what still runs there"
+   ]
+  ],
+  "rows": [
+   [
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ]
+  ]
+ },
+ {
+  "name": "remove, linked, all ended: cleared",
+  "seed": {
+   "p1": {
+    "threads": [
+     "t1"
+    ]
+   }
+  },
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/t1' 1",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.delete",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "answer",
+    null
+   ]
+  ],
+  "rows": []
+ },
+ {
+  "name": "remove, linked, survivors: owed and logged",
+  "seed": {},
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/t1' 1",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.put",
+    "thread-ends",
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ],
+   [
+    "warn",
+    "what this thread started on hetzner did not all end; wsp ends it when hetzner next connects"
+   ],
+   [
+    "answer",
+    null
+   ]
+  ],
+  "rows": [
+   [
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ]
+  ]
+ },
+ {
+  "name": "remove, linked, the exec throws: owed",
+  "seed": {},
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "door.link",
+    "p1"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/t1' 1",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.put",
+    "thread-ends",
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ],
+   [
+    "warn",
+    "what this thread started on hetzner did not all end; wsp ends it when hetzner next connects"
+   ],
+   [
+    "answer",
+    null
+   ]
+  ],
+  "rows": [
+   [
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ]
+  ]
+ },
+ {
+  "name": "owed: none owed answers nothing",
+  "seed": {},
+  "world": {
+   "linked": [],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "answer",
+    null
+   ]
+  ],
+  "rows": []
+ },
+ {
+  "name": "owed then paid at place.present",
+  "seed": {
+   "p1": {
+    "threads": [
+     "t1",
+     "t2"
+    ]
+   }
+  },
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "answer",
+    "paid-promise"
+   ],
+   [
+    "ready"
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "runningOn",
+    "t1"
+   ],
+   [
+    "launchingOn",
+    "t1"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/t1' 1",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.put",
+    "thread-ends",
+    "p1",
+    {
+     "threads": [
+      "t2"
+     ]
+    }
+   ],
+   [
+    "paid",
+    "t1"
+   ],
+   [
+    "runningOn",
+    "t2"
+   ],
+   [
+    "launchingOn",
+    "t2"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/t2' 1",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "warn",
+    "a process this thread started on hetzner still runs after Stop (9); end it in Processes, or restart hetzner"
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.delete",
+    "thread-ends",
+    "p1"
+   ]
+  ],
+  "rows": []
+ },
+ {
+  "name": "pay keeps a busy thread and one whose end did not answer",
+  "seed": {
+   "p1": {
+    "threads": [
+     "run",
+     "launch",
+     "held",
+     "quiet"
+    ]
+   }
+  },
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [
+    "run"
+   ],
+   "launching": [
+    "launch",
+    "held"
+   ],
+   "holds": [
+    "held"
+   ]
+  },
+  "log": [
+   [
+    "ready"
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "runningOn",
+    "run"
+   ],
+   [
+    "runningOn",
+    "launch"
+   ],
+   [
+    "launchingOn",
+    "launch"
+   ],
+   [
+    "stopHolds",
+    "launch"
+   ],
+   [
+    "runningOn",
+    "held"
+   ],
+   [
+    "launchingOn",
+    "held"
+   ],
+   [
+    "stopHolds",
+    "held"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/held' 1",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "runningOn",
+    "quiet"
+   ],
+   [
+    "launchingOn",
+    "quiet"
+   ],
+   [
+    "door.exec",
+    "p1",
+    "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/quiet' 1",
+    {
+     "timeoutMs": 20000
+    }
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.put",
+    "thread-ends",
+    "p1",
+    {
+     "threads": [
+      "run",
+      "launch",
+      "held"
+     ]
+    }
+   ]
+  ],
+  "rows": [
+   [
+    "p1",
+    {
+     "threads": [
+      "run",
+      "launch",
+      "held"
+     ]
+    }
+   ]
+  ]
+ },
+ {
+  "name": "place.removed drops the row and settles every waiter of that computer",
+  "seed": {
+   "p1": {
+    "threads": [
+     "t1"
+    ]
+   },
+   "p2": {
+    "threads": [
+     "t1"
+    ]
+   }
+  },
+  "world": {
+   "linked": [],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p2"
+   ],
+   [
+    "store.delete",
+    "thread-ends",
+    "p1"
+   ],
+   [
+    "paid",
+    "p1"
+   ]
+  ],
+  "rows": [
+   [
+    "p2",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ]
+  ]
+ },
+ {
+  "name": "pay with nothing owed asks nothing",
+  "seed": {},
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [
+   [
+    "ready"
+   ],
+   [
+    "store.get",
+    "thread-ends",
+    "p1"
+   ]
+  ],
+  "rows": []
+ },
+ {
+  "name": "other events are ignored",
+  "seed": {
+   "p1": {
+    "threads": [
+     "t1"
+    ]
+   }
+  },
+  "world": {
+   "linked": [
+    "p1"
+   ],
+   "running": [],
+   "launching": [],
+   "holds": []
+  },
+  "log": [],
+  "rows": [
+   [
+    "p1",
+    {
+     "threads": [
+      "t1"
+     ]
+    }
+   ]
+  ]
+ }
+]

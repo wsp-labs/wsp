@@ -1,0 +1,2841 @@
+{
+  "heldScript": "echo; echo WSP_PLACE_HELD\nif [ -e '/home/maya/.wsp/place.json' ]; then { [ -f '/home/maya/.wsp/place.json' ] && [ ! -s '/home/maya/.wsp/place.json' ] && echo 'WSP_PLACE_LEFT file'; head -c 65536 '/home/maya/.wsp/place.json' 2>/dev/null || echo 'WSP_PLACE_LEFT file'; }\nelif [ -L '/home/maya/.wsp/place.json' ]; then echo 'WSP_PLACE_LEFT file'\nelif [ -e '/home/maya/.wsp/place-key.pem' ] || [ -L '/home/maya/.wsp/place-key.pem' ]; then echo 'WSP_PLACE_LEFT key'; fi; true",
+  "setupLogPath": "/home/maya/.wsp/provision/log",
+  "tailBytes": 65536,
+  "cases": {
+    "together": {
+      "ok": {
+        "place": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "renamed",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "api",
+          "cap": {
+            "threads": 2
+          },
+          "capDefault": {
+            "threads": 2
+          },
+          "settings": {
+            "threads": 2
+          },
+          "napMs": 1200000,
+          "napDefault": 1200000,
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 0
+        }
+      }
+    },
+    "togetherRecord": {
+      "id": "p_0000000000000001",
+      "name": "renamed",
+      "publicKey": "PUBKEY",
+      "joinedAt": "2026-10-01T00:00:00.000Z",
+      "lastSeenAt": "2026-10-02T00:00:00.000Z",
+      "reportedAt": "2026-10-02T00:00:00.000Z",
+      "report": {
+        "name": "old-macbook",
+        "platform": "linux",
+        "arch": "x64",
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "diskSizeBytes": 50000000000,
+        "model": "Mac14,3",
+        "login": {
+          "HOME": "/home/maya",
+          "USER": "maya",
+          "PATH": "/usr/bin"
+        },
+        "runsWorkspaces": true,
+        "engine": "none",
+        "daemonVersion": 167,
+        "uptimeMs": 5000,
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "logins": [],
+        "wsp": [
+          "/home/maya/.npm-global/bin/wsp"
+        ],
+        "dialed": "http://192.168.1.20:14621"
+      },
+      "road": {
+        "ssh": "maya@10.0.0.5",
+        "keyPath": "/home/dev/.ssh/id",
+        "hostKey": "ssh-ed25519 AAAA",
+        "from": "10.0.0.5"
+      },
+      "picks": {
+        "name": "web",
+        "agents": {},
+        "mcp": {},
+        "clis": {},
+        "skills": {},
+        "plugins": {
+          "lint": {}
+        },
+        "folders": {},
+        "configs": {}
+      },
+      "recipe": "api"
+    },
+    "togetherCaps": {
+      "threads": 2
+    },
+    "togetherPending": [
+      {
+        "id": "a_000000000001",
+        "address": "10.0.0.5",
+        "name": "renamed",
+        "placeId": "p_0000000000000001",
+        "step": "choosing",
+        "choices": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "startedAt": "2023-11-14T22:13:20.000Z"
+      },
+      {
+        "id": "a_000000000003",
+        "address": "10.0.0.5",
+        "placeId": "p_0000000000000002",
+        "name": "box2",
+        "step": "choosing",
+        "choices": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "startedAt": "2023-11-14T22:13:20.000Z"
+      }
+    ],
+    "togetherEvents": 1,
+    "togetherSetups": [
+      {
+        "type": "place.pending",
+        "id": "a_000000000001",
+        "pending": {
+          "id": "a_000000000001",
+          "address": "10.0.0.5",
+          "name": "renamed",
+          "placeId": "p_0000000000000001",
+          "step": "choosing",
+          "choices": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "startedAt": "2023-11-14T22:13:20.000Z"
+        }
+      },
+      {
+        "type": "recipes.changed",
+        "slug": "web"
+      },
+      {
+        "type": "recipes.changed",
+        "slug": "api"
+      }
+    ],
+    "recipeAlone": {
+      "ok": {
+        "place": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web",
+          "cap": {
+            "threads": 2
+          },
+          "capDefault": {
+            "threads": 2
+          },
+          "napMs": 1200000,
+          "napDefault": 1200000,
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 0
+        }
+      }
+    },
+    "recipeAloneCaps": null,
+    "blankRename": {
+      "err": "a computer's name cannot be blank. Give it a name with a letter or a digit in it.",
+      "kind": "usage",
+      "fix": "Give it a name with a letter or a digit in it."
+    },
+    "hereRename": {
+      "err": "zingzys-mac keeps its own name. Rename one of the computers you added instead.",
+      "kind": "usage",
+      "fix": "Rename one of the computers you added instead."
+    },
+    "hereSsh": {
+      "err": "zingzys-mac is reached over no ssh login of yours. Give a new login to one of the computers you added instead.",
+      "kind": "usage",
+      "fix": "Give a new login to one of the computers you added instead."
+    },
+    "boatSsh": {
+      "err": "boat is reached over no ssh login of yours. Give a new login to one of the computers you added instead.",
+      "kind": "usage",
+      "fix": "Give a new login to one of the computers you added instead."
+    },
+    "badSsh": {
+      "err": "nope is not an ssh login like root@host. Write it as the user and the host ssh logs in with, root@hetzner for one.",
+      "kind": "usage",
+      "fix": "Write it as the user and the host ssh logs in with, root@hetzner for one."
+    },
+    "blankSsh": {
+      "err": "an ssh login cannot be blank. Write it as the user and the host ssh logs in with, root@hetzner for one.",
+      "kind": "usage",
+      "fix": "Write it as the user and the host ssh logs in with, root@hetzner for one."
+    },
+    "providerRecipe": {
+      "err": "no place named boat; you have old-macbook",
+      "kind": "usage",
+      "fix": null
+    },
+    "emptySet": {
+      "err": "nothing to set on old-macbook: it takes threads at once, nap after, turn limit, machines under a root thread, levels deep, a new name and a new ssh login",
+      "kind": "usage",
+      "fix": null
+    },
+    "bothSetAndReset": {
+      "err": "old-macbook: threads at once is both set and reset; name it once",
+      "kind": "usage",
+      "fix": null
+    },
+    "writes": [
+      null,
+      1
+    ],
+    "badSettingWithRename": {
+      "err": "old-macbook takes threads at once, nap after, turn limit, machines under a root thread and levels deep, not machines at once",
+      "kind": "usage",
+      "fix": null
+    },
+    "badSettingWithRenameRecord": "old-macbook",
+    "loginSame": {
+      "answer": {
+        "ok": {
+          "place": {
+            "id": "p_0000000000000001",
+            "kind": "computer",
+            "name": "old-macbook",
+            "default": false,
+            "os": "Ubuntu 24.04",
+            "shape": {
+              "cpu": 4,
+              "memMb": 4096
+            },
+            "diskFreeBytes": 1000,
+            "present": false,
+            "joinedAt": "2026-10-01T00:00:00.000Z",
+            "lastSeenAt": "2026-10-02T00:00:00.000Z",
+            "daemonVersion": 167,
+            "agents": [
+              "claude",
+              "codex"
+            ],
+            "signIns": {
+              "claude": "vault-key",
+              "codex": "none"
+            },
+            "takesForks": true,
+            "road": {
+              "ssh": "root@10.0.0.9",
+              "from": "10.0.0.5"
+            },
+            "home": "/home/maya",
+            "uptimeMs": 5000,
+            "reportedAt": "2026-10-02T00:00:00.000Z",
+            "picks": {
+              "name": "web",
+              "agents": {},
+              "mcp": {},
+              "clis": {},
+              "skills": {},
+              "plugins": {
+                "lint": {}
+              },
+              "folders": {},
+              "configs": {}
+            },
+            "recipe": "web",
+            "cap": {
+              "threads": 2
+            },
+            "capDefault": {
+              "threads": 2
+            },
+            "napMs": 1200000,
+            "napDefault": 1200000,
+            "turnLimitMs": null,
+            "turnLimitDefault": null,
+            "spawn": {
+              "maxMachines": 3,
+              "maxDepth": 2
+            },
+            "spawnDefault": {
+              "maxMachines": 3,
+              "maxDepth": 2
+            },
+            "running": 0
+          }
+        }
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "root@10.0.0.9",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      },
+      "scripts": [
+        [
+          {
+            "ssh": "root@10.0.0.9",
+            "keyPath": "/home/dev/.ssh/id"
+          },
+          "echo; echo WSP_PLACE_HELD\nif [ -e '/home/maya/.wsp/place.json' ]; then { [ -f '/home/maya/.wsp/place.json' ] && [ ! -s '/home/maya/.wsp/place.json' ] && echo 'WSP_PLACE_LEFT file'; head -c 65536 '/home/maya/.wsp/place.json' 2>/dev/null || echo 'WSP_PLACE_LEFT file'; }\nelif [ -L '/home/maya/.wsp/place.json' ]; then echo 'WSP_PLACE_LEFT file'\nelif [ -e '/home/maya/.wsp/place-key.pem' ] || [ -L '/home/maya/.wsp/place-key.pem' ]; then echo 'WSP_PLACE_LEFT key'; fi; true",
+          20000,
+          null
+        ]
+      ],
+      "events": 1,
+      "name": "same"
+    },
+    "loginOther": {
+      "answer": {
+        "err": "root@10.0.0.9 reaches a computer that is not old-macbook, so nothing was saved. Give the login that reaches old-macbook itself.",
+        "kind": "usage",
+        "fix": "Give the login that reaches old-macbook itself."
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      },
+      "scripts": [
+        [
+          {
+            "ssh": "root@10.0.0.9",
+            "keyPath": "/home/dev/.ssh/id"
+          },
+          "echo; echo WSP_PLACE_HELD\nif [ -e '/home/maya/.wsp/place.json' ]; then { [ -f '/home/maya/.wsp/place.json' ] && [ ! -s '/home/maya/.wsp/place.json' ] && echo 'WSP_PLACE_LEFT file'; head -c 65536 '/home/maya/.wsp/place.json' 2>/dev/null || echo 'WSP_PLACE_LEFT file'; }\nelif [ -L '/home/maya/.wsp/place.json' ]; then echo 'WSP_PLACE_LEFT file'\nelif [ -e '/home/maya/.wsp/place-key.pem' ] || [ -L '/home/maya/.wsp/place-key.pem' ]; then echo 'WSP_PLACE_LEFT key'; fi; true",
+          20000,
+          null
+        ]
+      ],
+      "events": 0,
+      "name": "other"
+    },
+    "loginNamesOtherRecord": {
+      "answer": {
+        "err": "root@10.0.0.9 reaches a computer that is not old-macbook, so nothing was saved. Give the login that reaches old-macbook itself.",
+        "kind": "usage",
+        "fix": "Give the login that reaches old-macbook itself."
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      },
+      "scripts": [
+        [
+          {
+            "ssh": "root@10.0.0.9",
+            "keyPath": "/home/dev/.ssh/id"
+          },
+          "echo; echo WSP_PLACE_HELD\nif [ -e '/home/maya/.wsp/place.json' ]; then { [ -f '/home/maya/.wsp/place.json' ] && [ ! -s '/home/maya/.wsp/place.json' ] && echo 'WSP_PLACE_LEFT file'; head -c 65536 '/home/maya/.wsp/place.json' 2>/dev/null || echo 'WSP_PLACE_LEFT file'; }\nelif [ -L '/home/maya/.wsp/place.json' ]; then echo 'WSP_PLACE_LEFT file'\nelif [ -e '/home/maya/.wsp/place-key.pem' ] || [ -L '/home/maya/.wsp/place-key.pem' ]; then echo 'WSP_PLACE_LEFT key'; fi; true",
+          20000,
+          null
+        ]
+      ],
+      "events": 0,
+      "name": "otherRecord"
+    },
+    "loginNoFile": {
+      "answer": {
+        "err": "root@10.0.0.9 reaches a computer that is not old-macbook, so nothing was saved. Give the login that reaches old-macbook itself.",
+        "kind": "usage",
+        "fix": "Give the login that reaches old-macbook itself."
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      },
+      "scripts": [
+        [
+          {
+            "ssh": "root@10.0.0.9",
+            "keyPath": "/home/dev/.ssh/id"
+          },
+          "echo; echo WSP_PLACE_HELD\nif [ -e '/home/maya/.wsp/place.json' ]; then { [ -f '/home/maya/.wsp/place.json' ] && [ ! -s '/home/maya/.wsp/place.json' ] && echo 'WSP_PLACE_LEFT file'; head -c 65536 '/home/maya/.wsp/place.json' 2>/dev/null || echo 'WSP_PLACE_LEFT file'; }\nelif [ -L '/home/maya/.wsp/place.json' ]; then echo 'WSP_PLACE_LEFT file'\nelif [ -e '/home/maya/.wsp/place-key.pem' ] || [ -L '/home/maya/.wsp/place-key.pem' ]; then echo 'WSP_PLACE_LEFT key'; fi; true",
+          20000,
+          null
+        ]
+      ],
+      "events": 0,
+      "name": "noFile"
+    },
+    "loginExit": {
+      "answer": {
+        "err": "root@10.0.0.9 could not be checked as old-macbook, so nothing was saved: last line. Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again.",
+        "kind": "usage",
+        "fix": "Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again."
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      },
+      "scripts": [
+        [
+          {
+            "ssh": "root@10.0.0.9",
+            "keyPath": "/home/dev/.ssh/id"
+          },
+          "echo; echo WSP_PLACE_HELD\nif [ -e '/home/maya/.wsp/place.json' ]; then { [ -f '/home/maya/.wsp/place.json' ] && [ ! -s '/home/maya/.wsp/place.json' ] && echo 'WSP_PLACE_LEFT file'; head -c 65536 '/home/maya/.wsp/place.json' 2>/dev/null || echo 'WSP_PLACE_LEFT file'; }\nelif [ -L '/home/maya/.wsp/place.json' ]; then echo 'WSP_PLACE_LEFT file'\nelif [ -e '/home/maya/.wsp/place-key.pem' ] || [ -L '/home/maya/.wsp/place-key.pem' ]; then echo 'WSP_PLACE_LEFT key'; fi; true",
+          20000,
+          null
+        ]
+      ],
+      "events": 0,
+      "name": "exit"
+    },
+    "loginExitSilent": {
+      "answer": {
+        "err": "root@10.0.0.9 could not be checked as old-macbook, so nothing was saved: the read exited 3. Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again.",
+        "kind": "usage",
+        "fix": "Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again."
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      },
+      "scripts": [
+        [
+          {
+            "ssh": "root@10.0.0.9",
+            "keyPath": "/home/dev/.ssh/id"
+          },
+          "echo; echo WSP_PLACE_HELD\nif [ -e '/home/maya/.wsp/place.json' ]; then { [ -f '/home/maya/.wsp/place.json' ] && [ ! -s '/home/maya/.wsp/place.json' ] && echo 'WSP_PLACE_LEFT file'; head -c 65536 '/home/maya/.wsp/place.json' 2>/dev/null || echo 'WSP_PLACE_LEFT file'; }\nelif [ -L '/home/maya/.wsp/place.json' ]; then echo 'WSP_PLACE_LEFT file'\nelif [ -e '/home/maya/.wsp/place-key.pem' ] || [ -L '/home/maya/.wsp/place-key.pem' ]; then echo 'WSP_PLACE_LEFT key'; fi; true",
+          20000,
+          null
+        ]
+      ],
+      "events": 0,
+      "name": "exitSilent"
+    },
+    "loginThrows": {
+      "answer": {
+        "err": "root@10.0.0.9 could not be checked as old-macbook, so nothing was saved: ssh: connect to host 10.0.0.9 port 22: Connection refused. Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again.",
+        "kind": "usage",
+        "fix": "Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again."
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      },
+      "scripts": [
+        [
+          {
+            "ssh": "root@10.0.0.9",
+            "keyPath": "/home/dev/.ssh/id"
+          },
+          "echo; echo WSP_PLACE_HELD\nif [ -e '/home/maya/.wsp/place.json' ]; then { [ -f '/home/maya/.wsp/place.json' ] && [ ! -s '/home/maya/.wsp/place.json' ] && echo 'WSP_PLACE_LEFT file'; head -c 65536 '/home/maya/.wsp/place.json' 2>/dev/null || echo 'WSP_PLACE_LEFT file'; }\nelif [ -L '/home/maya/.wsp/place.json' ]; then echo 'WSP_PLACE_LEFT file'\nelif [ -e '/home/maya/.wsp/place-key.pem' ] || [ -L '/home/maya/.wsp/place-key.pem' ]; then echo 'WSP_PLACE_LEFT key'; fi; true",
+          20000,
+          null
+        ]
+      ],
+      "events": 0,
+      "name": "throws"
+    },
+    "loginNoRoad": {
+      "answer": {
+        "err": "root@10.0.0.9 could not be checked as old-macbook, so nothing was saved: this host holds no ssh road to read it over. Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again.",
+        "kind": "usage",
+        "fix": "Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again."
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      },
+      "scripts": [],
+      "events": 0,
+      "name": "noRoad"
+    },
+    "loginOwn": {
+      "answer": {
+        "ok": {
+          "place": {
+            "id": "p_0000000000000001",
+            "kind": "computer",
+            "name": "old-macbook",
+            "default": false,
+            "os": "Ubuntu 24.04",
+            "shape": {
+              "cpu": 4,
+              "memMb": 4096
+            },
+            "diskFreeBytes": 1000,
+            "present": false,
+            "joinedAt": "2026-10-01T00:00:00.000Z",
+            "lastSeenAt": "2026-10-02T00:00:00.000Z",
+            "daemonVersion": 167,
+            "agents": [
+              "claude",
+              "codex"
+            ],
+            "signIns": {
+              "claude": "vault-key",
+              "codex": "none"
+            },
+            "takesForks": true,
+            "road": {
+              "ssh": "maya@10.0.0.5",
+              "from": "10.0.0.5"
+            },
+            "home": "/home/maya",
+            "uptimeMs": 5000,
+            "reportedAt": "2026-10-02T00:00:00.000Z",
+            "picks": {
+              "name": "web",
+              "agents": {},
+              "mcp": {},
+              "clis": {},
+              "skills": {},
+              "plugins": {
+                "lint": {}
+              },
+              "folders": {},
+              "configs": {}
+            },
+            "recipe": "web",
+            "cap": {
+              "threads": 2
+            },
+            "capDefault": {
+              "threads": 2
+            },
+            "napMs": 1200000,
+            "napDefault": 1200000,
+            "turnLimitMs": null,
+            "turnLimitDefault": null,
+            "spawn": {
+              "maxMachines": 3,
+              "maxDepth": 2
+            },
+            "spawnDefault": {
+              "maxMachines": 3,
+              "maxDepth": 2
+            },
+            "running": 0
+          }
+        }
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      },
+      "scripts": [],
+      "events": 1,
+      "name": "own"
+    },
+    "loginSpaced": {
+      "answer": {
+        "ok": {
+          "place": {
+            "id": "p_0000000000000001",
+            "kind": "computer",
+            "name": "old-macbook",
+            "default": false,
+            "os": "Ubuntu 24.04",
+            "shape": {
+              "cpu": 4,
+              "memMb": 4096
+            },
+            "diskFreeBytes": 1000,
+            "present": false,
+            "joinedAt": "2026-10-01T00:00:00.000Z",
+            "lastSeenAt": "2026-10-02T00:00:00.000Z",
+            "daemonVersion": 167,
+            "agents": [
+              "claude",
+              "codex"
+            ],
+            "signIns": {
+              "claude": "vault-key",
+              "codex": "none"
+            },
+            "takesForks": true,
+            "road": {
+              "ssh": "root@10.0.0.9",
+              "from": "10.0.0.5"
+            },
+            "home": "/home/maya",
+            "uptimeMs": 5000,
+            "reportedAt": "2026-10-02T00:00:00.000Z",
+            "picks": {
+              "name": "web",
+              "agents": {},
+              "mcp": {},
+              "clis": {},
+              "skills": {},
+              "plugins": {
+                "lint": {}
+              },
+              "folders": {},
+              "configs": {}
+            },
+            "recipe": "web",
+            "cap": {
+              "threads": 2
+            },
+            "capDefault": {
+              "threads": 2
+            },
+            "napMs": 1200000,
+            "napDefault": 1200000,
+            "turnLimitMs": null,
+            "turnLimitDefault": null,
+            "spawn": {
+              "maxMachines": 3,
+              "maxDepth": 2
+            },
+            "spawnDefault": {
+              "maxMachines": 3,
+              "maxDepth": 2
+            },
+            "running": 0
+          }
+        }
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "root@10.0.0.9",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      },
+      "scripts": [
+        [
+          {
+            "ssh": "root@10.0.0.9",
+            "keyPath": "/home/dev/.ssh/id"
+          },
+          "echo; echo WSP_PLACE_HELD\nif [ -e '/home/maya/.wsp/place.json' ]; then { [ -f '/home/maya/.wsp/place.json' ] && [ ! -s '/home/maya/.wsp/place.json' ] && echo 'WSP_PLACE_LEFT file'; head -c 65536 '/home/maya/.wsp/place.json' 2>/dev/null || echo 'WSP_PLACE_LEFT file'; }\nelif [ -L '/home/maya/.wsp/place.json' ]; then echo 'WSP_PLACE_LEFT file'\nelif [ -e '/home/maya/.wsp/place-key.pem' ] || [ -L '/home/maya/.wsp/place-key.pem' ]; then echo 'WSP_PLACE_LEFT key'; fi; true",
+          20000,
+          null
+        ]
+      ],
+      "events": 1,
+      "name": "spaced"
+    },
+    "backAlone": {
+      "answer": {
+        "ok": {
+          "place": {
+            "id": "p_0000000000000001",
+            "kind": "computer",
+            "name": "old-macbook",
+            "default": false,
+            "os": "Ubuntu 24.04",
+            "shape": {
+              "cpu": 4,
+              "memMb": 4096
+            },
+            "diskFreeBytes": 1000,
+            "present": false,
+            "joinedAt": "2026-10-01T00:00:00.000Z",
+            "lastSeenAt": "2026-10-02T00:00:00.000Z",
+            "daemonVersion": 167,
+            "agents": [
+              "claude",
+              "codex"
+            ],
+            "signIns": {
+              "claude": "vault-key",
+              "codex": "none"
+            },
+            "takesForks": true,
+            "road": {
+              "ssh": "root@10.0.0.9",
+              "from": "10.0.0.5",
+              "back": {
+                "boxPort": 7000
+              }
+            },
+            "home": "/home/maya",
+            "uptimeMs": 5000,
+            "reportedAt": "2026-10-02T00:00:00.000Z",
+            "picks": {
+              "name": "web",
+              "agents": {},
+              "mcp": {},
+              "clis": {},
+              "skills": {},
+              "plugins": {
+                "lint": {}
+              },
+              "folders": {},
+              "configs": {}
+            },
+            "recipe": "web",
+            "cap": {
+              "threads": 2
+            },
+            "capDefault": {
+              "threads": 2
+            },
+            "napMs": 1200000,
+            "napDefault": 1200000,
+            "turnLimitMs": null,
+            "turnLimitDefault": null,
+            "spawn": {
+              "maxMachines": 3,
+              "maxDepth": 2
+            },
+            "spawnDefault": {
+              "maxMachines": 3,
+              "maxDepth": 2
+            },
+            "running": 0
+          }
+        }
+      },
+      "log": [
+        "hold maya@10.0.0.5 /home/maya p_0000000000000001",
+        "release maya@10.0.0.5",
+        "hold root@10.0.0.9 /home/maya p_0000000000000001"
+      ],
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "root@10.0.0.9",
+          "from": "10.0.0.5",
+          "back": {
+            "boxPort": 7000
+          }
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      }
+    },
+    "backShared": {
+      "answer": {
+        "ok": {
+          "place": {
+            "id": "p_0000000000000001",
+            "kind": "computer",
+            "name": "old-macbook",
+            "default": false,
+            "os": "Ubuntu 24.04",
+            "shape": {
+              "cpu": 4,
+              "memMb": 4096
+            },
+            "diskFreeBytes": 1000,
+            "present": false,
+            "joinedAt": "2026-10-01T00:00:00.000Z",
+            "lastSeenAt": "2026-10-02T00:00:00.000Z",
+            "daemonVersion": 167,
+            "agents": [
+              "claude",
+              "codex"
+            ],
+            "signIns": {
+              "claude": "vault-key",
+              "codex": "none"
+            },
+            "takesForks": true,
+            "road": {
+              "ssh": "root@10.0.0.9",
+              "from": "10.0.0.5",
+              "back": {
+                "boxPort": 7000
+              }
+            },
+            "home": "/home/maya",
+            "uptimeMs": 5000,
+            "reportedAt": "2026-10-02T00:00:00.000Z",
+            "picks": {
+              "name": "web",
+              "agents": {},
+              "mcp": {},
+              "clis": {},
+              "skills": {},
+              "plugins": {
+                "lint": {}
+              },
+              "folders": {},
+              "configs": {}
+            },
+            "recipe": "web",
+            "cap": {
+              "threads": 2
+            },
+            "capDefault": {
+              "threads": 2
+            },
+            "napMs": 1200000,
+            "napDefault": 1200000,
+            "turnLimitMs": null,
+            "turnLimitDefault": null,
+            "spawn": {
+              "maxMachines": 3,
+              "maxDepth": 2
+            },
+            "spawnDefault": {
+              "maxMachines": 3,
+              "maxDepth": 2
+            },
+            "running": 0
+          }
+        }
+      },
+      "log": [
+        "hold maya@10.0.0.5 /home/maya p_0000000000000001",
+        "hold root@10.0.0.9 /home/maya p_0000000000000001"
+      ],
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "root@10.0.0.9",
+          "from": "10.0.0.5",
+          "back": {
+            "boxPort": 7000
+          }
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      }
+    },
+    "twoAtOnceCaps": {
+      "threads": 2,
+      "napMs": 1800000,
+      "spawn": {
+        "maxDepth": 1
+      }
+    },
+    "spawnBoth": {
+      "spawn": {
+        "maxMachines": 5,
+        "maxDepth": 1
+      }
+    },
+    "spawnAfterDepthReset": {
+      "spawn": {
+        "maxMachines": 5
+      }
+    },
+    "spawnAfterBothReset": null,
+    "turnLimitNull": {
+      "turnLimitMs": null
+    },
+    "renameToProvider": {
+      "err": "BOAT is already the name of another computer. Pick a name no other computer goes by.",
+      "kind": "usage",
+      "fix": "Pick a name no other computer goes by."
+    },
+    "renameToOtherRecord": {
+      "err": "box2 is already the name of another computer. Pick a name no other computer goes by.",
+      "kind": "usage",
+      "fix": "Pick a name no other computer goes by."
+    },
+    "renameToOwn": {
+      "ok": {
+        "place": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web",
+          "cap": {
+            "threads": 2
+          },
+          "capDefault": {
+            "threads": 2
+          },
+          "napMs": 1200000,
+          "napDefault": 1200000,
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 0
+        }
+      }
+    },
+    "skipWaitingRunning": {
+      "answer": {
+        "ok": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "setup": {
+            "state": "running",
+            "addId": "a_000000000009",
+            "startedAt": "2023-11-14T22:13:20.000Z",
+            "steps": [],
+            "waiting": [
+              {
+                "row": "signins/claude",
+                "label": "Claude Code",
+                "url": "https://auth.example/x",
+                "code": "C1",
+                "expiresAt": "2023-11-14T22:13:20.000Z",
+                "state": "waiting"
+              }
+            ]
+          },
+          "applied": {
+            "hash": "",
+            "at": "2023-11-14T22:13:20.000Z",
+            "rows": [
+              {
+                "id": "signins/codex",
+                "label": "Codex",
+                "outcome": "skipped",
+                "note": "skipped for now; finish it from the computer's page in Settings"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web"
+        }
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "setup": {
+          "state": "running",
+          "addId": "a_000000000009",
+          "startedAt": "2023-11-14T22:13:20.000Z",
+          "steps": [],
+          "waiting": [
+            {
+              "row": "signins/claude",
+              "label": "Claude Code",
+              "url": "https://auth.example/x",
+              "code": "C1",
+              "expiresAt": "2023-11-14T22:13:20.000Z",
+              "state": "waiting"
+            }
+          ]
+        },
+        "applied": {
+          "hash": "",
+          "at": "2023-11-14T22:13:20.000Z",
+          "rows": [
+            {
+              "id": "signins/codex",
+              "label": "Codex",
+              "outcome": "skipped",
+              "note": "skipped for now; finish it from the computer's page in Settings"
+            }
+          ]
+        }
+      },
+      "setups": [],
+      "events": 0
+    },
+    "skipWaitingDone": {
+      "answer": {
+        "ok": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "setup": {
+            "state": "done",
+            "addId": "a_000000000009",
+            "startedAt": "2023-11-14T22:13:20.000Z",
+            "steps": [],
+            "waiting": []
+          },
+          "applied": {
+            "hash": "",
+            "at": "2023-11-14T22:13:20.000Z",
+            "rows": [
+              {
+                "id": "signins/codex",
+                "label": "Codex",
+                "outcome": "skipped",
+                "note": "skipped for now; finish it from the computer's page in Settings"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web"
+        }
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "setup": {
+          "state": "done",
+          "addId": "a_000000000009",
+          "startedAt": "2023-11-14T22:13:20.000Z",
+          "steps": [],
+          "waiting": []
+        },
+        "applied": {
+          "hash": "",
+          "at": "2023-11-14T22:13:20.000Z",
+          "rows": [
+            {
+              "id": "signins/codex",
+              "label": "Codex",
+              "outcome": "skipped",
+              "note": "skipped for now; finish it from the computer's page in Settings"
+            }
+          ]
+        }
+      },
+      "setups": [
+        {
+          "type": "place.setup",
+          "addId": "a_000000000009",
+          "placeId": "p_0000000000000001",
+          "end": "ready"
+        }
+      ],
+      "events": 0
+    },
+    "skipWaitingNoApplied": {
+      "answer": {
+        "ok": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "setup": {
+            "state": "done",
+            "addId": "a_000000000009",
+            "startedAt": "2023-11-14T22:13:20.000Z",
+            "steps": [],
+            "waiting": []
+          },
+          "applied": {
+            "hash": "",
+            "at": "2023-11-14T22:13:20.000Z",
+            "rows": [
+              {
+                "id": "signins/codex",
+                "label": "Codex",
+                "outcome": "skipped",
+                "note": "skipped for now; finish it from the computer's page in Settings"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web"
+        }
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "applied": {
+          "hash": "",
+          "at": "2023-11-14T22:13:20.000Z",
+          "rows": [
+            {
+              "id": "signins/codex",
+              "label": "Codex",
+              "outcome": "skipped",
+              "note": "skipped for now; finish it from the computer's page in Settings"
+            }
+          ]
+        },
+        "setup": {
+          "state": "done",
+          "addId": "a_000000000009",
+          "startedAt": "2023-11-14T22:13:20.000Z",
+          "steps": [],
+          "waiting": []
+        }
+      },
+      "setups": [
+        {
+          "type": "place.setup",
+          "addId": "a_000000000009",
+          "placeId": "p_0000000000000001",
+          "end": "ready"
+        }
+      ],
+      "events": 0
+    },
+    "skipStepOffAnyRow": {
+      "answer": {
+        "ok": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "setup": {
+            "state": "done",
+            "addId": "a_000000000009",
+            "startedAt": "2023-11-14T22:13:20.000Z",
+            "steps": [],
+            "waiting": []
+          },
+          "applied": {
+            "hash": "h1",
+            "at": "2023-11-14T22:13:20.000Z",
+            "items": {
+              "clis/jq": "1.7"
+            },
+            "rows": [
+              {
+                "id": "plugins/lint",
+                "label": "PLUGINS/LINT",
+                "outcome": "installed",
+                "step": "plugins"
+              },
+              {
+                "id": "signins/codex",
+                "label": "Codex",
+                "outcome": "skipped",
+                "note": "skipped for now; finish it from the computer's page in Settings",
+                "step": "signins"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web"
+        }
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "setup": {
+          "state": "done",
+          "addId": "a_000000000009",
+          "startedAt": "2023-11-14T22:13:20.000Z",
+          "steps": [],
+          "waiting": []
+        },
+        "applied": {
+          "hash": "h1",
+          "at": "2023-11-14T22:13:20.000Z",
+          "items": {
+            "clis/jq": "1.7"
+          },
+          "rows": [
+            {
+              "id": "plugins/lint",
+              "label": "PLUGINS/LINT",
+              "outcome": "installed",
+              "step": "plugins"
+            },
+            {
+              "id": "signins/codex",
+              "label": "Codex",
+              "outcome": "skipped",
+              "note": "skipped for now; finish it from the computer's page in Settings",
+              "step": "signins"
+            }
+          ]
+        }
+      },
+      "setups": [
+        {
+          "type": "place.setup",
+          "addId": "a_000000000009",
+          "placeId": "p_0000000000000001",
+          "end": "ready"
+        }
+      ],
+      "events": 0
+    },
+    "skipFailedNotLast": {
+      "answer": {
+        "ok": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "applied": {
+            "hash": "h1",
+            "at": "2023-11-14T22:13:20.000Z",
+            "items": {
+              "clis/jq": "1.7"
+            },
+            "rows": [
+              {
+                "id": "plugins/lint",
+                "label": "PLUGINS/LINT",
+                "outcome": "installed",
+                "step": "plugins"
+              },
+              {
+                "id": "clis/gh",
+                "label": "CLIS/GH",
+                "outcome": "skipped",
+                "note": "skipped for now; finish it from the computer's page in Settings",
+                "step": "clis"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web"
+        }
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "applied": {
+          "hash": "h1",
+          "at": "2023-11-14T22:13:20.000Z",
+          "items": {
+            "clis/jq": "1.7"
+          },
+          "rows": [
+            {
+              "id": "plugins/lint",
+              "label": "PLUGINS/LINT",
+              "outcome": "installed",
+              "step": "plugins"
+            },
+            {
+              "id": "clis/gh",
+              "label": "CLIS/GH",
+              "outcome": "skipped",
+              "note": "skipped for now; finish it from the computer's page in Settings",
+              "step": "clis"
+            }
+          ]
+        }
+      },
+      "setups": [],
+      "events": 0
+    },
+    "skipFailedLabelOverWait": {
+      "answer": {
+        "ok": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "setup": {
+            "state": "done",
+            "addId": "a_000000000009",
+            "startedAt": "2023-11-14T22:13:20.000Z",
+            "steps": [],
+            "waiting": []
+          },
+          "applied": {
+            "hash": "h1",
+            "at": "2023-11-14T22:13:20.000Z",
+            "rows": [
+              {
+                "id": "clis/gh",
+                "label": "CLIS/GH",
+                "outcome": "skipped",
+                "note": "skipped for now; finish it from the computer's page in Settings",
+                "step": "clis"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web"
+        }
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "setup": {
+          "state": "done",
+          "addId": "a_000000000009",
+          "startedAt": "2023-11-14T22:13:20.000Z",
+          "steps": [],
+          "waiting": []
+        },
+        "applied": {
+          "hash": "h1",
+          "at": "2023-11-14T22:13:20.000Z",
+          "rows": [
+            {
+              "id": "clis/gh",
+              "label": "CLIS/GH",
+              "outcome": "skipped",
+              "note": "skipped for now; finish it from the computer's page in Settings",
+              "step": "clis"
+            }
+          ]
+        }
+      },
+      "setups": [
+        {
+          "type": "place.setup",
+          "addId": "a_000000000009",
+          "placeId": "p_0000000000000001",
+          "end": "ready"
+        }
+      ],
+      "events": 0
+    },
+    "skipPresentRowNothing": {
+      "answer": {
+        "err": "nothing waits or failed under plugins/lint on old-macbook. Skip a row the computer's page shows waiting or failed.",
+        "kind": "usage",
+        "fix": "Skip a row the computer's page shows waiting or failed."
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "setup": {
+          "state": "done",
+          "addId": "a_000000000009",
+          "startedAt": "2023-11-14T22:13:20.000Z",
+          "steps": [],
+          "waiting": []
+        }
+      },
+      "setups": [],
+      "events": 0
+    },
+    "skipSetupRunningFailedRow": {
+      "answer": {
+        "ok": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "setup": {
+            "state": "running",
+            "addId": "a_000000000009",
+            "startedAt": "2023-11-14T22:13:20.000Z",
+            "steps": [],
+            "waiting": []
+          },
+          "applied": {
+            "hash": "h1",
+            "at": "2023-11-14T22:13:20.000Z",
+            "rows": [
+              {
+                "id": "clis/gh",
+                "label": "CLIS/GH",
+                "outcome": "skipped",
+                "note": "skipped for now; finish it from the computer's page in Settings",
+                "step": "clis"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web"
+        }
+      },
+      "record": {
+        "id": "p_0000000000000001",
+        "name": "old-macbook",
+        "publicKey": "PUBKEY",
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "report": {
+          "name": "old-macbook",
+          "platform": "linux",
+          "arch": "x64",
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "diskSizeBytes": 50000000000,
+          "model": "Mac14,3",
+          "login": {
+            "HOME": "/home/maya",
+            "USER": "maya",
+            "PATH": "/usr/bin"
+          },
+          "runsWorkspaces": true,
+          "engine": "none",
+          "daemonVersion": 167,
+          "uptimeMs": 5000,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "logins": [],
+          "wsp": [
+            "/home/maya/.npm-global/bin/wsp"
+          ],
+          "dialed": "http://192.168.1.20:14621"
+        },
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "keyPath": "/home/dev/.ssh/id",
+          "hostKey": "ssh-ed25519 AAAA",
+          "from": "10.0.0.5"
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "setup": {
+          "state": "running",
+          "addId": "a_000000000009",
+          "startedAt": "2023-11-14T22:13:20.000Z",
+          "steps": [],
+          "waiting": []
+        },
+        "applied": {
+          "hash": "h1",
+          "at": "2023-11-14T22:13:20.000Z",
+          "rows": [
+            {
+              "id": "clis/gh",
+              "label": "CLIS/GH",
+              "outcome": "skipped",
+              "note": "skipped for now; finish it from the computer's page in Settings",
+              "step": "clis"
+            }
+          ]
+        }
+      },
+      "setups": [],
+      "events": 0
+    }
+  }
+}

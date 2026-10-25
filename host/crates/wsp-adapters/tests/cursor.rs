@@ -96,6 +96,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn launches_the_print_line_with_the_key_in_the_environment_and_none_on_the_line_and() {
+        tokio::task::LocalSet::new().run_until(launches_the_print_line_with_the_key_in_the_environment_and_none_on_the_line_and_body()).await
+    }
+
+    async fn launches_the_print_line_with_the_key_in_the_environment_and_none_on_the_line_and_body() {
         let exec = scripted_exec(fixture("cursor", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE);
         let adapter = adapter_over(&exec, Extra { api_key: Some("key_x".into()), key_env: Some("CURSOR_API_KEY".into()), ..Default::default() });
         let session = start(
@@ -133,6 +137,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn normalizes_a_turn_session_start_off_init_only_the_streamed_text_and_never_its_tw() {
+        tokio::task::LocalSet::new().run_until(normalizes_a_turn_session_start_off_init_only_the_streamed_text_and_never_its_tw_body()).await
+    }
+
+    async fn normalizes_a_turn_session_start_off_init_only_the_streamed_text_and_never_its_tw_body() {
         let events = Events::default();
         let session = start(
             &adapter_over(&scripted_exec(fixture("cursor", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE), Extra::default()),
@@ -174,6 +182,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn a_tool_the_cli_refused_is_an_error_result_in_its_own_words_and_a_function_call_k() {
+        tokio::task::LocalSet::new().run_until(a_tool_the_cli_refused_is_an_error_result_in_its_own_words_and_a_function_call_k_body()).await
+    }
+
+    async fn a_tool_the_cli_refused_is_an_error_result_in_its_own_words_and_a_function_call_k_body() {
         let lines = vec![
             init(),
             json!({ "type": "tool_call", "subtype": "started", "call_id": "c1", "tool_call": { "shellToolCall": { "args": { "command": "rm -rf build" } } }, "session_id": CHAT }).to_string(),
@@ -190,6 +202,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn no_credential_is_a_sign_in_refusal_the_cli_s_sentence_first_and_wsp_s_road_besid() {
+        tokio::task::LocalSet::new().run_until(no_credential_is_a_sign_in_refusal_the_cli_s_sentence_first_and_wsp_s_road_besid_body()).await
+    }
+
+    async fn no_credential_is_a_sign_in_refusal_the_cli_s_sentence_first_and_wsp_s_road_besid_body() {
         let events = Events::default();
         let exec = scripted_exec(fixture("cursor", "no-login.jsonl"), ScriptOpts { exit_code: Some(1), ..Default::default() }, RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra::default()), HarnessStartOptions { prompt: "say hi".into(), on_event: Some(events.on_event()), ..Default::default() }).finished().await;
@@ -206,6 +222,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn a_stream_its_transport_failed_hands_that_very_error_to_the_runtime_on_session_en() {
+        tokio::task::LocalSet::new().run_until(a_stream_its_transport_failed_hands_that_very_error_to_the_runtime_on_session_en_body()).await
+    }
+
+    async fn a_stream_its_transport_failed_hands_that_very_error_to_the_runtime_on_session_en_body() {
         let lost = ExecFailure { kind: ExecFailureKind::NoAnswer, message: "remote launch failed on m1: daemon on m1 did not answer within 30000 ms".into() };
         let events = Events::default();
         let exec = scripted_exec(vec![], ScriptOpts { fails: Some(lost.clone()), ..Default::default() }, RUN_HANDLE);
@@ -220,6 +240,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn a_process_that_dies_before_its_result_fails_the_turn_with_what_it_printed_last() {
+        tokio::task::LocalSet::new().run_until(a_process_that_dies_before_its_result_fails_the_turn_with_what_it_printed_last_body()).await
+    }
+
+    async fn a_process_that_dies_before_its_result_fails_the_turn_with_what_it_printed_last_body() {
         let lines = vec![init(), "Error: Cannot use this model: nope. Available models: gpt-5, sonnet-4.5".to_string()];
         let exec = scripted_exec(lines, ScriptOpts { exit_code: Some(1), ..Default::default() }, RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra::default()), silent("go")).finished().await;
@@ -228,6 +252,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn a_result_marked_as_an_error_fails_the_turn_with_its_own_text() {
+        tokio::task::LocalSet::new().run_until(a_result_marked_as_an_error_fails_the_turn_with_its_own_text_body()).await
+    }
+
+    async fn a_result_marked_as_an_error_fails_the_turn_with_its_own_text_body() {
         let lines = vec![json!({ "type": "result", "subtype": "error", "is_error": true, "duration_ms": 9, "result": "the model refused", "session_id": CHAT }).to_string()];
         let exec = scripted_exec(lines, ScriptOpts::default(), RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra::default()), silent("go")).finished().await;
@@ -236,6 +264,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn a_process_that_lingers_past_its_result_is_ended() {
+        tokio::task::LocalSet::new().run_until(a_process_that_lingers_past_its_result_is_ended_body()).await
+    }
+
+    async fn a_process_that_lingers_past_its_result_is_ended_body() {
         let exec = scripted_exec(fixture("cursor", "turn.jsonl"), ScriptOpts { hang: true, ..Default::default() }, RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra { result_exit_ms: Some(5), interrupt_grace_ms: Some(5), ..Default::default() }), silent("go")).finished().await;
         assert_eq!(result.status, TurnStatus::Completed);
@@ -244,6 +276,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn interrupt_ends_the_process_and_the_turn_reads_interrupted() {
+        tokio::task::LocalSet::new().run_until(interrupt_ends_the_process_and_the_turn_reads_interrupted_body()).await
+    }
+
+    async fn interrupt_ends_the_process_and_the_turn_reads_interrupted_body() {
         let exec = scripted_exec(vec![init()], ScriptOpts { hang: true, ..Default::default() }, RUN_HANDLE);
         let events = Events::default();
         let session = start(&adapter_over(&exec, Extra { interrupt_grace_ms: Some(5), ..Default::default() }), go(&events));
@@ -255,6 +291,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn an_attach_re_opens_the_run_with_no_channel() {
+        tokio::task::LocalSet::new().run_until(an_attach_re_opens_the_run_with_no_channel_body()).await
+    }
+
+    async fn an_attach_re_opens_the_run_with_no_channel_body() {
         let exec = scripted_exec(fixture("cursor", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE).with_attach();
         let events = Events::default();
         let attached = adapter_over(&exec, Extra::default())
@@ -295,6 +335,10 @@ mod a_person_s_setup_for_cursor_on_a_computer {
 
     #[tokio::test]
     async fn runs_the_program_in_place_of_cursor_agent_the_launch_words_after_p() {
+        tokio::task::LocalSet::new().run_until(runs_the_program_in_place_of_cursor_agent_the_launch_words_after_p_body()).await
+    }
+
+    async fn runs_the_program_in_place_of_cursor_agent_the_launch_words_after_p_body() {
         let exec = scripted_exec(fixture("cursor", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE);
         let adapter = create_cursor_adapter(CursorAdapterDeps {
             launch: Some(AgentLaunch { program: Some("/opt/ca".into()), args: Some(vec!["--sandbox".into(), "disabled".into()]) }),
@@ -381,6 +425,10 @@ mod rules_this_port_pins {
 
     #[tokio::test]
     async fn every_init_line_names_the_chat_and_says_the_start_again() {
+        tokio::task::LocalSet::new().run_until(every_init_line_names_the_chat_and_says_the_start_again_body()).await
+    }
+
+    async fn every_init_line_names_the_chat_and_says_the_start_again_body() {
         // Rule 6; adapter.ts:139-143.
         let second = serde_json::json!({"type": "system", "subtype": "init", "session_id": "chat-two"}).to_string();
         let events = Events::default();
@@ -390,5 +438,136 @@ mod rules_this_port_pins {
         let starts: Vec<String> = events.all().iter().filter_map(|e| match e { AdapterEvent::SessionStart { session_id, .. } => Some(session_id.clone()), _ => None }).collect();
         assert_eq!(starts, vec![CHAT.to_string(), "chat-two".to_string()]);
         assert_eq!(session.session_id(), "chat-two");
+    }
+}
+
+/// Rules C1 to C8 of spec/cursor.md, "Rules added for the port", each value printed by the TS at 65f6b89c7.
+mod rules_added {
+    use super::*;
+
+    fn result(fields: serde_json::Value) -> String {
+        let mut v = json!({"type": "result", "subtype": "success", "duration_ms": 5});
+        for (k, x) in fields.as_object().unwrap() {
+            v[k] = x.clone();
+        }
+        v.to_string()
+    }
+
+    fn call(subtype: &str, tool_call: serde_json::Value, call_id: serde_json::Value) -> String {
+        json!({"type": "tool_call", "subtype": subtype, "call_id": call_id, "tool_call": tool_call}).to_string()
+    }
+
+    async fn run(lines: Vec<String>, opts: ScriptOpts) -> (TurnResult, Events, CursorSession) {
+        let events = Events::default();
+        let exec = scripted_exec(lines, opts, RUN_HANDLE);
+        let session = start(&adapter_over(&exec, Extra { result_exit_ms: Some(5), interrupt_grace_ms: Some(5), ..Default::default() }), go(&events));
+        (session.finished().await, events, session)
+    }
+
+    fn deltas(events: &Events) -> Vec<AdapterEvent> {
+        events.all().into_iter().filter(|e| matches!(e, AdapterEvent::TurnDelta(_))).collect()
+    }
+
+    #[tokio::test]
+    async fn a_call_is_the_first_key_of_tool_call_in_js_order_and_one_whose_first_value_is_no_object_is_skipped() {
+        // C1; adapter.ts:94-100 (`Object.keys(..)[0]`).
+        let lines = vec![init(), call("started", json!({"a": 5, "readToolCall": {"args": {"path": "x"}}}), json!("c1")), call("started", json!({"b": {"args": {}}, "1": {"args": {}}}), json!("c2")), result(json!({"result": "r"}))];
+        let (_, events, _) = run(lines, ScriptOpts::default()).await;
+        assert_eq!(deltas(&events), vec![tool_use("{}", "1", "c2")]);
+    }
+
+    #[tokio::test]
+    async fn a_call_s_name_drops_one_trailing_tool_call_and_its_input_is_json_of_args_or_the_function_s_string() {
+        // C2; adapter.ts:100-112.
+        let lines = vec![
+            init(),
+            call("started", json!({"ToolCall": {"args": null}}), json!("a")),
+            call("started", json!({"fooToolCallToolCall": {"args": "s"}}), json!("b")),
+            call("started", json!({"function": {"name": "", "arguments": ""}}), json!("c")),
+            call("started", json!({"function": {"arguments": 5}}), json!(7)),
+            result(json!({"result": "r"})),
+        ];
+        let (_, events, _) = run(lines, ScriptOpts::default()).await;
+        assert_eq!(deltas(&events), vec![tool_use("{}", "", "a"), tool_use("\"s\"", "fooToolCall", "b"), tool_use("", "", "c"), tool_use("{}", "function", "")]);
+    }
+
+    #[tokio::test]
+    async fn a_completed_result_always_carries_text_and_only_a_boolean_true_is_an_error() {
+        // C3; adapter.ts:160-180.
+        let dur = Some(JsNumber(5.0));
+        assert_eq!(run(vec![init(), result(json!({"result": ""}))], ScriptOpts::default()).await.0, TurnResult { duration_ms: dur, text: Some(String::new()), ..bare(TurnStatus::Completed) });
+        assert_eq!(run(vec![init(), result(json!({"result": "done", "is_error": "true"}))], ScriptOpts::default()).await.0, TurnResult { duration_ms: dur, text: Some("done".into()), ..bare(TurnStatus::Completed) });
+        assert_eq!(run(vec![init(), result(json!({"result": "  ", "is_error": true}))], ScriptOpts::default()).await.0, TurnResult { duration_ms: dur, ..failed("  ") });
+    }
+
+    #[tokio::test]
+    async fn the_no_credential_sentence_outlives_the_tail_beats_a_stream_failure_and_refuses_an_exit_0() {
+        // C4; adapter.ts:118-130, 190-205.
+        let sentence = "Error: Authentication required. Please run 'agent login' first.";
+        let mut lines = vec![sentence.to_string()];
+        lines.extend((0..7).map(|i| format!("noise {i}")));
+        let refused = |s: &str| TurnResult { error: Some(format!("{s}; {SIGN_IN_ROAD}")), refusal: Some(TurnRefusal::SignIn), ..bare(TurnStatus::Failed) };
+        assert_eq!(run(lines.clone(), ScriptOpts { exit_code: Some(1), ..Default::default() }).await.0, refused(sentence));
+        let fails = ExecFailure { kind: ExecFailureKind::Other, message: "link down".into() };
+        assert_eq!(run(lines, ScriptOpts { fails: Some(fails), ..Default::default() }).await.0, refused(sentence));
+        assert_eq!(run(vec!["Error: Authentication required-x".into()], ScriptOpts::default()).await.0, refused("Error: Authentication required-x"));
+    }
+
+    #[tokio::test]
+    async fn streamed_text_counts_by_key_presence_null_included_blank_text_is_said_and_parts_are_not_filtered_by_type() {
+        // C5; adapter.ts:144-152.
+        let say = |content: serde_json::Value, extra: serde_json::Value| {
+            let mut v = json!({"type": "assistant", "message": {"role": "assistant", "content": content}, "session_id": CHAT});
+            for (k, x) in extra.as_object().unwrap() {
+                v[k] = x.clone();
+            }
+            v.to_string()
+        };
+        let lines = vec![
+            init(),
+            say(json!([{"type": "text", "text": "a"}]), json!({"timestamp_ms": null})),
+            say(json!([{"type": "text", "text": "b"}]), json!({"timestamp_ms": 1, "model_call_id": null})),
+            say(json!([{"type": "text", "text": "  "}]), json!({"timestamp_ms": 2})),
+            say(json!([{"type": "thinking", "text": "hmm"}, 5, {"type": "text", "text": 7}, {"type": "text", "text": "c"}]), json!({"timestamp_ms": 3})),
+            result(json!({"result": "x"})),
+        ];
+        let (r, events, _) = run(lines, ScriptOpts::default()).await;
+        assert_eq!(deltas(&events), ["a", "  ", "hmmc"].map(|t| AdapterEvent::TurnDelta(delta(DeltaKind::Text, t))).to_vec());
+        assert_eq!(r.text.as_deref(), Some("a  hmmc"));
+    }
+
+    #[tokio::test]
+    async fn a_tool_s_result_text_takes_a_string_content_even_empty_and_names_its_kind_with_an_empty_why() {
+        // C6; adapter.ts:102-116.
+        let done = |id: &str, res: serde_json::Value| call("completed", json!({"shellToolCall": {"args": {}, "result": res}}), json!(id));
+        let lines = vec![
+            init(),
+            done("a", json!({"success": {"content": "", "stdout": "out"}})),
+            done("b", json!({"success": "yay"})),
+            done("c", json!({"failure": null})),
+            done("d", json!({"failure": {"reason": ""}})),
+            done("e", json!({"rejected": {"stderr": "no"}})),
+            result(json!({"result": "r"})),
+        ];
+        let (_, events, _) = run(lines, ScriptOpts::default()).await;
+        assert_eq!(deltas(&events), vec![tool_result("", "a", false), tool_result("\"yay\"", "b", false), tool_result("failure: null", "c", true), tool_result("failure: ", "d", true), tool_result("rejected: no", "e", true)]);
+    }
+
+    #[tokio::test]
+    async fn an_init_with_no_session_id_says_the_start_under_the_local_id_and_an_empty_one_is_the_id() {
+        // C7; adapter.ts:139-143.
+        let (_, events, session) = run(vec![json!({"type": "system", "subtype": "init"}).to_string(), result(json!({"result": "r"}))], ScriptOpts::default()).await;
+        let local = session.local_id();
+        let said: Vec<(String, String)> = events.all().iter().map(|e| (kind_of(e), e.session_id().to_string())).collect();
+        assert_eq!(said, ["session.start", "turn.done", "session.end"].map(|k| (k.to_string(), local.clone())).to_vec());
+        let (_, events, _) = run(vec![json!({"type": "system", "subtype": "init", "session_id": ""}).to_string(), result(json!({"result": "r"}))], ScriptOpts::default()).await;
+        assert!(events.all().iter().all(|e| e.session_id().is_empty()));
+    }
+
+    #[tokio::test]
+    async fn the_stderr_tail_is_the_last_five_non_blank_trimmed_lines() {
+        // C8; adapter.ts:118-124.
+        let lines = ["", "  a  ", r#"{"type":5}"#, "l1", "l2", "l3", "l4"].map(String::from).to_vec();
+        assert_eq!(run(lines, ScriptOpts { exit_code: Some(1), ..Default::default() }).await.0, failed("cursor-agent exited with code 1 before its turn ended: {\"type\":5}\nl1\nl2\nl3\nl4"));
     }
 }

@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-use futures::future::{BoxFuture, FutureExt};
+use futures::future::{LocalBoxFuture, FutureExt};
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{json, Value};
@@ -850,7 +850,7 @@ mod sign_in_order {
     }
 
     impl HarnessExec for BashExec {
-        fn exec(&self, command: &str, env: Option<&Env>) -> BoxFuture<'static, Result<String, ExecFailure>> {
+        fn exec(&self, command: &str, env: Option<&Env>) -> LocalBoxFuture<'static, Result<String, ExecFailure>> {
             let (command, base, seen) = (command.to_string(), self.base.clone(), self.seen.clone());
             let input: String = env.map(|e| e.iter().map(|(k, v)| format!("{k}={v}\0")).collect()).unwrap_or_default();
             async move {
@@ -866,7 +866,7 @@ mod sign_in_order {
                 seen.lock().unwrap().push(Regex::new(r#"key=[^ "]+ token=[^ "]+"#).unwrap().find(&out).map(|m| m.as_str().to_string()).unwrap_or_else(|| format!("no result: {out}")));
                 Ok(out)
             }
-            .boxed()
+            .boxed_local()
         }
     }
 
@@ -887,6 +887,10 @@ mod sign_in_order {
     // TS: sign-in-order.test.ts:105
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn wsps_own_token_stands_above_a_key_from_the_login_shell_and_the_two_never_ride_together() {
+        tokio::task::LocalSet::new().run_until(wsps_own_token_stands_above_a_key_from_the_login_shell_and_the_two_never_ride_together_body()).await
+    }
+
+    async fn wsps_own_token_stands_above_a_key_from_the_login_shell_and_the_two_never_ride_together_body() {
         let root = stand_in("token-over-key", Own::None);
         let base = inherited(root.path(), &[("ANTHROPIC_API_KEY", RC_KEY)]);
         let vault = token_vault();
@@ -899,6 +903,10 @@ mod sign_in_order {
     // TS: sign-in-order.test.ts:114
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_brokered_launch_signs_in_with_the_turn_token_alone_above_the_vault_the_persons_own_login_and_the_login_shell() {
+        tokio::task::LocalSet::new().run_until(a_brokered_launch_signs_in_with_the_turn_token_alone_above_the_vault_the_persons_own_login_and_the_login_shell_body()).await
+    }
+
+    async fn a_brokered_launch_signs_in_with_the_turn_token_alone_above_the_vault_the_persons_own_login_and_the_login_shell_body() {
         let root = stand_in("brokered", Own::Login);
         let base = inherited(root.path(), &[("CLAUDE_CODE_OAUTH_TOKEN", RC_TOKEN), ("ANTHROPIC_API_KEY", RC_KEY)]);
         let turn = "wsp-turn-x-placeholder";
@@ -911,6 +919,10 @@ mod sign_in_order {
     // TS: sign-in-order.test.ts:124
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_persons_own_claude_sign_in_stands_above_a_key_or_a_token_from_the_login_shell_which_are_dropped() {
+        tokio::task::LocalSet::new().run_until(the_persons_own_claude_sign_in_stands_above_a_key_or_a_token_from_the_login_shell_which_are_dropped_body()).await
+    }
+
+    async fn the_persons_own_claude_sign_in_stands_above_a_key_or_a_token_from_the_login_shell_which_are_dropped_body() {
         let root = stand_in("own-login", Own::Login);
         let lents: [Vec<(&str, &str)>; 2] = [vec![("ANTHROPIC_API_KEY", RC_KEY)], vec![("CLAUDE_CODE_OAUTH_TOKEN", RC_TOKEN), ("ANTHROPIC_API_KEY", RC_KEY)]];
         for lent in lents {
@@ -923,6 +935,10 @@ mod sign_in_order {
     // TS: sign-in-order.test.ts:134
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn with_neither_the_key_from_the_login_shell_signs_the_launch_in() {
+        tokio::task::LocalSet::new().run_until(with_neither_the_key_from_the_login_shell_signs_the_launch_in_body()).await
+    }
+
+    async fn with_neither_the_key_from_the_login_shell_signs_the_launch_in_body() {
         let root = stand_in("rc-key", Own::None);
         let base = inherited(root.path(), &[("ANTHROPIC_API_KEY", RC_KEY)]);
         assert_eq!(launch_signs_in_with(&base, &Vault::default()), format!("key={RC_KEY} token=none"));
@@ -932,6 +948,10 @@ mod sign_in_order {
     // TS: sign-in-order.test.ts:141
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn with_neither_a_token_from_the_login_shell_reaches_the_cli_alone_since_a_key_beside_it_would_win() {
+        tokio::task::LocalSet::new().run_until(with_neither_a_token_from_the_login_shell_reaches_the_cli_alone_since_a_key_beside_it_would_win_body()).await
+    }
+
+    async fn with_neither_a_token_from_the_login_shell_reaches_the_cli_alone_since_a_key_beside_it_would_win_body() {
         let root = stand_in("rc-token", Own::None);
         let base = inherited(root.path(), &[("CLAUDE_CODE_OAUTH_TOKEN", RC_TOKEN), ("ANTHROPIC_API_KEY", RC_KEY)]);
         let env = build_env(&options(&base, &Vault::default()));
@@ -944,6 +964,10 @@ mod sign_in_order {
     // TS: sign-in-order.test.ts:150
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn an_api_key_helper_leaves_the_key_from_the_login_shell_in_place_since_claude_code_ranks_that_key_above_a_helper() {
+        tokio::task::LocalSet::new().run_until(an_api_key_helper_leaves_the_key_from_the_login_shell_in_place_since_claude_code_ranks_that_key_above_a_helper_body()).await
+    }
+
+    async fn an_api_key_helper_leaves_the_key_from_the_login_shell_in_place_since_claude_code_ranks_that_key_above_a_helper_body() {
         let root = stand_in("helper", Own::Helper);
         let base = inherited(root.path(), &[("ANTHROPIC_API_KEY", RC_KEY)]);
         assert_eq!(launch_signs_in_with(&base, &Vault::default()), format!("key={RC_KEY} token=none"));

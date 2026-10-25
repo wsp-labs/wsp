@@ -20,7 +20,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"
 toml = { version = "0.8", features = ["preserve_order"] }
+wsp-wire = { path = "../wsp-wire" }
+wsp-words = { path = "../wsp-words" }
 
 [dev-dependencies]
 futures = { version = "0.3", default-features = false, features = ["executor", "std"] }
 tempfile = "3"
+
+[lints.clippy]
+result_large_err = "allow"
+type_complexity = "allow"

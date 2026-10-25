@@ -26,7 +26,7 @@ use wsp_adapters::port::{
 };
 use wsp_wire::types::daemon_contract::BROKER_PORT;
 use wsp_wire::types::js_number::JsNumber;
-use wsp_wire::types::pending_wire::{PermissionEffect, PermissionOption};
+use wsp_wire::wire::helpers::{PermissionEffect, PermissionOption};
 use wsp_wire::types::usage::{HarnessLimit, LimitKind, LimitStatus, LimitWindow};
 use wsp_wire::types::wsp_tools::SLATE_SERVER_NAME;
 use wsp_wire::views::session::TurnRefusal;
@@ -152,7 +152,7 @@ fn wire0(launch: &Launch) -> Wire {
 /// A oneshot as the promise a start waits on.
 fn gate() -> (tokio::sync::oneshot::Sender<()>, Settle) {
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-    (tx, async move { rx.await.map_err(|e| e.to_string()) }.boxed())
+    (tx, async move { rx.await.map_err(|e| e.to_string()) }.boxed_local())
 }
 
 /// The lines a live server prints up to a running turn, for the cases that drive the rest by hand.
@@ -197,7 +197,7 @@ fn item_note(phase: &str, body: Value) -> String {
 }
 
 /// A server that opens the thread and starts the turn, then prints what the case hands it.
-fn scripted(rest: Vec<String>, opts: WireOpts) -> impl Fn(&[String]) -> Wire + Send + Sync + 'static {
+fn scripted(rest: Vec<String>, opts: WireOpts) -> impl Fn(&[String]) -> Wire + 'static {
     let mut lines = opened();
     lines.push(turn_started());
     lines.extend(rest);
@@ -208,7 +208,7 @@ fn hang() -> WireOpts {
     WireOpts { hang: true, ..Default::default() }
 }
 
-fn on_write(f: impl Fn(&Value, &Wire) + Send + Sync + 'static) -> WireOpts {
+fn on_write(f: impl Fn(&Value, &Wire) + 'static) -> WireOpts {
     let f: OnWrite = Arc::new(f);
     WireOpts { on_write: Some(f), ..Default::default() }
 }
@@ -246,6 +246,10 @@ mod a_codex_turn_s_tokens_and_plan_on_the_app_server {
 
     #[tokio::test]
     async fn counts_a_resumed_thread_s_turn_from_where_its_running_total_stood_not_from_the_t() {
+        tokio::task::LocalSet::new().run_until(counts_a_resumed_thread_s_turn_from_where_its_running_total_stood_not_from_the_t_body()).await
+    }
+
+    async fn counts_a_resumed_thread_s_turn_from_where_its_running_total_stood_not_from_the_t_body() {
         let launch = launcher(scripted(two_calls(), WireOpts::default()));
         let result = plain(&launch).start(HarnessStartOptions { resume: Some(THREAD_ID.to_string()), ..opts("again", no_events()) }).unwrap().finished().await;
         assert_eq!(result.tokens, Some(tokens(42_000, 0, 0, 200, 0, 22_100, 258_400)));
@@ -253,6 +257,10 @@ mod a_codex_turn_s_tokens_and_plan_on_the_app_server {
 
     #[tokio::test]
     async fn says_what_each_model_call_drew_as_the_server_reports_it_and_what_the_thread_then() {
+        tokio::task::LocalSet::new().run_until(says_what_each_model_call_drew_as_the_server_reports_it_and_what_the_thread_then_body()).await
+    }
+
+    async fn says_what_each_model_call_drew_as_the_server_reports_it_and_what_the_thread_then_body() {
         let events = Events::default();
         let launch = launcher(scripted(two_calls(), WireOpts::default()));
         plain(&launch).start(HarnessStartOptions { resume: Some(THREAD_ID.to_string()), ..opts("again", events.on_event()) }).unwrap().finished().await;
@@ -268,6 +276,10 @@ mod a_codex_turn_s_tokens_and_plan_on_the_app_server {
 
     #[tokio::test]
     async fn carries_the_moment_the_server_says_it_sent_each_call_s_figure_so_a_re_read_run_f() {
+        tokio::task::LocalSet::new().run_until(carries_the_moment_the_server_says_it_sent_each_call_s_figure_so_a_re_read_run_f_body()).await
+    }
+
+    async fn carries_the_moment_the_server_says_it_sent_each_call_s_figure_so_a_re_read_run_f_body() {
         let mut stamped = usage([50_000, 900], [20_000, 100], 258_400);
         stamped.as_object_mut().unwrap().insert("emittedAtMs".to_string(), json!(1790521480354_i64));
         let events = Events::default();
@@ -281,6 +293,10 @@ mod a_codex_turn_s_tokens_and_plan_on_the_app_server {
 
     #[tokio::test]
     async fn reads_the_plan_the_server_updates_as_the_turn_s_steps_the_step_under_way_as_work() {
+        tokio::task::LocalSet::new().run_until(reads_the_plan_the_server_updates_as_the_turn_s_steps_the_step_under_way_as_work_body()).await
+    }
+
+    async fn reads_the_plan_the_server_updates_as_the_turn_s_steps_the_step_under_way_as_work_body() {
         let plan = json!({"method":"turn/plan/updated","params":{"threadId":THREAD_ID,"turnId":TURN_ID,"explanation":null,"plan":[{"step":"read","status":"completed"},{"step":"write","status":"inProgress"},{"step":"ship","status":"pending"}]}})
             .to_string();
         let events = Events::default();
@@ -304,7 +320,7 @@ mod a_codex_turn_s_tokens_and_plan_on_the_app_server {
 mod codex_adapter_over_codex_app_server {
     use super::*;
 
-    fn turn_server() -> impl Fn(&[String]) -> Wire + Send + Sync + 'static {
+    fn turn_server() -> impl Fn(&[String]) -> Wire + 'static {
         server(fixture_lines("codex", "app-server-turn.jsonl"), WireOpts::default())
     }
 
@@ -314,6 +330,10 @@ mod codex_adapter_over_codex_app_server {
 
     #[tokio::test]
     async fn launches_the_app_server_in_the_folder_under_codex_home_seeding_initialize_and_th() {
+        tokio::task::LocalSet::new().run_until(launches_the_app_server_in_the_folder_under_codex_home_seeding_initialize_and_th_body()).await
+    }
+
+    async fn launches_the_app_server_in_the_folder_under_codex_home_seeding_initialize_and_th_body() {
         let launch = launcher(turn_server());
         let adapter = plain(&launch);
         let session = adapter
@@ -344,6 +364,10 @@ mod codex_adapter_over_codex_app_server {
 
     #[tokio::test]
     async fn a_turn_s_launch_turns_off_each_server_it_is_told_to_leave_out_and_says_it_leaves() {
+        tokio::task::LocalSet::new().run_until(a_turn_s_launch_turns_off_each_server_it_is_told_to_leave_out_and_says_it_leaves_body()).await
+    }
+
+    async fn a_turn_s_launch_turns_off_each_server_it_is_told_to_leave_out_and_says_it_leaves_body() {
         let launch = launcher(turn_server());
         let adapter = create_codex_adapter(CodexAdapterDeps::new(launch.factory(), "/root/.codex", LOGIN)).unwrap();
         assert!(adapter.denies_servers());
@@ -355,6 +379,10 @@ mod codex_adapter_over_codex_app_server {
 
     #[tokio::test]
     async fn a_turn_on_a_machine_whose_credentials_the_host_keeps_writes_its_placeholder_logi() {
+        tokio::task::LocalSet::new().run_until(a_turn_on_a_machine_whose_credentials_the_host_keeps_writes_its_placeholder_logi_body()).await
+    }
+
+    async fn a_turn_on_a_machine_whose_credentials_the_host_keeps_writes_its_placeholder_logi_body() {
         let launch = launcher(turn_server());
         let broker = CodexBroker {
             mode: BrokerMode::Chatgpt { claims: CodexClaims { account_id: "11111111-2222-4333-8444-555555555555".into(), plan_type: Some("plus".into()), user_id: Some("user-acme0001".into()), fedramp: Some(false) }, models: None },
@@ -384,6 +412,10 @@ mod codex_adapter_over_codex_app_server {
 
     #[tokio::test]
     async fn takes_its_prompt_late_the_server_starts_and_opens_the_thread_at_once_and_the_tur() {
+        tokio::task::LocalSet::new().run_until(takes_its_prompt_late_the_server_starts_and_opens_the_thread_at_once_and_the_tur_body()).await
+    }
+
+    async fn takes_its_prompt_late_the_server_starts_and_opens_the_thread_at_once_and_the_tur_body() {
         // The launch's snapshot of the folder is what the prompt waits on, and it took 0.46 to 1.6 s on a one-file repo
         // (measured 2026-10-05); before the server boots in that window, every send paid it in full first.
         let launch = launcher(turn_server());
@@ -403,6 +435,10 @@ mod codex_adapter_over_codex_app_server {
 
     #[tokio::test]
     async fn reads_a_recorded_turn_session_start_unprompted_as_the_thread_opens_and_again_onc() {
+        tokio::task::LocalSet::new().run_until(reads_a_recorded_turn_session_start_unprompted_as_the_thread_opens_and_again_onc_body()).await
+    }
+
+    async fn reads_a_recorded_turn_session_start_unprompted_as_the_thread_opens_and_again_onc_body() {
         let launch = launcher(turn_server());
         let events = Events::default();
         let slot: Arc<Mutex<Option<CodexSession>>> = Arc::new(Mutex::new(None));
@@ -417,7 +453,7 @@ mod codex_adapter_over_codex_app_server {
             base(e);
             if let Some(ask_id) = ask_id {
                 let session = held.lock().unwrap().clone().expect("the session is not held yet");
-                tokio::spawn(session.answer(ask_id, allow()));
+                tokio::task::spawn_local(session.answer(ask_id, allow()));
             }
         });
         let session = plain(&launch)
@@ -514,6 +550,10 @@ mod codex_adapter_over_codex_app_server {
 
     #[tokio::test]
     async fn an_mcp_call_the_tool_failed_keeps_the_tool_s_words_one_that_never_reached_it_kee() {
+        tokio::task::LocalSet::new().run_until(an_mcp_call_the_tool_failed_keeps_the_tool_s_words_one_that_never_reached_it_kee_body()).await
+    }
+
+    async fn an_mcp_call_the_tool_failed_keeps_the_tool_s_words_one_that_never_reached_it_kee_body() {
         let said = json!([{"type":"text","text":"slate refused: 1 error: P100 bad-syntax"}]);
         let call = |id: &str, result: Value, error: Value| {
             item_note("completed", json!({"type":"mcpToolCall","id":id,"server":"wsp","tool":"slate_write","arguments":{},"status":"failed","result":result,"error":error}))
@@ -542,6 +582,10 @@ mod codex_adapter_over_codex_app_server {
 
     #[tokio::test]
     async fn file_changes_mcp_calls_and_web_searches_which_that_turn_made_none_of_draw_as_cod() {
+        tokio::task::LocalSet::new().run_until(file_changes_mcp_calls_and_web_searches_which_that_turn_made_none_of_draw_as_cod_body()).await
+    }
+
+    async fn file_changes_mcp_calls_and_web_searches_which_that_turn_made_none_of_draw_as_cod_body() {
         // Written from the 0.155.1 schema's ThreadItem variants, since the recorded turn ran one command and no other tool.
         let change = json!({"type":"fileChange","id":"call_2","changes":[{"path":"README.md","kind":{"type":"update","move_path":null},"diff":""},{"path":"docs/new.md","kind":{"type":"add"},"diff":""}]});
         let mcp = json!({"type":"mcpToolCall","id":"call_3","server":"wsp","tool":"threads","arguments":{"workspace":"first"}});
@@ -589,6 +633,10 @@ mod codex_adapter_over_codex_app_server {
 
     #[tokio::test]
     async fn a_finished_command_carries_its_exit_code_and_how_long_it_ran_and_each_file_chang() {
+        tokio::task::LocalSet::new().run_until(a_finished_command_carries_its_exit_code_and_how_long_it_ran_and_each_file_chang_body()).await
+    }
+
+    async fn a_finished_command_carries_its_exit_code_and_how_long_it_ran_and_each_file_chang_body() {
         // Written from the 0.162.1 schema: an update's diff as `similar` writes it (format_file_change_diff), an add's
         // and a delete's the whole file, and a rename's update followed by its Moved to line.
         let failing = json!({"type":"commandExecution","id":"call_8","command":"/bin/zsh -lc 'npm test'","cwd":"/root/lab","status":"failed","commandActions":[],"aggregatedOutput":"1 failing\n","exitCode":1,"durationMs":1534});
@@ -623,16 +671,20 @@ mod codex_adapter_over_codex_app_server {
         assert_eq!(
             changed.patch,
             Some(vec![
-                FilePatch { path: "/root/lab/f.txt".into(), hunks: vec![PatchHunk { old_start: 1, old_lines: 3, new_start: 1, new_lines: 3, lines: lines(&[" alpha", "-beta", "+BETA", " gamma"]) }], moved_to: None },
-                FilePatch { path: "/root/lab/new.txt".into(), hunks: vec![PatchHunk { old_start: 0, old_lines: 0, new_start: 1, new_lines: 2, lines: lines(&["+hi", "+there"]) }], moved_to: None },
-                FilePatch { path: "/root/lab/old.txt".into(), hunks: vec![PatchHunk { old_start: 1, old_lines: 1, new_start: 0, new_lines: 0, lines: lines(&["-gone"]) }], moved_to: None },
-                FilePatch { path: "/root/lab/a.txt".into(), hunks: vec![PatchHunk { old_start: 2, old_lines: 1, new_start: 2, new_lines: 1, lines: lines(&["-x", "+y"]) }], moved_to: Some("/root/lab/b.txt".into()) },
+                FilePatch { path: "/root/lab/f.txt".into(), hunks: vec![PatchHunk { old_start: 1.into(), old_lines: 3.into(), new_start: 1.into(), new_lines: 3.into(), lines: lines(&[" alpha", "-beta", "+BETA", " gamma"]) }], moved_to: None },
+                FilePatch { path: "/root/lab/new.txt".into(), hunks: vec![PatchHunk { old_start: 0.into(), old_lines: 0.into(), new_start: 1.into(), new_lines: 2.into(), lines: lines(&["+hi", "+there"]) }], moved_to: None },
+                FilePatch { path: "/root/lab/old.txt".into(), hunks: vec![PatchHunk { old_start: 1.into(), old_lines: 1.into(), new_start: 0.into(), new_lines: 0.into(), lines: lines(&["-gone"]) }], moved_to: None },
+                FilePatch { path: "/root/lab/a.txt".into(), hunks: vec![PatchHunk { old_start: 2.into(), old_lines: 1.into(), new_start: 2.into(), new_lines: 1.into(), lines: lines(&["-x", "+y"]) }], moved_to: Some("/root/lab/b.txt".into()) },
             ])
         );
     }
 
     #[tokio::test]
     async fn names_a_call_to_the_slate_s_second_server_by_wsp_s_own_name_which_is_the_server() {
+        tokio::task::LocalSet::new().run_until(names_a_call_to_the_slate_s_second_server_by_wsp_s_own_name_which_is_the_server_body()).await
+    }
+
+    async fn names_a_call_to_the_slate_s_second_server_by_wsp_s_own_name_which_is_the_server_body() {
         let slate = json!({"type":"mcpToolCall","id":"call_7","server":SLATE_SERVER_NAME,"tool":"slate_write","arguments":{"text":"<slate/>"},"status":"inProgress","result":null,"error":null});
         let launch = launcher(scripted(vec![item_note("started", slate), completed("completed")], WireOpts::default()));
         let events = Events::default();
@@ -643,6 +695,10 @@ mod codex_adapter_over_codex_app_server {
 
     #[tokio::test]
     async fn resumes_a_thread_by_the_id_the_row_holds_the_registry_key_is_that_id_and_the_see() {
+        tokio::task::LocalSet::new().run_until(resumes_a_thread_by_the_id_the_row_holds_the_registry_key_is_that_id_and_the_see_body()).await
+    }
+
+    async fn resumes_a_thread_by_the_id_the_row_holds_the_registry_key_is_that_id_and_the_see_body() {
         let launch = launcher(turn_server());
         let adapter = plain(&launch);
         let events = Events::default();
@@ -664,6 +720,10 @@ mod codex_adapter_over_codex_app_server {
 
     #[tokio::test]
     async fn images_ride_the_turn_as_local_paths_and_one_with_no_path_on_the_machine_is_refus() {
+        tokio::task::LocalSet::new().run_until(images_ride_the_turn_as_local_paths_and_one_with_no_path_on_the_machine_is_refus_body()).await
+    }
+
+    async fn images_ride_the_turn_as_local_paths_and_one_with_no_path_on_the_machine_is_refus_body() {
         let launch = launcher(turn_server());
         let image = TurnImage { media_type: "image/png".into(), bytes: String::new(), path: Some("/root/.wsp/threads/thr_1/images/1.png".into()) };
         plain(&launch).start(HarnessStartOptions { images: vec![image], ..opts("what is this?", no_events()) }).unwrap().finished().await;
@@ -692,6 +752,10 @@ mod a_message_sent_while_a_codex_turn_runs {
 
     #[tokio::test]
     async fn steers_the_running_turn_by_its_id_and_reads_accepted_off_the_server_s_answer() {
+        tokio::task::LocalSet::new().run_until(steers_the_running_turn_by_its_id_and_reads_accepted_off_the_server_s_answer_body()).await
+    }
+
+    async fn steers_the_running_turn_by_its_id_and_reads_accepted_off_the_server_s_answer_body() {
         let live = launcher(scripted_server(on_write(|m, w| match method_of(m) {
             "thread/start" => w.push(&opened()),
             "turn/start" => w.push1(turn_started()),
@@ -714,6 +778,10 @@ mod a_message_sent_while_a_codex_turn_runs {
 
     #[tokio::test]
     async fn reads_not_running_when_the_server_turns_the_steer_down_and_after_the_turn_ended() {
+        tokio::task::LocalSet::new().run_until(reads_not_running_when_the_server_turns_the_steer_down_and_after_the_turn_ended_body()).await
+    }
+
+    async fn reads_not_running_when_the_server_turns_the_steer_down_and_after_the_turn_ended_body() {
         let live = launcher(scripted_server(on_write(|m, w| match method_of(m) {
             "thread/start" => w.push(&opened()),
             "turn/steer" => w.push1(json!({"error":{"code":-32600,"message":"no active turn"},"id":m["id"]}).to_string()),
@@ -730,6 +798,10 @@ mod a_message_sent_while_a_codex_turn_runs {
 
     #[tokio::test]
     async fn a_steer_whose_write_lost_its_answer_reads_the_server_s_own_answer_accepted_where() {
+        tokio::task::LocalSet::new().run_until(a_steer_whose_write_lost_its_answer_reads_the_server_s_own_answer_accepted_where_body()).await
+    }
+
+    async fn a_steer_whose_write_lost_its_answer_reads_the_server_s_own_answer_accepted_where_body() {
         let losing: Arc<Mutex<Option<Fault>>> = Arc::new(Mutex::new(None));
         let lose = losing.clone();
         let fault: codex_wire::WriteFault = Arc::new(move |m: &Value| {
@@ -795,6 +867,10 @@ mod an_approval_codex_asks_for {
 
     #[tokio::test]
     async fn raises_a_file_change_as_a_prompt_with_allow_and_deny_the_change_s_paths_as_its_i() {
+        tokio::task::LocalSet::new().run_until(raises_a_file_change_as_a_prompt_with_allow_and_deny_the_change_s_paths_as_its_i_body()).await
+    }
+
+    async fn raises_a_file_change_as_a_prompt_with_allow_and_deny_the_change_s_paths_as_its_i_body() {
         let live = approving(file_ask(), None);
         let events = Events::default();
         let session = plain(&live).start(HarnessStartOptions { permission_mode: Some("read-only".into()), ..opts("write hi into hi.txt", events.on_event()) }).unwrap();
@@ -824,6 +900,10 @@ mod an_approval_codex_asks_for {
 
     #[tokio::test]
     async fn a_deny_the_person_gave_a_reason_for_declines_the_call_and_puts_the_reason_to_the() {
+        tokio::task::LocalSet::new().run_until(a_deny_the_person_gave_a_reason_for_declines_the_call_and_puts_the_reason_to_the_body()).await
+    }
+
+    async fn a_deny_the_person_gave_a_reason_for_declines_the_call_and_puts_the_reason_to_the_body() {
         let also: OnWrite = Arc::new(|m, w| {
             if method_of(m) == "turn/steer" {
                 w.push1(answer_with(&m["id"], json!({"turnId":TURN_ID})));
@@ -844,6 +924,10 @@ mod an_approval_codex_asks_for {
 
     #[tokio::test]
     async fn answers_a_command_s_deny_with_decline_under_the_server_s_own_id_never_widening_t() {
+        tokio::task::LocalSet::new().run_until(answers_a_command_s_deny_with_decline_under_the_server_s_own_id_never_widening_t_body()).await
+    }
+
+    async fn answers_a_command_s_deny_with_decline_under_the_server_s_own_id_never_widening_t_body() {
         let live = approving(command_ask(), None);
         let events = Events::default();
         let session = plain(&live).start(HarnessStartOptions { permission_mode: Some("workspace-write".into()), ..opts("clean", events.on_event()) }).unwrap();
@@ -867,6 +951,10 @@ mod an_approval_codex_asks_for {
 
     #[tokio::test]
     async fn an_answer_whose_write_failed_leaves_the_request_open_so_answering_again_lands_it() {
+        tokio::task::LocalSet::new().run_until(an_answer_whose_write_failed_leaves_the_request_open_so_answering_again_lands_it_body()).await
+    }
+
+    async fn an_answer_whose_write_failed_leaves_the_request_open_so_answering_again_lands_it_body() {
         let refused = failure("Boat is refusing requests from this computer's address");
         let failing = Arc::new(AtomicBool::new(true));
         let error = refused.clone();
@@ -897,6 +985,10 @@ mod an_approval_codex_asks_for {
 
     #[tokio::test]
     async fn closes_a_prompt_the_server_resolved_itself_and_every_prompt_still_open_when_the() {
+        tokio::task::LocalSet::new().run_until(closes_a_prompt_the_server_resolved_itself_and_every_prompt_still_open_when_the_body()).await
+    }
+
+    async fn closes_a_prompt_the_server_resolved_itself_and_every_prompt_still_open_when_the_body() {
         let live = approving(file_ask(), None);
         let events = Events::default();
         let session = plain(&live).start(opts("x", events.on_event())).unwrap();
@@ -930,6 +1022,10 @@ mod an_approval_codex_asks_for {
 
     #[tokio::test]
     async fn refuses_a_server_request_it_does_not_serve_with_an_error_so_the_turn_is_not_left() {
+        tokio::task::LocalSet::new().run_until(refuses_a_server_request_it_does_not_serve_with_an_error_so_the_turn_is_not_left_body()).await
+    }
+
+    async fn refuses_a_server_request_it_does_not_serve_with_an_error_so_the_turn_is_not_left_body() {
         let live = approving(json!({"id":5,"method":"item/tool/requestUserInput","params":{"threadId":THREAD_ID,"turnId":TURN_ID,"itemId":"call_5","questions":[]}}), None);
         let events = Events::default();
         let session = plain(&live).start(opts("x", events.on_event())).unwrap();
@@ -951,6 +1047,10 @@ mod a_codex_turn_that_does_not_complete {
 
     #[tokio::test]
     async fn a_turn_with_no_sign_in_as_codex_cli_0_155_1_printed_it_is_the_sign_in_line_with() {
+        tokio::task::LocalSet::new().run_until(a_turn_with_no_sign_in_as_codex_cli_0_155_1_printed_it_is_the_sign_in_line_with_body()).await
+    }
+
+    async fn a_turn_with_no_sign_in_as_codex_cli_0_155_1_printed_it_is_the_sign_in_line_with_body() {
         let launch = launcher(server(fixture_lines("codex", "no-login-app-server.jsonl"), WireOpts::default()));
         let events = Events::default();
         let result = plain(&launch).start(opts("hi", events.on_event())).unwrap().finished().await;
@@ -984,6 +1084,10 @@ mod a_codex_turn_that_does_not_complete {
 
     #[tokio::test]
     async fn a_failed_turn_carries_the_server_s_own_reason_where_wsp_claims_no_cause_for_it() {
+        tokio::task::LocalSet::new().run_until(a_failed_turn_carries_the_server_s_own_reason_where_wsp_claims_no_cause_for_it_body()).await
+    }
+
+    async fn a_failed_turn_carries_the_server_s_own_reason_where_wsp_claims_no_cause_for_it_body() {
         let launch = rest(vec![error_note("stream disconnected before completion", false, None), failed_with("stream disconnected before completion")]);
         let result = run(&plain(&launch), "x").await;
         assert_eq!(result.status, TurnStatus::Failed);
@@ -993,6 +1097,10 @@ mod a_codex_turn_that_does_not_complete {
 
     #[tokio::test]
     async fn a_401_on_a_turn_that_was_handed_the_vault_s_key_is_said_as_a_refused_key_with_th() {
+        tokio::task::LocalSet::new().run_until(a_401_on_a_turn_that_was_handed_the_vault_s_key_is_said_as_a_refused_key_with_th_body()).await
+    }
+
+    async fn a_401_on_a_turn_that_was_handed_the_vault_s_key_is_said_as_a_refused_key_with_th_body() {
         let with_key = |launch: &Launch| {
             let mut deps = CodexAdapterDeps::new(launch.factory(), "/root/.codex", LOGIN);
             deps.api_key = Some("sk-x-not-a-key".into());
@@ -1013,6 +1121,10 @@ mod a_codex_turn_that_does_not_complete {
 
     #[tokio::test]
     async fn a_provider_whose_env_key_variable_is_unset_fails_the_turn_naming_that_variable_i() {
+        tokio::task::LocalSet::new().run_until(a_provider_whose_env_key_variable_is_unset_fails_the_turn_naming_that_variable_i_body()).await
+    }
+
+    async fn a_provider_whose_env_key_variable_is_unset_fails_the_turn_naming_that_variable_i_body() {
         let launch = rest(vec![failed_with("Missing environment variable: `FAKE_API_KEY`.")]);
         let result = run(&plain(&launch), "x").await;
         assert_eq!(result.status, TurnStatus::Failed);
@@ -1021,6 +1133,10 @@ mod a_codex_turn_that_does_not_complete {
 
     #[tokio::test]
     async fn the_last_failure_seen_wins_a_401_in_an_early_retry_then_a_turn_that_fails_for_an() {
+        tokio::task::LocalSet::new().run_until(the_last_failure_seen_wins_a_401_in_an_early_retry_then_a_turn_that_fails_for_an_body()).await
+    }
+
+    async fn the_last_failure_seen_wins_a_401_in_an_early_retry_then_a_turn_that_fails_for_an_body() {
         let launch = rest(vec![
             error_note("Reconnecting... 1/5", true, Some("unexpected status 401 Unauthorized: token expired")),
             agent_message("msg_1", "partway"),
@@ -1034,6 +1150,10 @@ mod a_codex_turn_that_does_not_complete {
 
     #[tokio::test]
     async fn a_server_that_turns_the_thread_down_fails_the_turn_in_its_words_and_sends_no_tur() {
+        tokio::task::LocalSet::new().run_until(a_server_that_turns_the_thread_down_fails_the_turn_in_its_words_and_sends_no_tur_body()).await
+    }
+
+    async fn a_server_that_turns_the_thread_down_fails_the_turn_in_its_words_and_sends_no_tur_body() {
         let launch = launcher(scripted_server(on_write(|m, w| {
             if method_of(m) == "thread/resume" {
                 w.push(&[r#"{"id":"wsp-initialize","result":{}}"#.to_string(), r#"{"error":{"code":-32600,"message":"no rollout found for thread id 01a0"},"id":"wsp-thread"}"#.to_string()]);
@@ -1051,12 +1171,16 @@ mod a_codex_turn_that_does_not_complete {
 
     #[tokio::test]
     async fn a_process_that_dies_mid_turn_fails_under_the_thread_s_id_with_its_last_stderr_li() {
+        tokio::task::LocalSet::new().run_until(a_process_that_dies_mid_turn_fails_under_the_thread_s_id_with_its_last_stderr_li_body()).await
+    }
+
+    async fn a_process_that_dies_mid_turn_fails_under_the_thread_s_id_with_its_last_stderr_li_body() {
         let launch = launcher(scripted_server(on_write(|m, w| match method_of(m) {
             "thread/start" => w.push(&opened()),
             "turn/start" => {
                 w.push(&[turn_started(), "2026-09-27T00:51:50Z ERROR codex_core: sandbox unavailable".to_string()]);
                 let dying = w.clone();
-                tokio::spawn(async move {
+                tokio::task::spawn_local(async move {
                     sleep_ms(1).await;
                     dying.exit(Some(2));
                 });
@@ -1073,6 +1197,10 @@ mod a_codex_turn_that_does_not_complete {
 
     #[tokio::test]
     async fn a_transport_that_ends_the_turn_itself_makes_its_message_the_turn_s_error() {
+        tokio::task::LocalSet::new().run_until(a_transport_that_ends_the_turn_itself_makes_its_message_the_turn_s_error_body()).await
+    }
+
+    async fn a_transport_that_ends_the_turn_itself_makes_its_message_the_turn_s_error_body() {
         let launch = launcher(|_seed: &[String]| {
             let w = codex_wire::wire(WireOpts::default());
             w.push1(opened()[0].clone());
@@ -1086,6 +1214,10 @@ mod a_codex_turn_that_does_not_complete {
 
     #[tokio::test]
     async fn a_provider_that_never_answers_the_server_retries_forever_so_the_adapter_ends_the() {
+        tokio::task::LocalSet::new().run_until(a_provider_that_never_answers_the_server_retries_forever_so_the_adapter_ends_the_body()).await
+    }
+
+    async fn a_provider_that_never_answers_the_server_retries_forever_so_the_adapter_ends_the_body() {
         let launch = launcher(scripted(vec![reconnecting(), reconnecting()], hang()));
         let events = Events::default();
         let result = adapter_over(&launch, Extra { grace_ms: Some(10), stall_ms: Some(20), ..Default::default() }).start(opts("x", events.on_event())).unwrap().finished().await;
@@ -1106,6 +1238,10 @@ mod a_codex_turn_that_does_not_complete {
 
     #[tokio::test]
     async fn a_retry_run_that_recovers_into_the_turn_is_not_cut() {
+        tokio::task::LocalSet::new().run_until(a_retry_run_that_recovers_into_the_turn_is_not_cut_body()).await
+    }
+
+    async fn a_retry_run_that_recovers_into_the_turn_is_not_cut_body() {
         let launch = rest(vec![reconnecting(), agent_message("msg_1", "back"), completed("completed")]);
         let result = adapter_over(&launch, Extra { grace_ms: Some(10), stall_ms: Some(20), ..Default::default() }).start(opts("x", no_events())).unwrap().finished().await;
         assert_eq!(result.status, TurnStatus::Completed);
@@ -1128,6 +1264,10 @@ mod a_model_call_codex_tries_again {
 
     #[tokio::test]
     async fn says_each_retry_which_one_of_how_many_and_why_before_the_reply_the_call_that_got() {
+        tokio::task::LocalSet::new().run_until(says_each_retry_which_one_of_how_many_and_why_before_the_reply_the_call_that_got_body()).await
+    }
+
+    async fn says_each_retry_which_one_of_how_many_and_why_before_the_reply_the_call_that_got_body() {
         let events = Events::default();
         let launch = launcher(scripted(vec![retrying(1, None), retrying(2, Some(401)), agent_message("msg_1", "back"), completed("completed")], WireOpts::default()));
         let result = plain(&launch).start(opts("x", events.on_event())).unwrap().finished().await;
@@ -1148,6 +1288,10 @@ mod a_model_call_codex_tries_again {
 
     #[tokio::test]
     async fn says_nothing_of_an_error_it_will_not_retry_the_turn_s_own_end_says_that_one() {
+        tokio::task::LocalSet::new().run_until(says_nothing_of_an_error_it_will_not_retry_the_turn_s_own_end_says_that_one_body()).await
+    }
+
+    async fn says_nothing_of_an_error_it_will_not_retry_the_turn_s_own_end_says_that_one_body() {
         let events = Events::default();
         let last = json!({"method":"error","params":{"error":{"message":"We\u{2019}re currently experiencing high demand, which may cause temporary errors.","codexErrorInfo":"internalServerError","additionalDetails":null},"willRetry":false,"threadId":THREAD_ID,"turnId":TURN_ID}})
             .to_string();
@@ -1162,6 +1306,10 @@ mod interrupt {
 
     #[tokio::test]
     async fn asks_the_server_to_interrupt_the_running_turn_which_then_completes_as_interrupte() {
+        tokio::task::LocalSet::new().run_until(asks_the_server_to_interrupt_the_running_turn_which_then_completes_as_interrupte_body()).await
+    }
+
+    async fn asks_the_server_to_interrupt_the_running_turn_which_then_completes_as_interrupte_body() {
         let live = launcher(scripted_server(on_write(|m, w| match method_of(m) {
             "thread/start" => w.push(&opened()),
             "turn/start" => w.push1(turn_started()),
@@ -1187,6 +1335,10 @@ mod interrupt {
 
     #[tokio::test]
     async fn ends_the_process_with_its_tree_when_the_server_does_not_stop_inside_the_grace_wi() {
+        tokio::task::LocalSet::new().run_until(ends_the_process_with_its_tree_when_the_server_does_not_stop_inside_the_grace_wi_body()).await
+    }
+
+    async fn ends_the_process_with_its_tree_when_the_server_does_not_stop_inside_the_grace_wi_body() {
         let launch = launcher(scripted(vec![], hang()));
         let session = adapter_over(&launch, Extra { grace_ms: Some(15), ..Default::default() }).start(opts("loop forever", no_events())).unwrap();
         until(|| launch.wire_count() > 0 && wire0(&launch).wrote("turn/start")).await;
@@ -1198,6 +1350,10 @@ mod interrupt {
 
     #[tokio::test]
     async fn an_interrupt_before_the_server_started_the_turn_ends_the_process_at_once_with_no() {
+        tokio::task::LocalSet::new().run_until(an_interrupt_before_the_server_started_the_turn_ends_the_process_at_once_with_no_body()).await
+    }
+
+    async fn an_interrupt_before_the_server_started_the_turn_ends_the_process_at_once_with_no_body() {
         let launch = launcher(scripted_server(hang()));
         let session = adapter_over(&launch, Extra { grace_ms: Some(15), ..Default::default() }).start(opts("x", no_events())).unwrap();
         session.interrupt().await;
@@ -1208,6 +1364,10 @@ mod interrupt {
 
     #[tokio::test]
     async fn a_stop_before_the_prompt_was_handed_over_sends_no_turn_then_or_once_the_prompt_i() {
+        tokio::task::LocalSet::new().run_until(a_stop_before_the_prompt_was_handed_over_sends_no_turn_then_or_once_the_prompt_i_body()).await
+    }
+
+    async fn a_stop_before_the_prompt_was_handed_over_sends_no_turn_then_or_once_the_prompt_i_body() {
         let launch = launcher(server(fixture_lines("codex", "app-server-turn.jsonl"), WireOpts::default()));
         let events = Events::default();
         let (due, after) = gate();
@@ -1222,6 +1382,10 @@ mod interrupt {
 
     #[tokio::test]
     async fn an_interrupt_after_the_process_is_gone_sends_nothing_and_ends_nothing() {
+        tokio::task::LocalSet::new().run_until(an_interrupt_after_the_process_is_gone_sends_nothing_and_ends_nothing_body()).await
+    }
+
+    async fn an_interrupt_after_the_process_is_gone_sends_nothing_and_ends_nothing_body() {
         let launch = launcher(server(fixture_lines("codex", "app-server-turn.jsonl"), WireOpts::default()));
         let session = adapter_over(&launch, Extra { grace_ms: Some(5_000), ..Default::default() }).start(opts("x", no_events())).unwrap();
         session.finished().await;

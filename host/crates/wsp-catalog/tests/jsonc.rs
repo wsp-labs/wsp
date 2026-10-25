@@ -19,10 +19,7 @@ mod reading_json_with_comments {
             "}",
         ]
         .join("\n");
-        assert_eq!(
-            read_jsonc(&text).unwrap(),
-            json!({ "a": "x // not a comment, /* nor this */", "b": ["\"q\"", 1], "c": { "d": 2 } })
-        );
+        assert_eq!(read_jsonc(&text).unwrap(), json!({ "a": "x // not a comment, /* nor this */", "b": ["\"q\"", 1], "c": { "d": 2 } }));
         assert_eq!(read_jsonc(r#"{ "a": [1, 2] }"#).unwrap(), json!({ "a": [1, 2] }));
         assert!(read_jsonc(r#"{ "a": 1 // no close"#).is_err());
         assert!(read_jsonc(r#"{ "a": , }"#).is_err());

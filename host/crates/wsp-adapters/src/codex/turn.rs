@@ -5,7 +5,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use serde_json::{Map, Value};
 
 use super::background::Background;
@@ -19,7 +19,7 @@ pub enum SideStep {
 }
 
 /// A side run's handler, handed the thread's answer and each later answer of its own. TS turn-pages.ts:10.
-pub type SideRun = Box<dyn FnMut(&RequestId, Option<&Map<String, Value>>) -> SideStep + Send>;
+pub type SideRun = Box<dyn FnMut(&RequestId, Option<&Map<String, Value>>) -> SideStep>;
 
 /// The thread already open on the server. TS adapter.ts:548.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -52,11 +52,11 @@ pub struct FollowOptions {
     pub model: Option<String>,
     pub cwd: Option<String>,
     /// The line that starts the turn, handed the thread id once the thread answers.
-    pub turn_line: Option<Box<dyn Fn(&str) -> String + Send + Sync>>,
+    pub turn_line: Option<Box<dyn Fn(&str) -> String>>,
     /// What turn/start waits on once the thread answers.
     pub prompt_after: Option<Settle>,
     /// A re-opened run's turn, written where the run's channel holds no turn.
-    pub owed_turn: Option<Box<dyn Fn(&str) -> String + Send + Sync>>,
+    pub owed_turn: Option<Box<dyn Fn(&str) -> String>>,
     /// A side question's own run: approvals declined, no registry, a wall.
     pub aside: bool,
     /// A run that asks the thread things and runs no turn.
@@ -73,7 +73,7 @@ pub struct FollowOptions {
 }
 
 /// What a session does, whether it is one turn or the lost-session wrapper over two. Not part of the port.
-pub trait SessionCore: Send + Sync {
+pub trait SessionCore {
     fn local_id(&self) -> String;
     fn thread_id(&self) -> String;
     fn command(&self) -> Option<String>;
@@ -81,11 +81,11 @@ pub trait SessionCore: Send + Sync {
     fn pid(&self) -> Option<u32>;
     fn from(&self) -> Option<u64>;
     fn finished(&self) -> SharedFuture<TurnResult>;
-    fn interrupt(&self) -> BoxFuture<'static, ()>;
+    fn interrupt(&self) -> LocalBoxFuture<'static, ()>;
     fn kept(&self) -> Option<CodexKept>;
-    fn steer(&self, prompt: String) -> BoxFuture<'static, SteerOutcome>;
-    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> BoxFuture<'static, Result<AnswerOutcome, ExecFailure>>;
-    fn stop_task(&self, task: String) -> BoxFuture<'static, TaskStop>;
+    fn steer(&self, prompt: String) -> LocalBoxFuture<'static, SteerOutcome>;
+    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>;
+    fn stop_task(&self, task: String) -> LocalBoxFuture<'static, TaskStop>;
 }
 
 /// One Codex turn as the runtime holds it. TS adapter.ts:143 (CodexSession).
@@ -119,7 +119,7 @@ impl CodexSession {
         todo!()
     }
     /// TS adapter.ts:1193.
-    pub fn interrupt(&self) -> BoxFuture<'static, ()> {
+    pub fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
         todo!()
     }
     /// TS adapter.ts:1210.
@@ -127,26 +127,26 @@ impl CodexSession {
         todo!()
     }
     /// TS adapter.ts:1154.
-    pub fn steer(&self, prompt: String) -> BoxFuture<'static, SteerOutcome> {
+    pub fn steer(&self, prompt: String) -> LocalBoxFuture<'static, SteerOutcome> {
         todo!()
     }
     /// TS adapter.ts:1169. `Err` is the write's own failure, the ask left open.
-    pub fn answer(&self, ask_id: String, answer: PermissionAnswer) -> BoxFuture<'static, Result<AnswerOutcome, ExecFailure>> {
+    pub fn answer(&self, ask_id: String, answer: PermissionAnswer) -> LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>> {
         todo!()
     }
     /// TS adapter.ts:1186.
-    pub fn stop_task(&self, task: String) -> BoxFuture<'static, TaskStop> {
+    pub fn stop_task(&self, task: String) -> LocalBoxFuture<'static, TaskStop> {
         todo!()
     }
 }
 
 /// The server a finished turn left up for the thread's next turn. TS adapter.ts:1213 (KeptAgent<CodexSession>).
 pub struct CodexKept {
-    pub next: Arc<dyn Fn(KeptTurn) -> Result<CodexSession, String> + Send + Sync>,
+    pub next: Arc<dyn Fn(KeptTurn) -> Result<CodexSession, String>>,
     /// `now` closes with no wait.
-    pub close: Arc<dyn Fn(bool) -> BoxFuture<'static, ()> + Send + Sync>,
+    pub close: Arc<dyn Fn(bool) -> LocalBoxFuture<'static, ()>>,
     pub exited: SharedFuture<Option<i32>>,
-    pub working: Arc<dyn Fn() -> bool + Send + Sync>,
+    pub working: Arc<dyn Fn() -> bool>,
     pub session_file: SessionFile,
 }
 
