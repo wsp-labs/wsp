@@ -88,4 +88,15 @@ kind. Two of this slice's own:
    `PLACE_HOST_KEY_KIND` (manage.ts:321); `HostError` carries no such field, so the job cannot get the key the person is
    asked to trust. `add_failure_host_key_rides_job` pins the kind and that no key is made up; the field needs a ruling
    (a `HostError` extra, or an installer error type of its own).
+10. **The cut renamed a setting word that wsp-wire still spells the old way.** `PlaceSettingWord` at `65f6b89c7` is
+    `max-machines` where it was `spawn` at `a3b870a6e` (packages/protocol/src/views/place.ts:468, changed by the cut,
+    383708c78); wsp-wire's `PlaceSettingWord` (src/views/place_more.rs:585) follows `a3b870a6e`. A reset of
+    `max-machines` cannot be written until wsp-wire moves; the settings tests reset `max-depth` alone.
+11. **A changed host key never names the other computer** (manage.ts:639): the remove marks the login elsewhere with
+    no `other`, even where another record holds that login.
+12. **`force` reads `takesRuntime !== undefined`** (manage.ts:655): a report saying `takesRuntime: false` forces the
+    leave too. It reads like `=== true` was meant.
+13. **An update's login refusal keeps the sentence and drops the fix** (manage.ts:520, `PlaceLoginRefusedError(reached.refused)`).
+14. **`unrecordedUnsaved` reads each checkout in turn** (manage.ts:190-193), each read bounded by 60 s, so a slow
+    computer with many old checkouts holds the remove for minutes.
 
