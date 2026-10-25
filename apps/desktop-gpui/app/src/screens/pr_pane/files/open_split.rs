@@ -105,8 +105,12 @@ pub fn want_editors(host: &Host, cx: &mut App) {
     }
     cx.default_global::<Editors>().asked = true;
     let host = host.clone();
+    let held = crate::prefs::record(cx).map(|r| r.get("editor").and_then(Value::as_str).map(str::to_owned));
     cx.spawn(async move |cx| {
-        let picked = preference(host.clone()).await;
+        let picked = match held {
+            Some(picked) => picked,
+            None => preference(host.clone()).await,
+        };
         let listed = editors(host).await;
         cx.update(|cx| {
             if listed.is_none() {

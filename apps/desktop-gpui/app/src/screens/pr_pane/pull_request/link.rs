@@ -69,9 +69,14 @@ pub fn follow(host: &Host, workspace_id: String, tx: mpsc::UnboundedSender<Value
     })
 }
 
+/// The agent a new thread would start on as the app's store shows the preferences, where it holds them.
+pub fn default_agent(cx: &gpui_kit::App) -> Option<String> {
+    crate::prefs::record(cx).map(|r| r.get("defaultAgent").and_then(serde_json::Value::as_str).unwrap_or("claude").to_owned())
+}
+
 /// The agent every send to the agent reaches: the harness of the workspace's first thread, else the agent a new
-/// thread would start on (`usePrAgent`).
-pub fn agent_of(host: &Host, workspace_id: String) -> impl Future<Output = Result<String, Failure>> + 'static {
+/// thread would start on (`usePrAgent`), `default` where the app's store holds the preferences, else the host's.
+pub fn agent_of(host: &Host, workspace_id: String, default: Option<String>) -> impl Future<Output = Result<String, Failure>> + 'static {
     host.run(move |client| async move {
         let first = client
             .threads()
@@ -81,7 +86,7 @@ pub fn agent_of(host: &Host, workspace_id: String) -> impl Future<Output = Resul
             .min_by(|a, b| a.started_at.unwrap_or(f64::MAX).total_cmp(&b.started_at.unwrap_or(f64::MAX)))
             .and_then(|t| serde_json::to_value(&t.harness).ok())
             .and_then(|h| h.as_str().map(str::to_owned));
-        if let Some(first) = first {
+        if let Some(first) = first.or(default) {
             return Ok(first);
         }
         let ask: PreferencesGetRequest = serde_json::from_value(json!({})).map_err(|e| Failure::new(e.to_string()))?;

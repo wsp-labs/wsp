@@ -170,6 +170,12 @@ impl UsagePage {
                 this.read_again(cx);
             }
         });
+        let store = crate::prefs::store(cx);
+        cx.observe(&store, |this, store, cx| {
+            this.preferences = store.read(cx).shown().cloned();
+            cx.notify();
+        })
+        .detach();
         let window_id = window.window_handle().window_id();
         let tab = held::get::<Tab>(window_id, TAB, Duration::MAX, cx).map_or(Tab::Used, |(tab, _, _)| *tab);
         let mut page = UsagePage {
@@ -183,7 +189,7 @@ impl UsagePage {
             models: Read::default(),
             projects: Vec::new(),
             places: Vec::new(),
-            preferences: None,
+            preferences: crate::prefs::shown(cx).cloned(),
             acts: None,
             asking: None,
             said: None,
@@ -278,7 +284,8 @@ impl UsagePage {
             if let Ok((places, preferences)) = asking.await {
                 _ = this.update(cx, |this, cx| {
                     this.places = places;
-                    this.preferences = Some(preferences);
+                    crate::prefs::store(cx).update(cx, |store, cx| store.landed(&preferences, cx));
+                    this.preferences = crate::prefs::shown(cx).cloned();
                     cx.notify();
                 });
             }
