@@ -22,7 +22,7 @@ Tests: `tests/places_manage_remove.rs`. `file:line` is `manage.ts` unless named.
   line, `unpushed_unread_line("/wsp/projects", last_line(stderr) else "the listing exited <code>")`. Else each non-empty
   stdout line not recorded is read by `read_unsaved(checkout, checkout, exec)` and its line kept where it answers one.
 - **H6 `images_sized(id)`** (:172-182): the held images (`images_on`, none where absent); the provider backend's
-  `list_snapshots(ids)` only where its capabilities say `snapshotListing: true` and there is at least one image (a
+  `list_snapshots(ids)` only where its capabilities say `snapshotListing: true`, it offers the method (`offers().list_snapshots`), and there is at least one image (a
   failure lists nothing). Each image is `{id}`, plus `sizeBytes` where its listing row gives one other than 0.
 
 ## holds (:560-568)

@@ -43,7 +43,7 @@ implements places-a's `SetupRecords` and `LinkRecords` as one-line forwards. One
   settings.spawn ?? {})` and `spawnDefault` = `AGENTS_ON` always; `running` = `recording.running_on(row.id, ids)`;
   `size`/`sizeDefault` (R13) where `place_takes(row, "size")`; `deleteAfterMs` = `settings.deleteAfterMs ??
   DELETE_AFTER_MS` where `place_takes(row, "delete-after")`. A `running_on` failure fails the call.
-- **R12 `with_limits(row)`** (:122-138): synchronous. For a provider row whose backend has `placeLimits` and no read in
+- **R12 `with_limits(row)`** (:122-138): synchronous. For a provider row whose backend offers `placeLimits` (`offers().place_limits`, the engine's word for the TS method being there) and no read in
   flight for that id, start one read in the background (a spawned local task) and mark it asking; the read's answer is
   kept for that id (a failure deletes the kept answer, so the fields go rather than stay stale), and the asking mark is
   cleared when it settles. The row returned carries the kept answer as it stands now (`plan`, then `starts` and
