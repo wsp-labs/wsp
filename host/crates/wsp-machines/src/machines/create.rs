@@ -9,7 +9,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use indexmap::{IndexMap, IndexSet};
 
-use wsp_core::types::internal::KindModule;
+use wsp_core::types::internal::{BuilderLife, KindModule};
 use wsp_core::types::pending::{Clock, PlaceDoor};
 use wsp_core::types::wiring::{CreateWorkspaceOptions, CreatedWorkspace, StageReport, WorkspaceRecord};
 use wsp_engine::machine::{Machine, MachineBackend};
@@ -53,8 +53,7 @@ pub struct RecordBranchAsk {
 pub struct KeptBuilder {
     pub id: String,
     pub name: String,
-    /// `own`, `reusable`, `stale`, `foreign`, `held`.
-    pub life: String,
+    pub life: BuilderLife,
     pub sealed_version: Option<u32>,
     pub place: Option<String>,
 }
