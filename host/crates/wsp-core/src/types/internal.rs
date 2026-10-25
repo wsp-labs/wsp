@@ -844,16 +844,17 @@ pub struct IndexedSession {
     pub snapshot: Option<String>,
 }
 
-/// internal.ts:823-837.
+/// internal.ts:823-837. Fields in the order the TS writes the record (transcripts.ts persistSessions:
+/// `{ workspaceId, sessions, threads, viewed? }`), not the interface's.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionIndexRecord {
     pub workspace_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub viewed: Option<IndexMap<String, String>>,
     pub sessions: Vec<IndexedSession>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub threads: Option<IndexMap<String, ThreadRecord>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub viewed: Option<IndexMap<String, String>>,
 }
 
 /// internal.ts:841.

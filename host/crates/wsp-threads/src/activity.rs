@@ -7,7 +7,9 @@ use std::rc::Rc;
 
 use async_trait::async_trait;
 use serde_json::{Map, Value};
+use wsp_account::account::core_types::AccountError;
 use wsp_core::clock::Clock;
+use wsp_core::types::api::DaemonEventListener;
 use wsp_core::types::internal::EndThread;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::views::activity::{ActivityEnded, ActivityView, ProcessesAsk};
@@ -19,7 +21,7 @@ use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::wire::daemon::ProcScope;
 use wsp_words::exit::HostError;
 
-use crate::pending::{Entry, Records, Rows};
+use crate::threads::threads::{Entry, Sessions, ThreadRecords};
 
 /// activity.ts:63.
 pub const BOX_END_POLL_MS: i64 = 200;
@@ -59,23 +61,11 @@ pub trait ActivityDoor {
     async fn meet(&self, thread_ids: &[String], processes: ProcessesAsk, verb: MeetVerb, caller: Option<Caller>) -> Result<Vec<ActivityEnded>, HostError>;
 }
 
-/// Why a frame sent over a channel failed: the daemon's refusal with its code (TS `DaemonRefusal`), or the channel's
-/// own failure (`code` none, `refusal` false).
-#[derive(Clone, Debug, PartialEq)]
-pub struct AskFailure {
-    pub refusal: bool,
-    pub code: Option<String>,
-    pub message: String,
-}
-
 /// One daemon channel with its asks (TS `DaemonChannel` read through `overChannel`'s `ask`, which throws a refusal).
 pub trait DaemonAsk {
-    fn ask(&self, frame: Value) -> futures::future::LocalBoxFuture<'static, Result<Map<String, Value>, AskFailure>>;
+    fn ask(&self, frame: Value) -> futures::future::LocalBoxFuture<'static, Result<Map<String, Value>, AccountError>>;
     fn close(&self);
 }
-
-/// Where a channel's events go (TS `onEvent`).
-pub type EventSink = Rc<dyn Fn(Map<String, Value>)>;
 
 /// What the activity door reads of the runtime.
 #[async_trait(?Send)]
@@ -94,11 +84,11 @@ pub trait ActivityCtx {
     fn has_local_daemon(&self) -> bool;
     /// `ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, onEvent)`, through `ctx.killGuarded(.., true)` where
     /// `guarded`.
-    async fn local_channel(&self, on_event: EventSink, guarded: bool) -> Result<Rc<dyn DaemonAsk>, HostError>;
+    async fn local_channel(&self, on_event: DaemonEventListener, guarded: bool) -> Result<Rc<dyn DaemonAsk>, HostError>;
     /// `door.channel(place, onEvent)`; None where the door has none for it.
-    fn box_channel(&self, place: &str, on_event: EventSink) -> Option<futures::future::LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>;
-    fn sessions(&self) -> Rows;
-    fn records(&self) -> Records;
+    fn box_channel(&self, place: &str, on_event: DaemonEventListener) -> Option<futures::future::LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>;
+    fn sessions(&self) -> Sessions;
+    fn records(&self) -> ThreadRecords;
     fn live_entry(&self, workspace_id: &str) -> Option<Entry>;
     fn latest_on(&self, thread_id: &str) -> Option<SessionView>;
     fn thread_facts(&self, thread_id: &str) -> Option<ThreadFacts>;

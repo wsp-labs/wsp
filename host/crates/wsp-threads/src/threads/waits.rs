@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use wsp_core::clock::Clock;
 use wsp_wire::views::session_events_more::SessionEvent;
 
-use crate::pending::Rows;
+use crate::threads::threads::Sessions;
 
 /// waits.ts:94.
 pub const WAIT_SETTLE_MS: i64 = 2_000;
@@ -17,7 +17,7 @@ pub const RETRY_SETTLE_MS: i64 = 2_000;
 /// What the waits area reads of the runtime.
 pub trait WaitsCtx {
     fn clock(&self) -> Rc<dyn Clock>;
-    fn sessions(&self) -> Rows;
+    fn sessions(&self) -> Sessions;
     /// `ctx.state.closing`, read at the moment of each write.
     fn closing(&self) -> bool;
     /// `ctx.record(event)`: the transcript row, and the bus.

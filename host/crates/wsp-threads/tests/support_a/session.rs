@@ -5,7 +5,7 @@
 use std::sync::{Arc, Mutex};
 
 use futures::channel::oneshot;
-use futures::future::{BoxFuture, FutureExt, Shared};
+use futures::future::{FutureExt, LocalBoxFuture, Shared};
 use wsp_adapters::port::*;
 use wsp_wire::views::session_events::TurnResult;
 
@@ -20,7 +20,7 @@ pub struct FakeSession {
     pub run: Option<String>,
     pub pid: Option<u32>,
     pub from: Option<u64>,
-    finished: Shared<BoxFuture<'static, TurnResult>>,
+    finished: Shared<LocalBoxFuture<'static, TurnResult>>,
     finish: Mutex<Option<oneshot::Sender<Result<TurnResult, ()>>>>,
     pub log: Mutex<SessionLog>,
     /// Which optional roads the session has.
@@ -52,7 +52,7 @@ impl FakeSession {
                 Ok(Ok(result)) => result,
                 _ => serde_json::from_value(serde_json::json!({ "status": "failed" })).expect("a failed result"),
             })
-            .boxed()
+            .boxed_local()
             .shared();
         let mut s = FakeSession {
             id: id.to_string(),
@@ -114,44 +114,44 @@ impl HarnessSession for FakeSession {
     fn from(&self) -> Option<u64> {
         self.from
     }
-    fn interrupt(&self) -> BoxFuture<'static, ()> {
+    fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
         self.note("interrupt".into());
-        futures::future::ready(()).boxed()
+        futures::future::ready(()).boxed_local()
     }
     fn kept(&self) -> Option<Option<Box<dyn KeptAgent>>> {
         Some(self.kept.lock().unwrap().take())
     }
-    fn steer(&self, prompt: String, id: Option<String>, _images: Vec<TurnImage>) -> Option<BoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
+    fn steer(&self, prompt: String, id: Option<String>, _images: Vec<TurnImage>) -> Option<LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
         if !self.steers {
             return None;
         }
         self.note(format!("steer({prompt}, {id:?})"));
         let answer = self.steer_answer.lock().unwrap().clone().map_err(|message| ExecFailure { kind: ExecFailureKind::Other, message });
-        Some(futures::future::ready(answer).boxed())
+        Some(futures::future::ready(answer).boxed_local())
     }
     fn tells_unread(&self) -> Option<bool> {
         self.tells_unread
     }
-    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<BoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
+    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         if !self.answers {
             return None;
         }
         self.note(format!("answer({ask_id}, {}, {:?}, {}, {:?})", answer.option_id, answer.outcome, answer.deny_message, answer.reason.unwrap_or_default()));
-        Some(futures::future::ready(Ok(*self.answer_answer.lock().unwrap())).boxed())
+        Some(futures::future::ready(Ok(*self.answer_answer.lock().unwrap())).boxed_local())
     }
-    fn set_access(&self, mode: String) -> Option<BoxFuture<'static, Result<AccessOutcome, ExecFailure>>> {
+    fn set_access(&self, mode: String) -> Option<LocalBoxFuture<'static, Result<AccessOutcome, ExecFailure>>> {
         if !self.sets_access {
             return None;
         }
         self.note(format!("set_access({mode})"));
-        Some(futures::future::ready(Ok(*self.access_answer.lock().unwrap())).boxed())
+        Some(futures::future::ready(Ok(*self.access_answer.lock().unwrap())).boxed_local())
     }
-    fn stop_task(&self, task: String) -> Option<BoxFuture<'static, Result<TaskStop, ExecFailure>>> {
+    fn stop_task(&self, task: String) -> Option<LocalBoxFuture<'static, Result<TaskStop, ExecFailure>>> {
         if !self.stops_tasks {
             return None;
         }
         self.note(format!("stop_task({task})"));
-        Some(futures::future::ready(Ok(self.task_answer.lock().unwrap().clone())).boxed())
+        Some(futures::future::ready(Ok(self.task_answer.lock().unwrap().clone())).boxed_local())
     }
 }
 

@@ -16,6 +16,8 @@ serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"
 tokio = { version = "1", features = ["process", "time", "io-util", "fs", "rt", "macros", "sync"] }
 tokio-util = "0.7"
+wsp-account = { path = "../wsp-account" }
+wsp-machines = { path = "../wsp-machines" }
 wsp-core = { path = "../wsp-core" }
 wsp-adapters = { path = "../wsp-adapters" }
 wsp-catalog = { path = "../wsp-catalog" }

@@ -2,5 +2,4 @@
 //! The threads area of the runtime: `runtime/src/threads/` and `activity.ts`.
 
 pub mod activity;
-pub mod pending;
 pub mod threads;

@@ -2,6 +2,7 @@
 //! spec/answered_start.md. TS cases: thread-cap.test.ts:111 (a start that asks to hear of its hold is answered at once,
 //! one that does not is answered once it starts), session-held.test.ts:11, serve.test.ts:634 (the answer of a start).
 //! No TS test calls `answeredStart` or `startAt` alone, so the other rules are pinned by the TS source only.
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::RefCell;

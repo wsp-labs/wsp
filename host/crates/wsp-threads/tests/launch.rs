@@ -3,6 +3,7 @@
 //! thread-defaults.test.ts, thread-keeps-picks.test.ts. Each TS case is ported at this unit's seam: the warm area's
 //! answers and what it hands `hold_warm`, `reap_kept`, `rewarm` and the adapter; the picks a launch reads; the line a
 //! lost session logs.
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::{Cell, RefCell};
@@ -334,8 +335,8 @@ fn a_thread_with_none_opens_on_the_defaults() {
                 { "value": "bypassPermissions", "label": "bypassPermissions" },
             ],
         }));
-        let resolved = Resolved { catalog: Some(marked.clone()), open_model: Some("claude-sonnet-5".into()), open_effort: Some("low".into()) };
-        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> Resolved>("LaunchCtx::defaults_on", Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()));
+        let resolved = DefaultsOn { catalog: marked.clone(), open_model: Some("claude-sonnet-5".into()), open_effort: Some("low".into()) };
+        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> DefaultsOn>("LaunchCtx::defaults_on", Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()));
         let read = read_picks(&area, &e, &LaunchAsked::default()).await.unwrap();
         assert_eq!(read.catalog, Some(marked), "the catalog the defaults marked, not the one the harness answered");
         assert_eq!((read.picks_for)(None).unwrap(), launch_picks_of(picks(Some("claude-sonnet-5"), Some("low"), Some("default")), None));
@@ -404,8 +405,8 @@ fn a_model_the_catalog_dropped_is_left_out_rather_than_refused_and_the_effort_st
 fn a_resume_never_takes_the_defaults_open_picks() {
     run_local(async {
         let (host, area, e) = picks_rig();
-        let resolved = Resolved { catalog: Some(catalog()), open_model: Some("claude-sonnet-5".into()), open_effort: Some("low".into()) };
-        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> Resolved>("LaunchCtx::defaults_on", Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()));
+        let resolved = DefaultsOn { catalog: catalog(), open_model: Some("claude-sonnet-5".into()), open_effort: Some("low".into()) };
+        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> DefaultsOn>("LaunchCtx::defaults_on", Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()));
         let on = Rc::new(RefCell::new(RanPicks::default()));
         set_ran(&host, on.clone());
         let read = read_picks(&area, &e, &LaunchAsked::default()).await.unwrap();
@@ -429,8 +430,8 @@ fn an_open_catalog_takes_any_model_named_and_starts_on_the_one_set_for_it() {
             "permissionModes": [{ "value": "auto", "label": "auto", "isDefault": true }],
         }));
         set_catalog(&host, Some(open.clone()));
-        let resolved = Resolved { catalog: Some(open), open_model: Some("anthropic/claude-sonnet-5".into()), open_effort: None };
-        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> Resolved>("LaunchCtx::defaults_on", Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()));
+        let resolved = DefaultsOn { catalog: open, open_model: Some("anthropic/claude-sonnet-5".into()), open_effort: None };
+        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> DefaultsOn>("LaunchCtx::defaults_on", Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()));
         let read = read_picks(&area, &e, &LaunchAsked::default()).await.unwrap();
         assert_eq!((read.picks_for)(None).unwrap(), launch_picks_of(picks(Some("anthropic/claude-sonnet-5"), None, Some("auto")), None));
         let read = read_picks(&area, &e, &LaunchAsked { model: Some("openai/gpt-x".into()), ..Default::default() }).await.unwrap();
@@ -601,18 +602,22 @@ impl KeptAgent for FakeKept {
     fn next(&self, _turn: KeptTurn) -> Result<Arc<dyn HarnessSession>, AdapterError> {
         Err(AdapterError("the warm tests never take a turn".into()))
     }
-    fn close(&self, _now: bool) -> BoxFuture<'static, ()> {
-        futures::future::ready(()).boxed()
+    fn close(&self, _now: bool) -> LocalBoxFuture<'static, ()> {
+        futures::future::ready(()).boxed_local()
     }
     fn exited(&self) -> SharedFuture<()> {
-        futures::future::ready(()).boxed().shared()
+        futures::future::ready(()).boxed_local().shared()
     }
     fn session_file(&self) -> Option<SessionFile> {
         Some(SessionFile { folder: self.tag.clone(), name: String::new(), depth: 0 })
     }
 }
 
-fn kept_tag(h: &WarmHold) -> String {
+fn harness_of(h: &KeptHand) -> String {
+    h.warm.as_ref().expect("a warm hold names its harness").harness.clone()
+}
+
+fn kept_tag(h: &KeptHand) -> String {
     h.agent.session_file().expect("a fake kept agent").folder
 }
 
@@ -625,7 +630,7 @@ struct Rig {
     area: LaunchArea,
     adapter: Arc<FakeAdapter>,
     asks: Rc<RefCell<Vec<(String, AdapterAsk)>>>,
-    held: Rc<RefCell<Vec<(String, WarmHold)>>>,
+    held: Rc<RefCell<Vec<(String, KeptHand)>>>,
     standing: Standing,
 }
 
@@ -636,26 +641,28 @@ fn rig() -> Rig {
 fn rig_with(adapter: FakeAdapter) -> Rig {
     let host = FakeHost::new();
     host.add_entry(entry("w1", json!({})));
+    host.hooks.set::<dyn Fn() -> Env>("LaunchCtx::vault", Rc::new(Env::default));
     *host.ids.uuids.borrow_mut() = (1..=8).map(|n| format!("thr-{n}")).collect();
     let adapter = Arc::new(adapter);
     let asks: Rc<RefCell<Vec<(String, AdapterAsk)>>> = Rc::new(RefCell::new(Vec::new()));
-    let held: Rc<RefCell<Vec<(String, WarmHold)>>> = Rc::new(RefCell::new(Vec::new()));
+    let held: Rc<RefCell<Vec<(String, KeptHand)>>> = Rc::new(RefCell::new(Vec::new()));
     let standing: Standing = Rc::new(RefCell::new(IndexMap::new()));
     let (a, log) = (adapter.clone(), asks.clone());
-    host.hooks.set::<dyn Fn(&Entry, &str, AdapterAsk) -> Result<BuiltAdapter, HostError>>(
+    host.hooks.set::<dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>>(
         "LaunchCtx::adapter_for",
-        Rc::new(move |_e: &Entry, h: &str, ask: AdapterAsk| {
-            log.borrow_mut().push((h.to_string(), ask));
-            Ok(BuiltAdapter { harness: h.to_string(), adapter: a.clone() })
+        Rc::new(move |_e: &Entry, ask: AdapterAsk| {
+            let h = ask.named.clone().unwrap_or_default();
+            log.borrow_mut().push((h.clone(), ask));
+            Ok(BuiltAdapter { harness: h, adapter: a.clone() })
         }),
     );
     let warms = adapter.warms;
     host.hooks.set::<dyn Fn(&dyn HarnessAdapter) -> bool>("LaunchCtx::adapter_warms", Rc::new(move |_a: &dyn HarnessAdapter| warms));
     let (st, hd) = (standing.clone(), held.clone());
-    host.hooks.set::<dyn Fn(&str, WarmHold) -> ()>(
+    host.hooks.set::<dyn Fn(&str, KeptHand) -> ()>(
         "LaunchCtx::hold_warm",
-        Rc::new(move |t: &str, hold: WarmHold| {
-            st.borrow_mut().insert((hold.workspace_id.clone(), hold.harness.clone()), (t.to_string(), hold.launch.clone()));
+        Rc::new(move |t: &str, hold: KeptHand| {
+            st.borrow_mut().insert((hold.workspace_id.clone(), harness_of(&hold)), (t.to_string(), hold.launch.clone()));
             hd.borrow_mut().push((t.to_string(), hold));
         }),
     );
@@ -781,7 +788,7 @@ fn the_default_agent_is_warmed_where_none_is_named_and_held_preferences_are_read
         r.host.hooks.set::<dyn Fn(&Preferences, &Entry) -> String>("LaunchCtx::default_agent_of", Rc::new(|p: &Preferences, _e: &Entry| p.default_agent.clone().expect("a default agent")));
         assert_eq!(warm(&r, WarmAsk::default()).await.unwrap(), started());
         assert_eq!(r.asks.borrow().iter().map(|a| a.0.clone()).collect::<Vec<_>>(), vec!["held-agent".to_string(), "held-agent".to_string()]);
-        assert_eq!(r.held.borrow()[0].1.harness, "held-agent");
+        assert_eq!(r.held.borrow()[0].1.warm.as_ref().expect("a warm hold").harness, "held-agent");
         assert_eq!(r.host.hooks.called("preferences"), Vec::<String>::new(), "the store is not read where the host holds them");
         // Where it holds none, the stored ones are read.
         let r = rig();
@@ -797,7 +804,7 @@ fn the_default_agent_is_warmed_where_none_is_named_and_held_preferences_are_read
         r.host.hooks.set::<dyn Fn(&Preferences, &Entry) -> String>("LaunchCtx::default_agent_of", Rc::new(|p: &Preferences, _e: &Entry| p.default_agent.clone().expect("a default agent")));
         assert_eq!(warm(&r, WarmAsk::default()).await.unwrap(), started());
         assert_eq!(r.host.hooks.called("preferences"), vec!["preferences".to_string()]);
-        assert_eq!(r.held.borrow()[0].1.harness, "stored-agent");
+        assert_eq!(r.held.borrow()[0].1.warm.as_ref().expect("a warm hold").harness, "stored-agent");
     });
 }
 
@@ -810,8 +817,8 @@ fn an_adapter_with_no_warm_road_answers_none() {
         let asks = r.asks.borrow();
         assert_eq!(asks.len(), 1, "only the probe is built");
         assert_eq!(asks[0].0, "claude");
-        assert_eq!(asks[0].1.env.len(), 0, "a probe has no env");
-        assert_eq!(asks[0].1.thread_id.as_deref(), Some("thr-1"));
+        assert_eq!(asks[0].1.turn_env.as_ref().map_or(0, |e| e.len()), 0, "a probe has no env");
+        assert_eq!(asks[0].1.thread.as_deref(), Some("thr-1"));
         for later in ["confine_setup", "catalog_on", "thread_launch", "hold_warm"] {
             assert_eq!(r.host.hooks.called(later), Vec::<String>::new(), "{later} comes after the warm road is found");
         }
@@ -864,7 +871,7 @@ fn the_warm_launch_runs_on_the_catalogs_marks_and_is_held_for_the_threads_first_
         assert_eq!(held.len(), 1);
         assert_eq!(held[0].0, "thr-1");
         assert_eq!(held[0].1.workspace_id, "w1");
-        assert_eq!(held[0].1.harness, "claude");
+        assert_eq!(held[0].1.warm.as_ref().expect("a warm hold").harness, "claude");
         assert_eq!(kept_tag(&held[0].1), "kept-1");
         assert_eq!(serde_json::to_value(&held[0].1.launch.picks).unwrap(), json!({ "model": "claude-opus-5", "effort": "high", "permissionMode": "bypassPermissions" }));
         assert_eq!(held[0].1.launch.fixed, r#"{"harness":"claude","cwd":"/work/w1","version":"2.1.0"}"#);
@@ -890,9 +897,9 @@ fn the_warm_launch_carries_the_token_thread_and_servers_in_order() {
                 async move { Ok(m) }.boxed_local()
             }),
         );
-        let vault = ServerValues { entries: Some(IndexMap::from([("vault".to_string(), IndexMap::from([("url".to_string(), json!("http://v"))]))])), config: None };
+        let vault: Env = IndexMap::from([("VAULT_URL".to_string(), "http://v".to_string())]);
         let v = vault.clone();
-        r.host.hooks.set::<dyn Fn() -> ServerValues>("LaunchCtx::vault_server_values", Rc::new(move || v.clone()));
+        r.host.hooks.set::<dyn Fn() -> Env>("LaunchCtx::vault", Rc::new(move || v.clone()));
         let launch = ServerValues { entries: Some(IndexMap::from([("launch".to_string(), IndexMap::from([("url".to_string(), json!("http://l"))]))])), config: Some(IndexMap::from([("K".to_string(), "v".to_string())])) };
         let l = LaunchServers { server_values: Some(launch.clone()), off_servers: Some(vec!["gone".into()]) };
         r.host.hooks.set::<dyn Fn(&Entry, &str, &dyn HarnessAdapter, &str) -> LocalBoxFuture<'static, Result<LaunchServers, HostError>>>(
@@ -907,9 +914,9 @@ fn the_warm_launch_carries_the_token_thread_and_servers_in_order() {
         let token = "01".repeat(16);
         let asks = r.asks.borrow();
         assert_eq!(asks.len(), 2);
-        assert_eq!(asks[0].1.env.len(), 0, "the probe has no env");
-        assert_eq!(asks[0].1.thread_id.as_deref(), Some("thr-1"));
-        let env: Vec<(String, String)> = asks[1].1.env.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        assert_eq!(asks[0].1.turn_env.as_ref().map_or(0, |e| e.len()), 0, "the probe has no env");
+        assert_eq!(asks[0].1.thread.as_deref(), Some("thr-1"));
+        let env: Vec<(String, String)> = asks[1].1.turn_env.as_ref().expect("the warm ask carries the launch env").iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         assert_eq!(
             env,
             vec![
@@ -919,8 +926,8 @@ fn the_warm_launch_carries_the_token_thread_and_servers_in_order() {
                 ("WSP_X".to_string(), "x".to_string()),
             ]
         );
-        assert_eq!(asks[1].1.server_values, Some(vault));
-        assert_eq!(asks[1].1.thread_id.as_deref(), Some("thr-1"));
+        assert_eq!(asks[1].1.servers, wsp_catalog::signin_rows::server_values_of(&vault));
+        assert_eq!(asks[1].1.thread.as_deref(), Some("thr-1"));
         assert!(!asks[1].1.asks_until_stopped);
         let waiting = asks[1].1.waiting.clone().expect("the adapter reads the waiting box");
         let w = r.adapter.warmed();
@@ -941,8 +948,11 @@ fn the_warm_launch_carries_the_token_thread_and_servers_in_order() {
         let held = r.held.borrow();
         assert_eq!(held[0].0, "thr-1");
         let h = &held[0].1;
-        assert_eq!((h.workspace_id.as_str(), h.harness.as_str(), h.turn_token.as_str(), h.scope_device_id.as_deref()), ("w1", "claude", token.as_str(), Some("dev-1")));
-        assert!(Rc::ptr_eq(&h.waiting, &waiting), "the held agent shares the box the adapter reads");
+        assert_eq!((h.workspace_id.as_str(), harness_of(h).as_str(), h.turn_token.as_str(), h.scope_device_id.as_deref()), ("w1", "claude", token.as_str(), Some("dev-1")));
+        assert!(!waiting(), "the box is off");
+        h.waiting.set(true);
+        assert!(waiting(), "the held agent shares the box the adapter reads");
+        h.waiting.set(false);
         assert!(!h.waiting.get());
         assert_eq!(r.host.hooks.called("thread_launch"), vec!["thread_launch(thr-1, thr-1, false)".to_string()]);
         assert_eq!(r.host.hooks.called("launch_servers_for"), vec!["launch_servers_for(claude, /work/w1)".to_string()]);
@@ -1065,14 +1075,15 @@ fn a_failure_building_the_launch_adapter_revokes_too_and_the_revokes_own_failure
         let (c, a) = (calls.clone(), r.adapter.clone());
         let refused = err("no such agent here", Some(Kind::Usage));
         let rf = refused.clone();
-        r.host.hooks.set::<dyn Fn(&Entry, &str, AdapterAsk) -> Result<BuiltAdapter, HostError>>(
+        r.host.hooks.set::<dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>>(
             "LaunchCtx::adapter_for",
-            Rc::new(move |_e: &Entry, h: &str, _ask: AdapterAsk| {
+            Rc::new(move |_e: &Entry, ask: AdapterAsk| {
+                let h = ask.named.clone().unwrap_or_default();
                 c.set(c.get() + 1);
                 if c.get() == 2 {
                     return Err(rf.clone());
                 }
-                Ok(BuiltAdapter { harness: h.to_string(), adapter: a.clone() })
+                Ok(BuiltAdapter { harness: h, adapter: a.clone() })
             }),
         );
         r.host.hooks.set::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>>("LaunchCtx::revoke_device", Rc::new(|_d: &str| async move { Err(err("the device is gone already", None)) }.boxed_local()));
@@ -1327,7 +1338,7 @@ fn an_ask_for_another_agent_or_workspace_does_not_wait() {
         let other_workspace = ask_in_flight(&r, "w2", ask());
         assert_eq!(other_agent.await.unwrap().unwrap(), started());
         assert_eq!(other_workspace.await.unwrap().unwrap(), started());
-        assert_eq!(r.held.borrow().iter().map(|h| (h.1.workspace_id.clone(), h.1.harness.clone())).collect::<Vec<_>>(), vec![("w1".to_string(), "codex".to_string()), ("w2".to_string(), "claude".to_string())]);
+        assert_eq!(r.held.borrow().iter().map(|h| (h.1.workspace_id.clone(), harness_of(&h.1))).collect::<Vec<_>>(), vec![("w1".to_string(), "codex".to_string()), ("w2".to_string(), "claude".to_string())]);
         open.send(Ok(())).unwrap();
         assert_eq!(first.await.unwrap().unwrap(), started());
     });
@@ -1349,9 +1360,9 @@ struct HeldExec {
 }
 
 impl HarnessExec for HeldExec {
-    fn exec(&self, command: &str, _env: Option<&Env>) -> BoxFuture<'static, Result<String, ExecFailure>> {
+    fn exec(&self, command: &str, _env: Option<&Env>) -> LocalBoxFuture<'static, Result<String, ExecFailure>> {
         self.commands.lock().unwrap().push(command.to_string());
-        futures::future::ready(Ok("boot b1; rollout files: none; index row: state_5.sqlite".to_string())).boxed()
+        futures::future::ready(Ok("boot b1; rollout files: none; index row: state_5.sqlite".to_string())).boxed_local()
     }
 }
 

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! spec/turns_reopen.md: the sweep, and the re-open of a turn the store left running (invariants 1, 2 and 5).
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::RefCell;
@@ -23,7 +24,7 @@ impl HarnessAdapter for Attaching {
     fn steers(&self) -> bool {
         false
     }
-    fn attach(&self, options: AdapterAttachOptions) -> Option<BoxFuture<'static, Result<Option<Arc<dyn HarnessSession>>, ExecFailure>>> {
+    fn attach(&self, options: AdapterAttachOptions) -> Option<LocalBoxFuture<'static, Result<Option<Arc<dyn HarnessSession>>, ExecFailure>>> {
         for doc in &self.early {
             (options.on_event)(adapter_event(doc.clone()));
         }
@@ -34,7 +35,7 @@ impl HarnessAdapter for Attaching {
             Ok(None) => Ok(None),
             Err(message) => Err(ExecFailure { kind: ExecFailureKind::Unreached, message }),
         };
-        Some(futures::future::ready(answer).boxed())
+        Some(futures::future::ready(answer).boxed_local())
     }
 }
 
@@ -53,33 +54,26 @@ impl HarnessAdapter for NoAttach {
 fn host_with(adapter: Arc<dyn HarnessAdapter>) -> Rc<FakeHost> {
     let host = FakeHost::new();
     host.add_entry(entry("w1", json!({})));
-    host.hooks.set::<dyn Fn(&Entry, &str, AdapterAsk) -> Result<BuiltAdapter, HostError>>(
+    host.hooks.set::<dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>>(
         "TurnsCtx::adapter_for",
-        Rc::new(move |_e: &Entry, h: &str, _a: AdapterAsk| Ok(BuiltAdapter { harness: h.to_string(), adapter: adapter.clone() })),
+        Rc::new(move |_e: &Entry, a: AdapterAsk| Ok(BuiltAdapter { harness: a.named.clone().unwrap_or_default(), adapter: adapter.clone() })),
     );
     host
 }
 
 /// The row a host before the restart left running: turn `turn-1` of thread `t1` on run `run-7`, session `sess-1`.
-fn left_running(extra: Value) -> ReopenRow {
+fn left_running(extra: Value) -> Row {
     let mut doc = json!({ "threadId": "t1", "claudeSessionId": "sess-1", "startedAt": T0 - 60_000, "cwd": "/work/w1", "model": "claude-opus-5-5", "prompt": "fix the upload test" });
     for (k, v) in extra.as_object().unwrap() {
         doc[k] = v.clone();
     }
-    ReopenRow {
-        view: shared(view("sess-1", "w1", doc)),
-        turn_id: "turn-1".into(),
-        notify: None,
-        notify_by: None,
-        notify_road: None,
-        turn_live: None,
-        run: Some("run-7".into()),
-        from: None,
-        asked: None,
-        turn_token: Some("tok-1".into()),
-        scope_device_id: None,
-        snapshot: None,
+    let left = row(view("sess-1", "w1", doc), "turn-1");
+    {
+        let mut r = left.borrow_mut();
+        r.run = Some("run-7".into());
+        r.turn_token = Some("tok-1".into());
     }
+    left
 }
 
 fn base(kind: &str) -> Value {
@@ -112,12 +106,12 @@ fn the_sweep_names_every_running_rows_run_on_the_computer() {
         let host = FakeHost::new();
         let w1 = host.add_entry(entry("w1", json!({})));
         host.add_entry(entry("w2", json!({})));
-        let mut a = row(view("a", "w1", json!({ "threadId": "ta" })), "ta-1");
-        a.run = Some("run-a".into());
-        let mut b = row(view("b", "w2", json!({ "threadId": "tb" })), "tb-1");
-        b.run = Some("run-b".into());
-        let mut done = row(view("c", "w1", json!({ "threadId": "tc", "status": "completed" })), "tc-1");
-        done.run = Some("run-c".into());
+        let a = row(view("a", "w1", json!({ "threadId": "ta" })), "ta-1");
+        a.borrow_mut().run = Some("run-a".into());
+        let b = row(view("b", "w2", json!({ "threadId": "tb" })), "tb-1");
+        b.borrow_mut().run = Some("run-b".into());
+        let done = row(view("c", "w1", json!({ "threadId": "tc", "status": "completed" })), "tc-1");
+        done.borrow_mut().run = Some("run-c".into());
         let no_run = row(view("d", "w1", json!({ "threadId": "td" })), "td-1");
         for (k, r) in [("a", a), ("b", b), ("c", done), ("d", no_run)] {
             host.add_row(k, r);
@@ -182,8 +176,8 @@ fn a_row_with_no_run_cannot_be_reopened_silently() {
     run_local(async {
         let host = host_with(Arc::new(NoAttach));
         let warned = wsp_core::console::capture();
-        let mut r = left_running(json!({}));
-        r.run = None;
+        let r = left_running(json!({}));
+        r.borrow_mut().run = None;
         assert_eq!(TurnsArea::new(host.clone()).reattach(r, false).await, Reopened::Cannot);
         host.live("w1").unwrap();
         let napped = FakeHost::new();
@@ -201,9 +195,9 @@ fn an_adapter_that_cannot_be_built_says_why() {
     run_local(async {
         let host = FakeHost::new();
         host.add_entry(entry("w1", json!({})));
-        host.hooks.set::<dyn Fn(&Entry, &str, AdapterAsk) -> Result<BuiltAdapter, HostError>>(
+        host.hooks.set::<dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>>(
             "TurnsCtx::adapter_for",
-            Rc::new(|_e: &Entry, _h: &str, _a: AdapterAsk| Err(HostError::new("no adapter for codex in this host"))),
+            Rc::new(|_e: &Entry, _a: AdapterAsk| Err(HostError::new("no adapter for codex in this host"))),
         );
         let warned = wsp_core::console::capture();
         assert_eq!(TurnsArea::new(host.clone()).reattach(left_running(json!({})), false).await, Reopened::Cannot);
@@ -223,10 +217,10 @@ fn invariant_5_a_transcript_that_does_not_read_leaves_the_turn_running_and_unrea
         );
         let warned = wsp_core::console::capture();
         let r = left_running(json!({}));
-        let view = r.view.clone();
+        let held = r.clone();
         assert_eq!(TurnsArea::new(host.clone()).reattach(r, false).await, Reopened::Unreached);
         assert_eq!(adapter.asked.lock().unwrap().len(), 0, "the run is never opened");
-        assert_eq!(serde_json::to_value(&view.borrow().status).unwrap(), json!("running"));
+        assert_eq!(serde_json::to_value(&held.borrow().view.status).unwrap(), json!("running"));
         assert_eq!(host.rows.borrow().len(), 0, "no row is put");
         assert_eq!(warned.lines(), vec!["thread t1 on w1 was left running: the transcript of w1 does not parse".to_string()]);
     });
@@ -250,11 +244,11 @@ fn the_attach_carries_what_the_row_kept() {
     run_local(async {
         let adapter = Arc::new(Attaching { answer: Mutex::new(Some(Ok(None))), asked: Mutex::new(Vec::new()), early: vec![] });
         let host = host_with(adapter.clone());
-        let mut r = left_running(json!({}));
-        r.from = Some(4096);
-        r.asked = Some(Rc::new(RefCell::new(serde_json::from_value(json!({ "prompt": "fix it\n\nfiles: a.txt", "effort": "high", "typed": "fix it" })).unwrap())));
+        let r = left_running(json!({}));
+        r.borrow_mut().from = Some(4096);
+        r.borrow_mut().asked = Some(serde_json::from_value(json!({ "prompt": "fix it\n\nfiles: a.txt", "effort": "high", "typed": "fix it" })).unwrap());
         let steered = json!({ "st-1": { "prompt": "also this", "startedBy": "person" }, "st-2": { "prompt": "and that", "startedBy": "person" } });
-        r.turn_live = Some(Rc::new(RefCell::new(TurnLive { steered: Some(serde_json::from_value(steered).expect("steered rows the fixture builds")), ..TurnLive::default() })));
+        r.borrow_mut().turn_live = Some(TurnLive { steered: Some(serde_json::from_value(steered).expect("steered rows the fixture builds")), ..TurnLive::default() });
         TurnsArea::new(host.clone()).reattach(r, false).await;
         let asked = adapter.asked.lock().unwrap();
         let a = &asked[0];
@@ -272,9 +266,9 @@ fn a_run_the_machine_no_longer_holds_is_gone() {
         let adapter = Arc::new(Attaching { answer: Mutex::new(Some(Ok(None))), asked: Mutex::new(Vec::new()), early: vec![] });
         let host = host_with(adapter);
         let r = left_running(json!({}));
-        let view = r.view.clone();
+        let held = r.clone();
         assert_eq!(TurnsArea::new(host.clone()).reattach(r, false).await, Reopened::Gone);
-        assert_eq!(serde_json::to_value(&view.borrow().status).unwrap(), json!("running"), "the caller ends it on the gone line");
+        assert_eq!(serde_json::to_value(&held.borrow().view.status).unwrap(), json!("running"), "the caller ends it on the gone line");
         assert_eq!(host.rows.borrow().len(), 0);
     });
 }
@@ -287,11 +281,11 @@ fn a_machine_that_answers_nothing_leaves_the_turn_unreached() {
         let host = host_with(adapter);
         let warned = wsp_core::console::capture();
         let r = left_running(json!({}));
-        let view = r.view.clone();
-        let before = view.borrow().clone();
+        let held = r.clone();
+        let before = held.borrow().view.clone();
         assert_eq!(TurnsArea::new(host.clone()).reattach(r, false).await, Reopened::Unreached);
-        assert_eq!(*view.borrow(), before, "the turn is left exactly as it was");
-        assert!(host.live("w1").unwrap().unchecked() == false);
+        assert_eq!(held.borrow().view, before, "the turn is left exactly as it was");
+        assert!(!host.live("w1").unwrap().borrow().unchecked);
         assert_eq!(warned.lines(), vec!["thread t1 on w1 was left running: no answer from the machine".to_string()]);
     });
 }
@@ -350,7 +344,7 @@ fn invariant_1_reopens_the_run_by_its_handle_from_its_first_line() {
         expected.push(with(base("session.delta"), json!({ "line": 3, "kind": "text", "text": "three" })));
         assert_eq!(host.recorded_json(), expected, "no row written twice, the new line is line 3");
         let rows = host.rows.borrow();
-        let r = rows.get("sess-1").expect("the row is held again under its id");
+        let r = rows.get("sess-1").expect("the row is held again under its id").borrow();
         assert_eq!((r.turn_id.as_str(), r.turn_token.as_deref(), r.run.as_deref()), ("turn-1", Some("tok-1"), Some("run-7")));
         assert_eq!(host.hooks.called("idle_hold"), vec!["idle_hold(w1)"]);
     });
@@ -371,16 +365,16 @@ fn invariant_1_keeps_a_reply_that_landed_before_the_restart() {
                 with(base("session.done"), json!({ "result": reply })),
             ],
         );
-        let mut r = left_running(json!({}));
-        r.turn_live = Some(Rc::new(RefCell::new(TurnLive { reply: Some(serde_json::from_value(json!("completed")).unwrap()), ..TurnLive::default() })));
-        let view = r.view.clone();
+        let r = left_running(json!({}));
+        r.borrow_mut().turn_live = Some(TurnLive { reply: Some(serde_json::from_value(json!("completed")).unwrap()), ..TurnLive::default() });
+        let held = r.clone();
         assert_eq!(TurnsArea::new(host.clone()).reattach(r, false).await, Reopened::Attached);
-        assert_eq!(serde_json::to_value(&view.borrow().status).unwrap(), json!("running"), "a reply that landed still reads working until the exit");
+        assert_eq!(serde_json::to_value(&held.borrow().view.status).unwrap(), json!("running"), "a reply that landed still reads working until the exit");
         emit(&adapter.asked, json!({ "type": "turn.done", "sessionId": "sess-1", "result": reply }));
         emit(&adapter.asked, json!({ "type": "session.end", "sessionId": "sess-1", "exitCode": 0, "sawResult": true }));
         assert_eq!(host.recorded_of("session.done").len(), 1, "the reply is not written again");
         assert_eq!(host.recorded_of("session.end"), vec![with(base("session.end"), json!({ "exitCode": 0, "sawResult": true }))]);
-        assert_eq!(serde_json::to_value(&view.borrow().status).unwrap(), json!("completed"));
+        assert_eq!(serde_json::to_value(&held.borrow().view.status).unwrap(), json!("completed"));
     });
 }
 
@@ -391,13 +385,13 @@ fn the_opening_is_what_was_typed_for_the_turn() {
         let session = FakeSession::new("sess-1");
         let adapter = Arc::new(Attaching { answer: Mutex::new(Some(Ok(Some(session)))), asked: Mutex::new(Vec::new()), early: vec![] });
         let host = host_with(adapter.clone());
-        let mut r = left_running(json!({ "prompt": "the thread's first words" }));
-        r.asked = Some(Rc::new(RefCell::new(serde_json::from_value(json!({ "prompt": "go on\n\nfiles: a.txt", "typed": "go on", "requestId": "req-9" })).unwrap())));
+        let r = left_running(json!({ "prompt": "the thread's first words" }));
+        r.borrow_mut().asked = Some(serde_json::from_value(json!({ "prompt": "go on\n\nfiles: a.txt", "typed": "go on", "requestId": "req-9" })).unwrap());
         assert_eq!(TurnsArea::new(host.clone()).reattach(r, false).await, Reopened::Attached);
         emit(&adapter.asked, json!({ "type": "session.start", "sessionId": "sess-1" }));
         let start = host.recorded_of("session.start");
         assert_eq!(start.len(), 1);
         assert_eq!((start[0]["prompt"].clone(), start[0]["requestId"].clone()), (json!("go on"), json!("req-9")));
-        assert!(!host.live("w1").unwrap().unchecked(), "the run was read, so the machine needs no proof");
+        assert!(!host.live("w1").unwrap().borrow().unchecked, "the run was read, so the machine needs no proof");
     });
 }

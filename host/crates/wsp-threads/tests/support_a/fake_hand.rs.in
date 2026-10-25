@@ -33,7 +33,7 @@
         folder.to_string()
 //@end
 //@ LaunchCtx::thread_folder
-        Ok(cwd.map(String::from).unwrap_or_else(|| format!("/work/{}", entry.id())))
+        Ok(cwd.map(String::from).unwrap_or_else(|| format!("/work/{}", entry.borrow().record.borrow().id)))
 //@end
 //@ LaunchCtx::thread_launch
         Ok(ThreadLaunch::default())
@@ -48,7 +48,7 @@
         RanPicks::default()
 //@end
 //@ LaunchCtx::defaults_on
-        Resolved { catalog: Some(catalog), open_model: None, open_effort: None }
+        DefaultsOn { catalog, open_model: None, open_effort: None }
 //@end
 //@ ActivityCtx::clock
         self.clock.clock()
@@ -96,10 +96,10 @@
         self.recorded.borrow_mut().push(event)
 //@end
 //@ TurnsCtx::emit
-        self.emitted.borrow_mut().push(event)
+        self.emitted.borrow_mut().push(serde_json::to_value(&event).expect("an event serializes"))
 //@end
 //@ TurnsCtx::pass
-        self.passed.borrow_mut().push(event)
+        self.passed.borrow_mut().push(serde_json::to_value(&event).expect("an event serializes"))
 //@end
 //@ TurnsCtx::held_at_close
         self.held_at_close.clone()
@@ -144,19 +144,19 @@
         self.latest_row(thread_id)
 //@end
 //@ SessionsCtx::rows_on
-        self.rows.borrow().values().filter(|r| r.view.borrow().thread_id.as_deref() == Some(thread_id)).map(|r| r.view.borrow().clone()).collect()
+        self.rows.borrow().values().filter(|r| r.borrow().view.thread_id.as_deref() == Some(thread_id)).map(|r| r.borrow().view.clone()).collect()
 //@end
 //@ SessionsCtx::thread_runs
-        self.rows.borrow().values().any(|r| { let v = r.view.borrow(); v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) })
+        self.rows.borrow().values().any(|r| { let r = r.borrow(); let v = &r.view; v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) })
 //@end
 //@ SessionsCtx::running_on
-        self.rows.borrow().values().find(|r| { let v = r.view.borrow(); v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) && r.handle.is_some() }).cloned()
+        self.rows.borrow().values().find(|row| { let r = row.borrow(); let v = &r.view; v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) && r.handle.is_some() }).cloned()
 //@end
 //@ SessionsCtx::launching_on
-        self.rows.borrow().values().find(|r| { let v = r.view.borrow(); v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) && r.handle.is_none() && r.launch.is_some() }).cloned()
+        self.rows.borrow().values().find(|row| { let r = row.borrow(); let v = &r.view; v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) && r.handle.is_none() && r.launch.is_some() }).cloned()
 //@end
 //@ SessionsCtx::entry_of_row
-        Ok(self.live(workspace_id))
+        Ok(self.live(&at.workspace_id))
 //@end
 //@ SessionsCtx::entry_of_with
         self.live(workspace_id).ok_or_else(|| HostError::with_kind(format!("no workspace {workspace_id}"), Kind::NotFound))
@@ -165,10 +165,10 @@
         self.recorded.borrow_mut().push(event)
 //@end
 //@ SessionsCtx::emit
-        self.emitted.borrow_mut().push(event)
+        self.emitted.borrow_mut().push(serde_json::to_value(&event).expect("an event serializes"))
 //@end
 //@ SessionsCtx::pass
-        self.passed.borrow_mut().push(event)
+        self.passed.borrow_mut().push(serde_json::to_value(&event).expect("an event serializes"))
 //@end
 //@ SessionsCtx::on_turn_settled
         Rc::new(|| {})
@@ -195,7 +195,7 @@
         thread_id.to_string()
 //@end
 //@ SessionsCtx::tree_of
-        Tree::default()
+        TreeOf::default()
 //@end
 //@ SessionsCtx::thread_of_token
         token.to_string()
@@ -256,4 +256,10 @@
 //@end
 //@ SessionsCtx::kept_warm
         true
+//@end
+//@ TurnsCtx::harness_exec
+        Arc::new(NoExec)
+//@end
+//@ LaunchCtx::vault
+        Default::default()
 //@end

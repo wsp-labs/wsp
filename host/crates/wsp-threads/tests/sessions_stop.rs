@@ -5,6 +5,7 @@
 //! Not tested here: K5 (a send waiting on an owed end is given up) and the wake of sends behind a running turn
 //! (K1 with a box). Both read state only the launch road writes (`held_sends`, `behind_turn`, `waits_for`), and
 //! `SessionsArea::stops` is `pub(crate)`, so a test outside the crate cannot set or read it.
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::{Cell, RefCell};
@@ -16,7 +17,9 @@ use futures::future::Shared;
 use support::*;
 use wsp_core::console;
 use wsp_core::types::wiring::{AccessMove, SteerTaken};
+use wsp_machines::machines::boot::entries::RowAt;
 use wsp_threads::threads::sessions::stop::Ended;
+use wsp_threads::threads::threads::cap::CapWaiting;
 use wsp_wire::views::session::SessionStatus;
 use wsp_wire::wire::limits::STOP_REACH_MS;
 use wsp_wire::wire::runtime::{
@@ -329,22 +332,42 @@ fn spec() -> Spec {
 }
 
 /// A row the host holds. Its `end` logs the call and settles the row as interrupted, as the turn's own end does.
-fn put(s: &Scene, sp: Spec) -> SessionEntry {
+fn put(s: &Scene, sp: Spec) -> Row {
     let v = view(sp.key, "w1", json!({ "threadId": sp.thread, "status": sp.status, "startedAt": T0 }));
-    let mut r = row(v, sp.turn);
-    let shown = r.view.clone();
-    r.handle = sp.handle.map(|h| h as Rc<dyn SessionHandle>);
+    let r = row(v, sp.turn);
+    r.borrow_mut().handle = sp.handle.map(|h| h as Rc<dyn SessionHandle>);
     if sp.end {
         let log = s.log.clone();
-        r.end = Some(Rc::new(move |reason: &str, by_stop: Option<bool>, unreached: Option<bool>| {
+        let shown = Rc::downgrade(&r);
+        r.borrow_mut().end = Some(Rc::new(move |reason: &str, by_stop: Option<bool>, unreached: Option<bool>| {
             say(&log, format!("end({reason}, {by_stop:?}, {unreached:?})"));
-            shown.borrow_mut().status = SessionStatus::Interrupted;
+            if let Some(shown) = shown.upgrade() {
+                shown.borrow_mut().view.status = SessionStatus::Interrupted;
+            }
         }));
     }
-    r.launch = sp.launch;
-    r.unanswered = sp.unanswered;
+    r.borrow_mut().launch = sp.launch;
+    r.borrow_mut().unanswered = sp.unanswered;
     s.host.add_row(sp.key, r.clone());
     r
+}
+
+/// A cap hold nothing has looked at yet.
+fn held() -> CapHeld {
+    CapHeld { place_id: None, lenders: Vec::new(), order: 0, stopped: None, stops: Vec::new(), waiting: None, through: None }
+}
+
+/// A cap hold whose turn waits with `wait`.
+fn held_waiting(wait: ThreadCapWait) -> CapHeld {
+    let waiting = CapWaiting {
+        wait,
+        workspace_id: "w1".to_string(),
+        thread_id: THREAD.to_string(),
+        session_id: KEY.to_string(),
+        wake: Rc::new(|| {}),
+        stop: Rc::new(|_line: &str| {}),
+    };
+    CapHeld { waiting: Some(waiting), ..held() }
 }
 
 fn answered(r: Result<SessionInterruptResult, HostError>) -> Value {
@@ -640,9 +663,12 @@ fn a_row_the_caller_cannot_reach_reads_not_found() {
         };
         let seen: Rc<RefCell<Vec<Option<Caller>>>> = Rc::new(RefCell::new(Vec::new()));
         let sink = seen.clone();
-        s.host.hooks.set::<dyn Fn(Option<&str>, &str, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+        let ats: Rc<RefCell<Vec<RowAt>>> = Rc::new(RefCell::new(Vec::new()));
+        let at_sink = ats.clone();
+        s.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
             "SessionsCtx::entry_of_row",
-            Rc::new(move |_t: Option<&str>, _w: &str, o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| {
+            Rc::new(move |at: &RowAt, o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| {
+                at_sink.borrow_mut().push(at.clone());
                 sink.borrow_mut().push(o.cloned());
                 async move { Ok(None) }.boxed_local()
             }),
@@ -650,6 +676,7 @@ fn a_row_the_caller_cannot_reach_reads_not_found() {
         let r = s.area.interrupt_row(KEY, Some(outside.clone()), None).await;
         assert_eq!(answered(r), json!({ "outcome": "not-found" }), "the same answer as a row nobody holds");
         assert_eq!(*seen.borrow(), vec![Some(outside)]);
+        assert_eq!(*ats.borrow(), vec![RowAt { thread_id: Some(THREAD.to_string()), workspace_id: "w1".to_string() }]);
         assert_eq!(s.host.hooks.called("entry_of_row"), vec![format!("entry_of_row(Some(\"{THREAD}\"), w1, false)")]);
         assert_eq!(h.calls(), Vec::<String>::new(), "the agent hears nothing");
         assert_eq!(*s.log.borrow(), strs(&["cap_stopping(sess-1)", "release"]));
@@ -663,10 +690,21 @@ fn a_trimmed_thread_is_stopped_by_its_record() {
         let s = scene();
         s.host.add_record(THREAD, "w1", thread_record(json!({ "harness": "claude", "ended": "completed" })));
         set_under(&s, vec!["child-thr".to_string()]);
+        let ats: Rc<RefCell<Vec<RowAt>>> = Rc::new(RefCell::new(Vec::new()));
+        let at_sink = ats.clone();
+        let host = s.host.clone();
+        s.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+            "SessionsCtx::entry_of_row",
+            Rc::new(move |at: &RowAt, _o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| {
+                at_sink.borrow_mut().push(at.clone());
+                let live = host.live(&at.workspace_id);
+                async move { Ok(live) }.boxed_local()
+            }),
+        );
         let r = s.area.interrupt_row(THREAD, None, None).await;
         assert_eq!(answered(r), json!({ "outcome": "not-running", "under": ["child-thr"] }), "a thread nothing runs, its tree stopped under it");
-        let asked = format!("entry_of_row(Some(\"{THREAD}\"), w1, false)");
-        let calls = s.host.hooks.called("entry_of_row");
+        let asked = RowAt { thread_id: Some(THREAD.to_string()), workspace_id: "w1".to_string() };
+        let calls = ats.borrow();
         assert!(!calls.is_empty() && calls.iter().all(|c| *c == asked), "the trimmed row names the thread and its workspace: {calls:?}");
         assert_eq!(
             *s.log.borrow(),
@@ -689,9 +727,9 @@ fn a_trimmed_thread_the_caller_cannot_reach_reads_not_found() {
     run_local(async {
         let s = scene();
         s.host.add_record(THREAD, "w1", thread_record(json!({ "harness": "claude" })));
-        s.host.hooks.set::<dyn Fn(Option<&str>, &str, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+        s.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
             "SessionsCtx::entry_of_row",
-            Rc::new(|_t: Option<&str>, _w: &str, _o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| async move { Ok(None) }.boxed_local()),
+            Rc::new(|_a: &RowAt, _o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| async move { Ok(None) }.boxed_local()),
         );
         let r = s.area.interrupt_row(THREAD, None, None).await;
         assert_eq!(answered(r), json!({ "outcome": "not-found" }));
@@ -712,7 +750,7 @@ fn a_task_stop_stops_only_the_subagent() {
         assert_eq!(answered(r), json!({ "outcome": "accepted" }));
         assert_eq!(h.calls(), strs(&["stop_task(a1)"]), "the turn itself is not stopped");
         assert_eq!(*s.log.borrow(), Vec::<String>::new(), "no cap stop, no tree, no end of the row");
-        assert_eq!(s.host.rows.borrow()[KEY].view.borrow().status, SessionStatus::Running);
+        assert_eq!(s.host.rows.borrow()[KEY].borrow().view.status, SessionStatus::Running);
     });
 }
 
@@ -755,7 +793,7 @@ fn a_harness_with_no_task_stop_is_unsupported() {
         let r = s.area.interrupt_row(KEY, None, Some("a1".to_string())).await;
         assert_eq!(answered(r), json!({ "outcome": "unsupported", "error": task_stop_unsupported_line("Claude Code") }));
         assert_eq!(h.calls(), Vec::<String>::new());
-        assert_eq!(s.host.rows.borrow()[KEY].view.borrow().status, SessionStatus::Running, "the turn runs on");
+        assert_eq!(s.host.rows.borrow()[KEY].borrow().view.status, SessionStatus::Running, "the turn runs on");
     });
 }
 
@@ -806,7 +844,7 @@ fn a_held_turn_is_marked_and_never_launches() {
     run_local(async {
         let s = scene();
         let wait = thread_wait();
-        set_held(&s, "turn-held", CapHeld { wait: Some(wait.clone()), ..Default::default() });
+        set_held(&s, "turn-held", held_waiting(wait.clone()));
         let (launch, open) = gate();
         put(&s, Spec { key: "turn-held", turn: "turn-held", launch: Some(launch), end: false, ..spec() });
         let said = spawn({
@@ -835,7 +873,7 @@ fn a_held_turn_is_marked_and_never_launches() {
 fn a_held_turn_that_has_not_looked_is_marked_with_no_wait() {
     run_local(async {
         let s = scene();
-        set_held(&s, "turn-held", CapHeld::default());
+        set_held(&s, "turn-held", held());
         let (launch, open) = gate();
         put(&s, Spec { key: "turn-held", turn: "turn-held", launch: Some(launch), end: false, ..spec() });
         open();
@@ -850,7 +888,7 @@ fn a_held_turn_that_has_not_looked_is_marked_with_no_wait() {
 fn a_stop_on_a_held_turn_takes_the_tree_under_it() {
     run_local(async {
         let s = scene();
-        set_held(&s, "turn-held", CapHeld::default());
+        set_held(&s, "turn-held", held());
         set_under(&s, vec!["child-thr".to_string()]);
         let (launch, open) = gate();
         put(&s, Spec { key: "turn-held", turn: "turn-held", launch: Some(launch), end: false, ..spec() });
@@ -1010,7 +1048,7 @@ fn a_running_row_with_no_road_to_its_process_is_not_running() {
     run_local(async {
         let s = scene();
         let r = put(&s, Spec { end: false, ..spec() });
-        assert!(r.handle.is_none());
+        assert!(r.borrow().handle.is_none());
         let said = s.area.interrupt_row(KEY, None, None).await;
         assert_eq!(answered(said), json!({ "outcome": "not-running" }));
         assert!(!s.log.borrow().iter().any(|l| l.starts_with("end(")), "nothing ended the row");
@@ -1022,7 +1060,7 @@ fn a_running_row_with_no_road_to_its_process_is_not_running() {
 fn a_lines_try_is_not_an_unanswered_row_to_stop_here() {
     run_local(async {
         let s = scene();
-        s.host.hooks.set::<dyn Fn(&SessionEntry) -> bool>("SessionsCtx::line_try", Rc::new(|_r: &SessionEntry| true));
+        s.host.hooks.set::<dyn Fn(&Row) -> bool>("SessionsCtx::line_try", Rc::new(|_r: &Row| true));
         put(&s, Spec { unanswered: true, ..spec() });
         let r = s.area.interrupt_row(KEY, None, None).await;
         assert_eq!(answered(r), json!({ "outcome": "not-running" }));
@@ -1178,7 +1216,7 @@ fn a_stop_on_a_box_away_owes_the_end_and_holds_the_next_turn() {
             ]),
             "the agent is still asked to stop, the group is ended away, the row settles, then the owed end is read"
         );
-        assert_eq!(s.host.rows.borrow()[KEY].view.borrow().status, SessionStatus::Interrupted);
+        assert_eq!(s.host.rows.borrow()[KEY].borrow().view.status, SessionStatus::Interrupted);
         assert_eq!(s.host.hooks.called("place_name_of"), vec!["place_name_of(place-1)".to_string()], "the hold names the computer");
         assert!(s.area.stop_holds(THREAD), "the next turn waits for the end the computer owes");
         pay();
@@ -1274,7 +1312,7 @@ fn a_computer_that_stops_answering_takes_the_away_road() {
         settle().await;
         let r = said.borrow_mut().take().expect("the stop answers once the time is up");
         assert_eq!(answered(r), json!({ "outcome": "accepted", "left": "the box is slow" }));
-        assert_eq!(s.host.rows.borrow()[KEY].view.borrow().status, SessionStatus::Interrupted);
+        assert_eq!(s.host.rows.borrow()[KEY].borrow().view.status, SessionStatus::Interrupted);
         assert!(s.area.stop_holds(THREAD));
         pay();
         settle().await;
@@ -1301,7 +1339,7 @@ fn a_computer_that_answers_hears_the_stop() {
         let log = s.log.borrow().clone();
         assert!(log.contains(&"end_thread(thr-ab12cd34, remove=false, away=false)".to_string()), "{log:?}");
         assert!(!log.iter().any(|l| l.starts_with("end(") || l.starts_with("end_owed")), "the turn ends itself and nothing is owed: {log:?}");
-        assert_eq!(s.host.rows.borrow()[KEY].view.borrow().status, SessionStatus::Running, "the row is settled by the turn, not by the stop");
+        assert_eq!(s.host.rows.borrow()[KEY].borrow().view.status, SessionStatus::Running, "the row is settled by the turn, not by the stop");
         assert!(!s.area.stop_holds(THREAD));
     });
 }
@@ -1421,7 +1459,7 @@ fn a_lines_try_is_ended_with_no_tree_and_no_mark() {
         on_box(&s);
         set_link(&s, true);
         set_away(&s, Rc::new(Cell::new(true)));
-        s.host.hooks.set::<dyn Fn(&SessionEntry) -> bool>("SessionsCtx::line_try", Rc::new(|_r: &SessionEntry| true));
+        s.host.hooks.set::<dyn Fn(&Row) -> bool>("SessionsCtx::line_try", Rc::new(|_r: &Row| true));
         group_end(&s, |o| Ok(if o.away { Some("the box is away".to_string()) } else { None }));
         let (paid, pay) = gate();
         owes(&s, Some(Some(paid)));
@@ -1440,7 +1478,7 @@ fn a_lines_try_is_ended_with_no_tree_and_no_mark() {
             ]),
             "no tree, no cap mark, no try_stopped, no drop of a queued turn"
         );
-        assert_eq!(s.host.rows.borrow()[KEY].view.borrow().status, SessionStatus::Interrupted, "the row settles");
+        assert_eq!(s.host.rows.borrow()[KEY].borrow().view.status, SessionStatus::Interrupted, "the row settles");
         assert!(s.area.stop_holds(THREAD), "the end is owed to the computer's next link");
         assert_eq!(cap.lines(), Vec::<String>::new(), "a line's try is not logged as a stop");
         pay();

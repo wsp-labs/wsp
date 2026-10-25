@@ -3,6 +3,7 @@
 //! Spec: spec/sessions_start.md.
 use std::rc::Rc;
 
+use wsp_adapters::port::ForkTurn;
 use wsp_core::types::api::{ForkOptions, StartOptions};
 use wsp_core::types::wiring::SessionHandle;
 use wsp_wire::types::attachments::AttachmentRecord;
@@ -12,9 +13,11 @@ use wsp_wire::views::workspace::Caller;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 use wsp_words::exit::HostError;
 
-use super::{ForkPlan, SessionsArea, Tree};
-use crate::pending::{Entry, Waiting};
-use crate::threads::launch::{BuiltAdapter, ThreadLaunch};
+use super::{ForkPlan, SessionsArea};
+use wsp_account::account::rules::TreeOf;
+use crate::threads::agents::launch::BuiltAdapter;
+use crate::threads::launch::ThreadLaunch;
+use crate::threads::threads::{Entry, Waiting};
 
 /// A start that passed every check, carried to its launch (sessions_launch).
 pub struct Prepared {
@@ -32,7 +35,7 @@ pub struct Prepared {
     /// The worktree path found removed by hand, where one was.
     pub gone_now: Option<String>,
     pub title: Option<String>,
-    pub tree: Tree,
+    pub tree: TreeOf,
     /// The notify targets this start named (TS `asked`).
     pub asked: Option<Vec<String>>,
     pub notify: Option<Vec<String>>,
@@ -45,7 +48,7 @@ pub struct Prepared {
     pub turn_token: String,
     pub launch: ThreadLaunch,
     pub built: BuiltAdapter,
-    pub fork_turn: Option<serde_json::Value>,
+    pub fork_turn: Option<ForkTurn>,
     pub records: Vec<AttachmentRecord>,
     pub mcp_servers: Option<indexmap::IndexMap<String, McpServerSpec>>,
     pub waiting: Waiting,

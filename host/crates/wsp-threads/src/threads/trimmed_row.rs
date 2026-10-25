@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of runtime/src/threads/trimmed-row.ts at 65f6b89c7. Spec: spec/trimmed_row.md.
-use wsp_core::types::internal::ThreadWords;
+use wsp_core::types::internal::{ThreadRecord, ThreadWords};
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::session_events::TurnStatus;
-
-use crate::pending::HeldThread;
 
 /// The three reads a trimmed row makes of the runtime.
 pub trait TrimmedCtx {
@@ -17,6 +15,6 @@ pub trait TrimmedCtx {
 }
 
 /// trimmed-row.ts:9. `ended` is the TS default parameter: None reads `record.ended`. Rules T1-T7.
-pub fn trimmed_row(ctx: &dyn TrimmedCtx, thread_id: &str, held: &HeldThread, ended: Option<TurnStatus>) -> SessionView {
+pub fn trimmed_row(ctx: &dyn TrimmedCtx, thread_id: &str, held: &ThreadRecord, ended: Option<TurnStatus>) -> SessionView {
     todo!()
 }

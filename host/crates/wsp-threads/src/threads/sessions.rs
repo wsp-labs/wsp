@@ -10,20 +10,23 @@ use async_trait::async_trait;
 use futures::future::LocalBoxFuture;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
-use wsp_adapters::port::{AsideQuestion, HarnessAdapter, KeptAgent, TurnImage};
+use wsp_account::account::rules::TreeOf;
+use wsp_adapters::port::{AsideQuestion, ForkTurn, ForkedSession, HarnessAdapter, SessionRenameWrite};
+use wsp_machines::machines::boot::entries::{EntryAsk, RowAt};
+use wsp_machines::machines::sub_spawn::machine::Resumed;
+use wsp_store::transcript_reader::ThreadRead;
+use wsp_wire::wire::events_union::EventUnion;
 use wsp_core::clock::Clock;
-use wsp_core::ids::Ids;
 use wsp_core::types::api::{
     AnswerAsk, DeleteThreadAsk, ForkOptions, HistoryAsk, PageWindow, RewindAsk, SessionsApi, SettleAsk, StartOptions, SteerAsk,
     ThreadDeleted, WarmAsk,
 };
-use wsp_core::types::internal::{EndThread, KeptLaunch, SearchedHit, Taken, ThreadStamps, TreeTalk};
+use wsp_core::context::Joined;
+use wsp_core::types::internal::{EndThread, KeptLaunch, KeptProcess, SearchedHit, Taken, ThreadRecord, ThreadStamps, TreeTalk};
 use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
 use wsp_wire::types::attachments::KeptAttachment;
-use wsp_wire::views::activity::ProcessesAsk;
-use wsp_wire::views::harness::HarnessCatalog;
-use wsp_wire::views::preferences::{HistoryPage, Preferences, ThreadFacts, ThreadHead};
-use wsp_wire::views::session::{ForkedFrom, SessionView, ThreadCapWait, ThreadMarks};
+use wsp_wire::views::preferences::{HistoryPage, ThreadFacts, ThreadHead};
+use wsp_wire::views::session::{SessionView, ThreadCapWait, ThreadMarks};
 use wsp_wire::views::session_events_more::{RunStep, SessionEvent, SessionRunEvent};
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
@@ -34,8 +37,10 @@ use wsp_wire::wire::runtime::{
 use wsp_words::exit::HostError;
 
 use crate::activity::ActivityDoor;
-use crate::pending::{Entry, HeldThread, Joined, Records, Rows, SessionEntry, SharedView};
-use crate::threads::launch::{AdapterAsk, BuiltAdapter, LaunchArea, LaunchCtx, LaunchServers, ThreadLaunch};
+use crate::threads::agents::launch::{BuiltAdapter, LandedImages};
+use crate::threads::forks::{ForkPlan, StartFn};
+use crate::threads::launch::{LaunchArea, LaunchCtx};
+use crate::threads::threads::{CapAt, CapHeld, Entry, NotifyOn, Row, Sessions, ThreadRecords};
 use crate::threads::trimmed_row::TrimmedCtx;
 use crate::threads::turns::TurnStart;
 use crate::threads::waits::WaitsArea;
@@ -52,124 +57,26 @@ pub mod stop;
 /// The stamps a mark writes on each thread (a type of its own: async-trait misreads the elided lifetime in place).
 pub type StampsOf = Rc<dyn Fn(&str) -> ThreadStamps>;
 
-/// A start as forks.ts's `forkStart` calls it back.
-pub type StartFn = Rc<dyn Fn(String, StartOptions) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>>>;
-
-/// A fork's plan, as forks.ts's `forkOpened` hands it (the other slice's file; sessions reads these fields).
-#[derive(Clone, Debug, PartialEq)]
-pub struct ForkPlan {
-    /// Whether the fork names a turn to cut at (`plan.turn !== undefined`).
-    pub has_turn: bool,
-    pub source_thread_id: String,
-    pub source_session: Option<String>,
-    pub forked_from: ForkedFrom,
-    /// The plan as forks.ts holds it, handed back to its functions whole.
-    pub raw: Value,
-}
-
-/// What `readyFork` readied (forks.ts): a copy the turn resumes, or the fork the start makes itself.
-pub enum Readied {
-    Resume { resume: String, drop: Option<Box<dyn FnOnce() -> LocalBoxFuture<'static, Result<(), HostError>>>> },
-    Fork { fork: Value },
-}
-
-/// `ctx.capHeld.get(turnId)`.
-#[derive(Clone, Default)]
-pub struct CapHeld {
-    pub wait: Option<ThreadCapWait>,
-    pub stops: Vec<Joined>,
-    pub stopped: Option<String>,
-}
-
-/// `ctx.capWait(...)`'s ask (sessions.ts:674).
-#[derive(Clone, Debug, PartialEq)]
-pub struct CapWaitAsk {
-    pub workspace_id: String,
-    pub thread_id: String,
-    pub turn_id: String,
-    pub session_id: String,
-    pub prompt: String,
-    pub request_id: Option<String>,
-}
-
-/// A send's registered notify (`ctx.notifyOn(threadId)`).
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Registered {
-    pub notify: Vec<String>,
-    pub by: Option<ThreadScope>,
-    pub road: Option<WorkspaceOrigin>,
-}
-
-/// The tree a thread sits in (`{ parentThreadId?, rootThreadId? }`).
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Tree {
-    pub parent_thread_id: Option<String>,
-    pub root_thread_id: Option<String>,
-}
-
-/// `ctx.resumeSub(...)`'s answer.
-pub struct ResumedSub {
-    pub entry: Entry,
-    pub preamble: Option<String>,
-    pub notices: Vec<String>,
-}
-
-/// A kept process a turn runs on (`ctx.takeKept(...)`'s answer).
-#[derive(Clone)]
-pub struct TakenKept {
-    pub agent: Arc<dyn KeptAgent>,
-    pub turn_token: String,
-    pub scope_device_id: Option<String>,
-    pub launch: KeptLaunch,
-    pub waiting: crate::pending::Waiting,
-}
-
-/// What a session write answered (`ctx.writeSession(...)`).
-#[derive(Clone, Debug, PartialEq)]
-pub enum SessionWrite {
-    Written,
-    NoSession,
-    Failed(String),
-}
-
-/// What `ctx.landImages` answers.
-#[derive(Clone, Debug, Default)]
-pub struct Landed {
-    pub images: Vec<TurnImage>,
-    pub dir: Option<String>,
-}
-
-/// What a page read asks (`ctx.transcriptReader.read(...)`'s options).
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ReadWindow {
-    pub before: Option<u64>,
-    /// None reads unbounded.
-    pub limit: Option<u64>,
-    pub bytes: u64,
-    pub strict: bool,
-    pub head_shape: bool,
-}
-
 /// What the sessions area reads of the runtime, sectioned by the unit that reads it. The launch area's reads come
 /// through `LaunchCtx`; a trimmed row's through `TrimmedCtx`.
 #[async_trait(?Send)]
 pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn clock(&self) -> Rc<dyn Clock>;
-    fn sessions(&self) -> Rows;
-    fn records(&self) -> Records;
+    fn sessions(&self) -> Sessions;
+    fn records(&self) -> ThreadRecords;
     fn live_entry(&self, workspace_id: &str) -> Option<Entry>;
     fn latest_on(&self, thread_id: &str) -> Option<SessionView>;
     fn rows_on(&self, thread_id: &str) -> Vec<SessionView>;
     fn thread_runs(&self, thread_id: &str) -> bool;
-    fn running_on(&self, thread_id: &str) -> Option<SessionEntry>;
-    fn launching_on(&self, thread_id: &str) -> Option<SessionEntry>;
+    fn running_on(&self, thread_id: &str) -> Option<Row>;
+    fn launching_on(&self, thread_id: &str) -> Option<Row>;
     /// `ctx.entryOfRow({ threadId, workspaceId }, origin, talk, { beingMade })`; None where the caller does not reach.
-    async fn entry_of_row(&self, thread_id: Option<&str>, workspace_id: &str, origin: Option<&Caller>, talk: Option<TreeTalk>, being_made: bool) -> Result<Option<Entry>, HostError>;
+    async fn entry_of_row(&self, at: &RowAt, origin: Option<&Caller>, talk: Option<TreeTalk>, being_made: bool) -> Result<Option<Entry>, HostError>;
     /// `ctx.entryOf(id, origin, { beingMade, now })`.
-    async fn entry_of_with(&self, workspace_id: &str, origin: Option<&Caller>, being_made: bool, now: bool) -> Result<Entry, HostError>;
+    async fn entry_of_with(&self, workspace_id: &str, origin: Option<&Caller>, ask: EntryAsk) -> Result<Entry, HostError>;
     fn record(&self, event: SessionEvent);
-    fn emit(&self, event: Value);
-    fn pass(&self, event: Value);
+    fn emit(&self, event: EventUnion);
+    fn pass(&self, event: EventUnion);
     /// `bus.on("*")` for this turn's `session.start` and `session.end`; answers the listener's off.
     fn on_turn_settled(&self, turn_id: &str, f: Rc<dyn Fn()>) -> Rc<dyn Fn()>;
     async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError>;
@@ -195,7 +102,7 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     async fn stop_under(&self, thread_id: &str, origin: Option<&Caller>) -> Result<Vec<String>, HostError>;
     fn try_stopped(&self, turn_id: &str);
     /// `ctx.lineTry(row)`.
-    fn line_try(&self, row: &SessionEntry) -> bool;
+    fn line_try(&self, row: &Row) -> bool;
     /// The kind's `endThread`, None where the kind ends no group.
     fn end_thread(&self, entry: &Entry, thread_id: &str, o: EndThread) -> Option<LocalBoxFuture<'static, Result<Option<String>, HostError>>>;
     /// The kind's `endOwed`: None where the kind has none; `Some(None)` where nothing is owed; else the end's `paid`.
@@ -225,17 +132,17 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn spawn_guard(&self, act: &str, origin: Option<&Caller>) -> Result<(), HostError>;
     fn parent_of(&self, thread_id: &str) -> Option<String>;
     fn root_of(&self, thread_id: &str) -> String;
-    fn tree_of(&self, scope: Option<&ThreadScope>) -> Tree;
+    fn tree_of(&self, scope: Option<&ThreadScope>) -> TreeOf;
     fn thread_of_token(&self, token: &str) -> String;
     fn reaches_row(&self, view: &SessionView, origin: Option<&Caller>, talk: Option<TreeTalk>) -> bool;
     fn notify_reach(&self, notify: &[String]) -> IndexSet<String>;
-    fn notify_on(&self, thread_id: &str) -> Option<Registered>;
-    async fn resume_sub(&self, entry: &Entry, thread_id: &str, harness: &str, prompt: &str) -> Result<ResumedSub, HostError>;
+    fn notify_on(&self, thread_id: &str) -> Option<NotifyOn>;
+    async fn resume_sub(&self, entry: &Entry, thread_id: &str, harness: &str, prompt: &str) -> Result<Resumed, HostError>;
     async fn place_rows(&self) -> Option<Vec<wsp_wire::views::place_more::PlaceView>>;
-    async fn hold_queued(&self, workspace_id: &str, thread_id: &str, tree: Tree, opts: StartOptions, notify: Option<Vec<String>>, origin: Option<&Caller>) -> Result<Rc<dyn SessionHandle>, HostError>;
+    async fn hold_queued(&self, workspace_id: &str, thread_id: &str, tree: TreeOf, opts: StartOptions, notify: Option<Vec<String>>, origin: Option<&Caller>) -> Result<Rc<dyn SessionHandle>, HostError>;
     fn launch_area(&self) -> LaunchArea;
     /// forks.ts `forkTurnOf(plan, byCount)`.
-    fn fork_turn_of(&self, plan: &ForkPlan, by_count: bool) -> Option<Value>;
+    fn fork_turn_of(&self, plan: &ForkPlan, by_count: bool) -> Result<Option<ForkTurn>, HostError>;
     fn sub_done(&self, workspace_id: &str);
     /// `ctx.keptAgents.get(threadId)?.warm !== undefined`.
     fn kept_warm(&self, thread_id: &str) -> bool;
@@ -246,28 +153,28 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn carried_title(&self, thread_id: &str) -> (Option<String>, Option<wsp_wire::views::session::TitleSource>);
     fn cap_hold(&self, record: &WorkspaceRecord, turn_id: &str, lender: Option<&str>);
     fn cap_full(&self, record: &WorkspaceRecord, turn_id: &str) -> Option<ThreadCapWait>;
-    fn cap_wait(&self, ask: CapWaitAsk, full: ThreadCapWait) -> Joined;
+    fn cap_wait(&self, ask: CapAt, full: ThreadCapWait) -> Joined;
     fn cap_left(&self, turn_id: &str);
     fn cap_lend(&self, turn_id: &str, lender: &str);
     async fn first_run_here(&self, entry: &Entry, harness: &str) -> Result<bool, HostError>;
     async fn limit_details_due(&self, entry: &Entry, harness: &str) -> Result<bool, HostError>;
     fn host_writes(&self, session: &str) -> Option<Joined>;
-    async fn land_images(&self, entry: &Entry, adapter: &dyn HarnessAdapter, landing: &str, dir: &str, attachments: Vec<wsp_wire::types::attachments::Attachment>) -> Result<Landed, HostError>;
+    async fn land_images(&self, entry: &Entry, adapter: &dyn HarnessAdapter, landing: &str, dir: &str, attachments: Vec<wsp_wire::types::attachments::Attachment>) -> Result<LandedImages, HostError>;
     async fn land_files(&self, entry: &Entry, landing: &str, dir: &str, attachments: Vec<wsp_wire::types::attachments::Attachment>) -> Result<Vec<String>, HostError>;
     /// forks.ts `readyFork(adapter, session, turn, refused)`.
-    async fn ready_fork(&self, adapter: &dyn HarnessAdapter, session: &str, turn: Value, harness: &str) -> Result<Readied, HostError>;
+    async fn ready_fork(&self, adapter: Arc<dyn HarnessAdapter>, session: &str, turn: ForkTurn, harness: &str) -> Result<ForkedSession, HostError>;
     /// forks.ts `copyImages(ctx, plan, at)`.
     async fn copy_images(&self, plan: &ForkPlan, workspace_id: &str, thread_id: &str) -> Result<(), HostError>;
     /// forks.ts `payCutOwed(ctx, adapter, at, resume)`.
-    async fn pay_cut_owed(&self, adapter: &dyn HarnessAdapter, workspace_id: &str, thread_id: &str, resume: &str) -> Result<String, HostError>;
+    async fn pay_cut_owed(&self, adapter: Arc<dyn HarnessAdapter>, workspace_id: &str, thread_id: &str, resume: &str) -> String;
     /// `ctx.snapshotOf(entry, cwd)`: the commit the turn's changes start from, once taken.
     fn snapshot_of(&self, entry: &Entry, cwd: &str) -> futures::future::Shared<LocalBoxFuture<'static, Option<String>>>;
-    async fn keep_steer(&self, running: &SessionEntry, opts: &StartOptions, origin: Option<&Caller>, steer_id: &str) -> Result<(), HostError>;
-    fn steer_lost(&self, running: &SessionEntry, steer_id: &str);
-    fn steer_answered(&self, running: &SessionEntry, handle_id: &str, opts: &StartOptions, origin: Option<&Caller>, steer_id: &str, accepted: bool) -> bool;
+    async fn keep_steer(&self, running: &Row, opts: &StartOptions, origin: Option<&Caller>, steer_id: &str) -> Result<(), HostError>;
+    fn steer_lost(&self, running: &Row, steer_id: &str);
+    fn steer_answered(&self, running: &Row, handle_id: &str, opts: &StartOptions, origin: Option<&Caller>, steer_id: &str, accepted: bool) -> bool;
     fn cut_before(&self, workspace_id: &str, thread_id: &str) -> bool;
     /// `ctx.takeKept(threadId, ask, resume, launchKey)`.
-    fn take_kept(&self, thread_id: &str, ask: Option<KeptLaunch>, resume: Option<&str>, launch_key: Option<&KeptLaunch>) -> Option<TakenKept>;
+    fn take_kept(&self, thread_id: &str, ask: Option<KeptLaunch>, resume: Option<&str>, launch_key: Option<&KeptLaunch>) -> Option<Rc<RefCell<KeptProcess>>>;
     /// forks.ts `copiedEvents(plan, at)`, recorded through `ctx.recordCopies`.
     fn record_copies(&self, plan: &ForkPlan, workspace_id: &str, thread_id: &str);
     fn run_turn(&self, t: TurnStart) -> Result<Rc<dyn SessionHandle>, HostError>;
@@ -275,10 +182,10 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn cancel_resume_timer(&self, thread_id: &str);
     async fn remember_target(&self, record: &WorkspaceRecord) -> Result<(), HostError>;
     /// `ctx.notifyEnd({ view, turnId }, notify, ctx.tellAs({ notifyBy?, notifyRoad? }), result)`.
-    fn notify_end(&self, view: SharedView, turn_id: &str, notify: &[String], by: Option<&ThreadScope>, road: Option<&WorkspaceOrigin>, result: wsp_wire::views::session_events::TurnResult);
+    fn notify_end(&self, row: &Row, notify: &[String], by: Option<&ThreadScope>, road: Option<&WorkspaceOrigin>, result: wsp_wire::views::session_events::TurnResult);
     fn drop_images(&self, entry: &Entry, dir: &str);
     async fn drop_sent_images(&self, workspace_id: &str, thread_ids: &[String]) -> Result<(), HostError>;
-    fn end_kept(&self, thread_id: &str, kept: &TakenKept);
+    fn end_kept(&self, thread_id: &str, kept: &Rc<RefCell<KeptProcess>>);
     /// `ctx.seedFor(...)`: the thread's earlier turns as its seed, this turn left out.
     async fn open_thread(&self, workspace_id: &str, thread_id: &str) -> Result<Vec<SessionEvent>, HostError>;
 
@@ -288,14 +195,14 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn title_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView>;
     fn booting(&self, workspace_id: &str) -> bool;
     async fn refresh_title(&self, view: SessionView, ended: bool) -> Result<(), HostError>;
-    fn tree_records(&self, origin: Option<&Caller>, talk: TreeTalk, workspace_id: Option<&str>) -> Vec<(String, HeldThread)>;
+    fn tree_records(&self, origin: Option<&Caller>, talk: TreeTalk, workspace_id: Option<&str>) -> Vec<(String, ThreadRecord)>;
     fn listed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView>;
     fn placed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView>;
     fn drives_thread(&self, thread_id: Option<&str>, origin: Option<&Caller>) -> bool;
     async fn open_transcript(&self, workspace_id: &str) -> Result<Vec<SessionEvent>, HostError>;
     fn opened_words(&self, workspace_id: &str, thread_id: &str);
     fn index_pos(&self, workspace_id: &str) -> Option<u64>;
-    async fn read_page(&self, workspace_id: &str, thread_id: &str, window: ReadWindow) -> Result<HistoryPage, HostError>;
+    async fn read_page(&self, workspace_id: &str, thread_id: &str, window: ThreadRead) -> Result<HistoryPage, HostError>;
     fn thread_facts(&self, thread_id: &str) -> Option<ThreadFacts>;
     async fn facts_after_read(&self, thread_id: &str, origin: Option<&Caller>) -> Result<Option<ThreadFacts>, HostError>;
     async fn kept_writes(&self, workspace_id: &str);
@@ -306,9 +213,9 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn search_in(&self, workspace_id: &str, words: &str, drives: &dyn Fn(&str) -> bool, found: &mut Vec<SearchedHit>) -> u32;
 
     // sessions_acts
-    fn record_steer(&self, row: &SessionEntry, row_id: &str, ask: &SteerAsk, origin: Option<&Caller>, steer_id: &str);
+    fn record_steer(&self, row: &Row, row_id: &str, ask: &SteerAsk, origin: Option<&Caller>, steer_id: &str);
     async fn launch_adapter_for(&self, entry: &Entry, harness: &str, server_values: Option<wsp_adapters::port::ServerValues>) -> Result<BuiltAdapter, HostError>;
-    async fn write_session(&self, session: &str, entry: &Entry, adapter: Arc<dyn HarnessAdapter>, title: &str) -> Result<SessionWrite, HostError>;
+    async fn write_session(&self, session: &str, entry: &Entry, adapter: Arc<dyn HarnessAdapter>, title: &str) -> Result<SessionRenameWrite, HostError>;
     fn brokered(&self, record: &WorkspaceRecord) -> bool;
     async fn server_values_for(&self, entry: &Entry, harness: &str, cwd: &str) -> Result<Option<wsp_adapters::port::ServerValues>, HostError>;
     async fn mark(&self, thread_ids: &[String], stamps: StampsOf, origin: Option<&Caller>) -> Result<(), HostError>;

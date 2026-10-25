@@ -77,6 +77,7 @@ def logexpr(named):
         if t in ('&str', 'String'): parts.append('%s.to_string()' % n)
         elif t == 'Option<&str>': parts.append('format!("{:?}", %s)' % n)
         elif t in ('bool','u32','u64','f64','i64'): parts.append('%s.to_string()' % n)
+        elif t == '&RowAt': parts += ['format!("{:?}", %s.thread_id.as_deref())' % n, '%s.workspace_id.to_string()' % n]
     return 'vec![%s]' % ', '.join(parts)
 
 HAND = open(sys.argv[2]).read()

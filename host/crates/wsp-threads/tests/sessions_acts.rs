@@ -2,6 +2,7 @@
 //! spec/sessions_acts.md. TS cases: runtime-steer.test.ts, steer-images.test.ts, permission-relay.test.ts,
 //! thread-access.test.ts, session-title.test.ts, thread-marks.test.ts, aside.test.ts, session-run.test.ts
 //! (the whole-runtime cases, ported at the seam).
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::RefCell;
@@ -42,11 +43,11 @@ fn scoped(thread: &str) -> Caller {
 }
 
 type Reached = Rc<RefCell<Vec<(Option<String>, String, Option<TreeTalk>, bool)>>>;
-type EntryOfRow = dyn Fn(Option<&str>, &str, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>;
-type AdapterFor = dyn Fn(&Entry, &str, AdapterAsk) -> Result<BuiltAdapter, HostError>;
+type EntryOfRow = dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>;
+type AdapterFor = dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>;
 type LaunchAdapterFor = dyn Fn(&Entry, &str, Option<wsp_adapters::port::ServerValues>) -> LocalBoxFuture<'static, Result<BuiltAdapter, HostError>>;
 type CatalogOn = dyn Fn(&str, &Entry, &dyn HarnessAdapter) -> LocalBoxFuture<'static, Result<Option<HarnessCatalog>, HostError>>;
-type WriteSession = dyn Fn(&str, &Entry, Arc<dyn HarnessAdapter>, &str) -> LocalBoxFuture<'static, Result<SessionWrite, HostError>>;
+type WriteSession = dyn Fn(&str, &Entry, Arc<dyn HarnessAdapter>, &str) -> LocalBoxFuture<'static, Result<SessionRenameWrite, HostError>>;
 type AsideHook = dyn Fn(&dyn HarnessAdapter, AsideQuestion) -> LocalBoxFuture<'static, Result<String, HostError>>;
 
 /// A session handle a test drives: each road is present or not, and each call is logged.
@@ -132,11 +133,11 @@ impl HarnessAdapter for StubAdapter {
     fn steers_images(&self) -> bool {
         self.steers_images
     }
-    fn rename_session(&self, _id: String, _title: String, _exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
-        self.renames.then(|| futures::future::ready(Ok(SessionRenameWrite::Written)).boxed())
+    fn rename_session(&self, _id: String, _title: String, _exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
+        self.renames.then(|| futures::future::ready(Ok(SessionRenameWrite::Written)).boxed_local())
     }
-    fn aside(&self, _q: AsideQuestion) -> Option<BoxFuture<'static, Result<AsideAnswer, String>>> {
-        self.aside.then(|| futures::future::ready(Err("this test answers through the context".to_string())).boxed())
+    fn aside(&self, _q: AsideQuestion) -> Option<LocalBoxFuture<'static, Result<AsideAnswer, String>>> {
+        self.aside.then(|| futures::future::ready(Err("this test answers through the context".to_string())).boxed_local())
     }
     fn aside_servers(&self) -> bool {
         self.aside_servers
@@ -146,35 +147,9 @@ impl HarnessAdapter for StubAdapter {
     }
 }
 
-/// A recording entry: the bound each harness exec was asked for.
-struct RecEntry {
-    inner: Rc<FakeEntry>,
-    ms: Rc<RefCell<Vec<u64>>>,
-}
-
-impl EntryHandle for RecEntry {
-    fn id(&self) -> String {
-        self.inner.id()
-    }
-    fn record(&self) -> WorkspaceRecord {
-        self.inner.record()
-    }
-    fn set_session(&self, session_id: &str) {
-        self.inner.set_session(session_id)
-    }
-    fn unchecked(&self) -> bool {
-        self.inner.unchecked()
-    }
-    fn opens_thread(&self) -> Option<String> {
-        self.inner.opens_thread()
-    }
-    fn set_checked(&self) {
-        self.inner.set_checked()
-    }
-    fn harness_exec(&self, ms: u64) -> Arc<dyn HarnessExec> {
-        self.ms.borrow_mut().push(ms);
-        self.inner.harness_exec(ms)
-    }
+/// The workspace record an entry holds.
+fn record_in(entry: &Entry) -> WorkspaceRecord {
+    entry.borrow().record.borrow().clone()
 }
 
 fn host() -> (Rc<FakeHost>, SessionsArea) {
@@ -185,16 +160,16 @@ fn host() -> (Rc<FakeHost>, SessionsArea) {
 }
 
 fn put(host: &FakeHost, key: &str, workspace_id: &str, extra: Value, handle: Option<StubHandle>) {
-    let mut r = row(view(key, workspace_id, extra), key);
-    r.handle = handle.map(|h| Rc::new(h) as Rc<dyn SessionHandle>);
+    let r = row(view(key, workspace_id, extra), key);
+    r.borrow_mut().handle = handle.map(|h| Rc::new(h) as Rc<dyn SessionHandle>);
     host.add_row(key, r);
 }
 
 fn unreached(host: &FakeHost, seen: Reached) {
     host.hooks.set::<EntryOfRow>(
         "SessionsCtx::entry_of_row",
-        Rc::new(move |t: Option<&str>, w: &str, _o: Option<&Caller>, talk: Option<TreeTalk>, being_made: bool| {
-            seen.borrow_mut().push((t.map(String::from), w.to_string(), talk, being_made));
+        Rc::new(move |at: &RowAt, _o: Option<&Caller>, talk: Option<TreeTalk>, being_made: bool| {
+            seen.borrow_mut().push((at.thread_id.clone(), at.workspace_id.clone(), talk, being_made));
             async move { Ok(None) }.boxed_local()
         }),
     );
@@ -215,20 +190,21 @@ fn adapters(host: &FakeHost, adapter: StubAdapter) -> Rc<RefCell<Vec<String>>> {
     let seen = asked.clone();
     host.hooks.set::<AdapterFor>(
         "LaunchCtx::adapter_for",
-        Rc::new(move |_e: &Entry, h: &str, _a: AdapterAsk| {
+        Rc::new(move |_e: &Entry, a: AdapterAsk| {
+            let h = a.named.unwrap_or_default();
             seen.borrow_mut().push(format!("adapter_for:{h}"));
-            Ok(BuiltAdapter { harness: h.to_string(), adapter: Arc::new(adapter.clone()) })
+            Ok(BuiltAdapter { harness: h, adapter: Arc::new(adapter.clone()) })
         }),
     );
     asked
 }
 
-fn record_of(host: &FakeHost, thread: &str) -> Option<HeldThread> {
+fn record_of(host: &FakeHost, thread: &str) -> Option<ThreadRecord> {
     host.records.borrow().get(thread).cloned()
 }
 
 fn send_line(host: &FakeHost, with_name: bool) -> String {
-    let rec = host.live("w1").expect("a live workspace").record();
+    let rec = record_in(&host.live("w1").expect("a live workspace"));
     let state = workspace_state(&WorkspaceStateInput { phase: rec.phase.clone(), machine_state: None, reach: None, wake_refused: None });
     let name = if with_name { Some(rec.name.as_str()) } else { None };
     send_refusal(&SendRefusalKind::State(state), rec.gone.as_deref(), name).expect("the state refuses a send")
@@ -255,9 +231,9 @@ type Steers = Rc<RefCell<Vec<(String, String, Option<String>, String)>>>;
 fn watch_steers(host: &FakeHost) -> Steers {
     let seen: Steers = Rc::default();
     let log = seen.clone();
-    host.hooks.set::<dyn Fn(&SessionEntry, &str, &SteerAsk, Option<&Caller>, &str)>(
+    host.hooks.set::<dyn Fn(&Row, &str, &SteerAsk, Option<&Caller>, &str)>(
         "SessionsCtx::record_steer",
-        Rc::new(move |_r: &SessionEntry, id: &str, ask: &SteerAsk, _o: Option<&Caller>, steer_id: &str| {
+        Rc::new(move |_r: &Row, id: &str, ask: &SteerAsk, _o: Option<&Caller>, steer_id: &str| {
             log.borrow_mut().push((id.to_string(), ask.prompt.clone(), ask.request_id.clone(), steer_id.to_string()));
         }),
     );
@@ -477,8 +453,8 @@ fn access_on_a_trimmed_thread_moves_its_record() {
             "SessionsCtx::entry_of_row",
             Rc::new({
                 let seen: Rc<RefCell<Vec<(Option<String>, String)>>> = Rc::clone(&seen);
-                move |t: Option<&str>, w: &str, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| {
-                    seen.borrow_mut().push((t.map(String::from), w.to_string()));
+                move |at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| {
+                    seen.borrow_mut().push((at.thread_id.clone(), at.workspace_id.clone()));
                     async move { Ok(Some(entry("w1", json!({})) as Entry)) }.boxed_local()
                 }
             }),
@@ -490,7 +466,7 @@ fn access_on_a_trimmed_thread_moves_its_record() {
         assert_eq!(*asked.borrow(), vec!["codex".to_string()], "the record's agent");
         assert_eq!(
             record_of(&host, "t9"),
-            Some(HeldThread { workspace_id: "w1".into(), record: thread_record(json!({ "harness": "codex", "permissionMode": "danger-full-access", "rootThreadId": "t9" })) })
+            Some(ThreadRecord { workspace_id: "w1".into(), ..thread_record(json!({ "harness": "codex", "permissionMode": "danger-full-access", "rootThreadId": "t9" })) })
         );
         assert_eq!(calls(&host, &["persist_sessions", "push_head"]), vec!["persist_sessions(w1)".to_string(), "push_head(t9)".to_string()]);
 
@@ -514,10 +490,10 @@ fn access_while_running_lands_on_the_record_and_the_row_follows() {
         assert_eq!(*log.borrow(), vec!["set_access(acceptEdits)".to_string()]);
         assert_eq!(
             record_of(&host, "t1"),
-            Some(HeldThread { workspace_id: "w1".into(), record: thread_record(json!({ "harness": "claude", "permissionMode": "acceptEdits" })) })
+            Some(ThreadRecord { workspace_id: "w1".into(), ..thread_record(json!({ "harness": "claude", "permissionMode": "acceptEdits" })) })
         );
         // The turn moved by the harness writes its own row; this road leaves a running row to the turn.
-        assert_eq!(host.rows.borrow()["turn-1"].view.borrow().permission_mode.as_deref(), Some("bypassPermissions"));
+        assert_eq!(host.rows.borrow()["turn-1"].borrow().view.permission_mode.as_deref(), Some("bypassPermissions"));
         assert_eq!(calls(&host, &["persist_sessions", "push_head"]), vec!["persist_sessions(w1)".to_string(), "push_head(t1)".to_string()]);
     });
 }
@@ -540,8 +516,8 @@ fn access_a_cli_refuses_is_unsupported() {
             assert_eq!(json_of(&got), json!({ "outcome": want }), "{name}");
             assert_eq!(log.borrow().len(), handle_calls, "{name}");
             // The pick stands for the thread's next turn all the same.
-            assert_eq!(record_of(&host, "t1").map(|h| h.record.permission_mode), Some(Some("dontAsk".to_string())), "{name}");
-            assert_eq!(host.rows.borrow()["turn-1"].view.borrow().permission_mode.as_deref(), Some("bypassPermissions"), "{name}: the running turn keeps its mode");
+            assert_eq!(record_of(&host, "t1").map(|h| h.permission_mode), Some(Some("dontAsk".to_string())), "{name}");
+            assert_eq!(host.rows.borrow()["turn-1"].borrow().view.permission_mode.as_deref(), Some("bypassPermissions"), "{name}: the running turn keeps its mode");
         }
     });
 }
@@ -551,13 +527,13 @@ fn access_a_cli_refuses_is_unsupported() {
 fn access_on_a_turn_this_host_holds_no_process_for_is_not_running() {
     run_local(async {
         let (host, area) = host();
-        let mut launching = row(view("turn-1", "w1", json!({ "threadId": "t1" })), "turn-1");
-        launching.launch = Some(done());
+        let launching = row(view("turn-1", "w1", json!({ "threadId": "t1" })), "turn-1");
+        launching.borrow_mut().launch = Some(done());
         host.add_row("turn-1", launching);
         adapters(&host, StubAdapter::default());
         let got = area.access_row("turn-1", "dontAsk", None).await.expect("an answer");
         assert_eq!(json_of(&got), json!({ "outcome": "not-running" }));
-        assert_eq!(record_of(&host, "t1").map(|h| (h.workspace_id, h.record.harness, h.record.permission_mode)), Some(("w1".to_string(), "claude".to_string(), Some("dontAsk".to_string()))), "a thread with no record gets one off its row");
+        assert_eq!(record_of(&host, "t1").map(|h| (h.workspace_id, h.harness, h.permission_mode)), Some(("w1".to_string(), "claude".to_string(), Some("dontAsk".to_string()))), "a thread with no record gets one off its row");
     });
 }
 
@@ -576,9 +552,9 @@ fn access_between_turns_sets_the_threads_latest_row() {
         let got = area.access_row("t1", "dontAsk", None).await.expect("an answer");
         assert_eq!(json_of(&got), json!({ "outcome": "set" }));
         assert_eq!(*asked.borrow(), vec!["codex".to_string()], "the last row of the thread in map order names the agent");
-        assert_eq!(host.rows.borrow()["r-a"].view.borrow().permission_mode.as_deref(), Some("dontAsk"), "the latest row says the new mode");
-        assert_eq!(host.rows.borrow()["r-b"].view.borrow().permission_mode.as_deref(), Some("bypassPermissions"));
-        assert_eq!(record_of(&host, "t1").map(|h| h.record.permission_mode), Some(Some("dontAsk".to_string())));
+        assert_eq!(host.rows.borrow()["r-a"].borrow().view.permission_mode.as_deref(), Some("dontAsk"), "the latest row says the new mode");
+        assert_eq!(host.rows.borrow()["r-b"].borrow().view.permission_mode.as_deref(), Some("bypassPermissions"));
+        assert_eq!(record_of(&host, "t1").map(|h| h.permission_mode), Some(Some("dontAsk".to_string())));
         assert_eq!(calls(&host, &["persist_sessions", "push_head"]), vec!["persist_sessions(w1)".to_string(), "push_head(t1)".to_string()]);
     });
 }
@@ -592,7 +568,7 @@ fn a_row_with_no_thread_takes_the_mode_on_itself() {
         adapters(&host, StubAdapter::default());
         let got = area.access_row("solo", "dontAsk", None).await.expect("an answer");
         assert_eq!(json_of(&got), json!({ "outcome": "set" }));
-        assert_eq!(host.rows.borrow()["solo"].view.borrow().permission_mode.as_deref(), Some("dontAsk"));
+        assert_eq!(host.rows.borrow()["solo"].borrow().view.permission_mode.as_deref(), Some("dontAsk"));
         assert_eq!(host.records.borrow().len(), 0, "no thread, no record");
         assert_eq!(calls(&host, &["persist_sessions", "push_head"]), vec!["persist_sessions(w1)".to_string(), "push_head(solo)".to_string()]);
     });
@@ -623,7 +599,7 @@ fn access_refuses_a_mode_the_catalog_does_not_carry() {
         assert_eq!(want.kind, "usage");
         assert_eq!(said(&err), (want.message, None, Some(Kind::Usage)), "in the words a start refuses it with");
         assert_eq!(*log.borrow(), Vec::<String>::new());
-        assert_eq!(record_of(&host, "t1").map(|h| h.record.permission_mode), Some(Some("default".to_string())), "nothing moved");
+        assert_eq!(record_of(&host, "t1").map(|h| h.permission_mode), Some(Some("default".to_string())), "nothing moved");
         assert_eq!(calls(&host, &["persist_sessions", "push_head"]), Vec::<String>::new());
         assert!(calls(&host, &["catalog_on"]).contains(&"catalog_on(claude)".to_string()));
 
@@ -652,8 +628,8 @@ fn access_of_a_row_not_reached_or_a_workspace_that_will_not_send() {
         unreached(&host, seen.clone());
         let got = area.access_row("turn-1", "dontAsk", Some(scoped("t9"))).await.expect("an answer");
         assert_eq!(json_of(&got), json!({ "outcome": "not-found" }));
-        assert_eq!(host.rows.borrow()["turn-1"].view.borrow().permission_mode.as_deref(), Some("default"), "moves nothing");
-        assert_eq!(record_of(&host, "t1").map(|h| h.record.permission_mode), Some(Some("default".to_string())));
+        assert_eq!(host.rows.borrow()["turn-1"].borrow().view.permission_mode.as_deref(), Some("default"), "moves nothing");
+        assert_eq!(record_of(&host, "t1").map(|h| h.permission_mode), Some(Some("default".to_string())));
         assert_eq!(calls(&host, &["persist_sessions", "push_head"]), Vec::<String>::new());
     });
 }
@@ -661,7 +637,7 @@ fn access_of_a_row_not_reached_or_a_workspace_that_will_not_send() {
 type Writes = Rc<RefCell<Vec<(String, String)>>>;
 
 /// The context's session write answers `outcome` and notes what it was asked to write.
-fn writes(host: &FakeHost, outcome: SessionWrite) -> Writes {
+fn writes(host: &FakeHost, outcome: SessionRenameWrite) -> Writes {
     let seen: Writes = Rc::default();
     let log = seen.clone();
     host.hooks.set::<WriteSession>(
@@ -689,7 +665,7 @@ fn titles(host: &FakeHost) -> Vec<(Option<String>, Option<String>)> {
     ["turn-1", "turn-2", "turn-3", "turn-4"]
         .iter()
         .map(|k| {
-            let v = json_of(&*host.rows.borrow()[*k].view.borrow());
+            let v = json_of(&host.rows.borrow()[*k].borrow().view);
             (v["harnessTitle"].as_str().map(String::from), v["titleSource"].as_str().map(String::from))
         })
         .collect()
@@ -701,8 +677,15 @@ fn rename_names_every_row_of_the_session() {
     run_local(async {
         let (host, area) = renaming_host();
         let ms: Rc<RefCell<Vec<u64>>> = Rc::default();
-        host.entries.borrow_mut().insert("w1".into(), Rc::new(RecEntry { inner: entry("w1", json!({})), ms: ms.clone() }) as Entry);
-        let wrote = writes(&host, SessionWrite::Written);
+        let seen = ms.clone();
+        host.hooks.set::<dyn Fn(&Entry, u64) -> Arc<dyn HarnessExec>>(
+            "TurnsCtx::harness_exec",
+            Rc::new(move |_e: &Entry, ms: u64| {
+                seen.borrow_mut().push(ms);
+                Arc::new(NoExec) as Arc<dyn HarnessExec>
+            }),
+        );
+        let wrote = writes(&host, SessionRenameWrite::Written);
 
         let got = area.rename_row("turn-2", "  the name he typed in wsp  ", None).await.expect("a rename");
         assert_eq!(json_of(&got), json!({ "outcome": "renamed" }));
@@ -732,8 +715,8 @@ fn rename_with_no_session_is_no_session() {
     run_local(async {
         // The store answers no-session, or fails with its own line: the rows keep the title they had.
         for (outcome, want) in [
-            (SessionWrite::NoSession, json!({ "outcome": "no-session" })),
-            (SessionWrite::Failed("database is locked".into()), json!({ "outcome": "failed", "error": "database is locked" })),
+            (SessionRenameWrite::NoSession, json!({ "outcome": "no-session" })),
+            (SessionRenameWrite::Failed { error: "database is locked".into() }, json!({ "outcome": "failed", "error": "database is locked" })),
         ] {
             let (host, area) = renaming_host();
             let wrote = writes(&host, outcome);
@@ -747,7 +730,7 @@ fn rename_with_no_session_is_no_session() {
         // A thread whose harness never named a session has nothing to name, and the machine is not asked.
         let (host, area) = renaming_host();
         put(&host, "bare", "w1", json!({ "threadId": "t5", "status": "completed" }), None);
-        let wrote = writes(&host, SessionWrite::Written);
+        let wrote = writes(&host, SessionRenameWrite::Written);
         let got = area.rename_row("bare", "the name", None).await.expect("an answer");
         assert_eq!(json_of(&got), json!({ "outcome": "no-session" }));
         assert_eq!(*wrote.borrow(), Vec::<(String, String)>::new());
@@ -765,7 +748,7 @@ fn rename_with_no_session_is_no_session() {
 fn a_blank_rename_is_refused() {
     run_local(async {
         let (host, area) = renaming_host();
-        let wrote = writes(&host, SessionWrite::Written);
+        let wrote = writes(&host, SessionRenameWrite::Written);
         // The blank name is refused before the row is looked up.
         let err = area.rename_row("no-such-session", "   ", None).await.expect_err("a refusal");
         assert_eq!(said(&err), (EMPTY_TITLE_LINE.to_string(), None, None));
@@ -780,10 +763,10 @@ fn a_blank_rename_is_refused() {
         assert_eq!(json_of(&none), json!({ "outcome": "not-found" }));
         host.hooks.set::<EntryOfRow>(
             "SessionsCtx::entry_of_row",
-            Rc::new(|_t: Option<&str>, _w: &str, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async move { Ok(Some(entry("w1", json!({ "phase": "napping" })) as Entry)) }.boxed_local()),
+            Rc::new(|_at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async move { Ok(Some(entry("w1", json!({ "phase": "napping" })) as Entry)) }.boxed_local()),
         );
         let err = area.rename_row("turn-1", "the name", None).await.expect_err("a refusal");
-        let rec = entry("w1", json!({ "phase": "napping" })).record();
+        let rec = record_in(&entry("w1", json!({ "phase": "napping" })));
         let state = workspace_state(&WorkspaceStateInput { phase: rec.phase.clone(), machine_state: None, reach: None, wake_refused: None });
         assert_eq!(said(&err), (action_refusal(&state, "rename", rec.gone.as_deref(), Some(&rec.name)).expect("a refusal"), None, None));
         assert_eq!(calls(&host, &["copy_blocked"]), Vec::<String>::new(), "the workspace's state is asked before the copy");
@@ -796,7 +779,7 @@ fn a_blank_rename_is_refused() {
 fn rename_stops_at_a_copy_refusal() {
     run_local(async {
         let (host, area) = renaming_host();
-        let wrote = writes(&host, SessionWrite::Written);
+        let wrote = writes(&host, SessionRenameWrite::Written);
         host.hooks.set::<dyn Fn(&Entry) -> LocalBoxFuture<'static, Result<(), HostError>>>(
             "SessionsCtx::copy_blocked",
             Rc::new(|_e: &Entry| async move { Err(refusal("the copy is still landing", Some(Kind::Conflict))) }.boxed_local()),
@@ -927,12 +910,12 @@ fn aside_asks_the_latest_session_with_what_it_ran_at() {
         // The window and fast ride along, fast only where true.
         {
             let rows = host.rows.borrow();
-            let mut latest = rows["turn-b"].view.borrow_mut();
-            latest.context_window = Some("1m".into());
-            latest.fast = Some(true);
+            let mut latest = rows["turn-b"].borrow_mut();
+            latest.view.context_window = Some("1m".into());
+            latest.view.fast = Some(true);
         }
         area.aside_row("turn-a", "again?", None, None).await.expect("an answer");
-        host.rows.borrow()["turn-b"].view.borrow_mut().fast = Some(false);
+        host.rows.borrow()["turn-b"].borrow_mut().view.fast = Some(false);
         area.aside_row("turn-a", "and again?", None, None).await.expect("an answer");
         let asked = asked.borrow();
         assert_eq!((asked[1].context_window.as_deref(), asked[1].fast), (Some("1m"), Some(true)));
@@ -974,7 +957,7 @@ fn a_blank_aside_and_an_unreached_row_are_refused() {
 
         host.hooks.set::<EntryOfRow>(
             "SessionsCtx::entry_of_row",
-            Rc::new(|_t: Option<&str>, _w: &str, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async move { Ok(Some(entry("w1", json!({ "phase": "pausing" })) as Entry)) }.boxed_local()),
+            Rc::new(|_at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async move { Ok(Some(entry("w1", json!({ "phase": "pausing" })) as Entry)) }.boxed_local()),
         );
         let err = area.aside_row("turn-a", "hi", None, None).await.expect_err("a refusal");
         assert_eq!(said(&err), (send_line_for("pausing"), None, None), "the send refusal, with no name in it");
@@ -983,7 +966,7 @@ fn a_blank_aside_and_an_unreached_row_are_refused() {
 }
 
 fn send_line_for(phase: &str) -> String {
-    let rec = entry("w1", json!({ "phase": phase })).record();
+    let rec = record_in(&entry("w1", json!({ "phase": phase })));
     let state = workspace_state(&WorkspaceStateInput { phase: rec.phase.clone(), machine_state: None, reach: None, wake_refused: None });
     send_refusal(&SendRefusalKind::State(state), rec.gone.as_deref(), None).expect("a refusal")
 }
@@ -999,7 +982,7 @@ fn an_aside_with_no_road_or_no_session_is_refused() {
         assert_eq!(said(&err), (aside_unsupported_line("claude"), None, None));
 
         adapters(&host, with_aside());
-        host.rows.borrow()["turn-b"].view.borrow_mut().claude_session_id = None;
+        host.rows.borrow()["turn-b"].borrow_mut().view.claude_session_id = None;
         let err = area.aside_row("turn-a", "anyone there?", None, None).await.expect_err("a refusal");
         assert_eq!(said(&err), (ASIDE_NO_SESSION_LINE.to_string(), None, None), "the latest row names no session, whatever the row asked for holds");
 
@@ -1065,9 +1048,10 @@ fn servers_host(bare: StubAdapter, scoped: StubAdapter, brokered: bool, root: &'
     let seen = asks.clone();
     host.hooks.set::<AdapterFor>(
         "LaunchCtx::adapter_for",
-        Rc::new(move |_e: &Entry, h: &str, a: AdapterAsk| {
+        Rc::new(move |_e: &Entry, a: AdapterAsk| {
+            let h = a.named.clone().unwrap_or_default();
             seen.borrow_mut().push(a);
-            Ok(BuiltAdapter { harness: h.to_string(), adapter: Arc::new(scoped.clone()) })
+            Ok(BuiltAdapter { harness: h, adapter: Arc::new(scoped.clone()) })
         }),
     );
     host.hooks.set::<dyn Fn(&Entry, &str, &str, bool) -> LocalBoxFuture<'static, Result<ThreadLaunch, HostError>>>(
@@ -1131,7 +1115,7 @@ fn an_aside_with_servers_revokes_its_token_after() {
         assert_eq!(*s.revoked.borrow(), vec!["dev-1".to_string()]);
         let asks = s.asks.borrow();
         assert_eq!(asks.len(), 1);
-        assert_eq!(asks[0].env.get("WSP_TOKEN").map(String::as_str), Some("tok"), "the copy is built with the launch's pair");
+        assert_eq!(asks[0].turn_env.as_ref().and_then(|e| e.get("WSP_TOKEN")).map(String::as_str), Some("tok"), "the copy is built with the launch's pair");
         let asked = s.asked.borrow();
         assert_eq!(json_of(&asked[0].mcp_servers), json!({ "wsp": { "command": "node", "args": ["/opt/wsp/dist/bin.js", "mcp", "--scoped"] } }), "the wsp server a turn of the thread gets");
         assert_eq!(asked[0].server_values, Some(wsp_adapters::port::ServerValues { entries: None, config: None }), "server values read in the folder the thread ran in");
@@ -1265,8 +1249,8 @@ fn a_run_on_a_thread_known_by_its_record_alone_is_recorded() {
             "SessionsCtx::entry_of_row",
             Rc::new({
                 let seen: Rc<RefCell<Vec<(Option<String>, String)>>> = Rc::clone(&seen);
-                move |t: Option<&str>, w: &str, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| {
-                    seen.borrow_mut().push((t.map(String::from), w.to_string()));
+                move |at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| {
+                    seen.borrow_mut().push((at.thread_id.clone(), at.workspace_id.clone()));
                     async move { Ok(Some(entry("w1", json!({})) as Entry)) }.boxed_local()
                 }
             }),
@@ -1345,7 +1329,7 @@ fn a_run_names_the_latest_rows_session_else_its_id() {
         put(&host, "old", "w1", json!({ "threadId": "t1", "status": "completed", "claudeSessionId": "agent-old", "startedAt": T0 }), None);
         put(&host, "new", "w1", json!({ "threadId": "t1", "status": "completed", "startedAt": T0 + 5 }), None);
         area.run_step(step(json!({ "runId": "a" })), None).await.expect("a run");
-        host.rows.borrow()["new"].view.borrow_mut().claude_session_id = Some("agent-new".into());
+        host.rows.borrow()["new"].borrow_mut().view.claude_session_id = Some("agent-new".into());
         area.run_step(step(json!({ "runId": "b" })), None).await.expect("a run");
         let sessions: Vec<Value> = host.recorded_of("session.run").iter().map(|e| e["sessionId"].clone()).collect();
         assert_eq!(sessions, vec![json!("new"), json!("agent-new")], "the latest row's own id where it has no agent session");

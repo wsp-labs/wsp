@@ -3,8 +3,8 @@
 //! Spec: spec/turns_reopen.md.
 use wsp_core::types::internal::Reopened;
 
-use super::{ReopenRow, TurnsArea};
-use crate::pending::Entry;
+use super::TurnsArea;
+use crate::threads::threads::{Entry, Row};
 
 impl TurnsArea {
     /// turns.ts:748. Rules P1-P3.
@@ -13,7 +13,7 @@ impl TurnsArea {
     }
 
     /// turns.ts:774. `again` is a second try at the same row. Rules P4-P9.
-    pub async fn reattach(&self, row: ReopenRow, again: bool) -> Reopened {
+    pub async fn reattach(&self, row: Row, again: bool) -> Reopened {
         todo!()
     }
 }

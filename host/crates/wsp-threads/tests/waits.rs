@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! spec/waits.md. TS cases: thread-waits.test.ts, subagents.test.ts:341.
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::rc::Rc;
@@ -12,8 +13,8 @@ const MIN: f64 = 60_000.0;
 fn host() -> (Rc<FakeHost>, WaitsArea) {
     let host = FakeHost::new();
     host.add_entry(entry("w1", json!({})));
-    let mut r = row(view("sess-1", "w1", json!({ "threadId": "t1", "claudeSessionId": "sess-1", "startedAt": T0 })), "turn-1");
-    r.turn_id = "turn-1".into();
+    let r = row(view("sess-1", "w1", json!({ "threadId": "t1", "claudeSessionId": "sess-1", "startedAt": T0 })), "turn-1");
+    r.borrow_mut().turn_id = "turn-1".into();
     host.add_row("sess-1", r);
     let area = WaitsArea::new(host.clone());
     (host, area)
@@ -109,11 +110,11 @@ fn exactly_the_threshold_writes_nothing() {
 #[test]
 fn the_row_started_latest_takes_the_write_and_a_tie_goes_to_the_later_row() {
     let (host, area) = host();
-    let mut older = row(view("sess-0", "w1", json!({ "threadId": "t1", "startedAt": T0 - 10 })), "turn-0");
-    older.turn_id = "turn-0".into();
+    let older = row(view("sess-0", "w1", json!({ "threadId": "t1", "startedAt": T0 - 10 })), "turn-0");
+    older.borrow_mut().turn_id = "turn-0".into();
     host.add_row("sess-0", older);
-    let mut tie = row(view("turn-2", "w1", json!({ "threadId": "t1", "startedAt": T0 })), "turn-2");
-    tie.turn_id = "turn-2".into();
+    let tie = row(view("turn-2", "w1", json!({ "threadId": "t1", "startedAt": T0 })), "turn-2");
+    tie.borrow_mut().turn_id = "turn-2".into();
     host.add_row("turn-2", tie);
     area.note_waited("t1", 0.0, Some("held"));
     let rows = waited(&host);
@@ -139,7 +140,7 @@ fn ms_is_rounded_and_never_negative() {
 fn the_session_id_is_the_agents_else_the_turns() {
     let (host, area) = host();
     area.note_waited("t1", 0.0, Some("one"));
-    host.rows.borrow()["sess-1"].view.borrow_mut().claude_session_id = None;
+    host.rows.borrow()["sess-1"].borrow_mut().view.claude_session_id = None;
     area.note_waited("t1", 0.0, Some("two"));
     let ids: Vec<Value> = waited(&host).iter().map(|e| e["sessionId"].clone()).collect();
     assert_eq!(ids, vec![json!("sess-1"), json!("turn-1")]);
@@ -167,7 +168,7 @@ fn retry_row(attempt: u32, why: &str) -> Value {
 #[test]
 fn a_retry_on_a_thread_not_running_is_dropped() {
     let (host, area) = host();
-    host.rows.borrow()["sess-1"].view.borrow_mut().status = serde_json::from_value(json!("completed")).unwrap();
+    host.rows.borrow()["sess-1"].borrow_mut().view.status = serde_json::from_value(json!("completed")).unwrap();
     area.note_retry("t1", RetryNote { attempt: 1, why: "Anthropic did not answer".into() });
     assert_eq!(host.clock.pending(), 0, "no timer for a thread not running");
     host.clock.advance(RETRY_SETTLE_MS);
@@ -195,7 +196,7 @@ fn a_retry_the_agent_says_in_the_window_is_no_row_and_one_it_never_says_is_writt
 fn a_retry_whose_turn_ended_before_the_fire_writes_nothing() {
     let (host, area) = host();
     area.note_retry("t1", RetryNote { attempt: 2, why: "Anthropic was overloaded".into() });
-    host.rows.borrow()["sess-1"].view.borrow_mut().status = serde_json::from_value(json!("completed")).unwrap();
+    host.rows.borrow()["sess-1"].borrow_mut().view.status = serde_json::from_value(json!("completed")).unwrap();
     host.clock.advance(RETRY_SETTLE_MS);
     assert_eq!(retries(&host), Vec::<Value>::new());
 }

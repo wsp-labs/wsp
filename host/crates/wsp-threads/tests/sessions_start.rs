@@ -5,6 +5,7 @@
 //! :1309, :1351 and runtime-notify.test.ts:283, :296, :474, :580 (S20, S21, invariant 3), sub-queue.test.ts:175 (S24),
 //! runtime-index.test.ts:255, thread-keeps-agent.test.ts:89, thread-defaults.test.ts:185, session-title.test.ts:684,
 //! box-nap.test.ts:867. Each case is ported at this unit's seam: `prepare` and `start_send` over a scripted host.
+#[path = "support_a/mod.rs"]
 mod support;
 
 use std::cell::RefCell;
@@ -12,7 +13,11 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use support::*;
+use wsp_account::account::rules::TreeOf;
 use wsp_core::console;
+use wsp_machines::machines::boot::entries::RowAt;
+use wsp_machines::machines::sub_spawn::machine::Resumed;
+use wsp_threads::threads::forks::{ForkPicks, ForkPlanSource, ForkPlanTurn};
 use wsp_threads::threads::sessions::start::{Checked, Prepared};
 use wsp_core::types::wiring::{AccessMove, SteerTaken};
 use wsp_wire::types::attachments::Attachment;
@@ -162,9 +167,9 @@ impl HarnessAdapter for Agent {
     fn steers(&self) -> bool {
         false
     }
-    fn fork_session(&self, _s: String, _t: ForkTurn) -> Option<BoxFuture<'static, Result<ForkedSession, String>>> {
+    fn fork_session(&self, _s: String, _t: ForkTurn) -> Option<LocalBoxFuture<'static, Result<ForkedSession, String>>> {
         if self.forks {
-            Some(futures::future::ready(Err("not forked here".to_string())).boxed())
+            Some(futures::future::ready(Err("not forked here".to_string())).boxed_local())
         } else {
             None
         }
@@ -204,9 +209,10 @@ fn fx_on(agent: Agent) -> Fx {
     let asked = Rc::new(RefCell::new(Vec::new()));
     let seen = asked.clone();
     let agent: Arc<dyn HarnessAdapter> = Arc::new(agent);
-    hook!(host, "LaunchCtx::adapter_for", dyn Fn(&Entry, &str, AdapterAsk) -> Result<BuiltAdapter, HostError>, move |_e: &Entry, h: &str, ask: AdapterAsk| {
-        seen.borrow_mut().push((h.to_string(), ask));
-        Ok(BuiltAdapter { harness: h.to_string(), adapter: agent.clone() })
+    hook!(host, "LaunchCtx::adapter_for", dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>, move |_e: &Entry, ask: AdapterAsk| {
+        let h = ask.named.clone().expect("the harness is named");
+        seen.borrow_mut().push((h.clone(), ask));
+        Ok(BuiltAdapter { harness: h, adapter: agent.clone() })
     });
     let area = SessionsArea::new(host.clone());
     Fx { host, area, asked }
@@ -349,8 +355,8 @@ fn a_taken_start_the_caller_may_not_send_to_is_not_answered() {
         hook!(
             fx.host,
             "SessionsCtx::entry_of_row",
-            dyn Fn(Option<&str>, &str, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>,
-            |_t: Option<&str>, _w: &str, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok(None) }.boxed_local()
+            dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>,
+            |_a: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok(None) }.boxed_local()
         );
         let opts = StartOptions { thread: Some("t1".into()), request_id: Some("req-1".into()), ..go("second") };
         let e = fx.refused(opts, None).await;
@@ -381,13 +387,7 @@ fn a_taken_start_the_turn_cannot_answer_goes_on_as_a_new_start() {
 fn what_fork_opened_hands_back_is_what_the_checks_read_and_carry() {
     run_local(async {
         let fx = fx();
-        let plan = ForkPlan {
-            has_turn: false,
-            source_thread_id: "src-t".into(),
-            source_session: Some("src-sess".into()),
-            forked_from: ForkedFrom { thread_id: "src-t".into(), turn_id: None, title: "Source".into() },
-            raw: json!({ "source": "src-t" }),
-        };
+        let plan = plan_with(false, Some("src-sess"));
         let handed = plan.clone();
         hook!(
             fx.host,
@@ -400,7 +400,7 @@ fn what_fork_opened_hands_back_is_what_the_checks_read_and_carry() {
         );
         let p = fx.launches(go("on it"), None).await;
         assert_eq!(p.opts.prompt, "forked: on it");
-        assert_eq!(p.plan, Some(plan));
+        same_plan(&p.plan, &Some(plan));
         assert_eq!(order(&fx.host, &["fork_opened", "fork_turn_of"]), strings(&["fork_opened(w1)", "fork_turn_of(false)"]));
     })
 }
@@ -435,8 +435,8 @@ fn a_thread_of_another_workspace_is_no_thread_in_this_folder() {
         hook!(
             fx.host,
             "SessionsCtx::entry_of_row",
-            dyn Fn(Option<&str>, &str, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>,
-            |_t: Option<&str>, _w: &str, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok(None) }.boxed_local()
+            dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>,
+            |_a: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok(None) }.boxed_local()
         );
         let child = by(WorkspaceOrigin::Relayed, scope("kid", "w1", "lead-t"));
         assert_eq!(said(&fx.refused(named, Some(child)).await), line, "a thread the caller's tree does not reach");
@@ -478,9 +478,9 @@ fn a_send_reads_its_entry_by_the_thread_and_the_workspace() {
         hook!(
             fx.host,
             "SessionsCtx::entry_of_row",
-            dyn Fn(Option<&str>, &str, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>,
-            move |t: Option<&str>, w: &str, o: Option<&Caller>, k: Option<TreeTalk>, b: bool| {
-                log.borrow_mut().push((t.map(String::from), w.to_string(), o.cloned(), k, b));
+            dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>,
+            move |at: &RowAt, o: Option<&Caller>, k: Option<TreeTalk>, b: bool| {
+                log.borrow_mut().push((at.thread_id.clone(), at.workspace_id.clone(), o.cloned(), k, b));
                 let e = live.clone();
                 async move { Ok(Some(e)) }.boxed_local()
             }
@@ -569,13 +569,7 @@ fn an_opening_send_claims_the_warm_agent() {
 fn a_start_that_changes_the_launch_takes_no_warm_agent() {
     run_local(async {
         let child = by(WorkspaceOrigin::Relayed, scope("kid", "w1", "lead-t"));
-        let plan = ForkPlan {
-            has_turn: false,
-            source_thread_id: "src-t".into(),
-            source_session: Some("src-sess".into()),
-            forked_from: ForkedFrom { thread_id: "src-t".into(), turn_id: None, title: "Source".into() },
-            raw: json!({}),
-        };
+        let plan = plan_with(false, Some("src-sess"));
         let mut servers = IndexMap::new();
         servers.insert("mine".to_string(), McpServerSpec { command: "x".into(), args: Vec::new(), no_slate: None });
         let base = || StartOptions { harness: Some("claude".into()), ..go("one") };
@@ -726,10 +720,10 @@ fn a_sub_machine_runs_one_thread() {
         hook!(
             fx.host,
             "SessionsCtx::resume_sub",
-            dyn Fn(&Entry, &str, &str, &str) -> LocalBoxFuture<'static, Result<ResumedSub, HostError>>,
+            dyn Fn(&Entry, &str, &str, &str) -> LocalBoxFuture<'static, Result<Resumed, HostError>>,
             move |_e: &Entry, _t: &str, _h: &str, _p: &str| {
                 let entry = live.clone();
-                async move { Ok(ResumedSub { entry, preamble: None, notices: Vec::new() }) }.boxed_local()
+                async move { Ok(Resumed { entry, preamble: None, notices: Vec::new() }) }.boxed_local()
             }
         );
         let p = fx.launches(StartOptions { thread: Some("sub-t".into()), ..go("pushed it") }, None).await;
@@ -1028,14 +1022,14 @@ fn an_unchecked_running_machine_is_proven_before_its_state_is_read() {
     run_local(async {
         let fx = fx();
         let unchecked = entry("w1", json!({ "name": "lab" }));
-        unchecked.unchecked.set(true);
+        unchecked.borrow_mut().unchecked = true;
         fx.host.add_entry(unchecked);
         fx.launches(go("hi"), None).await;
         assert_eq!(order(&fx.host, &["confine_setup", "proven", "refuse_sub_send", "copy_blocked"]), strings(&["confine_setup(claude)", "proven", "refuse_sub_send", "copy_blocked"]));
 
         let fx = fx_on(Agent::default());
         let napping = entry("w1", json!({ "name": "lab", "phase": "napping" }));
-        napping.unchecked.set(true);
+        napping.borrow_mut().unchecked = true;
         fx.host.add_entry(napping);
         fx.refused(go("hi"), None).await;
         assert_eq!(fx.host.hooks.called("proven"), Vec::<String>::new(), "only a running machine is proven");
@@ -1143,15 +1137,15 @@ fn a_persons_restart_of_a_child_stands_where_the_replaced_thread_stood() {
         hook!(fx.host, "SessionsCtx::parent_of", dyn Fn(&str) -> Option<String>, |t: &str| if t == "a1" { Some("lead-t".to_string()) } else { None });
         hook!(fx.host, "SessionsCtx::root_of", dyn Fn(&str) -> String, |t: &str| if t == "a1" { "lead-t".to_string() } else { t.to_string() });
         let p = fx.launches(restart(), None).await;
-        assert_eq!(p.tree, Tree { parent_thread_id: Some("lead-t".into()), root_thread_id: Some("lead-t".into()) });
+        assert_eq!(p.tree, TreeOf { parent_thread_id: Some("lead-t".into()), root_thread_id: Some("lead-t".into()) });
         assert_eq!(p.replaces, Some("a1".to_string()));
         assert_eq!(fx.host.hooks.called("tree_of"), Vec::<String>::new());
 
         let fx = fx_on(Agent::default());
         finished(&fx);
-        let stands = Tree { parent_thread_id: Some("top".into()), root_thread_id: Some("top".into()) };
+        let stands = TreeOf { parent_thread_id: Some("top".into()), root_thread_id: Some("top".into()) };
         let s = stands.clone();
-        hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> Tree, move |_s: Option<&ThreadScope>| s.clone());
+        hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> TreeOf, move |_s: Option<&ThreadScope>| s.clone());
         let p = fx.launches(restart(), None).await;
         assert_eq!(p.tree, stands, "a replaced thread with no parent is the person's own: the caller's tree");
         assert_eq!(fx.host.hooks.called("tree_of"), strings(&["tree_of"]));
@@ -1166,12 +1160,12 @@ fn an_opening_hangs_under_its_callers_root_and_a_send_reads_its_threads_own_tree
         let kid = scope("kid", "w1", "lead-t");
         let seen: Rc<RefCell<Vec<Option<ThreadScope>>>> = Rc::new(RefCell::new(Vec::new()));
         let log = seen.clone();
-        hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> Tree, move |s: Option<&ThreadScope>| {
+        hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> TreeOf, move |s: Option<&ThreadScope>| {
             log.borrow_mut().push(s.cloned());
-            Tree { parent_thread_id: Some("kid".into()), root_thread_id: Some("lead-t".into()) }
+            TreeOf { parent_thread_id: Some("kid".into()), root_thread_id: Some("lead-t".into()) }
         });
         let p = fx.launches(go("child"), Some(by(WorkspaceOrigin::Relayed, kid.clone()))).await;
-        assert_eq!(p.tree, Tree { parent_thread_id: Some("kid".into()), root_thread_id: Some("lead-t".into()) });
+        assert_eq!(p.tree, TreeOf { parent_thread_id: Some("kid".into()), root_thread_id: Some("lead-t".into()) });
         assert_eq!(*seen.borrow(), vec![Some(kid)]);
 
         let fx = fx_on(Agent::default());
@@ -1179,13 +1173,13 @@ fn an_opening_hangs_under_its_callers_root_and_a_send_reads_its_threads_own_tree
         hook!(fx.host, "SessionsCtx::parent_of", dyn Fn(&str) -> Option<String>, |t: &str| if t == "t1" { Some("kid".to_string()) } else { None });
         hook!(fx.host, "SessionsCtx::root_of", dyn Fn(&str) -> String, |t: &str| if t == "t1" { "lead-t".to_string() } else { t.to_string() });
         let p = fx.launches(StartOptions { thread: Some("t1".into()), ..go("more") }, None).await;
-        assert_eq!(p.tree, Tree { parent_thread_id: Some("kid".into()), root_thread_id: Some("lead-t".into()) });
+        assert_eq!(p.tree, TreeOf { parent_thread_id: Some("kid".into()), root_thread_id: Some("lead-t".into()) });
         assert_eq!(fx.host.hooks.called("tree_of"), Vec::<String>::new());
 
         let fx = fx_on(Agent::default());
         fx.thread_on("t1", "w1", "claude");
         let p = fx.launches(StartOptions { thread: Some("t1".into()), ..go("more") }, None).await;
-        assert_eq!(p.tree, Tree::default(), "a thread that is its own root with no parent carries no tree keys");
+        assert_eq!(p.tree, TreeOf::default(), "a thread that is its own root with no parent carries no tree keys");
     })
 }
 
@@ -1200,11 +1194,11 @@ fn invariant_3_the_tree_and_notify_by_come_from_the_callers_token() {
             fx.thread_on("T", "w1", "claude");
             hook!(fx.host, "SessionsCtx::thread_of_token", dyn Fn(&str) -> String, |t: &str| if t == "tok-T" { "T".to_string() } else { "someone-else".to_string() });
             let log = seen.clone();
-            hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> Tree, move |s: Option<&ThreadScope>| {
+            hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> TreeOf, move |s: Option<&ThreadScope>| {
                 log.borrow_mut().push(s.cloned());
                 match s {
-                    Some(s) => Tree { parent_thread_id: Some(s.thread_id.clone()), root_thread_id: Some(s.root_thread_id.clone()) },
-                    None => Tree::default(),
+                    Some(s) => TreeOf { parent_thread_id: Some(s.thread_id.clone()), root_thread_id: Some(s.root_thread_id.clone()) },
+                    None => TreeOf::default(),
                 }
             });
         };
@@ -1215,7 +1209,7 @@ fn invariant_3_the_tree_and_notify_by_come_from_the_callers_token() {
         wire(&fx, &seen);
         let p = fx.launches(tokened(), Some(caller.clone())).await;
         assert_eq!(*seen.borrow(), vec![Some(lead.clone())]);
-        assert_eq!(p.tree, Tree { parent_thread_id: Some("T".into()), root_thread_id: Some("R".into()) });
+        assert_eq!(p.tree, TreeOf { parent_thread_id: Some("T".into()), root_thread_id: Some("R".into()) });
         assert_eq!(p.asked, Some(strings(&["T"])));
         assert_eq!(p.notify, Some(strings(&["T"])));
         assert_eq!(p.notify_by, Some(lead.clone()));
@@ -1228,7 +1222,7 @@ fn invariant_3_the_tree_and_notify_by_come_from_the_callers_token() {
         wire(&fx, &seen);
         let p = fx.launches(StartOptions { turn_token: None, ..tokened() }, None).await;
         assert_eq!(*seen.borrow(), vec![None]);
-        assert_eq!(p.tree, Tree::default());
+        assert_eq!(p.tree, TreeOf::default());
         assert_eq!(p.asked, Some(strings(&["me"])));
         assert_eq!((p.notify_by.clone(), p.notify_road), (None, None));
         assert_eq!(fx.host.hooks.called("thread_of_token"), Vec::<String>::new());
@@ -1244,9 +1238,9 @@ fn invariant_3_the_tree_and_notify_by_come_from_the_callers_token() {
         // A send into a thread that names no targets takes what the thread's opener registered, whoever sends it.
         let fx = fx_on(Agent::default());
         fx.thread_on("t1", "w1", "claude");
-        let registered = Registered { notify: strings(&["boss"]), by: Some(scope("boss", "w1", "boss")), road: Some(WorkspaceOrigin::Here) };
+        let registered = NotifyOn { notify: strings(&["boss"]), by: Some(scope("boss", "w1", "boss")), road: Some(WorkspaceOrigin::Here) };
         let r = registered.clone();
-        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<Registered>, move |t: &str| if t == "t1" { Some(r.clone()) } else { None });
+        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, move |t: &str| if t == "t1" { Some(r.clone()) } else { None });
         let p = fx.launches(StartOptions { thread: Some("t1".into()), ..go("more") }, Some(caller.clone())).await;
         assert_eq!((p.asked, p.notify, p.notify_by, p.notify_road), (None, Some(strings(&["boss"])), registered.by.clone(), Some(WorkspaceOrigin::Here)));
 
@@ -1255,7 +1249,7 @@ fn invariant_3_the_tree_and_notify_by_come_from_the_callers_token() {
         fx.thread_on("t1", "w1", "claude");
         fx.thread_on("T", "w1", "claude");
         let r = registered.clone();
-        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<Registered>, move |t: &str| if t == "t1" { Some(r.clone()) } else { None });
+        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, move |t: &str| if t == "t1" { Some(r.clone()) } else { None });
         let p = fx.launches(StartOptions { thread: Some("t1".into()), notify: Some(strings(&["T"])), ..go("more") }, Some(caller)).await;
         assert_eq!((p.notify, p.notify_by, p.notify_road), (Some(strings(&["T"])), Some(lead), Some(WorkspaceOrigin::Relayed)));
     })
@@ -1322,7 +1316,7 @@ fn notify_refuses_itself_a_stranger_and_a_cycle() {
         let target = "bbbbbbbb-1234-5678";
         let fx = fx_on(Agent::default());
         fx.thread_on(target, "w1", "claude");
-        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<Registered>, move |t: &str| if t == target { Some(Registered { notify: strings(&["c-thread"]), by: None, road: None }) } else { None });
+        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, move |t: &str| if t == target { Some(NotifyOn { notify: strings(&["c-thread"]), by: None, road: None }) } else { None });
         let reached: Rc<RefCell<Vec<Vec<String>>>> = Rc::new(RefCell::new(Vec::new()));
         let log = reached.clone();
         hook!(fx.host, "SessionsCtx::notify_reach", dyn Fn(&[String]) -> IndexSet<String>, move |n: &[String]| {
@@ -1358,10 +1352,10 @@ fn a_released_sub_thread_is_resumed_on_its_new_machine() {
         hook!(
             fx.host,
             "SessionsCtx::resume_sub",
-            dyn Fn(&Entry, &str, &str, &str) -> LocalBoxFuture<'static, Result<ResumedSub, HostError>>,
+            dyn Fn(&Entry, &str, &str, &str) -> LocalBoxFuture<'static, Result<Resumed, HostError>>,
             move |_e: &Entry, _t: &str, _h: &str, _p: &str| {
                 let entry = to.clone();
-                async move { Ok(ResumedSub { entry, preamble: Some("You run on a machine.".into()), notices: strings(&["moved", "again"]) }) }.boxed_local()
+                async move { Ok(Resumed { entry, preamble: Some("You run on a machine.".into()), notices: strings(&["moved", "again"]) }) }.boxed_local()
             }
         );
         let minted_for: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
@@ -1371,12 +1365,12 @@ fn a_released_sub_thread_is_resumed_on_its_new_machine() {
             "LaunchCtx::thread_launch",
             dyn Fn(&Entry, &str, &str, bool) -> LocalBoxFuture<'static, Result<ThreadLaunch, HostError>>,
             move |e: &Entry, _t: &str, _r: &str, _a: bool| {
-                log.borrow_mut().push(e.id());
+                log.borrow_mut().push(id_of(e));
                 async { Ok(ThreadLaunch::default()) }.boxed_local()
             }
         );
         let p = fx.launches(go("pushed it"), None).await;
-        assert_eq!(p.entry.id(), "w2");
+        assert_eq!(id_of(&p.entry), "w2");
         assert_eq!(p.opts.prompt, sub_opening("You run on a machine.", "pushed it"));
         assert_eq!(p.notice, Some("moved\nagain".to_string()));
         assert_eq!(p.clouds, None, "a sub-machine is told no clouds");
@@ -1408,17 +1402,17 @@ fn a_queued_workspace_holds_the_start() {
         fx.host.add_entry(entry("w1", json!({ "name": "Second", "phase": "queued", "queue": { "since": "2026-10-01T00:00:00.000Z", "why": "slot" } })));
         let kid = scope("kid", "w1", "lead-t");
         let caller = by(WorkspaceOrigin::Relayed, kid);
-        let tree = Tree { parent_thread_id: Some("lead-t".into()), root_thread_id: Some("lead-t".into()) };
+        let tree = TreeOf { parent_thread_id: Some("lead-t".into()), root_thread_id: Some("lead-t".into()) };
         let t = tree.clone();
-        hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> Tree, move |_s: Option<&ThreadScope>| t.clone());
-        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<Registered>, |_t: &str| Some(Registered { notify: strings(&["boss"]), by: None, road: None }));
-        let held: Rc<RefCell<Vec<(String, String, Tree, String, Option<String>, Option<String>, Option<Vec<String>>, Option<Caller>)>>> = Rc::new(RefCell::new(Vec::new()));
+        hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> TreeOf, move |_s: Option<&ThreadScope>| t.clone());
+        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, |_t: &str| Some(NotifyOn { notify: strings(&["boss"]), by: None, road: None }));
+        let held: Rc<RefCell<Vec<(String, String, TreeOf, String, Option<String>, Option<String>, Option<Vec<String>>, Option<Caller>)>>> = Rc::new(RefCell::new(Vec::new()));
         let log = held.clone();
         hook!(
             fx.host,
             "SessionsCtx::hold_queued",
-            dyn Fn(&str, &str, Tree, StartOptions, Option<Vec<String>>, Option<&Caller>) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>>,
-            move |w: &str, t: &str, tree: Tree, o: StartOptions, n: Option<Vec<String>>, c: Option<&Caller>| {
+            dyn Fn(&str, &str, TreeOf, StartOptions, Option<Vec<String>>, Option<&Caller>) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>>,
+            move |w: &str, t: &str, tree: TreeOf, o: StartOptions, n: Option<Vec<String>>, c: Option<&Caller>| {
                 log.borrow_mut().push((w.to_string(), t.to_string(), tree, o.prompt.clone(), o.title.clone(), o.harness.clone(), n, c.cloned()));
                 async { Ok(Handle::new("held-row", "held-turn")) }.boxed_local()
             }
@@ -1458,12 +1452,40 @@ fn minted(fx: &Fx) {
 
 fn plan_with(has_turn: bool, session: Option<&str>) -> ForkPlan {
     ForkPlan {
-        has_turn,
-        source_thread_id: "src-t".into(),
-        source_session: session.map(String::from),
+        source: ForkPlanSource {
+            thread_id: "src-t".into(),
+            workspace_id: "w1".into(),
+            entry: entry("w1", json!({})),
+            harness: "claude".into(),
+            title: "Source".into(),
+            session: session.map(String::from),
+            cwd: None,
+        },
+        turn: if has_turn { Some(ForkPlanTurn { turn_id: "turn-src".into(), anchor: None, at_ref: None, after: Vec::new() }) } else { None },
+        events: Vec::new(),
+        picks: ForkPicks::default(),
         forked_from: ForkedFrom { thread_id: "src-t".into(), turn_id: None, title: "Source".into() },
-        raw: json!({}),
     }
+}
+
+/// `ForkPlan` has no equality: the fields a plan is told apart by.
+fn same_plan(got: &Option<ForkPlan>, want: &Option<ForkPlan>) {
+    match (got, want) {
+        (None, None) => {}
+        (Some(g), Some(w)) => {
+            assert_eq!(g.source.thread_id, w.source.thread_id);
+            assert_eq!(g.source.session, w.source.session);
+            assert_eq!(g.turn, w.turn);
+            assert_eq!(g.events.len(), w.events.len());
+            assert_eq!(g.picks, w.picks);
+            assert_eq!(g.forked_from, w.forked_from);
+        }
+        _ => panic!("the plan was {}, and was to be {}", if got.is_some() { "held" } else { "none" }, if want.is_some() { "held" } else { "none" }),
+    }
+}
+
+fn id_of(entry: &Entry) -> String {
+    entry.borrow().record.borrow().id.clone()
 }
 
 fn forking(fx: &Fx, plan: ForkPlan) {
@@ -1490,11 +1512,11 @@ fn a_plain_opening_prepares_everything_the_launch_needs() {
         assert_eq!(p.opts.prompt, "hello");
         assert_eq!(p.opts.harness, Some("claude".to_string()));
         assert_eq!(p.prefs, default_preferences());
-        assert_eq!(p.plan, None);
+        same_plan(&p.plan, &None);
         assert_eq!((p.thread_id.as_str(), p.opens, p.cleared), ("thr-new", true, true));
-        assert_eq!(p.entry.id(), "w1");
+        assert_eq!(id_of(&p.entry), "w1");
         assert_eq!((p.replaces.clone(), p.resume.clone(), p.gone_now.clone(), p.title.clone()), (None, None, None, None));
-        assert_eq!(p.tree, Tree::default());
+        assert_eq!(p.tree, TreeOf::default());
         assert_eq!((p.asked.clone(), p.notify.clone(), p.notify_by.clone(), p.notify_road, p.notice.clone()), (None, None, None, None, None));
         assert_eq!(p.clouds, Some(Vec::new()));
         assert_eq!(p.turn_token, "01".repeat(16), "randomBytes(16) as hex, drawn after the thread id");
@@ -1509,11 +1531,15 @@ fn a_plain_opening_prepares_everything_the_launch_needs() {
         assert_eq!(asked.len(), 1);
         let (harness, ask) = &asked[0];
         assert_eq!(harness, "claude");
-        let env: Vec<(&str, &str)> = ask.env.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let env: Vec<(&str, &str)> = ask.turn_env.iter().flatten().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         assert_eq!(env, vec![(TURN_TOKEN_ENV, p.turn_token.as_str()), (THREAD_ENV, "thr-new"), ("WSP_HOST", "h-tok")]);
-        assert_eq!(ask.thread_id, Some("thr-new".to_string()));
+        assert_eq!(ask.thread, Some("thr-new".to_string()));
         assert!(!ask.asks_until_stopped);
-        assert!(Rc::ptr_eq(ask.waiting.as_ref().expect("the waiting flag"), &p.waiting), "the adapter reads the flag the row writes");
+        let reads = ask.waiting.as_ref().expect("the waiting flag");
+        assert!(!reads(), "the adapter reads the flag the row writes");
+        p.waiting.set(true);
+        assert!(reads(), "the adapter reads the flag the row writes");
+        p.waiting.set(false);
         assert_eq!(
             order(
                 &fx.host,
@@ -1521,7 +1547,7 @@ fn a_plain_opening_prepares_everything_the_launch_needs() {
             ),
             strings(&[
                 "ready", "preferences_held", "preferences", "fork_opened(w1)", "entry_of(w1)", "default_agent_of", "agent_off(claude)", "confine_setup(claude)", "refuse_sub_send", "copy_blocked",
-                "worktree_mounted", "kept_check(thr-new)", "spawn_guard(thread_new)", "tree_of", "notify_on(thr-new)", "place_rows", "thread_launch(thr-new, thr-new, false)", "adapter_for(claude)"
+                "worktree_mounted", "kept_check(thr-new)", "spawn_guard(thread_new)", "tree_of", "notify_on(thr-new)", "place_rows", "thread_launch(thr-new, thr-new, false)", "adapter_for"
             ])
         );
 
@@ -1540,7 +1566,7 @@ fn a_refusal_after_the_mint_revokes_the_device() {
         // a harness no adapter is built for
         let fx = fx();
         minted(&fx);
-        hook!(fx.host, "LaunchCtx::adapter_for", dyn Fn(&Entry, &str, AdapterAsk) -> Result<BuiltAdapter, HostError>, |_e: &Entry, h: &str, _a: AdapterAsk| Err(HostError::new(format!("no adapter for {h}"))));
+        hook!(fx.host, "LaunchCtx::adapter_for", dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>, |_e: &Entry, a: AdapterAsk| Err(HostError::new(format!("no adapter for {}", a.named.unwrap_or_default()))));
         let e = fx.refused(StartOptions { harness: Some("nope".into()), ..go("hi") }, None).await;
         settle().await;
         assert_eq!(said(&e), said(&err("no adapter for nope")));
@@ -1598,7 +1624,7 @@ fn a_refusal_after_the_mint_revokes_the_device() {
 fn a_launch_with_no_scoped_device_revokes_nothing_and_a_failed_revoke_is_only_warned() {
     run_local(async {
         let fx = fx();
-        hook!(fx.host, "LaunchCtx::adapter_for", dyn Fn(&Entry, &str, AdapterAsk) -> Result<BuiltAdapter, HostError>, |_e: &Entry, _h: &str, _a: AdapterAsk| Err(HostError::new("no adapter")));
+        hook!(fx.host, "LaunchCtx::adapter_for", dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>, |_e: &Entry, _a: AdapterAsk| Err(HostError::new("no adapter")));
         let e = fx.refused(go("hi"), None).await;
         settle().await;
         assert_eq!(said(&e), said(&err("no adapter")));
@@ -1606,7 +1632,7 @@ fn a_launch_with_no_scoped_device_revokes_nothing_and_a_failed_revoke_is_only_wa
 
         let fx = fx_on(Agent::default());
         minted(&fx);
-        hook!(fx.host, "LaunchCtx::adapter_for", dyn Fn(&Entry, &str, AdapterAsk) -> Result<BuiltAdapter, HostError>, |_e: &Entry, _h: &str, _a: AdapterAsk| Err(HostError::new("no adapter")));
+        hook!(fx.host, "LaunchCtx::adapter_for", dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>, |_e: &Entry, _a: AdapterAsk| Err(HostError::new("no adapter")));
         hook!(fx.host, "LaunchCtx::revoke_device", dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>, |_d: &str| async { Err(HostError::new("the door is down")) }.boxed_local());
         let lines = console::capture();
         let e = fx.refused(go("hi"), None).await;
@@ -1622,10 +1648,10 @@ fn a_fork_the_agent_can_make_carries_its_turn() {
     run_local(async {
         let fx = fx_on(Agent { forks: true, by_count: true, ..Default::default() });
         forking(&fx, plan_with(true, Some("src-sess")));
-        hook!(fx.host, "SessionsCtx::fork_turn_of", dyn Fn(&ForkPlan, bool) -> Option<Value>, |_p: &ForkPlan, by_count: bool| Some(json!({ "byCount": by_count })));
+        hook!(fx.host, "SessionsCtx::fork_turn_of", dyn Fn(&ForkPlan, bool) -> Result<Option<ForkTurn>, HostError>, |_p: &ForkPlan, by_count: bool| Ok(Some(if by_count { ForkTurn::After(Vec::new()) } else { ForkTurn::Anchor("turn-src".into()) })));
         let p = fx.launches(go("hi"), None).await;
-        assert_eq!(p.fork_turn, Some(json!({ "byCount": true })));
-        assert_eq!(p.plan, Some(plan_with(true, Some("src-sess"))));
+        assert_eq!(p.fork_turn, Some(ForkTurn::After(Vec::new())));
+        same_plan(&p.plan, &Some(plan_with(true, Some("src-sess"))));
     })
 }
 
@@ -1655,7 +1681,7 @@ fn the_wsp_tools_ride_the_launch_for_a_harness_that_takes_servers() {
 
         let fx = fx_on(Agent { takes_servers: true, ..Default::default() });
         minted(&fx);
-        hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> Tree, |_s: Option<&ThreadScope>| Tree { parent_thread_id: Some("lead-t".into()), root_thread_id: Some("lead-t".into()) });
+        hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> TreeOf, |_s: Option<&ThreadScope>| TreeOf { parent_thread_id: Some("lead-t".into()), root_thread_id: Some("lead-t".into()) });
         let child = by(WorkspaceOrigin::Relayed, scope("kid", "w1", "lead-t"));
         let p = fx.launches(go("hi"), Some(child)).await;
         let served = wsp_threads::threads::launch::served_to(Some(&wsp), "lead-t", "thr-new").expect("a server");

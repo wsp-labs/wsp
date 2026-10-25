@@ -7,7 +7,7 @@ use std::sync::Arc;
 use futures::future::{LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
 use wsp_adapters::port::{HarnessSession, PermissionAsk, TaskStop, TurnImage};
-use wsp_core::types::internal::{CallSeen, KeptLaunch, TurnWritten};
+use wsp_core::types::internal::KeptLaunch;
 use wsp_core::types::wiring::{AccessMove, Local, SessionHandle, SteerTaken};
 use wsp_wire::views::session::{PermissionOutcome, SessionView};
 use wsp_wire::views::session_events::{TurnResult, TurnStatus};
@@ -15,8 +15,8 @@ use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 use wsp_wire::wire::runtime::{SessionAnswerResult, SessionStartOutcome};
 use wsp_words::exit::HostError;
 
-use super::{Opening, TurnRow, TurnSnapshot, TurnStart, TurnsArea, TurnsCtx};
-use crate::pending::{Entry, SharedAsked, SharedLive, SharedView, Waiting};
+use super::{Opening, TurnSnapshot, TurnStart, TurnsArea, TurnsCtx};
+use crate::threads::threads::{Entry, Row, Waiting};
 
 /// The counts a turn has written of each numbered row kind, and how many of them a re-read still has to skip.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -41,7 +41,8 @@ pub struct TurnState {
     pub(crate) ctx: Rc<dyn TurnsCtx>,
     pub(crate) entry: Entry,
     pub(crate) workspace_id: String,
-    pub(crate) view: SharedView,
+    /// The turn's row: its view, live state, asked and calls are the row's own, shared with whoever holds the row.
+    pub(crate) row: Row,
     pub(crate) thread_id: String,
     pub(crate) turn_id: String,
     pub(crate) row_id: RefCell<String>,
@@ -52,8 +53,6 @@ pub struct TurnState {
     pub(crate) scope_device_id: Option<String>,
     pub(crate) outcome: SessionStartOutcome,
     pub(crate) opening: Opening,
-    pub(crate) asked: Option<SharedAsked>,
-    pub(crate) turn_live: SharedLive,
     pub(crate) images_dir: Option<String>,
     pub(crate) snapshot: Option<TurnSnapshot>,
     pub(crate) waiting: Option<Waiting>,
@@ -77,7 +76,6 @@ pub struct TurnState {
     pub(crate) kept_why: RefCell<Option<String>>,
     pub(crate) open: RefCell<IndexMap<String, PermissionAsk>>,
     pub(crate) tasks_running: Cell<bool>,
-    pub(crate) calls: Rc<RefCell<IndexMap<String, CallSeen>>>,
     pub(crate) waited: Cell<f64>,
     pub(crate) waiting_since: Cell<Option<f64>>,
     pub(crate) unread: RefCell<Vec<String>>,
@@ -92,8 +90,8 @@ impl TurnState {
         todo!()
     }
 
-    /// The row as the notify and cut roads read it.
-    pub fn row(&self) -> TurnRow {
+    /// The row the notify and cut roads read.
+    pub fn row(&self) -> Row {
         todo!()
     }
 
