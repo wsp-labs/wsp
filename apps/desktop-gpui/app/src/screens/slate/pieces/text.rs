@@ -290,13 +290,14 @@ pub fn facts_grid(key: SharedString, list: &[Fact], place: Place, window: &Windo
     }
 }
 
-/// Facts on one line: pairs 12 px apart that wrap, each label 12 px muted before its value. Under 480 px of the row one
-/// pair a line, the labels a column of their own up to 40% of it, so the values start at one edge.
-pub fn facts_line(key: SharedString, list: &[Fact], window: &mut Window, cx: &mut App) -> AnyElement {
+/// Facts on one line: pairs 12 px apart that wrap, each label 12 px muted before its value. Under 480 px of their own
+/// width one pair a line, the labels a column of their own up to 40% of it, so the values start at one edge. In a row,
+/// sized by what it holds, its own width is its content's, so there it stays a line.
+pub fn facts_line(key: SharedString, list: &[Fact], in_row: bool, window: &mut Window, cx: &mut App) -> AnyElement {
     let figures = list.iter().all(|f| is_figure(Some(&Value::String(f.value.clone()))));
     let muted = cx.palette().muted_foreground;
     let (width, probe) = measured(key, window, cx);
-    if let Some(width) = width.filter(|w| *w < NARROW_FACTS) {
+    if let Some(width) = width.filter(|w| !in_row && *w < NARROW_FACTS) {
         let sans = cx.theme().font_family.clone();
         let widest = list.iter().map(|f| text::width(&f.label, 12., sans.clone(), window)).fold(px(0.), Pixels::max).ceil();
         let column = widest.min(width * 0.4);
@@ -353,7 +354,8 @@ fn facts(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
     if p.str("layout").as_deref() == Some("grid") {
         Some(facts_grid(p.el("facts"), &list, place_of(p.slate, p.id()), window, cx))
     } else {
-        Some(facts_line(p.el("facts-width"), &list, window, cx))
+        let in_row = p.slate.parent(p.id()).is_some_and(|parent| parent.kind == "row");
+        Some(facts_line(p.el("facts-width"), &list, in_row, window, cx))
     }
 }
 
