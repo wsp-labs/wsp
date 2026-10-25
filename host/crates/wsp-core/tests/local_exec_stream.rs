@@ -13,8 +13,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use futures::future::BoxFuture;
-use futures::stream::BoxStream;
+use futures::future::LocalBoxFuture;
+use futures::stream::LocalBoxStream;
 use futures::StreamExt;
 use tokio::sync::oneshot;
 use wsp_adapters::port::{end_run, AttachRunOptions, Attached, Env, ExecFailure, ExecOptions as Launch, ExecStream, ExecStreamFactory, Settle, WriteOutcome};
@@ -28,7 +28,7 @@ use support::{gate, gate_loop, sleep_ms, sq, wait_for, within};
 const EXEC_CHUNK_BYTES: usize = 262_144;
 const WALL_WORDS: &str = "send to continue where it stopped, or change the limit in Settings > Computers";
 
-type Lines = BoxStream<'static, Result<String, ExecFailure>>;
+type Lines = LocalBoxStream<'static, Result<String, ExecFailure>>;
 
 /// One case's temp root, with the run folder under it. The guard ends the streams the case asked to end and every pid
 /// it recorded, then the root goes with the guard.
@@ -172,11 +172,11 @@ fn strs(lines: &[&str]) -> Vec<String> {
 }
 
 /// A TS promise runs from the call: this polls the work once, then lets a task carry it on.
-async fn started<T: Send + 'static>(mut work: BoxFuture<'static, T>) -> BoxFuture<'static, T> {
+async fn started<T: 'static>(mut work: LocalBoxFuture<'static, T>) -> LocalBoxFuture<'static, T> {
     match futures::poll!(&mut work) {
         std::task::Poll::Ready(v) => Box::pin(std::future::ready(v)),
         std::task::Poll::Pending => {
-            let task = tokio::spawn(work);
+            let task = tokio::task::spawn_local(work);
             Box::pin(async move { task.await.expect("the started work") })
         }
     }
@@ -187,7 +187,7 @@ async fn started<T: Send + 'static>(mut work: BoxFuture<'static, T>) -> BoxFutur
 /// all until a whole second of its own has passed, and no idle limit is long enough to outrun that ratio.
 fn burning_tree() -> TreeWorkReader {
     let from = now_ms();
-    Arc::new(move |_pgid: i32| -> BoxFuture<'static, Option<i64>> {
+    Arc::new(move |_pgid: i32| -> LocalBoxFuture<'static, Option<i64>> {
         let ticks = (now_ms() - from) / 10;
         Box::pin(async move { Some(ticks) })
     })
@@ -353,7 +353,7 @@ mod local_exec_stream {
         let stream = go(&factory, &format!("sleep 20 & echo $! > {marker}; sleep 20"));
         let sleeping = grandchild(&marker).await;
         let reader = stream.clone();
-        let reading = tokio::spawn(async move { support::collect(&*reader).await });
+        let reading = tokio::task::spawn_local(async move { support::collect(&*reader).await });
         // The cut takes the group, so the grandchild is gone before the cut's own words reach the reader.
         gone(sleeping).await;
         let (_, failure) = reading.await.expect("the reader");
@@ -925,7 +925,7 @@ mod a_real_turn_s_process_group {
         );
         let stream = go(&c.factory(), &command);
         let reader = stream.clone();
-        let reading = tokio::spawn(async move { support::collect(&*reader).await });
+        let reading = tokio::task::spawn_local(async move { support::collect(&*reader).await });
         let writer = grandchild(&marker).await;
         sleep_ms(1_000).await;
         stream.kill();

@@ -6,8 +6,8 @@
 //! Private state sits behind a `std::sync::Mutex` that is never held across an `.await` or a call out (rule 3.3).
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
-use futures::stream::BoxStream;
+use futures::future::LocalBoxFuture;
+use futures::stream::LocalBoxStream;
 use wsp_adapters::port::{ExecFailure, ExecStream, Settle, SharedFuture, WriteOutcome};
 
 use super::factory::{Core, Launched, Posting};
@@ -275,7 +275,7 @@ impl ExecStream for MachineStream {
     //         finish(null);
     //       }
     //     }
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
         todo!()
     }
     fn run(&self) -> Option<String> {
@@ -338,7 +338,7 @@ impl ExecStream for MachineStream {
     //         await ahead;
     //         return append(line);
     //       },
-    fn write(&self, line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+    fn write(&self, line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
         todo!()
     }
     // TS machine-exec.ts:668-679
@@ -487,7 +487,7 @@ impl PollNap {
     pub fn new(sleep: Option<super::factory::SleepFn>) -> Arc<Self> {
         todo!()
     }
-    pub fn nap(&self, ms: u64) -> BoxFuture<'static, ()> {
+    pub fn nap(&self, ms: u64) -> LocalBoxFuture<'static, ()> {
         todo!()
     }
     pub fn wake(&self) {

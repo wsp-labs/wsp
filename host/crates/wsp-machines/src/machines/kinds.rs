@@ -9,46 +9,44 @@ use async_trait::async_trait;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 
-use wsp_core::types::internal::{ImportLanded, ImportReport};
-use wsp_core::types::wiring::ProjectImportOptions;
+use futures::future::LocalBoxFuture;
+use wsp_adapters::codex::command::{AccountModels, CodexBroker};
+use wsp_adapters::pending::CodexClaims;
+use wsp_core::types::harness::Brokered;
+use wsp_core::types::internal::{EndThread, ImportLanded, ImportReport, KindModule};
+use wsp_core::types::pending::MachineExecOptions;
+use wsp_core::types::wiring::{LiveWorkspace, ProjectImportOptions, StageReport, WorkspaceRecord};
 use wsp_engine::machine::{ExecResult, Machine, MachineBackend};
+use wsp_wire::types::agents_report::AgentSignInState;
 use wsp_wire::views::harness::McpServerSpec;
 use wsp_wire::views::workspace::{DaemonReachView, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
+use wsp_wire::wire::runtime::BrokerStatus;
 use wsp_words::exit::HostError;
 
 use crate::machines::area_error::AreaResult;
-use wsp_core::types::internal::KindModule;
-use crate::machines::machines::Entry;
-use wsp_core::types::wiring::StageReport;
-use wsp_core::types::wiring::WorkspaceRecord;
+use crate::machines::brokered::Placeholders;
+use crate::machines::thread_ends::OwedEnd;
+use crate::places::types::FolderComputer;
 
 pub mod roads;
 pub mod table;
 
-/// The folder computer a joined computer's folder record stands on (`PlaceDoor.folderComputer`).
-#[derive(Clone)]
-pub struct FolderComputer {
-    pub machine: Arc<dyn Machine>,
-    pub home: String,
-    pub shape: Value,
-    pub tools: bool,
-}
-
-/// What the broker last said and the claims of its ChatGPT login (kinds.ts:253-255), as the TS objects.
+/// What the broker last said and the claims of its ChatGPT login (kinds.ts:253-255).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BrokerSaid {
-    pub status: Option<Value>,
-    pub claims: Option<Value>,
+    pub status: Option<BrokerStatus>,
+    pub claims: Option<CodexClaims>,
 }
 
-/// What a launch on a brokered workspace carries in place of the vault (kinds.ts:278).
-#[derive(Clone, Debug, PartialEq)]
+/// What a launch on a brokered workspace carries in place of the vault (kinds.ts:278): the shape of
+/// `HarnessAdapterContext`'s `brokered` and `codex_broker`.
+#[derive(Clone)]
 pub struct BrokeredLaunch {
     pub env: IndexMap<String, String>,
     pub vault: IndexMap<String, String>,
-    pub claude: Option<Value>,
-    pub codex: Option<Value>,
+    pub claude: Option<Brokered>,
+    pub codex: Option<CodexBroker>,
 }
 
 /// What the kinds area reads off the runtime's context (kinds.ts:30 and every `ctx.`, `opts.` and door call).
@@ -67,8 +65,8 @@ pub trait KindsCtx {
     fn wired_place(&self) -> String;
     fn project_held(&self, id: &str) -> ProjectView;
     fn checkout_of(&self, record: &WorkspaceRecord) -> String;
-    fn computer_of(&self, entry: &Entry) -> String;
-    fn served_by_its_computer(&self, entry: &Entry) -> bool;
+    fn computer_of(&self, entry: &LiveWorkspace) -> String;
+    fn served_by_its_computer(&self, entry: &LiveWorkspace) -> bool;
     /// Whether the host wired a place door at all.
     fn has_place_door(&self) -> bool;
     fn door_backend_of(&self, place: &str) -> Option<Arc<dyn MachineBackend>>;
@@ -77,30 +75,33 @@ pub trait KindsCtx {
     fn door_joined(&self, place: &str) -> bool;
     fn door_logins_of(&self, place: &str) -> Option<String>;
     fn door_vault_at(&self, place: &str, vault: &IndexMap<String, String>) -> Option<IndexMap<String, String>>;
-    fn door_sign_ins_at(&self, place: &str) -> Option<IndexMap<String, String>>;
+    fn door_sign_ins_at(&self, place: &str) -> Option<IndexMap<String, AgentSignInState>>;
     fn door_github_from_vault(&self, place: &str) -> bool;
     async fn door_exec(&self, place: &str, cmd: &str, timeout_ms: u64) -> AreaResult<ExecResult>;
-    async fn door_forward(&self, place: &str, port: u16, pane: Value, standing: bool) -> AreaResult<u16>;
-    async fn door_report_daemon_version(&self, place: &str) -> Option<f64>;
+    async fn door_forward(&self, place: &str, port: u16, pane: Option<(String, String)>, standing: bool) -> AreaResult<u16>;
+    async fn door_report_daemon_version(&self, place: &str) -> Option<u32>;
     /// `opts.vault?.()`.
     fn vault(&self) -> IndexMap<String, String>;
     /// `opts.broker?.ready() === true`.
     fn broker_ready(&self) -> bool;
     fn has_broker_status(&self) -> bool;
-    async fn broker_status(&self) -> AreaResult<Value>;
-    async fn broker_codex_claims(&self) -> AreaResult<Value>;
+    async fn broker_status(&self) -> AreaResult<BrokerStatus>;
+    /// `broker.codexClaims()`: none where the broker holds no ChatGPT login.
+    async fn broker_codex_claims(&self) -> AreaResult<Option<CodexClaims>>;
+    /// `opts.broker.codexModels` bound, handed to `codex_broker_of` as the models read.
+    fn broker_codex_models(&self) -> Option<AccountModels>;
     /// protocol `isBrokered(record, provider)`, `atProvider` read for it.
     fn is_brokered(&self, record: &WorkspaceRecord) -> bool;
     /// brokered.ts `codexBrokerOf(status, claims, models)`.
-    fn codex_broker_of(&self, said: &BrokerSaid) -> Option<Value>;
+    fn codex_broker_of(&self, said: &BrokerSaid) -> Option<CodexBroker>;
     fn unbrokered_refusal(&self, harness: &str) -> Option<HostError>;
     fn codex_login_unread_refusal(&self) -> HostError;
-    /// brokered.ts `placeholdersOf(status, token)`: `(claude, vault)`.
-    fn placeholders_of(&self, said: &BrokerSaid, token: &str) -> (Value, IndexMap<String, String>);
+    /// brokered.ts `placeholdersOf(status, token)`.
+    fn placeholders_of(&self, said: &BrokerSaid, token: &str) -> Placeholders;
     /// brokered.ts `brokeredEnv(token, branchOfRecord, publicMarketplaces(ctx))`.
     fn brokered_env(&self, token: &str, record: &WorkspaceRecord) -> IndexMap<String, String>;
-    /// branch-of-record.ts `landOnRecord(ctx, entry, project, lines)`.
-    async fn land_on_record(&self, entry: &Entry, project: &ProjectView, lines: Option<Vec<String>>) -> AreaResult<()>;
+    /// branch-of-record.ts `landOnRecord(ctx, entry, project, lines)`. The answer owns what it read of the entry.
+    fn land_on_record(&self, entry: &LiveWorkspace, project: ProjectView, lines: Option<Vec<String>>) -> LocalBoxFuture<'static, AreaResult<()>>;
     /// project-landing.ts `cloneLines(...)` as the TS object it takes.
     fn clone_lines(&self, o: Value) -> Vec<String>;
     async fn daemon_token_of(&self, machine: &Arc<dyn Machine>) -> AreaResult<Option<String>>;
@@ -110,9 +111,11 @@ pub trait KindsCtx {
     /// The local wiring's daemon road, where it wired one.
     async fn local_daemon_road(&self) -> Option<AreaResult<DaemonReachView>>;
     /// `opts.machineExec`, merged under the caller's keys by `exec_factory_for`.
-    fn machine_exec_opts(&self) -> Option<serde_json::Map<String, Value>>;
-    async fn copy_import(&self, entry: &Entry, o: ProjectImportOptions, report: ImportReport) -> AreaResult<ImportLanded>;
-    async fn hello_version(&self, entry: &Entry) -> Option<f64>;
+    fn machine_exec_opts(&self) -> Option<MachineExecOptions>;
+    /// The copy import of a fork; the answer owns what it read of the entry.
+    fn copy_import(&self, entry: &LiveWorkspace, o: ProjectImportOptions, report: ImportReport) -> LocalBoxFuture<'static, AreaResult<ImportLanded>>;
+    /// The daemon's hello version; the answer owns what it read of the entry.
+    fn hello_version(&self, entry: &LiveWorkspace) -> LocalBoxFuture<'static, Option<u32>>;
     /// Whether the host wired the local road (`local !== undefined`), which the local kind needs.
     fn has_local(&self) -> bool;
     /// The local wiring's backend.
@@ -130,7 +133,7 @@ pub trait KindsCtx {
     /// `local.restartDaemon !== undefined`.
     fn has_local_restart(&self) -> bool;
     /// `local.hereDaemon?.version()`; `None` where there is no here daemon.
-    async fn here_daemon_version(&self) -> Option<AreaResult<Option<f64>>>;
+    async fn here_daemon_version(&self) -> Option<AreaResult<Option<u32>>>;
     /// `local.backend.folder`.
     fn local_scratch(&self) -> String;
     /// `opts.agents?.wspMcp`.
@@ -140,8 +143,8 @@ pub trait KindsCtx {
     /// The folder computer's machine's `loginOf().user` (`PlaceFolderMachine.loginOf`).
     async fn door_login_user(&self, place: &str) -> AreaResult<String>;
     /// The thread-ends area's `end` and `owed` on a place.
-    async fn end_thread(&self, place: &str, thread_id: &str, o: Value) -> AreaResult<Value>;
-    async fn end_owed(&self, place: &str, thread_id: &str) -> AreaResult<Value>;
+    async fn end_thread(&self, place: &str, thread_id: &str, o: EndThread) -> AreaResult<Option<String>>;
+    async fn end_owed(&self, place: &str, thread_id: &str) -> AreaResult<Option<OwedEnd>>;
     fn now_ms(&self) -> f64 {
         self.now()
     }

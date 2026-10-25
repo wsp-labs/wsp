@@ -4,8 +4,9 @@
 //! (machines_attach.md: the live entry, its engine hooks, drop) and `phases` (machines_phases.md: nap, adopt, gone,
 //! the idle wiring, the wake proof). The handles every unit of this slice shares are declared here.
 //!
-//! wsp-core's context handle is not written yet; each area of this slice takes one trait of its own naming every call
-//! it makes on the rest of the runtime (spec/README.md). No borrow of a shared map is held across an `.await` or a
+//! wsp-core's context traits are empty; each area of this slice takes one trait of its own naming every call it makes on
+//! the rest of the runtime (spec/README.md). `ThreadOn`, `Refusal`, `Unreached`, `ImageRead` and `MachinesConfig` are the
+//! anonymous object types context.ts and machines.ts write inline; no wsp-core item names them, so they stay here. No borrow of a shared map is held across an `.await` or a
 //! call out (chapter 03, rule 3.3).
 
 pub mod attach;
@@ -34,7 +35,7 @@ use wsp_wire::wire::machine_link::MachineShape;
 use wsp_words::exit::HostError;
 
 /// A live workspace as every area holds it: one object per record, compared by `Rc::ptr_eq` where the TS compares
-/// `live.get(id) !== entry`. Moves to wsp-core's context once it is written.
+/// `live.get(id) !== entry`. No wsp-core item names it.
 pub type Entry = Rc<RefCell<LiveWorkspace>>;
 
 /// One row the runtime holds, a turn of a thread, by reference: `end` and the re-key change the row in place.
@@ -88,11 +89,21 @@ pub struct MachinesConfig {
     pub poll_interval_ms: u64,
 }
 
-/// The idle policy as the machines area drives it; wsp-core's `idle` module makes it with this area's callbacks
-/// (`MachinesArea::idle_window_of_id`, `on_idle`, `idle_busy`, `on_backstop`).
+/// The two calls the area makes on the idle policy. wsp-core's `IdlePolicy` (made with this area's callbacks
+/// `idle_window_of_id`, `on_idle`, `idle_busy`, `on_backstop`) is one; a test hands in a door that records them, which
+/// the real policy cannot (its touches are internal to its timers).
 pub trait IdleDoor {
     fn touch(&self, workspace_id: &str);
     fn forget(&self, workspace_id: &str);
+}
+
+impl IdleDoor for wsp_core::idle::IdlePolicy {
+    fn touch(&self, workspace_id: &str) {
+        wsp_core::idle::IdlePolicy::touch(self, workspace_id)
+    }
+    fn forget(&self, workspace_id: &str) {
+        wsp_core::idle::IdlePolicy::forget(self, workspace_id)
+    }
 }
 
 /// Every call the machines area makes on the rest of the runtime, each named as the TS member it stands for.
@@ -163,7 +174,7 @@ pub trait MachinesRuntime {
     fn place_nap_ms(&self, place_id: Option<&str>) -> Option<Option<f64>>;
     async fn shape_of(&self, machine: &Arc<dyn Machine>) -> Option<MachineShape>;
     fn size_built(&self, shape: Option<&MachineShape>, asked: WorkspaceSize) -> WorkspaceSize;
-    async fn read_memory(&self, record: &mut WorkspaceRecord, machine: &Arc<dyn Machine>, sizes: &[WorkspaceSize]) -> bool;
+    async fn read_memory(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: &Arc<dyn Machine>, sizes: &[WorkspaceSize]) -> bool;
     /// `ctx.vaultExport(m, { maxBytes, leave })`.
     async fn vault_export(&self, machine: &Arc<dyn Machine>, max_bytes: u64, leave: Option<Vec<String>>) -> Result<Vec<u8>, HostError>;
     /// `gone.stop(at, machine)`: the delete the gone watch proves.

@@ -15,11 +15,15 @@ use machines_b_support::kinds_ctx::*;
 use machines_b_support::*;
 use wsp_engine::machine::MachineBackend;
 use wsp_core::clock::Cancel;
-use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
-use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
-use wsp_machines::machines::area_error::{AreaError, AreaResult};
-use wsp_machines::machines::machines::Entry;
+use wsp_adapters::codex::command::{BrokerMode, CodexBroker};
+use wsp_core::types::harness::{Brokered, BrokeredKind};
+use wsp_core::types::internal::KindModule;
+use wsp_core::types::pending::MachineExecOptions;
+use wsp_core::types::wiring::{StageReport, WorkspaceRecord};
 use wsp_machines::machines::kinds::{BrokeredLaunch, KindsArea, KindsCtx};
+use wsp_machines::machines::machines::Entry;
+use wsp_wire::types::agents_report::AgentSignInState;
+use wsp_wire::views::workspace::ProjectSource;
 use wsp_wire::types::shell_quote::shell_line;
 use wsp_wire::views::workspace::ProjectView;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
@@ -32,12 +36,12 @@ fn s(p: &Path) -> &str {
     p.to_str().unwrap()
 }
 
-fn git_source(url: &str) -> Value {
-    json!({ "kind": "git", "url": url })
+fn git_source(url: &str) -> ProjectSource {
+    serde_json::from_value(json!({ "kind": "git", "url": url })).unwrap()
 }
 
-fn gh_source(repo: &str) -> Value {
-    json!({ "kind": "github", "repo": repo })
+fn gh_source(repo: &str) -> ProjectSource {
+    serde_json::from_value(json!({ "kind": "github", "repo": repo })).unwrap()
 }
 
 fn invalid(e: &HostError, message: &str) {
@@ -240,7 +244,7 @@ fn fork(listing: &str, project_extra: Value, record_extra: Value) -> (Rc<FakeHos
 }
 
 async fn land(area: &KindsArea, entry: &Entry, p: &ProjectView, report: StageReport) -> Result<(), HostError> {
-    area.module_of(WorkspaceKind::Cloud).ok().expect("cloud is wired").land_project(entry, &serde_json::to_value(p).unwrap(), report).await
+    land_project_of(&*area.module_of(WorkspaceKind::Cloud).ok().expect("cloud is wired"), entry, p.clone(), report).await
 }
 
 fn of_record() -> Value {
@@ -274,7 +278,7 @@ fn clones_the_repo_into_a_fork_before_ready_with_its_base() {
 
         // A fork of a thread's workspace starts from the branch its record names, cloned through the host's credentials.
         let (host, area, entry, machine, p) = fork("", json!({ "base": "main" }), json!({ "branchOfRecord": of_record(), "base": "feat/x" }));
-        entry.of_record_held.set(true);
+        entry.borrow_mut().of_record_held = true;
         let (seen, report) = reports();
         land(&area, &entry, &p, report).await.unwrap();
         assert_eq!(seen.borrow().len(), 1);
@@ -366,18 +370,18 @@ fn thread_folder_takes_cwd_then_the_kinds_folder_then_the_project() {
         hold(&local_project);
         // A sub-thread's folder is the sub's own, on Boat.
         let sub = host.put_live(sub_record("ws_sub", "running"), FakeMachine::new("bx_s"));
-        assert_eq!(area.thread_folder(&sub, None).await.unwrap(), "/root/web");
-        assert_eq!(area.thread_folder(&sub, Some("/tmp")).await.unwrap(), "/tmp");
-        assert_eq!(area.thread_folder(&sub, Some("")).await.unwrap(), "");
+        assert_eq!(area.thread_folder(&sub.borrow(), None).await.unwrap(), "/root/web");
+        assert_eq!(area.thread_folder(&sub.borrow(), Some("/tmp")).await.unwrap(), "/tmp");
+        assert_eq!(area.thread_folder(&sub.borrow(), Some("")).await.unwrap(), "");
         // A fork that is no sub-thread has no folder of the kind's own: its project's path is the answer.
         let fork = host.put_live(record_of("ws_fork", json!({ "project": "pr_1" }), &["place", "sub"]), FakeMachine::new("bx_f"));
-        assert_eq!(area.thread_folder(&fork, None).await.unwrap(), "/root/spoo-landing");
+        assert_eq!(area.thread_folder(&fork.borrow(), None).await.unwrap(), "/root/spoo-landing");
         // A folder here is the checkout of its record: the project's own, or the worktree wsp made.
         let local = host.put_live(record_of("ws_loc", json!({ "kind": "local", "project": "pr_l" }), &["place", "sub"]), FakeMachine::new("loc"));
-        assert_eq!(area.thread_folder(&local, None).await.unwrap(), "/home/z/lab");
-        local.record.borrow_mut().worktree = Some(json!({ "path": "/home/z/lab-wt", "made": true }));
-        assert_eq!(area.thread_folder(&local, None).await.unwrap(), "/home/z/lab-wt");
-        assert_eq!(area.thread_folder(&local, Some("/home/z/lab/sub")).await.unwrap(), "/home/z/lab/sub");
+        assert_eq!(area.thread_folder(&local.borrow(), None).await.unwrap(), "/home/z/lab");
+        set_worktree(&local, json!({ "path": "/home/z/lab-wt", "made": true }));
+        assert_eq!(area.thread_folder(&local.borrow(), None).await.unwrap(), "/home/z/lab-wt");
+        assert_eq!(area.thread_folder(&local.borrow(), Some("/home/z/lab/sub")).await.unwrap(), "/home/z/lab/sub");
     });
 }
 
@@ -388,8 +392,22 @@ fn brokered_entry(host: &FakeHost, id: &str) -> Entry {
     host.put_live(record_of(id, json!({ "branchOfRecord": of_record() }), &[]), FakeMachine::new(&format!("bx_{id}")))
 }
 
-fn empty_launch() -> BrokeredLaunch {
-    BrokeredLaunch { env: IndexMap::new(), vault: IndexMap::new(), claude: None, codex: None }
+/// A launch as its words read: the env, the vault, the Claude placeholder and the codex broker's mode.
+type Shape = (String, String, Option<(String, BrokeredKind)>, Option<String>);
+
+fn codex_word(codex: &Option<CodexBroker>) -> Option<String> {
+    codex.as_ref().map(|c| match &c.mode {
+        BrokerMode::Apikey => "apikey".to_string(),
+        BrokerMode::Chatgpt { claims, .. } => format!("chatgpt:{}", claims.account_id),
+    })
+}
+
+fn shape_of(launch: Option<BrokeredLaunch>) -> Option<Shape> {
+    launch.map(|l| (text(&l.env), text(&l.vault), l.claude.map(|c| (c.token, c.kind)), codex_word(&l.codex)))
+}
+
+fn empty_shape() -> Shape {
+    ("{}".to_string(), "{}".to_string(), None, None)
 }
 
 #[test]
@@ -401,32 +419,32 @@ fn a_brokered_launch_carries_the_token_env_and_placeholders() {
         area.read_broker().await;
         assert!(host.calls_of("broker_codex_claims").is_empty(), "claims are read only for a ChatGPT login");
 
-        let launch = area.brokered_launch(&entry, "claude", Some("tok")).unwrap().unwrap();
+        let launch = area.brokered_launch(&entry.borrow(), "claude", Some("tok")).unwrap().unwrap();
         assert_eq!(text(&launch.env), r#"{"GH_TOKEN":"tok","WSP_BRANCH_OF_RECORD":"spoo-me/frontend@wsp/x"}"#);
         assert_eq!(text(&launch.vault), r#"{"OPENAI_API_KEY":"sk-wsp-tok"}"#);
-        assert_eq!((launch.claude, launch.codex), (Some(json!({ "token": "tok", "kind": "key" })), None));
+        assert_eq!((launch.claude, codex_word(&launch.codex)), (Some(Brokered { token: "tok".to_string(), kind: BrokeredKind::Key }), None));
 
-        let codex = area.brokered_launch(&entry, "codex", Some("tok")).unwrap().unwrap();
-        assert_eq!(codex.codex, Some(json!({ "mode": "apikey" })));
+        let codex = area.brokered_launch(&entry.borrow(), "codex", Some("tok")).unwrap().unwrap();
+        assert_eq!(codex_word(&codex.codex), Some("apikey".to_string()));
 
         // A launch with no token carries only what codex reads.
-        assert_eq!(area.brokered_launch(&entry, "claude", None).unwrap(), Some(empty_launch()));
-        assert_eq!(area.brokered_launch(&entry, "codex", None).unwrap(), Some(BrokeredLaunch { codex: Some(json!({ "mode": "apikey" })), ..empty_launch() }));
+        assert_eq!(shape_of(area.brokered_launch(&entry.borrow(), "claude", None).unwrap()), Some(empty_shape()));
+        assert_eq!(shape_of(area.brokered_launch(&entry.borrow(), "codex", None).unwrap()), Some((empty_shape().0, empty_shape().1, None, Some("apikey".to_string()))));
 
         // An agent the broker adds no key for is refused with a token and carries nothing without one.
-        let e = area.brokered_launch(&entry, "gemini", Some("tok")).unwrap_err();
+        let e = area.brokered_launch(&entry.borrow(), "gemini", Some("tok")).err().unwrap();
         let said = unbrokered("gemini").unwrap();
         assert_eq!((e.message, e.kind), (said.message, Some(Kind::Usage)));
-        assert_eq!(area.brokered_launch(&entry, "gemini", None).unwrap(), Some(empty_launch()));
+        assert_eq!(shape_of(area.brokered_launch(&entry.borrow(), "gemini", None).unwrap()), Some(empty_shape()));
 
         // A workspace on a joined computer, or any while the broker is not ready, is not brokered.
         let joined = host.put_live(record_of("ws_j", json!({ "place": "srv" }), &["sub"]), FakeMachine::new("bx_j"));
-        assert!(!area.brokered(&joined.record.borrow()));
-        assert_eq!(area.brokered_launch(&joined, "claude", Some("tok")).unwrap(), None);
-        assert!(area.brokered(&entry.record.borrow()));
+        assert!(!area.brokered(&held_record(&joined)));
+        assert!(area.brokered_launch(&joined.borrow(), "claude", Some("tok")).unwrap().is_none());
+        assert!(area.brokered(&held_record(&entry)));
         world(|w| w.broker_ready = false);
-        assert!(!area.brokered(&entry.record.borrow()));
-        assert_eq!(area.brokered_launch(&entry, "claude", Some("tok")).unwrap(), None);
+        assert!(!area.brokered(&held_record(&entry)));
+        assert!(area.brokered_launch(&entry.borrow(), "claude", Some("tok")).unwrap().is_none());
     });
 }
 
@@ -439,8 +457,8 @@ fn a_codex_launch_refuses_where_the_broker_named_no_login() {
         host.script("broker_status", Ok(json!({ "codex": "chatgpt" })));
         host.script("broker_codex_claims", Ok(json!({ "accountId": "acct-acme" })));
         area.read_broker().await;
-        let launch = area.brokered_launch(&entry, "codex", Some("tok")).unwrap().unwrap();
-        assert_eq!(launch.codex, Some(json!({ "mode": "chatgpt", "claims": { "accountId": "acct-acme" } })));
+        let launch = area.brokered_launch(&entry.borrow(), "codex", Some("tok")).unwrap().unwrap();
+        assert_eq!(codex_word(&launch.codex), Some("chatgpt:acct-acme".to_string()));
         assert_eq!(text(&launch.env), r#"{"GH_TOKEN":"tok","WSP_BRANCH_OF_RECORD":"spoo-me/frontend@wsp/x"}"#);
         assert!(launch.vault.is_empty());
 
@@ -451,47 +469,47 @@ fn a_codex_launch_refuses_where_the_broker_named_no_login() {
         host.script("broker_codex_claims", Err(failed("chatgpt.com unreachable")));
         area.read_broker().await;
         let unread = codex_unread();
-        let e = area.brokered_launch(&entry, "codex", Some("tok")).unwrap_err();
+        let e = area.brokered_launch(&entry.borrow(), "codex", Some("tok")).err().unwrap();
         assert_eq!((e.message, e.kind), (unread.message.clone(), Some(Kind::Auth)));
-        assert_eq!(area.brokered_launch(&entry, "codex", None).unwrap(), Some(empty_launch()));
-        assert!(area.brokered_launch(&entry, "claude", Some("tok")).unwrap().is_some(), "claude needs no codex login");
+        assert_eq!(shape_of(area.brokered_launch(&entry.borrow(), "codex", None).unwrap()), Some(empty_shape()));
+        assert!(area.brokered_launch(&entry.borrow(), "claude", Some("tok")).unwrap().is_some(), "claude needs no codex login");
 
         // The status read fails, or names no ChatGPT login: the claims are never asked for.
         let (host, area) = kinds();
         let entry = brokered_entry(&host, "ws_b");
         host.script("broker_status", Err(failed("broker is down")));
         area.read_broker().await;
-        assert!(area.brokered_launch(&entry, "codex", Some("tok")).is_err());
+        assert!(area.brokered_launch(&entry.borrow(), "codex", Some("tok")).is_err());
         host.script("broker_status", Ok(json!({ "codex": "none" })));
         area.read_broker().await;
-        assert!(area.brokered_launch(&entry, "codex", Some("tok")).is_err());
+        assert!(area.brokered_launch(&entry.borrow(), "codex", Some("tok")).is_err());
         assert!(host.calls_of("broker_codex_claims").is_empty());
         host.script("broker_status", Ok(json!({ "codex": "access-token" })));
         host.script("broker_codex_claims", Ok(json!({ "accountId": "acct-acme" })));
         area.read_broker().await;
         assert_eq!(host.calls_of("broker_codex_claims").len(), 1);
-        assert!(area.brokered_launch(&entry, "codex", Some("tok")).unwrap().unwrap().codex.is_some());
+        assert!(area.brokered_launch(&entry.borrow(), "codex", Some("tok")).unwrap().unwrap().codex.is_some());
 
         // know_broker reads where no codex login is known, once, and refuses where there is still none.
         let (host, area) = kinds();
         let entry = brokered_entry(&host, "ws_b");
         host.script("broker_status", Ok(json!({ "codex": "chatgpt" })));
         host.script("broker_codex_claims", Ok(json!({ "accountId": "acct-acme" })));
-        area.know_broker(&entry, "claude").await.unwrap();
+        area.know_broker(&entry.borrow(), "claude").await.unwrap();
         let joined = host.put_live(record_of("ws_j", json!({ "place": "srv" }), &["sub"]), FakeMachine::new("bx_j"));
-        area.know_broker(&joined, "codex").await.unwrap();
+        area.know_broker(&joined.borrow(), "codex").await.unwrap();
         assert!(host.calls_of("broker_status").is_empty(), "no read for another agent or an unbrokered workspace");
-        area.know_broker(&entry, "codex").await.unwrap();
-        area.know_broker(&entry, "codex").await.unwrap();
+        area.know_broker(&entry.borrow(), "codex").await.unwrap();
+        area.know_broker(&entry.borrow(), "codex").await.unwrap();
         assert_eq!(host.calls_of("broker_status").len(), 1);
 
         let (host, area) = kinds();
         let entry = brokered_entry(&host, "ws_b");
         host.script("broker_status", Err(failed("broker is down")));
-        let e = area.know_broker(&entry, "codex").await.unwrap_err();
+        let e = area.know_broker(&entry.borrow(), "codex").await.unwrap_err();
         assert_eq!((e.message, e.kind), (unread.message, Some(Kind::Auth)));
         host.script("broker_status", Err(failed("broker is down")));
-        assert!(area.know_broker(&entry, "codex").await.is_err());
+        assert!(area.know_broker(&entry.borrow(), "codex").await.is_err());
         assert_eq!(host.calls_of("broker_status").len(), 2, "a read that found none is read again");
     });
 }
@@ -508,7 +526,7 @@ fn read_broker_past_five_seconds_leaves_both_facts_none() {
         host.script("broker_status", Ok(json!({ "codex": "chatgpt" })));
         host.script("broker_codex_claims", Ok(json!({ "accountId": "acct-acme" })));
         area.read_broker().await;
-        let held = area.brokered_launch(&entry, "codex", Some("tok")).unwrap().unwrap();
+        let held = area.brokered_launch(&entry.borrow(), "codex", Some("tok")).unwrap().unwrap();
         assert!(held.codex.is_some());
 
         host.script("broker_status", Ok(json!("never")));
@@ -522,9 +540,9 @@ fn read_broker_past_five_seconds_leaves_both_facts_none() {
         host.clock.advance(1.0).await;
         reading.await.unwrap();
         assert_eq!(host.calls_of("broker_status").len(), 2);
-        let e = area.brokered_launch(&entry, "codex", Some("tok")).unwrap_err();
+        let e = area.brokered_launch(&entry.borrow(), "codex", Some("tok")).err().unwrap();
         assert_eq!(e.message, codex_unread().message);
-        assert_eq!(area.brokered_launch(&entry, "codex", None).unwrap(), Some(empty_launch()));
+        assert_eq!(shape_of(area.brokered_launch(&entry.borrow(), "codex", None).unwrap()), Some(empty_shape()));
     });
 }
 
@@ -533,7 +551,7 @@ fn read_broker_past_five_seconds_leaves_both_facts_none() {
 
 fn srv_world(set: impl FnOnce(&mut Door)) -> impl FnOnce(&mut World) {
     move |w| {
-        let (mut door, _machine) = joined_door("Srv", "/home/srv", true);
+        let mut door = joined_door("Srv", "/home/srv", true);
         set(&mut door);
         w.place_door = true;
         w.doors.insert("srv".to_string(), door);
@@ -559,33 +577,33 @@ fn a_joined_computers_agent_homes_and_env_follow_its_login() {
         assert_eq!(area.place_agent_home(None, "/home/srv", "codex").unwrap(), "/home/srv/.codex");
         assert_eq!(area.place_agent_home(Some("srv"), "/home/srv", "nope").unwrap_err().message, "the catalog has no home for nope");
         let place = area.module_of(WorkspaceKind::Place).ok().expect("a place door is wired");
-        assert_eq!(place.home(&entry, "codex").unwrap(), format!("{LOGINS}/codex"));
-        assert_eq!(place.home_dir(&entry.record.borrow()).unwrap(), "/home/srv");
+        assert_eq!(place.home(&entry.borrow(), "codex"), format!("{LOGINS}/codex"));
+        assert_eq!(place.home_dir(&held_record(&entry)), Some("/home/srv".to_string()));
 
         let (host, area) = kinds_with(srv_world(|_| {}));
         let entry = srv_entry(&host);
         assert_eq!(area.place_agent_home(Some("srv"), "/home/srv", "codex").unwrap(), "/home/srv/.codex");
-        assert_eq!(area.module_of(WorkspaceKind::Place).ok().unwrap().home(&entry, "codex").unwrap(), "/home/srv/.codex");
+        assert_eq!(area.module_of(WorkspaceKind::Place).ok().unwrap().home(&entry.borrow(), "codex"), "/home/srv/.codex");
 
         // A record naming a computer this host does not hold is held by nothing.
         let place = area.module_of(WorkspaceKind::Place).ok().unwrap();
         let record = |id: &str, extra: Value, without: &[&str]| -> WorkspaceRecord { serde_json::from_value(record_of(id, extra, without)).unwrap() };
         let at_none = record("ws_n", json!({ "kind": "place", "name": "lab" }), &["place", "sub"]);
-        assert_eq!(place.home_dir(&at_none).unwrap_err().message, "lab stands on no computer, which this host no longer holds");
+        assert_eq!(area.place_of(&at_none).err().unwrap().message, "lab stands on no computer, which this host no longer holds");
         let away = record("ws_a", json!({ "kind": "place", "place": "away", "name": "lab" }), &["sub"]);
-        assert_eq!(place.home_dir(&away).unwrap_err().message, "lab stands on away, which this host no longer holds");
+        assert_eq!(area.place_of(&away).err().unwrap().message, "lab stands on away, which this host no longer holds");
         world(|w| {
             w.doors.insert("gone".to_string(), Door { name: "Gone".to_string(), joined: true, ..Door::default() });
         });
         let gone = record("ws_g", json!({ "kind": "place", "place": "gone", "name": "lab" }), &["sub"]);
-        let refused = place.home_dir(&gone).unwrap_err();
+        let refused = area.place_of(&gone).err().unwrap();
         assert_eq!(refused.message, "that computer reported no home folder for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path");
         assert_eq!(refused.kind, None);
 
         // The environment: the login's variables without USER and PATH, then HOME, then each agent's store and the
         // vault's sign-in its turn would be handed, then GitHub's token, only where the door says the vault holds it.
         let vault = [("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-x"), ("OPENAI_API_KEY", "sk-oai"), ("GH_TOKEN", "ghp_x")];
-        let signed_in = |id: &str| IndexMap::from([(id.to_string(), "signed-in".to_string())]);
+        let signed_in = |id: &str| IndexMap::from([(id.to_string(), AgentSignInState::SignedIn)]);
         let env_in = |set: Box<dyn FnOnce(&mut Door)>| {
             let (host, area) = kinds_with(|w| {
                 srv_world(set)(w);
@@ -593,7 +611,7 @@ fn a_joined_computers_agent_homes_and_env_follow_its_login() {
             });
             let entry = srv_entry(&host);
             let place = area.module_of(WorkspaceKind::Place).ok().unwrap();
-            let env = place.env(&entry, None, &|id| format!("/h/{id}")).unwrap();
+            let env = place.env(&entry.borrow(), None, &|id| format!("/h/{id}"));
             (env.keys().cloned().collect::<Vec<_>>(), env)
         };
         let at = |keys: &[String], k: &str| keys.iter().position(|x| x == k).unwrap_or_else(|| panic!("{k} is in {keys:?}"));
@@ -623,14 +641,19 @@ fn a_joined_computers_agent_homes_and_env_follow_its_login() {
         });
         let entry = srv_entry(&host);
         let place = area.module_of(WorkspaceKind::Place).ok().unwrap();
-        assert_eq!(text(&area.vault_on(&entry)), r#"{"CLAUDE_CODE_OAUTH_TOKEN":"sk-ant-oat01-x","GH_TOKEN":"ghp_x"}"#);
+        assert_eq!(text(&area.vault_on(&entry.borrow())), r#"{"CLAUDE_CODE_OAUTH_TOKEN":"sk-ant-oat01-x","GH_TOKEN":"ghp_x"}"#);
         let fork = host.put_live(record_of("ws_f", json!({ "project": "pr_1" }), &["place", "sub"]), FakeMachine::new("bx_f"));
-        assert_eq!(area.vault_on(&fork).len(), 3);
+        assert_eq!(area.vault_on(&fork.borrow()).len(), 3);
         world(|w| w.doors.get_mut("srv").unwrap().vault_drops = None);
-        assert_eq!(area.vault_on(&entry).len(), 3);
-        assert!(!place.login_stands(&entry, "codex"));
+        assert_eq!(area.vault_on(&entry.borrow()).len(), 3);
+        assert!(!place.login_stands(&entry.borrow(), "codex"));
         world(|w| w.doors.get_mut("srv").unwrap().sign_ins = Some(signed_in("codex")));
-        assert!(place.login_stands(&entry, "codex") && !place.login_stands(&entry, "claude"));
+        assert!(place.login_stands(&entry.borrow(), "codex") && !place.login_stands(&entry.borrow(), "claude"));
+
+        // A record naming a computer the door does not hold has no environment: the refusal is `place_env`'s.
+        let stray = host.put_live(record_of("ws_s", json!({ "kind": "place", "place": "away", "name": "lab" }), &["sub"]), FakeMachine::new("stray-machine"));
+        let e = area.place_env(&stray.borrow(), &|id| format!("/h/{id}")).unwrap_err();
+        assert_eq!(e.message, "lab stands on away, which this host no longer holds");
     });
 }
 
@@ -721,7 +744,7 @@ fn backend_for_a_released_or_cloud_gone_record_is_the_released_backend() {
     run(async {
         let boat = FakeBackend::new();
         let (host, area) = kinds_with(|w| {
-            let (mut door, _m) = joined_door("Boat", "/root", false);
+            let mut door = joined_door("Boat", "/root", false);
             door.backend = Some(boat.clone());
             w.doors.insert("box".to_string(), door);
             w.place_door = true;
@@ -753,17 +776,24 @@ fn backend_for_a_released_or_cloud_gone_record_is_the_released_backend() {
 
         // A released machine declares no lifecycle; a live one reads its backend's.
         let live = host.put_live(sub_record("ws_live", "running"), FakeMachine::new("bx_live"));
-        assert!(area.lifecycle_of(&live).is_ok());
+        assert!(area.lifecycle_of(&live.borrow()).is_ok());
         let dead = host.put_live(record_of("ws_dead", json!({ "phase": "released" }), &["place", "sub"]), FakeMachine::new("bx_dead"));
-        assert_eq!(area.lifecycle_of(&dead).err().unwrap().message, "cloud machines declare no lifecycle");
+        assert_eq!(area.lifecycle_of(&dead.borrow()).err().unwrap().message, "cloud machines declare no lifecycle");
 
         // The options a kind's exec stream is made with: the host's wired ones under the caller's keys.
-        let o = json!({ "pollMs": 1 }).as_object().cloned();
-        assert_eq!(area.exec_options_for(o.clone()), o);
-        world(|w| w.machine_exec = json!({ "pollMs": 5, "idleMs": 9 }).as_object().cloned());
-        assert_eq!(text(&area.exec_options_for(o).unwrap()), r#"{"pollMs":1,"idleMs":9}"#);
-        assert_eq!(text(&area.exec_options_for(None).unwrap()), r#"{"pollMs":5,"idleMs":9}"#);
+        let reads = |o: Option<MachineExecOptions>| o.map(|o| (o.poll_ms, o.idle_ms));
+        let o = MachineExecOptions { poll_ms: Some(1), ..MachineExecOptions::default() };
+        assert_eq!(reads(area.exec_options_for(Some(o.clone()))), Some((Some(1), None)));
+        assert_eq!(reads(area.exec_options_for(None)), None);
+        world(|w| w.machine_exec = Some(MachineExecOptions { poll_ms: Some(5), idle_ms: Some(9.0), ..MachineExecOptions::default() }));
+        assert_eq!(reads(area.exec_options_for(Some(o))), Some((Some(1), Some(9.0))));
+        assert_eq!(reads(area.exec_options_for(None)), Some((Some(5), Some(9.0))));
     });
+}
+
+#[test]
+fn the_broker_read_waits_five_seconds() {
+    assert_eq!(wsp_machines::machines::kinds::roads::BROKER_READ_MS, 5_000.0);
 }
 
 #[test]

@@ -10,6 +10,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use futures::future::LocalBoxFuture;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
 
@@ -19,14 +20,24 @@ use wsp_engine::machine::{
     MachineState, RunOptions, SnapshotOptions, Waiting,
 };
 use wsp_core::clock::Cancel;
-use wsp_core::types::internal::{ImportLanded, ImportReport};
+use wsp_core::types::internal::{EndThread, ImportLanded, ImportReport};
 use wsp_core::types::internal::{KindModule, PortRoute};
+use wsp_core::types::pending::MachineExecOptions;
 use wsp_core::types::wiring::{
     LiveWorkspace, Local, PackedProject, PackedState, ProjectBundler, ProjectImportOptions, StageReport, StateRequest, WorkspaceRecord,
 };
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::brokered::{ClaudePlaceholderKind, Placeholders};
 use wsp_machines::machines::machines::Entry;
-use wsp_machines::machines::kinds::{BrokerSaid, FolderComputer, KindsArea, KindsCtx};
+use wsp_machines::machines::kinds::{BrokerSaid, KindsArea, KindsCtx};
+use wsp_machines::machines::thread_ends::OwedEnd;
+use wsp_machines::places::types::FolderComputer;
+use wsp_adapters::codex::command::{AccountModels, BrokerMode, CodexBroker};
+use wsp_adapters::pending::CodexClaims;
+use wsp_engine::link_backend::{LinkAsk, MachineLink};
+use wsp_engine::place_machine::PlaceFolderMachine;
+use wsp_wire::types::agents_report::AgentSignInState;
+use wsp_wire::wire::runtime::{BrokerStatus, BrokerStatusClaude, BrokerStatusCodex};
 use wsp_wire::types::shell_quote::shell_line;
 use wsp_wire::views::golden_image::MachineKind;
 use wsp_wire::types::js_number::{JsInt, JsNumber};
@@ -180,19 +191,43 @@ impl MachineBackend for PlainBackend {
 // ---------------------------------------------------------------------------------------------------------------
 // The world the context reads, one per test thread.
 
+/// A road to a computer that answers nothing: a `PlaceFolderMachine` rides one, and no test here reads through it.
+pub struct SilentLink;
+
+#[async_trait(?Send)]
+impl MachineLink for SilentLink {
+    async fn request(&self, _op: &str, _params: Map<String, Value>, _ask: LinkAsk) -> Result<Map<String, Value>, EngineError> {
+        Err(engine_error("the silent link answers nothing"))
+    }
+    async fn forward(&self, _place_port: u16) -> Result<u16, EngineError> {
+        Err(engine_error("the silent link carries no port"))
+    }
+}
+
+/// The folder computer a door holds, as the parts of a `FolderComputer` (which is not `Clone`). Its machine is made
+/// when a call asks for the computer, so a test that never reads it never builds one.
+#[derive(Clone)]
+pub struct FolderSpec {
+    pub id: String,
+    pub home: String,
+    pub cpu: u32,
+    pub mem_mb: u64,
+    pub tools: bool,
+}
+
 /// What the place door says of one joined computer.
 #[derive(Clone, Default)]
 pub struct Door {
     pub name: String,
     pub backend: Option<Arc<dyn MachineBackend>>,
-    pub folder: Option<FolderComputer>,
+    pub folder: Option<FolderSpec>,
     pub joined: bool,
     pub logins: Option<String>,
     /// Keys the door's picks take out of the vault; none means the door answers nothing for the vault.
     pub vault_drops: Option<Vec<String>>,
-    pub sign_ins: Option<IndexMap<String, String>>,
+    pub sign_ins: Option<IndexMap<String, AgentSignInState>>,
     pub github_from_vault: bool,
-    pub daemon_version: Option<f64>,
+    pub daemon_version: Option<u32>,
     pub forward_port: u16,
 }
 
@@ -213,8 +248,8 @@ pub struct World {
     pub provider_places: IndexSet<String>,
     pub deploy: bool,
     pub local_road: Option<DaemonReachView>,
-    pub machine_exec: Option<Map<String, Value>>,
-    pub hello: Option<f64>,
+    pub machine_exec: Option<MachineExecOptions>,
+    pub hello: Option<u32>,
     /// The local wiring; `None` is a host that wired no local road.
     pub local_wiring: Option<LocalWiring>,
     pub agents_wsp_mcp: Option<McpServerSpec>,
@@ -230,7 +265,7 @@ pub struct LocalWiring {
     pub roots_path: Option<String>,
     pub daemon_road: bool,
     pub restart: bool,
-    pub here_daemon: Option<f64>,
+    pub here_daemon: Option<u32>,
     pub scratch: String,
 }
 
@@ -286,17 +321,15 @@ pub fn kinds_with(set: impl FnOnce(&mut World)) -> (Rc<FakeHost>, Rc<KindsArea>)
     (host, area)
 }
 
-/// A joined computer the door holds, its folder computer on a fake machine at this home.
-pub fn joined_door(name: &str, home: &str, tools: bool) -> (Door, Arc<FakeMachine>) {
-    let machine = FakeMachine::new(&format!("{name}-machine"));
-    let door = Door {
+/// A joined computer the door holds, its folder computer a `PlaceFolderMachine` over a silent link at this home.
+pub fn joined_door(name: &str, home: &str, tools: bool) -> Door {
+    Door {
         name: name.to_string(),
-        folder: Some(FolderComputer { machine: machine.clone(), home: home.to_string(), shape: json!({ "cpu": 2, "memMb": 4096 }), tools }),
+        folder: Some(FolderSpec { id: format!("{name}-machine"), home: home.to_string(), cpu: 2, mem_mb: 4096, tools }),
         joined: true,
         forward_port: 41_000,
         ..Door::default()
-    };
-    (door, machine)
+    }
 }
 
 /// A project as the host holds it, from the TS shape with `extra` keys over it.
@@ -695,12 +728,12 @@ impl KindsCtx for FakeHost {
             None => self.project_held(&record.project).path,
         }
     }
-    fn computer_of(&self, entry: &Entry) -> String {
-        let place = entry.borrow().record.borrow().place.clone();
+    fn computer_of(&self, entry: &LiveWorkspace) -> String {
+        let place = entry.record.borrow().place.clone();
         self.place_name(&place.unwrap_or_else(|| self.wired_place()))
     }
-    fn served_by_its_computer(&self, entry: &Entry) -> bool {
-        world(|w| w.served.contains(&entry_id(entry)))
+    fn served_by_its_computer(&self, entry: &LiveWorkspace) -> bool {
+        world(|w| w.served.contains(&entry.record.borrow().id))
     }
     fn has_place_door(&self) -> bool {
         world(|w| w.place_door)
@@ -712,7 +745,13 @@ impl KindsCtx for FakeHost {
         door_of(place).name
     }
     fn door_folder_computer(&self, place: &str) -> Option<FolderComputer> {
-        door_of(place).folder
+        door_of(place).folder.map(|f| FolderComputer {
+            machine: PlaceFolderMachine::new(Arc::new(SilentLink), &f.id, &f.home, None),
+            home: f.home,
+            cpu: f.cpu,
+            mem_mb: f.mem_mb,
+            tools: f.tools,
+        })
     }
     fn door_joined(&self, place: &str) -> bool {
         world(|w| w.place_door) && door_of(place).joined
@@ -723,7 +762,7 @@ impl KindsCtx for FakeHost {
     fn door_vault_at(&self, place: &str, vault: &IndexMap<String, String>) -> Option<IndexMap<String, String>> {
         door_of(place).vault_drops.map(|drops| vault.iter().filter(|(k, _)| !drops.contains(k)).map(|(k, v)| (k.clone(), v.clone())).collect())
     }
-    fn door_sign_ins_at(&self, place: &str) -> Option<IndexMap<String, String>> {
+    fn door_sign_ins_at(&self, place: &str) -> Option<IndexMap<String, AgentSignInState>> {
         door_of(place).sign_ins
     }
     fn door_github_from_vault(&self, place: &str) -> bool {
@@ -741,14 +780,15 @@ impl KindsCtx for FakeHost {
             None => Ok(ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() }),
         }
     }
-    async fn door_forward(&self, place: &str, port: u16, pane: Value, standing: bool) -> AreaResult<u16> {
+    async fn door_forward(&self, place: &str, port: u16, pane: Option<(String, String)>, standing: bool) -> AreaResult<u16> {
+        let pane = pane.map(|(workspace_id, name)| json!({ "workspaceId": workspace_id, "name": name }));
         self.call("door_forward", &[place, &port.to_string(), &serde_json::to_string(&pane).unwrap(), &standing.to_string()]);
         if let Some(Err(e)) = self.next("door_forward") {
             return Err(e);
         }
         Ok(door_of(place).forward_port)
     }
-    async fn door_report_daemon_version(&self, place: &str) -> Option<f64> {
+    async fn door_report_daemon_version(&self, place: &str) -> Option<u32> {
         self.call("door_report_daemon_version", &[place]);
         door_of(place).daemon_version
     }
@@ -762,30 +802,42 @@ impl KindsCtx for FakeHost {
         world(|w| w.broker_has_status)
     }
     /// A scripted `"never"` is a read that never answers.
-    async fn broker_status(&self) -> AreaResult<Value> {
+    async fn broker_status(&self) -> AreaResult<BrokerStatus> {
         self.call("broker_status", &[]);
         match self.next("broker_status") {
             Some(Ok(Value::String(s))) if s == "never" => {
                 futures::future::pending::<()>().await;
                 unreachable!()
             }
-            Some(answer) => answer,
+            Some(answer) => answer.map(|v| serde_json::from_value(v).expect("the scripted status reads as the TS writes it")),
             None => Err(failed("no status scripted")),
         }
     }
-    async fn broker_codex_claims(&self) -> AreaResult<Value> {
+    async fn broker_codex_claims(&self) -> AreaResult<Option<CodexClaims>> {
         self.call("broker_codex_claims", &[]);
-        self.next("broker_codex_claims").unwrap_or_else(|| Err(failed("no claims scripted")))
+        match self.next("broker_codex_claims") {
+            Some(Ok(v)) => Ok(Some(CodexClaims {
+                account_id: v["accountId"].as_str().expect("scripted claims name an account").to_string(),
+                plan_type: v["planType"].as_str().map(String::from),
+                user_id: v["userId"].as_str().map(String::from),
+                fedramp: v["fedramp"].as_bool(),
+            })),
+            Some(Err(e)) => Err(e),
+            None => Err(failed("no claims scripted")),
+        }
+    }
+    fn broker_codex_models(&self) -> Option<AccountModels> {
+        None
     }
     /// A cloud record with no place or at a provider place.
     fn is_brokered(&self, record: &WorkspaceRecord) -> bool {
         record.kind == wsp_wire::views::workspace_kind::WorkspaceKind::Cloud && record.place.as_ref().map(|p| world(|w| w.provider_places.contains(p))).unwrap_or(true)
     }
-    fn codex_broker_of(&self, said: &BrokerSaid) -> Option<Value> {
-        let codex = said.status.as_ref().and_then(|s| s["codex"].as_str());
+    fn codex_broker_of(&self, said: &BrokerSaid) -> Option<CodexBroker> {
+        let codex = said.status.as_ref().and_then(|s| s.codex.clone());
         match (codex, &said.claims) {
-            (Some("key"), _) => Some(json!({ "mode": "apikey" })),
-            (Some(_), Some(claims)) => Some(json!({ "mode": "chatgpt", "claims": claims })),
+            (Some(BrokerStatusCodex::Key), _) => Some(CodexBroker { mode: BrokerMode::Apikey, providers: None }),
+            (Some(_), Some(claims)) => Some(CodexBroker { mode: BrokerMode::Chatgpt { claims: claims.clone(), models: None }, providers: None }),
             _ => None,
         }
     }
@@ -795,14 +847,15 @@ impl KindsCtx for FakeHost {
     fn codex_login_unread_refusal(&self) -> HostError {
         codex_unread()
     }
-    fn placeholders_of(&self, said: &BrokerSaid, token: &str) -> (Value, IndexMap<String, String>) {
+    fn placeholders_of(&self, said: &BrokerSaid, token: &str) -> Placeholders {
         let status = said.status.as_ref();
-        let kind = match status.and_then(|s| s["claude"].as_str()) {
-            Some(k @ ("key" | "gateway")) => k,
-            _ => "token",
+        let claude_kind = match status.and_then(|s| s.claude.clone()) {
+            Some(BrokerStatusClaude::Key) => ClaudePlaceholderKind::Key,
+            Some(BrokerStatusClaude::Gateway) => ClaudePlaceholderKind::Gateway,
+            _ => ClaudePlaceholderKind::Token,
         };
-        let vault = if status.and_then(|s| s["codex"].as_str()) == Some("key") { IndexMap::from([("OPENAI_API_KEY".to_string(), format!("sk-wsp-{token}"))]) } else { IndexMap::new() };
-        (json!({ "token": token, "kind": kind }), vault)
+        let vault = if status.and_then(|s| s.codex.clone()) == Some(BrokerStatusCodex::Key) { IndexMap::from([("OPENAI_API_KEY".to_string(), format!("sk-wsp-{token}"))]) } else { IndexMap::new() };
+        Placeholders { claude_token: token.to_string(), claude_kind, vault }
     }
     fn brokered_env(&self, token: &str, record: &WorkspaceRecord) -> IndexMap<String, String> {
         let mut env = IndexMap::from([("GH_TOKEN".to_string(), token.to_string())]);
@@ -811,12 +864,15 @@ impl KindsCtx for FakeHost {
         }
         env
     }
-    async fn land_on_record(&self, entry: &Entry, project: &ProjectView, lines: Option<Vec<String>>) -> AreaResult<()> {
-        self.call("land_on_record", &[&entry_id(entry), &project.id, &serde_json::to_string(&lines).unwrap()]);
-        if let Some(Err(e)) = self.next("land_on_record") {
-            return Err(e);
-        }
-        Ok(())
+    fn land_on_record(&self, entry: &LiveWorkspace, project: ProjectView, lines: Option<Vec<String>>) -> LocalBoxFuture<'static, AreaResult<()>> {
+        self.call("land_on_record", &[&entry.record.borrow().id, &project.id, &serde_json::to_string(&lines).unwrap()]);
+        let answer = self.next("land_on_record");
+        Box::pin(async move {
+            match answer {
+                Some(Err(e)) => Err(e),
+                _ => Ok(()),
+            }
+        })
     }
     /// The clone as project-landing.ts writes it, less the host command a test never reads: the object it was given
     /// is kept whole, so a test reads what the area passed.
@@ -859,11 +915,11 @@ impl KindsCtx for FakeHost {
     async fn local_daemon_road(&self) -> Option<AreaResult<DaemonReachView>> {
         world(|w| w.local_road.clone()).map(Ok)
     }
-    fn machine_exec_opts(&self) -> Option<Map<String, Value>> {
+    fn machine_exec_opts(&self) -> Option<MachineExecOptions> {
         world(|w| w.machine_exec.clone())
     }
-    async fn copy_import(&self, entry: &Entry, o: ProjectImportOptions, _report: ImportReport) -> AreaResult<ImportLanded> {
-        let id = entry_id(entry);
+    fn copy_import(&self, entry: &LiveWorkspace, o: ProjectImportOptions, _report: ImportReport) -> LocalBoxFuture<'static, AreaResult<ImportLanded>> {
+        let id = entry.record.borrow().id.clone();
         self.call("copy_import", &[&id, &import_words(&o)]);
         let project = WorkspaceProject { name: "copied".to_string(), dest: o.dest.clone(), imported_at: "2025-10-09T08:53:20.000Z".to_string(), size: None };
         let result = ProjectImportResult {
@@ -876,11 +932,12 @@ impl KindsCtx for FakeHost {
             agents: Vec::new(),
             project,
         };
-        Ok(ImportLanded { result, done: format!("copied {id}") })
+        Box::pin(async move { Ok(ImportLanded { result, done: format!("copied {id}") }) })
     }
-    async fn hello_version(&self, entry: &Entry) -> Option<f64> {
-        self.call("hello_version", &[&entry_id(entry)]);
-        world(|w| w.hello)
+    fn hello_version(&self, entry: &LiveWorkspace) -> LocalBoxFuture<'static, Option<u32>> {
+        self.call("hello_version", &[&entry.record.borrow().id]);
+        let said = world(|w| w.hello);
+        Box::pin(async move { said })
     }
     fn has_local(&self) -> bool {
         world(|w| w.local_wiring.is_some())
@@ -906,7 +963,7 @@ impl KindsCtx for FakeHost {
     fn has_local_restart(&self) -> bool {
         world(|w| w.local_wiring.as_ref().is_some_and(|l| l.restart))
     }
-    async fn here_daemon_version(&self) -> Option<AreaResult<Option<f64>>> {
+    async fn here_daemon_version(&self) -> Option<AreaResult<Option<u32>>> {
         world(|w| w.local_wiring.as_ref().and_then(|l| l.here_daemon).map(|v| Ok(Some(v))))
     }
     fn local_scratch(&self) -> String {
@@ -922,13 +979,13 @@ impl KindsCtx for FakeHost {
         self.call("door_login_user", &[place]);
         Ok(world(|w| w.login_user.clone()))
     }
-    async fn end_thread(&self, place: &str, thread_id: &str, o: Value) -> AreaResult<Value> {
-        self.call("end_thread", &[place, thread_id, &o.to_string()]);
-        Ok(Value::Null)
+    async fn end_thread(&self, place: &str, thread_id: &str, o: EndThread) -> AreaResult<Option<String>> {
+        self.call("end_thread", &[place, thread_id, &format!("remove={} away={}", o.remove, o.away)]);
+        Ok(None)
     }
-    async fn end_owed(&self, place: &str, thread_id: &str) -> AreaResult<Value> {
+    async fn end_owed(&self, place: &str, thread_id: &str) -> AreaResult<Option<OwedEnd>> {
         self.call("end_owed", &[place, thread_id]);
-        Ok(Value::Null)
+        Ok(None)
     }
     fn sleep(&self, ms: f64) -> futures::future::LocalBoxFuture<'static, ()> {
         let (tx, rx) = futures::channel::oneshot::channel::<()>();

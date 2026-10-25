@@ -36,7 +36,7 @@ pub struct FollowOptions {
 /// (adapter.ts:1312), every other is one `follow`.
 #[derive(Clone)]
 pub struct ClaudeSession {
-    inner: Arc<dyn std::any::Any + Send + Sync>,
+    inner: Arc<dyn std::any::Any>,
 }
 
 /// Reads `o.stream` on a task of its own from the moment it is called, and registers the session in `core`'s map
@@ -108,7 +108,7 @@ impl ClaudeSession {
 /// The process a finished turn left up for the thread's next message. adapter.ts:1254 and 1298.
 #[derive(Clone)]
 pub struct ClaudeKept {
-    inner: Arc<dyn std::any::Any + Send + Sync>,
+    inner: Arc<dyn std::any::Any>,
 }
 
 impl ClaudeKept {
@@ -152,25 +152,25 @@ impl crate::port::HarnessSession for ClaudeSession {
     fn from(&self) -> Option<u64> {
         todo!()
     }
-    fn interrupt(&self) -> futures::future::BoxFuture<'static, ()> {
+    fn interrupt(&self) -> futures::future::LocalBoxFuture<'static, ()> {
         todo!()
     }
     fn kept(&self) -> Option<Option<Box<dyn crate::port::KeptAgent>>> {
         todo!()
     }
-    fn steer(&self, prompt: String, id: Option<String>, images: Vec<TurnImage>) -> Option<futures::future::BoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
+    fn steer(&self, prompt: String, id: Option<String>, images: Vec<TurnImage>) -> Option<futures::future::LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
         todo!()
     }
     fn tells_unread(&self) -> Option<bool> {
         todo!()
     }
-    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<futures::future::BoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
+    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<futures::future::LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         todo!()
     }
-    fn set_access(&self, mode: String) -> Option<futures::future::BoxFuture<'static, Result<AccessOutcome, ExecFailure>>> {
+    fn set_access(&self, mode: String) -> Option<futures::future::LocalBoxFuture<'static, Result<AccessOutcome, ExecFailure>>> {
         todo!()
     }
-    fn stop_task(&self, task: String) -> Option<futures::future::BoxFuture<'static, Result<TaskStop, ExecFailure>>> {
+    fn stop_task(&self, task: String) -> Option<futures::future::LocalBoxFuture<'static, Result<TaskStop, ExecFailure>>> {
         todo!()
     }
 }
@@ -179,7 +179,7 @@ impl crate::port::KeptAgent for ClaudeKept {
     fn next(&self, turn: KeptTurn) -> Result<Arc<dyn crate::port::HarnessSession>, crate::port::AdapterError> {
         todo!()
     }
-    fn close(&self, now: bool) -> futures::future::BoxFuture<'static, ()> {
+    fn close(&self, now: bool) -> futures::future::LocalBoxFuture<'static, ()> {
         todo!()
     }
     fn exited(&self) -> SharedFuture<()> {

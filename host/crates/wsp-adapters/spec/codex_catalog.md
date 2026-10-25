@@ -11,16 +11,16 @@ host holds the machine's ChatGPT sign-in, the account's own model list (ChatGPT'
 binary's.
 
 ## Behaviour
-1. Request ids 1 initialize, 2 `model/list`, 3 `config/read`, 4 `account/read` (catalog.ts:360-364). A brokered probe sends the first
-   three only: the door holds the sign-in, so `account/read` would always say none (catalog.ts:366).
-2. `catalog_probe_command` (catalog.ts:373): `<version probe>; echo __WSP_CATALOG_SEP__; <codex word> --help; echo __WSP_CATALOG_SEP__\n<server script>`,
+1. Request ids 1 initialize, 2 `model/list`, 3 `config/read`, 4 `account/read` (catalog.ts:22-29). A brokered probe sends the first
+   three only: the door holds the sign-in, so `account/read` would always say none (catalog.ts:22-29).
+2. `catalog_probe_command` (catalog.ts:36): `<version probe>; echo __WSP_CATALOG_SEP__; <codex word> --help; echo __WSP_CATALOG_SEP__\n<server script>`,
    the server script being `app_server_script(word, [{lines, answers: lines.len()}])`, the word `codex_word(launch, broker)`.
-3. `version_probe_command` is `cd ~ && <ENV_FROM_INPUT>; <codex word> --version` (catalog.ts:382): the env comes off the input, so no
+3. `version_probe_command` is `cd ~ && <ENV_FROM_INPUT>; <codex word> --version` (catalog.ts:45): the env comes off the input, so no
    `PATH=` or `CODEX_HOME=` is a word of the line.
-4. `parse_version` is the first `[0-9]+\.[0-9]+\.[0-9]+` in the text, else `None` (catalog.ts:387; JS `\d` is ASCII, so not Rust's `\d`).
-5. `parse_catalog_probe(stdout, login, account_list)` (catalog.ts:476): split on the separator; fewer than three parts is `None`; parts past
+4. `parse_version` is the first `[0-9]+\.[0-9]+\.[0-9]+` in the text, else `None` (catalog.ts:50; JS `\d` is ASCII, so not Rust's `\d`).
+5. `parse_catalog_probe(stdout, login, account_list)` (catalog.ts:139): split on the separator; fewer than three parts is `None`; parts past
    the third are ignored. No result for id 1 is `None` (wsp-catalog's `answers_of` keeps a result only when it is an object).
-6. Models (catalog.ts:408) come from `account_rows(account_list)` when that gives rows, else the `model/list` result. Each row: `id` a
+6. Models (catalog.ts:71) come from `account_rows(account_list)` when that gives rows, else the `model/list` result. Each row: `id` a
    non-empty string, not `hidden: true`. Fields in this order: `slug`, `label` (non-empty `displayName`, else the slug), `description` where
    a non-empty string, `efforts` (each `supportedReasoningEfforts[].reasoningEffort` that is a non-empty string; a non-array gives `[]`),
    `defaultEffort` where non-empty, `contextWindows: []`, `isDefault`, then `fast: true` only where `additionalSpeedTiers` is an array
@@ -30,14 +30,14 @@ binary's.
 8. No models: `{refused: codexNotSignedInLine(login)}` only where `account/read` answered `requiresOpenaiAuth: true` and `account: null`
    (an absent `account` key is not null); else `None`.
 9. The probe is `{version, models, efforts, permissionModes}`: efforts the union of every model's efforts in first-seen order
-   (catalog.ts:465); permission modes the comma list in the first `[possible values: ...]` within 600 UTF-16 units of the first
-   `--sandbox <SANDBOX_MODE>` in the help (catalog.ts:390), each trimmed, empties dropped; none found is `[]`.
-10. `account_rows` (catalog.ts:445): `models` must be an array; rows that are objects with a non-empty `slug`, stable-sorted by `priority`
+   (catalog.ts:128); permission modes the comma list in the first `[possible values: ...]` within 600 UTF-16 units of the first
+   `--sandbox <SANDBOX_MODE>` in the help (catalog.ts:53), each trimmed, empties dropped; none found is `[]`.
+10. `account_rows` (catalog.ts:108): `models` must be an array; rows that are objects with a non-empty `slug`, stable-sorted by `priority`
     ascending (a non-finite or absent priority reads 0); the first row whose `visibility` is `"list"` is the default; none such is `None`.
     Each row maps to a model/list row: `id`, `displayName`, `description`, `supportedReasoningEfforts` from `supported_reasoning_levels[].effort`,
     `defaultReasoningEffort`, `additionalSpeedTiers`, `hidden: visibility != "list"`, `isDefault`.
-11. `read_catalog_probe(stdout, login, models)` (catalog.ts:500) asks `models(version)` only where a read is handed and the version part
-    names a version; a failed read is no list. `account_models_of(models, version)` (catalog.ts:509) asks for the version given, else
+11. `read_catalog_probe(stdout, login, models)` (catalog.ts:163) asks `models(version)` only where a read is handed and the version part
+    names a version; a failed read is no list. `account_models_of(models, version)` (catalog.ts:172) asks for the version given, else
     wsp's npm pin for codex (wsp-catalog's codex install road); no version, a failed read or no shown row is `None`, else the rows as models
     with no configured model.
 
@@ -55,6 +55,15 @@ binary's.
 ## After the port
 - Nothing.
 
+- A synchronous throw from the handed `models` read escapes `read_catalog_probe` (only an async rejection is no list), and
+  `account_models_of(models, "")` asks with `""`: only an absent version falls back to the pin.
+- Any priority that is no number sorts as 0 (`"1"`, `null`, absent), stable.
+## Rules added for the port (printed by the TS at 65f6b89c7)
+
+- **CC1.** The sandbox modes' window is 600 UTF-16 units from the flag's first unit, the closing `]` inside it: 556 filler units between
+  the 24-unit flag and the 20-unit list read `["a"]`, 576 read `[]`, 285 emoji (570 units) read `[]`; `[possible values: a[b]c, d]`
+  reads `["a[b"]`.
+
 ## Tests (tests/codex_catalog.rs, 9; the brokered 4 in tests/codex_adapter.rs; TS 13)
 - Rules 1-3: `catalog_probe_command::reads_the_base_env_a_turn_gets_off_its_input_path_and_codex_home_included_so_a_p`,
   `catalog_probe_command::asks_for_the_version_the_help_and_the_four_app_server_requests_and_never_a_turn`,
@@ -67,3 +76,4 @@ binary's.
 - Rule 7: `parse_catalog_probe::a_route_to_another_provider_leads_with_the_model_config_names_since_that_is_what` (asserts no `efforts` key).
 - Rule 8: `parse_catalog_probe::names_the_sign_in_when_the_app_server_answered_and_offered_no_model_for_want_of`.
 - Rules 10, 11: `codex_adapter.rs` `a_probe_on_a_machine_whose_chatgpt_sign_in_the_host_holds::*` (4).
+- CC1: `rules_added::the_sandbox_modes_are_read_within_600_utf16_units_counted_from_the_flag_itself`.

@@ -15,7 +15,10 @@ use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRe
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_life::*;
+use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::workspace::Caller;
+use wsp_wire::views::workspace_more::WorkspaceView;
+use wsp_words::exit::HostError;
 
 const WS: &str = "ws_kid";
 const THREAD: &str = "t_kid";
@@ -42,11 +45,11 @@ fn held(read: Reply, session: Option<Vec<u8>>) -> Held {
 }
 
 fn sub(h: &Held) -> SubRecord {
-    h.entry.record.borrow().sub.clone().unwrap()
+    h.entry.borrow().record.borrow().sub.clone().unwrap()
 }
 
 fn phase(h: &Held) -> String {
-    serde_json::to_value(&h.entry.record.borrow().phase).unwrap().as_str().unwrap().to_string()
+    serde_json::to_value(&h.entry.borrow().record.borrow().phase).unwrap().as_str().unwrap().to_string()
 }
 
 fn stored_sub(h: &Held) -> Value {
@@ -66,15 +69,15 @@ fn reads_the_result_off_local_refs_keeps_the_session_arms_the_delete_and_naps() 
         assert!(h.machine.log().contains(&sub_result_command("/root/web", BRANCH, BASE_SHA)));
         assert_eq!(s.held, None);
         // L4: armed at the default 30 minutes from now.
-        assert_eq!(s.delete_at, Some(h.host.clock.now() + 30.0 * MIN));
+        assert_eq!(s.delete_at, Some(JsNumber(h.host.clock.now() + 30.0 * MIN)));
         // The one session file, packed under /tmp, read off and kept by thread, then the pack removed.
         let pack = h.machine.log().into_iter().find(|c| c.contains("gzip -c")).unwrap();
         assert!(pack.contains("find '/root/.claude-cfg/projects' -maxdepth 2 -type f -name '*s2.jsonl'"));
         assert!(pack.contains(&format!("gzip -c \"$f\" > '/tmp/wsp-session-{THREAD}.gz'")));
         assert!(h.machine.log().contains(&format!("rm -f '/tmp/wsp-session-{THREAD}.gz'")));
         let session = s.session.clone().unwrap();
-        assert_eq!((session.agent.as_str(), session.id.as_str(), session.bytes), ("claude", "s2", Some(21.0)));
-        assert_eq!(session.kept, Some(h.host.clock.now()));
+        assert_eq!((session.agent.as_str(), session.id.as_str(), session.bytes), ("claude", "s2", Some(JsNumber(21.0))));
+        assert_eq!(session.kept, Some(JsNumber(h.host.clock.now())));
         assert_eq!(h.host.blob(SUB_SESSIONS, THREAD).as_deref(), Some(&b"gzipped session bytes"[..]));
         // Stored with all of it, the row told, then the nap asked with the done's reason.
         assert_eq!(stored_sub(&h)["deleteAt"], json!(h.host.clock.now() + 30.0 * MIN));
@@ -90,7 +93,7 @@ fn arms_the_delete_at_the_delay_the_person_set_read_at_the_done() {
         let h = held(ok(PUSHED), None);
         h.host.settings_delete_after.borrow_mut().insert("box".to_string(), 2.0 * MIN);
         h.area.sub_done(WS).await;
-        assert_eq!(sub(&h).delete_at, Some(h.host.clock.now() + 2.0 * MIN));
+        assert_eq!(sub(&h).delete_at, Some(JsNumber(h.host.clock.now() + 2.0 * MIN)));
     });
 }
 
@@ -101,7 +104,7 @@ fn holds_the_machine_over_work_not_pushed_arms_no_delete_and_naps_all_the_same()
         h.area.sub_done(WS).await;
         let s = sub(&h);
         let kept = s.held.clone().expect("held over work not pushed");
-        assert_eq!((kept.files, kept.commits, kept.at), (3.0, 2.0, h.host.clock.now()));
+        assert_eq!((kept.held.files.get(), kept.held.commits.get(), kept.at), (3, 2, JsNumber(h.host.clock.now())));
         assert_eq!(s.delete_at, None);
         let r = s.result.unwrap();
         assert_eq!((r.pushed_sha, r.unpushed.get(), r.changed.get()), (None, 2, 3));
@@ -121,7 +124,7 @@ fn treats_a_read_that_fails_as_work_not_pushed() {
         let s = sub(&h);
         assert_eq!(s.result.unwrap().read_failed.as_deref(), Some("exit 128: fatal: not a git repository"));
         let kept = s.held.unwrap();
-        assert_eq!((kept.files, kept.commits), (0.0, 0.0));
+        assert_eq!((kept.held.files.get(), kept.held.commits.get()), (0, 0));
         assert_eq!(s.delete_at, None);
     });
 }
@@ -190,7 +193,7 @@ fn leaves_a_machine_whose_nap_was_refused_running_with_the_backstop_at_delete_pl
         assert_eq!(phase(&h), "running");
         let at = sub(&h).delete_at.unwrap();
         let backstops = h.host.backend.lifecycle.backstops.lock().unwrap().clone();
-        assert_eq!(backstops, vec![("bx_1".to_string(), (at + 10.0 * MIN) as i64, true)]);
+        assert_eq!(backstops, vec![("bx_1".to_string(), (at.0 + 10.0 * MIN) as i64, true)]);
         assert!(h.host.warns.borrow().iter().any(|w| w.starts_with("sub-thread machine bx_1 of ws_kid did not nap (")));
     });
 }
@@ -221,7 +224,7 @@ fn deletes_the_napped_box_with_no_wake_and_keeps_the_record_released() {
         h.host.clock.advance(31.0 * MIN).await;
         settle().await;
         let now = h.host.live.borrow().get(WS).cloned().unwrap();
-        let r = now.record.borrow().clone();
+        let r = now.borrow().record.borrow().clone();
         assert_eq!(serde_json::to_value(&r.phase).unwrap(), json!("released"));
         assert_eq!(r.machine_id, "");
         let s = r.sub.unwrap();
@@ -254,8 +257,8 @@ fn a_refused_delete_is_asked_again_ten_minutes_on_and_stays_cut_off() {
         let s = sub(&h);
         assert_ne!(phase(&h), "released");
         let again = s.delete_at.expect("the delete moved on");
-        assert!(again > h.host.clock.now());
-        let said = h.entry.delete_said.borrow().clone().expect("the refusal is said on the entry");
+        assert!(again.0 > h.host.clock.now());
+        let said = h.entry.borrow().delete_said.clone().expect("the refusal is said on the entry");
         assert_eq!(said.line, wsp_words::sub_thread::sub_delete_refused_line("Boat", "Fix the flaky upload test", "Boat answered 503", 10.0));
         assert_eq!(h.host.calls_of("broker_lift"), Vec::<Vec<String>>::new());
         assert_eq!(h.host.clock.pending(), 1, "the retry is armed");
@@ -276,11 +279,11 @@ fn is_cancelled_by_a_turn_that_starts_and_armed_again_at_its_done() {
         assert!(!h.machine.killed());
         // The turn ends: its own done arms the delete again, from then.
         h.host.running.borrow_mut().shift_remove(THREAD);
-        h.entry.record.borrow_mut().phase = serde_json::from_value(json!("running")).unwrap();
+        h.entry.borrow().record.borrow_mut().phase = serde_json::from_value(json!("running")).unwrap();
         h.host.put_row("turn-2", WS, THREAD, h.host.clock.now(), Some("s2"));
         h.host.emit_now(json!({ "type": "session.end", "workspaceId": WS, "threadId": THREAD }));
         settle().await;
-        assert_eq!(sub(&h).delete_at, Some(h.host.clock.now() + 30.0 * MIN));
+        assert_eq!(sub(&h).delete_at, Some(JsNumber(h.host.clock.now() + 30.0 * MIN)));
     });
 }
 
@@ -296,7 +299,7 @@ fn turns_into_a_hold_where_the_machine_still_runs_and_its_read_finds_work() {
         settle().await;
         let s = sub(&h);
         assert_eq!(s.delete_at, None);
-        assert_eq!(s.held.map(|x| (x.files, x.commits)), Some((3.0, 2.0)));
+        assert_eq!(s.held.map(|x| (x.held.files.get(), x.held.commits.get())), Some((3, 2)));
         assert_eq!(phase(&h), "running");
         assert!(!h.machine.killed());
         assert!(h.host.calls_of("push_head").len() >= 2, "every window is told the hold");
@@ -319,8 +322,8 @@ fn arm_subs_fires_a_delete_at_passed_while_the_host_was_down() {
         settle().await;
         assert!(machine.killed());
         let now = host.live.borrow().get(WS).cloned().unwrap();
-        assert_eq!(serde_json::to_value(&now.record.borrow().phase).unwrap(), json!("released"));
-        assert_eq!(entry.record.borrow().sub.as_ref().unwrap().result.as_ref().unwrap().commits.get(), 3);
+        assert_eq!(serde_json::to_value(&now.borrow().record.borrow().phase).unwrap(), json!("released"));
+        assert_eq!(entry.borrow().record.borrow().sub.as_ref().unwrap().result.as_ref().unwrap().commits.get(), 3);
     });
 }
 
@@ -360,9 +363,9 @@ fn arm_subs_runs_a_done_a_restart_cut_short_and_skips_cloud_gone_and_released() 
         let area = SubLifeArea::new(host.clone());
         area.arm_subs();
         settle().await;
-        let s = host.live.borrow().get(WS).unwrap().record.borrow().sub.clone().unwrap();
+        let s = host.live.borrow().get(WS).unwrap().borrow().record.borrow().sub.clone().unwrap();
         assert!(s.delete_at.is_some(), "the done ran at boot");
-        assert!(host.live.borrow().get("ws_gone").unwrap().record.borrow().sub.as_ref().unwrap().result.is_none());
+        assert!(host.live.borrow().get("ws_gone").unwrap().borrow().record.borrow().sub.as_ref().unwrap().result.is_none());
         assert_eq!(host.clock.pending(), 1);
     });
 }
@@ -385,14 +388,18 @@ fn keeps_the_dones_word_when_a_start_a_restart_failed_ends_on_the_napped_machine
 fn a_lost_box_reads_released_with_lost_and_no_gone() {
     run(async {
         let h = napped(ok(PUSHED)).await;
-        h.entry.record.borrow_mut().gone = Some("machine gone".to_string());
+        h.entry.borrow().record.borrow_mut().gone = Some("machine gone".to_string());
         let out = h.area.sub_lost(&h.entry, "Boat lost bx_1").await.unwrap();
         assert_eq!(out, wsp_machines::machines::sub_life::timers::GoneOutcome::Settled);
-        let r = h.entry.record.borrow().clone();
+        let r = h.entry.borrow().record.borrow().clone();
         assert_eq!(serde_json::to_value(&r.phase).unwrap(), json!("released"));
         assert_eq!(r.sub.unwrap().lost.as_deref(), Some("Boat lost bx_1"));
         assert_eq!(r.gone, None);
     });
+}
+
+fn woken_view() -> WorkspaceView {
+    serde_json::from_value(json!({ "id": WS, "name": "Fix the flaky upload test", "machineId": "bx_1", "phase": "running", "golden": "", "createdAt": "", "project": { "id": "p", "name": "p", "path": "", "computer": "" } })).expect("a workspace view parses")
 }
 
 fn lead() -> Caller {
@@ -450,7 +457,7 @@ fn refuses_a_leads_token_at_once_the_turn_not_read_yet() {
         let h = napped(ok(UNPUSHED)).await;
         // A follow-up turn started after the read: nothing has read its work.
         h.host.put_row("turn-2", WS, THREAD, h.host.clock.now() + 1_000.0, Some("s2"));
-        h.entry.record.borrow_mut().phase = serde_json::from_value(json!("running")).unwrap();
+        h.entry.borrow().record.borrow_mut().phase = serde_json::from_value(json!("running")).unwrap();
         let unread = h.area.sub_unpushed(&h.entry).unwrap();
         assert_eq!((unread.files, unread.commits, unread.unread), (0.0, 0.0, Some(true)));
         let e = h.area.sub_delete(&h.entry, THREAD, Some(&lead()), false).await.unwrap_err();
@@ -485,9 +492,9 @@ fn removing_the_cloud_releases_every_sub_with_cloud_gone() {
         let h = napped(ok(PUSHED)).await;
         h.area.release_subs_on("box", false).await.unwrap();
         let now = h.host.live.borrow().get(WS).cloned().unwrap();
-        let r = now.record.borrow().clone();
+        let r = now.borrow().record.borrow().clone();
         assert_eq!(serde_json::to_value(&r.phase).unwrap(), json!("released"));
-        assert_eq!(r.sub.as_ref().unwrap().cloud_gone, Some(wsp_frames::True));
+        assert_eq!(r.sub.as_ref().unwrap().cloud_gone, Some(true));
         assert_eq!(h.host.clock.pending(), 0, "the delete timer went with it");
         let e = h.area.refuse_sub_send(&now).unwrap_err();
         assert_eq!(e.message, "Boat is no longer on this host. Add it with wsp add boat and send again.");
@@ -505,7 +512,7 @@ fn a_released_record_only_gains_cloud_gone() {
         let pushes = h.host.calls_of("push_head").len();
         h.area.release_subs_on("box", false).await.unwrap();
         assert_eq!(sub(&h).released_at, released_at);
-        assert_eq!(sub(&h).cloud_gone, Some(wsp_frames::True));
+        assert_eq!(sub(&h).cloud_gone, Some(true));
         assert_eq!(h.host.calls_of("push_head").len(), pushes + 1);
         assert_eq!(h.host.events_of("workspace.released").len(), 1, "no second release");
     });
@@ -517,11 +524,11 @@ fn forgetting_the_cloud_keeps_the_phase_marks_cloud_gone_and_arms_nothing() {
         let h = napped(ok(PUSHED)).await;
         h.area.release_subs_on("box", true).await.unwrap();
         assert_eq!(phase(&h), "napping");
-        assert_eq!(sub(&h).cloud_gone, Some(wsp_frames::True));
+        assert_eq!(sub(&h).cloud_gone, Some(true));
         assert_eq!(sub(&h).delete_at, None);
         assert_eq!(h.host.clock.pending(), 0);
         let now = h.host.live.borrow().get(WS).cloned().unwrap();
-        assert_eq!(now.machine.id(), "bx_1", "the dead machine keeps the record's id");
+        assert_eq!(now.borrow().machine.id(), "bx_1", "the dead machine keeps the record's id");
         h.host.clock.advance(31.0 * MIN).await;
         assert!(!h.machine.killed());
     });
@@ -533,15 +540,15 @@ fn waits_for_the_wake_and_reads_the_machine_again_before_it_deletes() {
         let h = napped(ok(PUSHED)).await;
         let g = gate();
         let waiting = g.clone();
-        let wake: futures::future::LocalBoxFuture<'static, Result<(), String>> = Box::pin(async move {
+        let wake: futures::future::LocalBoxFuture<'static, Result<WorkspaceView, HostError>> = Box::pin(async move {
             let _ = waiting.acquire().await;
-            Ok(())
+            Ok(woken_view())
         });
-        *h.entry.waking.borrow_mut() = Some(futures::FutureExt::shared(wake));
+        h.entry.borrow_mut().waking = Some(futures::FutureExt::shared(wake));
         h.machine.answer("git rev-list --count --branches --not --remotes", ok(UNPUSHED));
         h.host.clock.advance(31.0 * MIN).await;
         assert!(!h.machine.killed());
-        h.entry.record.borrow_mut().phase = serde_json::from_value(json!("running")).unwrap();
+        h.entry.borrow().record.borrow_mut().phase = serde_json::from_value(json!("running")).unwrap();
         open(&g);
         settle().await;
         assert!(!h.machine.killed());
@@ -652,7 +659,7 @@ fn a_failure_in_the_chain_is_warned_and_swallowed_and_the_next_work_runs() {
         h.area.sub_done(WS).await;
         assert!(h.host.warns.borrow().iter().any(|w| w == "sub-thread machine ws_kid: disk full"), "{:?}", h.host.warns.borrow());
         // The next done on the chain still runs.
-        h.entry.record.borrow_mut().sub.as_mut().unwrap().result = None;
+        h.entry.borrow().record.borrow_mut().sub.as_mut().unwrap().result = None;
         h.area.sub_done(WS).await;
         assert!(sub(&h).result.is_some());
     });

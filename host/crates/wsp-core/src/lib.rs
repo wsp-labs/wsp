@@ -19,7 +19,6 @@ pub mod ids;
 pub mod idle;
 pub mod local_exec;
 pub mod machine_exec;
-pub mod owner_thread;
 pub mod pipe;
 pub mod place_forward;
 pub mod plan_alerts;

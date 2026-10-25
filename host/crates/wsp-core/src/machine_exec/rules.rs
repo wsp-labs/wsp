@@ -153,7 +153,7 @@ pub const TREE_WORK_AWK: &str = r#"BEGIN{for(k=1;k<ARGC;k++){if((getline s<ARGV[
 pub const LEFTOVERS_AWK: &str = r#"{s=$0;sub(/^[0-9]+ \(.*\) /,"",s);split(s,f," ");if(f[3]==p)up[$1]=f[2]}END{for(x in up)if(!(up[x] in up)&&x!=p&&x!=t)l[x]=1;do{g=0;for(x in up)if((up[x] in l)&&!(x in l)){l[x]=1;g=1}}while(g);for(x in l)printf "%s ",x}"#;
 
 /// Whether the run is stopped on a question only a person can answer; the idle clock does not run while it is.
-pub type TurnWaiting = Arc<dyn Fn() -> bool + Send + Sync>;
+pub type TurnWaiting = Arc<dyn Fn() -> bool>;
 
 /// A run's log as the lines it ends, both roads' reader: a line past `EXEC_LINE_MAX_BYTES` is handed on in pieces
 /// that each end where a character starts.
@@ -214,7 +214,7 @@ impl LineCut {
 /// wiring that made the factory owns it and lets go of every run when it closes.
 #[derive(Default)]
 pub struct ReadingSet {
-    drops: Mutex<IndexMap<u64, Arc<dyn Fn() + Send + Sync>>>,
+    drops: Mutex<IndexMap<u64, Arc<dyn Fn()>>>,
     next: AtomicU64,
 }
 
@@ -223,7 +223,7 @@ impl ReadingSet {
         todo!()
     }
     /// Registers one reader's let-go; answers the key `remove` takes.
-    pub fn add(&self, drop: Arc<dyn Fn() + Send + Sync>) -> u64 {
+    pub fn add(&self, drop: Arc<dyn Fn()>) -> u64 {
         todo!()
     }
     pub fn remove(&self, key: u64) {

@@ -1211,7 +1211,8 @@ impl BootRuntime for Fake {
     fn observed(&self, machine: Arc<dyn Machine>) -> Arc<dyn Machine> {
         machine
     }
-    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry {
+    fn attach(&self, handle: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry {
+        let record = handle.borrow().clone();
         match self.mode {
             Mode::Load => self.log.push(norm(json!(["attach", strip_workspace(to_json(&record)), machine.id(), kind_json(&machine)]))),
             Mode::Ready => self.log.push(norm(json!(["attach", record.id, to_json(&record.phase)]))),
@@ -1219,6 +1220,7 @@ impl BootRuntime for Fake {
         }
         let id = record.id.clone();
         let entry = live_workspace(record, machine);
+        entry.borrow_mut().record = Rc::clone(handle);
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
@@ -1274,8 +1276,8 @@ impl BootRuntime for Fake {
         }
         Ok(None)
     }
-    fn attach_queued(&self, record: WorkspaceRecord) {
-        self.gen("attachQueued", vec![json!(record.id)]);
+    fn attach_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>) {
+        self.gen("attachQueued", vec![json!(record.borrow().id)]);
     }
 
     async fn migrate_copies(&self) -> Result<(), HostError> {
