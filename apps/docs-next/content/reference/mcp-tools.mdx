@@ -1882,7 +1882,7 @@ A skill's SKILL.md as text, its first 64 KB and the whole file's size: a skill o
 
 ## slate_catalog
 
-What a slate, the live panel beside the chat, can hold: every piece, and the runs that keep it fresh. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.
+What a slate here can hold: every piece and run. The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.
 
 **Takes**
 
@@ -1928,7 +1928,7 @@ Reads this thread's slate: what the person filled in or pressed, live values, ru
 
 ## slate_state
 
-Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move as you work; reactions fire. start starts a run the person allowed to run always.
+Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move; reactions fire. start starts a run the person allowed always.
 
 **Takes**
 
@@ -1951,7 +1951,7 @@ Sets the slate's live $values by path, so the person sees progress, status or a 
 
 ## slate_write
 
-Writes this thread's slate, the live panel here beside the chat. Use it to show the person what they want to see, watch, monitor or keep an eye on while you work (live data, traffic, metrics, a price, logs, a PR, progress, status), a dashboard, a form to fill in or a checklist. A run with every= refreshes on a timer with no turns, so nothing polls. A run's script goes in a \<file name="x.py">, run as python3 "$SLATE_DIR/x.py", never in the project.
+Writes this thread's slate. The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it. Show what they want to see (live data, traffic, metrics, a price, a PR, progress), a dashboard, a form to fill in or a decision. A run with every= refreshes with no turns. A run's script goes in a \<file name="x.py">, run as python3 "$SLATE_DIR/x.py", never in the project.
 
 **Takes**
 

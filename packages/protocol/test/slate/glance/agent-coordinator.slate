@@ -1,0 +1,117 @@
+<slate title="Payments migration">
+  <value name="now" start={1792882592704} />
+  <value name="helpersRunning" start={4} />
+  <value name="helpersAllowed" start={6} />
+  <value name="spend" start={38.20} />
+  <value name="errorNow" start={0.1} />
+  <value name="flows" start={[
+    {name: "Card payments", done: true, note: "Moved"},
+    {name: "Saved cards", done: true, note: "Moved"},
+    {name: "Apple Pay", done: true, note: "Moved"},
+    {name: "Google Pay", done: true, note: "Moved"},
+    {name: "Bank transfers", done: true, note: "Moved"},
+    {name: "Payment links", done: true, note: "Moved"},
+    {name: "Webhooks", done: true, note: "Moved"},
+    {name: "Payouts", done: true, note: "Moved"},
+    {name: "Disputes", done: true, note: "Moved"},
+    {name: "Coupons", done: true, note: "Moved"},
+    {name: "Receipts", done: true, note: "Moved"},
+    {name: "Refunds", done: false, note: "Blocked on sandbox key"},
+    {name: "Gift cards", done: false, note: "Queued"},
+    {name: "Subscriptions renewal", done: false, note: "Queued"},
+    {name: "Invoices", done: false, note: "Queued"},
+    {name: "Tax receipts", done: false, note: "Queued"}
+  ]} />
+  <value name="helpers" start={[
+    {name: "Card vault export", start: 1792874000000, end: 1792878500000, state: "done"},
+    {name: "Webhook retries", start: 1792878000000, state: "running"},
+    {name: "Refunds flow", start: 1792879000000, state: "running"},
+    {name: "Gift cards", start: 1792880200000, state: "running"},
+    {name: "Load test", start: 1792881500000, state: "running"}
+  ]} />
+  <value name="errors" start={[
+    {at: 1792864592704, pct: 0.4},
+    {at: 1792868192704, pct: 0.3},
+    {at: 1792871792704, pct: 0.5},
+    {at: 1792875392704, pct: 0.2},
+    {at: 1792878992704, pct: 0.2},
+    {at: 1792882592704, pct: 0.1}
+  ]} />
+  <value name="notes" start={[
+    {n: 1, from: "Card vault export", note: "Exported 48,210 card tokens, all matched on the new side"},
+    {n: 2, from: "Card vault export", note: "312 expired cards skipped on purpose"},
+    {n: 3, from: "Card vault export", note: "Export file deleted after import, checksum logged"},
+    {n: 4, from: "Card vault export", note: "Old vault stays read-only until cutover ends"},
+    {n: 5, from: "Webhook retries", note: "New provider retries up to 8 times over 3 days"},
+    {n: 6, from: "Webhook retries", note: "Duplicate event ids ignored, same as the old handler"},
+    {n: 7, from: "Webhook retries", note: "Idempotency check added on payment succeeded events"},
+    {n: 8, from: "Webhook retries", note: "Signing secret rotates monthly"},
+    {n: 9, from: "Webhook retries", note: "Backoff tested with forced 500s, all events delivered"},
+    {n: 10, from: "Webhook retries", note: "Dead letter queue empty after 6 hours"},
+    {n: 11, from: "Refunds flow", note: "Partial refunds map one to one onto the new API"},
+    {n: 12, from: "Refunds flow", note: "Waiting on the sandbox key to run end to end"},
+    {n: 13, from: "Refunds flow", note: "Refunds on old orders must still go to the old provider"},
+    {n: 14, from: "Refunds flow", note: "Routing by the order's provider field, not by date"},
+    {n: 15, from: "Refunds flow", note: "14 orders have no provider field, backfill drafted"},
+    {n: 16, from: "Gift cards", note: "Balance stays in our database, provider only charges top ups"},
+    {n: 17, from: "Gift cards", note: "Top up flow moved in staging, checkout pending"},
+    {n: 18, from: "Gift cards", note: "Card plus gift card payments need split capture"},
+    {n: 19, from: "Gift cards", note: "Two-way split capture works in staging"},
+    {n: 20, from: "Gift cards", note: "Three-way splits are rare, 9 in the last year"},
+    {n: 21, from: "Load test", note: "Ramping to 3x the Black Friday checkout peak"},
+    {n: 22, from: "Load test", note: "p95 checkout latency 410 ms at 1x peak"},
+    {n: 23, from: "Load test", note: "p95 620 ms at 2x peak, under the 800 ms budget"},
+    {n: 24, from: "Load test", note: "3x stage starts after 2x holds for 30 minutes"},
+    {n: 25, from: "Load test", note: "Provider rate limit is 100 requests per second per key"},
+    {n: 26, from: "Load test", note: "Asked the provider to raise the rate limit before launch"},
+    {n: 27, from: "Card vault export", note: "Saved cards carry over, customers do not re-enter them"},
+    {n: 28, from: "Webhook retries", note: "Old provider webhooks stay on for refunds of old orders"},
+    {n: 29, from: "Refunds flow", note: "Refund emails reuse the existing template"},
+    {n: 30, from: "Gift cards", note: "Gift card refunds go back to the card balance"},
+    {n: 31, from: "Load test", note: "Error rate stayed under 0.2% through 1x and 2x"},
+    {n: 32, from: "Webhook retries", note: "Event order not guaranteed, handlers sort by created time"},
+    {n: 33, from: "Card vault export", note: "Two cards failed import, both flagged for fraud earlier"},
+    {n: 34, from: "Refunds flow", note: "Chargebacks are separate and not part of this migration"},
+    {n: 35, from: "Gift cards", note: "Expiry rules unchanged, still enforced on our side"},
+    {n: 36, from: "Load test", note: "Test traffic tagged so it stays out of revenue reports"},
+    {n: 37, from: "Webhook retries", note: "Alert fires if the retry queue passes 500 events"},
+    {n: 38, from: "Refunds flow", note: "Old provider refunds API closes 180 days after cutover"},
+    {n: 39, from: "Gift cards", note: "Gift card receipts follow the receipt retention decision"},
+    {n: 40, from: "Load test", note: "Full report follows when the 3x stage ends"}
+  ]} />
+  <value name="traffic" start="" />
+  <value name="receipts" start="" />
+  <secret name="sandbox_key" />
+  <column>
+    <stats>
+      <stat label="Helpers running" value={$helpersRunning} max={$helpersAllowed} unit="threads" window="now" />
+      <stat label="Error rate" value={$errorNow} unit="%" window="last hour, new provider" tone="good" />
+      <stat label="Spent" value={$spend} format="usd" window="this thread" />
+    </stats>
+    <chart label="Error rate, new provider, last 6 hours" items={$errors} x={item.at} value={item.pct} unit="%" height="small" tone="good" />
+    <section title="Needs you">
+      <decision id="traffic" label="Switch 10% of live traffic tonight?" value={$traffic} pick="wait" onChange={send("Live traffic tonight", $traffic)}>
+        <option value="wait" label="Wait for load test" note={concat("Load test started ", ago(1792881500000))} />
+        <option value="switch" label="Switch tonight" note="10% of checkout traffic moves to the new provider" />
+      </decision>
+      <decision id="receipts" label="Keep old provider receipts visible for" value={$receipts} pick="90" onChange={send("Old receipts visible for", $receipts)}>
+        <option value="90" label="90 days" note="Covers the usual return window" />
+        <option value="30" label="30 days" note="Old receipt pages retire sooner" />
+      </decision>
+      <input id="key" label="New provider sandbox key" value={$sandbox_key} kind="password" placeholder="Paste the sandbox key" submit="Save" onSubmit={send("Sandbox key saved")} />
+      <status value={$sandbox_key.set ? "Key saved, refunds can resume" : "Refunds wait on this key"} tone={$sandbox_key.set ? "good" : "warning"} />
+    </section>
+    <section title="Checkout flows">
+      <progress label="checkout flows moved" items={$flows} key="name" name={item.name} done={item.done} note={item.note} />
+    </section>
+    <section title="Helper threads">
+      <timeline label="Helpers" items={$helpers} name={item.name} start={item.start} end={item.end} state={item.state} now={$now} />
+    </section>
+    <section title="Helper notes" note="40 notes" collapsible open={false}>
+      <table items={$notes} key="n" rows={8}>
+        <col title="Helper" value={item.from} width="fit" />
+        <col title="Note" value={item.note} width="fill" />
+      </table>
+    </section>
+  </column>
+</slate>

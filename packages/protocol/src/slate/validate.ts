@@ -4,7 +4,7 @@
 // serves a JSX-like write, the JSON form, a check and a patched result.
 import { fmtBytes } from "../format.js";
 import { escapeRegExp } from "../regexp.js";
-import { checkSlateExpression, parseSlateExpression, parseSlateFormat, slateDependencies, type SlateCheckScope, type SlateType } from "./expr.js";
+import { checkSlateExpression, merge, parseSlateExpression, parseSlateFormat, slateDependencies, type SlateCheckScope, type SlateType } from "./expr.js";
 import { SLATE_PIECES, SLATE_RESERVED_PROPS, type SlateItemSpec, type SlatePieceModule, type SlatePropSpec } from "./kit.js";
 import { SLATE_LIMITS, slateBytes } from "./limits.js";
 import { slateTable, parseSlateOwnPath, slateOwnName } from "./paths.js";
@@ -51,13 +51,13 @@ function tokenIn(text: string): string | undefined {
 const RUN_ATTRS: ReadonlySet<string> = new Set(["every", "cmd", "timeout", "always", "once", "interval", "refresh"]);
 const SECRET_FIELD_TYPES: Record<string, SlateType> = slateTable({ set: { t: "boolean" }, len: { t: "number" }, at: { t: "number" } });
 
-/** The type a literal start reads as: a list of records takes its first record's fields. */
+/** The type a literal start reads as: a list of records takes the fields of any of its records. */
 function literalType(v: SlateJson): SlateType {
   if (v === null) return { t: "any" };
   if (typeof v === "number") return { t: "number" };
   if (typeof v === "string") return { t: "string" };
   if (typeof v === "boolean") return { t: "boolean" };
-  if (Array.isArray(v)) return v.length === 0 ? { t: "list" } : { t: "list", of: literalType(v[0]!) };
+  if (Array.isArray(v)) return v.length === 0 ? { t: "list" } : { t: "list", of: v.map(literalType).reduce(merge) };
   const keys = Object.keys(v);
   return keys.length === 0 ? { t: "record" } : { t: "record", fields: Object.fromEntries(keys.map(k => [k, literalType(v[k]!)])) };
 }

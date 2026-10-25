@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseSlate, runSlateBatch, sketchSlate, slateCatalog, slateStartValues, slateTokens, SLATE_EXAMPLES, SLATE_LIMITS, SLATE_PIECES, SLATE_SOURCES, type SlateDoc, type SlateJson } from "../../src/slate/index.js";
-import { SLATE_INDEX_EXAMPLE, slateTakesFigures } from "../../src/slate/catalog.js";
+import { SLATE_INDEX_EXAMPLE, SLATE_LOOK_RULE, slateTakesFigures } from "../../src/slate/catalog.js";
+import { SLATE_PURPOSE } from "../../src/wsp-tools.js";
 import { SPEC_EXAMPLES } from "./examples.js";
 
 const now = Date.parse("2026-10-04T12:00:00Z");
@@ -98,7 +99,12 @@ describe("the sketch", () => {
 
 describe("the catalog", () => {
   it("keeps the index under its budget and its example valid", () => {
-    expect(slateTokens(slateCatalog())).toBeLessThan(SLATE_LIMITS.catalogIndexTokens);
+    // With what #2065 adds, the look step as rule 13 and the frame's clause on the pick line, the index still fits.
+    const tokens = slateTokens(slateCatalog());
+    const with2065 = tokens + slateTokens(`\n13. ${SLATE_LOOK_RULE}`) + slateTokens("; what no piece draws, a frame: an .html file you wrote");
+    console.log(`catalog index: ${tokens} tokens; with #2065's look rule and frame clause: ${with2065}; budget ${SLATE_LIMITS.catalogIndexTokens}`);
+    expect(with2065).toBeLessThan(SLATE_LIMITS.catalogIndexTokens);
+    expect(slateCatalog().startsWith(SLATE_PURPOSE)).toBe(true);
     for (const said of ["short labels, no emoji.", "in sentence case, never bold text.", "Show a run's json fields, never its raw out; times through date(), time() or ago()."]) expect(slateCatalog(), said).toContain(said);
     expect(slateCatalog()).toContain("One in a file stays there for the run to read, never you.");
     expect(slateCatalog()).not.toMatch(/Zingzy|repos\/[a-z]+\/wsp/i);
@@ -109,7 +115,7 @@ describe("the catalog", () => {
     expect(slateCatalog("patch")).toContain("version, which every write and read answers, counts the slate's edits and is what if_version takes");
     expect(slateCatalog("patch")).toContain("check with press walks a press and its <when> chain on a copy: nothing runs and nothing is sent");
     expect(slateCatalog("patch")).toContain(`check with values {"$run.json": {...}, "$run.exit": 0} previews the panel for a result the run has not had yet.`);
-    expect(slateCatalog("output")).toContain("how many of the newest lines show, out then err, 8 by default");
+    expect(slateCatalog("output")).toContain("how many of the newest raw lines show once unfolded, out then err, 8 by default");
     expect(slateCatalog("runs")).toContain("while the Slate tab is on screen; at once when it comes back.");
     expect(slateCatalog("runs")).toContain("else its text parsed; out is its text;");
     expect(slateCatalog("functions")).toContain(`Times read in this computer's zone: date(t) "Mon 5 Oct", time(t) "14:05", ago(t) "30s ago", until(t) "in 4m".`);
@@ -140,7 +146,7 @@ describe("the catalog", () => {
     expect(slateCatalog()).not.toContain("slate_catalog with no name");
     expect(slateCatalog("nope")).not.toContain("slate_catalog with no name");
     // A guessed name answers the index too, which small models never asked for by name.
-    expect(slateCatalog("dashboards")).toMatch(/^dashboards is not in the catalog\. .* The whole index:\n\nSlate kit wsp\/2/s);
+    expect(slateCatalog("dashboards")).toMatch(/^dashboards is not in the catalog\. .* The whole index:\n\nThe slate is the person's visual companion/s);
     expect(slateCatalog("dashboards")).toContain(slateCatalog());
     expect(slateCatalog("runs")).toContain("once: a start while it still runs is skipped; without once it stops and starts again.");
     expect(slateCatalog("runs")).toContain("at the write for an every= run, at the first press or <when> for the rest. Until then it reads held; allowing it starts it at once.");
@@ -167,7 +173,7 @@ describe("the catalog", () => {
       const line = index.split("\n").find(l => l.startsWith(`${p.type}: `))!;
       for (const [k, spec] of Object.entries(p.props)) {
         if (Object.values(p.items).some(i => i.prop === k) || k === "pad" || k === "surface") continue;
-        const values = Array.isArray(spec.type) && !["tone", "emphasis", "align"].includes(k) && !slateTakesFigures(spec) ? `(${(spec.type as readonly string[]).join("|")})` : "";
+        const values = Array.isArray(spec.type) && !["tone", "emphasis", "align", "gap"].includes(k) && !slateTakesFigures(spec) ? `(${(spec.type as readonly string[]).join("|")})` : "";
         expect(line, `${p.type}.${k}`).toMatch(new RegExp(`(^|[ ;])${k}${spec.required === true ? "!" : ""}${values.replace(/[()|]/g, c => `\\${c}`)}( |;|$)`));
       }
     }
@@ -202,7 +208,7 @@ describe("the sketch says what the person sees", () => {
     }
   };
   /** A prop the person sees only in some state, and that state: a placeholder while empty, an answer once picked. */
-  const SHOWN_WHEN: Record<string, Record<string, SlateJson>> = { placeholder: { value: "" }, answer: { options: ["Alpha", "Beta"], value: "Alpha" } };
+  const SHOWN_WHEN: Record<string, Record<string, SlateJson>> = { placeholder: { value: "" }, answer: { options: ["Alpha", "Beta"], value: "Alpha" }, name: { done: false }, note: { done: false } };
   /** What a piece draws beyond its required props, so each prop has a mark to change: a chart plots value or a
    * <series>, a figure of 40 reads alike in every format, and a span with no start waits whatever the clock says. */
   const DRAWS: Record<string, Record<string, SlateJson>> = { chart: { value: 40 }, treemap: { value: 12345 }, donut: { value: 12345 }, timeline: { start: 1_759_000_000_000 } };

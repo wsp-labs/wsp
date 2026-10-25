@@ -1,0 +1,17 @@
+<slate title="Monorepo tests">
+  <run name="tests" cmd="pnpm -r test --reporter=json" />
+  <column>
+    <stats>
+      <stat label="Packages" value={$tests.json.count} window="in this run" />
+      <stat label="Took" value={$tests.json.seconds} format="duration" window="this run" />
+    </stats>
+    <table items={$tests.json.packages}>
+      <col title="Package" value={item.name} mono={true} />
+      <col title="Result" value={item.result} />
+    </table>
+    <section title="Output" collapsible open={false}>
+      <text mono={true}>{$tests.out}</text>
+    </section>
+    <button label="Run again" onPress={start($tests)} />
+  </column>
+</slate>

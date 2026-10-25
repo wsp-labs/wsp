@@ -1,0 +1,28 @@
+<slate title="Flaky test fix">
+  <value name="ciFailed" start={7} />
+  <value name="ciRuns" start={50} />
+  <value name="localPassed" start={200} />
+  <value name="localRuns" start={200} />
+  <value name="jobs" start={[
+    {name: "Lint", done: true, note: "Passed"},
+    {name: "Typecheck", done: true, note: "Passed"},
+    {name: "Unit", done: true, note: "Passed"},
+    {name: "Checkout e2e", done: false, note: "Running"}
+  ]} />
+  <value name="scope" start="" />
+  <column>
+    <facts>
+      <fact label="Test" value="checkout totals round half-even" mono={true} />
+      <fact label="Suspected cause" value="Float sum in the tax step" />
+    </facts>
+    <stats>
+      <stat label="CI failures before fix" value={$ciFailed} max={$ciRuns} window="last 50 CI runs" tone="warning" />
+      <stat label="Local passes after fix" value={$localPassed} max={$localRuns} window="200 local runs" tone="good" />
+    </stats>
+    <progress label="CI jobs passed, latest push" items={$jobs} key="name" name={item.name} done={item.done} note={item.note} />
+    <decision id="scope" label="Fix the same float sum in two other files?" value={$scope} pick="later" onChange={send("Other float sums", $scope)}>
+      <option value="later" label="In a later change" note="This change stays one test, one fix" />
+      <option value="now" label="In this change" note="Wider diff, needs its own repeat runs" />
+    </decision>
+  </column>
+</slate>
