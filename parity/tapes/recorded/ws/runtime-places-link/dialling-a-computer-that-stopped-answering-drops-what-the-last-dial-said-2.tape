@@ -1,3 +1,3 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/places-link.test.ts > dialling a computer that stopped answering > drops what the last dial said when the computer dials in again, since a refusal from before it came back is not news"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"placeId":"p_1b889d367254cbe3","id":2,"op":"places.dial"}}
+{"in":{"placeId":"p_00000001","nonce":"WijDg597SUK4CHP5EMTRRc0rhh9Xtoz70t9Rx7XUQtE=","ephemeral":"pqv+SvK5aolbcXV0jZ1h19/+mRgQw8PU8DQtFiVexwI=","id":1,"op":"place.auth"}}
+{"in":{"signature":"PHCkLh/xHlwnIT2aajsAQzt95+gWw++hn65LCHconV8PQghIxeBVymOTrLo5elI0S4e2m819+bWDyJk8gvXdCw==","report":{"name":"old-macbook","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/home/maya","USER":"maya","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"id":2,"op":"place.prove"}}

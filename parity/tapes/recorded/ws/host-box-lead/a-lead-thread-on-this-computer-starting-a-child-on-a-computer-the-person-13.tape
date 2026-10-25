@@ -1,3 +1,7 @@
 {"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there acts on a thread on its lead's cloud machine by its words alone: no stop, no rename, no send that waits or carries a file, and that turn runs on"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEAH+qjU1t/wv1xO5a03YRP90eExbQXJWOF5Qy6QKgQD/Q=","nonce":"//3iXOjdkdXHrlpcfwpNe7mqi1dCkJhIJXknuv77aXw=","ephemeral":"pKP3C3JmSevX2Mefslp35AqvNlu22zMDTZ5XKUaEMQQ=","id":1,"op":"place.join"}}
-{"in":{"signature":"KwgugxK/V2U5OW7uH2cdsvt/nhaz81A+/qSlNpHkEpDiZWpQiv4g39GFFWUVuijfgIm1vVZ06u/7ctzH0QUXAA==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}
+{"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"in":{"id":2,"op":"sessions.list"}}
+{"in":{"workspaceId":"ws_00000005","id":3,"op":"harnesses.list"}}
+{"in":{"ref":"ws_00000005","id":4,"op":"workspaces.resolve"}}
+{"in":{"workspaceId":"ws_00000005","id":5,"op":"workspaces.wake"}}
+{"in":{"workspaceId":"ws_00000005","prompt":"see the file","harness":"claude","thread":"00000000-0000-4000-8000-000000000006","attachments":[{"mediaType":"application/octet-stream","name":"notes.sh","bytes":"ZWNobyBoaQo="}],"startedBy":"cli","requestId":"00000000-0000-4000-8000-000000000007","answerHeld":true,"id":6,"op":"sessions.start"}}

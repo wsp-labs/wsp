@@ -1,3 +1,3 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/box-panels.test.ts > the readings of a computer the person joined, read by its page and a folder's panes at once > are held while the computer is away, asked again on the link that replaces the dropped one, and reach the same page"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"placeId":"p_1d84768948bab6b8","id":2,"op":"sys.subscribe"}}
+{"in":{"placeId":"p_00000001","nonce":"rpnbPrJmScKDMzidv05H8L9WIdz0oO/MAxT3U50yaOk=","ephemeral":"G0iV8mW8Yh/8KKBFuPW2tSkMkEQkrSYcZbObM8OoOQI=","id":1,"op":"place.auth"}}
+{"in":{"signature":"b1Sp7rgIepyhTUuBRHeVAxfgvq2aX7FLAXhR6HE3QmnaKbss8dDmv22SSWde4PxNMZA0+x6Rt8Q1hJd85GZlCw==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":167,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"id":2,"op":"place.prove"}}

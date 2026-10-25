@@ -15,9 +15,10 @@ cargo xtask unit <unit>             # one unit held to its packet, then its test
 
 - `tapes/`: one JSON line a frame, `{"in": frame}` sent to the host and `{"out": frame}` sent by it, after an
   optional `{"meta": {"door": "ws" | "mcp" | "cli", "source": ...}}`. `recorded/` comes from `collect`, `hand/` is
-  written by hand, `shadow/` is a real host's traffic (`node parity/record/collect.mjs --from <folder>` after serving
-  it with `WSP_TAPE_DIR=<folder>`). Every fenced `tape` block in `docs/rust-host-spec/*.md` is a tape too, and the
-  answers it writes down are held to the golden.
+  written by hand, `shadow/` is a day of a real host's traffic (`parity/record/shadow-day.sh` on the Mac), which git
+  ignores since it holds the person's own prompts and paths: it is copied to a reviewer's checkout, never pushed.
+  Every fenced `tape` block in `docs/rust-host-spec/*.md` is a tape too, and the answers it writes down are held to
+  the golden.
 - `goldens/`: the TS host's answers to each tape, normalized; `KEY` is the TS tree's hash they were recorded at and
   `ops.json` the host's ops then.
 - `accepted.tsv`: differences the owner said yes to. Anything else fails the run.

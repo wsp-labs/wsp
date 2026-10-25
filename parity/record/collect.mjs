@@ -3,6 +3,9 @@
 // frames a socket, the tool server or the command line was sent becomes a tape under parity/tapes/recorded, its
 // answers left out, since the goldens are what a fresh host answers. A sequence seen twice is kept once.
 //
+// The tool server's record (daemon/crates/wsp-mcp/tests/answers) joins them: each tool case it keeps becomes a tape that
+// calls that tool with the case's arguments, so every tool is asked of a real host, not the record's fake one.
+//
 // node parity/record/collect.mjs --from <folder> takes the tapes a host served with WSP_TAPE_DIR=<folder> wrote, a
 // day of real traffic, into parity/tapes/shadow instead, which no implementer is shown.
 import { spawnSync } from "node:child_process";
@@ -12,12 +15,31 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
-/** A tape past this is a test of a size limit, which says nothing about a host's answers that a short one does not. */
+/** A test's tape past this is a test of a size limit, which says nothing about a host's answers that a short one does
+ * not; a real host's longer connections are cut to it. */
 const MAX_TAPE_BYTES = 64 * 1024;
 /** The temp folder of the run the tapes came from, as the test environment names it, which each replay points inside
  * its own folder: the harness's RUN_MARK. */
 const RUN_DIR = new RegExp(`${tmpdir().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/wsp-run-\\d+`, "g");
 const RUN_MARK = "<run>";
+/** What the recording's own host and temp folders minted at random: a fresh host knows none of it, so each is numbered
+ * in order of first sight on its tape, the same value the same number, and a second recording writes the same tape. */
+const MINTED = [
+  { shape: /\b[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/g, as: n => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}` },
+  { shape: /\b[0-9a-f]{32}\b/g, as: n => String(n).padStart(32, "0") },
+  { shape: /\b[a-z]{1,3}_[0-9a-f]{6,16}\b/g, as: (n, v) => `${v.split("_")[0]}_${String(n).padStart(8, "0")}` },
+  { shape: new RegExp(`(?<=${RUN_MARK}/[\\w.]+(?:-[\\w.]+)*-)[A-Za-z0-9]{6}(?=[/"])`, "g"), as: n => String(n).padStart(6, "0") },
+];
+
+function steady(text) {
+  for (const { shape, as } of MINTED) {
+    const seen = new Map();
+    text = text.replace(shape, v => seen.get(v) ?? seen.set(v, as(seen.size + 1, v)).get(v));
+  }
+  return text;
+}
+
+const MCP_ANSWERS = join(root, "daemon/crates/wsp-mcp/tests/answers");
 
 /** A suite drives the host from outside when it serves a runtime, dials one, spawns the built command, serves the
  * tools on stdio or runs the command line; the live suites make real machines and stay out. */
@@ -57,26 +79,71 @@ function runSuites() {
   return tapes;
 }
 
-function keep(from, out) {
+/** The handshake every tool server tape opens with, as a client that has never seen the server sends it. */
+const HANDSHAKE = [
+  { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "parity", version: "1" } } },
+  { jsonrpc: "2.0", method: "notifications/initialized" },
+];
+
+function recordTapes(into) {
+  let n = 0;
+  for (const name of readdirSync(MCP_ANSWERS).filter(f => f.endsWith(".json")).sort()) {
+    const { tool, cases } = JSON.parse(readFileSync(join(MCP_ANSWERS, name), "utf8"));
+    for (const c of cases) {
+      const meta = { door: "mcp", source: `mcp-record > ${tool} > ${c.case}` };
+      const call = { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: tool, arguments: c.arguments } };
+      const lines = [{ meta }, ...[...HANDSHAKE, call].map(f => ({ in: f }))];
+      writeFileSync(join(into, `mcp-record-${++n}.tape`), lines.map(l => JSON.stringify(l)).join("\n") + "\n");
+    }
+  }
+  console.log(`${n} tool cases read from the tool server's record`);
+}
+
+/** A connection that ran for hours, as an app's socket on a real host does, cut into tapes under the size cap, each
+ * opening the way the connection did: its auth, or the tool server's handshake. */
+function pieces(door, ins) {
+  if (JSON.stringify(ins).length <= MAX_TAPE_BYTES) return [ins];
+  const opening = door === "ws" ? (ins[0]?.op === "auth" ? 1 : 0) : door === "mcp" ? ins.findIndex(f => f?.method === "notifications/initialized") + 1 : 0;
+  const head = ins.slice(0, opening);
+  const out = [];
+  let piece = [...head];
+  let size = JSON.stringify(head).length;
+  for (const frame of ins.slice(opening)) {
+    const more = JSON.stringify(frame).length + 1;
+    if (piece.length > head.length && size + more > MAX_TAPE_BYTES) {
+      out.push(piece);
+      piece = [...head];
+      size = JSON.stringify(head).length;
+    }
+    piece.push(frame);
+    size += more;
+  }
+  if (piece.length > head.length) out.push(piece);
+  return out;
+}
+
+function keep(from, out, { cut = false } = {}) {
   const seen = new Set();
   const kept = [];
   let read = 0;
   let big = 0;
   for (const name of readdirSync(from).sort()) {
     read++;
-    const text = readFileSync(join(from, name), "utf8").replace(RUN_DIR, RUN_MARK);
+    const text = steady(readFileSync(join(from, name), "utf8").replace(RUN_DIR, RUN_MARK));
     const lines = text.trimEnd().split("\n").map(l => JSON.parse(l));
     const meta = lines[0].meta;
-    const ins = lines.filter(l => "in" in l).map(l => l.in);
-    if (ins.length === 0) continue;
-    const key = `${meta.door}\n${JSON.stringify(ins)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    if (key.length > MAX_TAPE_BYTES) {
-      big++;
-      continue;
+    const all = lines.filter(l => "in" in l).map(l => l.in);
+    if (all.length === 0) continue;
+    for (const ins of cut ? pieces(meta.door, all) : [all]) {
+      const key = `${meta.door}\n${JSON.stringify(ins)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (key.length > MAX_TAPE_BYTES) {
+        big++;
+        continue;
+      }
+      kept.push({ meta, ins });
     }
-    kept.push({ meta, ins });
   }
   rmSync(out, { recursive: true, force: true });
   const taken = new Map();
@@ -100,10 +167,11 @@ function main() {
   if (from !== -1) {
     const dir = process.argv[from + 1];
     if (dir === undefined) throw new Error("--from names the folder a host wrote its tapes into");
-    keep(dir, join(root, "parity/tapes/shadow"));
+    keep(dir, join(root, "parity/tapes/shadow"), { cut: true });
     return;
   }
   const tapes = runSuites();
+  recordTapes(tapes);
   keep(tapes, join(root, "parity/tapes/recorded"));
   rmSync(tapes, { recursive: true, force: true });
 }

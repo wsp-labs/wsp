@@ -2,4 +2,4 @@
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"in":{"id":2,"op":"harnesses.list"}}
 {"in":{"id":3,"op":"events.subscribe"}}
-{"in":{"branch":"kid","prompt":"on a branch","startedBy":"cli","requestId":"b59df142-a43b-4a8d-be38-ba37ecfb9644","answerHeld":true,"id":4,"op":"sessions.start"}}
+{"in":{"branch":"kid","prompt":"on a branch","startedBy":"cli","requestId":"00000000-0000-4000-8000-000000000002","answerHeld":true,"id":4,"op":"sessions.start"}}

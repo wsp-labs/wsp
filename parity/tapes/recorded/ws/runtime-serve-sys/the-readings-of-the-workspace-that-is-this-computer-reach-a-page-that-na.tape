@@ -2,6 +2,6 @@
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"in":{"placeId":"here","id":2,"op":"sys.subscribe"}}
 {"in":{"placeId":"here","id":3,"op":"sys.subscribe"}}
-{"in":{"workspaceId":"ws_b9489de6","id":4,"op":"sys.subscribe"}}
+{"in":{"workspaceId":"ws_00000001","id":4,"op":"sys.subscribe"}}
 {"in":{"placeId":"here","id":5,"op":"sys.unsubscribe"}}
 {"in":{"placeId":"here","id":6,"op":"sys.subscribe"}}

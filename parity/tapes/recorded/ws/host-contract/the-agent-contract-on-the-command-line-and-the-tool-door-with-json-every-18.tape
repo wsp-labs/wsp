@@ -3,4 +3,4 @@
 {"in":{"id":2,"op":"sessions.list"}}
 {"in":{"id":3,"op":"events.subscribe"}}
 {"in":{"id":4,"op":"sessions.list"}}
-{"in":{"workspaceId":"ws_bf71c2b3","threadId":"4dd51ff2-adf3-4e60-8001-499f05a42074","whole":true,"id":5,"op":"sessions.history"}}
+{"in":{"workspaceId":"ws_00000001","threadId":"00000000-0000-4000-8000-000000000010","whole":true,"id":5,"op":"sessions.history"}}

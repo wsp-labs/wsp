@@ -1,3 +1,3 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places-remove.test.ts > taking a place back out > takes wsp's servers out of the files a box's threads read on a computer joined as root, its logins folder only where root reaches it"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"placeId":"p_43be24812d2b7fc7","id":2,"op":"places.remove"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places-remove.test.ts > taking a place back out > takes wsp's servers out of the files a box's threads read on a computer joined as maya, its logins folder only where root reaches it"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEALJ+rqIstOIbrbLLCPsFsrvjG59BDbVUVjdCuL/0S1FI=","nonce":"o9BFjpV3yYZV7Q8T1sI6pHYlMH6gS76C+QIHVlIYXxE=","ephemeral":"tY7ebpbVV+XXJy/UKhlCid3pVjy9vjBM6ldmxcjcxVk=","id":1,"op":"place.join"}}
+{"in":{"signature":"EUH8w3JQzsxoS4KRy1NHhN18ecT8AJ394T93OrSifa5Wk9ef7DLfG1D5+WTMk6vpa8qJHhLWSvU077Ez5t6GBg==","report":{"name":"vps","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/home/maya","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}
