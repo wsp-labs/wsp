@@ -5,7 +5,7 @@ satisfies. Pure but for `present_steps`, which reads the computer. No state: a p
 
 ## provision_plan_of (:70)
 
-`extras: None` is `{ compiler: true }`. The plan, field by field:
+`extras: None` is `{ compiler: true }`; `Some(ProvisionExtras::default())` is `compiler: false`, not the TS default. The plan, field by field:
 - `steps`: `agent_steps(installs: imp.agents, node: imp.node, path, prefix)`, then `apt_need_steps` of those, then
   `imp.tools`. `agents` is the count of the first two groups.
 - `recipe_at`, `path`, `prefix` as handed; then the extras' fields (they replace `compiler`, and set skills,
@@ -59,10 +59,46 @@ present with `path` the trimmed rest, absent when empty. Answers id to read in s
   keeps the result's note; `ms` where the result has it. No `kind`, no `step`.
 - `row_line(row)`: `<label>: <outcome word>` plus ` (<note>)` where a note is set.
 
+## Pinned since (R-rules, values from running the TS)
+
+- R1. `files` only where the import has files and its `lands` is non-empty (`lands: []` is `None`, so the mcp step runs
+  no files round). The lands are the first per dest in first-seen order; a dest is once by exact equality with a
+  server file under `mcp.guest_home` (`.claude` is not once because `.claude/settings.json` is) or a volatile agent
+  row's dest; a landing that came with `once: true` keeps it (`once = came || in set`, never `once = in set`).
+- R2. `steps` is every agent install (node first), then every need row of those installs, then `imp.tools`; codex's
+  need rows follow claude when claude comes after codex. `agents` = installs + need rows exactly: the agents and clis
+  steps slice `steps` there.
+- R3. `skipped` is the skipped agents then the skipped tools. No extras: `compiler: true`, no optional field set. Given
+  extras: their `compiler`, and only the fields they set (`github: Some([])` stays `Some([])`). `server_tools` is never
+  set here.
+- R4. `present_steps` is one exec per page of `READS_PER_EXEC` (8) reads, `timeout_ms` 20,000 (`INLINE_EXEC_MS`), the
+  text the TS's exactly: `path_line(path, prefix)`, then per step that has a test `if <tests joined by " && ">; then
+  printf 'wsp-present %s %s\n' <i> "<$(command -v <q bin> 2>/dev/null) or empty>"; fi`, the `\n` the two characters.
+  `<i>` counts only steps with a test, from 0 on each page. No step with a test: no exec.
+- R5. A page whose exec exits non-zero reads nothing present in it, whatever it printed; the next page is still read; an
+  exec that rejects rejects the call and keeps nothing.
+- R6. Markers: each line trimmed, then split on single spaces: the mark, the index, the rest rejoined by single spaces
+  (an inner double space survives) and trimmed; a line not starting with the mark, a non-numeric index or one outside
+  the page is ignored; the last marker for an index wins; the answer is in step order (a repeated step id keeps its
+  first place and its last read).
+- R7. `present_by_what_waits` reads only the set it is given (one pass, never its own answers): a chain of two steps
+  with no test is not satisfied end to end. Each id once.
+- R8. `row_of`: `present` only over an `installed` result with a read; the result's own note is then dropped (the
+  elsewhere note or none); a `failed` or `skipped` result stays as it is. `note: Some("")` and `ms: Some(0)` are kept.
+  `row_line` prints `<label>: <outcome>` then ` (<note>)` whenever note is `Some`, `()` for an empty one.
+- Presence tests, four more branches now in the oracle's case list (`presenceTests`, 24 cases): `below` with no `asks`
+  of the step's own (the then-branch is `[ -n <read> ]`); the agent form on both sides of `below`; `below` without
+  `asks` on an agent row (the else-branch is `[ -n <read> ]`); agent-ness is `agent_of_row(id)` (`agents/node` and
+  `agents/codex/bubblewrap` are agent rows, `agents/mcp/claude/x` is not); empty strings are values (`check: ""` is
+  `(  ) >/dev/null 2>&1`, `bin: ""` is `command -v ''`, `asks: ""` compares to `''`); a pin with no `read`, or no pin,
+  adds no version test; a `read` holding a newline is spliced as it is.
+
 ## Rules against tests
 
 | Rule | Tests |
 |---|---|
+| R1 to R8 | provision_plan_hard.rs: `the_plans_files_are_one_per_dest_once_by_exact_dest_and_none_when_empty`, `need_rows_follow_every_agent_install_not_their_own_agent`, `skipped_rows_then_extras_overlay_only_what_they_set`, `the_presence_read_is_one_exact_exec_whose_index_counts_only_steps_with_a_test`, `a_failed_page_reads_nothing_the_next_page_counts_from_zero_and_a_rejection_rejects`, `markers_are_trimmed_the_last_wins_and_the_answer_is_in_step_order`, `the_waiters_rule_is_one_pass_over_the_set_given`, `row_of_reads_present_only_over_an_install_and_row_line_prints_an_empty_note` |
+| presence branches (24 oracle cases) | provision_pins.rs: `each_presence_test_is_the_ts_text_in_its_order_for_asked_and_for_any` |
 | exact tests per case, asked and any | provision_pins.rs: `each_presence_test_is_the_ts_text_in_its_order_for_asked_and_for_any` |
 | check passes, command answers, version read; a version-only step; formula by its link | provision_plan.rs: the presence describe's first, version-only and formula cases |
 | a plan's every step present on a second run; nothing answered is nothing present; nothing readable asks nothing | provision_plan.rs: "is every step of a plan the computer already answers ...", "is nothing at all when the computer answers nothing ..." |
