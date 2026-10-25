@@ -16,6 +16,8 @@ use wsp_collect::host::{Host, HostExec, HostFs, Platform, RunOptions, Stat, Stat
 pub const HOME: &str = "/Users/dev";
 /// The modification time every file has unless the laptop names another.
 pub const MTIME: f64 = 1000.0;
+/// A text file's line that starts with this makes `lines` yield an `Err` there (the TS iterator throwing part way).
+pub const LINES_FAIL: &str = "\u{0}fail:";
 
 /// A file's size, or its text (whose size is its UTF-8 length).
 #[derive(Debug, Clone, PartialEq)]
@@ -203,10 +205,21 @@ impl HostFs for FakeFs {
     }
 
     /// The TS fake's lines: the text split on LF, a trailing LF giving one last empty line; `holding` is ignored.
+    /// A line that starts with LINES_FAIL is the read failing there: an `Err` with the rest as its message, and no more.
     fn lines<'a>(&'a self, path: &'a str, _holding: Option<&'a str>) -> LocalBoxStream<'a, std::io::Result<String>> {
         self.calls.borrow_mut().push(format!("lines {path}"));
         let lines: Vec<std::io::Result<String>> = match self.files.get(path) {
-            Some(FileValue::Text(t)) => t.split('\n').map(|l| Ok(l.to_string())).collect(),
+            Some(FileValue::Text(t)) => {
+                let mut out = Vec::new();
+                for l in t.split('\n') {
+                    if let Some(message) = l.strip_prefix(LINES_FAIL) {
+                        out.push(Err(std::io::Error::other(message.to_string())));
+                        break;
+                    }
+                    out.push(Ok(l.to_string()));
+                }
+                out
+            }
             _ => Vec::new(),
         };
         futures::stream::iter(lines).boxed_local()

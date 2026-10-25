@@ -3,6 +3,7 @@
 //! not need, shipping a command. Read-only: apt-mark, dpkg-query and dpkg's own records. Port of
 //! packages/collect/src/detect/apt.ts at a3b870a6e; the unit is apt_tools and its spec is spec/apt_tools.md.
 use indexmap::IndexMap;
+use wsp_words::exit::HostError;
 
 use crate::detect::tools::Pkg;
 use crate::host::Host;
@@ -85,8 +86,9 @@ pub fn parse_apt_manual(text: &str) -> Vec<String> {
 //   }
 //   return out;
 // }
-/// The caller has already found apt-mark on PATH.
-pub async fn apt_packages(host: &Host) -> Vec<Pkg> {
+/// The caller has already found apt-mark on PATH. A list file whose `lines` stream yields an `Err` part way fails the
+/// whole read with `HostError::new(err.to_string())`, the TS iterator's throw (coordinator's ruling on #2446).
+pub async fn apt_packages(host: &Host) -> Result<Vec<Pkg>, HostError> {
     todo!()
 }
 

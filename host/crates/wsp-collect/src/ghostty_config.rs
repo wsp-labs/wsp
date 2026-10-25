@@ -4,7 +4,7 @@
 //! the files its config-file lines include; the last theme line resolved against the config's themes folder and the
 //! bundled ones, its colors under the config's own. Port of packages/collect/src/ghostty-config.ts at a3b870a6e; the
 //! spec is spec/ghostty_config.md.
-use wsp_wire::views::project_bundle::{TerminalConfig, TerminalRgb, TerminalScheme};
+use wsp_wire::views::project_bundle::{TerminalRgb, TerminalScheme};
 
 use crate::host::Host;
 
@@ -263,6 +263,10 @@ pub fn theme_for(value: &str, scheme: TerminalScheme) -> String {
 //   for (const directive of own) apply(draft, directive);
 //   return { files, ...draft, ...(theme !== undefined && theme !== "" ? { theme } : {}) };
 // }
-pub async fn read_ghostty_config(host: &Host, scheme: TerminalScheme) -> TerminalConfig {
+/// The answer is an ordered JSON map in the TS object's key order (coordinator's ruling on #2446): `files`,
+/// `fontFamily`, `palette`, then each applied key in the order it was first set (theme file first, then the config),
+/// a key that `cursor-style-blink =` deleted going to the end when set again, and `theme` last. Its keys and values
+/// are wsp-wire's `TerminalConfig` fields in camelCase, so `serde_json::from_value` reads it into that struct.
+pub async fn read_ghostty_config(host: &Host, scheme: TerminalScheme) -> serde_json::Map<String, serde_json::Value> {
     todo!()
 }

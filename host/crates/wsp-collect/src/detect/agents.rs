@@ -2,6 +2,7 @@
 //! The agents rung's agent rows: the catalog's agents in its order, then Aider. Port of
 //! packages/collect/src/detect/agents.ts at a3b870a6e; the spec is spec/detect_agents.md.
 use wsp_catalog::hooks::HookCarry;
+use wsp_words::exit::HostError;
 
 use crate::host::Host;
 use crate::manifest::ManifestEntry;
@@ -44,12 +45,13 @@ pub fn agent_row_id(id: &str) -> String {
 //   }
 //   return rows;
 // }
-pub async fn detect_agents(host: &Host) -> Vec<ManifestEntry> {
+pub async fn detect_agents(host: &Host) -> Result<Vec<ManifestEntry>, HostError> {
     todo!()
 }
 
 /// The files the agent's hooks run that no config path of its own already holds, `~/`-relative; a hooks file that
-/// cannot be read, or whose text the catalog's hook_files refuses, gives none.
+/// cannot be read gives none. An `Err` from the catalog's `hook_files` is returned as is: the TS throw is caught
+/// nowhere, so it fails the whole agents rung (coordinator's ruling on #2446).
 // detect/agents.ts:41
 // /** The files the agent's hooks run that no config path of its own already holds, `~/`-relative. */
 // async function hookScripts(host: Host, a: Agent): Promise<string[]> {
@@ -63,6 +65,6 @@ pub async fn detect_agents(host: &Host) -> Vec<ManifestEntry> {
 //   }
 //   return out;
 // }
-pub async fn hook_scripts(host: &Host, a: &Agent) -> Vec<String> {
+pub async fn hook_scripts(host: &Host, a: &Agent) -> Result<Vec<String>, HostError> {
     todo!()
 }

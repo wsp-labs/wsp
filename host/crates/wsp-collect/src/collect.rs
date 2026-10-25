@@ -22,7 +22,8 @@ use crate::manifest::{Manifest, ManifestEntry, Rung};
 //   agents: async host => [...(await detectAgents(host)), ...(await detectMcp(host))],
 //   logins: detectLogins,
 // };
-pub async fn run_detector(rung: Rung, host: &Host, entries: &[ManifestEntry]) -> Vec<ManifestEntry> {
+/// A detector's `Err` is returned at once; `collect` stops there with it and calls no later rung.
+pub async fn run_detector(rung: Rung, host: &Host, entries: &[ManifestEntry]) -> Result<Vec<ManifestEntry>, HostError> {
     todo!()
 }
 

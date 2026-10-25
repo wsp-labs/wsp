@@ -105,8 +105,8 @@ mod ghostty {
         }
     }
 
-    /// The TS writes the config's keys in the order they were first set; the wire struct fixes one order
-    /// (spec/ghostty_config.md, Decisions 1), so the answer is compared as a map.
+    /// The TS writes the config's keys in the order they were first set, and so does the Rust map (spec
+    /// ghostty_config rule 8): the answer is compared as JSON text, so key order counts.
     #[test]
     fn every_config_of_the_oracle_reads_as_the_ts_read_it() {
         for case in oracle("ghostty-configs.json").as_array().unwrap() {
@@ -116,7 +116,7 @@ mod ghostty {
             }
             let host = fake_host(laptop);
             let got = block_on(read_ghostty_config(&host, scheme(&case["scheme"])));
-            assert_eq!(serde_json::to_value(got).unwrap(), case["config"], "{}", case["name"]);
+            assert_eq!(serde_json::to_string(&got).unwrap(), serde_json::to_string(&case["config"]).unwrap(), "{}", case["name"]);
         }
     }
 }
