@@ -1130,8 +1130,8 @@ impl MachinesRuntime for Rt {
         cfg.size_built_calls.push((shape.cloned(), asked.clone()));
         cfg.size_built.clone().unwrap_or(asked)
     }
-    async fn read_memory(&self, record: &mut WorkspaceRecord, machine: &Arc<dyn Machine>, _sizes: &[WorkspaceSize]) -> bool {
-        self.cfg.borrow_mut().read_memory_calls.push((record.id.clone(), machine.id().to_string()));
+    async fn read_memory(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: &Arc<dyn Machine>, _sizes: &[WorkspaceSize]) -> bool {
+        self.cfg.borrow_mut().read_memory_calls.push((record.borrow().id.clone(), machine.id().to_string()));
         true
     }
     async fn vault_export(&self, machine: &Arc<dyn Machine>, max_bytes: u64, leave: Option<Vec<String>>) -> Result<Vec<u8>, HostError> {
@@ -1315,6 +1315,11 @@ impl World {
 
 // ---------------------------------------------------------------------------------------------------------------
 // Entries and rows
+
+/// A record in the one shared cell every entry of a workspace holds.
+pub fn shared(record: WorkspaceRecord) -> Rc<RefCell<WorkspaceRecord>> {
+    Rc::new(RefCell::new(record))
+}
 
 pub fn record_of(phase: &str, extras: Value, sub: bool) -> WorkspaceRecord {
     let mut v = json!({

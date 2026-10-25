@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! machines.ts:270-301,364-587 at 65f6b89c7: the live entry, its engine hooks, and drop. Spec: spec/machines_attach.md.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -31,7 +32,7 @@ impl MachinesArea {
 
     /// `attach` (machines.ts:395): the new live entry, set in `live`, its engine workspace given the hooks of spec
     /// rules 4-7.
-    pub fn attach(self: &Rc<Self>, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry {
+    pub fn attach(self: &Rc<Self>, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry {
         todo!()
     }
 
