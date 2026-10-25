@@ -1,0 +1,31 @@
+<slate title="Checkout 502s in eu-west-1">
+  <value name="started" start={1792881512704} />
+  <value name="rates" start={[
+    {at: 1792879592704, pct: 0.2},
+    {at: 1792879892704, pct: 0.3},
+    {at: 1792880192704, pct: 0.2},
+    {at: 1792880492704, pct: 0.2},
+    {at: 1792880792704, pct: 0.3},
+    {at: 1792881092704, pct: 0.2},
+    {at: 1792881392704, pct: 0.4},
+    {at: 1792881692704, pct: 6.8},
+    {at: 1792881992704, pct: 12.9},
+    {at: 1792882292704, pct: 15.1},
+    {at: 1792882592704, pct: 9.6}
+  ]} />
+  <value name="runbook" start={[
+    {step: "Page the on-call", done: true, note: ""},
+    {step: "Open #inc-2291", done: true, note: ""},
+    {step: "Freeze deploys", done: true, note: ""},
+    {step: "Find the change that broke it", done: true, note: ""},
+    {step: "Roll back payments-svc to v3.8.2", done: false, note: "Rolling, 3 of 8 pods"},
+    {step: "Confirm 5xx under 1%", done: false, note: "After the roll back"},
+    {step: "Status page update", done: false, note: "Next one due 23:10"},
+    {step: "Write the timeline", done: false, note: "After the all clear"}
+  ]} />
+  <column>
+    <status value={concat("Ongoing, started ", ago($started))} tone="bad" />
+    <chart label="Checkout 5xx rate, last 50 min" items={$rates} x={item.at} value={item.pct} unit="%" height="small" tone="bad" />
+    <progress label="runbook steps done" items={$runbook} key={item.step} name={item.step} done={item.done} note={item.note} />
+  </column>
+</slate>

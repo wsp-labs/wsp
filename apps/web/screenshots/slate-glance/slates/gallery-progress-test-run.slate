@@ -1,0 +1,25 @@
+<slate title="CI on main, 8f3c2a1">
+  <value name="started" start={1792882352704} />
+  <value name="packages" start={[
+    {name: "api", done: true, note: ""},
+    {name: "auth", done: true, note: ""},
+    {name: "billing", done: false, note: "3 failed: invoice date snapshots"},
+    {name: "cli", done: true, note: ""},
+    {name: "config", done: true, note: ""},
+    {name: "db", done: true, note: ""},
+    {name: "emails", done: true, note: ""},
+    {name: "flags", done: true, note: ""},
+    {name: "jobs", done: true, note: ""},
+    {name: "search", done: false, note: "1 failed: ranking timeout, flaky since Oct 20"},
+    {name: "sdk", done: true, note: ""},
+    {name: "ui", done: true, note: ""},
+    {name: "utils", done: true, note: ""},
+    {name: "web", done: false, note: "Running, 212 of 340"},
+    {name: "webhooks", done: true, note: ""},
+    {name: "worker", done: false, note: "Queued"}
+  ]} />
+  <column>
+    <status value={concat("Running, started ", ago($started))} tone="info" />
+    <progress label="packages passed" items={$packages} key={item.name} name={item.name} done={item.done} note={item.note} />
+  </column>
+</slate>

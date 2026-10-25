@@ -1,0 +1,22 @@
+<slate title="Onboarding Priya Raman">
+  <value name="steps" start={[
+    {name: "Laptop shipped", done: true, note: ""},
+    {name: "Google and Slack accounts", done: true, note: ""},
+    {name: "GitHub org invite", done: true, note: ""},
+    {name: "1Password vault", done: true, note: ""},
+    {name: "Dev environment running", done: true, note: ""},
+    {name: "VPN profile", done: false, note: "IT ticket #8841, due today"},
+    {name: "First PR merged", done: false, note: "Waits on a first ticket"},
+    {name: "Shadow an on-call shift", done: false, note: "Thursday 14:00"}
+  ]} />
+  <value name="firstTicket" start="" />
+  <column>
+    <progress label="first-week steps done" items={$steps} key={item.name} name={item.name} done={item.done} note={item.note} />
+    <decision id="first-ticket" label="Which first ticket for Priya?" value={$firstTicket} pick="1932"
+        onChange={send("Priya's first ticket", $firstTicket)}>
+      <option value="1932" label="#1932 CSV export timezone" note="Small, and it touches both the API and the UI" />
+      <option value="1977" label="#1977 Retry failed uploads" note="UI only" />
+      <option value="2010" label="#2010 Dark mode settings" note="Touches 40 files" />
+    </decision>
+  </column>
+</slate>

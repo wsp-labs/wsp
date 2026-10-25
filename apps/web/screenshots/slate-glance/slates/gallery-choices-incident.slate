@@ -1,0 +1,19 @@
+<slate title="Checkout 502s in eu-west-1">
+  <value name="started" start={1792881512704} />
+  <value name="errorRate" start={14.2} />
+  <value name="failedOrders" start={1312} />
+  <value name="banner" start="degraded" />
+  <column>
+    <status value={concat("Ongoing, started ", ago($started))} tone="bad" />
+    <stats>
+      <stat label="Checkout 5xx" value={$errorRate} unit="%" window="last 5 min" tone="bad" />
+      <stat label="Orders failed" value={$failedOrders} format="integer" window="since it started" tone="bad" />
+    </stats>
+    <choices id="banner" label="Status page says" value={$banner}>
+      <option value="degraded" label="Degraded performance" note="Yellow banner: some checkouts in Europe fail" />
+      <option value="partial" label="Partial outage" note="Orange banner, emails 4,200 subscribers" />
+      <option value="major" label="Major outage" note="Red banner, emails all 31,000 subscribers" />
+    </choices>
+    <button label="Post the update" variant="primary" onPress={send("Post the status page update", $banner)} />
+  </column>
+</slate>
