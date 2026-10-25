@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! A tape: the frames one connection sent a host, and, where the tape writes them down, the answers it expects.
 //! Each line is one JSON object: `{"meta": {...}}` first and at most once, then `{"in": frame}` for a frame the host
-//! receives and `{"out": frame}` for one it sends, exactly as the door carries them.
+//! receives and `{"out": frame}` for one it sends, exactly as the door carries them, and `{"close": {code, reason}}`
+//! where the host closes the socket.
 
 use serde_json::Value;
 use std::fs;
@@ -68,7 +69,7 @@ impl Tape {
             }
             let value: Value = serde_json::from_str(line).map_err(|e| format!("{at}: not a JSON line: {e}"))?;
             let Some(obj) = value.as_object().filter(|o| o.len() == 1) else {
-                return Err(format!("{at}: a tape line is one object with one key, meta, in or out"));
+                return Err(format!("{at}: a tape line is one object with one key, meta, in, out or close"));
             };
             let (key, frame) = obj.iter().next().expect("one key");
             match key.as_str() {
@@ -89,7 +90,12 @@ impl Tape {
                     seen_frame = true;
                     outs.push(frame.clone());
                 }
-                other => return Err(format!("{at}: {other} is not a tape key; a line is meta, in or out")),
+                // The host closing the socket, as the spec checker writes it: an answer with no request.
+                "close" => {
+                    seen_frame = true;
+                    outs.push(value.clone());
+                }
+                other => return Err(format!("{at}: {other} is not a tape key; a line is meta, in, out or close")),
             }
         }
         if ins.is_empty() {

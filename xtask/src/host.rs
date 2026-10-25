@@ -66,15 +66,16 @@ impl Host for ProcessHost {
         let tmp = tempfile::Builder::new().prefix("wsp-parity-").tempdir().map_err(|e| format!("temp folder: {e}"))?;
         let place = Place::make(tmp.path(), &self.program)?;
         let scratch = tmp.path().join("scratch").display().to_string();
-        let tape = &Tape { ins: tape.ins.iter().map(|f| placed(f, &scratch)).collect(), ..tape.clone() };
         let host = place.serve(&self.program)?;
+        let marks = [(RUN_MARK, scratch.as_str()), (TMP_MARK, &tmp.path().display().to_string()), (TOKEN_MARK, host.token.as_str())];
+        let tape = &Tape { ins: tape.ins.iter().map(|f| placed(f, &marks)).collect(), ..tape.clone() };
         let mut facts = place.facts();
         for (value, placeholder) in &self.known.literals {
             facts.add(value.clone(), placeholder);
         }
         facts.add(host.port.to_string(), "<port>");
         facts.add(host.pid.to_string(), "<pid>");
-        facts.add(host.token.clone(), "<token>");
+        facts.add(host.token.clone(), TOKEN_MARK);
         let (replies, events) = match tape.door {
             Door::Ws => ws(tape, order, &host, self.reply_wait),
             Door::Cli => Ok(cli(tape, &place, &self.program, self.reply_wait)),
@@ -165,9 +166,9 @@ impl Place {
 
     fn facts(&self) -> Facts {
         let mut facts = Facts::default();
-        facts.add(self.root.display().to_string(), "<tmp>");
+        facts.add_folder(&self.root.display().to_string(), "<tmp>");
         if let Ok(real) = fs::canonicalize(&self.root) {
-            facts.add(real.display().to_string(), "<tmp>");
+            facts.add_folder(&real.display().to_string(), "<tmp>");
         }
         if let Some(name) = hostname() {
             if let Some((short, _)) = name.split_once('.') {
@@ -197,12 +198,16 @@ impl Drop for Running {
 /// What a recording run's own temp folder reads as on a tape: each replay points it inside its own folder, so a path a
 /// test made lands there and nowhere a later run or another computer may hold something.
 pub const RUN_MARK: &str = "<run>";
+/// The replay's own temp folder, as a spec tape names a path under it in a frame it sends.
+pub const TMP_MARK: &str = "<tmp>";
+/// The host's token, as a spec tape names it in a frame it sends.
+pub const TOKEN_MARK: &str = "<host-token>";
 
-fn placed(v: &Value, scratch: &str) -> Value {
+fn placed(v: &Value, marks: &[(&str, &str)]) -> Value {
     match v {
-        Value::String(s) if s.contains(RUN_MARK) => Value::String(s.replace(RUN_MARK, scratch)),
-        Value::Array(items) => Value::Array(items.iter().map(|i| placed(i, scratch)).collect()),
-        Value::Object(obj) => Value::Object(obj.iter().map(|(k, v)| (k.clone(), placed(v, scratch))).collect()),
+        Value::String(s) => Value::String(marks.iter().fold(s.clone(), |s, (mark, value)| s.replace(mark, value))),
+        Value::Array(items) => Value::Array(items.iter().map(|i| placed(i, marks)).collect()),
+        Value::Object(obj) => Value::Object(obj.iter().map(|(k, v)| (k.clone(), placed(v, marks))).collect()),
         other => other.clone(),
     }
 }
@@ -360,6 +365,10 @@ fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<
                     }
                 }
                 Heard::Quiet => {}
+                Heard::Shut(close) => {
+                    events.push(close);
+                    open = false;
+                }
                 Heard::Closed => open = false,
             }
         }
@@ -373,6 +382,10 @@ fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<
                 events.push(frame);
             }
             Heard::Quiet => {}
+            Heard::Shut(close) => {
+                events.push(close);
+                open = false;
+            }
             Heard::Closed => open = false,
         }
     }
@@ -386,6 +399,8 @@ fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<
 
 enum Heard {
     Frame(Value),
+    /// The host closed the socket, with its code and reason, as a spec tape writes a close line.
+    Shut(Value),
     Quiet,
     Closed,
 }
@@ -395,8 +410,8 @@ fn read(socket: &mut WebSocket<TcpStream>) -> Heard {
         Ok(Message::Text(t)) => Heard::Frame(serde_json::from_str(t.as_str()).unwrap_or_else(|_| Value::String(t.as_str().to_string()))),
         Ok(Message::Binary(b)) => Heard::Frame(json!({ "binary": b.len() })),
         Ok(Message::Close(c)) => {
-            let _ = c;
-            Heard::Closed
+            let (code, reason) = c.map(|f| (u16::from(f.code), f.reason.to_string())).unwrap_or((1005, String::new()));
+            Heard::Shut(json!({ "close": { "code": code, "reason": reason } }))
         }
         Ok(_) => Heard::Quiet,
         Err(tungstenite::Error::Io(e)) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => Heard::Quiet,

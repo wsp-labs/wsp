@@ -53,8 +53,29 @@ fn walk(path: &str, golden: &Value, live: &Value, out: &mut Vec<Difference>) {
             }
         }
         (a, b) if a == b => {}
+        (Value::String(a), Value::String(b)) => {
+            let (golden, live) = around_first_difference(a, b);
+            out.push(Difference { field: path.to_string(), golden, live });
+        }
         (a, b) => out.push(Difference { field: path.to_string(), golden: shown(Some(a)), live: shown(Some(b)) }),
     }
+}
+
+/// Two long strings shown where they part, a little before and after, so a changed word deep in a page of text is the
+/// thing printed rather than the opening both share.
+fn around_first_difference(a: &str, b: &str) -> (String, String) {
+    let (ac, bc): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
+    if ac.len() <= 100 && bc.len() <= 100 {
+        return (shown(Some(&Value::from(a))), shown(Some(&Value::from(b))));
+    }
+    let at = ac.iter().zip(&bc).position(|(x, y)| x != y).unwrap_or(ac.len().min(bc.len()));
+    let from = at.saturating_sub(40);
+    let cut = |c: &[char]| {
+        let end = (at + 60).min(c.len());
+        let piece: String = c[from.min(c.len())..end].iter().collect();
+        format!("{}{}{}", if from > 0 { "..." } else { "" }, Value::from(piece), if end < c.len() { "..." } else { "" })
+    };
+    (cut(&ac), cut(&bc))
 }
 
 /// A value as a difference prints it, cut so one line stays one line.
