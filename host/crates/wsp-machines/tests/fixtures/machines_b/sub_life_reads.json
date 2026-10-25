@@ -1,0 +1,1049 @@
+{
+  "parsed": [
+    {
+      "stdout": "branch wsp/x\npushed 9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e\nunpushed 0\nchanged 0\ncommits 3\n",
+      "result": {
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "pushedSha": "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e",
+        "commits": 3,
+        "unpushed": 0,
+        "changed": 0,
+        "onBranch": "wsp/x",
+        "readAt": "2026-10-14T12:00:00.000Z"
+      }
+    },
+    {
+      "stdout": "branch wsp/x\npushed none\nunpushed 2\nchanged 3\n",
+      "result": {
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "pushedSha": null,
+        "commits": 0,
+        "unpushed": 2,
+        "changed": 3,
+        "onBranch": "wsp/x",
+        "readAt": "2026-10-14T12:00:00.000Z"
+      }
+    },
+    {
+      "stdout": "norepo\n",
+      "result": {
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "pushedSha": null,
+        "commits": 0,
+        "unpushed": 0,
+        "changed": 0,
+        "norepo": true,
+        "readAt": "2026-10-14T12:00:00.000Z"
+      }
+    },
+    {
+      "stdout": "branch wsp/x\npushed none\nunpushed 2\nchanged 3\nnorepo\n",
+      "result": {
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "pushedSha": null,
+        "commits": 0,
+        "unpushed": 0,
+        "changed": 0,
+        "norepo": true,
+        "readAt": "2026-10-14T12:00:00.000Z"
+      }
+    },
+    {
+      "stdout": "",
+      "result": null
+    },
+    {
+      "stdout": "branch wsp/x\npushed none\nunpushed\nchanged 3\n",
+      "result": null
+    },
+    {
+      "stdout": "branch wsp/x\npushed none\nunpushed 2\n",
+      "result": null
+    },
+    {
+      "stdout": "  branch   HEAD  \n\n pushed  \n unpushed 0x10 \n changed 3.0\ncommits -0\n",
+      "result": {
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "pushedSha": null,
+        "commits": 0,
+        "unpushed": 16,
+        "changed": 3,
+        "onBranch": "HEAD",
+        "readAt": "2026-10-14T12:00:00.000Z"
+      }
+    },
+    {
+      "stdout": "branch\npushed none\nunpushed 1e1\nchanged 0\ncommits abc\n",
+      "result": {
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "pushedSha": null,
+        "commits": 0,
+        "unpushed": 10,
+        "changed": 0,
+        "readAt": "2026-10-14T12:00:00.000Z"
+      }
+    },
+    {
+      "stdout": "unpushed -1\nchanged 0\n",
+      "result": null
+    },
+    {
+      "stdout": "unpushed 1.5\nchanged 0\n",
+      "result": null
+    },
+    {
+      "stdout": "unpushed 1\nunpushed 4\nchanged 0\npushed abc\npushed none\n",
+      "result": {
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "pushedSha": null,
+        "commits": 0,
+        "unpushed": 4,
+        "changed": 0,
+        "readAt": "2026-10-14T12:00:00.000Z"
+      }
+    },
+    {
+      "stdout": "unpushed 1\nchanged 0\ncommits\n",
+      "result": {
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "pushedSha": null,
+        "commits": 0,
+        "unpushed": 1,
+        "changed": 0,
+        "readAt": "2026-10-14T12:00:00.000Z"
+      }
+    },
+    {
+      "stdout": "unpushed\t1\nchanged 0\n",
+      "result": null
+    },
+    {
+      "stdout": "unpushed 1\r\nchanged 0\r\nbranch main\r\n",
+      "result": {
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "pushedSha": null,
+        "commits": 0,
+        "unpushed": 1,
+        "changed": 0,
+        "onBranch": "main",
+        "readAt": "2026-10-14T12:00:00.000Z"
+      }
+    },
+    {
+      "stdout": "unpushed  7 \nchanged 0\nbranch feat x y\n",
+      "result": {
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "pushedSha": null,
+        "commits": 0,
+        "unpushed": 7,
+        "changed": 0,
+        "onBranch": "feat x y",
+        "readAt": "2026-10-14T12:00:00.000Z"
+      }
+    },
+    {
+      "stdout": "unpushed 1\nchanged  2\n",
+      "result": {
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "pushedSha": null,
+        "commits": 0,
+        "unpushed": 1,
+        "changed": 2,
+        "readAt": "2026-10-14T12:00:00.000Z"
+      }
+    }
+  ],
+  "commands": [
+    {
+      "folder": "/root/web",
+      "branch": "wsp/fix-the-flaky-upload-test",
+      "baseSha": "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a",
+      "command": "cd '/root/web' 2>/dev/null && git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo norepo; exit 0; }\necho \"branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)\"\np=$(git rev-parse --verify -q 'refs/remotes/origin/wsp/fix-the-flaky-upload-test' || echo none); echo \"pushed $p\"\nb=$(git rev-parse --verify -q '4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a^{commit}'); echo \"unpushed $(git rev-list --count --branches --not --remotes $b)\"\necho \"changed $(git status --porcelain=v1 | wc -l | tr -d ' ')\"\n[ \"$p\" = none ] || echo \"commits $(git rev-list --count '4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a'..$p 2>/dev/null || echo 0)\""
+    },
+    {
+      "folder": "/root/it's here",
+      "branch": "wsp/a'b",
+      "baseSha": "abc",
+      "command": "cd '/root/it'\\''s here' 2>/dev/null && git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo norepo; exit 0; }\necho \"branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)\"\np=$(git rev-parse --verify -q 'refs/remotes/origin/wsp/a'\\''b' || echo none); echo \"pushed $p\"\nb=$(git rev-parse --verify -q 'abc^{commit}'); echo \"unpushed $(git rev-list --count --branches --not --remotes $b)\"\necho \"changed $(git status --porcelain=v1 | wc -l | tr -d ' ')\"\n[ \"$p\" = none ] || echo \"commits $(git rev-list --count 'abc'..$p 2>/dev/null || echo 0)\""
+    }
+  ],
+  "packs": [
+    {
+      "file": {
+        "folder": "/root/.claude-cfg/projects",
+        "name": "s1.jsonl",
+        "depth": 1
+      },
+      "to": "/tmp/wsp-session-t1.gz",
+      "command": "f=$(find '/root/.claude-cfg/projects' -maxdepth 2 -type f -name '*s1.jsonl' 2>/dev/null | head -n 1)\n[ -n \"$f\" ] || { echo nofile; exit 0; }\necho \"path $f\"\ngzip -c \"$f\" > '/tmp/wsp-session-t1.gz' && chmod 0644 '/tmp/wsp-session-t1.gz' && echo \"size $(stat -c %s '/tmp/wsp-session-t1.gz')\""
+    },
+    {
+      "file": {
+        "folder": "/root/.codex/sessions",
+        "name": "-s1.jsonl",
+        "depth": 3
+      },
+      "to": "/tmp/wsp-session-t1.gz",
+      "command": "f=$(find '/root/.codex/sessions' -maxdepth 4 -type f -name '*-s1.jsonl' 2>/dev/null | head -n 1)\n[ -n \"$f\" ] || { echo nofile; exit 0; }\necho \"path $f\"\ngzip -c \"$f\" > '/tmp/wsp-session-t1.gz' && chmod 0644 '/tmp/wsp-session-t1.gz' && echo \"size $(stat -c %s '/tmp/wsp-session-t1.gz')\""
+    }
+  ],
+  "lands": [
+    {
+      "file": {
+        "folder": "/root/.claude-cfg/projects",
+        "name": "s1.jsonl",
+        "depth": 1
+      },
+      "path": "/root/.claude-cfg/projects/-root-web/s1.jsonl",
+      "from": "/tmp/wsp-session-t1.gz",
+      "command": "install -d -m 0700 '/root/.claude-cfg/projects/-root-web'\nfind '/root/.claude-cfg/projects' -maxdepth 2 -type f -name '*s1.jsonl' ! -path '/root/.claude-cfg/projects/-root-web/s1.jsonl' -delete 2>/dev/null\ngunzip -c '/tmp/wsp-session-t1.gz' > '/root/.claude-cfg/projects/-root-web/s1.jsonl'; s=$?; rm -f '/tmp/wsp-session-t1.gz'; exit $s"
+    },
+    {
+      "file": {
+        "folder": "/root/.codex/sessions",
+        "name": "-s1.jsonl",
+        "depth": 3
+      },
+      "path": "/root/.codex/sessions/2026/10/12/rollout-2026-10-12T06-00-00-s1.jsonl",
+      "from": "/tmp/wsp-session-t1.gz",
+      "command": "install -d -m 0700 '/root/.codex/sessions/2026/10/12'\nfind '/root/.codex/sessions' -maxdepth 4 -type f -name '*-s1.jsonl' ! -path '/root/.codex/sessions/2026/10/12/rollout-2026-10-12T06-00-00-s1.jsonl' -delete 2>/dev/null\ngunzip -c '/tmp/wsp-session-t1.gz' > '/root/.codex/sessions/2026/10/12/rollout-2026-10-12T06-00-00-s1.jsonl'; s=$?; rm -f '/tmp/wsp-session-t1.gz'; exit $s"
+    },
+    {
+      "file": {
+        "folder": "/root/.claude-cfg/projects",
+        "name": "s1.jsonl",
+        "depth": 1
+      },
+      "path": "nofolder.jsonl",
+      "from": "/tmp/x.gz",
+      "command": "install -d -m 0700 'nofolder.json'\nfind '/root/.claude-cfg/projects' -maxdepth 2 -type f -name '*s1.jsonl' ! -path 'nofolder.jsonl' -delete 2>/dev/null\ngunzip -c '/tmp/x.gz' > 'nofolder.jsonl'; s=$?; rm -f '/tmp/x.gz'; exit $s"
+    }
+  ],
+  "rows": [
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "running"
+      },
+      "row": null
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "running",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web"
+        }
+      },
+      "row": {
+        "state": "running",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test"
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "running",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web",
+          "spawn": {
+            "startedAt": 1,
+            "log": []
+          }
+        }
+      },
+      "row": {
+        "state": "starting",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "spawn": {
+          "startedAt": 1,
+          "log": []
+        }
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "running",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web",
+          "spawn": {
+            "startedAt": 1,
+            "readyAt": 2,
+            "log": []
+          }
+        }
+      },
+      "row": {
+        "state": "running",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "spawn": {
+          "startedAt": 1,
+          "readyAt": 2,
+          "log": []
+        }
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "running",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web",
+          "spawn": {
+            "startedAt": 1,
+            "failed": {
+              "step": "machine",
+              "said": "x"
+            },
+            "log": []
+          }
+        }
+      },
+      "row": {
+        "state": "running",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "spawn": {
+          "startedAt": 1,
+          "failed": {
+            "step": "machine",
+            "said": "x"
+          },
+          "log": []
+        }
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "queued",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web"
+        }
+      },
+      "row": {
+        "state": "starting",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test"
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "queued",
+        "queue": {
+          "since": "2026-10-14T12:00:00.000Z",
+          "why": "slot"
+        },
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web"
+        }
+      },
+      "row": {
+        "state": "waiting",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test"
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "napping",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web",
+          "rateUsdPerHour": 0.05,
+          "sizeName": "small",
+          "result": {
+            "branch": "wsp/fix-the-flaky-upload-test",
+            "pushedSha": null,
+            "commits": 0,
+            "unpushed": 2,
+            "changed": 3,
+            "readAt": "2026-10-14T12:00:00.000Z"
+          },
+          "held": {
+            "files": 3,
+            "commits": 2,
+            "at": 5
+          },
+          "deleteAt": 7
+        }
+      },
+      "row": {
+        "state": "napping",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096,
+          "name": "small"
+        },
+        "rateUsdPerHour": 0.05,
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "result": {
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "pushedSha": null,
+          "commits": 0,
+          "unpushed": 2,
+          "changed": 3,
+          "readAt": "2026-10-14T12:00:00.000Z"
+        },
+        "held": {
+          "files": 3,
+          "commits": 2
+        },
+        "deleteAt": 7
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "released",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web",
+          "releasedAt": 9,
+          "cloudGone": true
+        }
+      },
+      "row": {
+        "state": "released",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "releasedAt": 9,
+        "cloudGone": true
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "gone",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web"
+        }
+      },
+      "row": {
+        "state": "released",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test"
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "creating",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web"
+        }
+      },
+      "row": {
+        "state": "napping",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test"
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "running",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web",
+          "session": {
+            "agent": "claude",
+            "id": "s1",
+            "kept": null
+          }
+        }
+      },
+      "row": {
+        "state": "running",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "sessionNotKept": "the agent's session was not kept (no reason was given); a send continues from the transcript"
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "running",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web",
+          "session": {
+            "agent": "claude",
+            "id": "s1",
+            "kept": null,
+            "why": "the pack exited 1: no"
+          }
+        }
+      },
+      "row": {
+        "state": "running",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "sessionNotKept": "the agent's session was not kept (the pack exited 1: no); a send continues from the transcript"
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "running",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web",
+          "session": {
+            "agent": "claude",
+            "id": "s1",
+            "kept": null,
+            "bytes": 67108864,
+            "why": "w"
+          }
+        }
+      },
+      "row": {
+        "state": "running",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "sessionNotKept": "the agent's session was not kept (w); a send continues from the transcript"
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "running",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web",
+          "session": {
+            "agent": "claude",
+            "id": "s1",
+            "kept": null,
+            "bytes": 67108865,
+            "why": "w"
+          }
+        }
+      },
+      "row": {
+        "state": "running",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test",
+        "sessionNotKept": "the agent's session was too large to keep (64 MB); a send continues from the transcript"
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "running",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web",
+          "session": {
+            "agent": "claude",
+            "id": "s1",
+            "kept": 5,
+            "bytes": 9,
+            "path": "/x"
+          }
+        }
+      },
+      "row": {
+        "state": "running",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test"
+      }
+    },
+    {
+      "record": {
+        "id": "ws_1",
+        "name": "Fix it",
+        "kind": "cloud",
+        "machineId": "m1",
+        "createdAt": "2026-10-14T12:00:00.000Z",
+        "project": "pr_1",
+        "spec": {},
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "phase": "running",
+        "sub": {
+          "on": "boat",
+          "repo": "https://github.com/acme/web",
+          "base": {
+            "branch": "feat/upload",
+            "sha": "abc"
+          },
+          "branch": "wsp/fix-the-flaky-upload-test",
+          "folder": "/root/web",
+          "cloudGone": false
+        }
+      },
+      "row": {
+        "state": "running",
+        "on": "boat",
+        "machine": "Fix it",
+        "size": {
+          "cpu": 2,
+          "memMb": 4096
+        },
+        "branch": "wsp/fix-the-flaky-upload-test"
+      }
+    }
+  ],
+  "keeps": [
+    {
+      "record": {
+        "phase": "napping",
+        "nappedAt": 1000
+      },
+      "diskKeptMs": 50,
+      "stoppedAt": null,
+      "keptMs": 50,
+      "until": 1050
+    },
+    {
+      "record": {
+        "phase": "napping",
+        "nappedAt": 1000
+      },
+      "diskKeptMs": 50,
+      "stoppedAt": 2000,
+      "keptMs": 50,
+      "until": 1050
+    },
+    {
+      "record": {
+        "phase": "napping"
+      },
+      "diskKeptMs": 50,
+      "stoppedAt": 2000,
+      "keptMs": 50,
+      "until": 2050
+    },
+    {
+      "record": {
+        "phase": "napping"
+      },
+      "diskKeptMs": 50,
+      "stoppedAt": null,
+      "keptMs": 50,
+      "until": null
+    },
+    {
+      "record": {
+        "phase": "running",
+        "nappedAt": 1000
+      },
+      "diskKeptMs": 50,
+      "stoppedAt": 2000,
+      "keptMs": 50,
+      "until": 2050
+    },
+    {
+      "record": {
+        "phase": "running"
+      },
+      "diskKeptMs": 50,
+      "stoppedAt": null,
+      "keptMs": 50,
+      "until": null
+    },
+    {
+      "record": {
+        "phase": "napping",
+        "nappedAt": 1000
+      },
+      "diskKeptMs": 0,
+      "stoppedAt": null,
+      "keptMs": 0,
+      "until": 1000
+    },
+    {
+      "record": {
+        "phase": "napping",
+        "nappedAt": 1000
+      },
+      "diskKeptMs": null,
+      "stoppedAt": null,
+      "keptMs": null,
+      "until": null
+    },
+    {
+      "record": {
+        "phase": "napping",
+        "nappedAt": 1000
+      },
+      "diskKeptMs": "nolife",
+      "stoppedAt": null,
+      "keptMs": null,
+      "until": null
+    },
+    {
+      "record": {
+        "phase": "napping",
+        "nappedAt": 1000
+      },
+      "diskKeptMs": "throws",
+      "stoppedAt": null,
+      "keptMs": null,
+      "until": null
+    },
+    {
+      "record": {
+        "phase": "running"
+      },
+      "diskKeptMs": 50,
+      "stoppedAt": 0,
+      "keptMs": 50,
+      "until": 50
+    }
+  ],
+  "preambles": {
+    "brokered": [
+      "git init -q",
+      "git remote add -t 'wsp/fix-the-flaky-upload-test*' origin {REPO}",
+      "git fetch -q --depth 1 origin {HEAD}",
+      "git checkout -q -b wsp/fix-the-flaky-upload-test FETCH_HEAD"
+    ],
+    "resumed": [
+      "git init -q",
+      "git remote add -t 'wsp/fix-the-flaky-upload-test*' origin {REPO}",
+      "git fetch -q --depth 1 origin wsp/fix-the-flaky-upload-test",
+      "git checkout -q -b wsp/fix-the-flaky-upload-test FETCH_HEAD"
+    ]
+  }
+}

@@ -20,7 +20,7 @@ hex = "0.4"
 ed25519-dalek = { version = "3", features = ["pkcs8"] }
 thiserror = "2"
 tokio = { version = "1", features = ["process", "time", "io-util", "fs", "net", "rt", "macros", "sync"] }
-tokio-util = "0.7"
+tokio-util = { version = "0.7", features = ["rt"] }
 wsp-adapters = { path = "../wsp-adapters" }
 wsp-core = { path = "../wsp-core" }
 wsp-catalog = { path = "../wsp-catalog" }
@@ -28,6 +28,7 @@ wsp-engine = { path = "../wsp-engine" }
 wsp-store = { path = "../wsp-store" }
 wsp-wire = { path = "../wsp-wire" }
 wsp-words = { path = "../wsp-words" }
+wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
 
 [dev-dependencies]
 tempfile = "3"
