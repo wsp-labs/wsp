@@ -81,7 +81,7 @@ impl HookCarry {
     pub fn carry(self, text: &str, home: &str, place: HookPlacer<'_>) -> Result<CarriedHooks, HostError> {
         match self {
             HookCarry::Claude => carry_claude(text, home, place),
-            HookCarry::Codex => Ok(carry_codex(text, home, place)),
+            HookCarry::Codex => carry_codex(text, home, place),
         }
     }
 }
@@ -377,7 +377,7 @@ fn carry_notify(words: &[String], home: &str, place: HookPlacer<'_>) -> Option<N
 
 /// Codex's global config: its one hook is the top-level `notify`, read line by line so every other key, comment and
 /// spacing survives (codex-hooks.ts:40).
-fn carry_codex(text: &str, home: &str, place: HookPlacer<'_>) -> CarriedHooks {
+fn carry_codex(text: &str, home: &str, place: HookPlacer<'_>) -> Result<CarriedHooks, HostError> {
     let lines: Vec<&str> = text.split('\n').collect();
     let mut kept: Vec<String> = Vec::new();
     let mut carried: Vec<Carried> = Vec::new();
@@ -405,7 +405,7 @@ fn carry_codex(text: &str, home: &str, place: HookPlacer<'_>) -> CarriedHooks {
             value.push_str(js_trim(&piece));
         }
         // An array that never closed is not TOML this reads, so it stays as written.
-        let words = if toml_open_array(&value) { Vec::new() } else { toml_strings(&value) };
+        let words = if toml_open_array(&value) { Vec::new() } else { toml_strings(&value)? };
         match carry_notify(&words, home, place) {
             None => kept.extend(span),
             Some(Notify::Left(program)) => {
@@ -421,12 +421,12 @@ fn carry_codex(text: &str, home: &str, place: HookPlacer<'_>) -> CarriedHooks {
                 carried.push(c);
                 let swap: HashMap<String, String> =
                     words.iter().zip(&moved).filter(|(w, m)| w != m).map(|(w, m)| (w.clone(), m.clone())).collect();
-                kept.extend(
-                    span.iter().map(|line| rewrite_toml_line(line, &|v: &str| swap.get(v).cloned().unwrap_or_else(|| v.to_string()))),
-                );
+                for line in &span {
+                    kept.push(rewrite_toml_line(line, &|v: &str| swap.get(v).cloned().unwrap_or_else(|| v.to_string()))?);
+                }
             }
         }
         i += 1;
     }
-    CarriedHooks { text: if changed { kept.join("\n") } else { text.to_string() }, carried, left }
+    Ok(CarriedHooks { text: if changed { kept.join("\n") } else { text.to_string() }, carried, left })
 }

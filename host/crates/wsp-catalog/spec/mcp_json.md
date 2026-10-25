@@ -56,7 +56,11 @@ The three JSON formats' reads and edits, all in place through json_edit: Claude 
 ## Behaviour nobody wrote down
 
 - Rule 4.26: a placed entry's keys are in the order listed in rule 2; a merged new file keeps the edits' order.
+- Rule 4.27: a servers object is walked in JavaScript's order, whole-number names first and ascending, the rest as written (`js_entries`), so `10` follows `2`.
 - Every write goes through json_edit, so a comment outside what moves stands or the write is refused.
+- A server named for a member every JavaScript object inherits (`constructor`, `toString`, `__proto__` and the rest) is
+  found by `servers[name]` where the file holds no such key, so `edit` says written, `merge` says theirs and `entry_of`
+  answers `null`: `held_at` holds the TS's behaviour on purpose (an after-port ticket, not a port change).
 
 ## Tapes
 
