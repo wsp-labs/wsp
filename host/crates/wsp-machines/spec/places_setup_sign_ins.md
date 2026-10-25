@@ -57,7 +57,8 @@ road is the TS `undefined`.
   `no_copy_line(label, here)` and the ways fix or `sign_in_there_fix`.
 - **The copy** (`login_copied`, :559): none with no shared login, no login here, or no store folder there. Not
   installed: `skipped`, waits for install. Signed in there: `present`, `SIGNED_IN_THERE`, nothing copied over it.
-  Else `umask 077 && mkdir -p '{store}' && cat > '{store}/{file}.wsp' && mv -f ... ` with the login on stdin alone
+  Else `umask 077 && mkdir -p '{store}' && cat > '{store}/{file}'.wsp && mv -f '{store}/{file}'.wsp '{store}/{file}'` (the
+  `.wsp` outside the quotes, setup.ts:568-569) with the login on stdin alone
   (never in the command), timeout 30,000; a non-zero exit `failed` with the last stderr line or "the copy exited
   {n}". Then signed in: `installed`, `copied_from_line(here)`; else `failed`, `copied_not_signed_in_line`.
 
@@ -110,4 +111,4 @@ road is the TS `undefined`.
 | GitHub skip keeps what an earlier run put on | `a_github_skip_keeps_what_an_earlier_run_put_on` | :1693, :2259 |
 | GitHub vault word with no token fails with the fix | `a_github_vault_word_with_no_token_fails_with_its_fix` | :904 |
 | a sync starts no sign-in for an agent signed in there | `a_sync_lands_an_added_agent_signed_in_there_as_there` | :2349 |
-| a sign-in row stands as its own step reads it | `a_sign_in_row_stands_as_its_step_reads_it` | :2188 |
+| a sign-in row stands as its own step reads it | `a_sign_in_row_stands_as_its_own_step_reads_it` | :2188 |

@@ -9,9 +9,10 @@ use std::rc::Rc;
 
 use futures::future::{LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
-use wsp_core::clock::{Cancel, Clock};
+use wsp_core::types::pending::Clock;
+pub type Cancel = Box<dyn FnOnce()>;
 use wsp_core::place_forward::PlaceForward;
-use wsp_core::reach::DaemonReach;
+use wsp_core::types::pending::DaemonReach;
 use wsp_core::recipe_sync::RecipeChange;
 use wsp_engine::provision::ProvisionPlan;
 use wsp_wire::types::agents_report::AgentSignInState;
@@ -159,6 +160,9 @@ pub trait LinkSocket {
     /// `once("close")`: called once with the close's code and reason. Answers an id for [`LinkSocket::off_close`].
     fn on_close(&self, f: Box<dyn FnOnce(u16, String)>) -> u64;
     fn off_close(&self, id: u64);
+    /// The daemon road over this socket: wsp-core's `connect_daemon` with the seal and the event callback
+    /// (link.ts:170). On the socket so the attach can be driven over a fake one.
+    fn connect(self: Rc<Self>, seal: Option<wsp_store::keys::Seal>, on_event: Rc<dyn Fn(&wsp_wire::wire::daemon_events::DaemonEvent)>) -> Rc<dyn DaemonReach>;
 }
 
 /// The forward a place's panes ride, opened at the first pane that asks (helpers.ts:243).

@@ -69,7 +69,7 @@ and for each planned removal in order:
 |---|---|---|
 | servers step's inputs: held names, stores, a login not root | `the_servers_step_is_handed_held_names_and_store_folders` | :470, :481, :489 |
 | folders wait on GitHub and clone once through | `a_private_folder_waits_for_github_and_clones_once_through` | :1084 |
-| GitHub skipped or failed: needs GitHub, nothing cloned | `a_private_folder_reads_needs_github_where_github_is_skipped`, `..._failed` | :1067, :1115, :1983 |
+| GitHub skipped or failed: needs GitHub, nothing cloned | `a_private_folder_reads_needs_github_where_github_is_skipped`, `a_private_folder_reads_needs_github_where_github_is_failed` | :1067, :1115, :1983 |
 | a public folder clones with no wait | `a_folder_github_lets_anyone_read_clones_at_once` | |
 | the end is said once, by the last folder | `the_last_waiting_folder_says_the_end_once` | :1084 |
 | a waiting folder's servers go after every step | `a_late_folders_servers_go_after_every_step` | |
@@ -84,3 +84,8 @@ and for each planned removal in order:
 | an undo command that fails names why | `an_undo_that_fails_says_what_was_not_taken_off` | |
 | Codex's files under the logins folder | `a_dropped_codexs_files_come_off_under_the_logins_folder` | :2234 |
 | a project made by a removed folder is removed | `a_removed_folders_project_goes_with_it` | |
+| a folder with no road to add it says so | `a_folder_with_no_road_to_add_it_says_so` | |
+| a failed anonymous read counts as needing GitHub | `a_failed_anonymous_read_counts_as_needing_github` | |
+| a files round the computer would not take says so | `a_files_round_the_computer_would_not_take_says_so` | |
+| a road with no way off says so on its row | `a_road_with_no_way_off_says_so_on_its_row` | |
+| a resume whose folders step ended carries their servers | `a_resume_whose_folders_step_ended_carries_that_folders_servers` | |

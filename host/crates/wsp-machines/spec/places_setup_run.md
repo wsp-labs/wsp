@@ -75,10 +75,16 @@ Option<OnlyRow>)`. The record must exist (the area checked); `home` is its `HOME
    | folderServers | mcp, plugins, folders | files | |
 
 6. `context`, then the end. A stop ends `failed` with its line.
-7. **The catch**: `PlaceAbsent`, or a sync that failed before any step started: nothing more is written for a setup
+7. **The catch**: `PlaceAbsent` (the engine's error as a `HostError` is kind `Other("absent")`; the run tells it by
+   that kind alone), or a sync that failed before any step started: nothing more is written for a setup
    (it stays running on the record and resumes at the next link); a sync is written `behind` and said. Any other
    failure ends the run `failed` with its first line. **Finally**: the steps read ended, a run that never ended lets
    go of its lander, and the log closes with the setup as held.
+
+A listener of the frames cannot fail the run here: `opts.on_setup` answers nothing (types.rs), so places-setup:1682
+has no Rust case. In the TS, a listener that throws on the end frame itself (`setupFrame` at :764 is not on the write
+chain) makes `end` reject, and the catch at :915 ends the run a second time as `failed` with the listener's words: an
+after-port ticket, not a rule to port.
 
 ## `end(failed?)` (:746)
 
@@ -112,7 +118,6 @@ else `place.setup { addId, placeId, end, said? }` from `setup_outcome` or `{ end
 | a sync's failed start reads behind | `a_sync_that_failed_before_any_step_reads_behind` | :2419 |
 | a sync cut partway keeps the old hash | `a_sync_cut_partway_holds_the_hash_it_started_from` | :2465 |
 | the lander lands among the run's rows and survives its next write | `a_sign_in_landed_while_the_run_writes_survives_its_next_write` | :1840 |
-| a frame listener that throws does not stop the run | `a_frame_listener_that_throws_does_not_stop_the_run` | :1682 |
 | applied rows one per id, fix stamped on a failed row | `applied_keeps_one_row_per_id_and_stamps_a_fix` | :904 |
 | retry of one row runs only its steps | `a_row_retry_runs_only_its_steps_and_keeps_the_rest` | :1536 |
 | a stopped setup's never reached steps run on a retry | `a_retry_runs_the_steps_a_stopped_setup_never_reached` | :1594 |

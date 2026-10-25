@@ -13,7 +13,7 @@ and `sys.unwatch` is `link_door`'s, link.ts:247-280).
 60,000), `dial_wait_ms` (else 20,000), `frame_wait_ms` (else 300,000), `relink_wait_ms` (else 120,000); `live:
 IndexMap<place, Live>`, `kept: IndexMap<place, PlaceRecord>`, `backends: IndexMap<place, Arc<dyn
 MachineBackend>>`, `forwards: IndexMap<key, Forward>`, `asking: IndexMap<place, shared future>`, `watchers`; and
-`door`, set once after every area is built (a `OnceCell<Weak<dyn PlaceDoor>>`). `door()` before it is set panics: an
+`door`, set once after every area is built (a `OnceCell<Weak<dyn PlaceDoor>>`). `door()` before it is set panics with "the place door is read before it is built": an
 area reads it inside a call, never while it is built.
 
 - `sign_ins_here(place, agents?)` (:57): `None` for a place not in `kept`; else `sign_ins_of(record.report,
@@ -28,7 +28,8 @@ State: `watched: IndexMap<place, Watched { readers: IndexSet<reader id>, asked: 
 future of the reply }> }>` and `still_sending`: the links whose daemon could not be told to stop, held by link
 identity (`Rc::ptr_eq`) and never keeping a dropped link alive (the TS `WeakSet`).
 
-- `unwatches(place)`: the kept record's `report.daemon_version >= SYS_UNWATCH_DAEMON_VERSION`; false with no record.
+- `unwatches(place)`: the kept record's `report.daemon_version >= SYS_UNWATCH_DAEMON_VERSION` (152); false with no
+  record. The wire's report always carries a version, so the TS's "no version" case is a version under 152 here.
 - **`ask(w, on)`** (:115): a link in `still_sending` is answered `{ ok: true }` with no frame sent. Else one
   `sys.watch` request on `on`; a rejection becomes `{ ok: false, error: message }`; once the reply is in, a reply
   that is not `ok: true` clears `w.asked` where it is still this ask (a refusal is never inherited). `w.asked = { on,
@@ -70,4 +71,4 @@ identity (`Rc::ptr_eq`) and never keeping a dropped link alive (the TS `WeakSet`
 | a second release does nothing | `a_second_release_does_nothing` | |
 | heard drops other events; snapshot delivery | `heard_passes_samples_alone_to_a_snapshot_of_readers` | |
 | a release on a link that was replaced sends nothing | `a_release_after_the_link_was_replaced_sends_nothing` | |
-| no record version means still sending | `a_record_with_no_daemon_version_keeps_the_watch_running` | |
+| a daemon too old to stop keeps its watch, ridden by the next reader | `a_daemon_too_old_to_stop_keeps_its_watch_running` | |
