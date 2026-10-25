@@ -31,13 +31,15 @@ Source: `packages/engine/src/solari-backend.ts:1-380` at `a4033dc34` (the dead-c
   code of an AggregateError cause, is one of ENOTFOUND EAI_AGAIN EAI_FAIL ENETUNREACH ENETDOWN EHOSTUNREACH EHOSTDOWN)
   is sent again, keyed or not, up to `ROAD_TRIES` 3 sends in all for the whole request. Before each resend one warn line
   `provider_road_retry_line("<METHOD> <path>", code, retries + 1, 3)` (so "try 2 of 3", "try 3 of 3") and a sleep of
-  `road_backoff_ms(retries, clock.random())` = `retries * 3000 + floor(random * 250)`. The third road failure is
+  `road_backoff_ms(retries, clock.random())` = `retries * 3000 + floor(random * 250)`, `retries` counted *after* this drop
+  (the first drop sleeps 3000 + jitter, the second 6000 + jitter). The third road failure is
   thrown as it came. The road budget is never reset by an answer.
 - R4. Any other rejection: thrown at once unless keyed and not yet resent; a keyed call is resent once after
   `backoff_ms(attempt, clock.random())`; a second rejection is thrown. ECONNREFUSED, ECONNRESET, ETIMEDOUT are not road codes: one send.
 - R5. A 2xx answer: the body text parsed as JSON, `{}` for an empty body. The reply is kept for its headers.
-- R6. A non-2xx answer: body trimmed; parsed as JSON `{code?, error?}`, else (not JSON) `{error: first 300 chars}`,
-  empty text `{}`. `classify(status, code, error, header x-request-id)`. Retried only while `should_retry` (kind
+- R6. A non-2xx answer: body trimmed as JS trims (a BOM goes, U+0085 stays); parsed as JSON `{code?, error?}`, else
+  (not JSON) `{error: first 300 UTF-16 units}`, empty text `{}`. JSON that is not an object (a string, an array,
+  `true`, a number) reads as said nothing; `null` throws out of classify in the TS (no status, not retried). `classify(status, code, error, header x-request-id)`. Retried only while `should_retry` (kind
   transient, i.e. 502 to 504 except a 502 "Failed to snapshot sandbox", and attempt < 3), after
   `backoff_ms(attempt, clock.random())` = `min(500 * 2^attempt, 8000) + floor(random * 250)` (the TS draws
   `Math.random()`; the port draws from the clock so tests are exact).
@@ -83,6 +85,42 @@ Source: `packages/engine/src/solari-backend.ts:1-380` at `a4033dc34` (the dead-c
   `token[..cut]` as base64url the way node does (invalid characters skipped, decoding stops at `=`) to UTF-8 (lossy)
   and read the first `"exp":(\d+)`; else `now + 3600000`. Cases in `solari.json` `expiry`.
 
+## Pinned since (S-rules, values from running the TS with a draw of 0.5)
+
+- S1. Road drops sleep 3125 then 6125 and warn "try 2 of 3", "try 3 of 3"; the third is thrown with no sleep, no warn.
+- S2. The keyed resend sleeps `backoff_ms(attempt)` with `attempt` the answers so far plus one (after two 503s it
+  sleeps 4125) and is not an answer: `[503, 503, throw, 503]` throws that last 503 unretried. A road retry does not
+  spend the resend (`[road, throw, throw]` sleeps 3125 then 1125, three sends). Two separate counters and one flag.
+- S3. An answer never refills the road budget: `[road, 503, road, 503, road, 200]` throws the third road drop after
+  five sends, sleeping 3125, 1125, 6125, 2125.
+- S4. Refusal bodies: `" Bad "` is `Bad`; `"\u0085Bad\u0085"` stays whole; a BOM on either end goes; padded JSON
+  parses; 400 `a` cut to 300; trimming comes before the cut; `"\"Bad Gateway\""`, `[]`, `true`, `{"error":""}`,
+  `{"error":null}`, `{"message":"m"}` are `unknown (500)`; `{"error":7}` is `7`; a bare `502` on a 502 is
+  `transient (502)` and is retried; `null` fails with no status after one send (the TS's TypeError).
+- S5. A 2xx body: `""` is `{}`, `"null"` is `null`, a blank or non-JSON body is an `Other` error (any message) after one
+  send, never resent, a keyed create included.
+- S6. An abort rides only a call with a cap, a signal, or the method exactly `GET` (`get` is not); a body given is sent
+  with Content-Type, `Some(Value::Null)` as `null`; `None` sends neither.
+- S7. The create body sends `envs: {}` and `metadata: {}` when given empty (truthy in JS), `timeoutMs` as given
+  (`1000.5`); `idempotencyKey: ""` is sent as an empty `Idempotency-Key`; none is a fresh lowercase v4 UUID.
+- S8. The snapshot wait: sleeps exactly 15,000 twelve times (waited 165,000 still waits, the test is `>`), warns once per
+  wait (`snapshot_listed_wait_line(id, 15000, waited)`), then fails as kind `transient`, status 404, the reply's
+  `code` and request id kept, message `snapshot_listed_refused_line(id, 180000)`.
+- S9. Only a 404 whose words are exactly `Snapshot not found` on a create with `from_snapshot` set (`""` counts, though
+  the body leaves it out) reads the listing; a trailing dot or a 409 is thrown at once.
+- S10. A transient answer spent is the last answer, with its words and request id.
+- S11. `preview_token_expiry`: the standard alphabet is read too, `=` stops the decode, junk is skipped, a lone last
+  sextet is dropped, the whole string is tried when the part before the dot has no exp; the first `"exp":<digits>`
+  match (nested included) is read as a JS number: `123.9` is 123, `0` is 0, `-5` or `"77"` or `"exp": 77` is the
+  fallback, `9007199254740993` is `9007199254740992` (f64), and past `i64::MAX` saturates to `i64::MAX` (the TS
+  keeps `1e20`: the one place the port cannot match).
+- S12. Offers: `check_key`, `list_snapshots`, `templates`, nothing else (`keyed_create` false). Storage: 10 GB free,
+  $0.05 per GB-month, billed from 2026-10-01, no named-snapshot fields.
+- S13. Key check: an empty 401 is `Refused { said: "401 auth (401)" }`, `402 {}` is `402 plan (402)`, plain-text 401
+  `401 Unauthorized`; 429, 404 and an empty 500 are `Unchecked` with their message; a 503 is unchecked after three
+  sends (`transient (503)`); a 2xx with no templates array is `Unchecked` with `GET /templates answered without a
+  templates array`.
+
 ## Null, empty, caps
 
 - Empty body on 2xx is `{}`; an empty error body names `<kind> (<status>)`. `IDLE_TIMEOUT_MAX_MS` 21600000;
@@ -101,6 +139,7 @@ Files: `solari_call.rs` (call), `solari_hard.rs` (hard), `key_check.rs` (key), `
 
 | Rule | Tests |
 |---|---|
+| S1 to S13 | solari_call_hard.rs: one test per rule, named after it |
 | C1, C3, C4, C5 | call `declares_the_measured_solari_capability_truth`, `offers_no_size_its_forks_have_not_come_up_at_a_2x8_ask_is_refused_naming_2x4`; hard `capabilities_write_the_ts_json_byte_for_byte` |
 | C2 | machine `ships_four_minutes_for_a_pause_half_a_minute_for_a_resume_and_a_read_and_takes_shorter_for_tests`; call `reads_at_most_the_measured_default_by_default` |
 | C6 | call `declares_its_lifecycle_and_its_resume_cap_shared_by_every_backend_built_here` |
