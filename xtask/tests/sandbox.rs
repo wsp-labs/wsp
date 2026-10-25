@@ -206,3 +206,29 @@ true"#;
     assert!(ran, "{said}");
     assert_eq!(std::fs::read_to_string(store.join("index.js")).unwrap(), "kept\n", "a write inside reached the store outside the checkout");
 }
+
+#[test]
+fn a_command_inside_the_checkout_starts_in_the_sandbox() {
+    // cargo xtask builds xtask under xtask/target in the checkout, and a --host line can name a host built there too:
+    // the checkout goes back read-only before the command does, and the command cannot be put back inside it.
+    // SAFETY: geteuid reads the process's own id and cannot fail.
+    if !cfg!(target_os = "linux") || unsafe { libc::geteuid() } != 0 {
+        eprintln!("skipped: the sandbox's walls are checked as root on Linux");
+        return;
+    }
+    let dir = outside();
+    let command = dir.path().join("target/debug/xtask");
+    std::fs::create_dir_all(command.parent().unwrap()).unwrap();
+    std::fs::write(&command, "#!/bin/sh\necho started\n").unwrap();
+    std::fs::set_permissions(&command, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    let out = Command::new("unshare")
+        .args(flags(true))
+        .args(["--", "/bin/sh", "-c", SCRIPT])
+        .arg(&command)
+        .env("WSP_PARITY_ROOT", dir.path())
+        .env("WSP_PARITY_CWD", dir.path())
+        .output()
+        .expect("unshare");
+    let said = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    assert_eq!(said, "started\n", "the sandbox never ran a command that sits inside the checkout");
+}

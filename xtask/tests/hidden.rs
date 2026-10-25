@@ -114,3 +114,45 @@ fn a_door_port_no_host_listens_on_is_compared() {
     let door = |port: u16| json!({ "id": 2, "ok": true, "door": { "port": port, "url": format!("ws://0.0.0.0:{port}/") } });
     assert!(!alike(door(45013), door(9999), &facts), "a door that names a port nobody listens on reads like the TS host");
 }
+
+#[test]
+fn a_uuid_written_in_capitals_is_compared() {
+    // hand/sessions-start-turn: sessions.start answers the session's uuid as randomUUID writes it, in small letters.
+    let started = |id: &str| json!({ "id": 2, "ok": true, "sessionId": id });
+    assert!(
+        !alike(started("0a93b975-1c2d-4e5f-8a9b-0c1d2e3f4a5b"), started("0A93B975-1C2D-4E5F-8A9B-0C1D2E3F4A5B"), &Facts::default()),
+        "a uuid in capitals reads like the TS host's"
+    );
+}
+
+#[test]
+fn a_workspace_id_of_another_length_is_compared() {
+    // sub-spawn.ts mints ws_ and eight hex digits; a port's format!("ws_{:x}", u64) writes sixteen.
+    let made = |id: &str| json!({ "id": 2, "ok": true, "workspace": { "id": id } });
+    assert!(!alike(made("ws_1f2e3d4c"), made("ws_1f2e3d4c5b6a7980"), &Facts::default()), "a ws_ id of sixteen digits reads like one of eight");
+}
+
+#[test]
+fn a_pairing_code_without_its_dash_is_compared() {
+    let issued = |code: &str| json!({ "id": 2, "ok": true, "code": code });
+    assert!(!alike(issued("K7QM-2XRP"), issued("K7QM2XRP"), &Facts::default()), "a code with no dash reads like the TS host's");
+}
+
+#[test]
+fn an_expiry_half_a_minute_long_is_compared() {
+    // pair.issue: a code stands PAIR_CODE_TTL_MS, ten minutes; a port's 630 s reads <time+10m> as well.
+    let at = started().started.expect("started");
+    let issued = |expires: i64| json!({ "id": 2, "ok": true, "expiresAt": expires });
+    assert!(!alike(issued(at + 600_000), issued(at + 630_000), &started()), "a code that stands 10 m 30 s reads like one of 10 m");
+}
+
+#[test]
+fn events_in_another_order_are_compared() {
+    // hand/sessions-start-turn: the session's row goes running, then completed, both events at seq 13. The app keeps
+    // the last row it is sent, so a port that sends them the other way round leaves the thread running.
+    let row = |status: &str| json!({ "type": "session.row", "id": "0a93b975-1c2d-4e5f-8a9b-0c1d2e3f4a5b", "row": { "status": status }, "seq": 13 });
+    let reply = json!({ "id": 2, "ok": true });
+    let ts = canonical(&[reply.clone()], &[row("running"), row("completed")], &Facts::default());
+    let port = canonical(&[reply], &[row("completed"), row("running")], &Facts::default());
+    assert_ne!(ts, port, "a session left running reads like one that completed");
+}

@@ -250,4 +250,25 @@ describe("the tap", () => {
     expect(tapeOf({}, "ws")).toBeUndefined();
     expect(readdirSync(dir)).toEqual([]);
   });
+
+  it("blanks the secrets a day carries past the seven kinds: AWS's secret field, Stripe, npm and Hugging Face tokens, a password env name, an API key header and a pass query", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    const word = (n: string) => `Zq9${n}mK2vLpR7sTb4WnY8x0123456789ab`;
+    const [aws, stripe, npm, hf, dbPass, mysqlPwd, header, pass] = [
+      word("a"),
+      ["sk", "live", word("b")].join("_"),
+      ["npm", word("c")].join("_"),
+      ["hf", word("d")].join("_"),
+      word("e"),
+      word("f"),
+      word("g"),
+      word("h"),
+    ];
+    const ws = tapeOf({ [TAPE_DIR_ENV]: dir, DB_PASS: dbPass, MYSQL_PWD: mysqlPwd }, "ws", HOST_TOKEN)!;
+    ws.in({ id: 2, op: "servers.add", server: { name: "s3", config: { awsSecretAccessKey: aws } } });
+    ws.in({ id: 3, op: "sessions.start", workspaceId: "ws_1", prompt: `use ${stripe}, ${npm} and ${hf}; the db takes ${dbPass} and mysql ${mysqlPwd}` });
+    ws.in({ id: 4, op: "sessions.start", workspaceId: "ws_1", prompt: `curl -H "X-Api-Key: ${header}" "https://api.example/v1?user=me&pass=${pass}"` });
+    const text = readFileSync(join(dir, readdirSync(dir)[0]!), "utf8");
+    expect([aws, stripe, npm, hf, dbPass, mysqlPwd, header, pass].filter(s => text.includes(s))).toEqual([]);
+  });
 });
