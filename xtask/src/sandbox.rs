@@ -12,7 +12,7 @@
 /// other processes bind them (the home folders and /var/tmp) are covered whole and only what the run needs is put back,
 /// read-only: the command itself, the checkout (`WSP_PARITY_ROOT`), the caller's folder (`WSP_PARITY_CWD`), the
 /// writable folders, the toolchains' homes (cargo's, rustup's, corepack's), the top folder of each PATH entry and whatever `WSP_PARITY_KEEP` names,
-/// split by colons. The live host's folders are covered whole as well, unless the checkout is inside one. On top go a
+/// split by colons; one inside another comes back through it, since the outer one is read-only by then. The live host's folders are covered whole as well, unless the checkout is inside one. On top go a
 /// /tmp and a /run of its own, a /dev with no disk in it, a read-only /proc of its own processes, and only the folders
 /// `WSP_PARITY_WRITABLE` names, split by colons, writable again: none for a check, so the host under test cannot
 /// rewrite the goldens it is judged by. A `node_modules` in a writable folder stays read-only, since pnpm hard-links
@@ -56,7 +56,7 @@ kept() {
       case "$p" in "$t"/*) r=${p#"$t"/}; kept "$t/${r%%/*}" ;; esac
     done
   done
-} | LC_ALL=C sort -u > /run/keep/list
+} | LC_ALL=C sort -u | awk '{ for (k in kept) if (index($0, k "/") == 1) next; kept[$0]; print }' > /run/keep/list
 n=0
 while IFS= read -r k; do
   n=$((n + 1))
