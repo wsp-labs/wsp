@@ -4,6 +4,9 @@
 
 use wsp_wire::types::tree::MergeInResult;
 
+use crate::js::{number_string, utf16};
+use crate::words::computer::thread_word;
+
 // tree.ts:8
 // private in the TS: port it as a private helper
 // const text = z.string();
@@ -79,14 +82,16 @@ use wsp_wire::types::tree::MergeInResult;
 // } as const;
 /// The TS TREE_WORDS.
 pub mod tree_words {
+    use crate::js::number_string;
+
     pub const NOT_PUSHED: &str = "not pushed";
     pub const NOT_COUNTED: &str = "not counted";
     pub const MERGED_INTO_LEAD: &str = "merged into lead";
     pub fn ahead_of(n: f64, lead: &str) -> String {
-        todo!()
+        format!("{} ahead of {lead}", number_string(n))
     }
     pub fn conflicts_in(n: f64) -> String {
-        todo!()
+        format!("conflicts in {} {}", number_string(n), if n == 1.0 { "file" } else { "files" })
     }
 }
 
@@ -96,7 +101,7 @@ pub mod tree_words {
 //   return `${child} starts on ${branch} as pushed`;
 // }
 pub fn child_started_line(child: &str, branch: &str) -> String {
-    todo!()
+    format!("{child} starts on {branch} as pushed")
 }
 
 /// The line the lead's thread reads when a fork pushed its branch first, so the child starts from the lead's work.
@@ -105,7 +110,7 @@ pub fn child_started_line(child: &str, branch: &str) -> String {
 //   return `pushed ${branch} so ${child} starts from your work`;
 // }
 pub fn pushed_for_child_line(branch: &str, child: &str) -> String {
-    todo!()
+    format!("pushed {branch} so {child} starts from your work")
 }
 
 /// What a fork says of the changes the lead had not committed, which the push could not carry.
@@ -114,7 +119,7 @@ pub fn pushed_for_child_line(branch: &str, child: &str) -> String {
 //   return `${n} uncommitted ${n === 1 ? "change" : "changes"} in ${lead} did not travel`;
 // }
 pub fn uncommitted_stayed(n: f64, lead: &str) -> String {
-    todo!()
+    format!("{} uncommitted {} in {lead} did not travel", number_string(n), if n == 1.0 { "change" } else { "changes" })
 }
 
 /// Why a child could not be made on its lead's branch: the push or the start on it refused, in its own sentence.
@@ -123,7 +128,7 @@ pub fn uncommitted_stayed(n: f64, lead: &str) -> String {
 //   return `the child was not made, since ${lead}'s branch could not reach it: ${why}`;
 // }
 pub fn fork_needs_push_line(lead: &str, why: &str) -> String {
-    todo!()
+    format!("the child was not made, since {lead}'s branch could not reach it: {why}")
 }
 
 /// What `wsp merge in` says once the child's branch is in the lead's.
@@ -132,7 +137,7 @@ pub fn fork_needs_push_line(lead: &str, why: &str) -> String {
 //   return `${lead}: merged ${branch} from ${child}, ${commits} ${commits === 1 ? "commit" : "commits"}`;
 // }
 pub fn merged_in_line(lead: &str, branch: &str, child: &str, commits: f64) -> String {
-    todo!()
+    format!("{lead}: merged {branch} from {child}, {} {}", number_string(commits), if commits == 1.0 { "commit" } else { "commits" })
 }
 
 /// What it says where the merge stopped on conflicts and was taken back.
@@ -141,7 +146,8 @@ pub fn merged_in_line(lead: &str, branch: &str, child: &str, commits: f64) -> St
 //   return `${lead}: conflicts with ${branch} in ${paths.join(", ")}`;
 // }
 pub fn merge_conflicts_line(lead: &str, branch: &str, paths: &[impl AsRef<str>]) -> String {
-    todo!()
+    let paths: Vec<&str> = paths.iter().map(AsRef::as_ref).collect();
+    format!("{lead}: conflicts with {branch} in {}", paths.join(", "))
 }
 
 /// What `wsp fix --child` says once the lead's agent is asked to merge the child.
@@ -150,7 +156,7 @@ pub fn merge_conflicts_line(lead: &str, branch: &str, paths: &[impl AsRef<str>])
 //   return `${lead}: asked ${agent} to merge ${child}`;
 // }
 pub fn fix_merge_child_line(lead: &str, agent: &str, child: &str) -> String {
-    todo!()
+    format!("{lead}: asked {agent} to merge {child}")
 }
 
 /// What a merge of a sub-thread adds when its machine holds commits no remote has: the merge took what was pushed.
@@ -158,7 +164,8 @@ pub fn fix_merge_child_line(lead: &str, agent: &str, child: &str) -> String {
 // export const notInMergeLine = (threadId: string, commits: number): string =>
 //   `${threadId.slice(0, 8)} holds ${commits} ${commits === 1 ? "commit" : "commits"} not pushed on its machine; ${commits === 1 ? "it is" : "they are"} not in this merge.`;
 pub fn not_in_merge_line(thread_id: &str, commits: f64) -> String {
-    todo!()
+    let (noun, verb) = if commits == 1.0 { ("commit", "it is") } else { ("commits", "they are") };
+    format!("{} holds {} {noun} not pushed on its machine; {verb} not in this merge.", utf16::cut(thread_id, 8), number_string(commits))
 }
 
 /// The line a merge into the lead reads as, on the command line and in the tool's answer, and under it what a
@@ -169,7 +176,19 @@ pub fn not_in_merge_line(thread_id: &str, commits: f64) -> String {
 //   return done.unpushed !== undefined && done.unpushed > 0 ? `${line}\n${notInMergeLine(childThreadId ?? done.child, done.unpushed)}` : line;
 // }
 pub fn merge_in_line(done: &MergeInResult, child_thread_id: Option<&str>) -> String {
-    todo!()
+    let line = if !done.merged {
+        merge_conflicts_line(&done.lead, &done.branch, &done.conflicts)
+    } else if done.commits.as_f64() > 0.0 {
+        merged_in_line(&done.lead, &done.branch, &done.child, done.commits.as_f64())
+    } else {
+        nothing_to_merge_line(&done.lead, &done.child)
+    };
+    match done.unpushed {
+        Some(unpushed) if unpushed.as_f64() > 0.0 => {
+            format!("{line}\n{}", not_in_merge_line(child_thread_id.unwrap_or(&done.child), unpushed.as_f64()))
+        }
+        _ => line,
+    }
 }
 
 /// What it says where the child has nothing the lead lacks.
@@ -178,7 +197,7 @@ pub fn merge_in_line(done: &MergeInResult, child_thread_id: Option<&str>) -> Str
 //   return `${lead}: nothing to merge from ${child}`;
 // }
 pub fn nothing_to_merge_line(lead: &str, child: &str) -> String {
-    todo!()
+    format!("{lead}: nothing to merge from {child}")
 }
 
 /// Why a merge waits: a turn runs on the lead in a thread other than the one asking, and a merge would land under it.
@@ -188,7 +207,8 @@ pub fn nothing_to_merge_line(lead: &str, child: &str) -> String {
 //   return `${lead} has a turn running in thread ${named}; merge once it ends, or from inside that turn`;
 // }
 pub fn lead_busy_refusal(lead: &str, thread_ids: &[impl AsRef<str>]) -> String {
-    todo!()
+    let named: Vec<String> = thread_ids.iter().map(|id| thread_word(id.as_ref())).collect();
+    format!("{lead} has a turn running in thread {}; merge once it ends, or from inside that turn", named.join(", "))
 }
 
 /// Why a merge into a workspace is refused for one that is not its child.
@@ -197,7 +217,7 @@ pub fn lead_busy_refusal(lead: &str, thread_ids: &[impl AsRef<str>]) -> String {
 //   return `${child} is not a child of ${lead}; a lead merges only its own children`;
 // }
 pub fn not_the_leads_child_refusal(child: &str, lead: &str) -> String {
-    todo!()
+    format!("{child} is not a child of {lead}; a lead merges only its own children")
 }
 
 /// Why a thread may merge only into the folder it works in.
@@ -206,7 +226,7 @@ pub fn not_the_leads_child_refusal(child: &str, lead: &str) -> String {
 //   return `thread ${threadWord(threadId)} may merge a child only into its own folder`;
 // }
 pub fn merge_into_own_refusal(thread_id: &str) -> String {
-    todo!()
+    format!("thread {} may merge a child only into its own folder", thread_word(thread_id))
 }
 
 /// Why a child is not merged where its copy is on no branch at all.
@@ -215,7 +235,7 @@ pub fn merge_into_own_refusal(thread_id: &str) -> String {
 //   return `${child} is on no branch, so there is nothing to merge from it`;
 // }
 pub fn child_on_no_branch_refusal(child: &str) -> String {
-    todo!()
+    format!("{child} is on no branch, so there is nothing to merge from it")
 }
 
 // tree.ts:149
@@ -227,7 +247,7 @@ pub fn child_on_no_branch_refusal(child: &str) -> String {
 //   return `${project} has no remote, so a child on another computer cannot be merged; add a remote to the project to merge across computers`;
 // }
 pub fn no_remote_for_tree_line(project: &str) -> String {
-    todo!()
+    format!("{project} has no remote, so a child on another computer cannot be merged; add a remote to the project to merge across computers")
 }
 
 /// The row's note under a child whose push was refused, pointing at that computer's sign-in.
@@ -236,7 +256,7 @@ pub fn no_remote_for_tree_line(project: &str) -> String {
 //   return `can't push from ${computer}: ${why}`;
 // }
 pub fn cannot_push_from_line(computer: &str, why: &str) -> String {
-    todo!()
+    format!("can't push from {computer}: {why}")
 }
 
 /// The message a lead's first thread is handed when a child's merge stopped on conflicts: fetch, merge with a merge
@@ -256,6 +276,7 @@ pub struct MergeChild {
 }
 
 pub fn merge_child_prompt(o: &MergeChild) -> String {
-    todo!()
+    let files = if o.conflicts.is_empty() { "; resolve the conflicts".to_string() } else { format!("; resolve the conflicts in {}", o.conflicts.join(", ")) };
+    format!("Fetch {} {} and merge it into {} with a merge commit{files}; run the tests; commit.", o.remote, o.child_branch, o.lead_branch)
 }
 

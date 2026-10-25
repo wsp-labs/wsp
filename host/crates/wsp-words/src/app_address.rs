@@ -58,11 +58,96 @@ pub struct AppAddress {
     pub subagent: Option<String>,
 }
 
+/// `encodeURIComponent`: the unreserved marks and ASCII letters and digits stay, every other UTF-8 byte is "%XX".
+fn encode_uri_component(text: &str) -> String {
+    let mut out = String::new();
+    for b in text.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// `decodeURIComponent`; None where JavaScript throws URIError (a bad escape, or bytes that are not UTF-8).
+fn decode_uri_component(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at] == b'%' {
+            let hex = bytes.get(at + 1..at + 3)?;
+            if !hex.iter().all(u8::is_ascii_hexdigit) {
+                return None;
+            }
+            out.push(u8::from_str_radix(std::str::from_utf8(hex).ok()?, 16).ok()?);
+            at += 3;
+        } else {
+            out.push(bytes[at]);
+            at += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+/// `pairingCodeOf`, with a malformed escape told apart from a hash that carries no code: Err where the TS throws.
+fn pairing_of(hash: &str) -> Result<Option<PairingCode>, ()> {
+    let alone = hash.starts_with(CODE_ALONE);
+    let cut = if alone {
+        0
+    } else if hash.starts_with(PREFIX) {
+        match hash.rfind(CODE) {
+            Some(cut) => cut,
+            None => return Ok(None),
+        }
+    } else {
+        return Ok(None);
+    };
+    let marker = if alone { CODE_ALONE.len() } else { CODE.len() };
+    let code = decode_uri_component(&hash[cut + marker..]).ok_or(())?;
+    Ok(if code.is_empty() { None } else { Some(PairingCode { code, rest: hash[..cut].to_string() }) })
+}
+
+/// The one id rule a link's id meets: letters and digits first, then letters, digits, dashes and underscores, 128 at most.
+fn link_id_ok(id: &str) -> bool {
+    let bytes = id.as_bytes();
+    (1..=128).contains(&bytes.len())
+        && bytes[0].is_ascii_alphanumeric()
+        && bytes[1..].iter().all(|b| b.is_ascii_alphanumeric() || *b == b'_' || *b == b'-')
+}
+
+fn link_kind_of(kind: &str) -> Option<LinkKind> {
+    match kind {
+        "thread" => Some(LinkKind::Thread),
+        "workspace" => Some(LinkKind::Workspace),
+        "project" => Some(LinkKind::Project),
+        "settings" => Some(LinkKind::Settings),
+        _ => None,
+    }
+}
+
+fn link_kind_word(kind: LinkKind) -> &'static str {
+    match kind {
+        LinkKind::Thread => "thread",
+        LinkKind::Workspace => "workspace",
+        LinkKind::Project => "project",
+        LinkKind::Settings => "settings",
+    }
+}
+
+/// `linkTarget`: a kind the link names and an id that passes the id rule, or nothing.
+fn link_target(kind: &str, id: &str) -> Option<LinkTarget> {
+    let kind = link_kind_of(kind)?;
+    link_id_ok(id).then(|| LinkTarget { kind, id: id.to_string() })
+}
+
 /// The hash that opens the app on a workspace.
 // app-address.ts:35
 // export const workspaceHash = (workspaceId: string): string => `${PREFIX}${encodeURIComponent(workspaceId)}`;
 pub fn workspace_hash(workspace_id: &str) -> String {
-    todo!()
+    format!("{PREFIX}{}", encode_uri_component(workspace_id))
 }
 
 /// The hash for an address: a workspace, one thread of it or a subagent of that thread, or its next thread's screen.
@@ -76,7 +161,15 @@ pub fn workspace_hash(workspace_id: &str) -> String {
 //   return address.fresh === true ? `${base}${NEW}` : base;
 // }
 pub fn app_hash(address: &AppAddress) -> String {
-    todo!()
+    let base = workspace_hash(&address.workspace_id);
+    if let Some(thread_id) = &address.thread_id {
+        let thread = format!("{base}{THREAD}{}", encode_uri_component(thread_id));
+        return match &address.subagent {
+            None => thread,
+            Some(subagent) => format!("{thread}{SUBAGENT}{}", encode_uri_component(subagent)),
+        };
+    }
+    if address.fresh == Some(true) { format!("{base}{NEW}") } else { base }
 }
 
 /// The hash wsp init opens the app on: the workspace it made, or none, with the code that lets the browser in.
@@ -85,7 +178,10 @@ pub fn app_hash(address: &AppAddress) -> String {
 //   return `${workspaceId === undefined ? CODE_ALONE : `${workspaceHash(workspaceId)}${CODE}`}${encodeURIComponent(code)}`;
 // }
 pub fn opening_hash(code: &str, workspace_id: Option<&str>) -> String {
-    todo!()
+    match workspace_id {
+        None => format!("{CODE_ALONE}{}", encode_uri_component(code)),
+        Some(workspace_id) => format!("{}{CODE}{}", workspace_hash(workspace_id), encode_uri_component(code)),
+    }
 }
 
 /// The pairing code a hash carries and the hash left once it is taken out, or nothing when it carries none.
@@ -105,7 +201,7 @@ pub struct PairingCode {
 }
 
 pub fn pairing_code_of(hash: &str) -> Option<PairingCode> {
-    todo!()
+    pairing_of(hash).ok().flatten()
 }
 
 /// What a hash names, or nothing: every other hash is the app's own (#gallery) or none at all. A code riding the
@@ -126,7 +222,33 @@ pub fn pairing_code_of(hash: &str) -> Option<PairingCode> {
 //   return { workspaceId, ...(threadId === "" ? {} : { threadId }), ...(subagent === "" ? {} : { subagent }), ...(fresh ? { fresh: true } : {}) };
 // }
 pub fn address_from_hash(hash: &str) -> Option<AppAddress> {
-    todo!()
+    let named = match pairing_of(hash) {
+        Err(()) => return None,
+        Ok(Some(pairing)) => pairing.rest,
+        Ok(None) => hash.to_string(),
+    };
+    let rest = named.strip_prefix(PREFIX)?;
+    let cut = rest.find(THREAD);
+    let fresh = cut.is_none() && rest.ends_with(NEW);
+    let workspace_part = match cut {
+        _ if fresh => &rest[..rest.len() - NEW.len()],
+        None => rest,
+        Some(cut) => &rest[..cut],
+    };
+    let workspace_id = decode_uri_component(workspace_part)?;
+    if workspace_id.is_empty() {
+        return None;
+    }
+    let after = cut.map_or("", |cut| &rest[cut + THREAD.len()..]);
+    let split = after.find(SUBAGENT);
+    let thread_id = decode_uri_component(split.map_or(after, |split| &after[..split]))?;
+    let subagent = match split {
+        Some(split) if !thread_id.is_empty() => Some(decode_uri_component(&after[split + SUBAGENT.len()..])?),
+        _ => None,
+    };
+    let thread_id = Some(thread_id).filter(|t| !t.is_empty());
+    let subagent = subagent.filter(|s| !s.is_empty());
+    Some(AppAddress { workspace_id, thread_id, fresh: fresh.then_some(true), subagent })
 }
 
 // What a wsp:// link can name. A link opens something and never does anything to it: an act a link could start
@@ -185,14 +307,19 @@ const LINK_PREFIX: &str = "#open/";
 //   return parts.length === 2 ? linkTarget(parts[0]!, parts[1]!) : undefined;
 // }
 pub fn address_from_link(url: &str) -> Option<LinkTarget> {
-    todo!()
+    let rest = url.get(..LINK_SCHEME.len())?.eq_ignore_ascii_case(LINK_SCHEME).then(|| &url[LINK_SCHEME.len()..])?;
+    let rest = rest.strip_suffix('/').unwrap_or(rest);
+    match rest.split('/').collect::<Vec<_>>().as_slice() {
+        [kind, id] => link_target(kind, id),
+        _ => None,
+    }
 }
 
 /// The hash the app is opened on for a link the shell took before the page was up.
 // app-address.ts:108
 // export const linkHash = (target: LinkTarget): string => `${LINK_PREFIX}${target.kind}/${target.id}`;
 pub fn link_hash(target: &LinkTarget) -> String {
-    todo!()
+    format!("{LINK_PREFIX}{}/{}", link_kind_word(target.kind), target.id)
 }
 
 /// The link a hash carries, or nothing.
@@ -203,6 +330,10 @@ pub fn link_hash(target: &LinkTarget) -> String {
 //   return parts.length === 2 ? linkTarget(parts[0]!, parts[1]!) : undefined;
 // }
 pub fn link_from_hash(hash: &str) -> Option<LinkTarget> {
-    todo!()
+    let rest = hash.strip_prefix(LINK_PREFIX)?;
+    match rest.split('/').collect::<Vec<_>>().as_slice() {
+        [kind, id] => link_target(kind, id),
+        _ => None,
+    }
 }
 

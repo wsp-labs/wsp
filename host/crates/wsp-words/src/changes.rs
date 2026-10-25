@@ -2,7 +2,7 @@
 //! What a workspace's checkout holds and the lines a commit, a discard or a push prints. Port of the functions of packages/protocol/src/changes.ts at
 //! a3b870a6e; its shapes and flat constants are wsp_wire::types::changes. See spec/changes.md.
 
-use wsp_wire::types::changes::Checkout;
+use wsp_wire::types::changes::{Checkout, DRAFT_DIFF_MAX_BYTES};
 
 // A copy's checkout as the host last read it: the branch git is on, its counts against its upstream or the default
 // branch, and how many files differ from HEAD. editsUnread is a stopped copy whose branch was read off its files and
@@ -24,7 +24,7 @@ use wsp_wire::types::changes::Checkout;
 pub mod checkout_words {
     pub const UNREAD: &str = "changes not read";
     pub fn changed(n: f64) -> String {
-        todo!()
+        format!("{} changed", crate::js::number_string(n))
     }
 }
 
@@ -37,7 +37,13 @@ pub mod checkout_words {
 //   return c.changed > 0 ? [CHECKOUT_WORDS.changed(c.changed)] : [];
 // }
 pub fn checkout_counts(c: &Checkout) -> Vec<String> {
-    todo!()
+    if c.edits_unread == Some(true) {
+        return vec![checkout_words::UNREAD.to_string()];
+    }
+    if c.changed.0.0 > 0.0 {
+        return vec![checkout_words::changed(c.changed.0.0)];
+    }
+    Vec::new()
 }
 
 // What workspaces.checkout answers: the fact as the host holds it, absent where git has never answered.
@@ -75,7 +81,20 @@ pub fn checkout_counts(c: &Checkout) -> Vec<String> {
 //   return new TextDecoder().decode(nl > 0 ? head.subarray(0, nl + 1) : head).replace(/\uFFFD+$/, "");
 // }
 pub fn cut_diff(text: &str, max: Option<f64>) -> String {
-    todo!()
+    let bytes = text.as_bytes();
+    let max = max.unwrap_or(DRAFT_DIFF_MAX_BYTES as f64);
+    if (bytes.len() as f64) <= max {
+        return text.to_string();
+    }
+    let end = if max < 0.0 { (bytes.len() as f64 + max).max(0.0) } else { max.min(bytes.len() as f64) } as usize;
+    let head = &bytes[..end];
+    let kept = match head.iter().rposition(|&b| b == b'\n') {
+        Some(nl) if nl > 0 => &head[..=nl],
+        _ => head,
+    };
+    let decoded = String::from_utf8_lossy(kept);
+    let decoded = decoded.strip_prefix('\u{feff}').unwrap_or(&decoded);
+    decoded.trim_end_matches('\u{fffd}').to_string()
 }
 
 /// How much of the task a draft carries: the words a change is for are at the top of a brief.
@@ -100,7 +119,22 @@ const DRAFT_TASK_MAX: i64 = 2000;
 //   ].join("\n");
 // }
 pub fn draft_prompt(diff: &str, task: Option<&str>) -> String {
-    todo!()
+    let said = task.map(crate::js::js_trim).filter(|t| !t.is_empty());
+    let mut lines: Vec<String> = [
+        "Write a git commit message for the changes in the diff below.",
+        "The first line is the subject: under 72 characters, sentence case, no full stop, saying what the change does.",
+        "Then one blank line, then two to five lines saying why the change was made, in plain words.",
+        "No em dashes, no bullet points, no markdown and no quotes around the message.",
+        "Answer with the message alone and nothing else.",
+    ]
+    .map(String::from)
+    .to_vec();
+    if let Some(said) = said {
+        let task = if crate::js::utf16::len(said) <= DRAFT_TASK_MAX as usize { said.to_string() } else { crate::js::utf16::cut(said, DRAFT_TASK_MAX as usize) };
+        lines.extend(["".to_string(), "The task the agent was given:".to_string(), task]);
+    }
+    lines.extend(["".to_string(), "The diff:".to_string(), diff.to_string()]);
+    lines.join("\n")
 }
 
 /// The longest subject a drafted message keeps; a longer one is cut to the words that fit.
@@ -125,7 +159,71 @@ const SUBJECT_MAX: i64 = 72;
 //   return body === "" ? subject : `${subject}\n\n${body}`;
 // }
 pub fn commit_message(answer: &str) -> Option<String> {
-    todo!()
+    let text = crate::js::js_trim(answer);
+    let text = unfence(text).map(crate::js::js_trim).unwrap_or(text);
+    let text = unquote(text).map(crate::js::js_trim).unwrap_or(text);
+    let text = dashes_to_commas(text);
+    let mut lines: Vec<&str> = text.split('\n').collect();
+    let last = lines.len() - 1;
+    for line in &mut lines[..last] {
+        *line = line.strip_suffix('\r').unwrap_or(*line);
+    }
+    let at = lines.iter().position(|line| !crate::js::js_trim(line).is_empty())?;
+    let first = crate::js::js_trim(lines[at]);
+    let subject = if crate::js::utf16::len(first) <= SUBJECT_MAX as usize {
+        first.to_string()
+    } else {
+        crate::words::base::words_within(first, SUBJECT_MAX as usize).unwrap_or_else(|| crate::js::utf16::cut(first, SUBJECT_MAX as usize))
+    };
+    let body = crate::js::js_trim(&lines[at + 1..].join("\n")).to_string();
+    Some(if body.is_empty() { subject } else { format!("{subject}\n\n{body}") })
+}
+
+/// The body of a whole text fenced as "```<info>\n<body>\n```", the one newline before the closing fence left out.
+fn unfence(text: &str) -> Option<&str> {
+    let rest = text.strip_prefix("```")?;
+    let nl = rest.find('\n')?;
+    let body_start = 3 + nl + 1;
+    if !text.ends_with("```") || text.len() - 3 < body_start {
+        return None;
+    }
+    let body = &text[body_start..text.len() - 3];
+    Some(body.strip_suffix('\n').unwrap_or(body))
+}
+
+/// The text between one opening quote and one closing quote; the two need not be of the same kind.
+fn unquote(text: &str) -> Option<&str> {
+    let first = text.chars().next()?;
+    let last = text.chars().last()?;
+    if text.chars().count() < 2 || !matches!(first, '"' | '\'' | '\u{201C}' | '\u{2018}') || !matches!(last, '"' | '\'' | '\u{201D}' | '\u{2019}') {
+        return None;
+    }
+    Some(&text[first.len_utf8()..text.len() - last.len_utf8()])
+}
+
+/// Each U+2014 with the JavaScript whitespace around it becomes ", ", as `replace(/\s*\u2014\s*/g, ", ")` does.
+fn dashes_to_commas(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::new();
+    let mut at = 0;
+    while at < chars.len() {
+        let mut dash = at;
+        while dash < chars.len() && crate::js::is_js_whitespace(chars[dash]) {
+            dash += 1;
+        }
+        if dash < chars.len() && chars[dash] == '\u{2014}' {
+            let mut after = dash + 1;
+            while after < chars.len() && crate::js::is_js_whitespace(chars[after]) {
+                after += 1;
+            }
+            out.push_str(", ");
+            at = after;
+        } else {
+            out.push(chars[at]);
+            at += 1;
+        }
+    }
+    out
 }
 
 /// What `wsp discard` says once a file is back as HEAD has it.
@@ -134,7 +232,7 @@ pub fn commit_message(answer: &str) -> Option<String> {
 //   return `${workspace}: ${path} discarded`;
 // }
 pub fn discarded_line(workspace: &str, path: &str) -> String {
-    todo!()
+    format!("{workspace}: {path} discarded")
 }
 
 /// What a commit of every change says when the checkout has none.
@@ -143,7 +241,7 @@ pub fn discarded_line(workspace: &str, path: &str) -> String {
 //   return `${workspace}: nothing to commit, the checkout has no changes`;
 // }
 pub fn clean_checkout_line(workspace: &str) -> String {
-    todo!()
+    format!("{workspace}: nothing to commit, the checkout has no changes")
 }
 
 /// What `wsp commit` says once the commit stands: the short id and the subject.
@@ -160,7 +258,9 @@ pub struct MadeCommit {
 }
 
 pub fn committed_line(workspace: &str, commit: &MadeCommit) -> String {
-    todo!()
+    let short = crate::js::utf16::cut(&commit.oid, 7);
+    let files = if commit.files_changed == 1 { "" } else { "s" };
+    format!("{workspace}: committed {short} {} ({} file{files})", commit.subject, commit.files_changed)
 }
 
 // Why a draft came back empty, as the one line the commit box shows under it.

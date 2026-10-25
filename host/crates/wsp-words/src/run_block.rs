@@ -5,6 +5,8 @@
 
 use wsp_wire::types::run_block::{RUN_SENT_LINES, SHELL_FENCES};
 
+use crate::js::{js_trim, js_trim_end, utf16};
+
 // A reply's shell block that a person can run where it stands: which labels run, the command a block holds, and the
 // text a finished run leaves behind it, read by the app that draws the block and the host that keeps the record.
 // The fence labels a reply's block runs under. Text, no label and every other language get no Run: the one thing
@@ -22,6 +24,11 @@ use wsp_wire::types::run_block::{RUN_SENT_LINES, SHELL_FENCES};
 // private in the TS: port it as a private helper
 // const HIDDEN = /[\u0000-\u0008\u000b-\u001f\u007f\u00ad\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
 
+/// The characters a page would draw reordered or as nothing, and every control but tab and newline (run-block.ts:15).
+fn is_hidden(c: char) -> bool {
+    matches!(c as u32, 0x00..=0x08 | 0x0B..=0x1F | 0x7F | 0xAD | 0x61C | 0x200B..=0x200F | 0x202A..=0x202E | 0x2060..=0x2064 | 0x2066..=0x2069 | 0xFEFF)
+}
+
 /// The command a block holds, or nothing where the block is not one to run. A console block is a transcript: its
 /// `$ ` lines are the commands and the lines between them are output, left out.
 // run-block.ts:19
@@ -36,7 +43,18 @@ use wsp_wire::types::run_block::{RUN_SENT_LINES, SHELL_FENCES};
 //   return command === "" ? null : command;
 // }
 pub fn runnable_command(language: &str, code: &str) -> Option<String> {
-    todo!()
+    let label = js_trim(language).to_lowercase();
+    if !SHELL_FENCES.contains(&label.as_str()) {
+        return None;
+    }
+    let text = code.replace("\r\n", "\n");
+    if text.chars().any(is_hidden) {
+        return None;
+    }
+    let lines: Vec<&str> = text.split('\n').collect();
+    let prompted: Vec<&str> = if label == "console" { lines.iter().filter_map(|l| l.strip_prefix("$ ")).collect() } else { Vec::new() };
+    let command = js_trim(&if prompted.is_empty() { text.clone() } else { prompted.join("\n") }).to_string();
+    (!command.is_empty()).then_some(command)
 }
 
 // run-block.ts:32
@@ -57,7 +75,14 @@ pub fn runnable_command(language: &str, code: &str) -> Option<String> {
 // }
 /// `max` is RUN_OUTPUT_MAX_CHARS where the TS leaves it out; counts UTF-16 units (rule 8.4).
 pub fn run_output_tail(text: &str, max: usize) -> String {
-    todo!()
+    if utf16::len(text) <= max {
+        return text.to_string();
+    }
+    let cut = if max == 0 { text.to_string() } else { utf16::tail(text, max) };
+    match cut.find('\n') {
+        Some(newline) => cut[newline + 1..].to_string(),
+        None => cut,
+    }
 }
 
 /// A terminal's bytes as the lines a person saw: escape sequences carry no text, a carriage return starts its line
@@ -117,7 +142,68 @@ pub fn run_output_tail(text: &str, max: usize) -> String {
 //   return out.map(l => l.replace(/\s+$/, "")).join("\n");
 // }
 pub fn terminal_text(raw: &str) -> String {
-    todo!()
+    let raw: Vec<char> = raw.chars().collect();
+    let mut out: Vec<String> = Vec::new();
+    let mut line: Vec<char> = Vec::new();
+    let mut col: usize = 0;
+    let mut i = 0;
+    while i < raw.len() {
+        let ch = raw[i];
+        if ch == '\x1b' {
+            match raw.get(i + 1) {
+                Some('[') => {
+                    let mut j = i + 2;
+                    while j < raw.len() && !('\x40'..='\x7e').contains(&raw[j]) {
+                        j += 1;
+                    }
+                    i = j;
+                }
+                Some(']' | 'P' | '_' | '^') => {
+                    let mut j = i + 2;
+                    while j < raw.len() && raw[j] != '\x07' && !(raw[j] == '\x1b' && raw.get(j + 1) == Some(&'\\')) {
+                        j += 1;
+                    }
+                    i = if raw.get(j) == Some(&'\x07') { j } else { j + 1 };
+                }
+                _ => {
+                    let mut j = i + 1;
+                    while j < raw.len() && ('\x20'..='\x2f').contains(&raw[j]) {
+                        j += 1;
+                    }
+                    i = j;
+                }
+            }
+            i += 1;
+            continue;
+        }
+        match ch {
+            '\r' => col = 0,
+            '\n' => {
+                out.push(line.iter().collect());
+                line.clear();
+                col = 0;
+            }
+            '\x08' => {
+                col = col.saturating_sub(1);
+                line.truncate(col);
+            }
+            _ if ch < ' ' && ch != '\t' => {}
+            _ => {
+                if col < line.len() {
+                    line[col] = ch;
+                } else {
+                    line.push(ch);
+                }
+                col += 1;
+            }
+        }
+        i += 1;
+    }
+    out.push(line.iter().collect());
+    while out.last().is_some_and(|l| js_trim(l).is_empty()) {
+        out.pop();
+    }
+    out.iter().map(|l| js_trim_end(l)).collect::<Vec<_>>().join("\n")
 }
 
 /// A reply block's name on the thread's record: the reply's message and where the block's fence starts in its text,
@@ -125,7 +211,7 @@ pub fn terminal_text(raw: &str) -> String {
 // run-block.ts:103
 // export const runBlockKey = (messageId: string, offset: number): string => `${messageId}@${offset}`;
 pub fn run_block_key(message_id: &str, offset: usize) -> String {
-    todo!()
+    format!("{message_id}@{offset}")
 }
 
 // run-block.ts:107
@@ -170,7 +256,15 @@ pub struct RunEnd {
 }
 
 pub fn run_ended_words(run: &RunEnd) -> String {
-    todo!()
+    match run.state {
+        RunState::Moved => "Moved to a terminal tab".to_string(),
+        RunState::Lost => "Ended unseen: its terminal went away first".to_string(),
+        RunState::Running => "Running".to_string(),
+        RunState::Exited => match run.signal {
+            Some(signal) => format!("Stopped by signal {signal}"),
+            None => format!("Exited {}", run.exit_code.unwrap_or(0)),
+        },
+    }
 }
 
 // run-block.ts:129
@@ -190,6 +284,17 @@ pub fn run_ended_words(run: &RunEnd) -> String {
 //   return `I ran \`${command}\` and ${ended}. The last lines it printed:\n\n${fence}text\n${tail}\n${fence}`;
 // }
 pub fn run_output_message(command: &str, run: &RunEnd, output: &str) -> String {
-    todo!()
+    let ended = match (run.state, run.signal) {
+        (RunState::Exited, None) => format!("it exited {}", run.exit_code.unwrap_or(0)),
+        _ => run_ended_words(run).to_lowercase(),
+    };
+    if js_trim(output).is_empty() {
+        return format!("I ran `{command}` and {ended}. It printed nothing.");
+    }
+    let lines: Vec<&str> = output.split('\n').collect();
+    let tail = lines[lines.len().saturating_sub(RUN_SENT_LINES as usize)..].join("\n");
+    let longest = tail.split(|c| c != '`').map(str::len).max().unwrap_or(0);
+    let fence = "`".repeat(3.max(longest + 1));
+    format!("I ran `{command}` and {ended}. The last lines it printed:\n\n{fence}text\n{tail}\n{fence}")
 }
 
