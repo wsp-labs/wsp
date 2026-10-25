@@ -268,9 +268,25 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use wsp_frames::{CgroupMemory, ProcEntry, ProcOwnedBy};
 
 const SHELLS: &[&str] = &["sh", "bash", "zsh", "fish", "dash"];
-const TEST_PHRASES: &[&str] = &["vitest", "jest", "mocha", "pytest", "playwright test", "cargo test", "cargo nextest", "go test", "bun test", "node --test"];
-const BUILD_PHRASES: &[&str] = &["rustc", "cargo build", "cargo check", "cc1", "cc1plus", "clang", "ld", "tsc", "go build", "webpack", "swiftc"];
-const DEV_PHRASES: &[&str] = &["vite", "next dev", "next-server", "webpack serve", "astro dev", "nuxt dev", "remix dev", "wrangler dev", "electron-vite", "http.server", "flask run", "uvicorn", "rails server"];
+const TEST_PHRASES: &[&str] =
+    &["vitest", "jest", "mocha", "pytest", "playwright test", "cargo test", "cargo nextest", "go test", "bun test", "node --test"];
+const BUILD_PHRASES: &[&str] =
+    &["rustc", "cargo build", "cargo check", "cc1", "cc1plus", "clang", "ld", "tsc", "go build", "webpack", "swiftc"];
+const DEV_PHRASES: &[&str] = &[
+    "vite",
+    "next dev",
+    "next-server",
+    "webpack serve",
+    "astro dev",
+    "nuxt dev",
+    "remix dev",
+    "wrangler dev",
+    "electron-vite",
+    "http.server",
+    "flask run",
+    "uvicorn",
+    "rails server",
+];
 
 /// JavaScript's `\s` (what `\S` and `[^\s]` read), which Rust's `is_whitespace` differs from at NEL and the BOM.
 fn js_space(c: char) -> bool {
@@ -347,12 +363,17 @@ fn app_part(input: &PlaceInput<'_>, pid: u32) -> Option<AppPart> {
 }
 
 fn wsp_part(input: &PlaceInput<'_>, p: &ProcEntry) -> bool {
-    p.pid == input.daemon || Some(p.pid) == input.host || app_part(input, p.pid).is_some() || matches!(p.kind, Some(ProcKind::App | ProcKind::Wsp))
+    p.pid == input.daemon
+        || Some(p.pid) == input.host
+        || app_part(input, p.pid).is_some()
+        || matches!(p.kind, Some(ProcKind::App | ProcKind::Wsp))
 }
 
 /// `STARTED_BY`: the rungs that name a process a thread started; the folder and coalition rungs do not.
 fn started_by_wsp(p: &ProcEntry) -> bool {
-    p.owner.as_ref().is_some_and(|o| matches!(o.by, ProcOwnedBy::Root | ProcOwnedBy::Fork | ProcOwnedBy::Group | ProcOwnedBy::Env | ProcOwnedBy::Cgroup))
+    p.owner.as_ref().is_some_and(|o| {
+        matches!(o.by, ProcOwnedBy::Root | ProcOwnedBy::Fork | ProcOwnedBy::Group | ProcOwnedBy::Env | ProcOwnedBy::Cgroup)
+    })
 }
 
 fn thread_known(input: &PlaceInput<'_>, id: &str) -> bool {
@@ -533,7 +554,8 @@ pub fn agent_path(
 // export const isTurnPlumbing = (command: string): boolean => RUN_SCRIPT.test(command) || RUN_PUMP.test(command);
 /// Whether a command line is a turn's run script (`RUN_SCRIPT`) or its input pump (`tail -n +1 -f <dir>/<12 hex>.in`).
 pub fn is_turn_plumbing(command: &str) -> bool {
-    command.strip_prefix("bash ").is_some_and(|rest| plumbing_path(rest, ".sh")) || command.strip_prefix("tail -n +1 -f ").is_some_and(|rest| plumbing_path(rest, ".in"))
+    command.strip_prefix("bash ").is_some_and(|rest| plumbing_path(rest, ".sh"))
+        || command.strip_prefix("tail -n +1 -f ").is_some_and(|rest| plumbing_path(rest, ".in"))
 }
 
 // views/activity.ts:183 at a3b870a6e
@@ -717,12 +739,17 @@ impl<'a> Placement<'a> {
         let (Some(p), Some(w)) = (self.by_pid.get(&pid), self.whose.get(&pid)) else {
             return false;
         };
-        !self.thread_agent(pid) && !self.needed(pid) && app_part(self.input, pid).is_none() && (matches!(w, Whose::Thread(_)) || started_by_wsp(p))
+        !self.thread_agent(pid)
+            && !self.needed(pid)
+            && app_part(self.input, pid).is_none()
+            && (matches!(w, Whose::Thread(_)) || started_by_wsp(p))
     }
 
     /// The stretch a thread of this host runs as its agent, or a root the daemon stamped as one.
     fn thread_agent(&self, pid: u32) -> bool {
-        self.agent.contains_key(&pid) || self.folds_into.contains_key(&pid) || self.by_pid.get(&pid).is_some_and(|p| p.kind == Some(ProcKind::Agent))
+        self.agent.contains_key(&pid)
+            || self.folds_into.contains_key(&pid)
+            || self.by_pid.get(&pid).is_some_and(|p| p.kind == Some(ProcKind::Agent))
     }
 
     /// The thread whose End may reach it: its thread, but never by the WSP_THREAD mark (`owner.by == env`) alone.
@@ -1046,7 +1073,14 @@ pub fn place_procs<'a>(input: &'a PlaceInput<'a>) -> Placement<'a> {
 
 /// One row's whose: the first rung that names it, read once and kept. A row whose parent names it takes the parent's
 /// answer, and no rung at all leaves it with nobody.
-fn place_row(placed: &Placement<'_>, tabbed: &HashMap<u32, String>, p: &ProcEntry, seen: &HashSet<u32>, whose: &mut IndexMap<u32, Whose>, nobody: &mut HashSet<u32>) -> Option<Whose> {
+fn place_row(
+    placed: &Placement<'_>,
+    tabbed: &HashMap<u32, String>,
+    p: &ProcEntry,
+    seen: &HashSet<u32>,
+    whose: &mut IndexMap<u32, Whose>,
+    nobody: &mut HashSet<u32>,
+) -> Option<Whose> {
     if let Some(held) = whose.get(&p.pid) {
         return Some(held.clone());
     }
@@ -1125,7 +1159,8 @@ pub fn activity_of(read: &ActivityRead) -> ActivityView {
     with_read_placement(read, |placed| {
         let mut threads = Vec::new();
         for scope in &read.scopes {
-            let members: Vec<ProcEntry> = placed.procs.iter().filter(|p| thread_id_of(placed.whose.get(&p.pid)) == Some(scope.thread_id.as_str())).cloned().collect();
+            let members: Vec<ProcEntry> =
+                placed.procs.iter().filter(|p| thread_id_of(placed.whose.get(&p.pid)) == Some(scope.thread_id.as_str())).cloned().collect();
             if members.is_empty() {
                 continue;
             }
@@ -1165,7 +1200,14 @@ fn tree_rows(placed: &Placement<'_>, members: &[ProcEntry], ports: Option<&HashM
     out
 }
 
-fn tree_walk(placed: &Placement<'_>, inside: &HashSet<u32>, ports: Option<&HashMap<u32, Vec<i64>>>, list: &[ProcEntry], depth: i64, out: &mut Vec<ActivityProc>) {
+fn tree_walk(
+    placed: &Placement<'_>,
+    inside: &HashSet<u32>,
+    ports: Option<&HashMap<u32, Vec<i64>>>,
+    list: &[ProcEntry],
+    depth: i64,
+    out: &mut Vec<ActivityProc>,
+) {
     let mut sorted = list.to_vec();
     sorted.sort_by(by_cpu_then_pid);
     for p in &sorted {
@@ -1245,7 +1287,8 @@ pub fn not_joined_activity_fix(name: &str) -> String {
 /// The words of `wire::daemon_version::place_behind_line(name, "its daemon reads no processes in one read")` written
 /// here until that stub lands; replace them with the call then.
 pub fn box_behind_activity_line(name: &str) -> String {
-    let behind = format!("{name} is behind: its daemon reads no processes in one read; wsp add {name} --update puts this wsp's daemon on it");
+    let behind =
+        format!("{name} is behind: its daemon reads no processes in one read; wsp add {name} --update puts this wsp's daemon on it");
     format!("{behind}, so wsp activity reads nothing there:")
 }
 
@@ -1272,7 +1315,12 @@ pub fn end_gone_line(pid: i64) -> String {
 //   `pid ${pid} names another process now, ${now.comm} started ${at(now.startedAt)}, not the one started ${at(asked)}:`;
 /// Both starts are written as `Date.prototype.toISOString` writes epoch milliseconds: `2026-10-25T10:00:00.000Z`.
 pub fn end_reused_line(pid: i64, now: &ProcEntry, asked: i64) -> String {
-    format!("pid {pid} names another process now, {} started {}, not the one started {}:", now.comm, iso_time(i64::from(now.started_at)), iso_time(asked))
+    format!(
+        "pid {pid} names another process now, {} started {}, not the one started {}:",
+        now.comm,
+        iso_time(i64::from(now.started_at)),
+        iso_time(asked)
+    )
 }
 
 // views/activity.ts:477 at a3b870a6e

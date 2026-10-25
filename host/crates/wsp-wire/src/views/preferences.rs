@@ -1488,10 +1488,7 @@ pub fn preferences_from(stored: Option<&serde_json::Value>) -> Preferences {
     let Ok(patch) = serde_json::from_value::<PreferencesPatch>(serde_json::Value::Object(fields)) else {
         return default_preferences();
     };
-    Preferences {
-        project_icon,
-        ..apply_preferences_patch(&default_preferences(), &patch)
-    }
+    Preferences { project_icon, ..apply_preferences_patch(&default_preferences(), &patch) }
 }
 
 /// `perWorkspace`: a null entry takes its key away, a value sets it; a key set again after it was taken away goes last.

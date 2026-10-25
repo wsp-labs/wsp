@@ -397,7 +397,9 @@ pub struct McpServerSpec {
 //   return `${harness} takes no MCP server with a launch, so its thread would run without them; open the thread on an agent that takes them`;
 // }
 pub fn no_mcp_servers_line(harness: &str) -> String {
-    format!("{harness} takes no MCP server with a launch, so its thread would run without them; open the thread on an agent that takes them")
+    format!(
+        "{harness} takes no MCP server with a launch, so its thread would run without them; open the thread on an agent that takes them"
+    )
 }
 
 // views/harness.ts:179 at a3b870a6e
@@ -510,14 +512,13 @@ pub fn start_picks(
     if let Some(catalog) = catalog {
         checked_against(catalog, picks, model.as_deref(), runs_on)?;
     }
-    let effort = picks.effort.clone().or_else(|| opening.and_then(|c| marked_default(&efforts_for(c, model_of(c, model.as_deref()).as_ref())).map(|o| o.value.clone())));
-    let permission_mode = picks.permission_mode.clone().or_else(|| opening.and_then(|c| marked_default(&c.permission_modes).map(|o| o.value.clone())));
-    Ok(StartPicks {
-        model,
-        effort,
-        permission_mode,
-        fast: (picks.fast == Some(true)).then_some(true),
-    })
+    let effort = picks
+        .effort
+        .clone()
+        .or_else(|| opening.and_then(|c| marked_default(&efforts_for(c, model_of(c, model.as_deref()).as_ref())).map(|o| o.value.clone())));
+    let permission_mode =
+        picks.permission_mode.clone().or_else(|| opening.and_then(|c| marked_default(&c.permission_modes).map(|o| o.value.clone())));
+    Ok(StartPicks { model, effort, permission_mode, fast: (picks.fast == Some(true)).then_some(true) })
 }
 
 /// The TS's private `checkedAgainst`: each named pick must be one its list carries, and a fast asked of a model with
@@ -546,10 +547,7 @@ fn checked_against(catalog: &HarnessCatalog, picks: &StartPicks, model: Option<&
     let fast_on = model_of(catalog, model.or(runs_on));
     if picks.fast == Some(true) {
         if let Some(m) = fast_on.filter(|m| m.fast != Some(true)) {
-            return Err(PickRefusal {
-                message: no_fast_line(&m.label),
-                kind: "invalid",
-            });
+            return Err(PickRefusal { message: no_fast_line(&m.label), kind: "invalid" });
         }
     }
     Ok(())
@@ -557,7 +555,14 @@ fn checked_against(catalog: &HarnessCatalog, picks: &StartPicks, model: Option<&
 
 /// Wire's `listed` (helpers.ts:45), refusing a value none of the options, legacy or hidden ones carries. The helpers
 /// unit owns `crate::wire::helpers::listed`; this copy stands in until it lands, and must give the same words.
-fn listed_refusal(subject: &str, word: &str, options: &[(&str, &str)], value: Option<&str>, legacy: &[(&str, &str)], hidden: &[(&str, &str)]) -> Result<(), PickRefusal> {
+fn listed_refusal(
+    subject: &str,
+    word: &str,
+    options: &[(&str, &str)],
+    value: Option<&str>,
+    legacy: &[(&str, &str)],
+    hidden: &[(&str, &str)],
+) -> Result<(), PickRefusal> {
     let Some(value) = value else {
         return Ok(());
     };

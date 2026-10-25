@@ -883,7 +883,7 @@ impl Check for ThreadView {
 // views/session.ts:368 at a3b870a6e
 // export const threadKeyOf = (session: SessionView): string => session.threadId ?? session.id;
 pub fn thread_key_of(session: &SessionView) -> String {
-    todo!()
+    session.thread_id.clone().unwrap_or_else(|| session.id.clone())
 }
 
 // views/session.ts:374 at a3b870a6e
@@ -892,5 +892,5 @@ pub fn thread_key_of(session: &SessionView) -> String {
 // }
 /// Whether any turn is running, or has a harness session id and no refusal.
 pub fn thread_ran(turns: &[SessionView]) -> bool {
-    todo!()
+    turns.iter().any(|turn| turn.status == SessionStatus::Running || (turn.claude_session_id.is_some() && turn.refusal.is_none()))
 }

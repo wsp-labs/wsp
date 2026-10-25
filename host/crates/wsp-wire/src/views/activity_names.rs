@@ -37,7 +37,22 @@ use crate::views::activity::{proc_bins, SCRIPT_RUNTIMES};
 use wsp_frames::ProcEntry;
 
 const TOOLS: &[&str] = &["cargo", "npm", "npx", "pnpm", "yarn", "uv", "uvx", "go", "bunx"];
-const UV_VALUES: &[&str] = &["--from", "--with", "--with-editable", "--with-requirements", "--python", "-p", "--directory", "--project", "--index", "--index-url", "--extra-index-url", "--default-index", "--constraints", "--overrides"];
+const UV_VALUES: &[&str] = &[
+    "--from",
+    "--with",
+    "--with-editable",
+    "--with-requirements",
+    "--python",
+    "-p",
+    "--directory",
+    "--project",
+    "--index",
+    "--index-url",
+    "--extra-index-url",
+    "--default-index",
+    "--constraints",
+    "--overrides",
+];
 const GENERIC_SCRIPTS: &[&str] = &["bin", "cli", "index", "main"];
 const BUILD_DIRS: &[&str] = &["dist", "lib", "build", "out", "src", "bin", ".bin", "node_modules"];
 
