@@ -538,7 +538,7 @@ pub struct VerbDeps {
     pub signals: Option<Arc<dyn WatchSignals>>,
     pub dial: Option<Arc<dyn DialFn>>,
     pub elsewhere: bool,
-    pub terminal: Option<Arc<dyn RelayTerminal>>,
+    pub terminal: Option<Arc<tokio::sync::Mutex<RelayTerminal>>>,
     pub open: Option<Arc<dyn Opener>>,
 }
 
