@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The question a quit asks (`desktop:quit.ts`). wsp runs as this computer's own service, so quitting the app leaves
-//! every thread working; the second answer stops the turns on this computer, then wsp, keeping its unit for the next
-//! launch. A person who
-//! always gives the same answer picks it on General and is asked nothing. Linux has no menu and no menu bar item, so
-//! a quit there asks nothing, and a window on a host somewhere else quits with nothing to ask.
+//! every thread working; the second answer stops the turns on this computer, then wsp and its unit, as `wsp down`
+//! does, so nothing starts it again until the app opens. A person who always gives the same answer picks it on
+//! General and is asked nothing. Linux has no menu and no menu bar item, so a quit there asks nothing, and a window on
+//! a host somewhere else quits with nothing to ask.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -107,7 +107,7 @@ pub async fn working_here(state: &Path, env: &Env) -> usize {
     running(state, env).await.map_or(0, |(_, running)| running.len())
 }
 
-/// `stopWsp`: every turn on this computer's workspaces interrupted, then the host stopped with its unit kept
+/// `stopWsp`: every turn on this computer's workspaces interrupted, then the host stopped and its unit removed
 /// ([`start::stop`]). Its words are the answer where the stop was refused or a host still serves after it.
 pub async fn stop_wsp(state: &Path, env: &Env) -> Result<(), String> {
     if let Some((client, running)) = running(state, env).await {

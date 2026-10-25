@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The composer's road to the host, through `wsp-host-client` alone: it reads the agents and their choices
 //! (`harnesses.list`), the workspace's rows (`sessions.list`), the agent's skills (`agents.read`) and the person's
-//! `midTurn` (`preferences.get`), and answers the composer's events with `sessions.start`, `sessions.steer`,
+//! `midTurn` and `sendWith` (`preferences.get`), and answers the composer's events with `sessions.start`, `sessions.steer`,
 //! `sessions.interrupt`, `sessions.answer`, `preferences.set` with `sessions.access`, and the daemon's `fs.files` and
 //! `git.prList` for the menus. What every thread of a workspace shares is kept in the composer for the process, so a
 //! thread switch asks the host nothing of it.
@@ -633,24 +633,24 @@ impl Link {
         .detach();
     }
 
-    /// The person's choice of what a message sent mid-turn does (`preferences.get`'s `midTurn`), read once per composer
-    /// and followed as the host pushes a change.
+    /// The person's choice of what a message sent mid-turn does and of the key that sends (`preferences.get`'s
+    /// `midTurn` and `sendWith`), read once per composer and followed as the host pushes a change.
     fn watch_preferences(&mut self, composer: &Entity<Composer>, cx: &mut Context<Self>) {
         if composer.read(cx).watching.is_some() {
             return;
         }
-        let (tx, mut rx) = mpsc::unbounded::<Option<String>>();
+        let (tx, mut rx) = mpsc::unbounded::<(bool, bool)>();
         // Read again and followed again a second after the socket closes, as the header's watch does.
         let watched = self.host.run(move |host| async move {
             loop {
                 let followed: Result<(), Failure> = async {
                     let mut events = host.events().await?;
                     let read = host.call(request::<protocol::PreferencesGetRequest>(json!({}))?).await?;
-                    tx.unbounded_send(mid_turn(&read.preferences)).map_err(|_| Failure::new("gone"))?;
+                    tx.unbounded_send(followed(&read.preferences)).map_err(|_| Failure::new("gone"))?;
                     while let Some(event) = events.next().await {
                         if let Ok(Event::Host(event)) = event {
                             if let protocol::EventUnion::PreferencesChanged { preferences, .. } = *event {
-                                tx.unbounded_send(mid_turn(&preferences)).map_err(|_| Failure::new("gone"))?;
+                                tx.unbounded_send(followed(&preferences)).map_err(|_| Failure::new("gone"))?;
                             }
                         }
                     }
@@ -669,8 +669,12 @@ impl Link {
         let weak = composer.downgrade();
         let task = cx.spawn(async move |_, cx| {
             let receive = async {
-                while let Some(mid) = rx.next().await {
-                    if weak.update(cx, |c, cx| c.set_steer_preferred(mid.as_deref() == Some("steer"), cx)).is_err() {
+                while let Some((steer, mod_enter)) = rx.next().await {
+                    let set = weak.update(cx, |c, cx| {
+                        c.set_steer_preferred(steer, cx);
+                        c.set_send_with_mod(mod_enter, cx);
+                    });
+                    if set.is_err() {
                         break;
                     }
                 }
@@ -1169,9 +1173,10 @@ async fn agents_of(host: &Host, workspace_id: &str) -> Result<Vec<Agent>, Failur
     Ok(listed.harnesses.iter().filter_map(Agent::read).collect())
 }
 
-/// The preference's `midTurn`: queue or steer.
-fn mid_turn(preferences: &protocol::Preferences) -> Option<String> {
-    serde_json::to_value(preferences).ok()?.get("midTurn")?.as_str().map(str::to_owned)
+/// Whether the preferences' `midTurn` steers and their `sendWith` sends on Cmd or Ctrl and Enter.
+pub fn followed(preferences: &impl serde::Serialize) -> (bool, bool) {
+    let read = serde_json::to_value(preferences).unwrap_or_default();
+    (read["midTurn"] == "steer", read["sendWith"] == "mod-enter")
 }
 
 /// One thread's rows out of a workspace's, oldest first.
@@ -1286,6 +1291,14 @@ pub fn start_params(target: &Target, out: &Outgoing, ran: bool) -> Value {
 mod tests {
     use super::super::model::{Choice, File, Resolved};
     use super::*;
+
+    #[test]
+    fn follows_mid_turn_and_send_with() {
+        let read = |v: Value| followed(&v);
+        assert_eq!(read(json!({ "midTurn": "steer", "sendWith": "mod-enter" })), (true, true));
+        assert_eq!(read(json!({ "midTurn": "queue", "sendWith": "enter" })), (false, false));
+        assert_eq!(read(json!({})), (false, false), "Enter sends where the host names no key, as today's default");
+    }
 
     fn row(more: Value) -> SessionView {
         let mut v = json!({ "id": "s1", "workspaceId": "w", "harness": "claude", "status": "failed" });

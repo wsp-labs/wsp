@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The host a launch opens on (`desktop:host-lifecycle.ts` `openHostReady`): the one the lock names, else the one
 //! this computer's own service manager brings up from its unit, waited on until it answers. A unit that stands is
-//! loaded as it stands and never removed here. Where this app carries its own host and owns the wsp command
+//! loaded as it stands and never removed by a launch. Where this app carries its own host and owns the wsp command
 //! (`Start::wsp`), a missing unit is written by that command's own `wsp up --service`, run in the wsp home, a service
 //! host on files that went is restarted onto it before the open (`Start::restart`), and a move onto it (`follow`)
-//! writes again a unit that runs another program. Quit and stop wsp stops the host and keeps the unit, login switch
-//! and all, for the next launch and the next login; today's removes it, and with it the start at login.
+//! writes again a unit that runs another program. Quit and stop wsp stops the host and removes its unit, as `wsp down`
+//! does, so the next login starts nothing.
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -148,6 +148,18 @@ impl Manager {
         }
     }
 
+    /// Run in order to stop the host and let go of its unit, before its file is removed (`launchdUnload`,
+    /// `systemdUnload`).
+    pub fn unload(self, start: &Start) -> Vec<Vec<String>> {
+        match self {
+            Manager::Launchd => self.stop(start),
+            Manager::Systemd => vec![
+                words(&["systemctl", "--user", "disable", "--now", &self.name(&start.state)]),
+                words(&["systemctl", "--user", "daemon-reload"]),
+            ],
+        }
+    }
+
     /// Sets a loaded unit to start only when asked, leaving it running.
     pub fn off_at_login(self, start: &Start) -> Vec<String> {
         match self {
@@ -228,6 +240,15 @@ impl Manager {
                 let said = |name: &str| property(&ran.output, name).unwrap_or_default();
                 ran.code == 0 && (SYSTEMD_RUNNING.contains(&said("ActiveState")) || SYSTEMD_ENABLED.contains(&said("UnitFileState")))
             }
+        }
+    }
+
+    /// Whether the `holds` answer says the manager does not have the unit (`ServiceManager.absent`), against an
+    /// answer that says neither.
+    fn absent(self, ran: &Ran) -> bool {
+        match self {
+            Manager::Launchd => ran.code == 113 || ran.output.to_ascii_lowercase().contains("could not find service"),
+            Manager::Systemd => ran.code == 0,
         }
     }
 
@@ -615,19 +636,40 @@ async fn until_gone(state: &Path, wait: Duration, pid: Option<i32>) -> Option<Lo
     }
 }
 
-/// Quit and stop wsp's stop (`stopWsp` less the unit's removal): the manager stops the host it runs and keeps the unit
-/// today's app wrote as it stands, and a host a line started is asked to end by the pid its lock records, as `wsp down`
-/// does. The answer is the refusal, or the host still serving once the start's wait has
-/// passed.
+/// Quit and stop wsp's stop, `wsp down`'s road (`stopWsp`, `downCommand`): the manager unloads the unit and its file
+/// is removed, so the next login starts nothing, and a host a line started is asked to end by the pid its lock records.
+/// The answer is the refusal, or the host still serving once the start's wait has passed.
 pub async fn stop<R: Runner>(start: &Start, runner: &R) -> Result<(), String> {
     let lock = serving(&start.state);
+    let line_started = lock.as_ref().and_then(|lock| lock.started_by.as_deref()).is_some_and(|by| by != "service");
     let mut asked = false;
     if let Some(manager) = start.manager {
-        if manager.holding(&runner.run(&manager.holds(start)).await) {
-            if let Some((argv, ran)) = run_all(&manager.stop(start), runner).await {
-                return Err(run_failure_line(&argv, &ran));
+        let holds = manager.holds(start);
+        let answer = runner.run(&holds).await;
+        let held = manager.holding(&answer);
+        let unit = manager.unit(&start.home, &start.state);
+        if held || manager.absent(&answer) {
+            if held {
+                if let Some((argv, ran)) = run_all(&manager.unload(start), runner).await {
+                    return Err(run_failure_line(&argv, &ran));
+                }
+                asked = true;
             }
-            asked = true;
+            if let Err(e) = std::fs::remove_file(&unit).or_else(|e| if e.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(e) })
+            {
+                return Err(format!("{}: {e}", unit.display()));
+            }
+        } else if !line_started {
+            // A manager that cannot answer leaves the unit as it stands, and only a host still serving makes that a refusal.
+            let Some(lock) = lock else { return Ok(()) };
+            return Err(format!(
+                "{}, so wsp cannot tell whether the {} {} is still loaded; the host (pid {}) is still serving {}",
+                run_failure_line(&holds, &answer),
+                manager.words(),
+                manager.name(&start.state),
+                lock.pid,
+                start.state.display()
+            ));
         }
     }
     let Some(lock) = lock else { return Ok(()) };
