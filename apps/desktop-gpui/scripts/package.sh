@@ -7,6 +7,7 @@
 # CSC_KEY_PASSWORD set it signs with that Developer ID, else ad hoc; with APPLE_ID, APPLE_TEAM_ID and
 # APPLE_APP_SPECIFIC_PASSWORD also set it notarizes and staples. WSP_GPUI_BUNDLE_ID overrides the bundle id, so a
 # check build on a Mac with wsp installed claims none of its links. Every file is named for the release's version.
+# PUBLIC_BUILD=1, as the release sets, builds the app without its default cloud feature, so Solari stays out.
 #   --target mac|linux  what to build, the host's own by default; mac builds only on macOS
 #   --dry-run           print each step and run none of them (no cargo, codesign, xcrun, hdiutil, download)
 set -eu
@@ -44,6 +45,8 @@ fi
 
 cd "$(dirname "$0")/.."
 bin=desktop-gpui
+features=
+if [ "${PUBLIC_BUILD-}" = 1 ]; then features=--no-default-features; fi
 # The release's version, which apps/desktop/package.json carries as every manifest does (tag-version.mjs checks it); the
 # host copies and the updater read it, so the bundle says the same.
 version=$(sed -n 's/^  "version": "\(.*\)",$/\1/p' ../desktop/package.json | head -n 1)
@@ -122,7 +125,7 @@ write() {
 }
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 
-printf 'package %s %s for %s%s\n' "$name" "$version" "$target" "$([ "$dry" = 1 ] && echo ', dry run')"
+printf 'package %s %s for %s%s%s\n' "$name" "$version" "$target" "$([ -n "$features" ] && echo ', public')" "$([ "$dry" = 1 ] && echo ', dry run')"
 
 # The same gate dev.sh keeps: vendor/ is what patches/ makes, and the Ghostty source and Zig are in place.
 if [ "$dry" = 0 ]; then
@@ -238,7 +241,7 @@ mac() {
   export MACOSX_DEPLOYMENT_TARGET=$min_macos
   run rustup target add aarch64-apple-darwin x86_64-apple-darwin
   for triple in aarch64-apple-darwin x86_64-apple-darwin; do
-    run cargo build --release --locked -p "$bin" --target "$triple"
+    run cargo build --release --locked ${features:+"$features"} -p "$bin" --target "$triple"
   done
 
   host_build
@@ -260,7 +263,6 @@ mac() {
   for triple_mac in aarch64-apple-darwin x86_64-apple-darwin; do
     check -x "$app/Contents/Resources/app/assets/daemon/$triple_mac/wsp-daemon"
   done
-  if [ "$host" = Darwin ]; then run "$app/Contents/MacOS/node" "$app/Contents/Resources/app/main/cli.mjs" --version; fi
   run cp "$icns" "$app/Contents/Resources/icon.icns"
   # Only today's bundle id takes wsp:// links, so a check build under another claims none of the person's.
   local links=
@@ -278,6 +280,7 @@ mac() {
     </dict>
   </array>'
   fi
+  # The browser pane's page loads plain http from any site, as today's app's does; the app's own requests stay under ATS.
   write "$app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -309,6 +312,11 @@ mac() {
   <string>$min_macos</string>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsArbitraryLoadsInWebContent</key>
+    <true/>
+  </dict>
 </dict>
 </plist>
 EOF
@@ -329,6 +337,8 @@ EOF
       run codesign --force --options runtime --sign - "$app/Contents/Resources/app/assets/daemon/$inner/wsp-daemon"
     done
   fi
+  # Only after its signing: strip -x breaks Node's own signature, and Apple silicon kills a binary whose signature fails.
+  run "$app/Contents/MacOS/node" "$app/Contents/Resources/app/main/cli.mjs" --version
   if [ "$signed" = 1 ]; then
     run codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$identity" "$app/Contents/MacOS/$bin"
     run codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$identity" "$app"
@@ -362,7 +372,7 @@ EOF
     run xcrun stapler staple "$dmg"
   fi
 
-  run ditto -c -k --sequesterRsrc --keepParent "$app" "$zip"
+  run ditto -c -k --norsrc --noextattr --keepParent "$app" "$zip"
   sizes "$app" "$app/Contents/MacOS/$bin" "$app/Contents/MacOS/node" "$app/Contents/Resources"
   ok "built $app, $dmg and $zip"
 }
@@ -449,7 +459,7 @@ linux() {
     [ "$(uname -m)" = x86_64 ] || refuse "the AppImage is x86_64, as today's is, and this machine is $(uname -m)"
     command -v mksquashfs >/dev/null || refuse "mksquashfs is missing: apt-get install squashfs-tools"
   fi
-  run cargo build --release --locked -p "$bin"
+  run cargo build --release --locked ${features:+"$features"} -p "$bin"
   host_build
   node_fetch linux-x64
   run rm -f "$dist/$bin" "$appimage"

@@ -12,7 +12,7 @@ mod setup;
 mod sign_ins;
 mod words;
 
-pub use words::{is_provider, js_number};
+pub use words::{is_provider, js_number, provider_key_name, ProviderWords, PROVIDERS};
 
 use gpui_kit::{AnyElement, App, SharedString, Window};
 

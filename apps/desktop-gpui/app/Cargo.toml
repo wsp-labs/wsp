@@ -40,6 +40,9 @@ url = "2"
 backtrace = { version = "0.3", optional = true }
 
 [features]
+default = ["cloud"]
+# Solari's rows, words and mark. A public build (PUBLIC_BUILD=1 to scripts/package.sh) leaves it out.
+cloud = []
 # A counting, sampling allocator for memory readings (src/heap.rs, bench/session.sh), off by default.
 heap-profile = ["dep:backtrace"]
 

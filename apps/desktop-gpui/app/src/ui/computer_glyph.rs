@@ -18,7 +18,8 @@ const MAC_MINI: &str = r#"<rect x="3" y="8" width="18" height="7" rx="2"/><path 
 const MAC_STUDIO: &str = r#"<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 14h.01"/><path d="M11 14h2"/>"#;
 
 /// The catalog's provider marks (`PROVIDER_MARKS` in packages/catalog/src/marks), read off their modules.
-const PROVIDER_MARKS: [&str; 2] = [
+const PROVIDER_MARKS: &[&str] = &[
+    #[cfg(feature = "cloud")]
     include_str!("../../../../../packages/catalog/src/marks/solari.ts"),
     include_str!("../../../../../packages/catalog/src/marks/boat.ts"),
 ];

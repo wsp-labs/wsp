@@ -235,7 +235,7 @@ impl Gallery {
             sign_in: list(&[("copy", "Copy the key"), ("sign-in", "Sign in there")], "copy", cx),
             name: field("", "zingzy's MacBook Pro", window, cx),
             port,
-            key: field("sk-live-0000", "Solari API key", window, cx),
+            key: field("sk-live-0000", "Boat API key", window, cx),
             program: field("/usr/local/bin/claude", "claude", window, cx),
             drawn: Rc::default(),
             _picked: picked,
@@ -292,7 +292,7 @@ impl Gallery {
             .lede("Each computer runs its own agents and keeps its own sign-ins.")
             .item(Self::macbook(cx))
             .item(
-                Row::new("solari", "Solari")
+                Row::new("boat", "Boat")
                     .lead(glyph_frame(Glyph::Cloud, cx))
                     .note("2 of 2 machines running")
                     .fact("Full")
@@ -357,7 +357,7 @@ impl Gallery {
     }
 
     fn chip_row() -> Row {
-        Row::new("shape", "Solari 8x16").chips(vec![
+        Row::new("shape", "Boat 8x16").chips(vec![
             Chip::new("8 cores").glyph(Glyph::Cpu),
             Chip::new("16 GB").glyph(Glyph::HardDrive),
             Chip::new("146 GB disk").glyph(Glyph::Container),
@@ -405,12 +405,12 @@ impl Gallery {
                 ],
             ))
             .row(row("macbook-grid", Glyph::Laptop, "zingzy's MacBook Pro", "8", "16 GB", "3", cx))
-            .row(row("solari-grid", Glyph::Server, "Solari", "8", "16 GB", "1", cx))
+            .row(row("boat-grid", Glyph::Server, "Boat", "8", "16 GB", "1", cx))
     }
 
     fn crumbs(cx: &App) -> impl IntoElement {
         let muted = cx.palette().muted_foreground;
-        h_flex().gap_2().text_size(px(13.)).child(div().text_color(muted).child("Computers")).child(slash(cx)).child("Solari")
+        h_flex().gap_2().text_size(px(13.)).child(div().text_color(muted).child("Computers")).child(slash(cx)).child("Boat")
     }
 
     fn lockup(cx: &App) -> impl IntoElement {
@@ -440,12 +440,12 @@ impl Gallery {
 
     fn choices() -> [Choice; 2] {
         [
-            Choice::new("copy-keys", "Copy the keys to Solari", true)
+            Choice::new("copy-keys", "Copy the keys to Boat", true)
                 .glyph(Glyph::KeyRound)
                 .note("GITHUB_TOKEN and LINEAR_API_KEY go with the servers."),
             Choice::new("leave-keys", "Leave the keys on zingzy's MacBook Pro", false)
                 .glyph(Glyph::KeyRound)
-                .note("Those servers stay off on Solari."),
+                .note("Those servers stay off on Boat."),
         ]
     }
 
@@ -470,9 +470,9 @@ impl Gallery {
 
     fn sheet(&self) -> AlertDialog {
         AlertDialog::new("Program")
-            .sentence("The program run in Claude Code's place on Solari: a path, or a word on its PATH.")
+            .sentence("The program run in Claude Code's place on Boat: a path, or a word on its PATH.")
             .child(Field::new(&self.program).sheet().invalid(true))
-            .child(Refusal::new().said("No program at /usr/local/bin/claude on Solari.").fix("Check the path."))
+            .child(Refusal::new().said("No program at /usr/local/bin/claude on Boat.").fix("Check the path."))
             .act(Button::outline("sheet-cancel", "Cancel"))
             .act(Button::primary("sheet-save", "Save"))
     }
@@ -490,7 +490,7 @@ impl Gallery {
         let cursor = PickRow::new("d-cursor", "Cursor", false).glyph(Glyph::Terminal).note("Not installed here");
         Dialog::new("Add a computer")
             .count(2, 5)
-            .line("Pick what goes on Solari.")
+            .line("Pick what goes on Boat.")
             .card(Card::new("agents").item(claude).item(cursor))
             .child(Self::copy_row())
             .state(quiet("Saved, you can finish later", cx))
@@ -628,7 +628,7 @@ impl Gallery {
                     )
                     .item(Row::new("name", "Name").note("What the sidebar calls this computer.").control(Field::new(&self.name)))
                     .item(Row::new("port", "Port").note("The host listens here.").control(Field::new(&self.port)))
-                    .item(Row::new("key", "Key").note("Solari refused it.").control(Field::new(&self.key).invalid(true)))
+                    .item(Row::new("key", "Key").note("Boat refused it.").control(Field::new(&self.key).invalid(true)))
                     .item(Row::new("held-folder", "Folder").note("Waits on the computer.").control(Field::new(&self.folder).held(true)))
                     .item(
                         Row::new("revoke", "zingzy's iPhone")
@@ -776,7 +776,7 @@ impl Gallery {
             Piece::Dialog => Self::dialog(cx).into_any_element(),
             Piece::AlertDialog => Self::remove_project().into_any_element(),
             Piece::Sheet => self.sheet().into_any_element(),
-            Piece::Refusal => Refusal::new().said("Solari refused the key.").fix("Paste a new one.").into_any_element(),
+            Piece::Refusal => Refusal::new().said("Boat refused the key.").fix("Paste a new one.").into_any_element(),
             Piece::FieldHeld => Field::new(&self.folder).held(true).into_any_element(),
             Piece::FieldInvalid => Field::new(&self.key).invalid(true).into_any_element(),
             Piece::ButtonDanger => Button::danger("revoke", "Revoke").xs().into_any_element(),

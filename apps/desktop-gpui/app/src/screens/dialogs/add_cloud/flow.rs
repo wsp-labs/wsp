@@ -280,7 +280,7 @@ pub fn setting_up(job: Option<&Job>, provider: &str) -> bool {
 
 /// The clouds this host could be given a key for: every cloud its setup keys a row by, none before it has said.
 pub fn clouds_offered(setup: Option<&Setup>) -> Vec<&'static str> {
-    words::clouds().into_iter().map(|c| c.id).filter(|id| setup.is_some_and(|s| s.keys.contains_key(*id))).collect()
+    words::clouds().iter().map(|c| c.id).filter(|id| setup.is_some_and(|s| s.keys.contains_key(*id))).collect()
 }
 
 /// A build row's state as a step row reads it.

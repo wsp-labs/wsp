@@ -285,10 +285,10 @@ pub fn agent_starting_line(agent: &str, installs: bool) -> String {
 
 /// `cloudSaid`: a cloud by the name its key rows give it (`PROVIDER_KEY_WORDS`), any other word as itself.
 fn cloud_said(on: &str) -> String {
-    crate::screens::sidebar::looks::PROVIDER_NAMES
+    crate::screens::settings::pages::computers::PROVIDERS
         .iter()
-        .find(|(id, name)| on.eq_ignore_ascii_case(id) || on.eq_ignore_ascii_case(name))
-        .map_or_else(|| on.to_owned(), |(_, name)| (*name).to_owned())
+        .find(|p| on.eq_ignore_ascii_case(p.id) || on.eq_ignore_ascii_case(p.name))
+        .map_or_else(|| on.to_owned(), |p| p.name.to_owned())
 }
 
 impl Listing {

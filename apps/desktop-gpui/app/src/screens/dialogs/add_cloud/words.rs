@@ -2,31 +2,11 @@
 //! The words of Add a cloud provider: each cloud's name and key name (`PROVIDER_KEY_WORDS`), what its key step says
 //! (`cloudKey.ts`), the pick steps' heads, and the few protocol words and figures the flow reads.
 
-/// What a person calls a provider and its key, by the id the host keys it by.
-pub struct Cloud {
-    pub id: &'static str,
-    pub name: &'static str,
-    pub key_name: &'static str,
-}
+use crate::screens::settings::pages::computers::{ProviderWords, PROVIDERS};
 
-/// The protocol's `PROVIDER_KEY_WORDS`, which the host's provider registry reads its key names from too.
-const PLACE_WORDS: &str = include_str!("../../../../../../../packages/protocol/src/place-word.ts");
-
-/// Every row of `PROVIDER_KEY_WORDS` in its order, read off the protocol's source: `<id>: { name: "..", keyName: ".."`.
-pub fn clouds() -> Vec<Cloud> {
-    let quoted = |s: &'static str, key: &str| -> Option<&'static str> {
-        let at = s.find(&format!("{key}: \""))? + key.len() + 3;
-        Some(&s[at..at + s[at..].find('"')?])
-    };
-    PLACE_WORDS
-        .match_indices(": { name: \"")
-        .filter_map(|(at, _)| {
-            let head = &PLACE_WORDS[..at];
-            let id = &head[head.rfind(|c: char| !c.is_alphanumeric() && c != '_')? + 1..];
-            let row = &PLACE_WORDS[at..at + PLACE_WORDS[at..].find('}')?];
-            Some(Cloud { id, name: quoted(row, "name")?, key_name: quoted(row, "keyName")? })
-        })
-        .collect()
+/// Every cloud this build can name, in the protocol's order.
+pub fn clouds() -> &'static [ProviderWords] {
+    PROVIDERS
 }
 
 /// The cloud offered where none is named.
@@ -34,11 +14,11 @@ pub const FIRST_CLOUD: &str = "box";
 
 /// A provider's name by its id; an id with no row reads as itself.
 pub fn cloud_name(id: &str) -> String {
-    clouds().into_iter().find(|c| c.id == id).map_or_else(|| id.to_owned(), |c| c.name.to_owned())
+    clouds().iter().find(|c| c.id == id).map_or_else(|| id.to_owned(), |c| c.name.to_owned())
 }
 
 pub fn key_name(id: &str) -> &'static str {
-    clouds().into_iter().find(|c| c.id == id).map_or("API key", |c| c.key_name)
+    clouds().iter().find(|c| c.id == id).map_or("API key", |c| c.key_name)
 }
 
 /// One provider's key step: where the key is made, the preset holding every action wsp needs and those actions, and
@@ -118,12 +98,6 @@ pub use crate::ui::fmt_bytes;
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_clouds_are_the_protocols() {
-        let clouds: Vec<(&str, &str, &str)> = clouds().iter().map(|c| (c.id, c.name, c.key_name)).collect();
-        assert_eq!(clouds, [("box", "Boat", "Boat API key"), ("solari", "Solari", "Solari API key")]);
-    }
 
     #[test]
     fn bytes_read_as_the_web_writes_them() {
