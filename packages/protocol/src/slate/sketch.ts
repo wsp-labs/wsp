@@ -6,6 +6,7 @@ import { fmtBytes, plural } from "../format.js";
 import { evaluateSlateExpression, parseSlateFormat, resolveSlateProp, slateDependencies, slatePropDependencies, slateTruthy, type SlateEvalContext } from "./expr.js";
 import { slateTime, SLATE_TIME_FLOOR } from "./chart.js";
 import { slateListTooLong } from "./image.js";
+import { slateGlanceProblems } from "./glance.js";
 import { SLATE_PIECES, slateHeldText, type SlatePieceModule, type SlatePropSpec, type SlateSketchView } from "./kit.js";
 import { SLATE_LIMITS } from "./limits.js";
 import { parseSlateOwnPath, slateEqual, slateStep } from "./paths.js";
@@ -171,9 +172,10 @@ export function sketchSlate(doc: SlateDoc | null, values: SlateValues, ctx: Slat
   const plotted = unbound ? [] : plotProblems(doc, read);
   const problems = [...(ctx.problems ?? []), ...plotted.filter(p => !SLATE_WARNINGS.has(p.code))];
   const warned = [...(ctx.warnings ?? []), ...plotted.filter(p => SLATE_WARNINGS.has(p.code))];
-  const head = `slate${version}${doc.title !== undefined ? ` ${JSON.stringify(doc.title)}` : ""}, ${plural(pieces, "piece")}, ${bound} bound, ${plural(problems.length, "problem")}${warned.length > 0 ? `, ${plural(warned.length, "warning")}` : ""}`;
 
   const lines: string[] = [];
+  /** Words of every piece line, the folded ones too: what the person would read, before the sketch's cap. */
+  let words = 0;
   let pieceLines = 0;
   let folded = 0;
   const view = (id: string, piece: SlatePiece, reads = new Set<string>()): SlateSketchView => {
@@ -247,6 +249,7 @@ export function sketchSlate(doc: SlateDoc | null, values: SlateValues, ctx: Slat
     if (unrun.length > 0 && out[0] !== undefined && !/not (read|run) yet/.test(out[0])) out[0] = `${out[0]} (reads ${unrun.join("; ")})`.trimStart();
     const look = lookWords(piece, module.props, reads);
     const transparent = module.holdsChildren && out.every(l => l === "") && look.length === 0;
+    for (const line of out) words += line.split(/\s+/).filter(w => /[\p{L}\p{N}]/u.test(w)).length;
     if (!transparent) {
       emit(indent, out[0] ?? "", tag(id, piece, v, look));
       for (const more of out.slice(1)) {
@@ -260,6 +263,8 @@ export function sketchSlate(doc: SlateDoc | null, values: SlateValues, ctx: Slat
   };
   walk(doc.root, 0);
   if (folded > 0) lines.push(`... and ${folded} more pieces`);
+  if (!unbound) warned.push(...slateGlanceProblems(doc, read, words));
+  const head = `slate${version}${doc.title !== undefined ? ` ${JSON.stringify(doc.title)}` : ""}, ${plural(pieces, "piece")}, ${bound} bound, ${plural(problems.length, "problem")}${warned.length > 0 ? `, ${plural(warned.length, "warning")}` : ""}`;
 
   const valueLines: string[] = [];
   for (const [name, decl] of Object.entries(doc.values)) {

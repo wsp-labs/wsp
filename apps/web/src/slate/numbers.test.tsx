@@ -105,6 +105,6 @@ describe("a number at rest reads its figure", () => {
     push(done(15001, 4210, 4));
     settle();
     expect(seen(figure("gram"))).toBe("15,001/g");
-    expect(seen(figure("ounce"))).toBe("$4,210.00");
+    expect(seen(figure("ounce"))).toBe("$4,210");
   });
 });

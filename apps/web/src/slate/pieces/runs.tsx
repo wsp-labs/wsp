@@ -82,8 +82,9 @@ export function Runs({ slate, ids: all }: { slate: SlateEngine; ids: readonly st
     }
     // A status and its text riding a number's note draw nothing, so they join the number's card, where they take no row.
     else if (riddenBy(slate, id) !== undefined && last?.card !== undefined) last.card.push(id);
-    // A meta line among rows is a row of their card; after a chart or a list it stands bare as its foot, as prose does.
-    else if (isNoteText(slate, id) && last?.card !== undefined) last.card.push(id);
+    // A meta line or a state word among rows is a row of their card; after a chart or a list it stands bare as its foot,
+    // as prose does.
+    else if ((isNoteText(slate, id) || slate.piece(id)?.type === "status") && last?.card !== undefined) last.card.push(id);
     else if (!isCardRow(slate, id)) runs.push({ key: id });
     else if (last?.card !== undefined) last.card.push(id);
     else runs.push({ key: id, card: [id] });
