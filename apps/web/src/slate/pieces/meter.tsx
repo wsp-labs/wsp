@@ -3,9 +3,11 @@ import { slateFigure } from "@wsp/protocol/slate";
 import { cn } from "../../lib/utils.js";
 import type { PieceView } from "../SlateView.js";
 import { num, str, TONE_FILL, toneOf } from "./look.js";
+import { isStrip } from "./riders.js";
+import { Tile } from "./tile.js";
 
 /** The figure right of the label, in the word the meter's format names. */
-function meterFigure(value: number, max: number, format: string): string | undefined {
+export function meterFigure(value: number, max: number, format: string): string | undefined {
   return format === "none" ? undefined : slateFigure(value, format === "value" ? "plain" : format, max);
 }
 
@@ -18,6 +20,9 @@ export const meter: PieceView = {
     const note = str(props["note"]);
     const share = value === undefined || max <= 0 ? 0 : Math.max(0, Math.min(1, value / max));
     const shown = value === undefined || max <= 0 ? undefined : meterFigure(value, max, String(props["format"] ?? "percent"));
+    const parent = slate.parentId(id);
+    // In a strip it is a stat tile like the numbers beside it, its share a ring.
+    if (parent !== undefined && isStrip(slate, parent)) return <Tile label={label} figure={shown} window={note} share={value === undefined ? undefined : share} tone={toneOf(props["tone"], slate, id)} />;
     return (
       <div
         role="meter"

@@ -60,10 +60,11 @@ describe("a table in its card", () => {
     expect(heads(t)).toEqual([false, true]);
     expect(ends(t)).toEqual([false, true]);
     // The card's border and the rows' inset are edge tracks the header shares, so no row pads its own tracks.
-    expect(tracks(t)).toBe("calc(var(--settings-inset,20px) - 15px) minmax(0,1fr) minmax(14ch,max-content) calc(var(--settings-inset,20px) - 15px)");
-    const card = t.querySelector("[data-slate-head] + div")!;
+    expect(tracks(t)).toBe("calc(var(--settings-inset,20px) - 15px) minmax(min(4ch,50%),1fr) minmax(14ch,max-content) calc(var(--settings-inset,20px) - 15px)");
+    // The header is the card's first row, inside its border (#2439).
+    const card = t.querySelector("[data-slate-head]")!.parentElement!;
     expect(card.className).toContain("bg-card/40");
-    expect(card.querySelectorAll("[role=row]")).toHaveLength(3);
+    expect(card.querySelectorAll("[role=row]:not([data-slate-head])")).toHaveLength(3);
   });
 
   it("draws no header row when no column names itself, and the name 14 px, words 13 px muted, figures 12 px mono", () => {
