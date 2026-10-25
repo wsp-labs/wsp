@@ -2,6 +2,7 @@
 //! The three reads of the `jsonc-parser` package the in-place editor makes: `parseTree` with trailing commas allowed,
 //! `findNodeAtLocation`, and `visit`'s comments. Only text `read_jsonc` accepted reaches it. Offsets are byte offsets
 //! into the text, used only to slice that same text. The spec is spec/jsonc.md.
+use crate::jsonc::string_end;
 
 /// One step of a path into a JSON value: a key, or an index where -1 means after the last element.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -43,22 +44,222 @@ pub struct Comment {
 
 /// The tree of the text, or nothing for text that holds no value.
 pub fn parse_tree(text: &str) -> Option<Node> {
-    todo!()
+    let mut parser = Parser { text, bytes: text.as_bytes(), pos: 0 };
+    parser.value()
 }
 
 /// The node at the path: a key finds the first property of that name in an object, an index the element of an array;
 /// a key on an array, an index on an object, or a step past a scalar finds nothing. The empty path is the root.
 pub fn find_node_at_location<'a>(root: &'a Node, path: &[PathSeg]) -> Option<&'a Node> {
-    todo!()
+    let mut node = root;
+    for seg in path {
+        node = match seg {
+            PathSeg::Key(key) => {
+                if node.kind != NodeType::Object {
+                    return None;
+                }
+                let property = node.children.iter().find(|p| is_member_named(p, key))?;
+                &property.children[1]
+            }
+            PathSeg::Index(i) => {
+                if node.kind != NodeType::Array || *i < 0 {
+                    return None;
+                }
+                node.children.get(usize::try_from(*i).ok()?)?
+            }
+        };
+    }
+    Some(node)
 }
 
 /// The member a path names, as its container (an object or an array) and its index among the container's children:
 /// for an object member the child is the property node. Nothing where the path names no member.
 pub fn find_member<'a>(root: &'a Node, path: &[PathSeg]) -> Option<(&'a Node, usize)> {
-    todo!()
+    let (last, rest) = path.split_last()?;
+    let container = find_node_at_location(root, rest)?;
+    match last {
+        PathSeg::Key(key) => {
+            if container.kind != NodeType::Object {
+                return None;
+            }
+            let index = container.children.iter().position(|p| is_member_named(p, key))?;
+            Some((container, index))
+        }
+        PathSeg::Index(i) => {
+            if container.kind != NodeType::Array || *i < 0 {
+                return None;
+            }
+            let index = usize::try_from(*i).ok()?;
+            (index < container.children.len()).then_some((container, index))
+        }
+    }
 }
 
 /// Every comment in the text, in order.
 pub fn comments_of(text: &str) -> Vec<Comment> {
-    todo!()
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'"' => i = string_end(bytes, i).unwrap_or(bytes.len()),
+            b'/' => match comment_end(bytes, i) {
+                Some(end) => {
+                    out.push(Comment { at: i, end });
+                    i = end;
+                }
+                None => i += 1,
+            },
+            _ => i += 1,
+        }
+    }
+    out
+}
+
+fn is_member_named(property: &Node, key: &str) -> bool {
+    property.kind == NodeType::Property && property.children.len() == 2 && property.children[0].text.as_deref() == Some(key)
+}
+
+/// Where the comment starting at `at` ends (jsonc-parser 3.3: a line comment stops before `\r` or `\n`).
+fn comment_end(bytes: &[u8], at: usize) -> Option<usize> {
+    match (bytes.get(at), bytes.get(at + 1)) {
+        (Some(b'/'), Some(b'/')) => Some(bytes[at..].iter().position(|&b| b == b'\n' || b == b'\r').map_or(bytes.len(), |k| at + k)),
+        (Some(b'/'), Some(b'*')) => Some(find_bytes(bytes, at + 2, b"*/").map_or(bytes.len(), |k| k + 2)),
+        _ => None,
+    }
+}
+
+fn find_bytes(bytes: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
+    bytes.get(from..)?.windows(needle.len()).position(|w| w == needle).map(|k| from + k)
+}
+
+struct Parser<'a> {
+    text: &'a str,
+    bytes: &'a [u8],
+    pos: usize,
+}
+
+impl Parser<'_> {
+    fn skip_trivia(&mut self) {
+        loop {
+            while self.pos < self.bytes.len() && matches!(self.bytes[self.pos], b' ' | b'\t' | b'\r' | b'\n') {
+                self.pos += 1;
+            }
+            match comment_end(self.bytes, self.pos) {
+                Some(end) if self.bytes[self.pos] == b'/' => self.pos = end,
+                _ => return,
+            }
+        }
+    }
+
+    fn peek(&self) -> Option<u8> {
+        self.bytes.get(self.pos).copied()
+    }
+
+    fn value(&mut self) -> Option<Node> {
+        self.skip_trivia();
+        let offset = self.pos;
+        match self.peek()? {
+            b'{' => self.object(),
+            b'[' => self.array(),
+            b'"' => {
+                let end = string_end(self.bytes, offset)?;
+                let text = serde_json::from_str::<String>(&self.text[offset..end]).ok()?;
+                self.pos = end;
+                Some(leaf(NodeType::String, offset, end - offset, Some(text)))
+            }
+            b't' | b'f' | b'n' => {
+                let (word, kind) = match self.bytes[offset] {
+                    b't' => ("true", NodeType::Boolean),
+                    b'f' => ("false", NodeType::Boolean),
+                    _ => ("null", NodeType::Null),
+                };
+                if !self.text[offset..].starts_with(word) {
+                    return None;
+                }
+                self.pos = offset + word.len();
+                Some(leaf(kind, offset, word.len(), None))
+            }
+            b'-' | b'0'..=b'9' => {
+                let end = offset
+                    + self.bytes[offset..].iter().take_while(|b| matches!(b, b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9')).count();
+                self.pos = end;
+                Some(leaf(NodeType::Number, offset, end - offset, None))
+            }
+            _ => None,
+        }
+    }
+
+    fn object(&mut self) -> Option<Node> {
+        let offset = self.pos;
+        self.pos += 1;
+        let mut children = Vec::new();
+        loop {
+            self.skip_trivia();
+            if self.peek()? == b'}' {
+                self.pos += 1;
+                break;
+            }
+            children.push(self.property()?);
+            self.skip_trivia();
+            match self.peek()? {
+                b',' => self.pos += 1,
+                b'}' => {
+                    self.pos += 1;
+                    break;
+                }
+                _ => return None,
+            }
+        }
+        Some(container(NodeType::Object, offset, self.pos - offset, children))
+    }
+
+    fn array(&mut self) -> Option<Node> {
+        let offset = self.pos;
+        self.pos += 1;
+        let mut children = Vec::new();
+        loop {
+            self.skip_trivia();
+            if self.peek()? == b']' {
+                self.pos += 1;
+                break;
+            }
+            children.push(self.value()?);
+            self.skip_trivia();
+            match self.peek()? {
+                b',' => self.pos += 1,
+                b']' => {
+                    self.pos += 1;
+                    break;
+                }
+                _ => return None,
+            }
+        }
+        Some(container(NodeType::Array, offset, self.pos - offset, children))
+    }
+
+    fn property(&mut self) -> Option<Node> {
+        self.skip_trivia();
+        if self.peek()? != b'"' {
+            return None;
+        }
+        let key = self.value()?;
+        self.skip_trivia();
+        if self.peek()? != b':' {
+            return None;
+        }
+        self.pos += 1;
+        let value = self.value()?;
+        let offset = key.offset;
+        let length = value.offset + value.length - offset;
+        Some(container(NodeType::Property, offset, length, vec![key, value]))
+    }
+}
+
+fn leaf(kind: NodeType, offset: usize, length: usize, text: Option<String>) -> Node {
+    Node { kind, offset, length, children: Vec::new(), text }
+}
+
+fn container(kind: NodeType, offset: usize, length: usize, children: Vec<Node>) -> Node {
+    Node { kind, offset, length, children, text: None }
 }
