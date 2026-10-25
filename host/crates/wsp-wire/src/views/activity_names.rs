@@ -90,7 +90,7 @@ fn not_a_name(word: &str) -> bool {
             && bytes[1..colon].iter().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'.' | b'-'))
             && bytes[colon + 1..].starts_with(b"//")
     });
-    let git = word.len() >= 4 && word[..4].eq_ignore_ascii_case("git+");
+    let git = bytes.len() >= 4 && bytes[..4].eq_ignore_ascii_case(b"git+");
     let version = {
         let digits = word.strip_prefix(['v', 'V']).unwrap_or(word);
         digits.split('.').all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
@@ -98,10 +98,10 @@ fn not_a_name(word: &str) -> bool {
     scheme || git || version
 }
 
-/// `pkg.replace(/(?<=.)@[^@/]*$/, "")`: a trailing `@version` goes, a leading `@scope` stays.
+/// `pkg.replace(/(?<=.)@[^@/]*$/, "")`: a trailing `@version` goes, a leading `@scope` stays, and `.` is no line break.
 fn strip_version(pkg: &str) -> &str {
     match pkg.rfind('@') {
-        Some(at) if at > 0 && !pkg[at..].contains('/') => &pkg[..at],
+        Some(at) if !pkg[at..].contains('/') && pkg[..at].chars().next_back().is_some_and(|c| !matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}')) => &pkg[..at],
         _ => pkg,
     }
 }
