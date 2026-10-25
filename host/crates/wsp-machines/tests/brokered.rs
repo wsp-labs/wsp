@@ -7,9 +7,9 @@ mod common;
 use std::cell::RefCell;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use futures::FutureExt;
 use indexmap::IndexMap;
 use serde_json::Value;
@@ -261,42 +261,42 @@ fn terminal_sign_in_reads_codex_without_a_token_first() {
 struct Quiet;
 
 impl ExecStream for Quiet {
-    fn lines(&self) -> futures::stream::BoxStream<'static, Result<String, ExecFailure>> {
-        futures::StreamExt::boxed(futures::stream::empty())
+    fn lines(&self) -> futures::stream::LocalBoxStream<'static, Result<String, ExecFailure>> {
+        futures::StreamExt::boxed_local(futures::stream::empty())
     }
     fn teardown(&self) {}
     fn kill(&self) {}
-    fn write(&self, _line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
-        async { Ok(WriteOutcome::Written) }.boxed()
+    fn write(&self, _line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+        async { Ok(WriteOutcome::Written) }.boxed_local()
     }
     fn close_input(&self) {}
     fn exited(&self) -> SharedFuture<Option<i32>> {
-        async { Some(0) }.boxed().shared()
+        async { Some(0) }.boxed_local().shared()
     }
 }
 
 /// A road that records what it was asked to launch; with `extras` it has `attach` and `sweep`, as the oracle's does.
 struct Road {
-    launched: Mutex<Vec<(String, Env)>>,
+    launched: RefCell<Vec<(String, Env)>>,
     extras: bool,
 }
 
 impl Road {
     fn new(extras: bool) -> Arc<Road> {
-        Arc::new(Road { launched: Mutex::new(Vec::new()), extras })
+        Arc::new(Road { launched: RefCell::new(Vec::new()), extras })
     }
 }
 
 impl ExecStreamFactory for Road {
     fn launch(&self, command: &str, options: ExecOptions) -> Arc<dyn ExecStream> {
-        self.launched.lock().unwrap().push((command.to_string(), options.env));
+        self.launched.borrow_mut().push((command.to_string(), options.env));
         Arc::new(Quiet)
     }
-    fn attach(&self, _run: &str, _options: AttachRunOptions) -> Option<BoxFuture<'static, Result<Attached, ExecFailure>>> {
-        self.extras.then(|| async { Ok(Attached::Gone) }.boxed())
+    fn attach(&self, _run: &str, _options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
+        self.extras.then(|| async { Ok(Attached::Gone) }.boxed_local())
     }
-    fn sweep(&self, _keep: &[String]) -> Option<BoxFuture<'static, Result<Vec<String>, ExecFailure>>> {
-        self.extras.then(|| async { Ok(vec!["swept".to_string()]) }.boxed())
+    fn sweep(&self, _keep: &[String]) -> Option<LocalBoxFuture<'static, Result<Vec<String>, ExecFailure>>> {
+        self.extras.then(|| async { Ok(vec!["swept".to_string()]) }.boxed_local())
     }
 }
 
@@ -316,7 +316,7 @@ fn with_gh_door_prefixes_only_the_exact_gh_dir() {
         wrapped.launch("echo hi", with_env(&[("GH_CONFIG_DIR", gh_dir)]));
         wrapped.launch("echo hi", with_env(&[("GH_CONFIG_DIR", trailing)]));
         wrapped.launch("echo hi", with_env(&[]));
-        let got = road.launched.lock().unwrap().clone();
+        let got = road.launched.borrow().clone();
         assert_eq!(got.len(), launched.len());
         for (i, (command, env)) in got.iter().enumerate() {
             assert_eq!(command, launched[i]["command"].as_str().unwrap(), "launch {i}");

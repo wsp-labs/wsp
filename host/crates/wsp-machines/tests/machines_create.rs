@@ -351,13 +351,13 @@ fn fork_binds_before_the_claim_is_released() {
     common::run_local(async {
         let w = World::new(Opts::default());
         w.rt.cfg.borrow_mut().names_workspace = true;
-        let mut record = record_with(json!({}));
+        let record = support::shared(record_with(json!({})));
         let bound: Rc<RefCell<Vec<(String, Vec<String>, Value, String)>>> = Rc::default();
         let (sink, area, store) = (bound.clone(), w.area.clone(), w.store.clone());
         let bind = move |m: &Arc<dyn Machine>, r: &WorkspaceRecord| {
             sink.borrow_mut().push((m.id().to_string(), area.inflight(), store.table("creates"), r.id.clone()));
         };
-        let machine = w.area.fork(&mut record, &bind, None, None, false).await.expect("the fork lands");
+        let machine = w.area.fork(&record, &bind, None, None, false).await.expect("the fork lands");
 
         assert_eq!(machine.id(), "m-made");
         assert_eq!(
@@ -387,8 +387,8 @@ fn fork_at_a_place_without_the_image_says_where_it_would_land() {
             cfg.names_workspace = true;
             cfg.image = ImageRead { version: None };
         }
-        let mut record = record_with(json!({ "place": "pl1", "golden": "snap_g" }));
-        let err = w.area.fork(&mut record, &|_m, _r| {}, None, None, false).await.err().expect("the fork is refused");
+        let record = support::shared(record_with(json!({ "place": "pl1", "golden": "snap_g" })));
+        let err = w.area.fork(&record, &|_m, _r| {}, None, None, false).await.err().expect("the fork is refused");
         let made = w.backend.created();
         let asked = made[0].from_snapshot.clone().or(made[0].template.clone()).unwrap_or_else(|| "snap_g".into());
         assert_eq!(err.message, wsp_wire::wire::machine_link::place_holds_no_image_line("name-of-pl1", &asked));
@@ -401,15 +401,15 @@ fn fork_at_a_place_without_the_image_says_where_it_would_land() {
             cfg.keeps_images = true;
             cfg.names_workspace = true;
         }
-        let mut here = record_with(json!({ "golden": "snap_g" }));
-        let err = own.area.fork(&mut here, &|_m, _r| {}, None, None, false).await.err().expect("the fork is refused");
+        let here = support::shared(record_with(json!({ "golden": "snap_g" })));
+        let err = own.area.fork(&here, &|_m, _r| {}, None, None, false).await.err().expect("the fork is refused");
         assert_eq!(err.message, "404 not found");
 
         // A computer that keeps no image has no image to be missing.
         let bare = World::new(Opts { backend: Some(refusing()), ..Default::default() });
         bare.rt.cfg.borrow_mut().names_workspace = true;
-        let mut there = record_with(json!({ "place": "pl1", "golden": "snap_g" }));
-        let err = bare.area.fork(&mut there, &|_m, _r| {}, None, None, false).await.err().expect("the fork is refused");
+        let there = support::shared(record_with(json!({ "place": "pl1", "golden": "snap_g" })));
+        let err = bare.area.fork(&there, &|_m, _r| {}, None, None, false).await.err().expect("the fork is refused");
         assert_eq!(err.message, "404 not found");
     })
 }
@@ -429,12 +429,12 @@ fn fork_writes_shape_size_and_screen_and_deletes_what_is_absent() {
             cfg.shape = Some(shaped.clone());
             cfg.size_built = Some(built.clone());
         }
-        let mut record = record_with(json!({ "npmBin": "/old/bin", "screen": { "streamUrl": "https://old" } }));
-        w.area.fork(&mut record, &|_m, _r| {}, None, None, true).await.expect("the fork lands");
-        assert_eq!(record.shape, Some(shaped.clone()), "the shape the provider reports");
-        assert_eq!(record.size, built, "the size the shape and the ask came to");
-        assert_eq!(record.screen.as_ref().map(|s| s.stream_url.as_str()), Some("https://stream"));
-        assert_eq!(record.npm_bin, None, "no image says no npm bin: the old one goes");
+        let record = support::shared(record_with(json!({ "npmBin": "/old/bin", "screen": { "streamUrl": "https://old" } })));
+        w.area.fork(&record, &|_m, _r| {}, None, None, true).await.expect("the fork lands");
+        assert_eq!(record.borrow().shape, Some(shaped.clone()), "the shape the provider reports");
+        assert_eq!(record.borrow().size, built, "the size the shape and the ask came to");
+        assert_eq!(record.borrow().screen.as_ref().map(|s| s.stream_url.as_str()), Some("https://stream"));
+        assert_eq!(record.borrow().npm_bin, None, "no image says no npm bin: the old one goes");
         {
             let cfg = w.rt.cfg.borrow();
             assert_eq!(cfg.size_built_calls.len(), 1);
@@ -446,17 +446,17 @@ fn fork_writes_shape_size_and_screen_and_deletes_what_is_absent() {
         // The next machine reports no shape and has no stream: both keys go, and nothing is read where the caller said so.
         let bare = World::new(Opts::default());
         bare.rt.cfg.borrow_mut().names_workspace = true;
-        let mut again = record_with(json!({ "shape": { "cpu": 2, "memMb": 4096 }, "screen": { "streamUrl": "https://old" } }));
-        bare.area.fork(&mut again, &|_m, _r| {}, None, None, false).await.expect("the fork lands");
-        assert_eq!(again.shape, None);
-        assert_eq!(again.screen, None);
+        let again = support::shared(record_with(json!({ "shape": { "cpu": 2, "memMb": 4096 }, "screen": { "streamUrl": "https://old" } })));
+        bare.area.fork(&again, &|_m, _r| {}, None, None, false).await.expect("the fork lands");
+        assert_eq!(again.borrow().shape, None);
+        assert_eq!(again.borrow().screen, None);
         assert!(bare.rt.cfg.borrow().read_memory_calls.is_empty(), "reads_memory off reads nothing");
 
         // A fork at a place never reads memory.
         let placed = World::new(Opts::default());
         placed.rt.cfg.borrow_mut().names_workspace = true;
-        let mut at_place = record_with(json!({ "place": "pl1" }));
-        placed.area.fork(&mut at_place, &|_m, _r| {}, None, None, true).await.expect("the fork lands");
+        let at_place = support::shared(record_with(json!({ "place": "pl1" })));
+        placed.area.fork(&at_place, &|_m, _r| {}, None, None, true).await.expect("the fork lands");
         assert!(placed.rt.cfg.borrow().read_memory_calls.is_empty());
     })
 }

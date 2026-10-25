@@ -135,7 +135,7 @@ pub trait BootRuntime {
 
     // The machines area.
     fn observed(&self, machine: Arc<dyn Machine>) -> Arc<dyn Machine>;
-    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry;
+    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry;
     async fn mark_gone(&self, entry: &Entry, machine_id: &str, reason: &str) -> Result<GoneOutcome, HostError>;
     fn idle_touch(&self, workspace_id: &str);
     fn sync_daemon(&self, entry: &Entry);
@@ -149,7 +149,7 @@ pub trait BootRuntime {
     fn door_backend_of(&self, place: &str) -> Option<Arc<dyn MachineBackend>>;
     /// `imageOf(golden).version?.kind`.
     async fn image_kind(&self, golden: &str) -> Result<Option<wsp_wire::views::golden_image::MachineKind>, HostError>;
-    fn attach_queued(&self, record: WorkspaceRecord);
+    fn attach_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>);
 
     // The start's other steps (boot.ts:343-618), in the order ready() calls them.
     async fn migrate_copies(&self) -> Result<(), HostError>;

@@ -22,23 +22,7 @@ use wsp_words::exit::HostError;
 
 use super::machines::{Entry, Ids, Row, Unreached};
 
-/// Where a detached message went (context.ts:721 `DetachedSend`).
-#[derive(Clone, Debug, PartialEq)]
-pub struct DetachedSend {
-    pub outcome: DetachedOutcome,
-    pub thread_id: String,
-    pub harness: String,
-    pub capped: Option<ThreadCapWait>,
-}
-
-/// `"steered" | "queued" | "started" | "held"`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DetachedOutcome {
-    Steered,
-    Queued,
-    Started,
-    Held,
-}
+pub use wsp_core::context::{DetachedOutcome, DetachedSend};
 
 /// What `sessions.start` is asked by a detached send (daemon.ts:32).
 pub struct DetachedStart {
