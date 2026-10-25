@@ -319,11 +319,7 @@ impl Palette {
             Go::Task { workspace, thread } | Go::Thread { workspace, thread } => {
                 navigate(Route::Thread { workspace_id: workspace, thread_id: thread }, cx);
             }
-            Go::Project(id) => {
-                if let Some(workspace) = self.seen.projects.iter().find(|p| p.id == id).and_then(|p| p.workspace.clone()) {
-                    crate::screens::app_shell::open_home(workspace, cx);
-                }
-            }
+            Go::Project(id) => crate::screens::app_shell::open_home(home_of_pick(&self.seen.projects, &id), cx),
             Go::Act(index) => {
                 let (Some((key, act)), Some(sidebar)) = (self.acts.get(index).cloned(), self.sidebar.as_ref().and_then(|s| s.upgrade()))
                 else {
@@ -540,6 +536,13 @@ fn read(s: &Sidebar, route: Option<&Route>, connected: bool, rules: &[Bound], ma
     let level = s.level_len();
     let seen = Seen { connected, asks, projects, tasks, threads, open, walk, level, acts, labels: labels(rules, mac) };
     (seen, runs)
+}
+
+/// The page a project picked on the New thread page opens: its workspace's, else, where nobody has run a thread on it
+/// yet, the project's own, whose first send makes the workspace.
+pub(crate) fn home_of_pick(projects: &[items::Project], id: &str) -> String {
+    let at = projects.iter().find(|p| p.id == id).and_then(|p| p.workspace.clone());
+    at.unwrap_or_else(|| format!("{}{id}", crate::screens::composer::screen::PROJECT_ARG))
 }
 
 /// `newThreadAsks`: New thread asks for its project every time, and the host holds more than one to pick.

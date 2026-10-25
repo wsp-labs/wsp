@@ -697,7 +697,7 @@ fn the_new_thread_pages_drawer_becomes_the_started_threads_and_a_fresh_page_gets
     let runtime = runtime();
     let client = Arc::new(runtime.block_on(host.client()));
     let composer_host = desktop_gpui::screens::Host::new(client, runtime.clone());
-    let target = Target { workspace_id: workspace.clone(), thread_id: None };
+    let target = Target { workspace_id: workspace.clone(), thread_id: None, project: None };
     let opened = runtime.block_on(ComposerLink::read(&composer_host, &target)).unwrap_or_else(|f| panic!("{}", f.message));
     let composer = cx.update(|window, cx| cx.new(|cx| Composer::new(window, cx)));
     let _link = cx.update(|window, cx| {
@@ -1135,7 +1135,7 @@ fn a_first_send_with_no_terminal_open_dials_no_channel(cx: &mut TestAppContext) 
     let page = Route::Screen(format!("composer:{workspace}").into());
     let runtime = runtime();
     let composer_host = desktop_gpui::screens::Host::new(Arc::new(runtime.block_on(host.client())), runtime.clone());
-    let target = Target { workspace_id: workspace.clone(), thread_id: None };
+    let target = Target { workspace_id: workspace.clone(), thread_id: None, project: None };
     let opened = runtime.block_on(ComposerLink::read(&composer_host, &target)).unwrap_or_else(|f| panic!("{}", f.message));
     let composer = cx.update(|window, cx| cx.new(|cx| Composer::new(window, cx)));
     let _link = cx.update(|window, cx| {

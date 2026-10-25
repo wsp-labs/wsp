@@ -25,16 +25,32 @@ use crate::screens::thread_view::Carried;
 use crate::screens::{navigate, Host, Route};
 
 /// The thread the composer writes into: its workspace, and its id once it has one.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Target {
     pub workspace_id: String,
     pub thread_id: Option<String>,
+    /// A project with no workspace yet (`ProjectHome`): its first send names the project, and the host makes the
+    /// workspace it runs on.
+    pub project: Option<String>,
 }
 
 impl Target {
-    /// The key the composer keeps the thread's draft and queue under: its id, or its workspace's before it has one.
+    /// The key the composer keeps the thread's draft and queue under: its id, or its workspace's or project's before
+    /// it has one.
     pub fn key(&self) -> String {
-        self.thread_id.clone().unwrap_or_else(|| self.workspace_id.clone())
+        match (&self.thread_id, &self.project) {
+            (Some(thread), _) => thread.clone(),
+            (None, Some(project)) if self.workspace_id.is_empty() => format!("{}{project}", super::screen::PROJECT_ARG),
+            (None, _) => self.workspace_id.clone(),
+        }
+    }
+
+    /// What a host read names the target by: its workspace, else its project.
+    fn named(&self) -> Value {
+        match &self.project {
+            Some(project) if self.workspace_id.is_empty() => json!({ "project": project }),
+            _ => json!({ "workspaceId": self.workspace_id }),
+        }
     }
 }
 
@@ -402,7 +418,7 @@ impl Link {
     pub async fn read_facts(host: &Host, target: &Target, known: Known) -> Result<Opened, Failure> {
         let agents = match known.agents {
             Some(agents) => agents,
-            None => agents_of(host, &target.workspace_id).await?,
+            None => agents_of(host, target).await?,
         };
         // Rows kept from before the thread was made hold none of it: read them again.
         let holds =
@@ -417,7 +433,7 @@ impl Link {
 
     /// Reads what the composer needs for `target`, from the agents to the transcript.
     pub async fn read(host: &Host, target: &Target) -> Result<Opened, Failure> {
-        let agents = agents_of(host, &target.workspace_id).await?;
+        let agents = agents_of(host, target).await?;
         let (rows, history) = match &target.thread_id {
             Some(thread) => {
                 let rows = rows_of(host, &target.workspace_id, thread).await?;
@@ -889,6 +905,10 @@ impl Link {
             return;
         }
         self.target.thread_id = session.thread_id.clone().or_else(|| Some(session.id.clone()));
+        // A project's first send runs on the workspace the host made for it.
+        if self.target.workspace_id.is_empty() {
+            self.target.workspace_id = session.workspace_id.clone();
+        }
         crate::screens::terminal::carry_new_thread(&self.target.workspace_id, self.target.thread_id.as_deref().unwrap_or_default(), cx);
         self.rows = vec![session];
         if let (Some(composer), Some(thread)) = (self.composer.upgrade(), self.target.thread_id.clone()) {
@@ -1165,8 +1185,8 @@ async fn sessions_of(host: &Host, workspace_id: &str) -> Result<Vec<SessionView>
 }
 
 /// The agents a workspace offers and their choices.
-async fn agents_of(host: &Host, workspace_id: &str) -> Result<Vec<Agent>, Failure> {
-    let listed = call(host, request::<protocol::HarnessesListRequest>(json!({ "workspaceId": workspace_id }))?).await?;
+async fn agents_of(host: &Host, target: &Target) -> Result<Vec<Agent>, Failure> {
+    let listed = call(host, request::<protocol::HarnessesListRequest>(target.named())?).await?;
     Ok(listed.harnesses.iter().filter_map(Agent::read).collect())
 }
 
@@ -1236,7 +1256,7 @@ fn attachments(out: &Outgoing) -> Value {
 /// A fork's first send as the web app's `start()` writes it: no workspace and no thread, the source and its turn, the
 /// new branch where the person picked one, the picks a thread that ran takes, the files and Fast.
 pub fn fork_params(fork: &Fork, out: &Outgoing) -> Value {
-    let target = Target { workspace_id: String::new(), thread_id: None };
+    let target = Target::default();
     let mut params = start_params(&target, out, true);
     if let Some(params) = params.as_object_mut() {
         params.remove("workspaceId");
@@ -1254,7 +1274,9 @@ pub fn fork_params(fork: &Fork, out: &Outgoing) -> Value {
 /// `sessions.start` as the web app's `start()` writes it: a thread that has run keeps its agent and access, so only
 /// the model and reasoning go with it; a new thread carries everything.
 pub fn start_params(target: &Target, out: &Outgoing, ran: bool) -> Value {
-    let mut params = json!({ "workspaceId": target.workspace_id, "prompt": out.prompt, "requestId": request_id() });
+    let mut params = target.named();
+    params["prompt"] = Value::from(out.prompt.clone());
+    params["requestId"] = Value::from(request_id());
     let set = |params: &mut Value, key: &str, value: Option<&str>| {
         if let Some(value) = value {
             params[key] = Value::from(value);
@@ -1353,7 +1375,7 @@ mod tests {
 
     #[test]
     fn a_send_on_a_thread_that_ran_keeps_its_agent_and_access() {
-        let target = Target { workspace_id: "w".into(), thread_id: Some("t".into()) };
+        let target = Target { workspace_id: "w".into(), thread_id: Some("t".into()), project: None };
         let picks = Resolved {
             agent: Some(Agent { harness: "claude".into(), ..Default::default() }),
             model: Some(choice("opus")),
