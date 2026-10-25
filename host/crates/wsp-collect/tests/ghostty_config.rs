@@ -371,13 +371,37 @@ mod w2_oracle {
         }
     }
 
+    /// The five cases whose number text differs: the reply map writes an f64 as Rust does, not as `JSON.stringify` does
+    /// (accepted, serde_json's `arbitrary_precision` stays off). Each is (case name, what node printed, what the Rust
+    /// map prints); node's text is read off the TS at a3b870a6e on node 22.
+    const NUMBER_TEXT: [(&str, &str, &str); 5] = [
+        ("font-size = \"123456789012345680000\"", "\"fontSize\":123456789012345680000", "\"fontSize\":1.2345678901234568e+20"),
+        ("font-size = \"100000000000000000000\"", "\"fontSize\":100000000000000000000", "\"fontSize\":1e+20"),
+        ("font-size = \"1e20\"", "\"fontSize\":100000000000000000000", "\"fontSize\":1e+20"),
+        ("background-blur = \"99999999999999999999\"", "\"backgroundBlur\":100000000000000000000", "\"backgroundBlur\":1e+20"),
+        ("font-size = \"0.000001\"", "\"fontSize\":0.000001", "\"fontSize\":1e-6"),
+    ];
+
     #[test]
     fn every_config_reads_to_the_ts_answer_byte_for_byte_with_the_same_reads() {
+        let mut differing = Vec::new();
         for case in cases(&w2("ghostty_config"), "read_ghostty_config") {
             let h = host(&case["laptop"]);
             let got = block_on(read_ghostty_config(&h, scheme(&case["args"][0])));
-            assert_eq!(serde_json::to_string(&got).unwrap(), case["out_text"].as_str().unwrap(), "{}", case["name"]);
-            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+            let want = case["out_text"].as_str().unwrap();
+            let name = case["name"].as_str().unwrap();
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {name}");
+            let text = serde_json::to_string(&got).unwrap();
+            if text == want {
+                continue;
+            }
+            let (_, node, rust) = NUMBER_TEXT.iter().find(|(n, ..)| *n == name).unwrap_or_else(|| panic!("{name}: {text} is not {want}"));
+            assert!(want.contains(node), "{name}: node's text {node} is not in {want}");
+            assert_eq!(text, want.replace(node, rust), "{name}");
+            let as_numbers: Value = serde_json::from_str(want).unwrap();
+            assert_eq!(serde_json::to_value(&got).unwrap(), as_numbers, "{name}: the same numbers");
+            differing.push(name.to_string());
         }
+        assert_eq!(differing.len(), NUMBER_TEXT.len(), "{differing:?}");
     }
 }

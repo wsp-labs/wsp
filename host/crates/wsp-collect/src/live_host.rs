@@ -318,7 +318,8 @@ impl HostExec for NodeExec {
                 }
             }
             let env: Vec<(String, String)> = env.into_iter().collect();
-            spawn_run(cmd, args, &env, opts).await
+            // The Host seam has no error: a command node refuses reads as a command that failed.
+            spawn_run(cmd, args, &env, opts).await.unwrap_or(None)
         }
         .boxed_local()
     }
@@ -374,12 +375,102 @@ async fn read_pipe<R: AsyncRead + Unpin>(pipe: &mut Option<R>, buf: &mut [u8]) -
     }
 }
 
-/// One child as the leader of its own process group under exactly `env`, answered with its stdout on exit 0 and
-/// `None` otherwise; the group dies with the run, past the budget or once the child exits (spec rules 5 to 12).
-pub async fn spawn_run(cmd: &str, args: &[String], env: &[(String, String)], opts: RunOptions) -> Option<String> {
-    if opts.signal.as_ref().is_some_and(CancellationToken::is_cancelled) {
-        return None;
+/// What node's `spawn` throws for a command, an argument or an environment value it cannot take: a `TypeError` with
+/// the code `ERR_INVALID_ARG_VALUE`, which rejects the TS promise.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpawnRefusal {
+    pub message: String,
+}
+
+impl SpawnRefusal {
+    pub const CODE: &'static str = "ERR_INVALID_ARG_VALUE";
+}
+
+impl std::fmt::Display for SpawnRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
     }
+}
+
+impl std::error::Error for SpawnRefusal {}
+
+/// `util.inspect` of a string as node's argument errors print it: quoted with `'`, else `"`, else a backtick, cut
+/// at 128 UTF-16 units.
+fn inspect_string(s: &str) -> String {
+    let quote = if !s.contains('\'') {
+        '\''
+    } else if !s.contains('"') {
+        '"'
+    } else if !s.contains('`') && !s.contains("${") {
+        '`'
+    } else {
+        '\''
+    };
+    let mut out = String::new();
+    out.push(quote);
+    for c in s.chars() {
+        match c {
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            '\r' => out.push_str("\\r"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            '\u{b}' => out.push_str("\\v"),
+            '\\' => out.push_str("\\\\"),
+            c if c == quote && quote == '\'' => out.push_str("\\'"),
+            c if (c as u32) < 0x20 || (0x7f..=0x9f).contains(&(c as u32)) => out.push_str(&format!("\\x{:02X}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push(quote);
+    if out.encode_utf16().count() > 128 {
+        let cut: Vec<u16> = out.encode_utf16().take(128).collect();
+        return format!("{}...", String::from_utf16_lossy(&cut));
+    }
+    out
+}
+
+fn must_be_free_of_nul(value: &str, name: &str, property: bool) -> Result<(), SpawnRefusal> {
+    if !value.contains('\0') {
+        return Ok(());
+    }
+    let message = if property {
+        format!("The property '{name}' must be a string without null bytes. Received {}", inspect_string(value))
+    } else {
+        format!("The argument '{name}' must be a string without null bytes. Received {}", inspect_string(value))
+    };
+    Err(SpawnRefusal { message })
+}
+
+/// The checks node's `spawn` makes before it starts anything, in its order (child_process.js `normalizeSpawnArguments`).
+fn check_spawn(cmd: &str, args: &[String], env: &[(String, String)]) -> Result<(), SpawnRefusal> {
+    if cmd.is_empty() {
+        return Err(SpawnRefusal { message: "The argument 'file' cannot be empty. Received ''".to_string() });
+    }
+    must_be_free_of_nul(cmd, "file", false)?;
+    for (i, arg) in args.iter().enumerate() {
+        must_be_free_of_nul(arg, &format!("args[{i}]"), false)?;
+    }
+    for (key, value) in env {
+        let name = format!("options.env['{key}']");
+        must_be_free_of_nul(key, &name, true)?;
+        must_be_free_of_nul(value, &name, true)?;
+    }
+    Ok(())
+}
+
+/// One child as the leader of its own process group under exactly `env`, answered with its stdout on exit 0 and
+/// `None` otherwise; the group dies with the run, past the budget or once the child exits (spec rules 5 to 12). A
+/// signal already cancelled answers `None` first; then an empty command or a NUL byte is a refusal, as node throws it.
+pub async fn spawn_run(cmd: &str, args: &[String], env: &[(String, String)], opts: RunOptions) -> Result<Option<String>, SpawnRefusal> {
+    if opts.signal.as_ref().is_some_and(CancellationToken::is_cancelled) {
+        return Ok(None);
+    }
+    check_spawn(cmd, args, env)?;
+    Ok(spawn_checked(cmd, args, env, opts).await)
+}
+
+async fn spawn_checked(cmd: &str, args: &[String], env: &[(String, String)], opts: RunOptions) -> Option<String> {
     let mut command = tokio::process::Command::new(cmd);
     command.args(args).env_clear().envs(env.iter().map(|(k, v)| (k, v))).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     // SAFETY: between fork and exec the only call is setsid, which is async-signal-safe.

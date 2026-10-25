@@ -14,7 +14,7 @@ use futures::StreamExt;
 use indexmap::IndexMap;
 use tokio_util::sync::CancellationToken;
 use wsp_collect::host::{HostExec, HostFs, Platform, RunOptions, StatKind};
-use wsp_collect::live_host::{children_of, on_path, platform_of, spawn_run, NodeExec, NodeFs};
+use wsp_collect::live_host::{children_of, on_path, platform_of, spawn_run, NodeExec, NodeFs, SpawnRefusal};
 
 /// Every pid a test recorded is killed when the test ends, as the TS afterEach does.
 #[derive(Default)]
@@ -349,7 +349,7 @@ async fn a_child_killed_by_a_signal_answers_nothing_even_with_output() {
 async fn the_child_runs_under_exactly_the_environment_it_is_given() {
     within(async {
         let given = vec![("A".to_string(), "1".to_string())];
-        let out = spawn_run("/bin/sh", &sv(&["-c", "echo \"[$A][$HOME]\""]), &given, RunOptions::default()).await;
+        let out = spawn_run("/bin/sh", &sv(&["-c", "echo \"[$A][$HOME]\""]), &given, RunOptions::default()).await.unwrap();
         assert_eq!(out, Some("[1][]\n".to_string()));
     })
     .await;
@@ -605,7 +605,7 @@ mod w2_processes {
 
     async fn timed(cmd: &str, args: &[&str], opts: RunOptions) -> (Option<String>, u128) {
         let start = Instant::now();
-        let out = within(spawn_run(cmd, &sv(args), &[("PATH".to_string(), "/usr/bin:/bin".to_string())], opts)).await;
+        let out = within(spawn_run(cmd, &sv(args), &[("PATH".to_string(), "/usr/bin:/bin".to_string())], opts)).await.unwrap();
         (out, start.elapsed().as_millis())
     }
 
@@ -661,7 +661,7 @@ mod w2_processes {
             let args = sv(&["-c", &script]);
             let env = [("PATH".to_string(), "/usr/bin:/bin".to_string())];
             let run = spawn_run("/bin/sh", &args, &env, RunOptions { signal: Some(stop.clone()), ..Default::default() });
-            let (out, job) = tokio::join!(run, async {
+            let (out, job) = tokio::join!(async { run.await.unwrap() }, async {
                 let job = pid_in(&pids, &d.path().join("j")).await;
                 tokio::time::sleep(Duration::from_millis(300)).await;
                 stop.cancel();
@@ -674,7 +674,7 @@ mod w2_processes {
 
             let d = tempfile::tempdir().unwrap();
             let script = format!("setsid sleep 100 & echo $! > {}; sleep 100", d.path().join("j").display());
-            let out = spawn_run("/bin/sh", &sv(&["-c", &script]), &[("PATH".into(), "/usr/bin:/bin".into())], budget(300)).await;
+            let out = spawn_run("/bin/sh", &sv(&["-c", &script]), &[("PATH".into(), "/usr/bin:/bin".into())], budget(300)).await.unwrap();
             assert_eq!(out, None);
             let job = pid_in(&pids, &d.path().join("j")).await;
             tokio::time::sleep(Duration::from_millis(300)).await;
@@ -704,14 +704,60 @@ mod w2_processes {
         assert_eq!(out.as_deref(), Some(""));
     }
 
-    /// Node rejects these synchronously; the Rust answers `None` (spec live_host rule 8, accepted difference).
+    /// Node throws these before it spawns, so the TS promise rejects with `TypeError [ERR_INVALID_ARG_VALUE]`; each
+    /// message below is what `spawnRun` rejected with on node 22.23, in node's checking order (spec live_host rule 8).
+    async fn refused(cmd: &str, args: &[&str], env: &[(&str, &str)]) -> String {
+        let env: Vec<(String, String)> = env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        within(spawn_run(cmd, &sv(args), &env, RunOptions::default())).await.expect_err("node refuses this").message
+    }
+
     #[tokio::test(flavor = "current_thread")]
-    async fn an_empty_command_or_a_nul_in_a_word_answers_nothing() {
-        assert_eq!(timed("", &[], RunOptions::default()).await.0, None);
-        assert_eq!(timed("/bin/echo", &["a\0b"], RunOptions::default()).await.0, None);
-        assert_eq!(timed("/bin/ec\0ho", &["a"], RunOptions::default()).await.0, None);
-        let out = within(spawn_run("/bin/echo", &sv(&["a"]), &[("A".into(), "x\0y".into())], RunOptions::default())).await;
-        assert_eq!(out, None);
+    async fn an_empty_command_or_a_nul_in_a_word_is_refused_as_node_refuses_it() {
+        assert_eq!(SpawnRefusal::CODE, "ERR_INVALID_ARG_VALUE");
+        assert_eq!(refused("", &[], &[]).await, "The argument 'file' cannot be empty. Received ''");
+        assert_eq!(refused("", &["x"], &[]).await, "The argument 'file' cannot be empty. Received ''");
+        assert_eq!(refused("", &["a\0"], &[]).await, "The argument 'file' cannot be empty. Received ''");
+        assert_eq!(
+            refused("/bin/echo", &["a\0b"], &[]).await,
+            "The argument 'args[0]' must be a string without null bytes. Received 'a\\x00b'"
+        );
+        assert_eq!(
+            refused("/bin/echo", &["ok", "b\0"], &[("A", "x\0")]).await,
+            "The argument 'args[1]' must be a string without null bytes. Received 'b\\x00'"
+        );
+        assert_eq!(
+            refused("/bin/ec\0ho", &["a"], &[]).await,
+            "The argument 'file' must be a string without null bytes. Received '/bin/ec\\x00ho'"
+        );
+        assert_eq!(
+            refused("/bin/echo", &["a"], &[("A", "x\0y")]).await,
+            "The property 'options.env['A']' must be a string without null bytes. Received 'x\\x00y'"
+        );
+        assert_eq!(
+            refused("/bin/echo", &[], &[("K\0", "v")]).await,
+            "The property 'options.env['K\0']' must be a string without null bytes. Received 'K\\x00'"
+        );
+        assert_eq!(
+            refused("/bin/echo", &["a'b\0\n\\\u{1}"], &[]).await,
+            "The argument 'args[0]' must be a string without null bytes. Received \"a'b\\x00\\n\\\\\\x01\""
+        );
+        assert_eq!(
+            refused("/bin/echo", &["a\"'\0"], &[]).await,
+            "The argument 'args[0]' must be a string without null bytes. Received `a\"'\\x00`"
+        );
+        assert_eq!(
+            refused("/bin/echo", &["\u{e9}\0\u{1F600}\u{7f}\u{80}"], &[]).await,
+            "The argument 'args[0]' must be a string without null bytes. Received '\u{e9}\\x00\u{1F600}\\x7F\\x80'"
+        );
+        let long = format!("{}\0", "x".repeat(200));
+        assert_eq!(
+            refused(&long, &[], &[]).await,
+            format!("The argument 'file' must be a string without null bytes. Received '{}...", "x".repeat(127))
+        );
+        let stop = CancellationToken::new();
+        stop.cancel();
+        let cancelled = RunOptions { signal: Some(stop), ..Default::default() };
+        assert_eq!(within(spawn_run("", &[], &[], cancelled)).await, Ok(None));
         assert_eq!(timed("/nonexistent/wsp-bin", &[], RunOptions::default()).await.0, None);
         assert_eq!(timed("/tmp", &[], RunOptions::default()).await.0, None);
     }
