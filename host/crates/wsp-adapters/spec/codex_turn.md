@@ -192,6 +192,9 @@ still runs, and answers steer, approval, stop-one-subagent, interrupt and kept.
   `turn.done` (`before: 900`, no `after` where no usage followed it).
 - **CT16.** A stop while `prompt_after` is pending: no turn id, so the run ends at once; no `turn/start` is ever written; events
   `session.start` (unprompted), `turn.done {interrupted}`, `session.end`.
+- **CT17.** A stop the server answers with `turn/completed interrupted` while it never exits: `wsp-interrupt-1` is written, `finish`
+  closes stdin and runs its own `end_after_result(result_exit_ms, grace)` beside the interrupt's `end_after_result(grace, grace)`;
+  with equal waits the order is `teardown, teardown, kill`, and `session.end` reads `exitCode: null, sawResult: true`.
 
 ## Recorded sessions
 The record is the fixtures, codex-cli's own output: `app-server-turn.jsonl` (0.155.1, a signed-in turn that asked for a command, was
@@ -252,3 +255,4 @@ side question, a kept server's second turn, and an attach replay with `from` abo
   `an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_reason_is_steered_after_the_decision` (CT13).
 - CT14 to CT16: `codex_turn_edges.rs` `the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_never_by_a_request_a_response_or_stderr`,
   `a_kept_turn_writes_its_unsubscribe_and_says_its_compaction_before_turn_done`, `a_stop_before_the_prompt_is_due_sends_no_turn_and_ends_interrupted`.
+- CT17: `codex_turn_edges.rs` `a_stop_on_a_server_that_never_exits_tears_it_down_once_per_end_wait_then_kills_it_once`.
