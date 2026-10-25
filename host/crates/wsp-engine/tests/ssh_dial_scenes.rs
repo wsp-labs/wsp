@@ -61,9 +61,14 @@ fn fake_child() -> (HeldChild, Fake) {
     (child, Fake { stdout: Some(stdout_w), stderr: Some(stderr_w), _stdin: stdin_r, end: Some(end_tx) })
 }
 
+/// ssh-backend.ts:329-336: the holder drains its child's pipes from the moment it starts, on a local task.
+async fn forward(name: &str) {
+    tokio::task::LocalSet::new().run_until(forward_on_local_set(name)).await;
+}
+
 /// Writes the scene's steps to a fake child, each its own write with a pause after it, and holds them against what
 /// the TS's `up` and `ended` said.
-async fn forward(name: &str) {
+async fn forward_on_local_set(name: &str) {
     let want = find("forwards", name);
     let (child, mut fake) = fake_child();
     let slot = Mutex::new(Some(child));
