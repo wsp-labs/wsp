@@ -124,3 +124,43 @@ fn a_thread_behind_another_s_question_draws_that_question(cx: &mut TestAppContex
     );
     assert!(cx.debug_bounds("options").is_some(), "the borrowed question offers no answer");
 }
+
+/// An answered question too long for the column: the question wraps inside it and the answer stands under it, read
+/// whole, nothing past the column's edge.
+#[gpui_kit::test]
+fn a_long_answered_question_wraps_inside_the_column_with_its_answer_under_it(cx: &mut TestAppContext) {
+    let asked =
+        "If a developer reads only the first blog post and then closes the tab, what's the one thing you want them to believe about wsp?";
+    let typed = "Your setup follows you to every computer and every agent, and nothing about it has to be done twice";
+    let input = json!({"questions": [{"question": asked, "header": "Belief", "multiSelect": false, "options": [{"label": "Speed"}]}]});
+    let options = json!([{"id": "q0:o0", "label": "Speed", "effect": "answer"}]);
+    let picked = format!("q0:other:{}", typed.replace(' ', "%20"));
+    let events = vec![
+        base("session.start", 1, json!({"prompt": "go"})),
+        base("session.permission", 2, json!({"askId": "w", "toolName": "AskUserQuestion", "input": input.to_string(), "options": options})),
+        base("session.permission.closed", 3, json!({"askId": "w", "outcome": "allowed", "optionId": picked})),
+    ];
+    let (view, cx) = window(events, cx);
+    cx.simulate_resize(size(px(520.), px(1000.)));
+    cx.run_until_parked();
+    let row = frame(&view, cx, |k| matches!(k, RowKind::Question { .. }));
+    let (said, answer) = (bounds(cx, "record-says"), bounds(cx, "record-outcome"));
+    assert!(said.right() <= row.right() && answer.right() <= row.right(), "past the column's {:?}: {said:?} {answer:?}", row.right());
+    assert!(said.size.height > crate::screens::thread_view::rows::SM.1, "the question wraps: {said:?}");
+    assert!(answer.top() >= said.bottom(), "the answer under the question: {said:?} {answer:?}");
+    assert!(answer.size.height > crate::screens::thread_view::rows::SM.1, "the answer wraps, read whole: {answer:?}");
+}
+
+/// A short answered question keeps its one line: the question, then the answer after it.
+#[gpui_kit::test]
+fn a_short_answered_question_is_one_line(cx: &mut TestAppContext) {
+    let mut events = question(false);
+    if let Some(SessionEvent::SessionPermission { parent_tool_use_id, .. }) = events.last_mut() {
+        *parent_tool_use_id = None;
+    }
+    events.push(base("session.permission.closed", 3, json!({"askId": "w", "outcome": "allowed", "optionId": "q0:o1"})));
+    let (_, cx) = window(events, cx);
+    let (said, answer) = (bounds(cx, "record-says"), bounds(cx, "record-outcome"));
+    assert_eq!((said.top(), answer.top()), (said.top(), said.top()), "one line: {said:?} {answer:?}");
+    assert_eq!(answer.left() - said.right(), px(6.), "the answer 6 px after the question");
+}

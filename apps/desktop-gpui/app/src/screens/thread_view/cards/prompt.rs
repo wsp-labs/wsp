@@ -135,10 +135,13 @@ pub(super) fn prompt(
         .into_any_element()
 }
 
-/// `RecordRow`: the glyph in its slot, what was asked on one line, and what was picked after it.
+/// `RecordRow`: the glyph in its slot, what was asked, and what was picked after it. Words too long for the column
+/// wrap in it, and the pick goes under them, so a long answer stays read whole.
 fn record(g: Glyph, says: &str, code: Option<&str>, outcome: Option<&str>, p: &Palette, cx: &App) -> impl IntoElement {
     let ink = if outcome.is_some() { p.foreground.opacity(0.8) } else { p.muted_foreground };
-    h_flex()
+    let outcome =
+        outcome.map(|o| div().debug_selector(|| "record-outcome".into()).min_w_0().text_color(p.muted_foreground).child(o.to_owned()));
+    let row = h_flex()
         .debug_selector(|| "record".into())
         .min_h(px(24.))
         .w_full()
@@ -148,9 +151,13 @@ fn record(g: Glyph, says: &str, code: Option<&str>, outcome: Option<&str>, p: &P
         .py(px(2.))
         .text_size(SM.0)
         .line_height(SM.1)
-        .child(icon_slot(g, p.muted_foreground))
-        .child(div().flex_none().text_color(ink).child(says.to_owned()))
-        .children(code.map(|code| {
+        .child(icon_slot(g, p.muted_foreground));
+    let Some(code) = code else {
+        let said = div().debug_selector(|| "record-says".into()).min_w_0().text_color(ink).child(says.to_owned());
+        return row.child(h_flex().flex_1().min_w_0().flex_wrap().gap_x(px(6.)).child(said).children(outcome));
+    };
+    row.child(div().flex_none().text_color(ink).child(says.to_owned()))
+        .child(
             div()
                 .flex_1()
                 .min_w_0()
@@ -160,9 +167,9 @@ fn record(g: Glyph, says: &str, code: Option<&str>, outcome: Option<&str>, p: &P
                 .text_size(XS.0)
                 .line_height(XS.1)
                 .text_color(ink)
-                .child(code.to_owned())
-        }))
-        .children(outcome.map(|o| div().flex_none().min_w_0().truncate().text_color(p.muted_foreground).child(o.to_owned())))
+                .child(code.to_owned()),
+        )
+        .children(outcome.map(|o| o.flex_none().truncate()))
 }
 
 /// An open consent: its lead, the fields the lead does not say, the file folded away, the options and any refusal.
