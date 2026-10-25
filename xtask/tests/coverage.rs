@@ -83,3 +83,43 @@ fn recording_some_tapes_leaves_the_rest_marked_as_recorded_from_the_tree_before(
     let said = check(p, &Refusing, &Options { jobs: 1, ..Options::default() }).unwrap().render();
     assert!(said.contains("run cargo xtask parity record"), "ws/b was recorded from the tree before the change: {said}");
 }
+
+/// A host that takes every op but auth and does nothing, as the TS host answers an interrupt of a turn it never held.
+struct Nothing;
+
+impl Host for Nothing {
+    fn name(&self) -> String {
+        "a host that holds nothing".into()
+    }
+
+    fn replay(&self, tape: &Tape, _: &mut Order) -> Result<Replay, String> {
+        let replies = tape
+            .ins
+            .iter()
+            .map(|f| match f["op"].as_str() {
+                Some("auth") => json!({ "id": f["id"], "ok": true }),
+                _ => json!({ "id": f["id"], "ok": true, "outcome": "not-found" }),
+            })
+            .collect();
+        Ok(Replay { replies, events: Vec::new(), facts: Facts::default() })
+    }
+}
+
+#[test]
+fn an_op_only_ever_answered_with_nothing_done_is_not_counted_as_answered() {
+    // sessions.interrupt, steer, answer and rename answer only "not-found" on every tape; devices.revoke, places.remove
+    // and appProcs.offer only revoked, removed or wanted false.
+    let dir = tempfile::tempdir().unwrap();
+    assert!(Command::new("git").args(["init", "-q"]).current_dir(dir.path()).status().unwrap().success());
+    let tape = dir.path().join("parity/tapes/sessions/interrupt.tape");
+    fs::create_dir_all(tape.parent().unwrap()).unwrap();
+    fs::write(
+        &tape,
+        format!("{}\n{}\n", json!({ "in": { "id": 1, "op": "auth" } }), json!({ "in": { "id": 2, "op": "sessions.interrupt" } })),
+    )
+    .unwrap();
+    let ops = vec!["auth".to_string(), "sessions.interrupt".to_string()];
+    record(dir.path(), &Nothing, &Options { jobs: 1, ..Options::default() }, &ops).unwrap();
+    let said = check(dir.path(), &Nothing, &Options { jobs: 1, ..Options::default() }).unwrap().render();
+    assert!(said.contains("2 of 2 host ops have a tape, 1 of them an answer"), "{said}");
+}

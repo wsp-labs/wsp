@@ -117,3 +117,92 @@ fn the_variable_the_copy_inside_is_given_does_not_turn_the_sandbox_off_for_a_cal
     let said = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     assert!(!said.contains("never said where it listens"), "the tapes ran in this computer's own mounts: {said}");
 }
+
+#[test]
+fn root_inside_cannot_make_the_root_of_the_disk_writable_again() {
+    let dir = outside();
+    // --options-source=disable: mount reads no fstab, where a LABEL= root would stop it before the kernel does.
+    let probe = r#"mount --options-source=disable -o remount,bind,rw / 2>/dev/null; test -w / && echo "remount,bind,rw / took: / takes writes again"
+true"#;
+    let Some((ran, said)) = inside(probe, &[("WSP_PARITY_WRITABLE", &parity(dir.path()))]) else { return };
+    assert!(ran, "{said}");
+    assert_eq!(said, "");
+}
+
+#[test]
+fn root_inside_cannot_take_its_own_proc_away_and_write_the_computers_disk_through_pid_1() {
+    let dir = outside();
+    // Under the run's own /proc sits the computer's, whose PID 1 roots in the computer's mounts, all writable there.
+    let probe = r#"umount /proc 2>/dev/null; test -w /proc/1/root/var/tmp && echo "the computer's /var/tmp takes writes through /proc/1/root"
+true"#;
+    let Some((ran, said)) = inside(probe, &[("WSP_PARITY_WRITABLE", &parity(dir.path()))]) else { return };
+    assert!(ran, "{said}");
+    assert_eq!(said, "");
+}
+
+#[test]
+fn root_inside_cannot_make_a_node_of_the_computers_disk_and_read_it() {
+    use std::os::unix::fs::MetadataExt;
+    let dir = outside();
+    let disk = Command::new("findmnt").args(["-no", "SOURCE", "/"]).output().unwrap();
+    let disk = String::from_utf8_lossy(&disk.stdout).trim().to_string();
+    let Ok(meta) = std::fs::metadata(&disk) else {
+        eprintln!("skipped: the root of the disk is no device here ({disk})");
+        return;
+    };
+    let (major, minor) = (libc::major(meta.rdev()), libc::minor(meta.rdev()));
+    let probe = format!(
+        r#"mknod /tmp/disk b {major} {minor} 2>/dev/null && [ "$(dd if=/tmp/disk bs=512 count=1 2>/dev/null | wc -c)" = 512 ] && echo "read the computer's disk through a node made in /tmp"
+true"#
+    );
+    let Some((ran, said)) = inside(&probe, &[("WSP_PARITY_WRITABLE", &parity(dir.path()))]) else { return };
+    assert!(ran, "{said}");
+    assert_eq!(said, "");
+}
+
+#[test]
+fn a_socket_the_computer_binds_after_the_sandbox_is_up_is_out_of_reach_too() {
+    use std::io::{BufRead, BufReader};
+    use std::process::Stdio;
+    // SAFETY: geteuid reads the process's own id and cannot fail.
+    if !cfg!(target_os = "linux") || unsafe { libc::geteuid() } != 0 || Command::new("python3").arg("-c").arg("1").output().is_err() {
+        eprintln!("skipped: the sandbox's walls are checked as root on Linux, with python3 to dial");
+        return;
+    }
+    let dir = outside();
+    // A run lasts minutes; a host or an ssh master that starts meanwhile binds where the scan at the start never looked.
+    let door = dir.path().join("late.sock");
+    let probe = r#"echo up; sleep 2; python3 -I -c 'import socket, sys; s = socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect(sys.argv[1])' "$DOOR" 2>/dev/null && echo "dialled a socket bound after the scan"
+true"#;
+    let mut child = Command::new("unshare")
+        .args(flags(true))
+        .args(["--", "/bin/sh", "-c", SCRIPT, "/bin/sh", "-c", probe])
+        .env("WSP_PARITY_WRITABLE", parity(dir.path()))
+        .env("DOOR", &door)
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("unshare");
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    assert_eq!(lines.next().and_then(Result::ok).as_deref(), Some("up"));
+    let _listening = UnixListener::bind(&door).unwrap();
+    let said: Vec<String> = lines.map_while(Result::ok).collect();
+    assert!(child.wait().unwrap().success());
+    assert_eq!(said, Vec::<String>::new());
+}
+
+#[test]
+fn a_collection_writes_its_checkout_but_no_file_outside_it_through_a_hard_link() {
+    let dir = outside();
+    // pnpm links every file of node_modules to its one store, so a write there lands in every checkout on the computer.
+    let (store, checkout) = (dir.path().join("store"), dir.path().join("checkout"));
+    std::fs::create_dir_all(&store).unwrap();
+    std::fs::create_dir_all(checkout.join("node_modules")).unwrap();
+    std::fs::write(store.join("index.js"), "kept\n").unwrap();
+    std::fs::hard_link(store.join("index.js"), checkout.join("node_modules/index.js")).unwrap();
+    let probe = r#"echo written > "$CHECKOUT/node_modules/index.js" 2>/dev/null
+true"#;
+    let checkout = checkout.display().to_string();
+    let Some((ran, said)) = inside(probe, &[("WSP_PARITY_WRITABLE", &checkout), ("CHECKOUT", &checkout)]) else { return };
+    assert!(ran, "{said}");
+    assert_eq!(std::fs::read_to_string(store.join("index.js")).unwrap(), "kept\n", "a write inside reached the store outside the checkout");
+}
