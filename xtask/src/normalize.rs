@@ -4,8 +4,10 @@
 //! code), a time its distance from the replay's start in whole minutes (`<time>` within the minute, `<time+10m>`, a
 //! midnight `<day-1>`), and the facts of the one run (its temp folder, port, pid, token, version, the computer's name)
 //! their placeholders. A key whose value is a reading that moves between two runs, as the disk's free bytes do, is
-//! blanked whole. What a person set, a product rule fixes or the computer holds is left to the diff: a wrong port gets
-//! those wrong. The names are the spec checker's (docs/rust-host-spec/checker), so a spec tape and a recorded one read
+//! blanked whole when it has the kind the TS host gives it. Only the value goes: a time not written as JavaScript
+//! writes one, or given as a number, says its form beside its placeholder, json lines keep how they are laid out, and an
+//! id the tape sent, or one a refusal says there is none of, stays as written. What a person set, a product rule fixes or
+//! the computer holds is left to the diff: a wrong port gets those wrong. The names are the spec checker's (docs/rust-host-spec/checker), so a spec tape and a recorded one read
 //! alike.
 
 use regex::Regex;
@@ -22,6 +24,8 @@ pub struct Facts {
     pub started: Option<i64>,
     /// Times the tape's own frames carry, in milliseconds: a host that echoes one back answers it the same each run.
     pub sent: std::collections::BTreeSet<i64>,
+    /// Ids the tape's own frames carry, which a host that names one back names the same each run.
+    pub sent_ids: std::collections::BTreeSet<String>,
 }
 
 impl Facts {
@@ -50,6 +54,9 @@ pub const MOVING_KEYS: &[&str] = &["diskFreeBytes", "load1", "uptime", "pid", "a
 /// read as a key on its own (a ticket of 32 letters with no digit) is one all the same.
 const BEARER_KEYS: &[&str] = &["ticket", "token", "deviceToken", "turnToken"];
 
+/// A time as JavaScript's `toISOString` writes it, which a time's placeholder stands for alone.
+const JS_TIME: &str = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$";
+
 /// Integers in this range are milliseconds since 1970: 2017 to 2049.
 pub const EPOCH_MS: std::ops::RangeInclusive<f64> = 1.5e12..=2.5e12;
 
@@ -67,6 +74,8 @@ struct Patterns {
     uptime: Regex,
     temp_name: Regex,
     node_pid: Regex,
+    js_time: Regex,
+    none_of: Regex,
 }
 
 fn patterns() -> &'static Patterns {
@@ -85,6 +94,8 @@ fn patterns() -> &'static Patterns {
         uptime: Regex::new(r"\bup \d+(?:\.\d+)?(?:ms|s|m|h)\b").expect("uptime"),
         temp_name: Regex::new(r"\b(wsp-[a-z0-9]+(?:-[a-z0-9]+)*-)([A-Za-z0-9]{6})\b").expect("temp name"),
         node_pid: Regex::new(r"\(node:\d+\)").expect("node pid"),
+        js_time: Regex::new(JS_TIME).expect("js time"),
+        none_of: Regex::new(r#"\bno (?:such )?[a-z]+(?: named)?:? "?$"#).expect("none of"),
     })
 }
 
@@ -121,6 +132,22 @@ fn whole_json(s: &str) -> Option<(Value, &'static str)> {
             _ => None,
         })?;
     Some((v, layout))
+}
+
+/// How json lines sit in what a command printed: each line's JSON as `<json>`, the newlines, carriage returns and blank
+/// lines between them as written.
+fn json_layout(text: &str) -> String {
+    text.split('\n')
+        .map(|seg| {
+            let core = seg.strip_suffix('\r').unwrap_or(seg);
+            if core.trim().is_empty() {
+                seg.to_string()
+            } else {
+                seg.replacen(core, "<json>", 1)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// What a command printed, when every line of it is one compact JSON value, as `--json` prints: the lines as values,
@@ -172,11 +199,13 @@ pub struct Normalizer {
     counts: HashMap<String, usize>,
     /// Off for events, whose order is not defined: an id first seen there reads `<id>` with no number.
     numbering: bool,
+    /// On while the answer being read is a refusal, whose "no such workspace: ws_..." names an id the host never minted.
+    refusal: bool,
 }
 
 impl Normalizer {
     pub fn new(facts: Facts) -> Normalizer {
-        Normalizer { facts, ids: HashMap::new(), counts: HashMap::new(), numbering: true }
+        Normalizer { facts, ids: HashMap::new(), counts: HashMap::new(), numbering: true, refusal: false }
     }
 
     /// A time read against the replay's start: within the minute either way it is `<time>`, a time on a whole hour is
@@ -215,7 +244,8 @@ impl Normalizer {
                 None => Value::String(self.string(s)),
             },
             Value::Number(n) if n.as_i64().is_some_and(|i| EPOCH_MS.contains(&(i as f64)) && !self.facts.sent.contains(&i)) => {
-                Value::String(self.time(n.as_i64().expect("an integer"), &n.to_string()))
+                let read = self.time(n.as_i64().expect("an integer"), &n.to_string());
+                Value::String(if read.starts_with('<') { format!("{} in ms>", read.trim_end_matches('>')) } else { read })
             }
             // The run's own port or pid given as a number.
             Value::Number(n) if self.facts.literals.iter().any(|(v, _)| *v == n.to_string()) => {
@@ -226,9 +256,11 @@ impl Normalizer {
             Value::Object(obj) => {
                 let mut out = Map::new();
                 for (k, val) in obj {
-                    let normalized = if MOVING_KEYS.contains(&k.as_str()) {
+                    let normalized = if MOVING_KEYS.contains(&k.as_str()) && val.is_number() {
                         Value::String("<moving>".into())
-                    } else if let Some(bearer) = val.as_str().filter(|b| BEARER_KEYS.contains(&k.as_str()) && !b.starts_with('<')) {
+                    } else if let Some(bearer) =
+                        val.as_str().filter(|b| BEARER_KEYS.contains(&k.as_str()) && !b.is_empty() && !b.starts_with('<'))
+                    {
                         Value::String(self.id(bearer, "id"))
                     } else if let Some(code) = val.as_str().filter(|c| k == "code" && patterns().pair_code.is_match(c)) {
                         // A pairing code, minted at random each run; a refusal's code is a word and is compared.
@@ -236,6 +268,7 @@ impl Normalizer {
                     } else if let Some(lines) = (k == "stdout").then(|| val.as_str().and_then(json_lines)).flatten() {
                         let mut out = Map::new();
                         out.insert("jsonLines".into(), Value::Array(lines.iter().map(|l| self.value(l)).collect()));
+                        out.insert("layout".into(), Value::String(json_layout(val.as_str().expect("text"))));
                         Value::Object(out)
                     } else {
                         self.value(val)
@@ -273,7 +306,11 @@ impl Normalizer {
         }
         let times: Vec<String> = p.time.find_iter(&out).map(|m| m.as_str().to_string()).collect();
         for t in times {
-            let read = iso_ms(&t).map(|ms| self.time(ms, &t)).unwrap_or_else(|| "<time>".into());
+            let mut read = iso_ms(&t).map(|ms| self.time(ms, &t)).unwrap_or_else(|| "<time>".into());
+            if read.starts_with('<') && !p.js_time.is_match(&t) {
+                let form: String = t.chars().map(|c| if c.is_ascii_digit() { 'd' } else { c }).collect();
+                read = format!("{} written {form}>", read.trim_end_matches('>'));
+            }
             out = out.replacen(&t, &read, 1);
         }
         out = p.node_pid.replace_all(&out, "(node:<pid>)").into_owned();
@@ -308,7 +345,11 @@ impl Normalizer {
                     || (m.bytes().any(|b| b.is_ascii_digit()) && m.bytes().any(|b| b.is_ascii_alphabetic()))
                     || (m.len() == 8 && m.bytes().all(|b| b.is_ascii_digit()))
             };
-            let found: Vec<String> = re.find_iter(&out).map(|m| m.as_str().to_string()).filter(|m| id_like(m)).collect();
+            let asked = |m: &regex::Match| {
+                kind.is_none() && self.refusal && !self.ids.contains_key(m.as_str()) && p.none_of.is_match(&out[..m.start()])
+            };
+            let found: Vec<String> =
+                re.find_iter(&out).filter(|m| id_like(m.as_str()) && !asked(m)).map(|m| m.as_str().to_string()).collect();
             for id in found {
                 let kind = kind.map(str::to_string).unwrap_or_else(|| id.split('_').next().unwrap_or("id").to_string());
                 let placeholder = self.id(&id, &kind);
@@ -319,6 +360,9 @@ impl Normalizer {
     }
 
     fn id(&mut self, raw: &str, kind: &str) -> String {
+        if self.facts.sent_ids.contains(raw) {
+            return raw.to_string();
+        }
         if let Some(known) = self.ids.get(raw) {
             return known.clone();
         }
@@ -404,43 +448,46 @@ fn moving_columns(text: &str) -> String {
     out.join("\n")
 }
 
-/// The port the host's door listens on, which the system hands it on each run: as `door.port` says it, and as the
-/// address a join line names.
-fn door_ports(v: &Value, facts: &mut Facts) {
+/// The port of a host a tape's own command started, in its status table: the system hands it on each run, and the
+/// replay never dialled it. The replay's own host's ports, its door's among them, are facts of the run.
+fn started_ports(v: &Value, facts: &mut Facts) {
     static SAID: OnceLock<Regex> = OnceLock::new();
-    // The port a host a tape's own command started says it serves on, in its status table, and the door's in a join
-    // line printed as text: the system hands both on each run.
-    let said = SAID.get_or_init(|| {
-        Regex::new(r"(?m)^(?:app {2,}https?|runtime ws {2,}ws)://127\.0\.0\.1:(\d+)|wsp join https?://127\.0\.0\.1:(\d+)").expect("said")
-    });
+    let said = SAID.get_or_init(|| Regex::new(r"(?m)^(?:app {2,}https?|runtime ws {2,}ws)://127\.0\.0\.1:(\d+)").expect("said"));
     match v {
         Value::String(text) => {
             for c in said.captures_iter(text) {
-                if let Some(port) = c.get(1) {
-                    facts.add(port.as_str(), "<port>");
-                }
-                if let Some(port) = c.get(2) {
-                    facts.add(port.as_str(), "<door-port>");
-                }
+                facts.add(&c[1], "<port>");
             }
         }
-        Value::Object(obj) => {
-            if let Some(port) = obj.get("door").and_then(|d| d.get("port")).and_then(Value::as_u64) {
-                facts.add(port.to_string(), "<door-port>");
+        Value::Object(obj) => obj.values().for_each(|x| started_ports(x, facts)),
+        Value::Array(items) => items.iter().for_each(|x| started_ports(x, facts)),
+        _ => {}
+    }
+}
+
+/// Whether an answer says no: `ok: false` or an error, a tool result marked one, a command line's exit other than 0.
+fn refused(r: &Value) -> bool {
+    r.get("ok") == Some(&Value::Bool(false))
+        || r.get("error").is_some()
+        || r.pointer("/result/isError") == Some(&Value::Bool(true))
+        || r.get("exit").and_then(Value::as_i64).is_some_and(|e| e != 0)
+}
+
+/// Every id a value carries, as the normalizer reads ids: whole keys and runs of hex, uuids, `ws_` style ids, host key
+/// fingerprints and join codes.
+pub fn ids_in(v: &Value, out: &mut std::collections::BTreeSet<String>) {
+    match v {
+        Value::String(text) => {
+            let p = patterns();
+            if p.hex.is_match(text) || (p.opaque.is_match(text) && keyish(text)) {
+                out.insert(text.clone());
             }
-            for join in obj.get("joins").and_then(Value::as_array).into_iter().flatten() {
-                let port = join
-                    .get("url")
-                    .and_then(Value::as_str)
-                    .and_then(|u| u.rsplit(':').next())
-                    .and_then(|p| p.trim_end_matches('/').parse::<u16>().ok());
-                if let Some(port) = port {
-                    facts.add(port.to_string(), "<door-port>");
-                }
+            for re in [&p.uuid, &p.prefixed, &p.fingerprint, &p.join_code, &p.short_hex] {
+                out.extend(re.find_iter(text).map(|m| m.as_str().to_string()));
             }
-            obj.values().for_each(|x| door_ports(x, facts));
         }
-        Value::Array(items) => items.iter().for_each(|x| door_ports(x, facts)),
+        Value::Object(obj) => obj.values().for_each(|x| ids_in(x, out)),
+        Value::Array(items) => items.iter().for_each(|x| ids_in(x, out)),
         _ => {}
     }
 }
@@ -450,10 +497,17 @@ fn door_ports(v: &Value, facts: &mut Facts) {
 pub fn canonical(replies: &[Value], events: &[Value], facts: &Facts) -> Value {
     let mut facts = facts.clone();
     for r in replies {
-        door_ports(r, &mut facts);
+        started_ports(r, &mut facts);
     }
     let mut n = Normalizer::new(facts);
-    let replies: Vec<Value> = replies.iter().map(|r| n.value(r)).collect();
+    let replies: Vec<Value> = replies
+        .iter()
+        .map(|r| {
+            n.refusal = refused(r);
+            n.value(r)
+        })
+        .collect();
+    n.refusal = false;
     n.numbering = false;
     let events: Vec<Value> = events.iter().map(|e| n.value(e)).collect();
     let mut again = Renumber::default();
