@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! `packages/host/src/verbs/turns-help.ts` at 65f6b89c7. Only the types `io.rs` names in its signatures are declared
-//! here so far; the module's own writer adds the rest.
+//! `packages/host/src/verbs/turns-help.ts` at 65f6b89c7, in four units: `picks` (what a start carries), `target`
+//! (where a run goes and the threads a line names), `follow` (starting a turn and following or waiting on it) and
+//! `stream` (what a watched turn prints, and the answers to its prompts). The types `io.rs` names in its signatures
+//! stay here. Specs: `spec/turns-picks.md`, `spec/turns-target.md`, `spec/turns-follow.md`, `spec/turns-stream.md`.
+
+pub mod follow;
+pub mod picks;
+pub mod stream;
+pub mod target;
+
+pub use follow::*;
+pub use picks::*;
+pub use stream::*;
+pub use target::*;
 
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::session_events::TurnResult;
