@@ -14,7 +14,9 @@ use wsp_words::exit::HostError;
 use wsp_words::sub_thread::SubUnpushed;
 
 use super::SubLifeCtx;
-use crate::machines::core_types::{AreaResult, Cancel, Live};
+use crate::machines::area_error::AreaResult;
+use wsp_core::clock::Cancel;
+use crate::machines::machines::Entry;
 
 /// The answer of `sub_delete` (sub-life.ts:584): `machine` is `Some("deleted")` once deleted, `question` with `check`.
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -78,7 +80,7 @@ impl SubLifeArea {
     }
 
     /// sub-life.ts:201 (rule 5).
-    pub(crate) async fn read_result(&self, entry: &Live) -> SubResult {
+    pub(crate) async fn read_result(&self, entry: &Entry) -> SubResult {
         todo!()
     }
 
@@ -88,17 +90,17 @@ impl SubLifeArea {
     }
 
     /// sub-life.ts:238 (rule 7).
-    pub(crate) async fn keep_session(&self, entry: &Live, thread_id: &str) {
+    pub(crate) async fn keep_session(&self, entry: &Entry, thread_id: &str) {
         todo!()
     }
 
     /// sub-life.ts:275 (rule 8).
-    pub(crate) fn arm(&self, entry: &Live) {
+    pub(crate) fn arm(&self, entry: &Entry) {
         todo!()
     }
 
     /// sub-life.ts:295 (rule 9). `lost` and `cloud_gone` as the TS options.
-    pub(crate) async fn release(&self, entry: &Live, lost: Option<String>, cloud_gone: bool) -> AreaResult<()> {
+    pub(crate) async fn release(&self, entry: &Entry, lost: Option<String>, cloud_gone: bool) -> AreaResult<()> {
         todo!()
     }
 
@@ -118,7 +120,7 @@ impl SubLifeArea {
     }
 
     /// sub-life.ts:476 (rule 17).
-    pub(crate) async fn forgotten(&self, entry: &Live) -> AreaResult<()> {
+    pub(crate) async fn forgotten(&self, entry: &Entry) -> AreaResult<()> {
         todo!()
     }
 
@@ -148,7 +150,7 @@ impl SubLifeArea {
     }
 
     /// sub-life.ts:554 (rule 21).
-    pub async fn sub_lost(&self, entry: &Live, reason: &str) -> AreaResult<GoneOutcome> {
+    pub async fn sub_lost(&self, entry: &Entry, reason: &str) -> AreaResult<GoneOutcome> {
         todo!()
     }
 
@@ -158,22 +160,22 @@ impl SubLifeArea {
     }
 
     /// sub-life.ts:462 (rule 16).
-    pub fn sub_unpushed(&self, entry: &Live) -> Option<SubUnpushed> {
+    pub fn sub_unpushed(&self, entry: &Entry) -> Option<SubUnpushed> {
         todo!()
     }
 
     /// sub-life.ts:566 (rule 22).
-    pub async fn sub_delete(&self, asked: &Live, thread_id: &str, origin: Option<&Caller>, check: bool) -> Result<SubDeleted, HostError> {
+    pub async fn sub_delete(&self, asked: &Entry, thread_id: &str, origin: Option<&Caller>, check: bool) -> Result<SubDeleted, HostError> {
         todo!()
     }
 
     /// sub-life.ts:584 (rule 23).
-    pub fn refuse_sub_send(&self, entry: &Live) -> Result<(), HostError> {
+    pub fn refuse_sub_send(&self, entry: &Entry) -> Result<(), HostError> {
         todo!()
     }
 
     /// sub-life.ts:587 (rule 23).
-    pub fn refuse_sub_wake(&self, entry: &Live) -> Result<(), HostError> {
+    pub fn refuse_sub_wake(&self, entry: &Entry) -> Result<(), HostError> {
         todo!()
     }
 

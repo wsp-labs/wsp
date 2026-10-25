@@ -14,28 +14,26 @@ use serde_json::Value;
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::{DaemonReachView, ProjectView, ReachState, WorkspacePhase};
+use wsp_core::reach::DaemonReach;
+use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_words::exit::HostError;
 
-use crate::machines::core_types::{AreaResult, Cancel, Joined, Live, SessionEntry, WorkspaceRecord};
+use crate::machines::area_error::AreaResult;
+use wsp_core::clock::Cancel;
+use crate::machines::machines::Entry;
+use wsp_core::types::internal::SessionEntry;
+use wsp_core::types::wiring::WorkspaceRecord;
 
 pub mod daemon;
 pub mod disk;
 
 pub use disk::{DISK_CLOSE_WAIT_MS, DISK_READ_MS};
 
-/// A link to a machine's daemon (`DaemonReach`, RT/reach.ts:39): ready once it answered the auth, a request per op.
-#[async_trait(?Send)]
-pub trait DaemonLink {
-    async fn ready(&self) -> AreaResult<()>;
-    async fn request(&self, op: &str) -> AreaResult<Value>;
-    fn close(&self);
-}
-
 /// What the reach area reads off the runtime's context (reach.ts:22 and the `ctx.` calls below it).
 #[async_trait(?Send)]
 pub trait ReachCtx {
-    fn live(&self, id: &str) -> Option<Live>;
-    fn live_all(&self) -> Vec<Live>;
+    fn live(&self, id: &str) -> Option<Entry>;
+    fn live_all(&self) -> Vec<Entry>;
     fn session_entries(&self) -> Vec<SessionEntry>;
     fn backend_for(&self, record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError>;
     fn pause_keeps_disk(&self, backend: &dyn MachineBackend) -> bool;
@@ -45,11 +43,11 @@ pub trait ReachCtx {
     fn closing(&self) -> bool;
     fn provider_of(&self, record: &WorkspaceRecord) -> Option<String>;
     /// `ctx.rowReason(entry)`.
-    fn row_reason(&self, entry: &Live) -> Option<String>;
+    fn row_reason(&self, entry: &Entry) -> Option<String>;
     /// `ctx.unreachedOf(entry)`.
-    fn unreached_of(&self, entry: &Live) -> Option<String>;
+    fn unreached_of(&self, entry: &Entry) -> Option<String>;
     /// `ctx.moduleOf(kind).hasDaemon(entry)`.
-    fn kind_has_daemon(&self, entry: &Live) -> bool;
+    fn kind_has_daemon(&self, entry: &Entry) -> bool;
     /// `ctx.view(record)` as the TS object.
     fn view(&self, record: &WorkspaceRecord) -> Value;
     /// status.ts `machineStateOf(phase)` as its word.
@@ -57,19 +55,19 @@ pub trait ReachCtx {
     /// `ctx.idle.idleAt(id)`.
     fn idle_at(&self, workspace_id: &str) -> Option<f64>;
     /// `lifecycleOf(entry).budgets.daemonAnswersMs`.
-    fn daemon_answers_ms(&self, entry: &Live) -> AreaResult<f64>;
+    fn daemon_answers_ms(&self, entry: &Entry) -> AreaResult<f64>;
     fn daemon_hello_timeout_ms(&self) -> f64;
     async fn daemon_token_of(&self, machine: &Arc<dyn Machine>) -> AreaResult<Option<String>>;
     /// RT/reach.ts `connectDaemon({previewUrl, token, onEvent, heartbeatMs})`.
-    fn connect_daemon(&self, preview_url: &str, token: &str, on_event: Rc<dyn Fn(&Value)>, heartbeat_ms: Option<f64>) -> Rc<dyn DaemonLink>;
+    fn connect_daemon(&self, preview_url: &str, token: &str, on_event: Rc<dyn Fn(DaemonEvent)>, heartbeat_ms: Option<i64>) -> Rc<dyn DaemonReach>;
     fn project_held(&self, id: &str) -> ProjectView;
     /// `withDaemon(entry, ask => ask(frame))`.
-    async fn with_daemon(&self, entry: &Live, frame: Value) -> AreaResult<Value>;
+    async fn with_daemon(&self, entry: &Entry, frame: Value) -> AreaResult<Value>;
     /// `onThisComputer((ask, home) => ask(frame(home)))`.
     async fn on_this_computer(&self, frame: Box<dyn Fn(&str) -> Value>) -> AreaResult<Value>;
     fn checkout_of(&self, record: &WorkspaceRecord) -> String;
     /// `servedByItsComputer(entry) !== undefined`.
-    fn served_by_its_computer(&self, entry: &Live) -> bool;
+    fn served_by_its_computer(&self, entry: &Entry) -> bool;
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()>;
     fn emit(&self, event: Value);
     fn record(&self, event: Value);
@@ -104,7 +102,7 @@ pub struct ReachArea {
     pub nap_refusals: RefCell<IndexMap<String, ForMachine<String>>>,
     pub stop_refusals: RefCell<IndexMap<String, ForMachine<String>>>,
     pub(crate) disks: RefCell<IndexMap<String, DiskHeld>>,
-    pub(crate) disk_reads: RefCell<IndexMap<String, Joined<()>>>,
+    pub(crate) disk_reads: RefCell<IndexMap<String, wsp_core::context::Joined>>,
     pub(crate) disk_timer: RefCell<Option<Cancel>>,
 }
 

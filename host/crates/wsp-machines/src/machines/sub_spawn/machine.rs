@@ -9,7 +9,11 @@ use wsp_words::exit::HostError;
 use wsp_words::sub_thread::SubFault;
 
 use super::{Seed, SubSpawnArea};
-use crate::machines::core_types::{AreaError, AreaResult, Live, StageReport, WorkspaceRecord};
+use crate::machines::area_error::AreaError;
+use crate::machines::area_error::AreaResult;
+use crate::machines::machines::Entry;
+use wsp_core::types::wiring::StageReport;
+use wsp_core::types::wiring::WorkspaceRecord;
 
 /// sub-spawn.ts:33 (rule 1).
 pub fn fault_of(e: &AreaError) -> Option<SubFault> {
@@ -18,7 +22,7 @@ pub fn fault_of(e: &AreaError) -> Option<SubFault> {
 
 /// What `resume_sub` answers (sub-spawn.ts:605): the live entry now, the head its send opens with, the notices.
 pub struct Resumed {
-    pub entry: Live,
+    pub entry: Entry,
     pub preamble: Option<String>,
     pub notices: Vec<String>,
 }
@@ -65,22 +69,22 @@ impl SubSpawnArea {
     }
 
     /// sub-spawn.ts:501 (rule 9).
-    pub async fn resume_sub(&self, asked: &Live, thread_id: &str, harness: &str, prompt: Option<&str>) -> Result<Resumed, HostError> {
+    pub async fn resume_sub(&self, asked: &Entry, thread_id: &str, harness: &str, prompt: Option<&str>) -> Result<Resumed, HostError> {
         todo!()
     }
 
     /// sub-spawn.ts:518 (rule 10).
-    pub(crate) async fn resume_once(&self, asked: &Live, thread_id: &str, harness: &str, prompt: Option<&str>) -> Result<Resumed, HostError> {
+    pub(crate) async fn resume_once(&self, asked: &Entry, thread_id: &str, harness: &str, prompt: Option<&str>) -> Result<Resumed, HostError> {
         todo!()
     }
 
     /// sub-spawn.ts:587 (rule 11).
-    pub(crate) async fn land_session(&self, entry: &Live, thread_id: &str) {
+    pub(crate) async fn land_session(&self, entry: &Entry, thread_id: &str) {
         todo!()
     }
 
     /// sub-spawn.ts:606 (rule 12).
-    pub async fn sub_killed_why(&self, entry: &Live, started_at: f64) -> Option<String> {
+    pub async fn sub_killed_why(&self, entry: &Entry, started_at: f64) -> Option<String> {
         todo!()
     }
 }

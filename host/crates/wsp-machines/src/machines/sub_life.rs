@@ -13,7 +13,10 @@ use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::ReachState;
 use wsp_words::exit::HostError;
 
-use crate::machines::core_types::{AreaResult, Cancel, Live, WorkspaceRecord};
+use crate::machines::area_error::AreaResult;
+use wsp_core::clock::Cancel;
+use crate::machines::machines::Entry;
+use wsp_core::types::wiring::WorkspaceRecord;
 
 pub mod reads;
 pub mod timers;
@@ -39,9 +42,9 @@ pub trait BackendFor {
 #[async_trait(?Send)]
 pub trait SubLifeCtx: BackendFor {
     /// `live.get(id)`.
-    fn live(&self, id: &str) -> Option<Live>;
+    fn live(&self, id: &str) -> Option<Entry>;
     /// `live.values()`, in insertion order.
-    fn live_all(&self) -> Vec<Live>;
+    fn live_all(&self) -> Vec<Entry>;
     /// `(threadId, workspaceId)` of every thread record, in insertion order.
     fn thread_records(&self) -> Vec<(String, String)>;
     /// Every session row's view, in insertion order.
@@ -56,7 +59,7 @@ pub trait SubLifeCtx: BackendFor {
     /// `settingsAt(place)?.deleteAfterMs`.
     fn delete_after_ms(&self, place_id: Option<&str>) -> Option<f64>;
     /// `adapterFor(entry, harness).adapter.sessionFile?.(id)`.
-    fn session_file(&self, entry: &Live, harness: &str, session_id: &str) -> Option<SessionFile>;
+    fn session_file(&self, entry: &Entry, harness: &str, session_id: &str) -> Option<SessionFile>;
     /// `transcriptReader.read(workspaceId, threadId, { limit, bytes })`'s events, as the TS objects.
     async fn read_transcript(&self, workspace_id: &str, thread_id: &str, limit: usize, bytes: usize) -> AreaResult<Vec<Value>>;
     async fn put_blob(&self, collection: &str, key: &str, bytes: Vec<u8>) -> AreaResult<()>;
@@ -65,15 +68,15 @@ pub trait SubLifeCtx: BackendFor {
     async fn nap_with(&self, workspace_id: &str, reason: &str) -> AreaResult<()>;
     fn end_sessions(&self, workspace_id: &str, reason: &str);
     /// `attach(record, deadMachine(machineId))`: a new live entry for the record on a machine that answers gone.
-    fn attach_dead(&self, entry: &Live, machine_id: &str) -> Live;
+    fn attach_dead(&self, entry: &Entry, machine_id: &str) -> Entry;
     /// The id leaves `napRefusals`, `stopRefusals` and `unreached` (sub-life.ts:319-321).
     fn forget_marks(&self, workspace_id: &str);
     fn idle_forget(&self, workspace_id: &str);
-    async fn emit_status(&self, entry: &Live, reach: ReachState) -> AreaResult<()>;
+    async fn emit_status(&self, entry: &Entry, reach: ReachState) -> AreaResult<()>;
     fn emit(&self, event: Value);
-    async fn unfork(&self, entry: &Live) -> AreaResult<()>;
+    async fn unfork(&self, entry: &Entry) -> AreaResult<()>;
     /// pipe.ts `cutOff`: the broker's revoke of the machine, its failure warned there.
-    async fn cut_off(&self, entry: &Live);
+    async fn cut_off(&self, entry: &Entry);
     /// The broker's `lift(id)` where a broker is wired.
     fn broker_lift(&self, workspace_id: &str);
     /// `workspaces.delete(id)`.

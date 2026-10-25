@@ -9,12 +9,18 @@ use async_trait::async_trait;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 
+use wsp_core::types::internal::{ImportLanded, ImportReport};
+use wsp_core::types::wiring::ProjectImportOptions;
 use wsp_engine::machine::{ExecResult, Machine, MachineBackend};
 use wsp_wire::views::workspace::{DaemonReachView, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_words::exit::HostError;
 
-use crate::machines::core_types::{AreaResult, KindModule, Live, StageReport, WorkspaceRecord};
+use crate::machines::area_error::AreaResult;
+use wsp_core::types::internal::KindModule;
+use crate::machines::machines::Entry;
+use wsp_core::types::wiring::StageReport;
+use wsp_core::types::wiring::WorkspaceRecord;
 
 pub mod roads;
 pub mod table;
@@ -60,8 +66,8 @@ pub trait KindsCtx {
     fn wired_place(&self) -> String;
     fn project_held(&self, id: &str) -> ProjectView;
     fn checkout_of(&self, record: &WorkspaceRecord) -> String;
-    fn computer_of(&self, entry: &Live) -> String;
-    fn served_by_its_computer(&self, entry: &Live) -> bool;
+    fn computer_of(&self, entry: &Entry) -> String;
+    fn served_by_its_computer(&self, entry: &Entry) -> bool;
     /// Whether the host wired a place door at all.
     fn has_place_door(&self) -> bool;
     fn door_backend_of(&self, place: &str) -> Option<Arc<dyn MachineBackend>>;
@@ -93,7 +99,7 @@ pub trait KindsCtx {
     /// brokered.ts `brokeredEnv(token, branchOfRecord, publicMarketplaces(ctx))`.
     fn brokered_env(&self, token: &str, record: &WorkspaceRecord) -> IndexMap<String, String>;
     /// branch-of-record.ts `landOnRecord(ctx, entry, project, lines)`.
-    async fn land_on_record(&self, entry: &Live, project: &ProjectView, lines: Option<Vec<String>>) -> AreaResult<()>;
+    async fn land_on_record(&self, entry: &Entry, project: &ProjectView, lines: Option<Vec<String>>) -> AreaResult<()>;
     /// project-landing.ts `cloneLines(...)` as the TS object it takes.
     fn clone_lines(&self, o: Value) -> Vec<String>;
     async fn daemon_token_of(&self, machine: &Arc<dyn Machine>) -> AreaResult<Option<String>>;
@@ -104,8 +110,8 @@ pub trait KindsCtx {
     async fn local_daemon_road(&self) -> Option<AreaResult<DaemonReachView>>;
     /// `opts.machineExec`, merged under the caller's keys by `exec_factory_for`.
     fn machine_exec_opts(&self) -> Option<serde_json::Map<String, Value>>;
-    async fn copy_import(&self, entry: &Live, o: Value, report: Rc<dyn Fn(&str, &str)>) -> AreaResult<Value>;
-    async fn hello_version(&self, entry: &Live) -> Option<f64>;
+    async fn copy_import(&self, entry: &Entry, o: ProjectImportOptions, report: ImportReport) -> AreaResult<ImportLanded>;
+    async fn hello_version(&self, entry: &Entry) -> Option<f64>;
     async fn bundler_plan(&self, o: &Value) -> AreaResult<Value>;
     /// Whether the host wired the local road (`local !== undefined`), which the local kind needs.
     fn has_local(&self) -> bool;

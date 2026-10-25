@@ -6,7 +6,9 @@ use wsp_wire::views::workspace::ReachState;
 use wsp_words::words::thread::DiskMove;
 
 use super::ReachArea;
-use crate::machines::core_types::{AreaResult, Live, SessionEntry};
+use crate::machines::area_error::AreaResult;
+use crate::machines::machines::Entry;
+use wsp_core::types::internal::SessionEntry;
 
 /// reach.ts:15. How often a running machine whose stop snapshots its disk has it read.
 pub const DISK_READ_MS: f64 = 120_000.0;
@@ -24,42 +26,42 @@ pub struct DiskReading {
 
 impl ReachArea {
     /// reach.ts:35 (rule 2).
-    pub fn nap_refused_of(&self, entry: &Live) -> Option<String> {
+    pub fn nap_refused_of(&self, entry: &Entry) -> Option<String> {
         todo!()
     }
 
     /// reach.ts:42 (rule 2).
-    pub fn nap_refused_reason(&self, entry: &Live) -> Option<String> {
+    pub fn nap_refused_reason(&self, entry: &Entry) -> Option<String> {
         todo!()
     }
 
     /// reach.ts:49 (rule 3).
-    pub fn stop_refused_reason(&self, entry: &Live) -> Option<String> {
+    pub fn stop_refused_reason(&self, entry: &Entry) -> Option<String> {
         todo!()
     }
 
     /// reach.ts:56 (rule 4).
-    pub fn disk_reason(&self, entry: &Live) -> Option<String> {
+    pub fn disk_reason(&self, entry: &Entry) -> Option<String> {
         todo!()
     }
 
     /// reach.ts:60 (rule 5).
-    pub(crate) fn watches_disk(&self, entry: &Live) -> bool {
+    pub(crate) fn watches_disk(&self, entry: &Entry) -> bool {
         todo!()
     }
 
     /// reach.ts:63 (rule 6).
-    pub(crate) async fn disk_read(&self, entry: &Live) -> Option<DiskReading> {
+    pub(crate) async fn disk_read(&self, entry: &Entry) -> Option<DiskReading> {
         todo!()
     }
 
     /// reach.ts:78 (rule 7).
-    pub async fn read_disk(&self, entry: &Live) {
+    pub async fn read_disk(&self, entry: &Entry) {
         todo!()
     }
 
     /// reach.ts:88 (rule 8).
-    pub(crate) async fn read_disk_now(&self, entry: &Live) {
+    pub(crate) async fn read_disk_now(&self, entry: &Entry) {
         todo!()
     }
 
@@ -69,7 +71,7 @@ impl ReachArea {
     }
 
     /// reach.ts:116 (rule 11). The move less its thread.
-    pub(crate) async fn move_for(&self, entry: &Live, read_bytes: f64) -> Option<DiskMove> {
+    pub(crate) async fn move_for(&self, entry: &Entry, read_bytes: f64) -> Option<DiskMove> {
         todo!()
     }
 
@@ -89,27 +91,27 @@ impl ReachArea {
     }
 
     /// reach.ts:165 (rule 14).
-    pub fn reach_of(&self, entry: &Live) -> ReachState {
+    pub fn reach_of(&self, entry: &Entry) -> ReachState {
         todo!()
     }
 
     /// reach.ts:172 (rule 15).
-    pub async fn emit_status(&self, entry: &Live, reach: ReachState, reason: Option<&str>) -> AreaResult<()> {
+    pub async fn emit_status(&self, entry: &Entry, reach: ReachState, reason: Option<&str>) -> AreaResult<()> {
         todo!()
     }
 
     /// reach.ts:194 (rule 16).
-    pub async fn says_waking(&self, entry: &Live, words: &str) -> AreaResult<()> {
+    pub async fn says_waking(&self, entry: &Entry, words: &str) -> AreaResult<()> {
         todo!()
     }
 
     /// reach.ts:376 (rule 17).
-    pub async fn push_status(&self, entry: &Live) -> AreaResult<()> {
+    pub async fn push_status(&self, entry: &Entry) -> AreaResult<()> {
         todo!()
     }
 
     /// reach.ts:477 (rule 17).
-    pub async fn status_now(&self, entry: &Live) -> AreaResult<()> {
+    pub async fn status_now(&self, entry: &Entry) -> AreaResult<()> {
         todo!()
     }
 }
