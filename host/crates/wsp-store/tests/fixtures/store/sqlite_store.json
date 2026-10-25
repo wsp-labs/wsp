@@ -1,0 +1,73 @@
+{
+ "raw": [
+  {
+   "collection": "r",
+   "id": "nums",
+   "json": "{\"2\":0,\"z\":1,\"a\":2,\"n\":1.5,\"big\":1e+21,\"small\":1e-7,\"neg0\":0,\"whole\":10,\"nested\":{\"10\":1,\"b\":[1,\"x\",null]}}"
+  },
+  {
+   "collection": "r",
+   "id": "null",
+   "json": "null"
+  },
+  {
+   "collection": "r",
+   "id": "text",
+   "json": "\"héllo   \\u0001 / \\\"q\\\"\""
+  },
+  {
+   "collection": "o",
+   "id": "a",
+   "json": "{\"id\":\"a\",\"again\":true}"
+  },
+  {
+   "collection": "o",
+   "id": "c",
+   "json": "{\"id\":\"c\"}"
+  },
+  {
+   "collection": "o",
+   "id": "b",
+   "json": "{\"id\":\"b\",\"back\":true}"
+  }
+ ],
+ "shapeKeys": [
+  "shape",
+  "wsp",
+  "daemon",
+  "bin",
+  "at"
+ ],
+ "getNull": {
+  "ok": null
+ },
+ "getGone": {
+  "ok": "<undefined>"
+ },
+ "keys": [
+  "a",
+  "c",
+  "b"
+ ],
+ "list": [
+  {
+   "id": "a",
+   "again": true
+  },
+  {
+   "id": "c"
+  },
+  {
+   "id": "b",
+   "back": true
+  }
+ ],
+ "unknown": {
+  "list": [],
+  "keys": []
+ },
+ "emptyBlob": {
+  "bytes": [],
+  "mark": 0
+ }
+}

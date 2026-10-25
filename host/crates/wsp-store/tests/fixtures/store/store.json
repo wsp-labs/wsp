@@ -1,0 +1,73 @@
+{
+ "memKeys": [
+  "1",
+  "2",
+  "4294967294",
+  "b",
+  "a",
+  "01",
+  "4294967295"
+ ],
+ "memList": [
+  {
+   "id": "1"
+  },
+  {
+   "id": "2"
+  },
+  {
+   "id": "4294967294"
+  },
+  {
+   "id": "b"
+  },
+  {
+   "id": "a"
+  },
+  {
+   "id": "01"
+  },
+  {
+   "id": "4294967295"
+  }
+ ],
+ "marks": {
+  "x": {
+   "bytes": 5,
+   "at": 3
+  },
+  "y": {
+   "bytes": 4,
+   "at": 2
+  }
+ },
+ "gone": "<undefined>",
+ "empty": {
+  "mark": {
+   "bytes": 0,
+   "at": 4
+  },
+  "bytes": []
+ },
+ "afterReputDeleteAndPut": [
+  "1",
+  "2",
+  "4294967294",
+  "b",
+  "01",
+  "4294967295",
+  "a"
+ ],
+ "lines": {
+  "newer": "/h/state.db was written by a newer wsp (state shape 2; this wsp reads 2; written 2026-09-18T15:15:00.000Z by /Applications/wsp.app/Contents/Resources/bin.js (wsp 0.3.0, daemon 160)): run that wsp, or move the file aside",
+  "olderNone": "/h/state.db holds state in an older shape (none recorded; this wsp reads shape 2): move the file aside and this wsp starts a fresh one",
+  "older": "/h/state.db holds state in an older shape (shape 2, written 2026-09-18T15:15:00.000Z by /Applications/wsp.app/Contents/Resources/bin.js (wsp 0.3.0, daemon 160); this wsp reads shape 2): move the file aside and this wsp starts a fresh one",
+  "unreadable": "/h/state.db does not read as a state file (file is not a database), so no wsp can read the records in it: move the file aside, or put back a copy a wsp wrote",
+  "shapeUnreadable": [
+   "/h/state.db has a $shape that is not a shape document (3), so no wsp can say which build wrote it or in which shape: move the file aside, or put back the document a wsp writes",
+   "/h/state.db has a $shape that is not a shape document (null), so no wsp can say which build wrote it or in which shape: move the file aside, or put back the document a wsp writes",
+   "/h/state.db has a $shape that is not a shape document ({\"shape\":2}), so no wsp can say which build wrote it or in which shape: move the file aside, or put back the document a wsp writes",
+   "/h/state.db has a $shape that is not a shape document (\"not json {\"), so no wsp can say which build wrote it or in which shape: move the file aside, or put back the document a wsp writes"
+  ]
+ }
+}
