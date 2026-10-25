@@ -536,8 +536,9 @@ pub struct BackForward {
     inner: Arc<BackForwardState>,
 }
 
-/// The holder's own state; its shape is the implementer's. The child's pipes and exit are read only while a caller of
-/// `up` or `ended` is polled, through the waiters that caller left; nothing runs in the background.
+/// The holder's own state; its shape is the implementer's. The child's pipes and exit are read from the moment the
+/// holder starts, by a local task that polls through the same waiters a caller of `up` or `ended` leaves, so a child
+/// that writes more than a pipe holds before anyone asks is never stalled (ssh-backend.ts:329-336).
 struct BackForwardState {
     waiters: Arc<Waiters>,
     pump: RefCell<Pump>,
@@ -661,6 +662,12 @@ fn take_lines(pipe: &mut Option<Box<dyn AsyncRead + Unpin>>, feed: &mut LineFeed
     lines
 }
 
+impl Drop for BackForwardState {
+    fn drop(&mut self) {
+        self.waiters.wake_all();
+    }
+}
+
 impl BackForwardState {
     /// Registers the caller and reads what it can; a settled state wakes everyone waiting on it.
     fn drive(&self, cx: &Context<'_>) {
@@ -715,7 +722,8 @@ impl BackForward {
     }
 }
 
-/// ssh-backend.ts:323. Starts the forward child and holds it. Needs a tokio runtime.
+/// ssh-backend.ts:323. Starts the forward child and holds it, draining its pipes on a local task: needs a tokio
+/// `LocalSet`.
 pub fn hold_back_forward(carried: &SshCarried, box_port: u16, door_port: u16, spawn: SshSpawn) -> BackForward {
     let child = spawn("ssh", &ssh_back_args(carried, box_port, door_port));
     let pump = Pump {
@@ -732,7 +740,20 @@ pub fn hold_back_forward(carried: &SshCarried, box_port: u16, door_port: u16, sp
         ended: None,
         released: false,
     };
-    BackForward { inner: Arc::new(BackForwardState { waiters: Arc::new(Waiters::default()), pump: RefCell::new(pump) }) }
+    let state = Arc::new(BackForwardState { waiters: Arc::new(Waiters::default()), pump: RefCell::new(pump) });
+    let held = Arc::downgrade(&state);
+    tokio::task::spawn_local(futures::future::poll_fn(move |cx| match held.upgrade() {
+        Some(state) => {
+            state.drive(cx);
+            if state.pump.borrow().ended.is_some() {
+                Poll::Ready(())
+            } else {
+                Poll::Pending
+            }
+        }
+        None => Poll::Ready(()),
+    }));
+    BackForward { inner: state }
 }
 
 /// ssh-backend.ts:366. The ssh client on this computer, carrying one script to the machine.
