@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The wsp skill, inlined at build time from `skills/wsp/SKILL.md`, and the MCP server's instructions. Port of
 //! `packages/host/src/skill.ts` at 65f6b89c7; the spec is `spec/skill.md`.
+use wsp_catalog::git_hosts::THREAD_AGENTS;
+use wsp_catalog::skills::WSP_SKILL_NAME;
+use wsp_words::words::thread::{ANOTHER_AGENT_WORDS, BACKGROUND_WORK_WORDS, COORDINATOR_HANDOFF, NOTIFY_CALLER};
+
+use crate::cloud::cloud_on;
 pub use crate::cloud_text::{
     cloud_text, skill_for, BOAT_MARK, BOAT_SPAN_END, CLOUD_MARK, CLOUD_SPAN_END, NO_CLOUD_MARK, NO_CLOUD_SPAN_END,
 };
@@ -9,16 +14,16 @@ pub use crate::cloud_text::{
 pub const SKILL_TEXT: &str = include_str!("../../../../skills/wsp/SKILL.md");
 
 /// skill.ts:14: `WSP_SKILL_NAME`.
-pub const SKILL_NAME: &str = "wsp";
+pub const SKILL_NAME: &str = WSP_SKILL_NAME;
 
 /// skill.ts:18: `skill_for(SKILL_TEXT, cloud_on())`, worked out at each ask.
 pub fn wsp_skill() -> String {
-    todo!()
+    skill_for(SKILL_TEXT, cloud_on())
 }
 
 /// `skill_for(SKILL_TEXT, cloud)`.
 pub fn wsp_skill_for(cloud: bool) -> String {
-    todo!()
+    skill_for(SKILL_TEXT, cloud)
 }
 
 pub const SETUP_HEADING: &str = "## Setting a person up from nothing";
@@ -31,12 +36,13 @@ pub const ESSENTIALS: &str = "Agents work on a project, a folder on one computer
 
 /// skill.ts:38-40 with the cloud reading given.
 pub fn agents_line_for(agents: &[&str], cloud: bool) -> String {
-    todo!()
+    let verbs = if cloud { "run and fork take" } else { "run takes" };
+    format!("The agents this host runs threads on, the only values {verbs} as agent: {}.", agents.join(", "))
 }
 
 /// skill.ts:38-40 as this process reads the cloud.
 pub fn agents_line(agents: &[&str]) -> String {
-    todo!()
+    agents_line_for(agents, cloud_on())
 }
 
 /// skill.ts:44.
@@ -50,15 +56,31 @@ pub const THREAD_SLATE_WORDS: &str = "This session is a wsp thread with a slate,
 
 /// skill.ts:59-62 with the cloud reading given.
 pub fn instructions_of_for(agents: &[&str], scoped: bool, slate: bool, cloud: bool) -> String {
-    todo!()
+    let mut first = vec![format!("{ANOTHER_AGENT_WORDS}.")];
+    if !scoped && slate {
+        first.push(format!("{SLATE_WORDS}."));
+    }
+    first.push(ESSENTIALS.to_string());
+    first.push(agents_line_for(agents, cloud));
+    let mut lines = vec![first.join(" ")];
+    for rule in [format!("{NOTIFY_CALLER}, so nothing is polled."), format!("{COORDINATOR_HANDOFF}."), format!("{BACKGROUND_WORK_WORDS}.")]
+    {
+        lines.push(format!("- {rule}"));
+    }
+    let body = lines.join("\n");
+    if scoped && slate {
+        format!("{THREAD_SLATE_WORDS}\n\n{body}")
+    } else {
+        body
+    }
 }
 
 /// skill.ts:59-62 as this process reads the cloud.
 pub fn instructions_of(agents: &[&str], scoped: bool, slate: bool) -> String {
-    todo!()
+    instructions_of_for(agents, scoped, slate, cloud_on())
 }
 
 /// skill.ts:66: `instructions_of(THREAD_AGENTS, scoped, slate)`.
 pub fn instructions(scoped: bool, slate: bool) -> String {
-    todo!()
+    instructions_of(&THREAD_AGENTS, scoped, slate)
 }
