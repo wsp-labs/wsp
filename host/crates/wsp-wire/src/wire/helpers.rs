@@ -12,7 +12,7 @@ use crate::views::harness::HarnessOption;
 
 /// The id a request carries and its reply echoes: a string or a number as the client sent it, a fraction kept a
 /// fraction (rule 4.13). zod's `reqId`, `z.union([z.string(), z.number()])`.
-pub use wsp_frames::RequestId as ReqId;
+pub use crate::types::req_id::ReqId;
 
 /// What picking one option on a permission prompt does to the tool call in front of it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
