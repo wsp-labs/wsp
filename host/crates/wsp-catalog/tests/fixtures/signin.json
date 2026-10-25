@@ -1,0 +1,6158 @@
+{
+  "rows": {
+    "gh": {
+      "kind": "device",
+      "sources": [
+        "file",
+        "keychain"
+      ],
+      "finish": "none",
+      "login": "gh auth login --hostname github.com --git-protocol https --web --skip-ssh-key",
+      "questions": [
+        {
+          "asks": "Where do you use GitHub\\?",
+          "flag": "--hostname"
+        },
+        {
+          "asks": "What is your preferred protocol for Git operations on this host\\?",
+          "flag": "--git-protocol"
+        },
+        {
+          "asks": "How would you like to authenticate GitHub CLI\\?",
+          "flag": "--web"
+        },
+        {
+          "asks": "(?:Generate a new SSH key to add to|Upload your SSH public key to) your GitHub account\\?",
+          "flag": "--skip-ssh-key"
+        },
+        {
+          "asks": "Press \\[?Enter\\]? to (?:open|continue)",
+          "answer": "\r"
+        },
+        {
+          "asks": "Authenticate Git with your GitHub credentials\\?",
+          "answer": "\r"
+        }
+      ],
+      "code": "\\b[A-Z0-9]{4}-[A-Z0-9]{4}\\b",
+      "status": {
+        "command": "gh auth status",
+        "reader": "gh"
+      },
+      "stateOnMachine": [
+        ".config/gh/hosts.yml"
+      ]
+    },
+    "gcloud": {
+      "kind": "oauth",
+      "sources": [
+        "file"
+      ],
+      "finish": "callback",
+      "login": "gcloud auth login",
+      "status": {
+        "command": "gcloud auth list --filter=status:ACTIVE --format=value(account)",
+        "reader": "gcloud"
+      },
+      "stateOnMachine": [
+        ".config/gcloud"
+      ]
+    },
+    "aws": {
+      "kind": "oauth",
+      "sources": [
+        "file"
+      ],
+      "finish": "callback",
+      "login": "aws configure sso",
+      "fallback": "aws configure sso --use-device-code",
+      "headless": "device",
+      "questions": [
+        {
+          "asks": "SSO session name \\(Recommended\\)",
+          "person": true
+        },
+        {
+          "asks": "SSO start URL",
+          "person": true
+        },
+        {
+          "asks": "SSO region",
+          "person": true
+        }
+      ],
+      "status": {
+        "command": "sh -c 'for p in $(aws configure list-profiles 2>/dev/null); do aws sts get-caller-identity --profile \"$p\" 2>/dev/null && exit 0; done; exit 1'",
+        "reader": "aws"
+      },
+      "note": "the check tries every configured profile; the start URL and region it asks for are yours to type",
+      "stateOnMachine": [
+        ".aws"
+      ]
+    },
+    "wrangler": {
+      "kind": "oauth",
+      "sources": [
+        "file"
+      ],
+      "finish": "callback",
+      "login": "wrangler login",
+      "status": {
+        "command": "wrangler whoami",
+        "reader": "wrangler"
+      },
+      "note": "needs the callback forward; CLOUDFLARE_API_TOKEN on the machine is the alternative",
+      "stateOnMachine": [
+        ".config/.wrangler"
+      ]
+    },
+    "vercel": {
+      "kind": "oauth",
+      "sources": [
+        "file"
+      ],
+      "finish": "none",
+      "login": "vercel login",
+      "status": {
+        "command": "vercel whoami",
+        "reader": "vercel"
+      },
+      "stateOnMachine": [
+        ".config/com.vercel.cli",
+        ".vercel"
+      ]
+    },
+    "netlify": {
+      "kind": "oauth",
+      "sources": [],
+      "finish": "none",
+      "login": "netlify login",
+      "status": {
+        "command": "netlify status",
+        "reader": "netlify"
+      },
+      "stateOnMachine": [
+        ".netlify/config.json"
+      ]
+    },
+    "fly": {
+      "kind": "oauth",
+      "sources": [],
+      "finish": "none",
+      "login": "fly auth login",
+      "status": {
+        "command": "fly auth whoami",
+        "reader": "fly"
+      },
+      "stateOnMachine": [
+        ".fly"
+      ]
+    },
+    "supabase": {
+      "kind": "oauth",
+      "sources": [],
+      "finish": "none",
+      "login": "supabase login",
+      "fallback": "supabase login --no-browser",
+      "questions": [
+        {
+          "asks": "Press Enter to open browser and login automatically",
+          "answer": "\r"
+        }
+      ],
+      "status": {
+        "command": "supabase projects list",
+        "reader": "supabase"
+      },
+      "stateOnMachine": [
+        ".supabase"
+      ]
+    },
+    "railway": {
+      "kind": "oauth",
+      "sources": [],
+      "finish": "callback",
+      "login": "railway login",
+      "status": {
+        "command": "railway whoami",
+        "reader": "railway"
+      },
+      "stateOnMachine": [
+        ".railway"
+      ]
+    },
+    "doppler": {
+      "kind": "oauth",
+      "sources": [],
+      "finish": "none",
+      "login": "doppler login --yes",
+      "questions": [
+        {
+          "asks": "Open the authorization page in your browser\\?",
+          "flag": "--yes"
+        }
+      ],
+      "code": "(?<=Your auth code is:\\s*)[a-z]+(?:_[a-z]+){2,}",
+      "status": {
+        "command": "doppler me",
+        "reader": "doppler"
+      },
+      "stateOnMachine": [
+        ".doppler"
+      ]
+    },
+    "claude": {
+      "kind": "token",
+      "mint": "claude setup-token",
+      "tokenEnv": "CLAUDE_CODE_OAUTH_TOKEN",
+      "token": "sk-ant-oat01-[A-Za-z0-9_-]{20,}",
+      "keyEnv": "ANTHROPIC_API_KEY",
+      "status": {
+        "command": "claude auth status",
+        "reader": "claude"
+      },
+      "there": {
+        "login": "claude auth login --claudeai",
+        "finish": "code",
+        "headless": "code"
+      },
+      "sources": [],
+      "stateOnMachine": []
+    },
+    "codex": {
+      "kind": "oauth",
+      "sources": [],
+      "finish": "callback",
+      "keyEnv": "OPENAI_API_KEY",
+      "login": "codex login",
+      "fallback": "codex login --device-auth",
+      "headless": "device",
+      "code": "\\b[A-Z0-9]{4,}-[A-Z0-9]{4,}\\b",
+      "shared": {
+        "dir": "codex",
+        "file": "auth.json",
+        "target": "/root/.codex/auth.json",
+        "homeEnv": "CODEX_HOME"
+      },
+      "status": {
+        "command": "codex login status",
+        "reader": "codex"
+      },
+      "stateOnMachine": []
+    },
+    "gemini": {
+      "kind": "oauth",
+      "sources": [
+        "file"
+      ],
+      "finish": "callback",
+      "keyEnv": "GEMINI_API_KEY",
+      "login": "gemini --skip-trust",
+      "questions": [
+        {
+          "asks": "Do you trust the files in this folder\\?",
+          "flag": "--skip-trust"
+        },
+        {
+          "asks": "How would you like to authenticate for this project\\?",
+          "answer": "\r"
+        }
+      ],
+      "status": {
+        "command": "if test -s \"$HOME/.gemini/oauth_creds.json\"; then echo oauth_creds.json; elif test -n \"$GEMINI_API_KEY\"; then echo GEMINI_API_KEY; elif test -n \"$GOOGLE_API_KEY\"; then echo GOOGLE_API_KEY; else false; fi",
+        "reader": "gemini"
+      },
+      "stateOnMachine": [
+        ".gemini/oauth_creds.json"
+      ]
+    },
+    "opencode": {
+      "kind": "key",
+      "sources": [
+        "file"
+      ],
+      "finish": "none",
+      "login": "opencode auth login",
+      "questions": [
+        {
+          "asks": "Select provider",
+          "person": true
+        }
+      ],
+      "status": {
+        "command": "opencode auth list",
+        "reader": "opencode"
+      },
+      "note": "OpenCode dropped its Anthropic sign-in in 1.3.0; it takes an API key there",
+      "stateOnMachine": [
+        ".local/share/opencode/auth.json"
+      ]
+    },
+    "cursor": {
+      "kind": "key",
+      "sources": [],
+      "finish": "none",
+      "login": "cursor-agent login",
+      "keyEnv": "CURSOR_API_KEY",
+      "status": {
+        "command": "cursor-agent status",
+        "reader": "cursor"
+      },
+      "stateOnMachine": [
+        ".config/cursor/auth.json"
+      ]
+    },
+    "cloudflared": {
+      "kind": "oauth",
+      "sources": [
+        "file"
+      ],
+      "finish": "none",
+      "login": "cloudflared tunnel login",
+      "status": {
+        "command": "if test -s \"$HOME/.cloudflared/cert.pem\"; then echo cert.pem; else false; fi",
+        "reader": "cloudflared"
+      },
+      "stateOnMachine": [
+        ".cloudflared"
+      ]
+    },
+    "op": {
+      "kind": "none",
+      "sources": [],
+      "note": "needs the 1Password desktop app; set OP_SERVICE_ACCOUNT_TOKEN on the machine instead"
+    },
+    "kubectl": {
+      "kind": "none",
+      "sources": [
+        "file"
+      ],
+      "note": "kubectl has no sign-in; copy the kubeconfig instead",
+      "status": {
+        "command": "kubectl config current-context",
+        "typed": "kubectl config current-context 2>/dev/null",
+        "reader": "kubectl"
+      },
+      "stateOnMachine": [
+        ".kube/config"
+      ]
+    },
+    "pi": {
+      "kind": "oauth",
+      "sources": [
+        "file"
+      ],
+      "finish": "none",
+      "login": "pi",
+      "questions": [
+        {
+          "asks": "Trust project folder\\?",
+          "person": true
+        }
+      ],
+      "status": {
+        "command": "pi --list-models",
+        "reader": "pi"
+      },
+      "note": "type /login inside pi and pick a provider, then /exit; a key on the machine counts",
+      "stateOnMachine": [
+        ".pi/agent/auth.json"
+      ]
+    },
+    "hermes": {
+      "kind": "device",
+      "sources": [
+        "file"
+      ],
+      "finish": "none",
+      "login": "hermes auth",
+      "questions": [
+        {
+          "asks": "What would you like to do\\?",
+          "person": true
+        }
+      ],
+      "status": {
+        "command": "hermes auth list",
+        "reader": "hermes"
+      },
+      "note": "pick Add a credential in the menu; keys in ~/.hermes/.env count",
+      "keys": {
+        "paths": [
+          "~/.hermes/.env"
+        ],
+        "note": "the keys in ~/.hermes/.env travel only by copy; no sign-in produces them"
+      },
+      "stateOnMachine": [
+        ".hermes/auth.json",
+        ".hermes/.env"
+      ]
+    }
+  },
+  "readers": {
+    "gh": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": true,
+        "signedIn1": true,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "gcloud": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "aws": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "wrangler": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": true,
+        "signedIn1": true,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "vercel": [
+      {
+        "output": "",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "netlify": [
+      {
+        "output": "",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "fly": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "supabase": [
+      {
+        "output": "",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "railway": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "doppler": [
+      {
+        "output": "",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "claude": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": true,
+        "signedIn1": true,
+        "detail": "OAuth credentials",
+        "detailNoSecrets": "OAuth credentials",
+        "kind": "subscription",
+        "plan": "max"
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": true,
+        "signedIn1": true,
+        "detail": "OAuth credentials",
+        "detailNoSecrets": "OAuth credentials",
+        "kind": "oauth",
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": true,
+        "signedIn1": true,
+        "detail": "OAuth credentials",
+        "detailNoSecrets": "OAuth credentials",
+        "kind": "oauth",
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": true,
+        "signedIn1": true,
+        "detail": "the token from this computer",
+        "detailNoSecrets": "the token from this computer",
+        "kind": "subscription",
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": "API key from ~/.zshrc, set on the machine as a secret",
+        "detailNoSecrets": "API key from ANTHROPIC_API_KEY on the machine",
+        "kind": "api-key",
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": true,
+        "signedIn1": true,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "codex": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": "subscription",
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": "api-key",
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "gemini": [
+      {
+        "output": "",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "OAuth credentials",
+        "detailNoSecrets": "OAuth credentials",
+        "kind": "oauth",
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "API key from ~/.zshrc, set on the machine as a secret",
+        "detailNoSecrets": "API key from GEMINI_API_KEY on the machine",
+        "kind": "api-key",
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "API key from GOOGLE_API_KEY on the machine",
+        "detailNoSecrets": "API key from GOOGLE_API_KEY on the machine",
+        "kind": "api-key",
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "opencode": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": "API key from ~/.zshrc, set on the machine as a secret",
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "API key from ~/.config/env, set on the machine as a secret",
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": "API key from ~/.zshrc, set on the machine as a secret",
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "cursor": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "cloudflared": [
+      {
+        "output": "",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "kubectl": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": "context ",
+        "detailNoSecrets": "context ",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context Logged in to github.com account me",
+        "detailNoSecrets": "context Logged in to github.com account me",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context Logged in to github.com\nFailed to log in to ghe.example",
+        "detailNoSecrets": "context Logged in to github.com\nFailed to log in to ghe.example",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context me@example.com",
+        "detailNoSecrets": "context me@example.com",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context {\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "detailNoSecrets": "context {\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context You are logged in with an OAuth Token",
+        "detailNoSecrets": "context You are logged in with an OAuth Token",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context No existing credentials found",
+        "detailNoSecrets": "context No existing credentials found",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context Not logged in",
+        "detailNoSecrets": "context Not logged in",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context Logged in as me",
+        "detailNoSecrets": "context Logged in as me",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context Logged in using ChatGPT",
+        "detailNoSecrets": "context Logged in using ChatGPT",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context Logged in using an API key - sk-***",
+        "detailNoSecrets": "context Logged in using an API key - sk-***",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context oauth_creds.json",
+        "detailNoSecrets": "context oauth_creds.json",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context GEMINI_API_KEY",
+        "detailNoSecrets": "context GEMINI_API_KEY",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context warn\nGOOGLE_API_KEY",
+        "detailNoSecrets": "context warn\nGOOGLE_API_KEY",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context 2 credentials\nEnvironment\n1 environment variable",
+        "detailNoSecrets": "context 2 credentials\nEnvironment\n1 environment variable",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context 0 credentials",
+        "detailNoSecrets": "context 0 credentials",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context Login successful",
+        "detailNoSecrets": "context Login successful",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context cert.pem",
+        "detailNoSecrets": "context cert.pem",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context prod-cluster",
+        "detailNoSecrets": "context prod-cluster",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context provider   model\nanthropic  claude",
+        "detailNoSecrets": "context provider   model\nanthropic  claude",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "detailNoSecrets": "context anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "detailNoSecrets": "context Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context {\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "detailNoSecrets": "context {\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "detailNoSecrets": "context {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context {\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "detailNoSecrets": "context {\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context {\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "detailNoSecrets": "context {\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context {\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "detailNoSecrets": "context {\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "context {not json}",
+        "detailNoSecrets": "context {not json}",
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "pi": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ],
+    "hermes": [
+      {
+        "output": "",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com account me\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in to github.com\nFailed to log in to ghe.example",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "me@example.com",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"Arn\": \"arn:aws:sts::1:assumed-role\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "You are logged in with an OAuth Token",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "No existing credentials found",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Not logged in",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in as me",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using ChatGPT",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Logged in using an API key - sk-***",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "oauth_creds.json",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "GEMINI_API_KEY",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": "API key from ~/.zshrc, set on the machine as a secret",
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "warn\nGOOGLE_API_KEY\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "2 credentials\nEnvironment\n1 environment variable",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "0 credentials",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Login successful",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "cert.pem",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "prod-cluster\n",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "provider   model\nanthropic  claude",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "anthropic (2 credentials):\n  OPENAI_API_KEY",
+        "signedIn0": true,
+        "signedIn1": false,
+        "detail": "API key from ~/.config/env, set on the machine as a secret",
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "Some text {\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"max\"} end",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"claude.ai\", \"subscriptionType\": \"\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"oauth_token\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": false, \"apiKeySource\": \"ANTHROPIC_API_KEY\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": "API key from ~/.zshrc, set on the machine as a secret",
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{\"loggedIn\": true, \"authMethod\": \"other\"}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      },
+      {
+        "output": "{not json}",
+        "signedIn0": false,
+        "signedIn1": false,
+        "detail": null,
+        "detailNoSecrets": null,
+        "kind": null,
+        "plan": null
+      }
+    ]
+  },
+  "perRow": {
+    "gh": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "device",
+        "sources": [
+          "file",
+          "keychain"
+        ],
+        "finish": "none",
+        "login": "gh auth login --hostname github.com --git-protocol https --web --skip-ssh-key",
+        "questions": [
+          {
+            "asks": "Where do you use GitHub\\?",
+            "flag": "--hostname"
+          },
+          {
+            "asks": "What is your preferred protocol for Git operations on this host\\?",
+            "flag": "--git-protocol"
+          },
+          {
+            "asks": "How would you like to authenticate GitHub CLI\\?",
+            "flag": "--web"
+          },
+          {
+            "asks": "(?:Generate a new SSH key to add to|Upload your SSH public key to) your GitHub account\\?",
+            "flag": "--skip-ssh-key"
+          },
+          {
+            "asks": "Press \\[?Enter\\]? to (?:open|continue)",
+            "answer": "\r"
+          },
+          {
+            "asks": "Authenticate Git with your GitHub credentials\\?",
+            "answer": "\r"
+          }
+        ],
+        "code": "\\b[A-Z0-9]{4}-[A-Z0-9]{4}\\b",
+        "status": {
+          "command": "gh auth status",
+          "reader": "gh"
+        },
+        "stateOnMachine": [
+          ".config/gh/hosts.yml"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [
+        {
+          "asks": "Where do you use GitHub\\?",
+          "flag": "--hostname"
+        },
+        {
+          "asks": "What is your preferred protocol for Git operations on this host\\?",
+          "flag": "--git-protocol"
+        },
+        {
+          "asks": "How would you like to authenticate GitHub CLI\\?",
+          "flag": "--web"
+        },
+        {
+          "asks": "(?:Generate a new SSH key to add to|Upload your SSH public key to) your GitHub account\\?",
+          "flag": "--skip-ssh-key"
+        },
+        {
+          "asks": "Press \\[?Enter\\]? to (?:open|continue)",
+          "answer": "\r"
+        },
+        {
+          "asks": "Authenticate Git with your GitHub credentials\\?",
+          "answer": "\r"
+        }
+      ],
+      "asksThePerson": false,
+      "signInRoadOf": "device",
+      "loginWords": "gh auth login",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.config/gh/hosts.yml"
+      ]
+    },
+    "gcloud": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [
+          "file"
+        ],
+        "finish": "callback",
+        "login": "gcloud auth login",
+        "status": {
+          "command": "gcloud auth list --filter=status:ACTIVE --format=value(account)",
+          "reader": "gcloud"
+        },
+        "stateOnMachine": [
+          ".config/gcloud"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "code",
+      "loginWords": "gcloud auth login",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.config/gcloud"
+      ]
+    },
+    "aws": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [
+          "file"
+        ],
+        "finish": "callback",
+        "login": "aws configure sso",
+        "fallback": "aws configure sso --use-device-code",
+        "headless": "device",
+        "questions": [
+          {
+            "asks": "SSO session name \\(Recommended\\)",
+            "person": true
+          },
+          {
+            "asks": "SSO start URL",
+            "person": true
+          },
+          {
+            "asks": "SSO region",
+            "person": true
+          }
+        ],
+        "status": {
+          "command": "sh -c 'for p in $(aws configure list-profiles 2>/dev/null); do aws sts get-caller-identity --profile \"$p\" 2>/dev/null && exit 0; done; exit 1'",
+          "reader": "aws"
+        },
+        "note": "the check tries every configured profile; the start URL and region it asks for are yours to type",
+        "stateOnMachine": [
+          ".aws"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [
+        {
+          "asks": "SSO session name \\(Recommended\\)",
+          "person": true
+        },
+        {
+          "asks": "SSO start URL",
+          "person": true
+        },
+        {
+          "asks": "SSO region",
+          "person": true
+        }
+      ],
+      "asksThePerson": true,
+      "signInRoadOf": "terminal",
+      "loginWords": "aws configure sso",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.aws"
+      ]
+    },
+    "wrangler": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [
+          "file"
+        ],
+        "finish": "callback",
+        "login": "wrangler login",
+        "status": {
+          "command": "wrangler whoami",
+          "reader": "wrangler"
+        },
+        "note": "needs the callback forward; CLOUDFLARE_API_TOKEN on the machine is the alternative",
+        "stateOnMachine": [
+          ".config/.wrangler"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "code",
+      "loginWords": "wrangler login",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.config/.wrangler"
+      ]
+    },
+    "vercel": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [
+          "file"
+        ],
+        "finish": "none",
+        "login": "vercel login",
+        "status": {
+          "command": "vercel whoami",
+          "reader": "vercel"
+        },
+        "stateOnMachine": [
+          ".config/com.vercel.cli",
+          ".vercel"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "code",
+      "loginWords": "vercel login",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.config/com.vercel.cli",
+        "/root/.vercel"
+      ]
+    },
+    "netlify": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [],
+        "finish": "none",
+        "login": "netlify login",
+        "status": {
+          "command": "netlify status",
+          "reader": "netlify"
+        },
+        "stateOnMachine": [
+          ".netlify/config.json"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "code",
+      "loginWords": "netlify login",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.netlify/config.json"
+      ]
+    },
+    "fly": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [],
+        "finish": "none",
+        "login": "fly auth login",
+        "status": {
+          "command": "fly auth whoami",
+          "reader": "fly"
+        },
+        "stateOnMachine": [
+          ".fly"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "code",
+      "loginWords": "fly auth login",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.fly"
+      ]
+    },
+    "supabase": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [],
+        "finish": "none",
+        "login": "supabase login",
+        "fallback": "supabase login --no-browser",
+        "questions": [
+          {
+            "asks": "Press Enter to open browser and login automatically",
+            "answer": "\r"
+          }
+        ],
+        "status": {
+          "command": "supabase projects list",
+          "reader": "supabase"
+        },
+        "stateOnMachine": [
+          ".supabase"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [
+        {
+          "asks": "Press Enter to open browser and login automatically",
+          "answer": "\r"
+        }
+      ],
+      "asksThePerson": false,
+      "signInRoadOf": "code",
+      "loginWords": "supabase login",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.supabase"
+      ]
+    },
+    "railway": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [],
+        "finish": "callback",
+        "login": "railway login",
+        "status": {
+          "command": "railway whoami",
+          "reader": "railway"
+        },
+        "stateOnMachine": [
+          ".railway"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "code",
+      "loginWords": "railway login",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.railway"
+      ]
+    },
+    "doppler": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [],
+        "finish": "none",
+        "login": "doppler login --yes",
+        "questions": [
+          {
+            "asks": "Open the authorization page in your browser\\?",
+            "flag": "--yes"
+          }
+        ],
+        "code": "(?<=Your auth code is:\\s*)[a-z]+(?:_[a-z]+){2,}",
+        "status": {
+          "command": "doppler me",
+          "reader": "doppler"
+        },
+        "stateOnMachine": [
+          ".doppler"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [
+        {
+          "asks": "Open the authorization page in your browser\\?",
+          "flag": "--yes"
+        }
+      ],
+      "asksThePerson": false,
+      "signInRoadOf": "code",
+      "loginWords": "doppler login",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.doppler"
+      ]
+    },
+    "claude": {
+      "hasLogin": false,
+      "mintsToken": true,
+      "loginThere": {
+        "kind": "oauth",
+        "login": "claude auth login --claudeai",
+        "finish": "code",
+        "headless": "code",
+        "sources": [],
+        "stateOnMachine": [],
+        "status": {
+          "command": "claude auth status",
+          "reader": "claude"
+        }
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": "ANTHROPIC_API_KEY",
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "token",
+      "loginWords": null,
+      "signsInByDefault": false,
+      "loginStatePaths": []
+    },
+    "codex": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [],
+        "finish": "callback",
+        "keyEnv": "OPENAI_API_KEY",
+        "login": "codex login",
+        "fallback": "codex login --device-auth",
+        "headless": "device",
+        "code": "\\b[A-Z0-9]{4,}-[A-Z0-9]{4,}\\b",
+        "shared": {
+          "dir": "codex",
+          "file": "auth.json",
+          "target": "/root/.codex/auth.json",
+          "homeEnv": "CODEX_HOME"
+        },
+        "status": {
+          "command": "codex login status",
+          "reader": "codex"
+        },
+        "stateOnMachine": []
+      },
+      "sharedLoginOf": {
+        "dir": "codex",
+        "file": "auth.json",
+        "target": "/root/.codex/auth.json",
+        "homeEnv": "CODEX_HOME"
+      },
+      "livesOnComputer": true,
+      "keyEnvOf": "OPENAI_API_KEY",
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "device",
+      "loginWords": "codex login",
+      "signsInByDefault": true,
+      "loginStatePaths": []
+    },
+    "gemini": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [
+          "file"
+        ],
+        "finish": "callback",
+        "keyEnv": "GEMINI_API_KEY",
+        "login": "gemini --skip-trust",
+        "questions": [
+          {
+            "asks": "Do you trust the files in this folder\\?",
+            "flag": "--skip-trust"
+          },
+          {
+            "asks": "How would you like to authenticate for this project\\?",
+            "answer": "\r"
+          }
+        ],
+        "status": {
+          "command": "if test -s \"$HOME/.gemini/oauth_creds.json\"; then echo oauth_creds.json; elif test -n \"$GEMINI_API_KEY\"; then echo GEMINI_API_KEY; elif test -n \"$GOOGLE_API_KEY\"; then echo GOOGLE_API_KEY; else false; fi",
+          "reader": "gemini"
+        },
+        "stateOnMachine": [
+          ".gemini/oauth_creds.json"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": "GEMINI_API_KEY",
+      "questionsOf": [
+        {
+          "asks": "Do you trust the files in this folder\\?",
+          "flag": "--skip-trust"
+        },
+        {
+          "asks": "How would you like to authenticate for this project\\?",
+          "answer": "\r"
+        }
+      ],
+      "asksThePerson": false,
+      "signInRoadOf": "code",
+      "loginWords": "gemini",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.gemini/oauth_creds.json"
+      ]
+    },
+    "opencode": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "key",
+        "sources": [
+          "file"
+        ],
+        "finish": "none",
+        "login": "opencode auth login",
+        "questions": [
+          {
+            "asks": "Select provider",
+            "person": true
+          }
+        ],
+        "status": {
+          "command": "opencode auth list",
+          "reader": "opencode"
+        },
+        "note": "OpenCode dropped its Anthropic sign-in in 1.3.0; it takes an API key there",
+        "stateOnMachine": [
+          ".local/share/opencode/auth.json"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [
+        {
+          "asks": "Select provider",
+          "person": true
+        }
+      ],
+      "asksThePerson": true,
+      "signInRoadOf": "terminal",
+      "loginWords": "opencode auth login",
+      "signsInByDefault": false,
+      "loginStatePaths": [
+        "/root/.local/share/opencode/auth.json"
+      ]
+    },
+    "cursor": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "key",
+        "sources": [],
+        "finish": "none",
+        "login": "cursor-agent login",
+        "keyEnv": "CURSOR_API_KEY",
+        "status": {
+          "command": "cursor-agent status",
+          "reader": "cursor"
+        },
+        "stateOnMachine": [
+          ".config/cursor/auth.json"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": "CURSOR_API_KEY",
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "key",
+      "loginWords": "cursor-agent login",
+      "signsInByDefault": false,
+      "loginStatePaths": [
+        "/root/.config/cursor/auth.json"
+      ]
+    },
+    "cloudflared": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [
+          "file"
+        ],
+        "finish": "none",
+        "login": "cloudflared tunnel login",
+        "status": {
+          "command": "if test -s \"$HOME/.cloudflared/cert.pem\"; then echo cert.pem; else false; fi",
+          "reader": "cloudflared"
+        },
+        "stateOnMachine": [
+          ".cloudflared"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "code",
+      "loginWords": "cloudflared tunnel login",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.cloudflared"
+      ]
+    },
+    "op": {
+      "hasLogin": false,
+      "mintsToken": false,
+      "loginThere": null,
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "none",
+      "loginWords": null,
+      "signsInByDefault": false,
+      "loginStatePaths": []
+    },
+    "kubectl": {
+      "hasLogin": false,
+      "mintsToken": false,
+      "loginThere": null,
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [],
+      "asksThePerson": false,
+      "signInRoadOf": "none",
+      "loginWords": null,
+      "signsInByDefault": false,
+      "loginStatePaths": [
+        "/root/.kube/config"
+      ]
+    },
+    "pi": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "oauth",
+        "sources": [
+          "file"
+        ],
+        "finish": "none",
+        "login": "pi",
+        "questions": [
+          {
+            "asks": "Trust project folder\\?",
+            "person": true
+          }
+        ],
+        "status": {
+          "command": "pi --list-models",
+          "reader": "pi"
+        },
+        "note": "type /login inside pi and pick a provider, then /exit; a key on the machine counts",
+        "stateOnMachine": [
+          ".pi/agent/auth.json"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [
+        {
+          "asks": "Trust project folder\\?",
+          "person": true
+        }
+      ],
+      "asksThePerson": true,
+      "signInRoadOf": "terminal",
+      "loginWords": "pi",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.pi/agent/auth.json"
+      ]
+    },
+    "hermes": {
+      "hasLogin": true,
+      "mintsToken": false,
+      "loginThere": {
+        "kind": "device",
+        "sources": [
+          "file"
+        ],
+        "finish": "none",
+        "login": "hermes auth",
+        "questions": [
+          {
+            "asks": "What would you like to do\\?",
+            "person": true
+          }
+        ],
+        "status": {
+          "command": "hermes auth list",
+          "reader": "hermes"
+        },
+        "note": "pick Add a credential in the menu; keys in ~/.hermes/.env count",
+        "keys": {
+          "paths": [
+            "~/.hermes/.env"
+          ],
+          "note": "the keys in ~/.hermes/.env travel only by copy; no sign-in produces them"
+        },
+        "stateOnMachine": [
+          ".hermes/auth.json",
+          ".hermes/.env"
+        ]
+      },
+      "sharedLoginOf": null,
+      "livesOnComputer": false,
+      "keyEnvOf": null,
+      "questionsOf": [
+        {
+          "asks": "What would you like to do\\?",
+          "person": true
+        }
+      ],
+      "asksThePerson": true,
+      "signInRoadOf": "terminal",
+      "loginWords": "hermes auth",
+      "signsInByDefault": true,
+      "loginStatePaths": [
+        "/root/.hermes/auth.json",
+        "/root/.hermes/.env"
+      ]
+    }
+  },
+  "loginIdOf": {
+    "kubectl": "kube",
+    "gh": "gh",
+    "kube": "kube"
+  },
+  "keysIdOf": {
+    "kubectl": "kube-keys",
+    "hermes": "hermes-keys"
+  },
+  "keysRowOf": {
+    "kind": "none",
+    "sources": [
+      "file"
+    ],
+    "note": "n",
+    "status": {
+      "command": "hermes auth list",
+      "reader": "hermes"
+    }
+  },
+  "keysRowOfNoStatus": {
+    "kind": "none",
+    "sources": [
+      "file"
+    ],
+    "note": "n"
+  },
+  "noSignIn": {
+    "kind": "none",
+    "sources": []
+  },
+  "sharedLogins": [
+    {
+      "dir": "codex",
+      "file": "auth.json",
+      "target": "/root/.codex/auth.json",
+      "homeEnv": "CODEX_HOME"
+    }
+  ],
+  "sharesIn": [
+    {
+      "source": "/var/lib/wsp/logins/codex/auth.json",
+      "target": "/root/.codex/auth.json"
+    }
+  ],
+  "neverInImage": [
+    "/root/.claude-cfg/.credentials.json",
+    "/root/.claude-cfg/anthropic-api-key",
+    "/root/.codex/auth.json"
+  ],
+  "secretsFiles": {
+    "sh": "/etc/profile.d/wsp-secrets.sh",
+    "fish": "/etc/fish/conf.d/wsp-secrets.fish"
+  },
+  "loginPaths": [
+    "/root/.claude-cfg/.credentials.json",
+    "/root/.claude-cfg/anthropic-api-key",
+    "/root/.codex/auth.json",
+    "/root/.config/gh/hosts.yml",
+    "/root/.config/gcloud",
+    "/root/.aws",
+    "/root/.config/.wrangler",
+    "/root/.config/com.vercel.cli",
+    "/root/.vercel",
+    "/root/.netlify/config.json",
+    "/root/.fly",
+    "/root/.supabase",
+    "/root/.railway",
+    "/root/.doppler",
+    "/root/.gemini/oauth_creds.json",
+    "/root/.local/share/opencode/auth.json",
+    "/root/.config/cursor/auth.json",
+    "/root/.cloudflared",
+    "/root/.kube/config",
+    "/root/.pi/agent/auth.json",
+    "/root/.hermes/auth.json",
+    "/root/.hermes/.env",
+    "/etc/profile.d/wsp-secrets.sh",
+    "/etc/fish/conf.d/wsp-secrets.fish"
+  ],
+  "neverOnBrokered": [
+    "/root/.claude-cfg/.credentials.json",
+    "/root/.claude-cfg/anthropic-api-key",
+    "/root/.codex/auth.json",
+    "/root/.config/gh/hosts.yml",
+    "/root/.config/gcloud",
+    "/root/.aws",
+    "/root/.config/.wrangler",
+    "/root/.config/com.vercel.cli",
+    "/root/.vercel",
+    "/root/.netlify/config.json",
+    "/root/.fly",
+    "/root/.supabase",
+    "/root/.railway",
+    "/root/.doppler",
+    "/root/.gemini/oauth_creds.json",
+    "/root/.local/share/opencode/auth.json",
+    "/root/.config/cursor/auth.json",
+    "/root/.cloudflared",
+    "/root/.kube/config",
+    "/root/.pi/agent/auth.json",
+    "/root/.hermes/auth.json",
+    "/root/.hermes/.env",
+    "/etc/profile.d/wsp-secrets.sh",
+    "/etc/fish/conf.d/wsp-secrets.fish",
+    "/root/.mcp-auth",
+    "/root/.git-credentials"
+  ],
+  "ghLoginPaths": [
+    "/root/.config/gh/hosts.yml"
+  ],
+  "vaultVariables": [
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "CURSOR_API_KEY"
+  ],
+  "serverValuesOf": {
+    "WSP_MCP_LINEAR_AUTHORIZATION_BEARER": "Bearer tok",
+    "WSP_MCP_LINEAR_AUTHORIZATION": "tok",
+    "NOTION_TOKEN": "n",
+    "WSP_MCP_X_AUTHORIZATION_BEARER": "kept"
+  },
+  "vaultVariableRow": {
+    "CLAUDE_CODE_OAUTH_TOKEN": "claude",
+    "ANTHROPIC_API_KEY": "claude",
+    "OPENAI_API_KEY": "codex",
+    "GEMINI_API_KEY": "gemini",
+    "CURSOR_API_KEY": "cursor",
+    "NOTION_TOKEN": null
+  },
+  "tokenIn": [
+    {
+      "pasted": "sk-ant-oat01-abcdefghijklmnopqrstuvwxyz",
+      "out": "sk-ant-oat01-abcdefghijklmnopqrstuvwxyz"
+    },
+    {
+      "pasted": "  sk-ant-oat01-abcdefghijklmnopqrstuvwxyz\n",
+      "out": "sk-ant-oat01-abcdefghijklmnopqrstuvwxyz"
+    },
+    {
+      "pasted": "token: sk-ant-oat01-abcdefghijklmnopqrstuvwxyz",
+      "out": null
+    },
+    {
+      "pasted": "sk-ant-oat01-short",
+      "out": null
+    },
+    {
+      "pasted": "",
+      "out": null
+    }
+  ],
+  "secretNamed": [
+    {
+      "output": "uses OPENAI_API_KEY here",
+      "out": "API key from ~/.config/env, set on the machine as a secret"
+    },
+    {
+      "output": "OPENAI_API_KEYS",
+      "out": null
+    },
+    {
+      "output": "GEMINI_API_KEY and OPENAI_API_KEY",
+      "out": "API key from ~/.zshrc, set on the machine as a secret"
+    },
+    {
+      "output": "",
+      "out": null
+    }
+  ],
+  "geminiSource": [
+    {
+      "output": "oauth_creds.json",
+      "out": "OAuth credentials",
+      "bare": "OAuth credentials"
+    },
+    {
+      "output": "GEMINI_API_KEY",
+      "out": "API key from ~/.zshrc, set on the machine as a secret",
+      "bare": "API key from GEMINI_API_KEY on the machine"
+    },
+    {
+      "output": "x GOOGLE_API_KEY",
+      "out": "API key from GOOGLE_API_KEY on the machine",
+      "bare": "API key from GOOGLE_API_KEY on the machine"
+    },
+    {
+      "output": "",
+      "out": null,
+      "bare": null
+    },
+    {
+      "output": "  \n",
+      "out": null,
+      "bare": null
+    }
+  ]
+}

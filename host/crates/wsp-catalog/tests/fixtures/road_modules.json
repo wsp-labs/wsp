@@ -1,0 +1,2240 @@
+{
+  "homes": {
+    "own": {
+      "pnpm": {
+        "home": "/root/.local/share/pnpm",
+        "bin": "/root/.local/share/pnpm",
+        "env": {
+          "PNPM_HOME": "/root/.local/share/pnpm"
+        }
+      },
+      "bun": {
+        "home": "/root/.bun",
+        "bin": "/root/.bun/bin",
+        "env": {}
+      },
+      "uv": {
+        "home": "/root/.local",
+        "bin": "/root/.local/bin",
+        "env": {}
+      },
+      "pipx": {
+        "home": "/root/.local",
+        "bin": "/root/.local/bin",
+        "env": {}
+      },
+      "cargo": {
+        "home": "/root/.cargo",
+        "bin": "/root/.cargo/bin",
+        "env": {}
+      },
+      "go": {
+        "home": "/root/go",
+        "bin": "/root/go/bin",
+        "env": {}
+      }
+    },
+    "prefix": {
+      "pnpm": {
+        "home": "/opt/wsp/pnpm",
+        "bin": "/usr/local/bin",
+        "links": "/opt/wsp/pnpm/bin",
+        "env": {
+          "PNPM_HOME": "/opt/wsp/pnpm"
+        }
+      },
+      "bun": {
+        "home": "/opt/wsp/bun",
+        "bin": "/usr/local/bin",
+        "env": {
+          "BUN_INSTALL": "/opt/wsp/bun",
+          "BUN_INSTALL_BIN": "/usr/local/bin"
+        }
+      },
+      "uv": {
+        "home": "/opt/wsp/uv",
+        "bin": "/usr/local/bin",
+        "env": {
+          "UV_TOOL_DIR": "/opt/wsp/uv/tools",
+          "UV_TOOL_BIN_DIR": "/usr/local/bin",
+          "UV_PYTHON_INSTALL_DIR": "/opt/wsp/uv/python"
+        }
+      },
+      "pipx": {
+        "home": "/opt/wsp/pipx",
+        "bin": "/usr/local/bin",
+        "env": {
+          "PIPX_HOME": "/opt/wsp/pipx",
+          "PIPX_BIN_DIR": "/usr/local/bin"
+        }
+      },
+      "cargo": {
+        "home": "/opt/wsp/cargo",
+        "bin": "/usr/local/bin",
+        "links": "/opt/wsp/cargo/bin",
+        "env": {
+          "CARGO_HOME": "/opt/wsp/cargo",
+          "RUSTUP_HOME": "/opt/wsp/rustup"
+        }
+      },
+      "go": {
+        "home": "/opt/wsp/go",
+        "bin": "/usr/local/bin",
+        "env": {
+          "GOPATH": "/opt/wsp/go",
+          "GOBIN": "/usr/local/bin"
+        }
+      }
+    }
+  },
+  "installEnv": {
+    "own": {
+      "PNPM_HOME": "/root/.local/share/pnpm"
+    },
+    "prefix": {
+      "PNPM_HOME": "/opt/wsp/pnpm",
+      "BUN_INSTALL": "/opt/wsp/bun",
+      "BUN_INSTALL_BIN": "/usr/local/bin",
+      "UV_TOOL_DIR": "/opt/wsp/uv/tools",
+      "UV_TOOL_BIN_DIR": "/usr/local/bin",
+      "UV_PYTHON_INSTALL_DIR": "/opt/wsp/uv/python",
+      "PIPX_HOME": "/opt/wsp/pipx",
+      "PIPX_BIN_DIR": "/usr/local/bin",
+      "CARGO_HOME": "/opt/wsp/cargo",
+      "RUSTUP_HOME": "/opt/wsp/rustup",
+      "GOPATH": "/opt/wsp/go",
+      "GOBIN": "/usr/local/bin"
+    }
+  },
+  "roadSteps": {
+    "brew": {
+      "limitS": 600,
+      "retry": false,
+      "env": []
+    },
+    "npm": {
+      "limitS": 300,
+      "retry": true,
+      "env": [
+        "export npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000"
+      ]
+    },
+    "pnpm": {
+      "limitS": 300,
+      "retry": true,
+      "env": [
+        "export npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000"
+      ]
+    },
+    "bun": {
+      "limitS": 300,
+      "retry": true,
+      "env": []
+    },
+    "uv": {
+      "limitS": 300,
+      "retry": true,
+      "env": [
+        "export UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1"
+      ]
+    },
+    "pipx": {
+      "limitS": 300,
+      "retry": true,
+      "env": [
+        "export PIP_TIMEOUT=60 PIP_RETRIES=1"
+      ]
+    },
+    "cargo": {
+      "limitS": 1200,
+      "retry": false,
+      "env": [
+        "export CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1"
+      ]
+    },
+    "go": {
+      "limitS": 600,
+      "retry": false,
+      "env": []
+    },
+    "release": {
+      "limitS": 300,
+      "retry": true,
+      "env": [
+        "curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }"
+      ]
+    },
+    "vendor": {
+      "limitS": 300,
+      "retry": true,
+      "env": [
+        "curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }"
+      ]
+    },
+    "apt": {
+      "limitS": 600,
+      "retry": false,
+      "env": []
+    },
+    "script": {
+      "limitS": 600,
+      "retry": false,
+      "env": [
+        "set -euo pipefail",
+        "export npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000",
+        "export PIP_TIMEOUT=60 PIP_RETRIES=1",
+        "export UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1",
+        "export CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1",
+        "curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }"
+      ]
+    }
+  },
+  "modules": {
+    "brew": {
+      "words": "with Homebrew",
+      "roots": [
+        "/home/linuxbrew/.linuxbrew",
+        "/usr/local/bin"
+      ],
+      "pastes": true,
+      "after": "homebrew",
+      "env": null,
+      "hasAt": false,
+      "hasFromRow": true
+    },
+    "npm": {
+      "words": "as an npm global",
+      "roots": [
+        "/usr/local/lib/node_modules",
+        "/usr/local/bin"
+      ],
+      "pastes": true,
+      "after": "node",
+      "env": null,
+      "hasAt": true,
+      "hasFromRow": true
+    },
+    "pnpm": {
+      "words": "with pnpm",
+      "roots": [
+        "/root/.local/share/pnpm",
+        "/opt/wsp/pnpm"
+      ],
+      "pastes": true,
+      "after": null,
+      "env": {
+        "own": {
+          "PNPM_HOME": "/root/.local/share/pnpm"
+        },
+        "prefix": {
+          "PNPM_HOME": "/opt/wsp/pnpm"
+        }
+      },
+      "hasAt": true,
+      "hasFromRow": true
+    },
+    "bun": {
+      "words": "with bun",
+      "roots": [
+        "/root/.bun",
+        "/opt/wsp/bun"
+      ],
+      "pastes": true,
+      "after": null,
+      "env": {
+        "own": {},
+        "prefix": {
+          "BUN_INSTALL": "/opt/wsp/bun",
+          "BUN_INSTALL_BIN": "/usr/local/bin"
+        }
+      },
+      "hasAt": true,
+      "hasFromRow": true
+    },
+    "uv": {
+      "words": "with uv",
+      "roots": [
+        "/root/.local",
+        "/opt/wsp/uv"
+      ],
+      "pastes": true,
+      "after": null,
+      "env": {
+        "own": {},
+        "prefix": {
+          "UV_TOOL_DIR": "/opt/wsp/uv/tools",
+          "UV_TOOL_BIN_DIR": "/usr/local/bin",
+          "UV_PYTHON_INSTALL_DIR": "/opt/wsp/uv/python"
+        }
+      },
+      "hasAt": true,
+      "hasFromRow": true
+    },
+    "pipx": {
+      "words": "with pipx",
+      "roots": [
+        "/root/.local",
+        "/opt/wsp/pipx"
+      ],
+      "pastes": true,
+      "after": null,
+      "env": {
+        "own": {},
+        "prefix": {
+          "PIPX_HOME": "/opt/wsp/pipx",
+          "PIPX_BIN_DIR": "/usr/local/bin"
+        }
+      },
+      "hasAt": true,
+      "hasFromRow": true
+    },
+    "cargo": {
+      "words": "with cargo",
+      "roots": [
+        "/root/.cargo",
+        "/opt/wsp/cargo"
+      ],
+      "pastes": true,
+      "after": null,
+      "env": {
+        "own": {},
+        "prefix": {
+          "CARGO_HOME": "/opt/wsp/cargo",
+          "RUSTUP_HOME": "/opt/wsp/rustup"
+        }
+      },
+      "hasAt": true,
+      "hasFromRow": true
+    },
+    "go": {
+      "words": "with go install",
+      "roots": [
+        "/root/go",
+        "/opt/wsp/go"
+      ],
+      "pastes": true,
+      "after": null,
+      "env": {
+        "own": {},
+        "prefix": {
+          "GOPATH": "/opt/wsp/go",
+          "GOBIN": "/usr/local/bin"
+        }
+      },
+      "hasAt": true,
+      "hasFromRow": true
+    },
+    "release": {
+      "words": "from its release",
+      "roots": [
+        "/usr/local/bin"
+      ],
+      "pastes": false,
+      "after": null,
+      "env": null,
+      "hasAt": false,
+      "hasFromRow": false
+    },
+    "vendor": {
+      "words": "from its vendor's release",
+      "roots": [
+        "/opt",
+        "/usr/local/bin"
+      ],
+      "pastes": false,
+      "after": null,
+      "env": null,
+      "hasAt": false,
+      "hasFromRow": false
+    },
+    "apt": {
+      "words": "by apt",
+      "roots": [
+        "/usr",
+        "/etc",
+        "/var"
+      ],
+      "pastes": true,
+      "after": "apt-index",
+      "env": null,
+      "hasAt": false,
+      "hasFromRow": false
+    },
+    "script": {
+      "words": "by its own installer",
+      "roots": [
+        "/usr",
+        "/opt",
+        "/root"
+      ],
+      "pastes": true,
+      "after": null,
+      "env": null,
+      "hasAt": false,
+      "hasFromRow": false
+    }
+  },
+  "samples": [
+    {
+      "label": "brew core",
+      "road": {
+        "road": "brew",
+        "formula": "go"
+      },
+      "bin": "go",
+      "bins": {
+        "own": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ]
+      },
+      "present": "test -e /home/linuxbrew/.linuxbrew/opt/go",
+      "check": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions go'",
+      "shown": "brew install go",
+      "install": {
+        "own": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew install go'",
+        "prefix": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew install go'"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew uninstall go'"
+        },
+        "prefix": {
+          "cmd": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew uninstall go'"
+        }
+      },
+      "names": [
+        "go"
+      ],
+      "roadBin": null,
+      "at": null,
+      "installed": {
+        "own": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions go' 2>/dev/null | awk '{print $2}'",
+        "prefix": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions go' 2>/dev/null | awk '{print $2}'"
+      },
+      "fixesVersion": false,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "brew",
+        "formula": "go"
+      }
+    },
+    {
+      "label": "brew tap",
+      "road": {
+        "road": "brew",
+        "formula": "felixkratz/formulae/sketchybar"
+      },
+      "bin": "sketchybar",
+      "bins": {
+        "own": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/home/linuxbrew/.linuxbrew/bin",
+          "/home/linuxbrew/.linuxbrew/sbin",
+          "/usr/local/bin"
+        ]
+      },
+      "present": "test -e /home/linuxbrew/.linuxbrew/opt/sketchybar || command -v 'sketchybar' >/dev/null 2>&1",
+      "check": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions felixkratz/formulae/sketchybar'",
+      "shown": "brew install felixkratz/formulae/sketchybar",
+      "install": {
+        "own": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew install felixkratz/formulae/sketchybar'",
+        "prefix": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew install felixkratz/formulae/sketchybar'"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "if [ -x /home/linuxbrew/.linuxbrew/bin/brew ] && su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --formula felixkratz/formulae/sketchybar' >/dev/null 2>&1; then su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew uninstall felixkratz/formulae/sketchybar'; else rm -f /usr/local/bin/'sketchybar'; fi"
+        },
+        "prefix": {
+          "cmd": "if [ -x /home/linuxbrew/.linuxbrew/bin/brew ] && su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --formula felixkratz/formulae/sketchybar' >/dev/null 2>&1; then su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew uninstall felixkratz/formulae/sketchybar'; else rm -f /usr/local/bin/'sketchybar'; fi"
+        }
+      },
+      "names": [
+        "felixkratz/formulae/sketchybar"
+      ],
+      "roadBin": null,
+      "at": null,
+      "installed": {
+        "own": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions felixkratz/formulae/sketchybar' 2>/dev/null | awk '{print $2}'",
+        "prefix": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions felixkratz/formulae/sketchybar' 2>/dev/null | awk '{print $2}'"
+      },
+      "fixesVersion": false,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "brew",
+        "formula": "felixkratz/formulae/sketchybar"
+      }
+    },
+    {
+      "label": "npm",
+      "road": {
+        "road": "npm",
+        "package": "prettier"
+      },
+      "bin": "prettier",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "npm install -g prettier",
+        "prefix": "npm install -g prettier"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "npm uninstall -g prettier"
+        },
+        "prefix": {
+          "cmd": "npm uninstall -g prettier"
+        }
+      },
+      "names": [
+        "prettier"
+      ],
+      "roadBin": null,
+      "at": {
+        "road": "npm",
+        "package": "prettier",
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'prettier'",
+        "prefix": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'prettier'"
+      },
+      "fixesVersion": true,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "npm",
+        "package": "prettier"
+      }
+    },
+    {
+      "label": "npm at",
+      "road": {
+        "road": "npm",
+        "package": "pnpm",
+        "version": "11.9.0"
+      },
+      "bin": "pnpm",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "npm install -g pnpm@11.9.0",
+        "prefix": "npm install -g pnpm@11.9.0"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "npm uninstall -g pnpm"
+        },
+        "prefix": {
+          "cmd": "npm uninstall -g pnpm"
+        }
+      },
+      "names": [
+        "pnpm"
+      ],
+      "roadBin": null,
+      "at": {
+        "road": "npm",
+        "package": "pnpm",
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'pnpm'",
+        "prefix": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'pnpm'"
+      },
+      "fixesVersion": true,
+      "versionOf": "11.9.0",
+      "standingPin": null,
+      "unpinned": {
+        "road": "npm",
+        "package": "pnpm",
+        "version": "11.9.0"
+      }
+    },
+    {
+      "label": "npm pinned",
+      "road": {
+        "road": "npm",
+        "package": "x",
+        "pin": {
+          "tag": "1.2.3"
+        }
+      },
+      "bin": "x",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "npm install -g x@1.2.3",
+        "prefix": "npm install -g x@1.2.3"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "npm uninstall -g x"
+        },
+        "prefix": {
+          "cmd": "npm uninstall -g x"
+        }
+      },
+      "names": [
+        "x"
+      ],
+      "roadBin": null,
+      "at": {
+        "road": "npm",
+        "package": "x",
+        "pin": {
+          "tag": "1.2.3"
+        },
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'x'",
+        "prefix": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'x'"
+      },
+      "fixesVersion": true,
+      "versionOf": "1.2.3",
+      "standingPin": {
+        "tag": "1.2.3"
+      },
+      "unpinned": {
+        "road": "npm",
+        "package": "x"
+      }
+    },
+    {
+      "label": "npm ignore scripts",
+      "road": {
+        "road": "npm",
+        "package": "@scope/x",
+        "ignoreScripts": true
+      },
+      "bin": "x",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "npm install -g --ignore-scripts @scope/x",
+        "prefix": "npm install -g --ignore-scripts @scope/x"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "npm uninstall -g @scope/x"
+        },
+        "prefix": {
+          "cmd": "npm uninstall -g @scope/x"
+        }
+      },
+      "names": [
+        "@scope/x"
+      ],
+      "roadBin": null,
+      "at": {
+        "road": "npm",
+        "package": "@scope/x",
+        "ignoreScripts": true,
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'@scope/x'",
+        "prefix": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(npm root -g)/\"'@scope/x'"
+      },
+      "fixesVersion": true,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "npm",
+        "package": "@scope/x",
+        "ignoreScripts": true
+      }
+    },
+    {
+      "label": "pnpm",
+      "road": {
+        "road": "pnpm",
+        "package": "@scope/tool",
+        "version": "2.0.0"
+      },
+      "bin": "tool",
+      "bins": {
+        "own": [
+          "/root/.local/share/pnpm"
+        ],
+        "prefix": [
+          "/opt/wsp/pnpm/bin",
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "pnpm add -g @scope/tool@2.0.0",
+        "prefix": "export PATH=/opt/wsp/pnpm/bin:$PATH; pnpm add -g @scope/tool@2.0.0\nfind /opt/wsp/pnpm/bin -maxdepth 1 -type f -perm -u+x -exec ln -sfn {} /usr/local/bin/ ';'"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "pnpm remove -g @scope/tool"
+        },
+        "prefix": {
+          "cmd": "export PATH=/opt/wsp/pnpm/bin:$PATH; pnpm remove -g @scope/tool\nrm -f /usr/local/bin/'tool'"
+        }
+      },
+      "names": [
+        "@scope/tool"
+      ],
+      "roadBin": null,
+      "at": {
+        "road": "pnpm",
+        "package": "@scope/tool",
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "node -p 'require(process.argv[1] + \"/package.json\").version' \"$(pnpm root -g)/\"'@scope/tool'",
+        "prefix": "export PATH=/opt/wsp/pnpm/bin:$PATH; node -p 'require(process.argv[1] + \"/package.json\").version' \"$(pnpm root -g)/\"'@scope/tool'"
+      },
+      "fixesVersion": true,
+      "versionOf": "2.0.0",
+      "standingPin": null,
+      "unpinned": {
+        "road": "pnpm",
+        "package": "@scope/tool",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "label": "bun",
+      "road": {
+        "road": "bun",
+        "package": "cowsay"
+      },
+      "bin": "cowsay",
+      "bins": {
+        "own": [
+          "/root/.bun/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "bun add -g cowsay",
+        "prefix": "bun add -g cowsay"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "bun remove -g cowsay"
+        },
+        "prefix": {
+          "cmd": "bun remove -g cowsay"
+        }
+      },
+      "names": [
+        "cowsay"
+      ],
+      "roadBin": null,
+      "at": {
+        "road": "bun",
+        "package": "cowsay",
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "bun pm ls -g 2>/dev/null | grep -oE \"(^| )cowsay@[^[:space:]]+\" | head -n 1 | sed 's/.*@//'",
+        "prefix": "bun pm ls -g 2>/dev/null | grep -oE \"(^| )cowsay@[^[:space:]]+\" | head -n 1 | sed 's/.*@//'"
+      },
+      "fixesVersion": true,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "bun",
+        "package": "cowsay"
+      }
+    },
+    {
+      "label": "uv",
+      "road": {
+        "road": "uv",
+        "package": "ruff",
+        "version": "0.6.0"
+      },
+      "bin": "ruff",
+      "bins": {
+        "own": [
+          "/root/.local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "uv tool install ruff==0.6.0",
+        "prefix": "uv tool install ruff==0.6.0"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "uv tool uninstall ruff"
+        },
+        "prefix": {
+          "cmd": "uv tool uninstall ruff"
+        }
+      },
+      "names": [
+        "ruff"
+      ],
+      "roadBin": null,
+      "at": {
+        "road": "uv",
+        "package": "ruff",
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "uv tool list 2>/dev/null | awk -v p='ruff' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'",
+        "prefix": "uv tool list 2>/dev/null | awk -v p='ruff' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'"
+      },
+      "fixesVersion": true,
+      "versionOf": "0.6.0",
+      "standingPin": null,
+      "unpinned": {
+        "road": "uv",
+        "package": "ruff",
+        "version": "0.6.0"
+      }
+    },
+    {
+      "label": "pipx",
+      "road": {
+        "road": "pipx",
+        "package": "black"
+      },
+      "bin": "black",
+      "bins": {
+        "own": [
+          "/root/.local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "pipx install black",
+        "prefix": "pipx install black"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "pipx uninstall black"
+        },
+        "prefix": {
+          "cmd": "pipx uninstall black"
+        }
+      },
+      "names": [
+        "black"
+      ],
+      "roadBin": null,
+      "at": {
+        "road": "pipx",
+        "package": "black",
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "pipx list --short 2>/dev/null | awk -v p='black' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'",
+        "prefix": "pipx list --short 2>/dev/null | awk -v p='black' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'"
+      },
+      "fixesVersion": true,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "pipx",
+        "package": "black"
+      }
+    },
+    {
+      "label": "cargo",
+      "road": {
+        "road": "cargo",
+        "package": "ripgrep",
+        "version": "14.1.0"
+      },
+      "bin": "rg",
+      "bins": {
+        "own": [
+          "/root/.cargo/bin"
+        ],
+        "prefix": [
+          "/opt/wsp/cargo/bin",
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "cargo install ripgrep --version 14.1.0 --locked",
+        "prefix": "export PATH=/opt/wsp/cargo/bin:$PATH; cargo install ripgrep --version 14.1.0 --locked\nfind /opt/wsp/cargo/bin -maxdepth 1 -type f -perm -u+x -exec ln -sfn {} /usr/local/bin/ ';'"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "cargo uninstall ripgrep"
+        },
+        "prefix": {
+          "cmd": "export PATH=/opt/wsp/cargo/bin:$PATH; cargo uninstall ripgrep\nrm -f /usr/local/bin/'rg'"
+        }
+      },
+      "names": [
+        "ripgrep"
+      ],
+      "roadBin": null,
+      "at": {
+        "road": "cargo",
+        "package": "ripgrep",
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "cargo install --list 2>/dev/null | awk -v p='ripgrep' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'",
+        "prefix": "export PATH=/opt/wsp/cargo/bin:$PATH; cargo install --list 2>/dev/null | awk -v p='ripgrep' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'"
+      },
+      "fixesVersion": true,
+      "versionOf": "14.1.0",
+      "standingPin": null,
+      "unpinned": {
+        "road": "cargo",
+        "package": "ripgrep",
+        "version": "14.1.0"
+      }
+    },
+    {
+      "label": "cargo plain",
+      "road": {
+        "road": "cargo",
+        "package": "bat"
+      },
+      "bin": "bat",
+      "bins": {
+        "own": [
+          "/root/.cargo/bin"
+        ],
+        "prefix": [
+          "/opt/wsp/cargo/bin",
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "cargo install bat --locked",
+        "prefix": "export PATH=/opt/wsp/cargo/bin:$PATH; cargo install bat --locked\nfind /opt/wsp/cargo/bin -maxdepth 1 -type f -perm -u+x -exec ln -sfn {} /usr/local/bin/ ';'"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "cargo uninstall bat"
+        },
+        "prefix": {
+          "cmd": "export PATH=/opt/wsp/cargo/bin:$PATH; cargo uninstall bat\nrm -f /usr/local/bin/'bat'"
+        }
+      },
+      "names": [
+        "bat"
+      ],
+      "roadBin": null,
+      "at": {
+        "road": "cargo",
+        "package": "bat",
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "cargo install --list 2>/dev/null | awk -v p='bat' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'",
+        "prefix": "export PATH=/opt/wsp/cargo/bin:$PATH; cargo install --list 2>/dev/null | awk -v p='bat' '$1==p{sub(/^v/,\"\",$2); sub(/:$/,\"\",$2); print $2}'"
+      },
+      "fixesVersion": true,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "cargo",
+        "package": "bat"
+      }
+    },
+    {
+      "label": "go",
+      "road": {
+        "road": "go",
+        "module": "github.com/x/y/cmd/z",
+        "version": "v1.2.3"
+      },
+      "bin": "z",
+      "bins": {
+        "own": [
+          "/root/go/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "go install github.com/x/y/cmd/z@v1.2.3",
+        "prefix": "go install github.com/x/y/cmd/z@v1.2.3"
+      },
+      "uninstall": {
+        "own": {
+          "note": "go has no uninstall; the binary stays in /root/go/bin"
+        },
+        "prefix": {
+          "note": "go has no uninstall; the binary stays in /usr/local/bin"
+        }
+      },
+      "names": [],
+      "roadBin": "z",
+      "at": {
+        "road": "go",
+        "module": "github.com/x/y/cmd/z",
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "go version -m /root/go/bin/'z' 2>/dev/null | awk '$1==\"mod\"{print $3}'",
+        "prefix": "go version -m /usr/local/bin/'z' 2>/dev/null | awk '$1==\"mod\"{print $3}'"
+      },
+      "fixesVersion": true,
+      "versionOf": "v1.2.3",
+      "standingPin": null,
+      "unpinned": {
+        "road": "go",
+        "module": "github.com/x/y/cmd/z",
+        "version": "v1.2.3"
+      }
+    },
+    {
+      "label": "go bare",
+      "road": {
+        "road": "go"
+      },
+      "bin": "z",
+      "bins": {
+        "own": [
+          "/root/go/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": {
+          "note": "no module to install from"
+        },
+        "prefix": {
+          "note": "no module to install from"
+        }
+      },
+      "uninstall": {
+        "own": {
+          "note": "go has no uninstall; the binary stays in /root/go/bin"
+        },
+        "prefix": {
+          "note": "go has no uninstall; the binary stays in /usr/local/bin"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": {
+        "road": "go",
+        "version": "9.9.9"
+      },
+      "installed": {
+        "own": "go version -m /root/go/bin/'z' 2>/dev/null | awk '$1==\"mod\"{print $3}'",
+        "prefix": "go version -m /usr/local/bin/'z' 2>/dev/null | awk '$1==\"mod\"{print $3}'"
+      },
+      "fixesVersion": true,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "go"
+      }
+    },
+    {
+      "label": "release assets",
+      "road": {
+        "road": "release",
+        "repo": "cli/cli",
+        "version": "v2.101.0",
+        "assets": {
+          "x86_64": {
+            "name": "gh_2.101.0_linux_amd64.tar.gz",
+            "sha256": "9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8"
+          },
+          "aarch64": {
+            "name": "gh_2.101.0_linux_arm64.tar.gz",
+            "sha256": "b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f"
+          }
+        },
+        "go": "github.com/cli/cli/v2/cmd/gh"
+      },
+      "bin": "gh",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": "the v2.101.0 release of github.com/cli/cli",
+      "install": {
+        "own": "set -euo pipefail\nname='gh'\ntag='v2.101.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) asset='gh_2.101.0_linux_amd64.tar.gz' sha=9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8 ;; aarch64) asset='gh_2.101.0_linux_arm64.tar.gz' sha=b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nurl='https://github.com/cli/cli/releases/download/v2.101.0/'\"$asset\"\ncurl -o \"$tmp/$asset\" \"$url\"\necho \"$sha  $tmp/$asset\" | sha256sum -c - >/dev/null\ncase \"$asset\" in\n  *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n  *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\nesac\nbin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n[ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n[ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\ninstall -m 0755 \"$bin\" \"/usr/local/bin/$name\"\necho \"WSP_ROAD release $asset $sha $tag\"",
+        "prefix": "set -euo pipefail\nname='gh'\ntag='v2.101.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) asset='gh_2.101.0_linux_amd64.tar.gz' sha=9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8 ;; aarch64) asset='gh_2.101.0_linux_arm64.tar.gz' sha=b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nurl='https://github.com/cli/cli/releases/download/v2.101.0/'\"$asset\"\ncurl -o \"$tmp/$asset\" \"$url\"\necho \"$sha  $tmp/$asset\" | sha256sum -c - >/dev/null\ncase \"$asset\" in\n  *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n  *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\nesac\nbin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n[ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n[ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\ninstall -m 0755 \"$bin\" \"/usr/local/bin/$name\"\necho \"WSP_ROAD release $asset $sha $tag\""
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "rm -f /usr/local/bin/'gh'"
+        },
+        "prefix": {
+          "cmd": "rm -f /usr/local/bin/'gh'"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": null,
+      "fixesVersion": true,
+      "versionOf": "v2.101.0",
+      "standingPin": null,
+      "unpinned": {
+        "road": "release",
+        "repo": "cli/cli",
+        "version": "v2.101.0",
+        "assets": {
+          "x86_64": {
+            "name": "gh_2.101.0_linux_amd64.tar.gz",
+            "sha256": "9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8"
+          },
+          "aarch64": {
+            "name": "gh_2.101.0_linux_arm64.tar.gz",
+            "sha256": "b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f"
+          }
+        },
+        "go": "github.com/cli/cli/v2/cmd/gh"
+      }
+    },
+    {
+      "label": "release assets no go",
+      "road": {
+        "road": "release",
+        "repo": "jdx/mise",
+        "version": "v2026.9.12",
+        "assets": {
+          "x86_64": {
+            "name": "mise-v2026.9.12-linux-x64",
+            "sha256": "e79ae57945034903aee8aa2ea66b4c7ca9cd4f4edd5a8a78a589cbae6d0f428a"
+          },
+          "aarch64": {
+            "name": "mise-v2026.9.12-linux-arm64",
+            "sha256": "f344c6961190ed2f68e595ed7cb4f03c36c17812bd608886bec799a3082180ff"
+          }
+        }
+      },
+      "bin": "mise",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": "the v2026.9.12 release of github.com/jdx/mise",
+      "install": {
+        "own": "set -euo pipefail\nname='mise'\ntag='v2026.9.12'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) asset='mise-v2026.9.12-linux-x64' sha=e79ae57945034903aee8aa2ea66b4c7ca9cd4f4edd5a8a78a589cbae6d0f428a ;; aarch64) asset='mise-v2026.9.12-linux-arm64' sha=f344c6961190ed2f68e595ed7cb4f03c36c17812bd608886bec799a3082180ff ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nurl='https://github.com/jdx/mise/releases/download/v2026.9.12/'\"$asset\"\ncurl -o \"$tmp/$asset\" \"$url\"\necho \"$sha  $tmp/$asset\" | sha256sum -c - >/dev/null\ncase \"$asset\" in\n  *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n  *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\nesac\nbin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n[ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n[ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\ninstall -m 0755 \"$bin\" \"/usr/local/bin/$name\"\necho \"WSP_ROAD release $asset $sha $tag\"",
+        "prefix": "set -euo pipefail\nname='mise'\ntag='v2026.9.12'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) asset='mise-v2026.9.12-linux-x64' sha=e79ae57945034903aee8aa2ea66b4c7ca9cd4f4edd5a8a78a589cbae6d0f428a ;; aarch64) asset='mise-v2026.9.12-linux-arm64' sha=f344c6961190ed2f68e595ed7cb4f03c36c17812bd608886bec799a3082180ff ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nurl='https://github.com/jdx/mise/releases/download/v2026.9.12/'\"$asset\"\ncurl -o \"$tmp/$asset\" \"$url\"\necho \"$sha  $tmp/$asset\" | sha256sum -c - >/dev/null\ncase \"$asset\" in\n  *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n  *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\nesac\nbin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n[ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n[ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\ninstall -m 0755 \"$bin\" \"/usr/local/bin/$name\"\necho \"WSP_ROAD release $asset $sha $tag\""
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "rm -f /usr/local/bin/'mise'"
+        },
+        "prefix": {
+          "cmd": "rm -f /usr/local/bin/'mise'"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": null,
+      "fixesVersion": true,
+      "versionOf": "v2026.9.12",
+      "standingPin": null,
+      "unpinned": {
+        "road": "release",
+        "repo": "jdx/mise",
+        "version": "v2026.9.12",
+        "assets": {
+          "x86_64": {
+            "name": "mise-v2026.9.12-linux-x64",
+            "sha256": "e79ae57945034903aee8aa2ea66b4c7ca9cd4f4edd5a8a78a589cbae6d0f428a"
+          },
+          "aarch64": {
+            "name": "mise-v2026.9.12-linux-arm64",
+            "sha256": "f344c6961190ed2f68e595ed7cb4f03c36c17812bd608886bec799a3082180ff"
+          }
+        }
+      }
+    },
+    {
+      "label": "release half assets",
+      "road": {
+        "road": "release",
+        "repo": "a/b",
+        "version": "v1",
+        "assets": {
+          "x86_64": {
+            "name": "b-linux-amd64",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        },
+        "go": "github.com/a/b"
+      },
+      "bin": "b",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": "the v1 release of github.com/a/b",
+      "install": {
+        "own": "set -euo pipefail\nname='b'\ntag='v1'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) asset='b-linux-amd64' sha=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc ;; aarch64) asset= sha= ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nif [ -n \"$asset\" ]; then\n  url='https://github.com/a/b/releases/download/v1/'\"$asset\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  echo \"$sha  $tmp/$asset\" | sha256sum -c - >/dev/null\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sha $tag\"\nelif command -v go >/dev/null 2>&1; then\n  GOBIN=/usr/local/bin go install 'github.com/a/b@v1'\n  echo \"WSP_ROAD go \"'github.com/a/b@v1'\nelse\n  echo \"Error: release \"'v1'\" of \"'a/b'\" has no Linux build for $arch, and go is not on the machine\" >&2\n  exit 1\nfi",
+        "prefix": "set -euo pipefail\nname='b'\ntag='v1'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) asset='b-linux-amd64' sha=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc ;; aarch64) asset= sha= ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nif [ -n \"$asset\" ]; then\n  url='https://github.com/a/b/releases/download/v1/'\"$asset\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  echo \"$sha  $tmp/$asset\" | sha256sum -c - >/dev/null\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sha $tag\"\nelif command -v go >/dev/null 2>&1; then\n  GOBIN=/usr/local/bin go install 'github.com/a/b@v1'\n  echo \"WSP_ROAD go \"'github.com/a/b@v1'\nelse\n  echo \"Error: release \"'v1'\" of \"'a/b'\" has no Linux build for $arch, and go is not on the machine\" >&2\n  exit 1\nfi"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        },
+        "prefix": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": null,
+      "fixesVersion": true,
+      "versionOf": "v1",
+      "standingPin": null,
+      "unpinned": {
+        "road": "release",
+        "repo": "a/b",
+        "version": "v1",
+        "assets": {
+          "x86_64": {
+            "name": "b-linux-amd64",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        },
+        "go": "github.com/a/b"
+      }
+    },
+    {
+      "label": "release own",
+      "road": {
+        "road": "release",
+        "repo": "a/b",
+        "version": "v1.0.0"
+      },
+      "bin": "b",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": "the v1.0.0 release of github.com/a/b",
+      "install": {
+        "own": "set -euo pipefail\nname='b'\ntag='v1.0.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/a/b/releases/tags/v1.0.0' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelse\n  echo \"Error: release \"'v1.0.0'\" of \"'a/b'\" has no Linux build\" >&2\n  exit 1\nfi",
+        "prefix": "set -euo pipefail\nname='b'\ntag='v1.0.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/a/b/releases/tags/v1.0.0' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelse\n  echo \"Error: release \"'v1.0.0'\" of \"'a/b'\" has no Linux build\" >&2\n  exit 1\nfi"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        },
+        "prefix": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": null,
+      "fixesVersion": true,
+      "versionOf": "v1.0.0",
+      "standingPin": null,
+      "unpinned": {
+        "road": "release",
+        "repo": "a/b",
+        "version": "v1.0.0"
+      }
+    },
+    {
+      "label": "release own pinned",
+      "road": {
+        "road": "release",
+        "repo": "a/b",
+        "pin": {
+          "tag": "v1.0.0",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "bin": "b",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": "the v1.0.0 release of github.com/a/b",
+      "install": {
+        "own": "set -euo pipefail\nname='b'\ntag='v1.0.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/a/b/releases/tags/v1.0.0' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  [ \"$sum\" = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ] || { echo \"Error: $asset at $tag does not match the checksum recorded on its first install: recorded aaaaaaaaaaaa, served ${sum:0:12}\" >&2; exit 1; }\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelse\n  echo \"Error: release \"'v1.0.0'\" of \"'a/b'\" has no Linux build\" >&2\n  exit 1\nfi",
+        "prefix": "set -euo pipefail\nname='b'\ntag='v1.0.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/a/b/releases/tags/v1.0.0' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  [ \"$sum\" = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ] || { echo \"Error: $asset at $tag does not match the checksum recorded on its first install: recorded aaaaaaaaaaaa, served ${sum:0:12}\" >&2; exit 1; }\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelse\n  echo \"Error: release \"'v1.0.0'\" of \"'a/b'\" has no Linux build\" >&2\n  exit 1\nfi"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        },
+        "prefix": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": null,
+      "fixesVersion": false,
+      "versionOf": "v1.0.0",
+      "standingPin": {
+        "tag": "v1.0.0",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "unpinned": {
+        "road": "release",
+        "repo": "a/b"
+      }
+    },
+    {
+      "label": "release own arch pin",
+      "road": {
+        "road": "release",
+        "repo": "a/b",
+        "version": "v1.0.0",
+        "pin": {
+          "tag": "v1.0.0",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "arch": "aarch64"
+        },
+        "go": "github.com/a/b/cmd/c@v1.0.0"
+      },
+      "bin": "b",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": "the v1.0.0 release of github.com/a/b",
+      "install": {
+        "own": "set -euo pipefail\nname='b'\ntag='v1.0.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/a/b/releases/tags/v1.0.0' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  if [ \"$arch\" = 'aarch64' ]; then [ \"$sum\" = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ] || { echo \"Error: $asset at $tag does not match the checksum recorded on its first install: recorded aaaaaaaaaaaa, served ${sum:0:12}\" >&2; exit 1; }; fi\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelif command -v go >/dev/null 2>&1; then\n  GOBIN=/usr/local/bin go install 'github.com/a/b/cmd/c@v1.0.0'\n  mv '/usr/local/bin/c' \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD go \"'github.com/a/b/cmd/c@v1.0.0'\nelse\n  echo \"Error: release \"'v1.0.0'\" of \"'a/b'\" has no Linux build, and go is not on the machine\" >&2\n  exit 1\nfi",
+        "prefix": "set -euo pipefail\nname='b'\ntag='v1.0.0'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/a/b/releases/tags/v1.0.0' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  if [ \"$arch\" = 'aarch64' ]; then [ \"$sum\" = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ] || { echo \"Error: $asset at $tag does not match the checksum recorded on its first install: recorded aaaaaaaaaaaa, served ${sum:0:12}\" >&2; exit 1; }; fi\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelif command -v go >/dev/null 2>&1; then\n  GOBIN=/usr/local/bin go install 'github.com/a/b/cmd/c@v1.0.0'\n  mv '/usr/local/bin/c' \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD go \"'github.com/a/b/cmd/c@v1.0.0'\nelse\n  echo \"Error: release \"'v1.0.0'\" of \"'a/b'\" has no Linux build, and go is not on the machine\" >&2\n  exit 1\nfi"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        },
+        "prefix": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": null,
+      "fixesVersion": true,
+      "versionOf": "v1.0.0",
+      "standingPin": {
+        "tag": "v1.0.0",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "arch": "aarch64"
+      },
+      "unpinned": {
+        "road": "release",
+        "repo": "a/b",
+        "version": "v1.0.0",
+        "go": "github.com/a/b/cmd/c@v1.0.0"
+      }
+    },
+    {
+      "label": "release no tag",
+      "road": {
+        "road": "release",
+        "repo": "a/b"
+      },
+      "bin": "b",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": "names no release tag; name the version",
+      "install": {
+        "own": {
+          "note": "names no release tag; name the version"
+        },
+        "prefix": {
+          "note": "names no release tag; name the version"
+        }
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        },
+        "prefix": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": null,
+      "fixesVersion": false,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "release",
+        "repo": "a/b"
+      }
+    },
+    {
+      "label": "release no repo",
+      "road": {
+        "road": "release",
+        "version": "v1"
+      },
+      "bin": "b",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": "no GitHub release to install from",
+      "install": {
+        "own": {
+          "note": "no GitHub release to install from"
+        },
+        "prefix": {
+          "note": "no GitHub release to install from"
+        }
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        },
+        "prefix": {
+          "cmd": "rm -f /usr/local/bin/'b'"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": null,
+      "fixesVersion": true,
+      "versionOf": "v1",
+      "standingPin": null,
+      "unpinned": {
+        "road": "release",
+        "version": "v1"
+      }
+    },
+    {
+      "label": "vendor",
+      "road": {
+        "road": "vendor",
+        "cask": {
+          "version": "586.0.0",
+          "sha256": {
+            "x86_64": "6c774c76793eedd501150b59da653610fbe3eaac169e822965b722de75a2f001",
+            "aarch64": "e50ea0141a027d5118d7dd011d2870e706466dc0fc437d95cae86a14e0d871bc"
+          },
+          "bin": "gcloud",
+          "from": "Google's Linux release",
+          "detail": "from Google's Linux release, at the version and sum the catalog pins",
+          "install": "set -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=x86_64 sha=6c774c76793eedd501150b59da653610fbe3eaac169e822965b722de75a2f001 ;; aarch64) a=arm sha=e50ea0141a027d5118d7dd011d2870e706466dc0fc437d95cae86a14e0d871bc ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\n[ \"$a\" != arm ] || command -v python3 >/dev/null || { echo \"Error: gcloud on arm needs python3 on the machine; Google's arm tarball bundles none\" >&2; exit 1; }\nver='586.0.0'\npkg=\"google-cloud-cli-$ver-linux-$a.tar.gz\"\ncurl -o \"$tmp/$pkg\" \"https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/$pkg\"\necho \"$sha  $tmp/$pkg\" | sha256sum -c - >/dev/null\nrm -rf /opt/google-cloud-sdk\ntar -xzf \"$tmp/$pkg\" -C /opt\nln -sf /opt/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud\nln -sf /opt/google-cloud-sdk/bin/gsutil /usr/local/bin/gsutil\nln -sf /opt/google-cloud-sdk/bin/bq /usr/local/bin/bq\necho \"WSP_ROAD release $pkg $sha $ver\"",
+          "uninstall": "rm -rf /opt/google-cloud-sdk /usr/local/bin/gcloud /usr/local/bin/gsutil /usr/local/bin/bq"
+        },
+        "version": "586.0.0"
+      },
+      "bin": "gcloud",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": "Google's Linux release",
+      "install": {
+        "own": "set -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=x86_64 sha=6c774c76793eedd501150b59da653610fbe3eaac169e822965b722de75a2f001 ;; aarch64) a=arm sha=e50ea0141a027d5118d7dd011d2870e706466dc0fc437d95cae86a14e0d871bc ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\n[ \"$a\" != arm ] || command -v python3 >/dev/null || { echo \"Error: gcloud on arm needs python3 on the machine; Google's arm tarball bundles none\" >&2; exit 1; }\nver='586.0.0'\npkg=\"google-cloud-cli-$ver-linux-$a.tar.gz\"\ncurl -o \"$tmp/$pkg\" \"https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/$pkg\"\necho \"$sha  $tmp/$pkg\" | sha256sum -c - >/dev/null\nrm -rf /opt/google-cloud-sdk\ntar -xzf \"$tmp/$pkg\" -C /opt\nln -sf /opt/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud\nln -sf /opt/google-cloud-sdk/bin/gsutil /usr/local/bin/gsutil\nln -sf /opt/google-cloud-sdk/bin/bq /usr/local/bin/bq\necho \"WSP_ROAD release $pkg $sha $ver\"",
+        "prefix": "set -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=x86_64 sha=6c774c76793eedd501150b59da653610fbe3eaac169e822965b722de75a2f001 ;; aarch64) a=arm sha=e50ea0141a027d5118d7dd011d2870e706466dc0fc437d95cae86a14e0d871bc ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\n[ \"$a\" != arm ] || command -v python3 >/dev/null || { echo \"Error: gcloud on arm needs python3 on the machine; Google's arm tarball bundles none\" >&2; exit 1; }\nver='586.0.0'\npkg=\"google-cloud-cli-$ver-linux-$a.tar.gz\"\ncurl -o \"$tmp/$pkg\" \"https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/$pkg\"\necho \"$sha  $tmp/$pkg\" | sha256sum -c - >/dev/null\nrm -rf /opt/google-cloud-sdk\ntar -xzf \"$tmp/$pkg\" -C /opt\nln -sf /opt/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud\nln -sf /opt/google-cloud-sdk/bin/gsutil /usr/local/bin/gsutil\nln -sf /opt/google-cloud-sdk/bin/bq /usr/local/bin/bq\necho \"WSP_ROAD release $pkg $sha $ver\""
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "rm -rf /opt/google-cloud-sdk /usr/local/bin/gcloud /usr/local/bin/gsutil /usr/local/bin/bq"
+        },
+        "prefix": {
+          "cmd": "rm -rf /opt/google-cloud-sdk /usr/local/bin/gcloud /usr/local/bin/gsutil /usr/local/bin/bq"
+        }
+      },
+      "names": [],
+      "roadBin": "gcloud",
+      "at": null,
+      "installed": null,
+      "fixesVersion": true,
+      "versionOf": "586.0.0",
+      "standingPin": null,
+      "unpinned": {
+        "road": "vendor",
+        "cask": {
+          "version": "586.0.0",
+          "sha256": {
+            "x86_64": "6c774c76793eedd501150b59da653610fbe3eaac169e822965b722de75a2f001",
+            "aarch64": "e50ea0141a027d5118d7dd011d2870e706466dc0fc437d95cae86a14e0d871bc"
+          },
+          "bin": "gcloud",
+          "from": "Google's Linux release",
+          "detail": "from Google's Linux release, at the version and sum the catalog pins",
+          "install": "set -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=x86_64 sha=6c774c76793eedd501150b59da653610fbe3eaac169e822965b722de75a2f001 ;; aarch64) a=arm sha=e50ea0141a027d5118d7dd011d2870e706466dc0fc437d95cae86a14e0d871bc ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\n[ \"$a\" != arm ] || command -v python3 >/dev/null || { echo \"Error: gcloud on arm needs python3 on the machine; Google's arm tarball bundles none\" >&2; exit 1; }\nver='586.0.0'\npkg=\"google-cloud-cli-$ver-linux-$a.tar.gz\"\ncurl -o \"$tmp/$pkg\" \"https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/$pkg\"\necho \"$sha  $tmp/$pkg\" | sha256sum -c - >/dev/null\nrm -rf /opt/google-cloud-sdk\ntar -xzf \"$tmp/$pkg\" -C /opt\nln -sf /opt/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud\nln -sf /opt/google-cloud-sdk/bin/gsutil /usr/local/bin/gsutil\nln -sf /opt/google-cloud-sdk/bin/bq /usr/local/bin/bq\necho \"WSP_ROAD release $pkg $sha $ver\"",
+          "uninstall": "rm -rf /opt/google-cloud-sdk /usr/local/bin/gcloud /usr/local/bin/gsutil /usr/local/bin/bq"
+        },
+        "version": "586.0.0"
+      }
+    },
+    {
+      "label": "apt",
+      "road": {
+        "road": "apt",
+        "packages": [
+          "build-essential",
+          "cmake"
+        ]
+      },
+      "bin": "cc",
+      "bins": {
+        "own": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ],
+        "prefix": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": "apt-get install build-essential cmake",
+      "install": {
+        "own": "export DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq build-essential cmake",
+        "prefix": "export DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq build-essential cmake"
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "export DEBIAN_FRONTEND=noninteractive\napt-get purge -y -qq build-essential cmake && apt-get autoremove -y -qq --purge"
+        },
+        "prefix": {
+          "cmd": "export DEBIAN_FRONTEND=noninteractive\napt-get purge -y -qq build-essential cmake && apt-get autoremove -y -qq --purge"
+        }
+      },
+      "names": [
+        "build-essential",
+        "cmake"
+      ],
+      "roadBin": null,
+      "at": null,
+      "installed": {
+        "own": "dpkg-query -W -f='${Version}\\n' 'build-essential' 2>/dev/null",
+        "prefix": "dpkg-query -W -f='${Version}\\n' 'build-essential' 2>/dev/null"
+      },
+      "fixesVersion": false,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "apt",
+        "packages": [
+          "build-essential",
+          "cmake"
+        ]
+      }
+    },
+    {
+      "label": "apt empty",
+      "road": {
+        "road": "apt",
+        "packages": []
+      },
+      "bin": "x",
+      "bins": {
+        "own": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ],
+        "prefix": [
+          "/usr/bin",
+          "/usr/sbin",
+          "/bin",
+          "/sbin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": "apt-get install ",
+      "install": {
+        "own": "export DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq ",
+        "prefix": "export DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq "
+      },
+      "uninstall": {
+        "own": {
+          "cmd": "export DEBIAN_FRONTEND=noninteractive\napt-get purge -y -qq  && apt-get autoremove -y -qq --purge"
+        },
+        "prefix": {
+          "cmd": "export DEBIAN_FRONTEND=noninteractive\napt-get purge -y -qq  && apt-get autoremove -y -qq --purge"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": {
+        "own": "dpkg-query -W -f='${Version}\\n' '' 2>/dev/null",
+        "prefix": "dpkg-query -W -f='${Version}\\n' '' 2>/dev/null"
+      },
+      "fixesVersion": false,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "apt",
+        "packages": []
+      }
+    },
+    {
+      "label": "script",
+      "road": {
+        "road": "script",
+        "script": "echo hi",
+        "bins": [
+          "/usr/local/bin"
+        ]
+      },
+      "bin": "hi",
+      "bins": {
+        "own": [
+          "/usr/local/bin"
+        ],
+        "prefix": [
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "echo hi",
+        "prefix": "echo hi"
+      },
+      "uninstall": {
+        "own": {
+          "note": "hi has no uninstaller; left on the machine"
+        },
+        "prefix": {
+          "note": "hi has no uninstaller; left on the machine"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": {
+        "own": "'hi' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "prefix": "'hi' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1"
+      },
+      "fixesVersion": false,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "script",
+        "script": "echo hi",
+        "bins": [
+          "/usr/local/bin"
+        ]
+      }
+    },
+    {
+      "label": "script rustup",
+      "road": {
+        "road": "script",
+        "script": "arch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;\n  aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"\necho \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null\nchmod +x /tmp/rustup-init\n/tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable\nrm -f /tmp/rustup-init",
+        "bins": [
+          "/root/.cargo/bin"
+        ]
+      },
+      "bin": "cargo",
+      "bins": {
+        "own": [
+          "/root/.cargo/bin"
+        ],
+        "prefix": [
+          "/opt/wsp/cargo/bin",
+          "/usr/local/bin"
+        ]
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "arch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;\n  aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"\necho \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null\nchmod +x /tmp/rustup-init\n/tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable\nrm -f /tmp/rustup-init",
+        "prefix": "arch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;\n  aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"\necho \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null\nchmod +x /tmp/rustup-init\n/tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable\nrm -f /tmp/rustup-init\nfind /opt/wsp/cargo/bin -maxdepth 1 -type f -perm -u+x -exec ln -sfn {} /usr/local/bin/ ';'"
+      },
+      "uninstall": {
+        "own": {
+          "note": "cargo has no uninstaller; left on the machine"
+        },
+        "prefix": {
+          "note": "cargo has no uninstaller; left on the machine"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": {
+        "own": "'cargo' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "prefix": "'cargo' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1"
+      },
+      "fixesVersion": false,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "script",
+        "script": "arch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;\n  aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"\necho \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null\nchmod +x /tmp/rustup-init\n/tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable\nrm -f /tmp/rustup-init",
+        "bins": [
+          "/root/.cargo/bin"
+        ]
+      }
+    },
+    {
+      "label": "script none",
+      "road": {
+        "road": "script",
+        "script": "echo hi"
+      },
+      "bin": "hi",
+      "bins": {
+        "own": [],
+        "prefix": []
+      },
+      "present": null,
+      "check": null,
+      "shown": null,
+      "install": {
+        "own": "echo hi",
+        "prefix": "echo hi"
+      },
+      "uninstall": {
+        "own": {
+          "note": "hi has no uninstaller; left on the machine"
+        },
+        "prefix": {
+          "note": "hi has no uninstaller; left on the machine"
+        }
+      },
+      "names": [],
+      "roadBin": null,
+      "at": null,
+      "installed": {
+        "own": "'hi' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1",
+        "prefix": "'hi' --version 2>/dev/null | head -n 1 | grep -oE '[0-9][^ ,()]*\\.[0-9][^ ,()]*' | head -n 1"
+      },
+      "fixesVersion": false,
+      "versionOf": null,
+      "standingPin": null,
+      "unpinned": {
+        "road": "script",
+        "script": "echo hi"
+      }
+    }
+  ],
+  "fromRow": [
+    {
+      "manager": "brew",
+      "reads": true,
+      "rows": [
+        {
+          "road": "brew",
+          "formula": "tool"
+        },
+        {
+          "road": "brew",
+          "formula": "tool"
+        },
+        {
+          "road": "brew",
+          "formula": "gopls"
+        },
+        {
+          "road": "brew",
+          "formula": "gopls"
+        },
+        {
+          "road": "brew",
+          "formula": "old"
+        },
+        {
+          "road": "brew",
+          "formula": "bad"
+        },
+        {
+          "road": "brew",
+          "formula": "bad"
+        }
+      ]
+    },
+    {
+      "manager": "npm",
+      "reads": true,
+      "rows": [
+        {
+          "road": "npm",
+          "package": "tool"
+        },
+        {
+          "road": "npm",
+          "package": "tool",
+          "version": "1.2.3"
+        },
+        {
+          "road": "npm",
+          "package": "gopls"
+        },
+        {
+          "road": "npm",
+          "package": "gopls",
+          "version": "v0.17.0"
+        },
+        {
+          "road": "npm",
+          "package": "old"
+        },
+        {
+          "road": "npm",
+          "package": "bad"
+        },
+        {
+          "road": "npm",
+          "package": "bad"
+        }
+      ]
+    },
+    {
+      "manager": "pnpm",
+      "reads": true,
+      "rows": [
+        {
+          "road": "pnpm",
+          "package": "tool"
+        },
+        {
+          "road": "pnpm",
+          "package": "tool",
+          "version": "1.2.3"
+        },
+        {
+          "road": "pnpm",
+          "package": "gopls"
+        },
+        {
+          "road": "pnpm",
+          "package": "gopls",
+          "version": "v0.17.0"
+        },
+        {
+          "road": "pnpm",
+          "package": "old"
+        },
+        {
+          "road": "pnpm",
+          "package": "bad"
+        },
+        {
+          "road": "pnpm",
+          "package": "bad"
+        }
+      ]
+    },
+    {
+      "manager": "bun",
+      "reads": true,
+      "rows": [
+        {
+          "road": "bun",
+          "package": "tool"
+        },
+        {
+          "road": "bun",
+          "package": "tool",
+          "version": "1.2.3"
+        },
+        {
+          "road": "bun",
+          "package": "gopls"
+        },
+        {
+          "road": "bun",
+          "package": "gopls",
+          "version": "v0.17.0"
+        },
+        {
+          "road": "bun",
+          "package": "old"
+        },
+        {
+          "road": "bun",
+          "package": "bad"
+        },
+        {
+          "road": "bun",
+          "package": "bad"
+        }
+      ]
+    },
+    {
+      "manager": "uv",
+      "reads": true,
+      "rows": [
+        {
+          "road": "uv",
+          "package": "tool"
+        },
+        {
+          "road": "uv",
+          "package": "tool",
+          "version": "1.2.3"
+        },
+        {
+          "road": "uv",
+          "package": "gopls"
+        },
+        {
+          "road": "uv",
+          "package": "gopls",
+          "version": "v0.17.0"
+        },
+        {
+          "road": "uv",
+          "package": "old"
+        },
+        {
+          "road": "uv",
+          "package": "bad"
+        },
+        {
+          "road": "uv",
+          "package": "bad"
+        }
+      ]
+    },
+    {
+      "manager": "pipx",
+      "reads": true,
+      "rows": [
+        {
+          "road": "pipx",
+          "package": "tool"
+        },
+        {
+          "road": "pipx",
+          "package": "tool",
+          "version": "1.2.3"
+        },
+        {
+          "road": "pipx",
+          "package": "gopls"
+        },
+        {
+          "road": "pipx",
+          "package": "gopls",
+          "version": "v0.17.0"
+        },
+        {
+          "road": "pipx",
+          "package": "old"
+        },
+        {
+          "road": "pipx",
+          "package": "bad"
+        },
+        {
+          "road": "pipx",
+          "package": "bad"
+        }
+      ]
+    },
+    {
+      "manager": "cargo",
+      "reads": true,
+      "rows": [
+        {
+          "road": "cargo",
+          "package": "tool"
+        },
+        {
+          "road": "cargo",
+          "package": "tool",
+          "version": "1.2.3"
+        },
+        {
+          "road": "cargo",
+          "package": "gopls"
+        },
+        {
+          "road": "cargo",
+          "package": "gopls",
+          "version": "v0.17.0"
+        },
+        {
+          "road": "cargo",
+          "package": "old"
+        },
+        {
+          "road": "cargo",
+          "package": "bad"
+        },
+        {
+          "road": "cargo",
+          "package": "bad"
+        }
+      ]
+    },
+    {
+      "manager": "go",
+      "reads": true,
+      "rows": [
+        {
+          "road": "go"
+        },
+        {
+          "road": "go"
+        },
+        {
+          "road": "go",
+          "module": "golang.org/x/tools/gopls",
+          "version": "v0.16.1"
+        },
+        {
+          "road": "go",
+          "module": "golang.org/x/tools/gopls",
+          "version": "v0.17.0"
+        },
+        {
+          "road": "go",
+          "module": "example.com/old",
+          "version": "v1.0.0"
+        },
+        {
+          "road": "go"
+        },
+        {
+          "road": "go"
+        }
+      ]
+    },
+    {
+      "manager": "release",
+      "reads": false,
+      "rows": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "manager": "vendor",
+      "reads": false,
+      "rows": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "manager": "apt",
+      "reads": false,
+      "rows": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "manager": "script",
+      "reads": false,
+      "rows": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "manager": "nothing",
+      "reads": false,
+      "rows": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    }
+  ],
+  "homeBins": {
+    "own": [
+      "/root/.cargo/bin",
+      "/usr/local/bin",
+      "/opt/x/bin",
+      "/root/.local/bin",
+      "/root/.local/share/pnpm"
+    ],
+    "prefix": [
+      "/opt/wsp/cargo/bin",
+      "/usr/local/bin",
+      "/usr/local/bin",
+      "/opt/x/bin",
+      "/root/.local/bin",
+      "/opt/wsp/pnpm/bin",
+      "/usr/local/bin"
+    ]
+  },
+  "releaseLines": {
+    "assetComplete": "set -euo pipefail\nname='gh'\ntag='v2'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) asset='a b.tar.gz' sha=1111111111111111111111111111111111111111111111111111111111111111 ;; aarch64) asset='c.zip' sha=2222222222222222222222222222222222222222222222222222222222222222 ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nurl='https://github.com/cli/cli/releases/download/v2/'\"$asset\"\ncurl -o \"$tmp/$asset\" \"$url\"\necho \"$sha  $tmp/$asset\" | sha256sum -c - >/dev/null\ncase \"$asset\" in\n  *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n  *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n  *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\nesac\nbin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n[ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n[ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\ninstall -m 0755 \"$bin\" \"/usr/local/bin/$name\"\necho \"WSP_ROAD release $asset $sha $tag\"",
+    "assetHalfGo": "set -euo pipefail\nname='b'\ntag='v1'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) asset= sha= ;; aarch64) asset='b-arm64' sha=2222222222222222222222222222222222222222222222222222222222222222 ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nif [ -n \"$asset\" ]; then\n  url='https://github.com/a/b/releases/download/v1/'\"$asset\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  echo \"$sha  $tmp/$asset\" | sha256sum -c - >/dev/null\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sha $tag\"\nelif command -v go >/dev/null 2>&1; then\n  GOBIN=/usr/local/bin go install 'github.com/a/b/cmd/other@v1'\n  mv '/usr/local/bin/other' \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD go \"'github.com/a/b/cmd/other@v1'\nelse\n  echo \"Error: release \"'v1'\" of \"'a/b'\" has no Linux build for $arch, and go is not on the machine\" >&2\n  exit 1\nfi",
+    "assetNone": "set -euo pipefail\nname='b'\ntag='v1'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) asset= sha= ;; aarch64) asset= sha= ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nif [ -n \"$asset\" ]; then\n  url='https://github.com/a/b/releases/download/v1/'\"$asset\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  echo \"$sha  $tmp/$asset\" | sha256sum -c - >/dev/null\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sha $tag\"\nelse\n  echo \"Error: release \"'v1'\" of \"'a/b'\" has no Linux build for $arch\" >&2\n  exit 1\nfi",
+    "releaseNoPin": "set -euo pipefail\nname='b'\ntag='v1'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/a/b/releases/tags/v1' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelse\n  echo \"Error: release \"'v1'\" of \"'a/b'\" has no Linux build\" >&2\n  exit 1\nfi",
+    "releasePinNoArch": "set -euo pipefail\nname='b'\ntag='v1'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/a/b/releases/tags/v1' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  [ \"$sum\" = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' ] || { echo \"Error: $asset at $tag does not match the checksum recorded on its first install: recorded ffffffffffff, served ${sum:0:12}\" >&2; exit 1; }\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelif command -v go >/dev/null 2>&1; then\n  GOBIN=/usr/local/bin go install 'github.com/a/b@v0.9.0'\n  echo \"WSP_ROAD go \"'github.com/a/b@v0.9.0'\nelse\n  echo \"Error: release \"'v1'\" of \"'a/b'\" has no Linux build, and go is not on the machine\" >&2\n  exit 1\nfi",
+    "releasePinArch": "set -euo pipefail\nname='b'\ntag='v1'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/a/b/releases/tags/v1' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  if [ \"$arch\" = 'x86_64' ]; then [ \"$sum\" = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' ] || { echo \"Error: $asset at $tag does not match the checksum recorded on its first install: recorded ffffffffffff, served ${sum:0:12}\" >&2; exit 1; }; fi\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelif command -v go >/dev/null 2>&1; then\n  GOBIN=/usr/local/bin go install 'github.com/a/b@v1'\n  echo \"WSP_ROAD go \"'github.com/a/b@v1'\nelse\n  echo \"Error: release \"'v1'\" of \"'a/b'\" has no Linux build, and go is not on the machine\" >&2\n  exit 1\nfi",
+    "releasePinNoSum": "set -euo pipefail\nname='b'\ntag='v1'\narch=\"$(uname -m)\"\ncase \"$arch\" in x86_64) pat=\"amd64|x86_64|x64\" ;; aarch64) pat=\"arm64|aarch64\" ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\ntmp=\"$(mktemp -d /tmp/wsp-road-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nrelease=\"$(curl 'https://api.github.com/repos/a/b/releases/tags/v1' || true)\"\nurls=\"$(printf '%s\\n' \"$release\" | grep -o '\"browser_download_url\": *\"[^\"]*\"' | cut -d'\"' -f4 || true)\"\nurl=\"$(printf '%s\\n' \"$urls\" | grep -i linux | grep -iE \"$pat\" | grep -viE '\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$' | head -1 || true)\"\nif [ -n \"$url\" ]; then\n  asset=\"${url##*/}\"\n  curl -o \"$tmp/$asset\" \"$url\"\n  sum=\"$(sha256sum \"$tmp/$asset\" | cut -d' ' -f1)\"\n  case \"$asset\" in\n    *.tar.gz|*.tgz) tar -xzf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.tar.xz) tar -xJf \"$tmp/$asset\" -C \"$tmp\" ;;\n    *.zip) if command -v unzip >/dev/null 2>&1; then unzip -qo \"$tmp/$asset\" -d \"$tmp\"; else python3 -m zipfile -e \"$tmp/$asset\" \"$tmp\"; fi ;;\n    *) mv \"$tmp/$asset\" \"$tmp/$name\"; chmod +x \"$tmp/$name\" ;;\n  esac\n  bin=\"$(find \"$tmp\" -type f -name \"$name\" | head -1)\"\n  [ -n \"$bin\" ] || bin=\"$(find \"$tmp\" -type f -perm -u+x ! -name \"$asset\" ! -name '*.md' ! -name '*.txt' -printf '%s %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\"\n  [ -n \"$bin\" ] || { echo \"Error: no binary in $asset\" >&2; exit 1; }\n  install -m 0755 \"$bin\" \"/usr/local/bin/$name\"\n  echo \"WSP_ROAD release $asset $sum $tag $arch\"\nelse\n  echo \"Error: release \"'v1'\" of \"'a/b'\" has no Linux build\" >&2\n  exit 1\nfi"
+  }
+}

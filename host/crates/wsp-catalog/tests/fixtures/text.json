@@ -1,0 +1,1500 @@
+{
+  "credentials": [
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "x"
+          ],
+          "env": {}
+        },
+        "envRefs": []
+      },
+      "needs": false
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "stdio",
+          "command": "npx",
+          "args": [],
+          "env": {
+            "A": "${ACME_PAT}"
+          }
+        },
+        "envRefs": []
+      },
+      "needs": true
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "stdio",
+          "command": "npx",
+          "args": [],
+          "env": {
+            "A": "${HOME}/x",
+            "B": "{env:PATH}"
+          }
+        },
+        "envRefs": []
+      },
+      "needs": false
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "stdio",
+          "command": "npx",
+          "args": [],
+          "env": {
+            "A": "{env:ACME_PAT}"
+          }
+        },
+        "envRefs": []
+      },
+      "needs": true
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "stdio",
+          "command": "uvx",
+          "args": [
+            "mcp-proxy-for-aws@1.7.0",
+            "https://x"
+          ],
+          "env": {}
+        },
+        "envRefs": []
+      },
+      "needs": true
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "stdio",
+          "command": "uvx",
+          "args": [
+            "mcp-proxy-for-aws@1.7.0",
+            "--skip-auth"
+          ],
+          "env": {}
+        },
+        "envRefs": []
+      },
+      "needs": false
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "stdio",
+          "command": "/opt/bin/mcp-proxy-for-aws-cli",
+          "args": [],
+          "env": {}
+        },
+        "envRefs": []
+      },
+      "needs": true
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "stdio",
+          "command": "sh",
+          "args": [
+            "-c",
+            "pipx run mcp-proxy-for-aws==1.0 x"
+          ],
+          "env": {}
+        },
+        "envRefs": []
+      },
+      "needs": true
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "stdio",
+          "command": "npx",
+          "args": [],
+          "env": {}
+        },
+        "envRefs": [
+          "HOME"
+        ]
+      },
+      "needs": false
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "stdio",
+          "command": "npx",
+          "args": [],
+          "env": {}
+        },
+        "envRefs": [
+          "ACME_PAT"
+        ]
+      },
+      "needs": true
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "http",
+          "url": "https://signs.example/mcp",
+          "headers": {}
+        },
+        "envRefs": []
+      },
+      "needs": true
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "http",
+          "url": "https://open.example/mcp",
+          "headers": {}
+        },
+        "envRefs": []
+      },
+      "needs": false
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "http",
+          "url": "https://unasked.example/mcp",
+          "headers": {}
+        },
+        "envRefs": []
+      },
+      "needs": false
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "http",
+          "url": "https://h.example/mcp",
+          "headers": {
+            "Authorization": "Bearer "
+          }
+        },
+        "envRefs": []
+      },
+      "needs": true
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "http",
+          "url": "https://h.example/mcp",
+          "headers": {
+            "Authorization": "Bearer tok"
+          }
+        },
+        "envRefs": []
+      },
+      "needs": false
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "http",
+          "url": "https://h.example/mcp",
+          "headers": {
+            "X-Key": ""
+          }
+        },
+        "envRefs": []
+      },
+      "needs": true
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "http",
+          "url": "https://h.example/mcp",
+          "headers": {
+            "X-Key": "  token  "
+          }
+        },
+        "envRefs": []
+      },
+      "needs": true
+    },
+    {
+      "server": {
+        "name": "s",
+        "scope": "user",
+        "transport": {
+          "kind": "http",
+          "url": "https://open.example/mcp",
+          "headers": {}
+        },
+        "envRefs": [
+          "LANG"
+        ]
+      },
+      "needs": false
+    }
+  ],
+  "addressesToAsk": [
+    "https://signs.example/mcp",
+    "https://open.example/mcp",
+    "https://unasked.example/mcp"
+  ],
+  "jsonc": [
+    {
+      "text": "{\"a\":1,}",
+      "out": {
+        "ok": {
+          "a": 1
+        }
+      }
+    },
+    {
+      "text": "[1,2,]",
+      "out": {
+        "ok": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "text": "// x\n{\"a\": /* c */ 1}",
+      "out": {
+        "ok": {
+          "a": 1
+        }
+      }
+    },
+    {
+      "text": "{\"u\":\"http://x,y\", \"v\": \"a\\\"//b\"}",
+      "out": {
+        "ok": {
+          "u": "http://x,y",
+          "v": "a\"//b"
+        }
+      }
+    },
+    {
+      "text": "{\"a\":1, // c\n}",
+      "out": {
+        "ok": {
+          "a": 1
+        }
+      }
+    },
+    {
+      "text": "{\"a\":[1,],}",
+      "out": {
+        "ok": {
+          "a": [
+            1
+          ]
+        }
+      }
+    },
+    {
+      "text": "{\"a\":1,\"b\":2,\"a\":3}",
+      "out": {
+        "ok": {
+          "a": 3,
+          "b": 2
+        }
+      }
+    },
+    {
+      "text": "{a:1}",
+      "out": {
+        "error": "Expected property name or '}' in JSON at position 1 (line 1 column 2)"
+      }
+    },
+    {
+      "text": "",
+      "out": {
+        "error": "Unexpected end of JSON input"
+      }
+    },
+    {
+      "text": "{\"a\":1,,}",
+      "out": {
+        "error": "Expected double-quoted property name in JSON at position 7 (line 1 column 8)"
+      }
+    },
+    {
+      "text": "{\"a\":1 /* x",
+      "out": {
+        "error": "Expected ',' or '}' after property value in JSON at position 7 (line 1 column 8)"
+      }
+    },
+    {
+      "text": "{\"a\":1} // end",
+      "out": {
+        "ok": {
+          "a": 1
+        }
+      }
+    },
+    {
+      "text": "{\"a\":\"\\u00e9\\n\"}",
+      "out": {
+        "ok": {
+          "a": "é\n"
+        }
+      }
+    },
+    {
+      "text": "  [ ]  ",
+      "out": {
+        "ok": []
+      }
+    },
+    {
+      "text": "{\"__proto__\": {\"x\": 1}}",
+      "out": {
+        "ok": {
+          "__proto__": {
+            "x": 1
+          }
+        }
+      }
+    }
+  ],
+  "numbers": {
+    "text": "{\"a\":1.0,\"b\":1e21,\"c\":-0,\"d\":0.1,\"e\":12345678901234567890,\"f\":1e-7,\"g\":100,\"h\":-1.5e-10,\"i\":123456789012345680000}",
+    "compact": "{\"a\":1,\"b\":1e+21,\"c\":0,\"d\":0.1,\"e\":12345678901234567000,\"f\":1e-7,\"g\":100,\"h\":-1.5e-10,\"i\":123456789012345680000}",
+    "pretty": "{\n  \"a\": 1,\n  \"b\": 1e+21,\n  \"c\": 0,\n  \"d\": 0.1,\n  \"e\": 12345678901234567000,\n  \"f\": 1e-7,\n  \"g\": 100,\n  \"h\": -1.5e-10,\n  \"i\": 123456789012345680000\n}"
+  },
+  "strings": [
+    {
+      "value": " ",
+      "out": "\" \""
+    },
+    {
+      "value": "\u0007",
+      "out": "\"\\u0007\""
+    },
+    {
+      "value": "é",
+      "out": "\"é\""
+    },
+    {
+      "value": "😀",
+      "out": "\"😀\""
+    },
+    {
+      "value": "\"q\"",
+      "out": "\"\\\"q\\\"\""
+    },
+    {
+      "value": "back\\slash",
+      "out": "\"back\\\\slash\""
+    },
+    {
+      "value": "\t\n\r\b\f",
+      "out": "\"\\t\\n\\r\\b\\f\""
+    },
+    {
+      "value": "",
+      "out": "\"\""
+    },
+    {
+      "value": "</script>",
+      "out": "\"</script>\""
+    }
+  ],
+  "pretty": "{\n  \"a\": {},\n  \"b\": [],\n  \"c\": [\n    {}\n  ],\n  \"d\": {\n    \"e\": [\n      1,\n      {\n        \"f\": []\n      }\n    ]\n  }\n}",
+  "edits": [
+    {
+      "text": "{\n  // keep\n  \"a\": 1\n}\n",
+      "edits": [
+        {
+          "path": [
+            "b"
+          ],
+          "value": 2
+        }
+      ],
+      "out": {
+        "ok": "{\n  // keep\n  \"a\": 1,\n  \"b\": 2\n}\n"
+      }
+    },
+    {
+      "text": "{\n  \"a\": 1,\n  // about b\n  \"b\": 2\n}\n",
+      "edits": [
+        {
+          "path": [
+            "b"
+          ],
+          "value": "UNDEFINED"
+        }
+      ],
+      "out": {
+        "ok": "{\n  \"a\": 1\n}\n"
+      }
+    },
+    {
+      "text": "{\n  \"a\": 1,\n  \"b\": 2 // b\n}\n",
+      "edits": [
+        {
+          "path": [
+            "a"
+          ],
+          "value": "UNDEFINED"
+        }
+      ],
+      "out": {
+        "ok": "{\n  \"b\": 2 // b\n}\n"
+      }
+    },
+    {
+      "text": "{\n  \"a\": 1,\n  \"b\": 2\n}\n",
+      "edits": [
+        {
+          "path": [
+            "b"
+          ],
+          "value": "UNDEFINED"
+        }
+      ],
+      "out": {
+        "ok": "{\n  \"a\": 1\n}\n"
+      }
+    },
+    {
+      "text": "{\n}\n",
+      "edits": [
+        {
+          "path": [
+            "a"
+          ],
+          "value": {
+            "x": [
+              1,
+              2
+            ]
+          }
+        }
+      ],
+      "out": {
+        "ok": "{\n  \"a\": {\n    \"x\": [\n      1,\n      2\n    ]\n  }\n}\n"
+      }
+    },
+    {
+      "text": "{}",
+      "edits": [
+        {
+          "path": [
+            "a"
+          ],
+          "value": {
+            "x": 1
+          }
+        }
+      ],
+      "out": {
+        "ok": "{\"a\": {\"x\":1}}"
+      }
+    },
+    {
+      "text": "{\"a\": 1, \"b\": 2}",
+      "edits": [
+        {
+          "path": [
+            "c"
+          ],
+          "value": 3
+        }
+      ],
+      "out": {
+        "ok": "{\"a\": 1, \"b\": 2, \"c\": 3}"
+      }
+    },
+    {
+      "text": "{\n  \"a\": {\n    \"x\": 1\n  }\n}\n",
+      "edits": [
+        {
+          "path": [
+            "a"
+          ],
+          "value": {
+            "y": {
+              "z": true
+            }
+          }
+        }
+      ],
+      "out": {
+        "ok": "{\n  \"a\": {\n    \"y\": {\n      \"z\": true\n    }\n  }\n}\n"
+      }
+    },
+    {
+      "text": "{\"arr\": [1, 2]}",
+      "edits": [
+        {
+          "path": [
+            "arr",
+            -1
+          ],
+          "value": 3
+        }
+      ],
+      "out": {
+        "ok": "{\"arr\": [1, 2, 3]}"
+      }
+    },
+    {
+      "text": "{\n  \"arr\": [\n    1\n  ]\n}",
+      "edits": [
+        {
+          "path": [
+            "arr",
+            -1
+          ],
+          "value": {
+            "k": "v"
+          }
+        }
+      ],
+      "out": {
+        "ok": "{\n  \"arr\": [\n    1,\n    {\n      \"k\": \"v\"\n    }\n  ]\n}"
+      }
+    },
+    {
+      "text": "{\"arr\": [1, 2]}",
+      "edits": [
+        {
+          "path": [
+            "arr",
+            0
+          ],
+          "value": "v"
+        }
+      ],
+      "out": {
+        "ok": "{\"arr\": [\"v\", 2]}"
+      }
+    },
+    {
+      "text": "{\"arr\": [1, 2]}",
+      "edits": [
+        {
+          "path": [
+            "arr",
+            1
+          ],
+          "value": "UNDEFINED"
+        }
+      ],
+      "out": {
+        "ok": "{\"arr\": [1 ]}"
+      }
+    },
+    {
+      "text": "{\"a\":1,\"a\":2}",
+      "edits": [
+        {
+          "path": [
+            "a"
+          ],
+          "value": 3
+        }
+      ],
+      "out": {
+        "error": "the file could not be changed in place, which keeps its comments; change it by hand"
+      }
+    },
+    {
+      "text": "{\r\n  \"a\": 1\r\n}\r\n",
+      "edits": [
+        {
+          "path": [
+            "b"
+          ],
+          "value": {
+            "c": 1
+          }
+        }
+      ],
+      "out": {
+        "ok": "{\r\n  \"a\": 1,\r\n  \"b\": {\r\n    \"c\": 1\r\n  }\r\n}\r\n"
+      }
+    },
+    {
+      "text": "{}",
+      "edits": [
+        {
+          "path": [
+            "__proto__"
+          ],
+          "value": 1
+        }
+      ],
+      "out": {
+        "ok": "{\"__proto__\": 1}"
+      }
+    },
+    {
+      "text": "{\"x\": 1}",
+      "edits": [
+        {
+          "path": [
+            "y",
+            "z",
+            "w"
+          ],
+          "value": "deep"
+        }
+      ],
+      "out": {
+        "ok": "{\"x\": 1, \"y\": {\"z\":{\"w\":\"deep\"}}}"
+      }
+    },
+    {
+      "text": "{\n  \"m\": {\n    \"k\": 0\n  }\n}\n",
+      "edits": [
+        {
+          "path": [
+            "m",
+            "a"
+          ],
+          "value": 1
+        },
+        {
+          "path": [
+            "m",
+            "b"
+          ],
+          "value": {
+            "n": null
+          }
+        }
+      ],
+      "out": {
+        "ok": "{\n  \"m\": {\n    \"k\": 0,\n    \"a\": 1,\n    \"b\": {\n      \"n\": null\n    }\n  }\n}\n"
+      }
+    },
+    {
+      "text": "{\"a\": 1, /* c */ \"b\": 2}",
+      "edits": [
+        {
+          "path": [
+            "a"
+          ],
+          "value": "UNDEFINED"
+        }
+      ],
+      "out": {
+        "ok": "{/* c */ \"b\": 2}"
+      }
+    },
+    {
+      "text": "{\"a\": {/* in */ \"x\": 1}}",
+      "edits": [
+        {
+          "path": [
+            "a"
+          ],
+          "value": 2
+        }
+      ],
+      "out": {
+        "ok": "{\"a\": 2}"
+      }
+    },
+    {
+      "text": "{\n  \"a\": 1, // one\n  \"b\": 2\n}",
+      "edits": [
+        {
+          "path": [
+            "a"
+          ],
+          "value": "UNDEFINED"
+        }
+      ],
+      "out": {
+        "ok": "{\n  \"b\": 2\n}"
+      }
+    },
+    {
+      "text": "{\"a\": 1,}",
+      "edits": [
+        {
+          "path": [
+            "b"
+          ],
+          "value": 2
+        }
+      ],
+      "out": {
+        "ok": "{\"a\": 1, \"b\": 2,}"
+      }
+    },
+    {
+      "text": "{\n  \"a\": 1,\n}\n",
+      "edits": [
+        {
+          "path": [
+            "b"
+          ],
+          "value": 2
+        }
+      ],
+      "out": {
+        "ok": "{\n  \"a\": 1,\n  \"b\": 2,\n}\n"
+      }
+    },
+    {
+      "text": "{\"a\": 1}",
+      "edits": [
+        {
+          "path": [
+            "missing",
+            "x"
+          ],
+          "value": "UNDEFINED"
+        }
+      ],
+      "out": {
+        "error": "the file could not be changed in place, which keeps its comments; change it by hand"
+      }
+    },
+    {
+      "text": "[1]",
+      "edits": [
+        {
+          "path": [
+            "a"
+          ],
+          "value": 1
+        }
+      ],
+      "out": {
+        "error": "the file is not a JSON object"
+      }
+    },
+    {
+      "text": "{\n  \"projects\": {\n    \"/p\": {}\n  }\n}\n",
+      "edits": [
+        {
+          "path": [
+            "projects",
+            "/p",
+            "mcpServers",
+            "s"
+          ],
+          "value": {
+            "command": "x"
+          }
+        }
+      ],
+      "out": {
+        "ok": "{\n  \"projects\": {\n    \"/p\": {\"mcpServers\": {\"s\":{\"command\":\"x\"}}}\n  }\n}\n"
+      }
+    }
+  ],
+  "canonical": [
+    {
+      "value": {
+        "b": 1,
+        "a": [
+          3,
+          {
+            "d": 1,
+            "c": 2
+          }
+        ],
+        "é": null,
+        "😀": 1,
+        "￿": 2
+      },
+      "out": "{\"a\":[3,{\"c\":2,\"d\":1}],\"b\":1,\"é\":null,\"😀\":1,\"￿\":2}"
+    },
+    {
+      "value": [
+        1,
+        "x"
+      ],
+      "out": "[1,\"x\"]"
+    },
+    {
+      "value": "s",
+      "out": "\"s\""
+    },
+    {
+      "value": 1.5,
+      "out": "1.5"
+    },
+    {
+      "value": null,
+      "out": "null"
+    },
+    {
+      "value": true,
+      "out": "true"
+    },
+    {
+      "value": {},
+      "out": "{}"
+    }
+  ],
+  "bearer": {
+    "variable": "WSP_MCP_X_AUTHORIZATION_BEARER",
+    "of": {
+      "WSP_MCP_X_AUTHORIZATION_BEARER": "WSP_MCP_X_AUTHORIZATION",
+      "WSP_MCP__AUTHORIZATION_BEARER": null,
+      "WSP_MCP_X_AUTHORIZATION": null,
+      "X_BEARER": null,
+      "_BEARER": null,
+      "": null,
+      "WSP_MCP_A_B_AUTHORIZATION_BEARER": "WSP_MCP_A_B_AUTHORIZATION"
+    },
+    "with": {
+      "WSP_MCP_X_AUTHORIZATION_BEARER": "own",
+      "WSP_MCP_Y_AUTHORIZATION_BEARER": "Bearer y",
+      "A": "1",
+      "WSP_MCP_X_AUTHORIZATION": "tok",
+      "WSP_MCP_Y_AUTHORIZATION": "y"
+    }
+  },
+  "travelled": [
+    {
+      "text": "{\"mcpServers\":{\"a\":{\"command\":\"x\"}}}",
+      "key": "mcpServers",
+      "project": null,
+      "out": {
+        "ok": {
+          "a": {
+            "command": "x"
+          }
+        }
+      }
+    },
+    {
+      "text": "{\"projects\":{\"/from\":{\"mcpServers\":{\"f\":{}}},\"/to\":{\"mcpServers\":{\"t\":{}}}}}",
+      "key": "mcpServers",
+      "project": {
+        "from": "/from",
+        "to": "/to"
+      },
+      "out": {
+        "ok": {
+          "f": {}
+        }
+      }
+    },
+    {
+      "text": "{\"projects\":{\"/to\":{\"mcpServers\":{\"t\":{}}}}}",
+      "key": "mcpServers",
+      "project": {
+        "from": "/from",
+        "to": "/to"
+      },
+      "out": {
+        "ok": {
+          "t": {}
+        }
+      }
+    },
+    {
+      "text": "{\"projects\":{}}",
+      "key": "mcpServers",
+      "project": {
+        "from": "/from",
+        "to": "/to"
+      },
+      "out": {
+        "ok": {}
+      }
+    },
+    {
+      "text": "{\"mcpServers\":[]}",
+      "key": "mcpServers",
+      "project": null,
+      "out": {
+        "ok": {}
+      }
+    },
+    {
+      "text": "[1]",
+      "key": "mcpServers",
+      "project": null,
+      "out": {
+        "error": "the copy that travelled is not a JSON object"
+      }
+    },
+    {
+      "text": "not json",
+      "key": "mcpServers",
+      "project": null,
+      "out": {
+        "error": "Unexpected token 'o', \"not json\" is not valid JSON"
+      }
+    }
+  ],
+  "toml": {
+    "uncomment": [
+      {
+        "line": "a = \"x # y\" # z",
+        "out": "a = \"x # y\" "
+      },
+      {
+        "line": "a = 'x # y' # z",
+        "out": "a = 'x # y' "
+      },
+      {
+        "line": "a = \"x \\\" # y\" # z",
+        "out": "a = \"x \\\" # y\" "
+      },
+      {
+        "line": "# all",
+        "out": ""
+      },
+      {
+        "line": "plain",
+        "out": "plain"
+      },
+      {
+        "line": "k = \"unterminated # c",
+        "out": "k = \"unterminated # c"
+      }
+    ],
+    "strings": [
+      {
+        "text": "[\"a\", 'b', \"c\\nd\", \"\\u00e9\", \"\\U0001F600\", \"\\q\"]",
+        "out": [
+          "a",
+          "b",
+          "c\nd",
+          "é",
+          "😀",
+          "\\q"
+        ]
+      },
+      {
+        "text": "x = 1",
+        "out": []
+      },
+      {
+        "text": "\"one\" \"two\"",
+        "out": [
+          "one",
+          "two"
+        ]
+      }
+    ],
+    "openArray": [
+      {
+        "value": "[",
+        "out": true
+      },
+      {
+        "value": "[1, 2]",
+        "out": false
+      },
+      {
+        "value": "[1,",
+        "out": true
+      },
+      {
+        "value": "x",
+        "out": false
+      },
+      {
+        "value": "[]",
+        "out": false
+      }
+    ],
+    "rewrite": [
+      {
+        "line": "command = \"/Users/me/bin/x\" # here",
+        "from": "/Users/me/bin/x",
+        "to": "/root/bin/x",
+        "out": "command = \"/root/bin/x\" # here"
+      },
+      {
+        "line": "args = ['/Users/me/a', \"b\"]",
+        "from": "/Users/me/a",
+        "to": "/root/a",
+        "out": "args = ['/root/a', \"b\"]"
+      },
+      {
+        "line": "k = \"tab\\there\"",
+        "from": "tab\there",
+        "to": "new\tline\n",
+        "out": "k = \"new\\tline\\n\""
+      },
+      {
+        "line": "k = \"same\\u0041\"",
+        "from": "zzz",
+        "to": "yyy",
+        "out": "k = \"same\\u0041\""
+      },
+      {
+        "line": "k = \"x\" # \"x\"",
+        "from": "x",
+        "to": "y",
+        "out": "k = \"y\" # \"x\""
+      }
+    ]
+  },
+  "configSum": [
+    {
+      "text": "",
+      "out": "4294967295 0"
+    },
+    {
+      "text": "a",
+      "out": "1220704766 1"
+    },
+    {
+      "text": "abc\n",
+      "out": "1112837078 4"
+    },
+    {
+      "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "out": "3786917833 300"
+    },
+    {
+      "text": "héllo",
+      "out": "3000080881 6"
+    }
+  ],
+  "appServer": {
+    "request": "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"plugin/read\",\"params\":{\"pluginName\":\"p\",\"marketplacePath\":\"/m\"}}",
+    "requestNoParams": "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"plugin/list\",\"params\":{}}",
+    "notification": "{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":{}}",
+    "initialize": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"clientInfo\":{\"name\":\"wsp\",\"version\":\"0\"}}}",
+    "script": "WSP_PROBE_DIR=$(mktemp -d) && mkfifo \"$WSP_PROBE_DIR/in\" \"$WSP_PROBE_DIR/out\"\ncodex app-server <\"$WSP_PROBE_DIR/in\" >\"$WSP_PROBE_DIR/out\" &\nWSP_APP_SERVER_PID=$!\nexec 3>\"$WSP_PROBE_DIR/in\" 4<\"$WSP_PROBE_DIR/out\"\nanswers=0\nprintf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"clientInfo\":{\"name\":\"wsp\",\"version\":\"0\"}}}' '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"x\",\"params\":{}}' >&3\nwhile [ \"$answers\" -lt 2 ] && IFS= read -r -t 10 -u 4 line; do\n  printf '%s\\n' \"$line\"\n  case $line in '{\"id\":'*) answers=$((answers + 1)) ;; esac\ndone\nif [ \"$answers\" -ge 2 ]; then\n  printf '%s\\n' 'it'\\''s' >&3\n  while [ \"$answers\" -lt 3 ] && IFS= read -r -t 10 -u 4 line; do\n    printf '%s\\n' \"$line\"\n    case $line in '{\"id\":'*) answers=$((answers + 1)) ;; esac\n  done\nfi\nexec 3>&- 4<&-\nkill \"$WSP_APP_SERVER_PID\" 2>/dev/null || :\nrm -rf \"$WSP_PROBE_DIR\"",
+    "scriptOne": "WSP_PROBE_DIR=$(mktemp -d) && mkfifo \"$WSP_PROBE_DIR/in\" \"$WSP_PROBE_DIR/out\"\n/opt/codex app-server <\"$WSP_PROBE_DIR/in\" >\"$WSP_PROBE_DIR/out\" &\nWSP_APP_SERVER_PID=$!\nexec 3>\"$WSP_PROBE_DIR/in\" 4<\"$WSP_PROBE_DIR/out\"\nanswers=0\nprintf '%s\\n'  >&3\nwhile [ \"$answers\" -lt 0 ] && IFS= read -r -t 10 -u 4 line; do\n  printf '%s\\n' \"$line\"\n  case $line in '{\"id\":'*) answers=$((answers + 1)) ;; esac\ndone\nexec 3>&- 4<&-\nkill \"$WSP_APP_SERVER_PID\" 2>/dev/null || :\nrm -rf \"$WSP_PROBE_DIR\"",
+    "answers": {
+      "1": {
+        "result": {
+          "second": true
+        }
+      },
+      "2": {
+        "error": {
+          "code": -32601,
+          "message": "unknown variant `plugin/list`",
+          "data": {
+            "x": 1
+          }
+        }
+      },
+      "3": {
+        "error": {
+          "message": "codex refused the request without saying why"
+        }
+      }
+    }
+  },
+  "oauth": {
+    "bearer": {
+      "file": "/root/.claude-cfg/.credentials.json",
+      "at": [
+        "mcpOAuth",
+        "linear|58a5cc6249f547e0"
+      ],
+      "field": "accessToken"
+    },
+    "calls": [
+      "{\"type\":\"http\",\"url\":\"https://mcp.linear.app/mcp\",\"headers\":{\"b\":\"1\",\"a\":\"2\"}}"
+    ]
+  },
+  "check": [
+    {
+      "output": "No MCP server named \"x\"",
+      "claude": "not-set-up",
+      "codexX": null,
+      "codexY": null,
+      "codexZ": null,
+      "codexW": null
+    },
+    {
+      "output": "Error\nNo MCP server found with name: x",
+      "claude": "not-set-up",
+      "codexX": null,
+      "codexY": null,
+      "codexZ": null,
+      "codexW": null
+    },
+    {
+      "output": "linear:\n  Status: ✓ Connected\n",
+      "claude": "signed-in",
+      "codexX": null,
+      "codexY": null,
+      "codexZ": null,
+      "codexW": null
+    },
+    {
+      "output": "  Status: ! Needs authentication",
+      "claude": "needs-sign-in",
+      "codexX": null,
+      "codexY": null,
+      "codexZ": null,
+      "codexW": null
+    },
+    {
+      "output": "Status: ✗ Failed to connect",
+      "claude": "failed",
+      "codexX": null,
+      "codexY": null,
+      "codexZ": null,
+      "codexW": null
+    },
+    {
+      "output": "Status: something else",
+      "claude": null,
+      "codexX": null,
+      "codexY": null,
+      "codexZ": null,
+      "codexW": null
+    },
+    {
+      "output": "",
+      "claude": null,
+      "codexX": null,
+      "codexY": null,
+      "codexZ": null,
+      "codexW": null
+    },
+    {
+      "output": "warn\n[{\"name\":\"x\",\"auth_status\":\"o_auth\"},{\"name\":\"y\",\"auth_status\":\"not_logged_in\"},{\"name\":\"z\",\"auth_status\":\"bearer\"}]",
+      "claude": null,
+      "codexX": "signed-in",
+      "codexY": "needs-sign-in",
+      "codexZ": null,
+      "codexW": "not-set-up"
+    },
+    {
+      "output": "[{\"name\":\"x\"}]",
+      "claude": null,
+      "codexX": null,
+      "codexY": "not-set-up",
+      "codexZ": "not-set-up",
+      "codexW": "not-set-up"
+    },
+    {
+      "output": "[not json",
+      "claude": null,
+      "codexX": null,
+      "codexY": null,
+      "codexZ": null,
+      "codexW": null
+    },
+    {
+      "output": "{}",
+      "claude": null,
+      "codexX": null,
+      "codexY": null,
+      "codexZ": null,
+      "codexW": null
+    }
+  ],
+  "checkLines": {
+    "claude": "claude mcp get 'it'\\''s'",
+    "codex": "codex mcp list --json"
+  },
+  "hooks": {
+    "words": [
+      {
+        "word": "~/bin/x.sh",
+        "pathOf": "/Users/me/bin/x.sh",
+        "onMachine": false,
+        "runsAFile": false,
+        "placed": {
+          "word": "/guest/Users/me/bin/x.sh",
+          "carried": {
+            "from": "/Users/me/bin/x.sh",
+            "to": "/guest/Users/me/bin/x.sh"
+          }
+        }
+      },
+      {
+        "word": "$HOME/a",
+        "pathOf": "/Users/me/a",
+        "onMachine": false,
+        "runsAFile": false,
+        "placed": {
+          "word": "/guest/Users/me/a",
+          "carried": {
+            "from": "/Users/me/a",
+            "to": "/guest/Users/me/a"
+          }
+        }
+      },
+      {
+        "word": "${HOME}/b",
+        "pathOf": "/Users/me/b",
+        "onMachine": false,
+        "runsAFile": false,
+        "placed": {
+          "word": "/guest/Users/me/b",
+          "carried": {
+            "from": "/Users/me/b",
+            "to": "/guest/Users/me/b"
+          }
+        }
+      },
+      {
+        "word": "/usr/bin/env",
+        "pathOf": "/usr/bin/env",
+        "onMachine": true,
+        "runsAFile": true,
+        "placed": {
+          "word": "/usr/bin/env"
+        }
+      },
+      {
+        "word": "/usr/bin/",
+        "pathOf": "/usr/bin/",
+        "onMachine": false,
+        "runsAFile": false,
+        "placed": {
+          "word": "/guest/usr/bin/",
+          "carried": {
+            "from": "/usr/bin/",
+            "to": "/guest/usr/bin/"
+          }
+        }
+      },
+      {
+        "word": "/opt/nope/x",
+        "pathOf": "/opt/nope/x",
+        "onMachine": false,
+        "runsAFile": false,
+        "placed": {
+          "left": "/opt/nope/x"
+        }
+      },
+      {
+        "word": "plain",
+        "pathOf": null,
+        "onMachine": false,
+        "runsAFile": false,
+        "placed": {
+          "word": "plain"
+        }
+      },
+      {
+        "word": "./rel",
+        "pathOf": null,
+        "onMachine": false,
+        "runsAFile": false,
+        "placed": {
+          "word": "./rel"
+        }
+      },
+      {
+        "word": "/abs/tool",
+        "pathOf": "/abs/tool",
+        "onMachine": false,
+        "runsAFile": false,
+        "placed": {
+          "word": "/guest/abs/tool",
+          "carried": {
+            "from": "/abs/tool",
+            "to": "/guest/abs/tool"
+          }
+        }
+      }
+    ],
+    "claude": {
+      "ok": {
+        "text": "{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Bash\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"/guest/Users/me/hooks/a.sh --flag\"\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"prompt\",\n            \"prompt\": \"x\"\n          }\n        ]\n      }\n    ]\n  }\n}",
+        "carried": [
+          {
+            "from": "/Users/me/hooks/a.sh",
+            "to": "/guest/Users/me/hooks/a.sh"
+          }
+        ],
+        "left": [
+          "/opt/nope/c"
+        ]
+      }
+    },
+    "claudeFiles": {
+      "ok": [
+        "/Users/me/hooks/a.sh",
+        "/Users/me/hooks/b.sh"
+      ]
+    },
+    "codex": {
+      "text": "model = \"x\"\n# runs after a turn\nnotify = [\"python3\", \"/guest/Users/me/bin/notify.py\"]\n[tui]\nnotify = [\"/opt/nope\"]\n",
+      "carried": [
+        {
+          "from": "/Users/me/bin/notify.py",
+          "to": "/guest/Users/me/bin/notify.py"
+        }
+      ],
+      "left": []
+    },
+    "codexLeft": {
+      "text": "k = 1\n",
+      "carried": [],
+      "left": [
+        "/opt/tool/bin/x"
+      ]
+    },
+    "codexOpen": {
+      "text": "notify = [\"~/x\",\n",
+      "carried": [],
+      "left": []
+    }
+  },
+  "plugins": {
+    "plainValues": [
+      "/a",
+      "/d"
+    ],
+    "idParts": {
+      "a@b": {
+        "name": "a",
+        "marketplace": "b"
+      },
+      "a@b@c": {
+        "name": "a@b",
+        "marketplace": "c"
+      },
+      "@b": {
+        "name": "@b",
+        "marketplace": ""
+      },
+      "a": {
+        "name": "a",
+        "marketplace": ""
+      },
+      "": {
+        "name": "",
+        "marketplace": ""
+      }
+    },
+    "inStore": [
+      {
+        "path": "~/.claude/settings.json",
+        "store": "/s",
+        "out": "/s/settings.json"
+      },
+      {
+        "path": "~/.claude",
+        "store": "/s",
+        "out": "/s"
+      },
+      {
+        "path": "~/.clauder/x",
+        "store": "/s",
+        "out": "/h/.clauder/x"
+      },
+      {
+        "path": "~",
+        "store": null,
+        "out": "/h"
+      },
+      {
+        "path": "~/x",
+        "store": null,
+        "out": "/h/x"
+      },
+      {
+        "path": "/abs",
+        "store": "/s",
+        "out": "/abs"
+      }
+    ],
+    "joinPath": [
+      {
+        "parts": [
+          "/a",
+          "b"
+        ],
+        "out": "/a/b"
+      },
+      {
+        "parts": [
+          "/a/",
+          "/b/"
+        ],
+        "out": "/a/b"
+      },
+      {
+        "parts": [
+          "/a",
+          "../.."
+        ],
+        "out": "/"
+      },
+      {
+        "parts": [
+          "a",
+          "./b"
+        ],
+        "out": "/a/b"
+      },
+      {
+        "parts": [
+          "/"
+        ],
+        "out": "/"
+      },
+      {
+        "parts": [],
+        "out": "/"
+      }
+    ],
+    "baseName": {
+      "/a/b": "b",
+      "/a/b//": "b",
+      "b": "b",
+      "": "",
+      "/": ""
+    },
+    "bundled": [
+      "a",
+      "b",
+      "c"
+    ]
+  }
+}

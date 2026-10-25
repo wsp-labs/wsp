@@ -1,0 +1,1203 @@
+{
+  "rows": [
+    {
+      "id": "logins",
+      "name": "logins",
+      "patterns": {
+        "never": [
+          ".credentials.json",
+          "auth.json",
+          ".git-credentials",
+          ".netrc",
+          "hosts.yml",
+          ".aws/credentials"
+        ]
+      },
+      "examples": {
+        "never": [
+          ".credentials.json",
+          ".config/gh/hosts.yml",
+          ".aws/credentials"
+        ]
+      }
+    },
+    {
+      "id": "finder",
+      "name": "Finder metadata",
+      "patterns": {
+        "junk": [
+          ".DS_Store",
+          "Thumbs.db"
+        ]
+      },
+      "examples": {
+        "junk": [
+          ".DS_Store",
+          "components/.DS_Store"
+        ]
+      }
+    },
+    {
+      "id": "next",
+      "name": "Next",
+      "patterns": {
+        "secret": [
+          ".env*.local"
+        ],
+        "rebuilt": [
+          ".next/",
+          "next-env.d.ts"
+        ]
+      },
+      "examples": {
+        "secret": [
+          ".env.local",
+          ".env.development.local"
+        ],
+        "rebuilt": [
+          ".next",
+          "next-env.d.ts"
+        ]
+      }
+    },
+    {
+      "id": "node",
+      "name": "Node",
+      "patterns": {
+        "secret": [
+          ".env",
+          ".env.*",
+          ".npmrc"
+        ],
+        "rebuilt": [
+          "node_modules/",
+          ".pnpm-store/",
+          ".cache/",
+          ".turbo/",
+          "dist/",
+          "build/",
+          "out/",
+          "coverage/",
+          "*.tsbuildinfo"
+        ]
+      },
+      "except": [
+        ".env.example",
+        ".env.sample"
+      ],
+      "examples": {
+        "secret": [
+          ".env",
+          ".env.production",
+          "apps/web/.npmrc"
+        ],
+        "rebuilt": [
+          "node_modules",
+          "packages/host/dist",
+          "tsconfig.tsbuildinfo"
+        ]
+      },
+      "installs": [
+        {
+          "lockfile": "package-lock.json",
+          "run": "npm ci",
+          "check": "npm --version"
+        },
+        {
+          "lockfile": "pnpm-lock.yaml",
+          "run": "pnpm install --frozen-lockfile",
+          "check": "pnpm --version",
+          "store": {
+            "flag": "--store-dir",
+            "dir": ".pnpm-store"
+          }
+        },
+        {
+          "lockfile": "yarn.lock",
+          "run": "yarn install --frozen-lockfile",
+          "check": "yarn --version"
+        },
+        {
+          "lockfile": "bun.lock",
+          "run": "bun install --frozen-lockfile",
+          "check": "bun --version"
+        },
+        {
+          "lockfile": "bun.lockb",
+          "run": "bun install --frozen-lockfile",
+          "check": "bun --version"
+        }
+      ]
+    },
+    {
+      "id": "python",
+      "name": "Python",
+      "patterns": {
+        "secret": [
+          ".envrc",
+          ".pypirc"
+        ],
+        "config": [
+          "local_settings.py"
+        ],
+        "rebuilt": [
+          ".venv/",
+          "venv/",
+          "__pycache__/",
+          ".pytest_cache/",
+          ".mypy_cache/",
+          ".ruff_cache/",
+          "*.egg-info/"
+        ],
+        "data": [
+          "db.sqlite3"
+        ]
+      },
+      "examples": {
+        "secret": [
+          ".envrc",
+          ".pypirc"
+        ],
+        "config": [
+          "app/local_settings.py"
+        ],
+        "rebuilt": [
+          ".venv",
+          "app/__pycache__",
+          "wsp.egg-info"
+        ],
+        "data": [
+          "db.sqlite3"
+        ]
+      },
+      "installs": [
+        {
+          "lockfile": "uv.lock",
+          "run": "uv sync --frozen"
+        },
+        {
+          "lockfile": "poetry.lock",
+          "run": "poetry install"
+        }
+      ]
+    },
+    {
+      "id": "rails",
+      "name": "Rails",
+      "patterns": {
+        "secret": [
+          "config/master.key",
+          "config/credentials/*.key"
+        ],
+        "rebuilt": [
+          "tmp/",
+          "log/"
+        ]
+      },
+      "examples": {
+        "secret": [
+          "config/master.key",
+          "config/credentials/production.key"
+        ],
+        "rebuilt": [
+          "tmp",
+          "log"
+        ]
+      }
+    },
+    {
+      "id": "rust",
+      "name": "Rust",
+      "patterns": {
+        "rebuilt": [
+          "target/"
+        ]
+      },
+      "examples": {
+        "rebuilt": [
+          "target",
+          "daemon/target"
+        ]
+      },
+      "installs": [
+        {
+          "lockfile": "Cargo.lock",
+          "run": "cargo fetch --locked"
+        }
+      ]
+    },
+    {
+      "id": "go",
+      "name": "Go",
+      "patterns": {},
+      "examples": {},
+      "installs": [
+        {
+          "lockfile": "go.sum",
+          "run": "go mod download"
+        }
+      ]
+    },
+    {
+      "id": "vercel",
+      "name": "Vercel",
+      "patterns": {
+        "config": [
+          ".vercel/"
+        ]
+      },
+      "examples": {
+        "config": [
+          ".vercel"
+        ]
+      }
+    },
+    {
+      "id": "terraform",
+      "name": "Terraform",
+      "patterns": {
+        "secret": [
+          "*.tfvars",
+          "*.auto.tfvars"
+        ],
+        "rebuilt": [
+          ".terraform/"
+        ]
+      },
+      "examples": {
+        "secret": [
+          "prod.tfvars",
+          "infra/stage.auto.tfvars"
+        ],
+        "rebuilt": [
+          ".terraform"
+        ]
+      }
+    },
+    {
+      "id": "android",
+      "name": "Android",
+      "patterns": {
+        "config": [
+          "local.properties"
+        ],
+        "secret": [
+          "*.keystore",
+          "*.jks"
+        ],
+        "rebuilt": [
+          ".gradle/"
+        ]
+      },
+      "examples": {
+        "config": [
+          "local.properties"
+        ],
+        "secret": [
+          "app/release.keystore",
+          "app/upload.jks"
+        ],
+        "rebuilt": [
+          ".gradle"
+        ]
+      }
+    },
+    {
+      "id": "certificates",
+      "name": "certificates",
+      "patterns": {
+        "secret": [
+          "*.pem",
+          "*.key",
+          "*.p12"
+        ],
+        "config": [
+          "*.crt"
+        ]
+      },
+      "examples": {
+        "secret": [
+          "certs/local.pem",
+          "certs/local.key"
+        ],
+        "config": [
+          "certs/local.crt"
+        ]
+      }
+    },
+    {
+      "id": "agents",
+      "name": "agents",
+      "patterns": {
+        "config": [
+          ".claude/settings.local.json",
+          "CLAUDE.local.md"
+        ],
+        "rebuilt": [
+          ".claude/.cc-writes/"
+        ]
+      },
+      "opens": [
+        ".claude/"
+      ],
+      "examples": {
+        "config": [
+          ".claude/settings.local.json",
+          "CLAUDE.local.md"
+        ],
+        "rebuilt": [
+          ".claude/.cc-writes"
+        ]
+      }
+    },
+    {
+      "id": "databases",
+      "name": "databases",
+      "patterns": {
+        "data": [
+          "*.sqlite",
+          "*.sqlite3",
+          "*.db",
+          "*.duckdb",
+          "pgdata/",
+          "postgres-data/",
+          "mongo-data/",
+          "redis-data/"
+        ]
+      },
+      "examples": {
+        "data": [
+          "dev.db",
+          "var/app.sqlite3",
+          "pgdata"
+        ]
+      }
+    }
+  ],
+  "judged": [
+    {
+      "path": ".credentials.json",
+      "dir": false,
+      "row": "logins",
+      "kind": "never"
+    },
+    {
+      "path": ".credentials.json",
+      "dir": true,
+      "row": "logins",
+      "kind": "never"
+    },
+    {
+      "path": ".config/gh/hosts.yml",
+      "dir": false,
+      "row": "logins",
+      "kind": "never"
+    },
+    {
+      "path": ".config/gh/hosts.yml",
+      "dir": true,
+      "row": "logins",
+      "kind": "never"
+    },
+    {
+      "path": ".aws/credentials",
+      "dir": false,
+      "row": "logins",
+      "kind": "never"
+    },
+    {
+      "path": ".aws/credentials",
+      "dir": true,
+      "row": "logins",
+      "kind": "never"
+    },
+    {
+      "path": ".DS_Store",
+      "dir": false,
+      "row": "finder",
+      "kind": "junk"
+    },
+    {
+      "path": ".DS_Store",
+      "dir": true,
+      "row": "finder",
+      "kind": "junk"
+    },
+    {
+      "path": "components/.DS_Store",
+      "dir": false,
+      "row": "finder",
+      "kind": "junk"
+    },
+    {
+      "path": "components/.DS_Store",
+      "dir": true,
+      "row": "finder",
+      "kind": "junk"
+    },
+    {
+      "path": ".env.local",
+      "dir": false,
+      "row": "next",
+      "kind": "secret"
+    },
+    {
+      "path": ".env.local",
+      "dir": true,
+      "row": "next",
+      "kind": "secret"
+    },
+    {
+      "path": ".env.development.local",
+      "dir": false,
+      "row": "next",
+      "kind": "secret"
+    },
+    {
+      "path": ".env.development.local",
+      "dir": true,
+      "row": "next",
+      "kind": "secret"
+    },
+    {
+      "path": ".next",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": ".next",
+      "dir": true,
+      "row": "next",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "next-env.d.ts",
+      "dir": false,
+      "row": "next",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "next-env.d.ts",
+      "dir": true,
+      "row": "next",
+      "kind": "rebuilt"
+    },
+    {
+      "path": ".env",
+      "dir": false,
+      "row": "node",
+      "kind": "secret"
+    },
+    {
+      "path": ".env",
+      "dir": true,
+      "row": "node",
+      "kind": "secret"
+    },
+    {
+      "path": ".env.production",
+      "dir": false,
+      "row": "node",
+      "kind": "secret"
+    },
+    {
+      "path": ".env.production",
+      "dir": true,
+      "row": "node",
+      "kind": "secret"
+    },
+    {
+      "path": "apps/web/.npmrc",
+      "dir": false,
+      "row": "node",
+      "kind": "secret"
+    },
+    {
+      "path": "apps/web/.npmrc",
+      "dir": true,
+      "row": "node",
+      "kind": "secret"
+    },
+    {
+      "path": "node_modules",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "node_modules",
+      "dir": true,
+      "row": "node",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "packages/host/dist",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "packages/host/dist",
+      "dir": true,
+      "row": "node",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "tsconfig.tsbuildinfo",
+      "dir": false,
+      "row": "node",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "tsconfig.tsbuildinfo",
+      "dir": true,
+      "row": "node",
+      "kind": "rebuilt"
+    },
+    {
+      "path": ".envrc",
+      "dir": false,
+      "row": "python",
+      "kind": "secret"
+    },
+    {
+      "path": ".envrc",
+      "dir": true,
+      "row": "python",
+      "kind": "secret"
+    },
+    {
+      "path": ".pypirc",
+      "dir": false,
+      "row": "python",
+      "kind": "secret"
+    },
+    {
+      "path": ".pypirc",
+      "dir": true,
+      "row": "python",
+      "kind": "secret"
+    },
+    {
+      "path": "app/local_settings.py",
+      "dir": false,
+      "row": "python",
+      "kind": "config"
+    },
+    {
+      "path": "app/local_settings.py",
+      "dir": true,
+      "row": "python",
+      "kind": "config"
+    },
+    {
+      "path": ".venv",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": ".venv",
+      "dir": true,
+      "row": "python",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "app/__pycache__",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "app/__pycache__",
+      "dir": true,
+      "row": "python",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "wsp.egg-info",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "wsp.egg-info",
+      "dir": true,
+      "row": "python",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "db.sqlite3",
+      "dir": false,
+      "row": "python",
+      "kind": "data"
+    },
+    {
+      "path": "db.sqlite3",
+      "dir": true,
+      "row": "python",
+      "kind": "data"
+    },
+    {
+      "path": "config/master.key",
+      "dir": false,
+      "row": "rails",
+      "kind": "secret"
+    },
+    {
+      "path": "config/master.key",
+      "dir": true,
+      "row": "rails",
+      "kind": "secret"
+    },
+    {
+      "path": "config/credentials/production.key",
+      "dir": false,
+      "row": "rails",
+      "kind": "secret"
+    },
+    {
+      "path": "config/credentials/production.key",
+      "dir": true,
+      "row": "rails",
+      "kind": "secret"
+    },
+    {
+      "path": "tmp",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "tmp",
+      "dir": true,
+      "row": "rails",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "log",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "log",
+      "dir": true,
+      "row": "rails",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "target",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "target",
+      "dir": true,
+      "row": "rust",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "daemon/target",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "daemon/target",
+      "dir": true,
+      "row": "rust",
+      "kind": "rebuilt"
+    },
+    {
+      "path": ".vercel",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": ".vercel",
+      "dir": true,
+      "row": "vercel",
+      "kind": "config"
+    },
+    {
+      "path": "prod.tfvars",
+      "dir": false,
+      "row": "terraform",
+      "kind": "secret"
+    },
+    {
+      "path": "prod.tfvars",
+      "dir": true,
+      "row": "terraform",
+      "kind": "secret"
+    },
+    {
+      "path": "infra/stage.auto.tfvars",
+      "dir": false,
+      "row": "terraform",
+      "kind": "secret"
+    },
+    {
+      "path": "infra/stage.auto.tfvars",
+      "dir": true,
+      "row": "terraform",
+      "kind": "secret"
+    },
+    {
+      "path": ".terraform",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": ".terraform",
+      "dir": true,
+      "row": "terraform",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "local.properties",
+      "dir": false,
+      "row": "android",
+      "kind": "config"
+    },
+    {
+      "path": "local.properties",
+      "dir": true,
+      "row": "android",
+      "kind": "config"
+    },
+    {
+      "path": "app/release.keystore",
+      "dir": false,
+      "row": "android",
+      "kind": "secret"
+    },
+    {
+      "path": "app/release.keystore",
+      "dir": true,
+      "row": "android",
+      "kind": "secret"
+    },
+    {
+      "path": "app/upload.jks",
+      "dir": false,
+      "row": "android",
+      "kind": "secret"
+    },
+    {
+      "path": "app/upload.jks",
+      "dir": true,
+      "row": "android",
+      "kind": "secret"
+    },
+    {
+      "path": ".gradle",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": ".gradle",
+      "dir": true,
+      "row": "android",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "certs/local.pem",
+      "dir": false,
+      "row": "certificates",
+      "kind": "secret"
+    },
+    {
+      "path": "certs/local.pem",
+      "dir": true,
+      "row": "certificates",
+      "kind": "secret"
+    },
+    {
+      "path": "certs/local.key",
+      "dir": false,
+      "row": "certificates",
+      "kind": "secret"
+    },
+    {
+      "path": "certs/local.key",
+      "dir": true,
+      "row": "certificates",
+      "kind": "secret"
+    },
+    {
+      "path": "certs/local.crt",
+      "dir": false,
+      "row": "certificates",
+      "kind": "config"
+    },
+    {
+      "path": "certs/local.crt",
+      "dir": true,
+      "row": "certificates",
+      "kind": "config"
+    },
+    {
+      "path": ".claude/settings.local.json",
+      "dir": false,
+      "row": "agents",
+      "kind": "config"
+    },
+    {
+      "path": ".claude/settings.local.json",
+      "dir": true,
+      "row": "agents",
+      "kind": "config"
+    },
+    {
+      "path": "CLAUDE.local.md",
+      "dir": false,
+      "row": "agents",
+      "kind": "config"
+    },
+    {
+      "path": "CLAUDE.local.md",
+      "dir": true,
+      "row": "agents",
+      "kind": "config"
+    },
+    {
+      "path": ".claude/.cc-writes",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": ".claude/.cc-writes",
+      "dir": true,
+      "row": "agents",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "dev.db",
+      "dir": false,
+      "row": "databases",
+      "kind": "data"
+    },
+    {
+      "path": "dev.db",
+      "dir": true,
+      "row": "databases",
+      "kind": "data"
+    },
+    {
+      "path": "var/app.sqlite3",
+      "dir": false,
+      "row": "databases",
+      "kind": "data"
+    },
+    {
+      "path": "var/app.sqlite3",
+      "dir": true,
+      "row": "databases",
+      "kind": "data"
+    },
+    {
+      "path": "pgdata",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "pgdata",
+      "dir": true,
+      "row": "databases",
+      "kind": "data"
+    },
+    {
+      "path": "./.env/",
+      "dir": true,
+      "row": "node",
+      "kind": "secret"
+    },
+    {
+      "path": "a/b/.env.example",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "myconfig/master.key",
+      "dir": false,
+      "row": "certificates",
+      "kind": "secret"
+    },
+    {
+      "path": "config/credentials/x/y.key",
+      "dir": false,
+      "row": "certificates",
+      "kind": "secret"
+    },
+    {
+      "path": "deep/node_modules",
+      "dir": true,
+      "row": "node",
+      "kind": "rebuilt"
+    },
+    {
+      "path": "deep/node_modules",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "README.md",
+      "dir": false,
+      "row": null,
+      "kind": null
+    },
+    {
+      "path": "",
+      "dir": false,
+      "row": null,
+      "kind": null
+    }
+  ],
+  "installs": [
+    {
+      "names": [
+        "package-lock.json",
+        "pnpm-lock.yaml"
+      ],
+      "out": [
+        [
+          "node",
+          "package-lock.json"
+        ]
+      ]
+    },
+    {
+      "names": [
+        "bun.lockb",
+        "bun.lock"
+      ],
+      "out": [
+        [
+          "node",
+          "bun.lock"
+        ]
+      ]
+    },
+    {
+      "names": [
+        "uv.lock",
+        "Cargo.lock",
+        "go.sum"
+      ],
+      "out": [
+        [
+          "python",
+          "uv.lock"
+        ],
+        [
+          "rust",
+          "Cargo.lock"
+        ],
+        [
+          "go",
+          "go.sum"
+        ]
+      ]
+    },
+    {
+      "names": [],
+      "out": []
+    },
+    {
+      "names": [
+        "poetry.lock"
+      ],
+      "out": [
+        [
+          "python",
+          "poetry.lock"
+        ]
+      ]
+    }
+  ],
+  "ecosystems": [
+    {
+      "id": "npm",
+      "lockfiles": [
+        "package-lock.json",
+        "npm-shrinkwrap.json"
+      ],
+      "carry": [
+        "node_modules"
+      ],
+      "never": [
+        ".next",
+        ".turbo",
+        ".cache"
+      ],
+      "rebuild": "npm install --no-save --prefer-offline --no-audit --no-fund"
+    },
+    {
+      "id": "pnpm",
+      "lockfiles": [
+        "pnpm-lock.yaml"
+      ],
+      "carry": [
+        "node_modules"
+      ],
+      "never": [
+        ".next",
+        ".turbo",
+        ".cache"
+      ],
+      "installed": "node_modules/.pnpm/lock.yaml",
+      "rebuild": "pnpm install --frozen-lockfile --prefer-offline"
+    },
+    {
+      "id": "yarn",
+      "lockfiles": [
+        "yarn.lock"
+      ],
+      "carry": [
+        "node_modules",
+        ".yarn/cache",
+        ".yarn/unplugged"
+      ],
+      "never": [
+        ".next",
+        ".turbo",
+        ".cache"
+      ],
+      "rebuild": "yarn install --frozen-lockfile"
+    },
+    {
+      "id": "bun",
+      "lockfiles": [
+        "bun.lock",
+        "bun.lockb"
+      ],
+      "carry": [
+        "node_modules"
+      ],
+      "never": [
+        ".next",
+        ".turbo",
+        ".cache"
+      ],
+      "rebuild": "bun install --frozen-lockfile"
+    },
+    {
+      "id": "composer",
+      "lockfiles": [
+        "composer.lock"
+      ],
+      "carry": [
+        "vendor"
+      ],
+      "never": [],
+      "rebuild": "composer install --no-interaction"
+    },
+    {
+      "id": "uv",
+      "lockfiles": [
+        "uv.lock"
+      ],
+      "carry": [],
+      "never": [
+        ".venv"
+      ],
+      "rebuild": "uv sync --locked"
+    },
+    {
+      "id": "poetry",
+      "lockfiles": [
+        "poetry.lock"
+      ],
+      "carry": [],
+      "never": [
+        ".venv"
+      ],
+      "rebuild": "poetry install --no-interaction"
+    },
+    {
+      "id": "cargo",
+      "lockfiles": [
+        "Cargo.lock"
+      ],
+      "carry": [],
+      "never": [
+        "target"
+      ],
+      "rebuild": "cargo fetch --locked"
+    },
+    {
+      "id": "go",
+      "lockfiles": [
+        "go.sum"
+      ],
+      "carry": [],
+      "never": [],
+      "rebuild": "go list -mod=readonly -deps -test ./... > /dev/null"
+    }
+  ],
+  "gitHosts": [
+    {
+      "id": "github",
+      "cli": "gh",
+      "sshHosts": [
+        "github.com",
+        "ssh.github.com"
+      ],
+      "httpsUrl": "https://github.com/o/r.git",
+      "setupGit": "gh auth setup-git",
+      "status": "gh auth status",
+      "clone": [
+        "gh",
+        "repo",
+        "clone",
+        "o/r",
+        "/d"
+      ]
+    },
+    {
+      "id": "gitlab",
+      "cli": "glab",
+      "sshHosts": [
+        "gitlab.com",
+        "altssh.gitlab.com"
+      ],
+      "httpsUrl": "https://gitlab.com/o/r.git",
+      "setupGit": "glab auth git-credential",
+      "status": "glab auth status",
+      "clone": [
+        "glab",
+        "repo",
+        "clone",
+        "o/r",
+        "/d"
+      ]
+    }
+  ],
+  "remoteHost": {
+    "git@github.com:o/r.git": "github.com",
+    "https://GitHub.com/o/r": "github.com",
+    "ssh://git@ssh.github.com:443/o/r.git": "ssh.github.com",
+    "git+ssh://me@gitlab.com/o/r": "gitlab.com",
+    "o/r": "o",
+    "": null,
+    "file:///x": null,
+    "user@host": "host"
+  },
+  "gitHostOf": {
+    "git@github.com:o/r.git": "github",
+    "https://altssh.gitlab.com/o/r": "gitlab",
+    "git@bitbucket.org:o/r": null
+  },
+  "noGitCliLine": "the box has no glab signed in, and a gitlab repo is cloned there through it; sign glab in on that computer's image, or give the repo's https url"
+}
