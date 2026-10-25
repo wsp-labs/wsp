@@ -147,7 +147,7 @@ it("boot: builders", async () => {
         building: builder("building", { building: true }),
         paused: builder("paused"),
         notFirst: builder("notFirst", { firstLife: false }),
-        sealed: builder("sealed", { sealed: { version: 3, at: 1_789_999_000_000 }, size: { cpu: 4, memMb: 8192 } }),
+        sealed: builder("sealed", { sealed: { version: 3, at: "2026-09-21T13:56:40.000Z" }, size: { cpu: 4, memMb: 8192 } }),
       } },
       answers: { foreign: { labels: { "wsp-owner": "h_other" } }, paused: { state: "paused" }, sealed: { seen: { state: "running" }, labels: { "wsp-owner": "h_me" } } },
     }, async x => x.area.refreshBuilders()),

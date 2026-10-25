@@ -17,7 +17,7 @@ use crate::machines::machines::Entry;
 pub const LOAD_READS_MS: u64 = 1_500;
 
 /// A provider read out, shared by the load's timer and the late load (boot.ts:149 `asked`).
-pub type Asked = futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<Arc<dyn Machine>, String>>>;
+pub type Asked = futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<Arc<dyn Machine>, HostError>>>;
 
 /// The load's one deadline and every read still out at it, by record id (boot.ts:21).
 pub struct LoadReads {

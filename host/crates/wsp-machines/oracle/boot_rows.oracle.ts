@@ -114,7 +114,7 @@ it("boot: rows", async () => {
         t2: { workspaceId: "a", harness: "claude", snoozedUntil: T0 - 1, replaces: "t1", limitResume: { at: 1, turnId: "other" } },
         t3: { workspaceId: "a", harness: "claude", forkedFrom: { threadId: "t-src", title: "old title" } },
       },
-      ctx: { capHeld: new Map([["turn-r1", { waiting: { wait: { place: "box", running: 2, limit: 2 } } }]]), stoppedBehind: (s: { turnId: string }) => (s.turnId === "turn-r1" ? { threadId: "t9", title: "x" } : undefined), restarts: () => new Map([["t2", "t2-new"]]), setupPlace: () => "hetzner", setupRefusals: new Map([["hetzner\nclaude", "claude is refused on hetzner"]]), rowsOn: (t: string) => (t === "t-src" ? [{ id: "src", workspaceId: "a", harness: "claude", status: "completed", threadId: "t-src", title: "new title" }] : []) },
+      ctx: { capHeld: new Map([["turn-r1", { waiting: { wait: { place: "box", running: 2, limit: 2 } } }]]), stoppedBehind: (s: { turnId: string }) => (s.turnId === "turn-r1" ? { threadId: "t9", title: "x" } : undefined), restarts: () => new Map([["t2", "t2-new"]]), setupPlace: () => "hetzner", setupRefusals: new Map([["hetzner:claude", "claude is refused on hetzner"]]), rowsOn: (t: string) => (t === "t-src" ? [{ id: "src", workspaceId: "a", harness: "claude", status: "completed", threadId: "t-src", title: "new title" }] : []) },
     }, async x => x.area.listedRows([...x.sessions.values()] as never)),
     await scene("thread facts: the listing's thread with the latest row's model and the running turn", {
       live: { a: { phase: "napping", nappedAt: T0 - 100 } },
@@ -194,16 +194,16 @@ it("boot: rows", async () => {
       await x.area.armResume(["t-none"], true, undefined).catch((e: Error & { kind?: string }) => x.log.push(["rejected", e.message, e.kind ?? null]));
       await x.area.armResume(["t1"], false, undefined);
     }),
-    ...(await Promise.all([
+    ...(await (async () => { const out = []; for (const item of [
       ["resume after limit: the stopped turn goes on at the reset", {}],
       ["resume after limit: a newer turn takes the arm off and sends nothing", { newer: true }],
       ["resume after limit: a thread waiting on the person sends nothing", { asks: true }],
       ["resume after limit: a plan still held past the reset moves the row's reset", { held: true }],
       ["resume after limit: a settled thread sends nothing", { settled: true }],
       ["resume after limit: no arm does nothing", { noArm: true }],
-    ].map(async ([name, v]) => {
+    ]) { const [name, v] = item;
       const f = v as { newer?: true; asks?: true; held?: true; settled?: true; noArm?: true };
-      return scene(name as string, {
+      out.push(await scene(name as string, {
         live: { a: {} },
         rows: [{ view: { id: "r1", workspaceId: "a", threadId: "t1", harness: "claude", limit: { resetsAt: T0 } }, turnId: "turn-1" }, ...(f.newer ? [{ view: { id: "r2", workspaceId: "a", threadId: "t1", harness: "claude" }, turnId: "turn-2" }] : [])],
         records: { t1: { workspaceId: "a", harness: "claude", ...(f.noArm ? {} : { limitResume: { at: T0, turnId: "turn-1" } }), ...(f.settled ? { settledAt: 1 } : {}) } },
@@ -213,8 +213,8 @@ it("boot: rows", async () => {
           vaultedFor: () => false, vaultOn: () => ({}), moduleOf: () => ({ loginStands: () => false }), usageComputerOf: () => "box-1", computerOf: () => "Box",
           sessionsApi: { start: async (ws: string, o: unknown) => void rec.log.push(["sessionsApi.start", ws, o]) },
         },
-      }, async x => x.area.resumeAfterLimit("t1"));
-    }))),
+      }, async x => x.area.resumeAfterLimit("t1")));
+    } return out; })()),
     await scene("row push: one row per moved thread after the tick, the prompt on its first push only, gone ids last", {
       live: { a: {} },
       rows: [{ view: { id: "r1", workspaceId: "a", threadId: "t1", prompt: "the brief" } }, { view: { id: "r2", workspaceId: "a", threadId: "t2", prompt: "other" } }],

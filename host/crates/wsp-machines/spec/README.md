@@ -26,11 +26,14 @@ Rules every unit here shares:
   that records calls in the same shape, and assert the log, the answer and the state after equal the fixture's. Run
   the oracles from the repository root:
   `pnpm exec vitest run --config host/crates/wsp-machines/oracle/vitest.config.ts --minWorkers=1 --maxWorkers=1`.
-  An implementer never edits a fixture.
+  An implementer never edits a fixture. The area's calls are compared in strict order; the entries the act writes
+  itself (`answer`, `paid`, `mark` and the rest of `MARKERS` in `tests/common/mod.rs`) are compared as their own list,
+  since where the TS act resumes against a detached task's first steps is JavaScript's microtask order, which a Rust
+  `spawn_local` does not reproduce (chapter 03, rule 3.12).
 - **The runtime trait.** wsp-core's context handle is not written yet (`context.rs` is empty on
   `rust/2448-core-types`). Each area takes one trait of its own naming every call it makes on the rest of the runtime,
-  in the TS names in Rust case (rule 1.3), with the shared maps reached by closure (`with_live`, `with_sessions`, rule
-  3.3). The wiring crate implements each trait over the real context; the tests implement it with recording fakes.
+  in the TS names in Rust case (rule 1.3), with the shared maps handed out as `Rc<RefCell<IndexMap<..>>>`, borrowed
+  inside a call and never across an await or a call out (rule 3.3). The wiring crate implements each trait over the real context; the tests implement it with recording fakes.
 - **Clock and ids.** Every `Date.now()`, `new Date()` and timer goes through the injected clock (rule 3.15); every
   `randomUUID` and `randomBytes` through the `Ids` trait (rule 3.16). The test `Ids` answers `random_hex(n)` on its
   `k`-th call with byte `k` repeated `n` times, as the oracles mock `randomBytes`.
