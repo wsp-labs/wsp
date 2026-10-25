@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp agents default: no adapter registered for harness \"<agent>\"; agents on this host: claude, codex, opencode, cursor\n"
+    }
+  ],
+  "events": []
+}

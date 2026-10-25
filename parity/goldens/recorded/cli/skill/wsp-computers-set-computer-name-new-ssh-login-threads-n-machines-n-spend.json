@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp computers set: --spawn for <computer> takes on or off, and got \"on\\\\|off\". Write --spawn on or --spawn off.\n"
+    }
+  ],
+  "events": []
+}

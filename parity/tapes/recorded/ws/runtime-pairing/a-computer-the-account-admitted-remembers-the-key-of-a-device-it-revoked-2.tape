@@ -1,3 +1,5 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > remembers the key of a device it revoked and admits it no more, whatever admission the account still carries"}}
-{"in":{"nonce":"T/2hczwcdXdBweXlp8Ob0msfcLzLuojcwMJZSQlkqM0=","ephemeral":"4iVtbqFPhT53sgTsgRKKRWc0IASP4b6zSFvm1PZB2Ho=","id":1,"op":"seal.open"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEA8Ie+pz7hzibZyH1xNVutLOvJ54kr7x0jASpNOWMJa6o=","name":"the laptop","signature":"pTHI728jfsvC/hcqfsPdi/4VBEjiARtCdKReiKiRgh54l6b7+g1DHtTmasV4Wvw7T9qb4RTN9kZHYHvLR5oKDg==","id":2,"op":"device.auth"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > remembers the key of a device it revoked and admits it no more, whatever admission the account still carries","outs":"recorded"}}
+{"in":{"nonce":"H1+KvCztsHDxPvim7/OF4oVweYtre2q4cQXnxZQ1E+M=","ephemeral":"yxBGspWS4sD/2Ijatlqi/b1J2Ia7pI2PFv9Yl6ZGXg4=","id":1,"op":"seal.open"}}
+{"out":{"id":1,"ok":true,"nonce":"jxwgRhBj0TDDReO//2hiBZmeyLqKwoRGVwLQO9cS114=","hostPublicKey":"MCowBQYDK2VwAyEAUgjMR/JXFY6/3RJut5tk2m0nr2xX6YIqo7T1u7I7FeA=","signature":"6ebB3fDjbgvfD3I6V7QiR0u98p7NtzDLQ5PSWoWnq7V6GVb5tXEsi/Q1Pgqjhs6snZY3ko+JJIohbSclFJzUDw==","ephemeral":"izt2XSiR/sRuwMJjigpuBon/LoGF8iOWqmiZdvLvvXo="}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEA+NaBR43BF8cEcqaBDKWJktC18poOr9CiHW7V+5gZen0=","name":"the laptop","signature":"kSA6MZI+TWzchqwqdr6GzKi87Vq7Du0g91I2E1uMoXWOkIfP18GoISPa1c9qZJtZ5yHMkfwp4dR4lmXSxLSYCQ==","id":2,"op":"device.auth"}}
+{"out":{"id":2,"ok":false,"error":"this host took this computer's token away; it is admitted through the account no longer, and wsp host pair on the host is the way back in","kind":"auth"}}

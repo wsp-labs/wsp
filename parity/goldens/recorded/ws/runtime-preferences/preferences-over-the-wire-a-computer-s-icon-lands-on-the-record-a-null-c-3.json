@@ -1,0 +1,16 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "[\n  {\n    \"received\": \"toaster\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"laptop\",\n      \"desktop\",\n      \"mac-mini\",\n      \"mac-studio\",\n      \"tower\",\n      \"server\",\n      \"cloud\",\n      \"cpu\",\n      \"drive\",\n      \"container\",\n      \"home\"\n    ],\n    \"path\": [\n      \"patch\",\n      \"computerLook\",\n      \"pl_box\",\n      \"icon\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'laptop' | 'desktop' | 'mac-mini' | 'mac-studio' | 'tower' | 'server' | 'cloud' | 'cpu' | 'drive' | 'container' | 'home', received 'toaster'\"\n  }\n]"
+    }
+  ],
+  "events": []
+}

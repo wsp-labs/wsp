@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "app logs <tmp>/state/logs: the desktop app's app.log and its crash dumps\n",
+      "stderr": "wsp doctor proves one computer, and it was given 2 words: \"nosuchbox\" \"extra\". wsp doctor [<computer>] [--project <name>] [--local] [--yes]\n"
+    }
+  ],
+  "events": []
+}

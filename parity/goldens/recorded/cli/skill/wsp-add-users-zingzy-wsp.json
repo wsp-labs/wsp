@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "wsp <pr-1>: /Users/zingzy/wsp on this computer, at /Users/zingzy/wsp\nopen a thread on it with: wsp run 'wsp' \"<message>\"\n",
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

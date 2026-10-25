@@ -1,0 +1,27 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "seq": 0,
+      "stream": "<uuid-1>"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "the terminal road builds the recipe wsp init writes beside the state, and there is none at <tmp>/state/recipe.json"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "the init job has no screens to answer; start it first"
+    }
+  ],
+  "events": []
+}

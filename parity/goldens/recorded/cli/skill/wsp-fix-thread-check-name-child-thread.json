@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp fix takes one thread. usage: wsp fix <thread> [--check \"<name>\" | --child <thread>]\n"
+    }
+  ],
+  "events": []
+}

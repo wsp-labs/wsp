@@ -1,0 +1,54 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": {
+        "jsonLines": [
+          {
+            "accounts": [],
+            "used": {
+              "range": "week",
+              "split": "project",
+              "rows": [],
+              "series": [
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                }
+              ],
+              "lines": [],
+              "since": "<time>",
+              "until": "<time>"
+            }
+          }
+        ]
+      },
+      "stderr": "starting the host for <tmp>/scratch/wsp-contract-<temp>/state/state.json; its log is <tmp>/scratch/wsp-contract-<temp>/state/host.log, and wsp down stops it\n"
+    }
+  ],
+  "events": []
+}

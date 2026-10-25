@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "Gemini CLI now has the wsp tools: ~/.gemini/settings.json\nThe wsp skill went to ~/.gemini/skills/wsp/SKILL.md\n<tmp>/run is not in a project, so no AGENTS.md or CLAUDE.md was written there.\nThe server command is /usr/bin/node <repo>/packages/host/dist/bin.js mcp --state <tmp>/scratch/wsp-mcp-home-<temp>/.wsp/state.json\nNext: run gemini in this folder and say: set up wsp for me\n",
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

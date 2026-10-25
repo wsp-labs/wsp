@@ -1,5 +1,9 @@
-{"meta":{"door":"ws","source":"packages/host/test/contract.test.ts > the agent contract on the command line and the tool door > with --json every command-line verb prints JSON alone on stdout and its last object is the one its MCP tool answers with"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"meta":{"door":"ws","source":"packages/host/test/contract.test.ts > the agent contract on the command line and the tool door > with --json every command-line verb prints JSON alone on stdout and its last object is the one its MCP tool answers with","outs":"recorded"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"ref":"alpha","id":2,"op":"projects.resolve"}}
+{"out":{"id":2,"ok":true,"project":{"id":"pr_00000001","name":"alpha","computer":"default","source":{"kind":"git","url":"https://github.com/dev/alpha.git"},"path":"/root/alpha","remote":"https://github.com/dev/alpha.git","defaultBranch":"main","memoryKey":"-root-alpha","memoryDir":"/root/.claude-cfg/projects/-root-alpha/memory","createdAt":"2026-10-25T11:38:15.390Z"}}}
 {"in":{"patch":{"projectDefaults":{"pr_00000001":{"access":"auto-edit"}}},"id":3,"op":"preferences.set"}}
+{"out":{"id":3,"ok":true,"preferences":{"theme":"system","lightTheme":"paper","darkTheme":"graphite","sidebarMode":"list","terminalSize":"app","terminalZoom":{},"access":{},"projectLook":{},"projectIcon":{},"computerLook":{},"serverIcons":true,"agentVersions":true,"usageLogs":true,"productUsage":true,"keepAwake":true,"transparency":true,"projectOrder":[],"keybindings":{},"appFont":"","codeFont":"","agentDefaults":{},"projectDefaults":{"pr_00000001":{"access":"auto-edit"}},"sendWith":"enter","midTurn":"queue","notifyNeeds":"notify-sound","notifyDone":"notify","planAlerts":true,"settleAfter":"2h","askDelete":true,"onQuit":"ask","newThreadIn":"current","labs":false,"target":{"workspace":"ws_00000002"},"defaultAgent":"claude"}}}
 {"in":{"id":4,"op":"projects.defaults"}}
+{"out":{"id":4,"ok":true,"defaults":{"pr_00000001":{"agent":{"value":"claude","from":"default"},"model":{"value":"claude-opus-5-5","from":"catalog"},"effort":{"value":"high","from":"catalog"},"access":{"value":"auto-edit","mode":"acceptEdits","from":"project"}}}}}

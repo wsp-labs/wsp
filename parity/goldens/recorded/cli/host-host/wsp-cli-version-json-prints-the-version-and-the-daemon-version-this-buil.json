@@ -1,0 +1,17 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": {
+        "jsonLines": [
+          {
+            "version": "<version>",
+            "daemon": 167
+          }
+        ]
+      },
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

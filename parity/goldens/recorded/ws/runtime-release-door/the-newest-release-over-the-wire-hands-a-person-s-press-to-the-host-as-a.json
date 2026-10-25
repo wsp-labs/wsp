@@ -1,0 +1,20 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "release": {
+        "state": "off",
+        "shape": "<machine>",
+        "restartRefusal": "Ctrl-C the terminal running wsp up and run it again."
+      }
+    }
+  ],
+  "events": []
+}

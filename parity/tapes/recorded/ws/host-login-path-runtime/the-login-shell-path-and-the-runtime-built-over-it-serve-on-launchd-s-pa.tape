@@ -1,6 +1,13 @@
-{"meta":{"door":"ws","source":"packages/host/test/login-path-runtime.test.ts > the login shell PATH and the runtime built over it > serve on launchd's PATH builds its runtime after the read, so a turn on this computer runs under the person's PATH"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"meta":{"door":"ws","source":"packages/host/test/login-path-runtime.test.ts > the login shell PATH and the runtime built over it > serve on launchd's PATH builds its runtime after the read, so a turn on this computer runs under the person's PATH","outs":"recorded"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"id":2,"op":"sessions.list"}}
+{"out":{"id":2,"ok":true,"sessions":[{"id":"00000000-0000-4000-8000-000000000001","workspaceId":"ws_00000001","harness":"claude","status":"completed","startedBy":"person","threadId":"00000000-0000-4000-8000-000000000002","prompt":"lead the work","startedAt":1792928624549,"model":"claude-opus-5-5","effort":"high","permissionMode":"bypassPermissions","cwd":"<run>/wsp-login-path-000001","claudeSessionId":"00000000-0000-4000-8000-000000000001","lastLine":"done","endedAt":1792928624624,"readAt":1792928624251,"project":{"id":"pr_00000002","name":"wsp-login-path-4sIh9e"},"computerName":"ip-172-31-47-246"}]}}
 {"in":{"workspaceId":"ws_00000001","threadId":"00000000-0000-4000-8000-000000000002","id":3,"op":"workspaces.get"}}
+{"out":{"id":3,"ok":true,"workspace":{"id":"ws_00000001","name":"wsp-login-path-4sIh9e","machineId":"local","phase":"running","kind":"local","golden":"","createdAt":"2026-10-25T11:43:44.498Z","project":{"id":"pr_00000002","name":"wsp-login-path-4sIh9e","path":"<run>/wsp-login-path-000001","computer":"here"},"folder":"<run>/wsp-login-path-000001","home":"<run>/wsp-login-runtime-000002/user","claudeSessionId":"00000000-0000-4000-8000-000000000001","agents":{"spawn":true,"maxMachines":3,"maxDepth":2}}}}
 {"in":{"workspaceId":"ws_00000001","id":4,"op":"workspaces.wake"}}
+{"out":{"id":4,"ok":true,"workspace":{"id":"ws_00000001","name":"wsp-login-path-4sIh9e","machineId":"local","phase":"running","kind":"local","golden":"","createdAt":"2026-10-25T11:43:44.498Z","project":{"id":"pr_00000002","name":"wsp-login-path-4sIh9e","path":"<run>/wsp-login-path-000001","computer":"here"},"folder":"<run>/wsp-login-path-000001","home":"<run>/wsp-login-runtime-000002/user","claudeSessionId":"00000000-0000-4000-8000-000000000001","agents":{"spawn":true,"maxMachines":3,"maxDepth":2}}}}
 {"in":{"workspaceId":"ws_00000001","argv":["sh","-c","printf %s \"$PATH\""],"cwd":"<run>/wsp-login-path-000001","id":5,"op":"workspaces.exec"}}
+{"out":{"id":5,"ok":true,"execId":"ca18cc962071","cwd":"<run>/wsp-login-path-000001"}}
+{"out":{"type":"exec.output","execId":"ca18cc962071","text":"/root/.wsp/place-bin:<run>/wsp-login-runtime-000002/their-bin:/usr/bin:/bin:/usr/sbin:/sbin"}}
+{"out":{"type":"exec.exit","execId":"ca18cc962071","exitCode":0}}

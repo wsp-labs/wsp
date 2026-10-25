@@ -1,0 +1,25 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "view": {
+        "image": null,
+        "copies": [],
+        "projects": []
+      }
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "[\n  {\n    \"code\": \"too_small\",\n    \"minimum\": 12,\n    \"type\": \"string\",\n    \"inclusive\": true,\n    \"exact\": false,\n    \"message\": \"String must contain at least 12 character(s)\",\n    \"path\": [\n      \"passphrase\"\n    ]\n  }\n]"
+    }
+  ],
+  "events": []
+}

@@ -1,0 +1,38 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": false,
+      "error": "unauthorized",
+      "kind": "auth"
+    },
+    {
+      "parity": "no reply",
+      "id": "2"
+    },
+    {
+      "parity": "no reply",
+      "id": "3"
+    },
+    {
+      "parity": "no reply",
+      "id": "4"
+    },
+    {
+      "parity": "no reply",
+      "id": "5"
+    },
+    {
+      "parity": "no reply",
+      "id": "6"
+    }
+  ],
+  "events": [
+    {
+      "close": {
+        "code": 4401,
+        "reason": "unauthorized"
+      }
+    }
+  ]
+}

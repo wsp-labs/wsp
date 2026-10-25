@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp review post takes one thread. usage: wsp review post <thread> [--verdict comment|approve|request-changes] [--summary \"<text>\"]\n"
+    }
+  ],
+  "events": []
+}

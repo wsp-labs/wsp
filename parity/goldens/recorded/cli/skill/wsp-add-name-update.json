@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "wsp add <name> --update: this host holds no place by that name or id. wsp add prints the join line.\n"
+    }
+  ],
+  "events": []
+}

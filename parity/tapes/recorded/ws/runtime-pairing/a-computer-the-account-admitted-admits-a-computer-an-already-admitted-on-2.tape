@@ -1,3 +1,5 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > admits a computer an already admitted one signed for, and never one signed by a key it has not seen"}}
-{"in":{"nonce":"oobMoAbUWnKK1BtOu1csSeys5TOKBITTl9GtXa6Zjys=","ephemeral":"v53m6s1sN2WNcFn+48eZQ94HnZiUlSvgoX4v1XNgjB4=","id":1,"op":"seal.open"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEAyidwPjF3D9yzlNyrg2yewKhlfrjMeo0VNI7IzkcYNZo=","name":"the desk","signature":"1abfU+2LtHlwWd5VFPwJIAkLE2A/qEgNB3nBwiJjVi4LLH0/Bt8dFUMtnh1P9b89/xKI7rWg6DpASnfA0Z12CQ==","id":2,"op":"device.auth"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > admits a computer an already admitted one signed for, and never one signed by a key it has not seen","outs":"recorded"}}
+{"in":{"nonce":"F7DNlFbbgSGtpZAHO/Gzm5Bjze6gHJOONfv7j2LF3ck=","ephemeral":"CptLydzpvj5egA/R1Ps/Zpa1E5cFw1pv7AnPM16ZGE4=","id":1,"op":"seal.open"}}
+{"out":{"id":1,"ok":true,"nonce":"ii3aNeRTLldsAPUl/lE6sfGteB9Ft2fqCX+4rIpsPEU=","hostPublicKey":"MCowBQYDK2VwAyEAUgjMR/JXFY6/3RJut5tk2m0nr2xX6YIqo7T1u7I7FeA=","signature":"6SRZhRTNvdRVnXH9LrUNDQNC1eCxnNWkxP7o8lGhAOf0nvO5KzsXXD1fRK61cXxHgIk9ZiVqH2sWBDnPrfS9Aw==","ephemeral":"Vqw06dJv9YNArbTxa9pbY/cumBWoHiTVNmqS0gebQVM="}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAGGlxdfUHILFi5Leha8+wWzJpy+N1XjDSkBHqI9GimpI=","name":"the desk","signature":"9WM3mpkSWKIaU1yeWbbO41jf6s48GEj4g8TAVX253wruw3KMKpo2Fl1YsQpsqHIMGrxM8JSJcgwuiwv8tTqHAA==","id":2,"op":"device.auth"}}
+{"out":{"id":2,"ok":true,"deviceId":"d_00000001","deviceToken":"cda6uVF4UzklcrZ3OV-rdScv8ZisbpeA"}}

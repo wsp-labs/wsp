@@ -1,5 +1,10 @@
-{"meta":{"door":"ws","source":"packages/host/test/keyless.test.ts > a computer with no machine provider key > serves with no key and nothing asked, records no workspace, and lists a project here"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"meta":{"door":"ws","source":"packages/host/test/keyless.test.ts > a computer with no machine provider key > serves with no key and nothing asked, records no workspace, and lists a project here","outs":"recorded"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
 {"in":{"id":2,"op":"places.list"}}
+{"out":{"id":2,"ok":true,"places":[{"id":"here","kind":"computer","name":"ip-172-31-47-246","default":true,"os":"Linux 7.0.0-1014-aws","shape":{"cpu":8,"memMb":31744},"diskFreeBytes":169160601600,"engine":"docker","home":"<run>/wsp-keyless-000001/user","present":true,"takesForks":false,"buildsImages":false,"cap":{"threads":16},"capDefault":{"threads":16},"turnLimitMs":null,"turnLimitDefault":null,"spawn":{"spawn":true,"maxMachines":3,"maxDepth":2},"spawnDefault":{"spawn":true,"maxMachines":3,"maxDepth":2},"running":0}],"adds":[],"pending":[]}}
 {"in":{"id":3,"op":"events.subscribe"}}
+{"out":{"id":3,"ok":true,"seq":0,"stream":"00000000-0000-4000-8000-000000000001"}}
 {"in":{"source":"<run>/wsp-keyless-000002","id":4,"op":"projects.add"}}
+{"out":{"type":"project.added","project":{"id":"pr_00000001","name":"wsp-keyless-pJQp0O","computer":"here","source":{"kind":"folder","path":"<run>/wsp-keyless-000002"},"path":"<run>/wsp-keyless-000002","remote":"","defaultBranch":"main","memoryKey":"-tmp-wsp-run-1508236-wsp-keyless-pJQp0O","memoryDir":"<run>/wsp-keyless-000001/user/.claude/projects/-tmp-wsp-run-1508236-wsp-keyless-pJQp0O/memory","git":{"top":"<run>/wsp-keyless-000002"},"createdAt":"2026-10-25T11:43:49.885Z"},"seq":1}}
+{"out":{"id":4,"ok":true,"project":{"id":"pr_00000001","name":"wsp-keyless-pJQp0O","computer":"here","source":{"kind":"folder","path":"<run>/wsp-keyless-000002"},"path":"<run>/wsp-keyless-000002","remote":"","defaultBranch":"main","memoryKey":"-tmp-wsp-run-1508236-wsp-keyless-pJQp0O","memoryDir":"<run>/wsp-keyless-000001/user/.claude/projects/-tmp-wsp-run-1508236-wsp-keyless-pJQp0O/memory","git":{"top":"<run>/wsp-keyless-000002"},"createdAt":"2026-10-25T11:43:49.885Z"}}}

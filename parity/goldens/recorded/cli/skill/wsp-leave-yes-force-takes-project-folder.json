@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "this computer is not a place in any wsp, so there is nothing to leave\n"
+    }
+  ],
+  "events": []
+}

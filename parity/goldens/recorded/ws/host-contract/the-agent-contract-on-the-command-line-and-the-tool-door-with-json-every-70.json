@@ -1,0 +1,33 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "setup": {
+        "keys": {
+          "box": false
+        },
+        "home": "<tmp>/home",
+        "agents": [
+          {
+            "id": "codex",
+            "name": "Codex",
+            "configured": false,
+            "takesTools": true
+          }
+        ],
+        "pricing": null,
+        "forksOn": "none",
+        "buildRefusal": "no place here runs workspaces, so there is nowhere to build your image; join a computer that runs them with wsp add, or save a provider key",
+        "job": null
+      }
+    }
+  ],
+  "events": []
+}

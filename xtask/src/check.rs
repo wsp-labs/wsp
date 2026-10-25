@@ -46,6 +46,8 @@ pub struct Outcome {
     pub tape: String,
     pub door: Door,
     pub ops: BTreeSet<String>,
+    /// The ops whose request on this tape got a reply, so not one sent after the host closed the socket.
+    pub answered: BTreeSet<String>,
     pub verdict: Verdict,
 }
 
@@ -77,12 +79,13 @@ pub fn check(root: &Path, host: &dyn Host, opts: &Options) -> Result<Report, Str
     let mut used = BTreeSet::new();
     let mut outcomes = Vec::new();
     for (tape, replay) in tapes.iter().zip(replays) {
+        let answered = replay.as_ref().map(|r| answered(tape, &r.replies)).unwrap_or_default();
         let verdict = match (golden::read(root, &tape.id)?, replay) {
             (_, Err(e)) => Verdict::Failed(vec![format!("the replay failed: {e}")]),
             (None, Ok(_)) => Verdict::Failed(vec!["no golden: run cargo xtask parity record".into()]),
             (Some(want), Ok(replay)) => judge(tape, &want, &replay, &accepted, &mut used),
         };
-        outcomes.push(Outcome { tape: tape.id.clone(), door: tape.door, ops: tape.ops().into_iter().collect(), verdict });
+        outcomes.push(Outcome { tape: tape.id.clone(), door: tape.door, ops: tape.ops().into_iter().collect(), answered, verdict });
     }
     let orphans = if opts.narrowed() {
         Vec::new()
@@ -103,6 +106,19 @@ pub fn check(root: &Path, host: &dyn Host, opts: &Options) -> Result<Report, Str
         only: opts.narrowed(),
         held: held_among(root, &tapes),
     })
+}
+
+/// The ops a websocket tape's requests named whose reply came, read off the replies in the order the requests went.
+fn answered(tape: &Tape, replies: &[Value]) -> BTreeSet<String> {
+    if tape.door != Door::Ws {
+        return BTreeSet::new();
+    }
+    let asked = tape.ins.iter().filter(|f| f.get("id").is_some_and(|id| !id.is_null()));
+    asked
+        .zip(replies)
+        .filter(|(_, reply)| reply.get("parity").is_none())
+        .filter_map(|(f, _)| f.get("op").and_then(Value::as_str).map(str::to_string))
+        .collect()
 }
 
 /// How many of these tapes the held-back set takes, drawn over every tape the repository holds.
@@ -269,7 +285,19 @@ impl Report {
         }
         let covered: BTreeSet<&String> = self.outcomes.iter().flat_map(|o| o.ops.iter()).filter(|op| known.contains(op)).collect();
         let missing: Vec<&String> = self.ops.iter().filter(|op| !covered.contains(op)).collect();
-        let _ = writeln!(out, "\ncoverage: {} of {} host ops have a tape", covered.len(), self.ops.len());
+        let answered: BTreeSet<&String> = self.outcomes.iter().flat_map(|o| o.answered.iter()).filter(|op| known.contains(op)).collect();
+        let _ = writeln!(
+            out,
+            "\ncoverage: {} of {} host ops have a tape, {} of them an answer on one",
+            covered.len(),
+            self.ops.len(),
+            answered.len()
+        );
+        let unanswered: Vec<&str> =
+            self.ops.iter().filter(|op| covered.contains(op) && !answered.contains(op)).map(String::as_str).collect();
+        if !unanswered.is_empty() {
+            let _ = writeln!(out, "sent but never answered (each tape sending it was closed first): {}", unanswered.join(", "));
+        }
         if !missing.is_empty() {
             let _ = writeln!(out, "no tape yet: {}", missing.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "));
         }

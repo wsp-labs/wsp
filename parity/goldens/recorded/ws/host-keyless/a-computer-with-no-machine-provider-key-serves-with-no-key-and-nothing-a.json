@@ -1,0 +1,93 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "<computer>",
+          "default": true,
+          "os": "<machine>",
+          "shape": "<machine>",
+          "diskFreeBytes": "<machine>",
+          "engine": "none",
+          "home": "<tmp>/home",
+          "present": true,
+          "takesForks": false,
+          "buildsImages": false,
+          "cap": "<machine>",
+          "capDefault": "<machine>",
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 0
+        }
+      ],
+      "adds": [],
+      "pending": []
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "seq": 0,
+      "stream": "<uuid-1>"
+    },
+    {
+      "id": 4,
+      "ok": true,
+      "project": {
+        "id": "<pr-1>",
+        "name": "wsp-keyless-<temp>",
+        "computer": "here",
+        "source": {
+          "kind": "folder",
+          "path": "<tmp>/scratch/wsp-keyless-<temp>"
+        },
+        "path": "<tmp>/scratch/wsp-keyless-<temp>",
+        "remote": "",
+        "defaultBranch": "main",
+        "memoryKey": "<tmp-dashed>-scratch-wsp-keyless-<temp>",
+        "memoryDir": "<tmp>/home/.claude/projects/<tmp-dashed>-scratch-wsp-keyless-<temp>/memory",
+        "createdAt": "<time>"
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "project.added",
+      "project": {
+        "id": "<pr-1>",
+        "name": "wsp-keyless-<temp>",
+        "computer": "here",
+        "source": {
+          "kind": "folder",
+          "path": "<tmp>/scratch/wsp-keyless-<temp>"
+        },
+        "path": "<tmp>/scratch/wsp-keyless-<temp>",
+        "remote": "",
+        "defaultBranch": "main",
+        "memoryKey": "<tmp-dashed>-scratch-wsp-keyless-<temp>",
+        "memoryDir": "<tmp>/home/.claude/projects/<tmp-dashed>-scratch-wsp-keyless-<temp>/memory",
+        "createdAt": "<time>"
+      },
+      "seq": 1
+    }
+  ]
+}

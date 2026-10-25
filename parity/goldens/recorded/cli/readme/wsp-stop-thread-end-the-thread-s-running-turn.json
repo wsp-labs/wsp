@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp stop takes one thread. usage: wsp stop <thread> [--subagent <id>]\n"
+    }
+  ],
+  "events": []
+}

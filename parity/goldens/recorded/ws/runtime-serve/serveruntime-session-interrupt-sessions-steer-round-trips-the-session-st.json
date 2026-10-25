@@ -1,0 +1,60 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "seq": 0,
+      "stream": "<uuid-1>"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no place named default; you have <computer>, none"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 5,
+      "ok": false,
+      "error": "no such workspace: <ws-1>",
+      "kind": "not-found"
+    },
+    {
+      "id": 6,
+      "ok": true,
+      "outcome": "not-found"
+    },
+    {
+      "id": 7,
+      "ok": false,
+      "error": "no such workspace: <ws-1>",
+      "kind": "not-found"
+    },
+    {
+      "id": 8,
+      "ok": true,
+      "outcome": "not-found"
+    },
+    {
+      "id": 9,
+      "ok": true,
+      "outcome": "not-found"
+    },
+    {
+      "id": 10,
+      "ok": false,
+      "error": "[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"string\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"prompt\"\n    ],\n    \"message\": \"Required\"\n  }\n]"
+    }
+  ],
+  "events": []
+}

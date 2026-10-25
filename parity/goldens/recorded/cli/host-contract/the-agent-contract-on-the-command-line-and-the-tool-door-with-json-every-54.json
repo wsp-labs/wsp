@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "starting the host for <tmp>/scratch/wsp-contract-<temp>/state/state.json; its log is <tmp>/scratch/wsp-contract-<temp>/state/host.log, and wsp down stops it\n{\"error\":\"no project here. Run wsp projects to read the names.\",\"class\":\"usage\",\"exit\":3}\n"
+    }
+  ],
+  "events": []
+}

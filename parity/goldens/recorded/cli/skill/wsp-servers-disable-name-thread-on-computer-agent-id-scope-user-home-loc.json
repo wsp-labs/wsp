@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp servers disable: --scope is user, home, local or project, not <user\\|home\\|local\\|project>. usage: wsp servers disable <name> [<thread>] [--on <computer>] --agent <id> [--scope <user|home|local|project>] [--project [<name>]]\n"
+    }
+  ],
+  "events": []
+}

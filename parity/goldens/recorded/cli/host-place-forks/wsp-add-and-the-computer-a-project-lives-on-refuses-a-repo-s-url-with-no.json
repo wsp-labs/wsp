@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "starting the host for <tmp>/scratch/wsp-place-forks-<temp>/state/state.json; its log is <tmp>/scratch/wsp-place-forks-<temp>/state/host.log, and wsp down stops it\nhttps://github.com/dev/x.git is a repo: clone it here with --into <folder>, or name the computer that clones it with --on none\n"
+    }
+  ],
+  "events": []
+}

@@ -1,0 +1,39 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "lineage": {
+        "name": "default",
+        "head": null,
+        "versions": []
+      }
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no golden named \"default\"",
+      "kind": "missing"
+    },
+    {
+      "id": 4,
+      "ok": true
+    },
+    {
+      "id": 5,
+      "ok": true,
+      "lineage": {
+        "name": "other",
+        "head": null,
+        "versions": []
+      }
+    }
+  ],
+  "events": []
+}

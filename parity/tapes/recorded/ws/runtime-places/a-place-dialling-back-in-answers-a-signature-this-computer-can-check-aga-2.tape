@@ -1,2 +1,3 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places.test.ts > a place dialling back in > answers a signature this computer can check against the host's key over the transcript it challenged with"}}
-{"in":{"placeId":"p_00000001","nonce":"7oDbADKoaJweRwJ65uC7//wZ5vN/lchcZvBu4qOEL90=","ephemeral":"5dsV33FNbUwETwcD4zIn9eL1LGS3g9FB+JnT1ojTxQM=","id":1,"op":"place.auth"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places.test.ts > a place dialling back in > answers a signature this computer can check against the host's key over the transcript it challenged with","outs":"recorded"}}
+{"in":{"placeId":"p_00000001","nonce":"0nMMb1v+s2en04jg0a8LhGJJkawnlhaRIP2Y57aUzec=","ephemeral":"YOu1Me0zf/r1cJx8mqmSoM1N3OU/RhLtoO7Bq7HdRkA=","id":1,"op":"place.auth"}}
+{"out":{"id":1,"ok":true,"nonce":"JSItejSMAvawtVmUrxn7Xy0l+ERhYzQPBK/AbNcfa7w=","hostPublicKey":"MCowBQYDK2VwAyEAoCtyQArUm8sg7Yu0F6wi09ALh2JM44yTfwGKCxzCbhc=","signature":"o1J4B+kM2Ef9zTFi0SdRwYLqxQwM8yue6XXX8GdQboLlia+HfEUiQIpYaascoEw0HRGyBalEgMlpWwmlUbNKDQ==","ephemeral":"Ys272izppnScTL2SIrte4TV/tZxBRhoa+A7heh76PSw="}}

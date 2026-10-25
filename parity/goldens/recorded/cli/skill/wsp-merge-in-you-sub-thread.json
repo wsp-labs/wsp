@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp merge in: no thread <you>\n"
+    }
+  ],
+  "events": []
+}

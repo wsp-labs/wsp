@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "starting the host for <tmp>/scratch/wsp-place-forks-<temp>/state/state.json; its log is <tmp>/scratch/wsp-place-forks-<temp>/state/host.log, and wsp down stops it\nno place named nowhere; you have <computer>, none\n"
+    }
+  ],
+  "events": []
+}

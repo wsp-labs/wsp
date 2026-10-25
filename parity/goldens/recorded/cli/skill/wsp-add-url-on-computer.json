@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "wsp add <url>: that is neither a provider this wsp can be set up for (boat) nor an address over ssh (user@host, or an alias your ssh config gives a HostName), and wsp add with no argument prints the line to type on a computer you are sitting at.\n"
+    }
+  ],
+  "events": []
+}

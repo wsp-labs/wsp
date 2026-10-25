@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp recipes remove: no recipe named <name>; none is saved yet\n"
+    }
+  ],
+  "events": []
+}

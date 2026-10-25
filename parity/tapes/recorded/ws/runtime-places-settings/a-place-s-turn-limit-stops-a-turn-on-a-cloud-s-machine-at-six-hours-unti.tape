@@ -1,3 +1,5 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a place's turn limit > stops a turn on a cloud's machine at six hours until the person sets another, and never once it is off"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a place's turn limit > stops a turn on a cloud's machine at six hours until the person sets another, and never once it is off","outs":"recorded"}}
+{"in":{"token":"<<host-token>>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true}}
 {"in":{"placeId":"solari","turnLimitMs":null,"id":2,"op":"places.set"}}
+{"out":{"id":2,"ok":true,"place":{"id":"solari","kind":"provider","name":"solari","default":true,"takesForks":true,"rateUsdPerHour":0.11,"sizes":[{"cpu":2,"memMb":2048,"rateUsdPerHour":0.09},{"cpu":2,"memMb":4096,"rateUsdPerHour":0.11},{"cpu":2,"memMb":8192,"rateUsdPerHour":0.15},{"cpu":4,"memMb":8192,"rateUsdPerHour":0.22}],"buildsImages":true,"cap":{"machines":3,"spendPerDayUsd":10},"capDefault":{"machines":3,"spendPerDayUsd":10},"settings":{"turnLimitMs":null},"napMs":1200000,"napDefault":1200000,"turnLimitMs":null,"turnLimitDefault":21600000,"spawn":{"spawn":true,"maxMachines":3,"maxDepth":2},"spawnDefault":{"spawn":true,"maxMachines":3,"maxDepth":2},"running":1,"size":{"cpu":2,"memMb":4096},"sizeDefault":{"cpu":2,"memMb":4096},"deleteAfterMs":1800000}}}

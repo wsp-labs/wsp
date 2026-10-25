@@ -1,0 +1,35 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": {
+        "jsonLines": [
+          {
+            "files": [],
+            "fontFamily": [],
+            "palette": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          }
+        ]
+      },
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

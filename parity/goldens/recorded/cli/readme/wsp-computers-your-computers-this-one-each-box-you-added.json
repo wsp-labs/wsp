@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp computers takes no positional arguments. usage: wsp computers\n"
+    }
+  ],
+  "events": []
+}

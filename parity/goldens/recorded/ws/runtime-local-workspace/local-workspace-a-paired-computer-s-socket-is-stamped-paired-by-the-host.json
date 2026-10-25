@@ -1,0 +1,30 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "code": "<code>",
+      "expiresAt": "<time>",
+      "hostKey": "<id-1>"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no such workspace: <ws-1>",
+      "kind": "not-found"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no such workspace: <ws-1>",
+      "kind": "not-found"
+    }
+  ],
+  "events": []
+}

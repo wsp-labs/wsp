@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp host opens a line rather than being one. usage: wsp host pair\nusage: wsp host devices\nusage: wsp host link\nusage: wsp host unlink\n"
+    }
+  ],
+  "events": []
+}

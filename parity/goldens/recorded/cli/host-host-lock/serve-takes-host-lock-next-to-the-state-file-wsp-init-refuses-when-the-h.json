@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "┌  wsp <version>\n│\n│  Setting up <tmp>/scratch/wsp-lock-home-<temp>/custom/state/state.json; --state <path> starts a fresh setup instead.\n│\n●  It makes your first workspace a copy of a folder on this computer: threads run in it, under your own sign-ins, with the agents already on your PATH.\n│  wsp up --state '<tmp>/scratch/wsp-lock-home-<temp>/custom/state/state.json' starts the app again after this terminal is closed.\n│\n▲  no project was recorded on this computer: this run named no folder here. wsp add <folder> records one, and wsp run <project> \"<message>\" opens a thread in it.\n│\n└  Done. Nothing was recorded; wsp add <folder> records a project here and wsp run <project> \"<message>\" opens a thread in it.\n\n",
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

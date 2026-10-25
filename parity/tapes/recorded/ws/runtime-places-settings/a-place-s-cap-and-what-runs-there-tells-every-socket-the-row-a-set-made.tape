@@ -1,4 +1,7 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a place's cap and what runs there > tells every socket the row a set made, so a page another window holds open reads it at once"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"placeId":"p_00000001","threads":1,"id":2,"op":"places.set"}}
-{"in":{"placeId":"here","threads":2,"id":3,"op":"places.set"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a place's cap and what runs there > tells every socket the row a set made, so a page another window holds open reads it at once","outs":"recorded"}}
+{"in":{"token":"<<host-token>>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true}}
+{"in":{"id":2,"op":"events.subscribe"}}
+{"out":{"id":2,"ok":true,"seq":2,"stream":"00000000-0000-4000-8000-000000000001"}}
+{"out":{"type":"place.changed","place":{"id":"p_00000001","kind":"computer","name":"spoo","default":true,"os":"Ubuntu 24.04","shape":{"cpu":2,"memMb":7885},"diskFreeBytes":892279455744,"engine":"none","present":true,"joinedAt":"2026-10-25T11:40:23.189Z","lastSeenAt":"2026-10-25T11:40:23.190Z","daemonVersion":17,"behind":{"word":"daemon 17, host 167","fix":"wsp add spoo --update","act":"update"},"agents":[],"takesForks":true,"road":{"from":"127.0.0.1"},"home":"/home/maya","reportedAt":"2026-10-25T11:40:23.190Z","cap":{"threads":1},"capDefault":{"threads":4},"settings":{"threads":1},"napMs":1200000,"napDefault":1200000,"turnLimitMs":null,"turnLimitDefault":null,"spawn":{"spawn":true,"maxMachines":3,"maxDepth":2},"spawnDefault":{"spawn":true,"maxMachines":3,"maxDepth":2},"running":0},"seq":3}}
+{"out":{"type":"place.changed","place":{"id":"here","kind":"computer","name":"zingzys-mac","mac":"mac-mini","default":false,"os":"macOS 15.0","shape":{"cpu":8,"memMb":16384},"engine":"docker","home":"/home/dev","present":true,"takesForks":false,"buildsImages":false,"cap":{"threads":2},"capDefault":{"threads":8},"settings":{"threads":2},"turnLimitMs":null,"turnLimitDefault":null,"spawn":{"spawn":true,"maxMachines":3,"maxDepth":2},"spawnDefault":{"spawn":true,"maxMachines":3,"maxDepth":2},"running":0},"seq":4}}

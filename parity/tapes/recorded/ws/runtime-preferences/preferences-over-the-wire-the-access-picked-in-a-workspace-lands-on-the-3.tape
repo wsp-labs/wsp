@@ -1,3 +1,5 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/preferences.test.ts > preferences over the wire > the access picked in a workspace lands on the record and the next thread there reads it"}}
-{"in":{"token":"t","id":1,"op":"auth"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/preferences.test.ts > preferences over the wire > the access picked in a workspace lands on the record and the next thread there reads it","outs":"recorded"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true}}
 {"in":{"patch":{"access":{"ws_a":null}},"id":2,"op":"preferences.set"}}
+{"out":{"id":2,"ok":true,"preferences":{"theme":"system","lightTheme":"paper","darkTheme":"graphite","sidebarMode":"list","terminalSize":"app","terminalZoom":{},"access":{"ws_b":"acceptEdits"},"projectLook":{},"projectIcon":{},"computerLook":{},"serverIcons":true,"agentVersions":true,"usageLogs":true,"productUsage":true,"keepAwake":true,"transparency":true,"projectOrder":[],"keybindings":{},"appFont":"","codeFont":"","agentDefaults":{},"projectDefaults":{},"sendWith":"enter","midTurn":"queue","notifyNeeds":"notify-sound","notifyDone":"notify","planAlerts":true,"settleAfter":"2h","askDelete":true,"onQuit":"ask","newThreadIn":"current","labs":false}}}

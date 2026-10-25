@@ -1,0 +1,87 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "<computer>",
+          "default": true,
+          "os": "<machine>",
+          "shape": "<machine>",
+          "diskFreeBytes": "<machine>",
+          "engine": "none",
+          "home": "<tmp>/home",
+          "present": true,
+          "takesForks": false,
+          "buildsImages": false,
+          "cap": "<machine>",
+          "capDefault": "<machine>",
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 0
+        }
+      ],
+      "adds": [],
+      "pending": []
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "place": {
+        "id": "here",
+        "kind": "computer",
+        "name": "<computer>",
+        "default": true,
+        "os": "<machine>",
+        "shape": "<machine>",
+        "diskFreeBytes": "<machine>",
+        "engine": "none",
+        "home": "<tmp>/home",
+        "present": true,
+        "takesForks": false,
+        "buildsImages": false,
+        "cap": "<machine>",
+        "capDefault": "<machine>",
+        "settings": {
+          "spawn": {
+            "spawn": true,
+            "maxMachines": 1
+          }
+        },
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "spawn": true,
+          "maxMachines": 1,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "spawn": true,
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0
+      }
+    }
+  ],
+  "events": []
+}

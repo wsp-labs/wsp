@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp agents signin: no thread <thread>\n"
+    }
+  ],
+  "events": []
+}

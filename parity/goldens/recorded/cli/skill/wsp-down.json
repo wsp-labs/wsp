@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "stopped the host wsp up started (pid <pid>); nothing serves <tmp>/state/state.json now\n",
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

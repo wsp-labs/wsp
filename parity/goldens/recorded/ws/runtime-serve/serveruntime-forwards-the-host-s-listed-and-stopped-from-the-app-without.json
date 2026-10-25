@@ -1,0 +1,21 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "forwards": []
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "nothing is forwarding localhost:8123 there"
+    }
+  ],
+  "events": []
+}

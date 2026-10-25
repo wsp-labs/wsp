@@ -1,0 +1,151 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": {
+        "jsonLines": [
+          {
+            "target": {
+              "placeId": "here"
+            },
+            "home": "<tmp>/home",
+            "user": "root",
+            "readAt": "<time>",
+            "refused": [],
+            "projects": [],
+            "agents": [
+              {
+                "id": "claude",
+                "name": "Claude Code",
+                "installed": false,
+                "pinned": "2.1.296",
+                "road": "none",
+                "signIn": "none",
+                "signInRoad": "token",
+                "wspTools": false,
+                "setup": {
+                  "on": true,
+                  "envNames": []
+                }
+              },
+              {
+                "id": "codex",
+                "name": "Codex",
+                "installed": true,
+                "version": "<version>",
+                "pinned": "0.155.1",
+                "road": "own",
+                "path": "/usr/bin/codex",
+                "signIn": "none",
+                "signInRoad": "device",
+                "wspTools": false,
+                "setup": {
+                  "on": true,
+                  "envNames": []
+                }
+              },
+              {
+                "id": "gemini",
+                "name": "Gemini CLI",
+                "installed": false,
+                "pinned": "0.58.0",
+                "road": "none",
+                "signIn": "none",
+                "signInRoad": "code",
+                "wspTools": false
+              },
+              {
+                "id": "opencode",
+                "name": "OpenCode",
+                "installed": false,
+                "pinned": "1.18.27",
+                "road": "none",
+                "signIn": "none",
+                "signInRoad": "terminal",
+                "wspTools": false,
+                "setup": {
+                  "on": true,
+                  "envNames": []
+                }
+              },
+              {
+                "id": "pi",
+                "name": "Pi",
+                "installed": false,
+                "pinned": "0.84.4",
+                "road": "none",
+                "signIn": "none",
+                "signInRoad": "terminal",
+                "wspTools": false
+              },
+              {
+                "id": "hermes",
+                "name": "Hermes Agent",
+                "installed": false,
+                "road": "none",
+                "signIn": "none",
+                "signInRoad": "terminal",
+                "wspTools": false
+              },
+              {
+                "id": "crush",
+                "name": "Crush",
+                "installed": false,
+                "pinned": "0.96.1",
+                "road": "none",
+                "signIn": "none",
+                "signInRoad": "none",
+                "wspTools": false
+              },
+              {
+                "id": "qwen",
+                "name": "Qwen Code",
+                "installed": false,
+                "pinned": "0.24.5",
+                "road": "none",
+                "signIn": "none",
+                "signInRoad": "none",
+                "wspTools": false
+              },
+              {
+                "id": "goose",
+                "name": "Goose",
+                "installed": false,
+                "pinned": "1.52.0",
+                "road": "none",
+                "signIn": "none",
+                "signInRoad": "none",
+                "wspTools": false
+              },
+              {
+                "id": "amp",
+                "name": "Amp",
+                "installed": false,
+                "pinned": "0.0.1790352060-g26b83c",
+                "road": "none",
+                "signIn": "none",
+                "signInRoad": "none",
+                "wspTools": false
+              },
+              {
+                "id": "cursor",
+                "name": "Cursor",
+                "installed": false,
+                "road": "none",
+                "signIn": "none",
+                "signInRoad": "key",
+                "wspTools": false,
+                "setup": {
+                  "on": true,
+                  "envNames": []
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "stderr": "starting the host for <tmp>/scratch/wsp-contract-<temp>/state/state.json; its log is <tmp>/scratch/wsp-contract-<temp>/state/host.log, and wsp down stops it\n"
+    }
+  ],
+  "events": []
+}

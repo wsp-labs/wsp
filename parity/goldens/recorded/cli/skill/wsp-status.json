@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "host  running (pid <pid>, up <reading>)\napp  http://127.0.0.1:<port>\nruntime ws  ws://127.0.0.1:<port>/ws (token: <tmp>/state/host-token)\nstate  <tmp>/state/state.json\nservice  none; wsp up --service installs a systemd unit\nlatest  off\n",
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

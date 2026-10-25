@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp recipe: --add takes <id>=<command>, and got \"just\". Write it as --add <id>=\"<command>\", the id first and the command it runs behind the equals sign.\n"
+    }
+  ],
+  "events": []
+}

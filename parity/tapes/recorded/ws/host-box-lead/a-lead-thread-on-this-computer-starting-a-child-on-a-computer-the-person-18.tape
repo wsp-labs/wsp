@@ -1,7 +1,5 @@
-{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there sends into its lead with wsp send and lists it with wsp threads"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"id":2,"op":"sessions.list"}}
-{"in":{"workspaceId":"ws_00000001","id":3,"op":"harnesses.list"}}
-{"in":{"ref":"ws_00000001","id":4,"op":"workspaces.resolve"}}
-{"in":{"workspaceId":"ws_00000001","id":5,"op":"workspaces.wake"}}
-{"in":{"workspaceId":"ws_00000001","prompt":"which branch do I push to?","harness":"claude","thread":"00000000-0000-4000-8000-000000000002","startedBy":"cli","requestId":"00000000-0000-4000-8000-000000000005","answerHeld":true,"id":6,"op":"sessions.start"}}
+{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there sends into its lead with wsp send and lists it with wsp threads","outs":"recorded"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEArH/2XHb3LZCKkx+dwoRPVWmtn+khgC8dIhbyV7sSF0Y=","nonce":"a0pSVS4iCAs0I2mgYUNo5SzANx8kyJsWrdabXPPWr6c=","ephemeral":"QkDqEfLGIxAWlIu2jlM0MsY20pdlhpCFl3Jcc9WxRg8=","id":1,"op":"place.join"}}
+{"out":{"id":1,"ok":true,"placeId":"p_00000001","hostPublicKey":"MCowBQYDK2VwAyEAuyB2JHwRUK70dfOlIHLkJGuQS9eb/Re+CiISwfYuCqI=","nonce":"YED4wGvf5dsR4BSvaKjc0hniKWL6yKOmthjLuOKkAsU=","signature":"ECPrCBOciVzPf4ZzT3vY1wFG3rUr0PWi6t68+eFiCVWh1Y8mi3e4MLV2GakpvxEfRvun06r8WDRco0kQ0FbqAg==","ephemeral":"mWMrw3Jwydm7rIiaLVGfPSxNypowu628HBrLTrsH1Fg=","hostName":"zingzys-mac"}}
+{"in":{"signature":"l4+zajOErZGOFElaOnJWMVe8CqDgyq5NqGSlA18VpMY8zR8T0W+Kek6lqmeda2XjUYMFDuLyd3V6tznE2lIhAg==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}
+{"out":{"id":2,"ok":true}}

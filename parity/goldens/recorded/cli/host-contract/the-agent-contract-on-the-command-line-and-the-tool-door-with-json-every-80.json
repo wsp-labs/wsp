@@ -1,0 +1,33 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": {
+        "jsonLines": [
+          {
+            "setup": {
+              "keys": {
+                "box": false
+              },
+              "home": "<tmp>/home",
+              "agents": [
+                {
+                  "id": "codex",
+                  "name": "Codex",
+                  "configured": false,
+                  "takesTools": true
+                }
+              ],
+              "pricing": null,
+              "forksOn": "none",
+              "buildRefusal": "no place here runs workspaces, so there is nowhere to build your image; join a computer that runs them with wsp add, or save a provider key",
+              "job": null
+            }
+          }
+        ]
+      },
+      "stderr": "starting the host for <tmp>/scratch/wsp-contract-<temp>/state/state.json; its log is <tmp>/scratch/wsp-contract-<temp>/state/host.log, and wsp down stops it\n"
+    }
+  ],
+  "events": []
+}

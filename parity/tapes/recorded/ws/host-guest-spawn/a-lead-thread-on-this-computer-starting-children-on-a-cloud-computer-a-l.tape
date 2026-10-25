@@ -1,12 +1,13 @@
-{"meta":{"door":"ws","source":"packages/host/test/guest-spawn.test.ts > a lead thread on this computer starting children on a cloud computer > a lead whose folder's origin moved starts children on cloud projects recorded under the old name and the new, and no record changes"}}
+{"meta":{"door":"ws","source":"packages/host/test/guest-spawn.test.ts > a lead thread on this computer starting children on a cloud computer > a lead whose folder's origin moved starts children on cloud projects recorded under the old name and the new, and no record changes","outs":"recorded"}}
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"ref":"lab-cloud","id":2,"op":"projects.resolve"}}
-{"in":{"project":"pr_00000001","id":3,"op":"workspaces.landing"}}
-{"in":{"id":4,"op":"harnesses.list"}}
-{"in":{"id":5,"op":"projects.defaults"}}
-{"in":{"id":6,"op":"workspaces.list"}}
-{"in":{"project":"pr_00000001","id":7,"op":"workspaces.landing"}}
-{"in":{"id":8,"op":"events.subscribe"}}
-{"in":{"project":"pr_00000001","name":"build it","id":9,"op":"workspaces.create"}}
-{"in":{"workspaceId":"ws_00000005","id":10,"op":"workspaces.wake"}}
-{"in":{"prompt":"build it","turnToken":"00000000000000000000000000000001","workspaceId":"ws_00000005","startedBy":"cli","requestId":"00000000-0000-4000-8000-000000000004","answerHeld":true,"id":11,"op":"sessions.start"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
+{"in":{"id":2,"op":"projects.list"}}
+{"out":{"id":2,"ok":true,"projects":[{"id":"pr_00000001","name":"lab","computer":"here","source":{"kind":"folder","path":"<run>/wsp-lead-cloud-000001/repo"},"path":"<run>/wsp-lead-cloud-000001/repo","remote":"git@github.com:old/lab.git","defaultBranch":"main","memoryKey":"-tmp-wsp-run-1508236-wsp-lead-cloud-2oaLes-repo","memoryDir":"<run>/wsp-lead-cloud-000001/user/.claude/projects/-tmp-wsp-run-1508236-wsp-lead-cloud-2oaLes-repo/memory","git":{"top":"<run>/wsp-lead-cloud-000001/repo"},"createdAt":"2026-10-25T11:40:43.592Z"},{"id":"pr_00000002","name":"lab-cloud","computer":"default","source":{"kind":"git","url":"https://github.com/dev/lab.git"},"path":"/root/lab-cloud","remote":"https://github.com/dev/lab.git","defaultBranch":"main","memoryKey":"-root-lab-cloud","memoryDir":"/root/.claude-cfg/projects/-root-lab-cloud/memory","createdAt":"2026-10-25T11:40:43.592Z"},{"id":"pr_00000003","name":"lab-old","computer":"default","source":{"kind":"git","url":"https://github.com/Old/Lab"},"path":"/root/lab-old","remote":"https://github.com/Old/Lab","defaultBranch":"main","memoryKey":"-root-lab-old","memoryDir":"/root/.claude-cfg/projects/-root-lab-old/memory","createdAt":"2026-10-25T11:40:43.625Z"}]}}
+{"in":{"id":3,"op":"workspaces.list"}}
+{"out":{"id":3,"ok":true,"workspaces":[{"id":"ws_00000004","name":"lab","machineId":"local","phase":"running","kind":"local","golden":"","createdAt":"2026-10-25T11:40:43.594Z","project":{"id":"pr_00000001","name":"lab","path":"<run>/wsp-lead-cloud-000001/repo","computer":"here"},"folder":"<run>/wsp-lead-cloud-000001/repo","home":"<run>/wsp-lead-cloud-000001/user","claudeSessionId":"00000000-0000-4000-8000-000000000001","agents":{"spawn":true,"maxMachines":3,"maxDepth":2}}]}}
+{"in":{"id":4,"op":"sessions.list"}}
+{"out":{"id":4,"ok":true,"sessions":[{"id":"00000000-0000-4000-8000-000000000001","workspaceId":"ws_00000004","harness":"claude","status":"running","startedBy":"person","threadId":"00000000-0000-4000-8000-000000000002","prompt":"coordinate","startedAt":1792928443615,"model":"claude-sonnet-4-5","effort":"high","permissionMode":"bypassPermissions","cwd":"<run>/wsp-lead-cloud-000001/repo","claudeSessionId":"00000000-0000-4000-8000-000000000001","readAt":1792928443517,"project":{"id":"pr_00000001","name":"lab"},"computerName":"ip-172-31-47-246"}]}}
+{"in":{"id":5,"op":"places.list"}}
+{"out":{"id":5,"ok":true,"places":[],"adds":[],"pending":[]}}
+{"in":{"id":6,"op":"projects.defaults"}}
+{"out":{"id":6,"ok":true,"defaults":{"pr_00000001":{"agent":{"value":"claude","from":"catalog"},"model":{"value":"claude-opus-5-5","from":"catalog"},"effort":{"value":"high","from":"catalog"},"access":{"value":"full","mode":"bypassPermissions","from":"catalog"}},"pr_00000002":{"agent":{"value":"claude","from":"catalog"},"model":{"value":"claude-opus-5-5","from":"catalog"},"effort":{"value":"high","from":"catalog"},"access":{"value":"full","mode":"bypassPermissions","from":"catalog"}},"pr_00000003":{"agent":{"value":"claude","from":"catalog"},"model":{"value":"claude-opus-5-5","from":"catalog"},"effort":{"value":"high","from":"catalog"},"access":{"value":"full","mode":"bypassPermissions","from":"catalog"}}}}}

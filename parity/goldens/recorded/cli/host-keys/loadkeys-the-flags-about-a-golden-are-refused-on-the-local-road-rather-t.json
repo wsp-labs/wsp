@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "┌  wsp <version>\n│\n│  Setting up <tmp>/scratch/wsp-keys-<temp>/home/state.json; --state <path> starts a fresh setup instead.\n",
+      "stderr": "wsp init: with no provider key this computer is all this run makes, so --no-local would leave it with nothing. Drop it.\n"
+    }
+  ],
+  "events": []
+}

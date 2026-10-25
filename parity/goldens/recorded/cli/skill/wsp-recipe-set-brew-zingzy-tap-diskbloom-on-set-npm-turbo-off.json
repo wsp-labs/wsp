@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp recipe: --set brew/zingzy/tap/diskbloom=on: \"brew/zingzy/tap/diskbloom\" is no catalog row and no row of <tmp>/state/recipe.json outside the catalog, and no package a manager on this computer has that id. Run wsp recipe scan to read the rows this computer offers.\n"
+    }
+  ],
+  "events": []
+}

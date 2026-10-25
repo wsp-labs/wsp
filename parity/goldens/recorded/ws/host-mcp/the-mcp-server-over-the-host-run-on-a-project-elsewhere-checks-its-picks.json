@@ -1,0 +1,526 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "no project \"stub-3\"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 4,
+      "ok": true,
+      "harnesses": [
+        {
+          "source": "table",
+          "version": "--help 2.1.296, 2026-10-10",
+          "contextWindows": [
+            {
+              "value": "200k",
+              "label": "200k"
+            },
+            {
+              "value": "1m",
+              "label": "1M",
+              "isDefault": true
+            }
+          ],
+          "steers": false,
+          "renames": false,
+          "images": false,
+          "harness": "claude",
+          "label": "Claude Code",
+          "mcpServers": true,
+          "asides": true,
+          "movesAccess": true,
+          "steersImages": true,
+          "screenCommands": [
+            {
+              "name": "login",
+              "control": "sign-in"
+            },
+            {
+              "name": "logout",
+              "control": "sign-in"
+            },
+            {
+              "name": "model",
+              "control": "model"
+            },
+            {
+              "name": "permissions",
+              "control": "access"
+            },
+            {
+              "name": "config",
+              "control": "settings"
+            },
+            {
+              "name": "help",
+              "control": "docs"
+            }
+          ],
+          "smallModel": "claude-haiku-5-5",
+          "models": [
+            {
+              "value": "claude-opus-5-5",
+              "label": "Opus 5.5",
+              "isDefault": true,
+              "fast": true,
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "contextWindows": []
+            },
+            {
+              "value": "claude-fable-5-1",
+              "label": "Fable 5.1",
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "contextWindows": []
+            },
+            {
+              "value": "claude-sonnet-5-5",
+              "label": "Sonnet 5.5",
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "defaultEffort": "medium",
+              "contextWindows": []
+            },
+            {
+              "value": "claude-haiku-5-5",
+              "label": "Haiku 5.5",
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "defaultEffort": "medium",
+              "contextWindows": []
+            }
+          ],
+          "legacyModels": [
+            {
+              "value": "claude-opus-5",
+              "label": "Opus 5",
+              "fast": true,
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "defaultEffort": "high",
+              "contextWindows": [
+                "200k",
+                "1m"
+              ]
+            },
+            {
+              "value": "claude-opus-4-8",
+              "label": "Opus 4.8",
+              "fast": true,
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "defaultEffort": "high",
+              "contextWindows": [
+                "200k",
+                "1m"
+              ]
+            },
+            {
+              "value": "claude-opus-4-7",
+              "label": "Opus 4.7",
+              "fast": true,
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "defaultEffort": "xhigh",
+              "contextWindows": [
+                "200k",
+                "1m"
+              ]
+            },
+            {
+              "value": "claude-opus-4-6",
+              "label": "Opus 4.6",
+              "fast": true,
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "max"
+              ],
+              "contextWindows": [
+                "200k",
+                "1m"
+              ]
+            },
+            {
+              "value": "claude-opus-4-5",
+              "label": "Opus 4.5",
+              "fast": true,
+              "efforts": [],
+              "contextWindows": [
+                "200k",
+                "1m"
+              ]
+            },
+            {
+              "value": "claude-fable-5",
+              "label": "Fable 5",
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "defaultEffort": "high",
+              "contextWindows": []
+            },
+            {
+              "value": "claude-sonnet-5",
+              "label": "Sonnet 5",
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "defaultEffort": "high",
+              "contextWindows": []
+            },
+            {
+              "value": "claude-sonnet-4-6",
+              "label": "Sonnet 4.6",
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "max"
+              ],
+              "contextWindows": [
+                "200k",
+                "1m"
+              ]
+            },
+            {
+              "value": "claude-sonnet-4-5",
+              "label": "Sonnet 4.5",
+              "efforts": [],
+              "contextWindows": [
+                "200k",
+                "1m"
+              ]
+            },
+            {
+              "value": "claude-haiku-4-5-20251001",
+              "label": "Haiku 4.5",
+              "efforts": [],
+              "contextWindows": []
+            }
+          ],
+          "efforts": [
+            {
+              "value": "low",
+              "label": "Low"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "high",
+              "label": "High",
+              "isDefault": true
+            },
+            {
+              "value": "xhigh",
+              "label": "Extra high"
+            },
+            {
+              "value": "max",
+              "label": "Max"
+            }
+          ],
+          "access": {
+            "ask": "default",
+            "auto-edit": "acceptEdits",
+            "full": "bypassPermissions"
+          },
+          "bypassMode": "bypassPermissions",
+          "readOnlyMode": "dontAsk",
+          "permissionModes": [
+            {
+              "value": "default",
+              "label": "Default",
+              "description": "Asks in the chat about each action that needs permission"
+            },
+            {
+              "value": "acceptEdits",
+              "label": "Accept edits",
+              "description": "Edits files without asking; asks about commands that need permission"
+            },
+            {
+              "value": "bypassPermissions",
+              "label": "Bypass",
+              "description": "Runs every action without asking",
+              "isDefault": true
+            },
+            {
+              "value": "auto",
+              "label": "Auto",
+              "description": "The agent decides which actions to ask about; where the account has no such mode it asks as Default does"
+            },
+            {
+              "value": "manual",
+              "label": "Manual",
+              "description": "Asks before every action"
+            },
+            {
+              "value": "dontAsk",
+              "label": "Don't ask",
+              "description": "Refuses any action that needs permission, without asking"
+            }
+          ],
+          "isDefault": true
+        },
+        {
+          "source": "table",
+          "version": "app-server 0.153.0, 2026-09-07",
+          "contextWindows": [],
+          "steers": false,
+          "renames": false,
+          "images": false,
+          "harness": "codex",
+          "label": "Codex",
+          "mcpServers": true,
+          "asides": true,
+          "smallModel": "gpt-5.2",
+          "models": [
+            {
+              "value": "gpt-5.6-sol",
+              "label": "GPT-5.6-Sol",
+              "isDefault": true,
+              "fast": true,
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max",
+                "ultra"
+              ],
+              "defaultEffort": "low"
+            },
+            {
+              "value": "gpt-5.6-terra",
+              "label": "GPT-5.6-Terra",
+              "fast": true,
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max",
+                "ultra"
+              ],
+              "defaultEffort": "medium"
+            },
+            {
+              "value": "gpt-5.6-luna",
+              "label": "GPT-5.6-Luna",
+              "fast": true,
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "defaultEffort": "medium"
+            }
+          ],
+          "legacyListed": true,
+          "legacyModels": [
+            {
+              "value": "gpt-5.5",
+              "label": "GPT-5.5",
+              "fast": true,
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "defaultEffort": "medium"
+            },
+            {
+              "value": "gpt-5.2",
+              "label": "GPT-5.2",
+              "efforts": [
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "defaultEffort": "medium"
+            }
+          ],
+          "efforts": [
+            {
+              "value": "low",
+              "label": "Low",
+              "isDefault": true
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "high",
+              "label": "High"
+            },
+            {
+              "value": "xhigh",
+              "label": "Extra high"
+            },
+            {
+              "value": "max",
+              "label": "Max"
+            },
+            {
+              "value": "ultra",
+              "label": "Ultra"
+            }
+          ],
+          "access": {
+            "ask": "workspace-write",
+            "full": "danger-full-access",
+            "plan": "read-only"
+          },
+          "bypassMode": "danger-full-access",
+          "readOnlyToolsFree": true,
+          "readOnlyMode": "read-only",
+          "permissionModes": [
+            {
+              "value": "read-only",
+              "label": "Read only",
+              "description": "Reads only; edits no files and runs no command that writes"
+            },
+            {
+              "value": "workspace-write",
+              "label": "Workspace write",
+              "description": "Edits files and runs commands inside the working folder"
+            },
+            {
+              "value": "danger-full-access",
+              "label": "Full access",
+              "description": "Runs every action without asking, with no folder off limits",
+              "isDefault": true
+            }
+          ]
+        },
+        {
+          "source": "table",
+          "version": "run --help 1.18.18, 2026-09-27",
+          "contextWindows": [],
+          "steers": false,
+          "renames": false,
+          "images": false,
+          "harness": "opencode",
+          "label": "OpenCode",
+          "models": [],
+          "efforts": [],
+          "access": {
+            "full": "auto"
+          },
+          "bypassMode": "auto",
+          "permissionModes": [
+            {
+              "value": "auto",
+              "label": "Auto",
+              "description": "Runs every action without asking, save what its own settings deny: a headless run has nobody to ask",
+              "isDefault": true
+            }
+          ]
+        },
+        {
+          "source": "table",
+          "version": "-h 2026.09.26-dd393fe, 2026-09-27",
+          "contextWindows": [],
+          "steers": false,
+          "renames": false,
+          "images": false,
+          "harness": "cursor",
+          "label": "Cursor",
+          "models": [],
+          "efforts": [],
+          "access": {
+            "full": "force",
+            "plan": "default"
+          },
+          "bypassMode": "force",
+          "permissionModes": [
+            {
+              "value": "default",
+              "label": "Default",
+              "description": "Proposes changes and runs no command; applies nothing"
+            },
+            {
+              "value": "force",
+              "label": "Force",
+              "description": "Edits files and runs every command without asking, save what its own settings deny",
+              "isDefault": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "ok": true,
+      "defaults": {}
+    }
+  ],
+  "events": []
+}

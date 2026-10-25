@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "starting the host for <tmp>/scratch/wsp-contract-<temp>/state/state.json; its log is <tmp>/scratch/wsp-contract-<temp>/state/host.log, and wsp down stops it\n{\"error\":\"--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it cannot also take --beside. Drop --beside, or run the work without --on.\",\"class\":\"usage\",\"exit\":3}\n"
+    }
+  ],
+  "events": []
+}

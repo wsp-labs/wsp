@@ -1,0 +1,38 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": {
+        "jsonLines": [
+          {
+            "server": {
+              "command": "/usr/bin/node",
+              "args": [
+                "<repo>/packages/host/dist/bin.js",
+                "mcp",
+                "--state",
+                "<tmp>/scratch/wsp-mcp-home-<temp>/.wsp/state.json"
+              ]
+            },
+            "installed": [
+              {
+                "id": "gemini",
+                "agent": "Gemini CLI",
+                "path": "~/.gemini/settings.json",
+                "skill": "~/.gemini/skills/wsp/SKILL.md"
+              }
+            ],
+            "failures": [
+              {
+                "id": "emacs",
+                "error": "no agent emacs in the catalog; agents with an MCP config: claude, codex, gemini, opencode"
+              }
+            ]
+          }
+        ]
+      },
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

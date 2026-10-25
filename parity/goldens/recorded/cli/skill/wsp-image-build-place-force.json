@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "wsp image build: no place named <place>; you have <computer>\n"
+    }
+  ],
+  "events": []
+}

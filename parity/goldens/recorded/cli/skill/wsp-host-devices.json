@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "No computer is paired with this host. Run wsp host pair for a code.\n",
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

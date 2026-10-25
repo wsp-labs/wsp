@@ -1,0 +1,30 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": false,
+      "error": "that pairing code is not one this host is waiting for; run wsp host pair on the host for a fresh one",
+      "kind": "auth"
+    },
+    {
+      "parity": "no reply",
+      "id": "2"
+    },
+    {
+      "parity": "no reply",
+      "id": "3"
+    },
+    {
+      "parity": "no reply",
+      "id": "4"
+    }
+  ],
+  "events": [
+    {
+      "close": {
+        "code": 4401,
+        "reason": "unauthorized"
+      }
+    }
+  ]
+}
