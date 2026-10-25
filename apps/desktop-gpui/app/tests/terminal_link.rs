@@ -384,9 +384,12 @@ fn a_size_given_while_the_channel_is_down_reaches_the_pty_once_it_is_back(cx: &m
 #[gpui_kit::test]
 fn a_new_shells_own_startup_query_is_answered(cx: &mut TestAppContext) {
     let Some(host) = Host::start() else { return };
-    // As fish asks for the terminal's attributes as it starts, before anything has attached to its pty.
+    // As fish asks for the terminal's attributes as it starts, before anything has attached to its pty. The daemon runs
+    // the passwd row's login shell, zsh on the Mac and bash on a Linux runner, so both read the same lines.
     let rc = "printf '\\033[c'; read -rs -t 5 -d c r; [ -n \"$r\" ] && echo da1-answered\n";
-    std::fs::write(host.server.dir.path().join(".zshrc"), rc).unwrap();
+    for file in [".zshrc", ".bash_profile"] {
+        std::fs::write(host.server.dir.path().join(file), rc).unwrap();
+    }
     let link = open_link(&host, cx);
     let opening = link.update(cx, |l, cx| l.create(Tag::None, 80, 24, cx));
     let opened = std::rc::Rc::new(std::cell::RefCell::new(None));
