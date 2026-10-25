@@ -1,0 +1,35 @@
+{
+  "blocked": "old-macbook cannot run wsp workspaces: docker is not running",
+  "homeRefusal": "that computer reported \"relative\", which is not a plain path for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path",
+  "floorFailed": "the base tools did not install: git, curl",
+  "floorWord": "the base tools",
+  "pluginOff": "plugin lint",
+  "keyRefusal": "that place's key does not match the one this host learned at join; wsp remove it here and join it again",
+  "codeRefusal": "that join code is not one this host is waiting for; run wsp add on the host for a fresh one",
+  "addStopped": "the host stopped while wsp was being installed there; what the install put there was taken back",
+  "addStoppedFix": "Add it again.",
+  "addNotTakenBack": "the host stopped while wsp was being installed there, and what the install put there could not be taken back",
+  "capacity": {
+    "cores": 4,
+    "memMb": 8192,
+    "memRoomMb": 16384,
+    "machineMemMb": 4096,
+    "diskFreeBytes": 10737418240,
+    "images": [
+      {
+        "id": "i1",
+        "sizeBytes": 2147483648
+      },
+      {
+        "id": "i2",
+        "sizeBytes": 3221225472
+      }
+    ],
+    "machines": {
+      "running": 2,
+      "paused": 1
+    }
+  },
+  "room": 3,
+  "roomNoImage": 4
+}
