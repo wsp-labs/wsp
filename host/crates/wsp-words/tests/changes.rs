@@ -3,8 +3,8 @@
 //! asked from, the question itself, and the answer read back as a commit message.
 
 use serde_json::{json, Value};
-use wsp_words::changes::*;
 use wsp_wire::types::changes::Checkout;
+use wsp_words::changes::*;
 
 fn fact(fields: Value) -> Checkout {
     let mut base = json!({ "branch": "fix/cart", "ahead": 0, "behind": 0, "changed": 0, "readAt": 1 });
@@ -31,10 +31,7 @@ mod the_counts_after_a_branch {
     #[test]
     fn says_the_changes_were_not_read_where_a_stopped_copy_s_edits_were_not() {
         assert_eq!(counted(&fact(json!({ "ahead": 1, "editsUnread": true }))), vec![checkout_words::UNREAD.to_string()]);
-        assert_eq!(
-            counted(&fact(json!({ "ahead": 4, "behind": 2, "countsUnknown": true, "changed": 2 }))),
-            vec!["2 changed".to_string()]
-        );
+        assert_eq!(counted(&fact(json!({ "ahead": 4, "behind": 2, "countsUnknown": true, "changed": 2 }))), vec!["2 changed".to_string()]);
     }
 }
 

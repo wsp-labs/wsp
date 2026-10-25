@@ -81,7 +81,10 @@ fn turn_with(prompt: &str, text: &str, result: Value) -> Vec<Value> {
     vec![
         ev("session.start", json!({ "turnId": "u1", "at": AT, "prompt": prompt })),
         ev("session.delta", json!({ "turnId": "u1", "at": AT + 1_000, "kind": "text", "text": head })),
-        ev("session.delta", json!({ "turnId": "u1", "at": AT + 2_000, "kind": "tool_use", "toolName": "Bash", "toolUseId": "toolu_1", "text": json!({ "command": "pnpm test" }).to_string() })),
+        ev(
+            "session.delta",
+            json!({ "turnId": "u1", "at": AT + 2_000, "kind": "tool_use", "toolName": "Bash", "toolUseId": "toolu_1", "text": json!({ "command": "pnpm test" }).to_string() }),
+        ),
         ev("session.delta", json!({ "turnId": "u1", "at": AT + 3_000, "kind": "text", "text": tail })),
         ev("session.done", json!({ "turnId": "u1", "at": AT + 4_000, "result": result })),
         ev("session.end", json!({ "turnId": "u1", "at": AT + 5_000, "exitCode": 0, "sawResult": true })),
@@ -113,7 +116,10 @@ mod a_thread_s_messages {
     #[test]
     fn reads_a_turn_that_never_started_as_a_turn_of_its_own_with_the_words_it_was_sent() {
         let mut all = turn("build it", "built it");
-        all.push(ev("session.capped", json!({ "turnId": "u2", "at": AT + 6_000, "placeId": "here", "place": "hetzner", "running": 1, "atOnce": 1 })));
+        all.push(ev(
+            "session.capped",
+            json!({ "turnId": "u2", "at": AT + 6_000, "placeId": "here", "place": "hetzner", "running": 1, "atOnce": 1 }),
+        ));
         all.push(ev(
             "session.end",
             json!({ "turnId": "u2", "at": AT + 9_000, "exitCode": null, "sawResult": false, "reason": "the host restarted", "unstarted": true, "prompt": "and the tests" }),
@@ -129,9 +135,15 @@ mod a_thread_s_messages {
     fn reads_the_harness_s_two_messages_as_two_rows_the_reply_given_while_a_background() {
         let rows = messages(vec![
             ev("session.start", json!({ "turnId": "u1", "at": AT, "prompt": "hold for 90 seconds" })),
-            ev("session.delta", json!({ "turnId": "u1", "at": AT + 1_000, "kind": "text", "text": "Waiting for the hold to complete.", "messageId": "msg_a" })),
+            ev(
+                "session.delta",
+                json!({ "turnId": "u1", "at": AT + 1_000, "kind": "text", "text": "Waiting for the hold to complete.", "messageId": "msg_a" }),
+            ),
             ev("session.delta", json!({ "turnId": "u1", "at": AT + 91_000, "kind": "text", "text": "Done. ", "messageId": "msg_b" })),
-            ev("session.delta", json!({ "turnId": "u1", "at": AT + 91_500, "kind": "text", "text": "It ended with exit code 0.", "messageId": "msg_b" })),
+            ev(
+                "session.delta",
+                json!({ "turnId": "u1", "at": AT + 91_500, "kind": "text", "text": "It ended with exit code 0.", "messageId": "msg_b" }),
+            ),
         ]);
         assert_eq!(
             rows,
@@ -147,7 +159,10 @@ mod a_thread_s_messages {
     fn leaves_a_harness_s_note_out_a_read_is_the_words_of_a_thread_and_the_note_is_the() {
         let rows = messages(vec![
             ev("session.start", json!({ "turnId": "u1", "at": AT, "prompt": "say ready" })),
-            ev("session.delta", json!({ "turnId": "u1", "at": AT + 1, "kind": "note", "text": "loading hooks from both files; prefer a single representation for this layer" })),
+            ev(
+                "session.delta",
+                json!({ "turnId": "u1", "at": AT + 1, "kind": "note", "text": "loading hooks from both files; prefer a single representation for this layer" }),
+            ),
             ev("session.delta", json!({ "turnId": "u1", "at": AT + 2, "kind": "text", "text": "ready" })),
         ]);
         assert_eq!(rows, vec![msg("person", Some(AT), "say ready"), msg("agent", Some(AT + 2), "ready")]);
@@ -164,11 +179,15 @@ mod a_thread_s_messages {
             if let Some(id) = second {
                 two["messageId"] = json!(id);
             }
-            messages(vec![ev("session.start", json!({ "turnId": "u1", "at": AT, "prompt": "go" })), ev("session.delta", one), ev("session.delta", two)])
-                .iter()
-                .filter(|row| who_of(row) == "agent")
-                .map(|row| row.text.clone())
-                .collect()
+            messages(vec![
+                ev("session.start", json!({ "turnId": "u1", "at": AT, "prompt": "go" })),
+                ev("session.delta", one),
+                ev("session.delta", two),
+            ])
+            .iter()
+            .filter(|row| who_of(row) == "agent")
+            .map(|row| row.text.clone())
+            .collect()
         };
         assert_eq!(pieces(Some("msg_a"), Some("msg_a")), strs(&["half a sentence"]));
         assert_eq!(pieces(None, None), strs(&["half a sentence"]));
@@ -192,7 +211,10 @@ mod a_thread_s_messages {
                 ("turn", "The disk of web is 92% full (67.7 of 73.6 GB)."),
             ])
         );
-        assert_eq!(wsp_words::projects::thread_moved_line("/w/tree", "/w/proj", false), "its worktree at /w/tree is gone, so it goes on in /w/proj");
+        assert_eq!(
+            wsp_words::projects::thread_moved_line("/w/tree", "/w/proj", false),
+            "its worktree at /w/tree is gone, so it goes on in /w/proj"
+        );
     }
 
     #[test]
@@ -206,7 +228,12 @@ mod a_thread_s_messages {
         ]);
         assert_eq!(
             pairs(&rows),
-            want(&[("person", "fix the upload test"), ("turn", "Waited 14 min for your computer"), ("turn", said), ("turn", "a host notice")])
+            want(&[
+                ("person", "fix the upload test"),
+                ("turn", "Waited 14 min for your computer"),
+                ("turn", said),
+                ("turn", "a host notice")
+            ])
         );
     }
 
@@ -226,8 +253,14 @@ mod a_thread_s_messages {
     fn keeps_a_call_whose_input_arrives_in_pieces_as_one_row_and_draws_its_line_from_th() {
         let rows = messages(vec![
             ev("session.start", json!({ "turnId": "u1", "at": AT, "prompt": "edit it" })),
-            ev("session.delta", json!({ "turnId": "u1", "at": AT + 1, "kind": "tool_use", "toolName": "Edit", "toolUseId": "toolu_1", "text": "{\"file_path\":\"packages/host" })),
-            ev("session.delta", json!({ "turnId": "u1", "at": AT + 2, "kind": "tool_use", "toolUseId": "toolu_1", "text": "/src/verbs.ts\"}" })),
+            ev(
+                "session.delta",
+                json!({ "turnId": "u1", "at": AT + 1, "kind": "tool_use", "toolName": "Edit", "toolUseId": "toolu_1", "text": "{\"file_path\":\"packages/host" }),
+            ),
+            ev(
+                "session.delta",
+                json!({ "turnId": "u1", "at": AT + 2, "kind": "tool_use", "toolUseId": "toolu_1", "text": "/src/verbs.ts\"}" }),
+            ),
             ev("session.delta", json!({ "turnId": "u1", "at": AT + 3, "kind": "tool_result", "toolUseId": "toolu_1", "text": "ok" })),
         ]);
         assert_eq!(rows, vec![msg("person", Some(AT), "edit it"), msg("tool", Some(AT + 1), "edited packages/host/src/verbs.ts")]);
@@ -237,7 +270,10 @@ mod a_thread_s_messages {
     fn holds_a_call_in_the_present_until_its_result_lands_so_a_read_of_a_write_nobody_h() {
         let all = vec![
             ev("session.start", json!({ "turnId": "u1", "at": AT, "prompt": "write it" })),
-            ev("session.delta", json!({ "turnId": "u1", "at": AT + 1, "kind": "tool_use", "toolName": "Write", "toolUseId": "toolu_1", "text": json!({ "file_path": "kai.txt" }).to_string() })),
+            ev(
+                "session.delta",
+                json!({ "turnId": "u1", "at": AT + 1, "kind": "tool_use", "toolName": "Write", "toolUseId": "toolu_1", "text": json!({ "file_path": "kai.txt" }).to_string() }),
+            ),
         ];
         assert_eq!(texts(&messages(all.clone())), strs(&["write it", "writing kai.txt"]));
         let mut done = all;
@@ -249,8 +285,14 @@ mod a_thread_s_messages {
     fn gives_a_call_the_harness_named_no_id_for_a_row_of_its_own_and_never_runs_a_new_t() {
         let rows = messages(vec![
             ev("session.start", json!({ "turnId": "u1", "at": AT, "prompt": "look around" })),
-            ev("session.delta", json!({ "turnId": "u1", "at": AT + 1, "kind": "tool_use", "toolName": "Bash", "text": json!({ "command": "ls" }).to_string() })),
-            ev("session.delta", json!({ "turnId": "u1", "at": AT + 2, "kind": "tool_use", "toolName": "Bash", "text": json!({ "command": "pwd" }).to_string() })),
+            ev(
+                "session.delta",
+                json!({ "turnId": "u1", "at": AT + 1, "kind": "tool_use", "toolName": "Bash", "text": json!({ "command": "ls" }).to_string() }),
+            ),
+            ev(
+                "session.delta",
+                json!({ "turnId": "u1", "at": AT + 2, "kind": "tool_use", "toolName": "Bash", "text": json!({ "command": "pwd" }).to_string() }),
+            ),
             ev("session.delta", json!({ "turnId": "u1", "at": AT + 3, "kind": "text", "text": "here we are" })),
             // The turn was cut without a done or an end, as a capped transcript leaves one; the next turn opens anyway.
             ev("session.start", json!({ "turnId": "u2", "at": AT + 4 })),
@@ -266,7 +308,10 @@ mod a_thread_s_messages {
     fn takes_the_reply_from_the_result_where_no_text_arrived_which_is_a_transcript_capp() {
         let rows = messages(vec![
             ev("session.start", json!({ "turnId": "u1", "at": AT, "prompt": "build it" })),
-            ev("session.done", json!({ "turnId": "u1", "at": AT + 1_000, "result": { "status": "completed", "text": "built it", "durationMs": 724_000, "costUsd": 0.41 } })),
+            ev(
+                "session.done",
+                json!({ "turnId": "u1", "at": AT + 1_000, "result": { "status": "completed", "text": "built it", "durationMs": 724_000, "costUsd": 0.41 } }),
+            ),
         ]);
         assert_eq!(
             rows,
@@ -284,7 +329,10 @@ mod a_thread_s_messages {
         assert_eq!(failed.last().unwrap(), &msg("turn", Some(AT + 4_000), "failed: stopped after 15m 00s with no output for 10m"));
         let napped = messages(vec![
             ev("session.start", json!({ "turnId": "u1", "at": AT, "prompt": "loop forever" })),
-            ev("session.end", json!({ "turnId": "u1", "at": AT + 9_000, "exitCode": null, "sawResult": false, "reason": "machine paused while the agent was working" })),
+            ev(
+                "session.end",
+                json!({ "turnId": "u1", "at": AT + 9_000, "exitCode": null, "sawResult": false, "reason": "machine paused while the agent was working" }),
+            ),
         ]);
         assert_eq!(napped.last().unwrap(), &msg("turn", Some(AT + 9_000), "failed: machine paused while the agent was working"));
         let quiet = messages(vec![
@@ -302,7 +350,10 @@ mod a_thread_s_messages {
             ev("session.steer", json!({ "turnId": "u1", "at": AT + 2, "prompt": "also the codex case" })),
             ev("session.delta", json!({ "turnId": "u1", "at": AT + 3, "kind": "text", "text": "that too" })),
         ]);
-        assert_eq!(pairs(&steered), want(&[("person", "build it"), ("agent", "on it"), ("person", "also the codex case"), ("agent", "that too")]));
+        assert_eq!(
+            pairs(&steered),
+            want(&[("person", "build it"), ("agent", "on it"), ("person", "also the codex case"), ("agent", "that too")])
+        );
     }
 
     #[test]
@@ -311,9 +362,15 @@ mod a_thread_s_messages {
         let plan = |n: i64, steps: Value| ev("session.plan", json!({ "turnId": "u1", "at": at(n), "steps": steps }));
         let rows = messages(vec![
             ev("session.start", json!({ "turnId": "u1", "at": at(0), "prompt": "work the list" })),
-            plan(1, json!([{ "text": "read", "state": "working" }, { "text": "write", "state": "pending" }, { "text": "ship", "state": "pending" }])),
+            plan(
+                1,
+                json!([{ "text": "read", "state": "working" }, { "text": "write", "state": "pending" }, { "text": "ship", "state": "pending" }]),
+            ),
             ev("session.delta", json!({ "turnId": "u1", "at": at(2), "kind": "text", "text": "reading" })),
-            plan(3, json!([{ "text": "read", "state": "done" }, { "text": "write", "state": "working" }, { "text": "ship", "state": "pending" }])),
+            plan(
+                3,
+                json!([{ "text": "read", "state": "done" }, { "text": "write", "state": "working" }, { "text": "ship", "state": "pending" }]),
+            ),
             ev("session.plan", json!({ "turnId": "u1", "at": at(4), "text": "# Ship it\n\n1. Tag" })),
         ]);
         assert_eq!(
@@ -334,7 +391,10 @@ mod a_thread_s_messages {
             ev("session.compacted", json!({ "turnId": "u1", "at": AT + 1, "before": 27_500, "after": 3_100 })),
             ev("session.compacted", json!({ "turnId": "u1", "at": AT + 2 })),
         ]);
-        assert_eq!(pairs(&rows), want(&[("person", "/compact"), ("tool", "Compacted the context, 27.5k to 3.1k tokens"), ("tool", "Compacted the context")]));
+        assert_eq!(
+            pairs(&rows),
+            want(&[("person", "/compact"), ("tool", "Compacted the context, 27.5k to 3.1k tokens"), ("tool", "Compacted the context")])
+        );
     }
 
     #[test]
@@ -350,7 +410,10 @@ mod a_thread_s_messages {
         let rows = messages(all);
         assert_eq!(pairs(&rows[rows.len() - 2..]), want(&[("tool", "Changed 2 files, +14 -3"), ("turn", "completed")]));
         let mut fix = turn("fix", "fixed");
-        fix.push(ev("session.changes", json!({ "turnId": "u1", "at": AT + 6_000, "from": a40, "to": b40, "files": [files[1].clone()], "moved": [] })));
+        fix.push(ev(
+            "session.changes",
+            json!({ "turnId": "u1", "at": AT + 6_000, "from": a40, "to": b40, "files": [files[1].clone()], "moved": [] }),
+        ));
         let one = messages(fix);
         assert_eq!(one[one.len() - 2].text, "Changed 1 file, +2 -0");
     }
@@ -369,10 +432,19 @@ mod a_thread_s_messages {
             let rows = messages(all);
             rows[rows.len() - 2].text.clone()
         };
-        assert_eq!(line(json!({ "files": [a], "others": [b], "shared": true })), "Changed 1 file, +2 -0; 1 file also changed in this folder");
-        assert_eq!(line(json!({ "files": [], "others": [a, b], "shared": true })), "No files from this thread's edits; 2 files also changed in this folder");
+        assert_eq!(
+            line(json!({ "files": [a], "others": [b], "shared": true })),
+            "Changed 1 file, +2 -0; 1 file also changed in this folder"
+        );
+        assert_eq!(
+            line(json!({ "files": [], "others": [a, b], "shared": true })),
+            "No files from this thread's edits; 2 files also changed in this folder"
+        );
         assert_eq!(line(json!({ "files": [a], "others": [], "shared": true })), "Changed 1 file, +2 -0");
-        assert_eq!(line(json!({ "files": [a, b], "shared": true })), "2 files changed in this folder, +7 -1; other threads worked in it too");
+        assert_eq!(
+            line(json!({ "files": [a, b], "shared": true })),
+            "2 files changed in this folder, +7 -1; other threads worked in it too"
+        );
     }
 }
 
@@ -381,7 +453,11 @@ mod a_thread_s_latest_turn_and_its_final_reply {
 
     #[test]
     fn is_the_done_s_result_and_the_reply_is_the_whole_final_message_the_thread_s_finis() {
-        let all = events(turn_with("build it", "green\nbuilt it", json!({ "status": "completed", "text": "green\nbuilt it", "durationMs": 724_000, "costUsd": 0.41 })));
+        let all = events(turn_with(
+            "build it",
+            "green\nbuilt it",
+            json!({ "status": "completed", "text": "green\nbuilt it", "durationMs": 724_000, "costUsd": 0.41 }),
+        ));
         let got = thread_result(&all, "t1").unwrap();
         assert_eq!(got, result(json!({ "status": "completed", "text": "green\nbuilt it", "durationMs": 724_000, "costUsd": 0.41 })));
         // The reply's clock is the row the result came off, the done, not the end that may follow it by minutes.
@@ -395,9 +471,15 @@ mod a_thread_s_latest_turn_and_its_final_reply {
     fn is_failed_with_the_runtime_s_reason_where_the_runtime_ended_the_turn_and_the_rep() {
         let all = events(vec![
             ev("session.start", json!({ "turnId": "u1", "at": AT, "prompt": "loop forever" })),
-            ev("session.end", json!({ "turnId": "u1", "at": AT + 1, "exitCode": null, "sawResult": false, "reason": "machine paused while the agent was working" })),
+            ev(
+                "session.end",
+                json!({ "turnId": "u1", "at": AT + 1, "exitCode": null, "sawResult": false, "reason": "machine paused while the agent was working" }),
+            ),
         ]);
-        assert_eq!(thread_result(&all, "t1"), Some(result(json!({ "status": "failed", "error": "machine paused while the agent was working" }))));
+        assert_eq!(
+            thread_result(&all, "t1"),
+            Some(result(json!({ "status": "failed", "error": "machine paused while the agent was working" })))
+        );
         assert_eq!(thread_reply_rows(&all, "t1"), vec![msg("turn", Some(AT + 1), "machine paused while the agent was working")]);
     }
 
@@ -417,7 +499,8 @@ mod a_thread_s_latest_turn_and_its_final_reply {
         // where it did not, and each row says which.
         let cut = events(turn_with("build it", "", json!({ "status": "interrupted", "text": "got half of it" })));
         assert_eq!(thread_reply_rows(&cut, "t1"), vec![msg("agent", Some(AT + 4_000), "got half of it")]);
-        let failed = events(turn_with("build it", "", json!({ "status": "failed", "text": "got half of it", "error": "the harness died" })));
+        let failed =
+            events(turn_with("build it", "", json!({ "status": "failed", "text": "got half of it", "error": "the harness died" })));
         assert_eq!(thread_reply_rows(&failed, "t1"), vec![msg("turn", Some(AT + 4_000), "the harness died")]);
     }
 
@@ -427,7 +510,10 @@ mod a_thread_s_latest_turn_and_its_final_reply {
         raw.push(ev("session.start", json!({ "turnId": "u2", "at": AT + 6_000, "prompt": "again" })));
         raw.push(ev("session.delta", json!({ "turnId": "u2", "at": AT + 7_000, "kind": "text", "text": "on it" })));
         let all = events(raw);
-        assert_eq!(thread_reply_rows(&all, "t1"), vec![msg("agent", Some(AT + 4_000), "the old report"), msg("turn", None, NEWER_TURN_LINE)]);
+        assert_eq!(
+            thread_reply_rows(&all, "t1"),
+            vec![msg("agent", Some(AT + 4_000), "the old report"), msg("turn", None, NEWER_TURN_LINE)]
+        );
         // The turn that gave the reply is the newest ended one either way; the note is the only thing the newer turn adds.
         assert_eq!(thread_result(&all, "t1").unwrap().text, Some("the old report".to_string()));
         // A thread whose turn replied and whose agent process has not exited yet has started nothing newer, so no note.
@@ -438,7 +524,10 @@ mod a_thread_s_latest_turn_and_its_final_reply {
     fn takes_the_newest_turn_not_an_older_turn_s_done() {
         let mut raw = turn("first", "first done");
         raw.push(ev("session.start", json!({ "turnId": "u2", "at": AT + 6_000, "prompt": "again" })));
-        raw.push(ev("session.done", json!({ "turnId": "u2", "at": AT + 7_000, "result": { "status": "completed", "text": "second done" } })));
+        raw.push(ev(
+            "session.done",
+            json!({ "turnId": "u2", "at": AT + 7_000, "result": { "status": "completed", "text": "second done" } }),
+        ));
         raw.push(ev("session.end", json!({ "turnId": "u2", "at": AT + 8_000, "exitCode": 0, "sawResult": true })));
         assert_eq!(thread_result(&events(raw), "t1").unwrap().text, Some("second done".to_string()));
     }
@@ -475,7 +564,11 @@ mod the_printout_a_reader_sees {
 
     #[test]
     fn copies_as_markdown_who_spoke_as_a_bold_header_the_reply_as_written_tool_rows_as() {
-        let mut raw = turn_with("build it", "read the ticket, then built it", json!({ "status": "completed", "text": "read the ticket, then built it", "durationMs": 10_000 }));
+        let mut raw = turn_with(
+            "build it",
+            "read the ticket, then built it",
+            json!({ "status": "completed", "text": "read the ticket, then built it", "durationMs": 10_000 }),
+        );
         raw.push(ev(
             "session.changes",
             json!({
@@ -488,7 +581,10 @@ mod the_printout_a_reader_sees {
         ));
         raw.push(ev("session.start", json!({ "turnId": "u2", "at": AT + 7_000, "prompt": "and the math" })));
         raw.push(ev("session.plan", json!({ "turnId": "u2", "at": AT + 7_500, "steps": [{ "text": "derive", "state": "done" }, { "text": "check", "state": "working" }] })));
-        raw.push(ev("session.delta", json!({ "turnId": "u2", "at": AT + 8_000, "kind": "text", "text": "Here:\n\n$$E=mc^2$$\n\n```ts\nconst x = 1;\n```" })));
+        raw.push(ev(
+            "session.delta",
+            json!({ "turnId": "u2", "at": AT + 8_000, "kind": "text", "text": "Here:\n\n$$E=mc^2$$\n\n```ts\nconst x = 1;\n```" }),
+        ));
         let rows = thread_messages(&events(raw), "t1");
         let got = thread_markdown(&rows);
         let clock = |n: i64| fmt_clock(Some((AT + n) as f64), &local);

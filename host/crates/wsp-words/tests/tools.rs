@@ -90,10 +90,7 @@ mod a_turn_s_activity_in_one_line_each {
         assert_eq!(tool_activity_line(Some("Edit"), &js(json!({ "file_path": "src/a.ts" }))), "editing src/a.ts");
         assert_eq!(tool_done_line(Some("Edit"), &js(json!({ "file_path": "src/a.ts" }))), Some("edited src/a.ts".to_string()));
         assert_eq!(tool_activity_line(Some("Grep"), &js(json!({ "pattern": "shellQuote" }))), "searching code for shellQuote");
-        assert_eq!(
-            tool_done_line(Some("Grep"), &js(json!({ "pattern": "shellQuote" }))),
-            Some("searched code for shellQuote".to_string())
-        );
+        assert_eq!(tool_done_line(Some("Grep"), &js(json!({ "pattern": "shellQuote" }))), Some("searched code for shellQuote".to_string()));
     }
 
     #[test]
@@ -108,10 +105,7 @@ mod a_turn_s_activity_in_one_line_each {
     fn falls_back_to_a_server_tool_s_words_else_the_tool_s_own_name_when_there_is_no_ro() {
         assert_eq!(tool_activity_line(Some("TodoWrite"), &js(json!({ "todos": [] }))), "TodoWrite");
         assert_eq!(tool_activity_line(Some("mcp__wsp__send"), &js(json!({ "id": "t1" }))), "Use wsp's send");
-        assert_eq!(
-            tool_activity_line(Some("mcp__wsp__run"), &js(json!({ "message": "go", "title": "Login test" }))),
-            "Use wsp's run"
-        );
+        assert_eq!(tool_activity_line(Some("mcp__wsp__run"), &js(json!({ "message": "go", "title": "Login test" }))), "Use wsp's run");
         assert_eq!(tool_activity_line(Some("Bash"), &js(json!({ "description": "list them" }))), "Bash");
         assert_eq!(tool_activity_line(Some("Bash"), "{\"comm"), "Bash");
         assert_eq!(tool_activity_line(Some("Bash"), &js(Value::Null)), "Bash");
@@ -207,10 +201,7 @@ mod the_one_registry_every_client_reads_a_tool_call_from {
             facts_json(&tool_call_facts("mcp__wsp__run", &js(json!({ "message": "go on" })))),
             json!({ "itemType": "mcp_tool_call", "title": "Use wsp's run", "detail": "go on" })
         );
-        assert_eq!(
-            facts_json(&tool_call_facts("Wombat", &js(json!({ "query": "grey fur" })))),
-            json!({ "detail": "grey fur" })
-        );
+        assert_eq!(facts_json(&tool_call_facts("Wombat", &js(json!({ "query": "grey fur" })))), json!({ "detail": "grey fur" }));
     }
 
     #[test]
@@ -219,10 +210,7 @@ mod the_one_registry_every_client_reads_a_tool_call_from {
             facts_json(&tool_call_facts("Bash", "{\"comm")),
             json!({ "itemType": "command_execution", "requestKind": "command", "detail": "{\"comm" })
         );
-        assert_eq!(
-            facts_json(&tool_call_facts("Bash", "")),
-            json!({ "itemType": "command_execution", "requestKind": "command" })
-        );
+        assert_eq!(facts_json(&tool_call_facts("Bash", "")), json!({ "itemType": "command_execution", "requestKind": "command" }));
         assert_eq!(
             facts_json(&tool_call_facts("Bash", &js(Value::Null))),
             json!({ "itemType": "command_execution", "requestKind": "command", "detail": "null" })
@@ -248,15 +236,9 @@ mod the_words_a_relayed_permission_prompt_shows {
             permission_ask_line("Write", &js(json!({ "file_path": "/Users/dev/wsp-work/index.html", "content": "x".repeat(2_100) })), None),
             "Write index.html in wsp-work (2 KB)"
         );
-        assert_eq!(
-            permission_ask_line("Write", &js(json!({ "file_path": "out.txt", "content": "hi" })), None),
-            "Write out.txt (2 B)"
-        );
+        assert_eq!(permission_ask_line("Write", &js(json!({ "file_path": "out.txt", "content": "hi" })), None), "Write out.txt (2 B)");
         // The lead is the whole of it: a write's own words carry no code part, since a file's name is not read character by character.
-        assert_eq!(
-            permission_prompt_words("Write", &js(json!({ "file_path": "/root/out.txt", "content": "hi" })), None).code,
-            None
-        );
+        assert_eq!(permission_prompt_words("Write", &js(json!({ "file_path": "/root/out.txt", "content": "hi" })), None).code, None);
         // The options under it are the question, so the line never asks one.
         let line = permission_ask_line("Write", &js(json!({ "file_path": "/root/out.txt", "content": "hi" })), None);
         assert!(!line.contains('?'), "{line}");
@@ -284,10 +266,7 @@ mod the_words_a_relayed_permission_prompt_shows {
             "Use wsp's workspaces"
         );
         assert_eq!(permission_ask_line("mcp__wsp__run", "{}", None), "Use wsp's run");
-        assert_eq!(
-            permission_prompt_words("mcp__wsp__workspaces", "{}", Some("wsp runs cloud machines")).code,
-            None
-        );
+        assert_eq!(permission_prompt_words("mcp__wsp__workspaces", "{}", Some("wsp runs cloud machines")).code, None);
     }
 
     #[test]
@@ -318,11 +297,7 @@ mod the_words_a_relayed_permission_prompt_shows {
     #[test]
     fn folds_a_file_s_body_away_and_shows_the_rest_of_the_input_under_the_lead() {
         let body = "line\n".repeat(400);
-        let write = permission_prompt_words(
-            "Write",
-            &js(json!({ "file_path": "/Users/dev/wsp-work/index.html", "content": body })),
-            None,
-        );
+        let write = permission_prompt_words("Write", &js(json!({ "file_path": "/Users/dev/wsp-work/index.html", "content": body })), None);
         assert_eq!(write.lead, "Write index.html in wsp-work (2 KB)");
         // The file is behind the fold, whole, and nowhere else: the buttons stay in reach.
         assert_eq!(serde_json::to_value(&write.body).unwrap(), json!({ "label": "show the file", "text": body }));
@@ -332,15 +307,9 @@ mod the_words_a_relayed_permission_prompt_shows {
             permission_prompt_words("Bash", &js(json!({ "command": "rm -rf build", "description": "Clean the build" })), None).rest,
             ""
         );
-        assert_eq!(
-            permission_prompt_words("Skill", &js(json!({ "skill": "agent-browser" })), Some("Browser automation CLI")).rest,
-            ""
-        );
+        assert_eq!(permission_prompt_words("Skill", &js(json!({ "skill": "agent-browser" })), Some("Browser automation CLI")).rest, "");
         // What the lead does not carry still shows, each field apart from the next: this is the row consent is given on.
-        assert_eq!(
-            permission_prompt_words("Bash", &js(json!({ "command": "ls", "timeout": 5_000 })), None).rest,
-            "timeout: 5000"
-        );
+        assert_eq!(permission_prompt_words("Bash", &js(json!({ "command": "ls", "timeout": 5_000 })), None).rest, "timeout: 5000");
         assert_eq!(
             permission_prompt_words("mcp__wsp__send", &js(json!({ "threadId": "thr_1", "message": "go" })), None).rest,
             "threadId: thr_1\nmessage: go"
@@ -356,7 +325,10 @@ mod the_words_a_relayed_permission_prompt_shows {
             "title: Fix login\ndescription: The button does nothing on Safari."
         );
         // A tool that carries no file body folds nothing away, and input that is not an object is shown as it stands.
-        assert_eq!(serde_json::to_value(&permission_prompt_words("Bash", &js(json!({ "command": "ls" })), None).body).unwrap(), Value::Null);
+        assert_eq!(
+            serde_json::to_value(&permission_prompt_words("Bash", &js(json!({ "command": "ls" })), None).body).unwrap(),
+            Value::Null
+        );
         assert!(permission_prompt_words("Bash", &js(json!({ "command": "ls" })), None).body.is_none());
         assert_eq!(permission_prompt_words("Bash", "not json", None).rest, "not json");
     }
@@ -425,10 +397,7 @@ mod the_words_a_relayed_permission_prompt_shows {
         assert!(words.body.is_none());
         assert_eq!(words.lead, "This working directory is not a repository. What should I do?");
         // The call itself reads as the question too: the tool's own name is no word a person knows.
-        assert_eq!(
-            tool_activity_line(Some(QUESTION_TOOL), &input),
-            "This working directory is not a repository. What should I do?"
-        );
+        assert_eq!(tool_activity_line(Some(QUESTION_TOOL), &input), "This working directory is not a repository. What should I do?");
         let activity = tool_activity_line(Some(QUESTION_TOOL), &input);
         assert!(!activity.contains(QUESTION_TOOL), "{activity}");
         // And the transcript's own row for it reads the same way: words a person knows, then the question under them.
@@ -455,7 +424,7 @@ mod the_words_a_relayed_permission_prompt_shows {
         let one = js(one_value.clone());
         let options = question_options(QUESTION_TOOL, &one);
         let spaces = options[1].id.clone();
-        let answer = Value::Object(question_answer_input(QUESTION_TOOL, &one, &[spaces.clone()]).unwrap());
+        let answer = Value::Object(question_answer_input(QUESTION_TOOL, &one, std::slice::from_ref(&spaces)).unwrap());
         let want = json!({ "answers": { "Tabs or spaces?": "Spaces" } });
         assert!(matches(&answer, &want), "{answer} should match {want}");
         // The call's own fields ride back with it: the harness matches the answer to the question it asked.
@@ -496,12 +465,8 @@ mod the_words_a_relayed_permission_prompt_shows {
         }));
         let options = question_options(QUESTION_TOOL, &form);
         // Words carrying the join and the id's own colon still travel as one pick each.
-        let picks = vec![
-            other_option_id(0, "C | or D: either"),
-            options[2].id.clone(),
-            other_option_id(1, "Format"),
-            other_option_id(2, "Webby"),
-        ];
+        let picks =
+            vec![other_option_id(0, "C | or D: either"), options[2].id.clone(), other_option_id(1, "Format"), other_option_id(2, "Webby")];
         let picked = picked_options(&options, &picked_option_id(&picks)).unwrap();
         assert_eq!(labels(&picked), vec!["C | or D: either", "Types", "Format", "Webby"]);
         let answer = Value::Object(question_answer_input(QUESTION_TOOL, &form, &picks[..]).unwrap());
@@ -510,10 +475,7 @@ mod the_words_a_relayed_permission_prompt_shows {
         // A consent prompt takes no typed answer: its options are the only picks it has.
         let consent: Vec<PermissionOption> = wire(json!([{ "id": "allow", "label": "Allow", "effect": "allow" }]));
         assert_eq!(picked_options(&consent, &other_option_id(0, "sure")), None);
-        assert_eq!(
-            permission_outcome_line(PermissionOutcome::Allowed, Some(("Webby", PermissionEffect::Answer))),
-            "You answered: Webby"
-        );
+        assert_eq!(permission_outcome_line(PermissionOutcome::Allowed, Some(("Webby", PermissionEffect::Answer))), "You answered: Webby");
     }
 
     #[test]
@@ -558,12 +520,16 @@ mod the_words_a_relayed_permission_prompt_shows {
 
     #[test]
     fn what_a_thread_says_it_is_waiting_on_is_the_prompt_row_s_own_lead_worded_in_one_p() {
-        let ask: SessionPermissionEvent = wire(json!({ "workspaceId": "w", "sessionId": "s", "askId": "a1", "options": [], "toolName": "Write", "input": "{\"file_path\":\"/root/out.txt\",\"content\":\"hi\"}", "detail": "out.txt" }));
+        let ask: SessionPermissionEvent = wire(
+            json!({ "workspaceId": "w", "sessionId": "s", "askId": "a1", "options": [], "toolName": "Write", "input": "{\"file_path\":\"/root/out.txt\",\"content\":\"hi\"}", "detail": "out.txt" }),
+        );
         assert_eq!(asking_line(&ask), permission_ask_line(&ask.tool_name, &ask.input, ask.detail.as_deref()));
         // The whole prompt is in hand, so the lead reads the call's own fields and not only the phrase the harness named.
         let line = asking_line(&ask);
         assert!(line.contains("out.txt"), "{line}");
-        let bare: SessionPermissionEvent = wire(json!({ "workspaceId": "w", "sessionId": "s", "askId": "a1", "options": [], "toolName": "mcp__wsp__workspaces", "input": "{}" }));
+        let bare: SessionPermissionEvent = wire(
+            json!({ "workspaceId": "w", "sessionId": "s", "askId": "a1", "options": [], "toolName": "mcp__wsp__workspaces", "input": "{}" }),
+        );
         assert_eq!(asking_line(&bare), permission_ask_line(&bare.tool_name, &bare.input, bare.detail.as_deref()));
     }
 
@@ -619,17 +585,23 @@ mod the_words_the_clients_print_for_the_job {
             Some("writing the recipe".to_string())
         );
         assert_eq!(
-            thread_working_line(&event(json!({ "type": "session.delta", "kind": "tool_use", "toolName": "Bash", "text": js(json!({ "command": "wsp recipe scan --json" })) }))),
+            thread_working_line(&event(
+                json!({ "type": "session.delta", "kind": "tool_use", "toolName": "Bash", "text": js(json!({ "command": "wsp recipe scan --json" })) })
+            )),
             Some("$ wsp recipe scan --json".to_string())
         );
         // The prompt reads here in the same words the chat row leads with: one table words them, and both read it.
         let scan = js(json!({ "command": "wsp recipe scan --json", "description": "Read what the agents here use" }));
         assert_eq!(
-            thread_working_line(&event(json!({ "type": "session.permission", "workspaceId": "w", "sessionId": "s", "askId": "a1", "toolName": "Bash", "input": scan, "detail": "Read what the agents here use", "options": [] }))),
+            thread_working_line(&event(
+                json!({ "type": "session.permission", "workspaceId": "w", "sessionId": "s", "askId": "a1", "toolName": "Bash", "input": scan, "detail": "Read what the agents here use", "options": [] })
+            )),
             Some("Run a command: wsp recipe scan --json".to_string())
         );
         assert_eq!(
-            thread_working_line(&event(json!({ "type": "session.permission", "workspaceId": "w", "sessionId": "s", "askId": "a1", "toolName": "Bash", "input": scan, "options": [] }))),
+            thread_working_line(&event(
+                json!({ "type": "session.permission", "workspaceId": "w", "sessionId": "s", "askId": "a1", "toolName": "Bash", "input": scan, "options": [] })
+            )),
             Some(permission_ask_line("Bash", &scan, None))
         );
         assert_eq!(thread_working_line(&event(json!({ "type": "session.delta", "kind": "tool_result", "text": "ok" }))), None);
@@ -697,8 +669,14 @@ mod pinned {
         assert_eq!(tool_done_line(Some("NotebookEdit"), "{\"notebook_path\":\"/n.ipynb\"}"), Some("edited /n.ipynb".to_string())); // toolDoneLine("NotebookEdit", "{\"notebook_path\":\"/n.ipynb\"}")
         assert_eq!(tool_activity_line(Some("file_change"), "{\"changes\":[{\"path\":\"/x\"}]}"), "editing /x"); // toolActivityLine("file_change", "{\"changes\":[{\"path\":\"/x\"}]}")
         assert_eq!(tool_done_line(Some("file_change"), "{\"changes\":[{\"path\":\"/x\"}]}"), Some("edited /x".to_string())); // toolDoneLine("file_change", "{\"changes\":[{\"path\":\"/x\"}]}")
-        assert_eq!(tool_activity_line(Some("file_change"), "{\"changes\":[{\"path\":\"/x\"},{\"path\":\"\"},{\"path\":\"/y\"},null]}"), "editing 2 files"); // toolActivityLine("file_change", "{\"changes\":[{\"path\":\"/x\"},{\"path\":\"\"},{\"path\":\"/y\"},null]}")
-        assert_eq!(tool_done_line(Some("file_change"), "{\"changes\":[{\"path\":\"/x\"},{\"path\":\"\"},{\"path\":\"/y\"},null]}"), Some("edited 2 files".to_string())); // toolDoneLine("file_change", "{\"changes\":[{\"path\":\"/x\"},{\"path\":\"\"},{\"path\":\"/y\"},null]}")
+        assert_eq!(
+            tool_activity_line(Some("file_change"), "{\"changes\":[{\"path\":\"/x\"},{\"path\":\"\"},{\"path\":\"/y\"},null]}"),
+            "editing 2 files"
+        ); // toolActivityLine("file_change", "{\"changes\":[{\"path\":\"/x\"},{\"path\":\"\"},{\"path\":\"/y\"},null]}")
+        assert_eq!(
+            tool_done_line(Some("file_change"), "{\"changes\":[{\"path\":\"/x\"},{\"path\":\"\"},{\"path\":\"/y\"},null]}"),
+            Some("edited 2 files".to_string())
+        ); // toolDoneLine("file_change", "{\"changes\":[{\"path\":\"/x\"},{\"path\":\"\"},{\"path\":\"/y\"},null]}")
         assert_eq!(tool_activity_line(Some("file_change"), "{\"changes\":[]}"), "file_change"); // toolActivityLine("file_change", "{\"changes\":[]}")
         assert_eq!(tool_done_line(Some("file_change"), "{\"changes\":[]}"), None); // toolDoneLine("file_change", "{\"changes\":[]}")
         assert_eq!(tool_activity_line(Some("Grep"), "{\"pattern\":\"foo\\nbar\"}"), "searching code for foo"); // toolActivityLine("Grep", "{\"pattern\":\"foo\\nbar\"}")
@@ -723,17 +701,32 @@ mod pinned {
     fn tool_call_facts_keep_the_ts_key_order() {
         assert_eq!(js(&tool_call_facts("Bash", "{\"command\":\"ls\",\"description\":\"list\"}")), "{\"itemType\":\"command_execution\",\"requestKind\":\"command\",\"detail\":\"list\",\"command\":\"ls\",\"description\":\"list\"}"); // JSON.stringify(toolCallFacts("Bash", "{\"command\":\"ls\",\"description\":\"list\"}"))
         assert_eq!(js(&tool_call_facts("Bash", "")), "{\"itemType\":\"command_execution\",\"requestKind\":\"command\"}"); // JSON.stringify(toolCallFacts("Bash", ""))
-        assert_eq!(js(&tool_call_facts("Bash", "{partial")), "{\"itemType\":\"command_execution\",\"requestKind\":\"command\",\"detail\":\"{partial\"}"); // JSON.stringify(toolCallFacts("Bash", "{partial"))
-        assert_eq!(js(&tool_call_facts("Edit", "{\"file_path\":\"/a\",\"old_string\":\"x\"}")), "{\"itemType\":\"file_change\",\"requestKind\":\"file-change\",\"detail\":\"/a\",\"changedFiles\":[\"/a\"]}"); // JSON.stringify(toolCallFacts("Edit", "{\"file_path\":\"/a\",\"old_string\":\"x\"}"))
-        assert_eq!(js(&tool_call_facts("file_change", "{\"changes\":[{\"path\":\"/a\"},{\"path\":\"/b\"}]}")), "{\"itemType\":\"file_change\",\"requestKind\":\"file-change\",\"changedFiles\":[\"/a\",\"/b\"]}"); // JSON.stringify(toolCallFacts("file_change", "{\"changes\":[{\"path\":\"/a\"},{\"path\":\"/b\"}]}"))
-        assert_eq!(js(&tool_call_facts("mcp__srv__do", "{\"title\":\"T\",\"message\":\"M\"}")), "{\"itemType\":\"mcp_tool_call\",\"title\":\"Use srv's do\",\"detail\":\"T\"}"); // JSON.stringify(toolCallFacts("mcp__srv__do", "{\"title\":\"T\",\"message\":\"M\"}"))
-        assert_eq!(js(&tool_call_facts("mcp__srv__do", "{\"message\":\"M\"}")), "{\"itemType\":\"mcp_tool_call\",\"title\":\"Use srv's do\",\"detail\":\"M\"}"); // JSON.stringify(toolCallFacts("mcp__srv__do", "{\"message\":\"M\"}"))
+        assert_eq!(
+            js(&tool_call_facts("Bash", "{partial")),
+            "{\"itemType\":\"command_execution\",\"requestKind\":\"command\",\"detail\":\"{partial\"}"
+        ); // JSON.stringify(toolCallFacts("Bash", "{partial"))
+        assert_eq!(
+            js(&tool_call_facts("Edit", "{\"file_path\":\"/a\",\"old_string\":\"x\"}")),
+            "{\"itemType\":\"file_change\",\"requestKind\":\"file-change\",\"detail\":\"/a\",\"changedFiles\":[\"/a\"]}"
+        ); // JSON.stringify(toolCallFacts("Edit", "{\"file_path\":\"/a\",\"old_string\":\"x\"}"))
+        assert_eq!(
+            js(&tool_call_facts("file_change", "{\"changes\":[{\"path\":\"/a\"},{\"path\":\"/b\"}]}")),
+            "{\"itemType\":\"file_change\",\"requestKind\":\"file-change\",\"changedFiles\":[\"/a\",\"/b\"]}"
+        ); // JSON.stringify(toolCallFacts("file_change", "{\"changes\":[{\"path\":\"/a\"},{\"path\":\"/b\"}]}"))
+        assert_eq!(
+            js(&tool_call_facts("mcp__srv__do", "{\"title\":\"T\",\"message\":\"M\"}")),
+            "{\"itemType\":\"mcp_tool_call\",\"title\":\"Use srv's do\",\"detail\":\"T\"}"
+        ); // JSON.stringify(toolCallFacts("mcp__srv__do", "{\"title\":\"T\",\"message\":\"M\"}"))
+        assert_eq!(
+            js(&tool_call_facts("mcp__srv__do", "{\"message\":\"M\"}")),
+            "{\"itemType\":\"mcp_tool_call\",\"title\":\"Use srv's do\",\"detail\":\"M\"}"
+        ); // JSON.stringify(toolCallFacts("mcp__srv__do", "{\"message\":\"M\"}"))
         assert_eq!(js(&tool_call_facts("Unknown", "{\"url\":\"u\",\"description\":\"d\"}")), "{\"detail\":\"u\"}"); // JSON.stringify(toolCallFacts("Unknown", "{\"url\":\"u\",\"description\":\"d\"}"))
         assert_eq!(js(&tool_call_facts("AskUserQuestion", "{\"questions\":[{\"question\":\"Which?\",\"header\":\"Pick\",\"options\":[{\"label\":\"A\",\"description\":\"first\"},{\"label\":\"B\"},{\"nolabel\":1},\"junk\"],\"multiSelect\":true},{\"question\":\"  \"},{\"question\":\"Second?\",\"options\":[{\"label\":\"Y\"}]}],\"other\":1}")), "{\"title\":\"Asked you\"}"); // JSON.stringify(toolCallFacts("AskUserQuestion", "{\"questions\":[{\"question\":\"Which?\",\"header\":\"Pick\",\"options\":[{\"label\":\"A\",\"description\":\"first\"},{\"label\":\"B\"},{\"nolabel\":1},\"junk\"],\"multiSelect\":true},{\"question\":\"  \"},{\"question\":\"Second?\",\"options\":[{\"label\":\"Y\"}]}],\"other\":1}"))
-        assert_eq!(is_code_search_tool(Some("Grep")), true); // isCodeSearchTool("Grep")
-        assert_eq!(is_code_search_tool(Some("Glob")), true); // isCodeSearchTool("Glob")
-        assert_eq!(is_code_search_tool(Some("Read")), false); // isCodeSearchTool("Read")
-        assert_eq!(is_code_search_tool(None), false); // isCodeSearchTool(undefined)
+        assert!(is_code_search_tool(Some("Grep"))); // isCodeSearchTool("Grep")
+        assert!(is_code_search_tool(Some("Glob"))); // isCodeSearchTool("Glob")
+        assert!(!is_code_search_tool(Some("Read"))); // isCodeSearchTool("Read")
+        assert!(!is_code_search_tool(None)); // isCodeSearchTool(undefined)
     }
 
     #[test]
@@ -747,7 +740,8 @@ mod pinned {
         assert_eq!(tool_answered_line(Some("Bash"), "{\"command\":\"x\"}", "", None), None); // toolAnsweredLine("Bash", "{\"command\":\"x\"}", { text: "" })
         assert_eq!(subagent_task_line("{\"description\":\" a\\n b \"}"), Some("a".to_string())); // subagentTaskLine("{\"description\":\" a\\n b \"}")
         assert_eq!(subagent_task_line("nope"), None); // subagentTaskLine("nope")
-        assert_eq!(subagent_prompt("{\"prompt\":\"  whole\\nprompt \"}"), Some("  whole\nprompt ".to_string())); // subagentPrompt("{\"prompt\":\"  whole\\nprompt \"}")
+        assert_eq!(subagent_prompt("{\"prompt\":\"  whole\\nprompt \"}"), Some("  whole\nprompt ".to_string()));
+        // subagentPrompt("{\"prompt\":\"  whole\\nprompt \"}")
     }
 
     #[test]
@@ -763,27 +757,54 @@ mod pinned {
         assert_eq!(js(&picked_options(&[], "")), "null"); // JSON.stringify(pickedOptions([], "") ?? null)
         assert_eq!(picked_option_id(&[] as &[&str]), ""); // pickedOptionId([])
         assert_eq!(picked_option_id(&["a", "b"]), "a|b"); // pickedOptionId(["a","b"])
-        assert_eq!(js(&question_answer_input("AskUserQuestion", "{\"answers\":{\"old\":1},\"questions\":[{\"question\":\"Q1\",\"options\":[{\"label\":\"A\"},{\"label\":\"B\"}]}]}", &["q0:o1", "q0:other:typed", "q9:o0"])), "{\"answers\":{\"Q1\":\"B\"},\"questions\":[{\"question\":\"Q1\",\"options\":[{\"label\":\"A\"},{\"label\":\"B\"}]}]}"); // JSON.stringify(questionAnswerInput("AskUserQuestion", "{\"answers\":{\"old\":1},\"questions\":[{\"question\":\"Q1\",\"options\":[{\"label\":\"A\"},{\"label\":\"B\"}]}]}", ["q0:o1", "q0:other:typed", "q9:o0"]) ?? null)
-        assert_eq!(js(&question_answer_input("AskUserQuestion", "{\"answers\":{\"old\":1},\"questions\":[{\"question\":\"Q1\",\"options\":[{\"label\":\"A\"},{\"label\":\"B\"}]}]}", &["zz"])), "null"); // JSON.stringify(questionAnswerInput("AskUserQuestion", "{\"answers\":{\"old\":1},\"questions\":[{\"question\":\"Q1\",\"options\":[{\"label\":\"A\"},{\"label\":\"B\"}]}]}", ["zz"]) ?? null)
+        assert_eq!(
+            js(&question_answer_input(
+                "AskUserQuestion",
+                "{\"answers\":{\"old\":1},\"questions\":[{\"question\":\"Q1\",\"options\":[{\"label\":\"A\"},{\"label\":\"B\"}]}]}",
+                &["q0:o1", "q0:other:typed", "q9:o0"]
+            )),
+            "{\"answers\":{\"Q1\":\"B\"},\"questions\":[{\"question\":\"Q1\",\"options\":[{\"label\":\"A\"},{\"label\":\"B\"}]}]}"
+        ); // JSON.stringify(questionAnswerInput("AskUserQuestion", "{\"answers\":{\"old\":1},\"questions\":[{\"question\":\"Q1\",\"options\":[{\"label\":\"A\"},{\"label\":\"B\"}]}]}", ["q0:o1", "q0:other:typed", "q9:o0"]) ?? null)
+        assert_eq!(
+            js(&question_answer_input(
+                "AskUserQuestion",
+                "{\"answers\":{\"old\":1},\"questions\":[{\"question\":\"Q1\",\"options\":[{\"label\":\"A\"},{\"label\":\"B\"}]}]}",
+                &["zz"]
+            )),
+            "null"
+        ); // JSON.stringify(questionAnswerInput("AskUserQuestion", "{\"answers\":{\"old\":1},\"questions\":[{\"question\":\"Q1\",\"options\":[{\"label\":\"A\"},{\"label\":\"B\"}]}]}", ["zz"]) ?? null)
     }
 
     #[test]
     fn every_ask_kind_leads_its_prompt_its_own_way() {
-        assert_eq!(permission_ask_line("Write", "{\"file_path\":\"/a/b/c.txt\",\"content\":\"h\u{e9}llo\"}", Some("the detail")), "Write c.txt in b (6 B)"); // permissionAskLine("Write", "{\"file_path\":\"/a/b/c.txt\",\"content\":\"héllo\"}", "the detail")
+        assert_eq!(
+            permission_ask_line("Write", "{\"file_path\":\"/a/b/c.txt\",\"content\":\"h\u{e9}llo\"}", Some("the detail")),
+            "Write c.txt in b (6 B)"
+        ); // permissionAskLine("Write", "{\"file_path\":\"/a/b/c.txt\",\"content\":\"héllo\"}", "the detail")
         assert_eq!(permission_ask_line("Write", "{\"file_path\":\"c.txt\"}", Some("the detail")), "Write c.txt"); // permissionAskLine("Write", "{\"file_path\":\"c.txt\"}", "the detail")
-        assert_eq!(permission_ask_line("Edit", "{\"file_path\":\"/r/x.ts\",\"edits\":[1,2]}", Some("the detail")), "Edit x.ts in r (2 places)"); // permissionAskLine("Edit", "{\"file_path\":\"/r/x.ts\",\"edits\":[1,2]}", "the detail")
+        assert_eq!(
+            permission_ask_line("Edit", "{\"file_path\":\"/r/x.ts\",\"edits\":[1,2]}", Some("the detail")),
+            "Edit x.ts in r (2 places)"
+        ); // permissionAskLine("Edit", "{\"file_path\":\"/r/x.ts\",\"edits\":[1,2]}", "the detail")
         assert_eq!(permission_ask_line("Edit", "{\"file_path\":\"/r/x.ts\",\"edits\":[1]}", Some("the detail")), "Edit x.ts in r"); // permissionAskLine("Edit", "{\"file_path\":\"/r/x.ts\",\"edits\":[1]}", "the detail")
         assert_eq!(permission_ask_line("Bash", "{\"command\":\"rm -rf x\"}", Some("the detail")), "Run a command: rm -rf x"); // permissionAskLine("Bash", "{\"command\":\"rm -rf x\"}", "the detail")
-        assert_eq!(permission_ask_line("command_execution", "{\"command\":\"ls\",\"cwd\":\"/w\"}", Some("the detail")), "Run a command: ls"); // permissionAskLine("command_execution", "{\"command\":\"ls\",\"cwd\":\"/w\"}", "the detail")
+        assert_eq!(
+            permission_ask_line("command_execution", "{\"command\":\"ls\",\"cwd\":\"/w\"}", Some("the detail")),
+            "Run a command: ls"
+        ); // permissionAskLine("command_execution", "{\"command\":\"ls\",\"cwd\":\"/w\"}", "the detail")
         assert_eq!(permission_ask_line("file_change", "{\"changes\":[{\"path\":\"/a/b\"}]}", Some("the detail")), "Change b in a"); // permissionAskLine("file_change", "{\"changes\":[{\"path\":\"/a/b\"}]}", "the detail")
-        assert_eq!(permission_ask_line("file_change", "{\"changes\":[{\"path\":\"/a/b\"},{\"path\":\"/c/d\"},{\"nope\":1}]}", Some("the detail")), "Change 2 files: b, d"); // permissionAskLine("file_change", "{\"changes\":[{\"path\":\"/a/b\"},{\"path\":\"/c/d\"},{\"nope\":1}]}", "the detail")
+        assert_eq!(
+            permission_ask_line("file_change", "{\"changes\":[{\"path\":\"/a/b\"},{\"path\":\"/c/d\"},{\"nope\":1}]}", Some("the detail")),
+            "Change 2 files: b, d"
+        ); // permissionAskLine("file_change", "{\"changes\":[{\"path\":\"/a/b\"},{\"path\":\"/c/d\"},{\"nope\":1}]}", "the detail")
         assert_eq!(permission_ask_line("WebFetch", "{\"url\":\"https://e\"}", Some("the detail")), "Fetch a page: https://e"); // permissionAskLine("WebFetch", "{\"url\":\"https://e\"}", "the detail")
         assert_eq!(permission_ask_line("Skill", "{\"skill\":\"unslop\"}", Some("the detail")), "Run the skill unslop"); // permissionAskLine("Skill", "{\"skill\":\"unslop\"}", "the detail")
         assert_eq!(permission_ask_line("mcp__wsp__run", "{}", Some("the detail")), "Use wsp's run"); // permissionAskLine("mcp__wsp__run", "{}", "the detail")
         assert_eq!(permission_ask_line("Weird", "{}", Some("the detail")), "Permission for Weird: the detail"); // permissionAskLine("Weird", "{}", "the detail")
         assert_eq!(permission_ask_line("Weird", "not json", Some("the detail")), "Permission for Weird: the detail"); // permissionAskLine("Weird", "not json", "the detail")
         assert_eq!(permission_ask_line("Weird", "{}", Some("")), "Permission for Weird"); // permissionAskLine("Weird", "{}", "")
-        assert_eq!(asking_line(&ask("Bash", "{\"command\":\"ls\"}", Some("d"))), "Run a command: ls"); // askingLine({toolName:"Bash",input:"{\"command\":\"ls\"}",detail:"d"})
+        assert_eq!(asking_line(&ask("Bash", "{\"command\":\"ls\"}", Some("d"))), "Run a command: ls");
+        // askingLine({toolName:"Bash",input:"{\"command\":\"ls\"}",detail:"d"})
     }
 
     #[test]
@@ -791,18 +812,30 @@ mod pinned {
         assert_eq!(js(&permission_prompt_words("Write", "{\"file_path\":\"/a/b.txt\",\"content\":\"body\",\"mode\":420,\"extra\":\"  two\\n lines \"}", None)), "{\"lead\":\"Write b.txt in a (4 B)\",\"says\":\"Write b.txt in a (4 B)\",\"rest\":\"mode: 420\\nextra: two lines\",\"body\":{\"label\":\"show the file\",\"text\":\"body\"},\"file\":\"/a/b.txt\"}"); // JSON.stringify(permissionPromptWords("Write", "{\"file_path\":\"/a/b.txt\",\"content\":\"body\",\"mode\":420,\"extra\":\"  two\\n lines \"}", undefined))
         assert_eq!(js(&permission_prompt_words("Edit", "{\"file_path\":\"/a/b.txt\",\"edits\":[{\"old_string\":\"\\n\",\"new_string\":\"\"},{\"old_string\":\"x\",\"new_string\":\"y\"}],\"replace_all\":true,\"z\":[1,\"a\"],\"o\":{\"k\":[1,{\"n\":null}]}}", None)), "{\"lead\":\"Edit b.txt in a (2 places)\",\"says\":\"Edit b.txt in a (2 places)\",\"rest\":\"z: 1, a\\no: {\\\"k\\\":[1,{\\\"n\\\":null}]}\",\"file\":\"/a/b.txt\",\"edit\":{\"old\":\"\\n\",\"next\":\"\"}}"); // JSON.stringify(permissionPromptWords("Edit", "{\"file_path\":\"/a/b.txt\",\"edits\":[{\"old_string\":\"\\n\",\"new_string\":\"\"},{\"old_string\":\"x\",\"new_string\":\"y\"}],\"replace_all\":true,\"z\":[1,\"a\"],\"o\":{\"k\":[1,{\"n\":null}]}}", undefined))
         assert_eq!(js(&permission_prompt_words("command_execution", "{\"command\":\"ls\",\"cwd\":\"/w\",\"reason\":\"x\"}", Some("because I must"))), "{\"lead\":\"Run a command: ls\",\"says\":\"Run a command:\",\"code\":\"ls\",\"rest\":\"reason: x\",\"note\":\"because I must\"}"); // JSON.stringify(permissionPromptWords("command_execution", "{\"command\":\"ls\",\"cwd\":\"/w\",\"reason\":\"x\"}", "because I must"))
-        assert_eq!(js(&permission_prompt_words("command_execution", "{\"command\":\"ls\"}", Some(""))), "{\"lead\":\"Run a command: ls\",\"says\":\"Run a command:\",\"code\":\"ls\",\"rest\":\"\"}"); // JSON.stringify(permissionPromptWords("command_execution", "{\"command\":\"ls\"}", ""))
+        assert_eq!(
+            js(&permission_prompt_words("command_execution", "{\"command\":\"ls\"}", Some(""))),
+            "{\"lead\":\"Run a command: ls\",\"says\":\"Run a command:\",\"code\":\"ls\",\"rest\":\"\"}"
+        ); // JSON.stringify(permissionPromptWords("command_execution", "{\"command\":\"ls\"}", ""))
         assert_eq!(js(&permission_prompt_words("WebFetch", "{\"url\":\"https://e\",\"prompt\":\"read the docs\"}", None)), "{\"lead\":\"Fetch a page: https://e\",\"says\":\"Fetch a page:\",\"code\":\"https://e\",\"rest\":\"\",\"note\":\"read the docs\"}"); // JSON.stringify(permissionPromptWords("WebFetch", "{\"url\":\"https://e\",\"prompt\":\"read the docs\"}", undefined))
         assert_eq!(js(&permission_prompt_words("AskUserQuestion", "{\"questions\":[{\"question\":\"Which?\",\"header\":\"Pick\",\"options\":[{\"label\":\"A\",\"description\":\"first\"},{\"label\":\"B\"},{\"nolabel\":1},\"junk\"],\"multiSelect\":true},{\"question\":\"  \"},{\"question\":\"Second?\",\"options\":[{\"label\":\"Y\"}]}],\"other\":1}", None)), "{\"lead\":\"Which?\",\"says\":\"Which?\",\"rest\":\"\",\"questions\":[{\"key\":\"Which?\",\"index\":0,\"header\":\"Pick\",\"question\":\"Which?\",\"options\":[{\"id\":\"q0:o0\",\"label\":\"A\",\"description\":\"first\"},{\"id\":\"q0:o1\",\"label\":\"B\",\"description\":\"\"}],\"multiSelect\":true},{\"key\":\"Second?\",\"index\":2,\"header\":\"\",\"question\":\"Second?\",\"options\":[{\"id\":\"q2:o0\",\"label\":\"Y\",\"description\":\"\"}],\"multiSelect\":false}]}"); // JSON.stringify(permissionPromptWords("AskUserQuestion", "{\"questions\":[{\"question\":\"Which?\",\"header\":\"Pick\",\"options\":[{\"label\":\"A\",\"description\":\"first\"},{\"label\":\"B\"},{\"nolabel\":1},\"junk\"],\"multiSelect\":true},{\"question\":\"  \"},{\"question\":\"Second?\",\"options\":[{\"label\":\"Y\"}]}],\"other\":1}", undefined))
-        assert_eq!(js(&permission_prompt_words("Bash", "not json", Some("d"))), "{\"lead\":\"Permission for Bash: d\",\"says\":\"Permission for Bash: d\",\"rest\":\"not json\"}"); // JSON.stringify(permissionPromptWords("Bash", "not json", "d"))
-        assert_eq!(js(&permission_prompt_words("Bash", "{\"command\":\"ls\",\"tags\":[\"a\",1,true]}", None)), "{\"lead\":\"Run a command: ls\",\"says\":\"Run a command:\",\"code\":\"ls\",\"rest\":\"tags: [\\\"a\\\",1,true]\"}"); // JSON.stringify(permissionPromptWords("Bash", "{\"command\":\"ls\",\"tags\":[\"a\",1,true]}", undefined))
+        assert_eq!(
+            js(&permission_prompt_words("Bash", "not json", Some("d"))),
+            "{\"lead\":\"Permission for Bash: d\",\"says\":\"Permission for Bash: d\",\"rest\":\"not json\"}"
+        ); // JSON.stringify(permissionPromptWords("Bash", "not json", "d"))
+        assert_eq!(
+            js(&permission_prompt_words("Bash", "{\"command\":\"ls\",\"tags\":[\"a\",1,true]}", None)),
+            "{\"lead\":\"Run a command: ls\",\"says\":\"Run a command:\",\"code\":\"ls\",\"rest\":\"tags: [\\\"a\\\",1,true]\"}"
+        ); // JSON.stringify(permissionPromptWords("Bash", "{\"command\":\"ls\",\"tags\":[\"a\",1,true]}", undefined))
     }
 
     #[test]
     fn outcome_denied_and_access_lines() {
         assert_eq!(permission_outcome_line(PermissionOutcome::Allowed, None), "Allowed"); // permissionOutcomeLine("allowed", undefined)
         assert_eq!(permission_outcome_line(PermissionOutcome::Allowed, Some(("Allow all", PermissionEffect::Mode))), "Allowed: Allow all"); // permissionOutcomeLine("allowed", {"label":"Allow all","effect":"mode"})
-        assert_eq!(permission_outcome_line(PermissionOutcome::Allowed, Some(("Option A", PermissionEffect::Answer))), "You answered: Option A"); // permissionOutcomeLine("allowed", {"label":"Option A","effect":"answer"})
+        assert_eq!(
+            permission_outcome_line(PermissionOutcome::Allowed, Some(("Option A", PermissionEffect::Answer))),
+            "You answered: Option A"
+        ); // permissionOutcomeLine("allowed", {"label":"Option A","effect":"answer"})
         assert_eq!(permission_outcome_line(PermissionOutcome::Denied, Some(("No", PermissionEffect::Mode))), "Denied: No"); // permissionOutcomeLine("denied", {"label":"No","effect":"mode"})
         assert_eq!(permission_outcome_line(PermissionOutcome::Denied, Some(("No", PermissionEffect::Deny))), "Denied"); // permissionOutcomeLine("denied", {"label":"No","effect":"deny"})
         assert_eq!(permission_outcome_line(PermissionOutcome::Unanswered, None), "Nobody answered; denied"); // permissionOutcomeLine("unanswered", undefined)
@@ -810,9 +843,13 @@ mod pinned {
         assert_eq!(denied_line(None), "the person denied this in the chat"); // deniedLine(undefined)
         assert_eq!(denied_line(Some("")), "the person denied this in the chat"); // deniedLine("")
         assert_eq!(denied_line(Some("   ")), "the person denied this in the chat"); // deniedLine("   ")
-        assert_eq!(denied_line(Some("  do this instead  ")), "the person denied this in the chat, and said what to do instead: do this instead"); // deniedLine("  do this instead  ")
+        assert_eq!(
+            denied_line(Some("  do this instead  ")),
+            "the person denied this in the chat, and said what to do instead: do this instead"
+        ); // deniedLine("  do this instead  ")
         assert_eq!(permission_mode_option_label("plan"), "Allow, then plan"); // permissionModeOptionLabel("plan")
         assert_eq!(access_reach_line(true), "Applies to the turn running now"); // accessReachLine(true)
-        assert_eq!(access_reach_line(false), "Applies from the thread's next turn"); // accessReachLine(false)
+        assert_eq!(access_reach_line(false), "Applies from the thread's next turn");
+        // accessReachLine(false)
     }
 }

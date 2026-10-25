@@ -6,18 +6,28 @@
 
 use wsp_wire::types::changes::Checkout;
 use wsp_wire::views::harness::HarnessCatalog;
-use wsp_wire::wire::capabilities::PauseMode;
-use wsp_wire::views::place::PlaceBack;
-use wsp_wire::views::workspace::{MachineState, ReachState};
-use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::harness::ScreenCommand;
+use wsp_wire::views::place::PlaceBack;
 use wsp_wire::views::workspace::WorkspacePhase;
 use wsp_wire::views::workspace::WorkspaceStatus;
 use wsp_wire::views::workspace::WorkspaceView;
+use wsp_wire::views::workspace::{MachineState, ReachState};
+use wsp_wire::views::workspace_kind::WorkspaceKind;
+use wsp_wire::wire::capabilities::PauseMode;
 
 use serde::Serialize;
+use wsp_wire::types::app_ports::LOOPBACK;
+use wsp_wire::types::workspace_state::{
+    BACK_OVER_SSH, CLOUD_SIGN_IN_ROAD, COMPUTER_LEFT, FORGET_NEEDS_GONE, SEND_BLOCK_WORDS, START_DAEMON_WORD,
+};
+use wsp_wire::views::harness::ScreenControl;
 
-use crate::words::units::CpuWord;
+use crate::app_ports::authority;
+use crate::js::{number_string, upper_first};
+use crate::words::base::fmt_threads;
+use crate::words::computer::{computer_word, JOINED_COMPUTER, MACHINE_WSP_FORKS, THIS_COMPUTER};
+use crate::words::places::offline_for;
+use crate::words::units::{CpuWord, LIST_PRICE_WORD};
 
 // workspace-state.ts:11
 // export type WorkspaceState = "running" | "pausing" | "paused" | "waking" | "unreachable" | "gone" | "waiting" | "released";
@@ -44,7 +54,16 @@ pub enum WorkspaceState {
 impl WorkspaceState {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            WorkspaceState::Running => "running",
+            WorkspaceState::Pausing => "pausing",
+            WorkspaceState::Paused => "paused",
+            WorkspaceState::Waking => "waking",
+            WorkspaceState::Unreachable => "unreachable",
+            WorkspaceState::Gone => "gone",
+            WorkspaceState::Waiting => "waiting",
+            WorkspaceState::Released => "released",
+        }
     }
 }
 
@@ -56,7 +75,7 @@ impl WorkspaceState {
 // }
 /// `kind` is the view's own field, None where the record carries none.
 pub fn workspace_kind(kind: Option<&WorkspaceKind>) -> WorkspaceKind {
-    todo!()
+    kind.copied().unwrap_or(WorkspaceKind::Cloud)
 }
 
 /// Whether this workspace is this computer. Asked by every surface that offers to make one (the app's sidebar and
@@ -64,7 +83,7 @@ pub fn workspace_kind(kind: Option<&WorkspaceKind>) -> WorkspaceKind {
 // workspace-state.ts:21
 // export const isLocalWorkspace = (view: Pick<WorkspaceView, "kind">): boolean => workspaceKind(view) === "local";
 pub fn is_local_workspace(kind: Option<&WorkspaceKind>) -> bool {
-    todo!()
+    workspace_kind(kind) == WorkspaceKind::Local
 }
 
 /// The word a turn's cost figure carries, off the workspace it ran on: a turn on a computer of the person's own ran
@@ -76,7 +95,10 @@ pub fn is_local_workspace(kind: Option<&WorkspaceKind>) -> bool {
 //   view !== null && view !== undefined && isLocalWorkspace(view) ? LIST_PRICE_WORD : undefined;
 /// `view` None is the TS null or undefined; `Some(kind)` carries the view's own `kind` field.
 pub fn turn_spend_word(view: Option<Option<&WorkspaceKind>>) -> Option<String> {
-    todo!()
+    match view {
+        Some(kind) if is_local_workspace(kind) => Some(LIST_PRICE_WORD.to_string()),
+        _ => None,
+    }
 }
 
 /// What a workspace's kind changes about the words a client shows for it.
@@ -174,9 +196,12 @@ pub struct MachineOnDelete {
 impl MachineOnDelete {
     /// The TS `done(machineId)`.
     pub fn done_for(&self, machine_id: &str) -> String {
-        todo!()
+        self.done.replacen(MACHINE_ID_SLOT, machine_id, 1)
     }
 }
+
+/// Where a kind's `done` names the machine's id. A NUL, since no name, path or id wsp holds can carry one.
+const MACHINE_ID_SLOT: char = '\0';
 
 // workspace-state.ts:97
 // in wsp_wire::types::workspace_state: COMPUTER_LEFT
@@ -201,7 +226,10 @@ pub enum KindReading {
 impl KindReading {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            KindReading::Metrics => "metrics",
+            KindReading::Processes => "processes",
+        }
     }
 }
 
@@ -219,8 +247,8 @@ pub enum ReadingRoad {
     Off,
 }
 
-/// The words per kind, the one table every client reads instead of comparing a kind itself. Adding a kind is a row
-/// here.
+// The words per kind, the one table every client reads instead of comparing a kind itself. Adding a kind is a row
+// here.
 // workspace-state.ts:115
 // export const WORKSPACE_KIND_WORDS: Record<WorkspaceKind, WorkspaceKindWords> = {
 //   cloud: { machine: MACHINE_WSP_FORKS, rowReadsMachine: true, cpu: "vCPU", where: A_PROVIDER, driven: true, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: false, agents: true, onDelete: { asked: "computer is deleted in the cloud", done: machineId => `computer ${machineId} is gone in the cloud` } },
@@ -234,7 +262,58 @@ pub enum ReadingRoad {
 //   return WORKSPACE_KIND_WORDS[kind];
 // }
 pub fn kind_words(kind: &WorkspaceKind) -> WorkspaceKindWords {
-    todo!()
+    const PROJECT_SOURCES: &[&str] = &["git", "github", "gitlab", "folder"];
+    let left = || MachineOnDelete { asked: COMPUTER_LEFT.to_string(), done: format!("its {COMPUTER_LEFT}") };
+    match kind {
+        WorkspaceKind::Cloud => WorkspaceKindWords {
+            machine: MACHINE_WSP_FORKS,
+            row_reads_machine: true,
+            cpu: CpuWord::VCPU,
+            where_: Some(A_PROVIDER),
+            driven: true,
+            daemon: true,
+            metrics: ReadingRoad::Daemon,
+            processes: ReadingRoad::Daemon,
+            project_sources: PROJECT_SOURCES,
+            copies_folder: false,
+            in_folder: false,
+            agents: true,
+            on_delete: MachineOnDelete {
+                asked: "computer is deleted in the cloud".to_string(),
+                done: format!("computer {MACHINE_ID_SLOT} is gone in the cloud"),
+            },
+        },
+        WorkspaceKind::Local => WorkspaceKindWords {
+            machine: THIS_COMPUTER,
+            row_reads_machine: true,
+            cpu: CpuWord::Cores,
+            where_: Some(THIS_COMPUTER),
+            driven: false,
+            daemon: true,
+            metrics: ReadingRoad::Host,
+            processes: ReadingRoad::Daemon,
+            project_sources: PROJECT_SOURCES,
+            copies_folder: true,
+            in_folder: true,
+            agents: true,
+            on_delete: left(),
+        },
+        WorkspaceKind::Place => WorkspaceKindWords {
+            machine: JOINED_COMPUTER,
+            row_reads_machine: false,
+            cpu: CpuWord::Cores,
+            where_: None,
+            driven: false,
+            daemon: true,
+            metrics: ReadingRoad::Daemon,
+            processes: ReadingRoad::Daemon,
+            project_sources: PROJECT_SOURCES,
+            copies_folder: false,
+            in_folder: true,
+            agents: true,
+            on_delete: left(),
+        },
+    }
 }
 
 /// Whether a machine of this kind answers this reading at all. The one question a pane asks before it waits: a kind
@@ -245,7 +324,7 @@ pub fn kind_words(kind: &WorkspaceKind) -> WorkspaceKindWords {
 //   return readingRoad(kind, reading) !== false;
 // }
 pub fn serves_reading(kind: &WorkspaceKind, reading: &KindReading) -> bool {
-    todo!()
+    reading_road(kind, reading) != ReadingRoad::Off
 }
 
 /// Who answers this reading for a machine of this kind: the one table both the pane that asks for it and the host
@@ -255,7 +334,11 @@ pub fn serves_reading(kind: &WorkspaceKind, reading: &KindReading) -> bool {
 //   return WORKSPACE_KIND_WORDS[kind][reading];
 // }
 pub fn reading_road(kind: &WorkspaceKind, reading: &KindReading) -> ReadingRoad {
-    todo!()
+    let words = kind_words(kind);
+    match reading {
+        KindReading::Metrics => words.metrics,
+        KindReading::Processes => words.processes,
+    }
 }
 
 /// Whether the spawn switch means anything on a workspace of this kind, the one reading both doors that set it
@@ -265,7 +348,7 @@ pub fn reading_road(kind: &WorkspaceKind, reading: &KindReading) -> ReadingRoad 
 //   return WORKSPACE_KIND_WORDS[kind].agents;
 // }
 pub fn agents_may_drive(kind: &WorkspaceKind) -> bool {
-    todo!()
+    kind_words(kind).agents
 }
 
 /// The one sentence both those doors refuse with, so a person reads the same thing whichever they typed.
@@ -274,7 +357,10 @@ pub fn agents_may_drive(kind: &WorkspaceKind) -> bool {
 //   return `agents on ${machineWord(kind)} cannot drive this host, so the spawn switch would hand out a token that opens nothing; it is for the machines wsp forks and this computer`;
 // }
 pub fn agents_kind_refusal(kind: &WorkspaceKind) -> String {
-    todo!()
+    format!(
+        "agents on {} cannot drive this host, so the spawn switch would hand out a token that opens nothing; it is for the machines wsp forks and this computer",
+        machine_word(kind)
+    )
 }
 
 /// What a sentence calls this workspace's machine. Every kind answers for itself: a refusal on a machine wsp forks
@@ -284,7 +370,7 @@ pub fn agents_kind_refusal(kind: &WorkspaceKind) -> String {
 //   return WORKSPACE_KIND_WORDS[kind].machine;
 // }
 pub fn machine_word(kind: &WorkspaceKind) -> String {
-    todo!()
+    kind_words(kind).machine.to_string()
 }
 
 /// Where a thread runs, as a sentence to that thread names it: the computer by its own name where the kind's threads
@@ -294,7 +380,11 @@ pub fn machine_word(kind: &WorkspaceKind) -> String {
 //   return WORKSPACE_KIND_WORDS[kind].inFolder ? computer : machineWord(kind);
 // }
 pub fn thread_place(kind: &WorkspaceKind, computer: &str) -> String {
-    todo!()
+    if kind_words(kind).in_folder {
+        computer.to_string()
+    } else {
+        machine_word(kind)
+    }
 }
 
 /// What deleting a workspace takes, the one sentence every client's confirmation shows: what the delete does to
@@ -305,7 +395,7 @@ pub fn thread_place(kind: &WorkspaceKind, computer: &str) -> String {
 //   return `Its ${onDeleteOf(kind, copy, machineId, on).asked}; its record and ${fmtThreads(threads)} leave this computer.`;
 // }
 pub fn delete_notice(threads: f64, kind: &WorkspaceKind, copy: Option<&CopyAt>, machine_id: Option<&str>, on: Option<&StandsOn>) -> String {
-    todo!()
+    format!("Its {}; its record and {} leave this computer.", on_delete_of(kind, copy, machine_id, on).asked, fmt_threads(threads))
 }
 
 /// One of the copies Keep this one deletes, as its row names it and as its kind decides what a delete does to it.
@@ -345,7 +435,14 @@ pub struct CopyAt {
 //   return `${each} ${records.charAt(0).toUpperCase()}${records.slice(1)}`;
 // }
 pub fn delete_copies_notice(copies: &[CopyToDelete], threads: f64) -> String {
-    todo!()
+    let asked: Vec<String> =
+        copies.iter().map(|c| on_delete_of(&c.kind, c.copy.as_ref(), c.machine_id.as_deref(), c.on.as_ref()).asked).collect();
+    let records = format!("their records and {} leave this computer.", fmt_threads(threads));
+    if asked.first().is_some_and(|first| asked.iter().all(|a| a == first)) {
+        return format!("Each one's {}; {records}", asked[0]);
+    }
+    let each: Vec<String> = copies.iter().zip(&asked).map(|(c, asked)| format!("{}: its {asked}.", c.name)).collect();
+    format!("{} {}", each.join(" "), upper_first(&records))
 }
 
 /// What a copy holds that its remote lacks, the line a delete's confirmation names before anything goes: its commits
@@ -364,7 +461,30 @@ pub fn delete_copies_notice(copies: &[CopyToDelete], threads: f64) -> String {
 //   return `${name} holds ${listed}`;
 // }
 pub fn unpushed_line(name: &str, checkout: Option<&Checkout>) -> Option<String> {
-    todo!()
+    let Some(checkout) = checkout else {
+        return Some(format!("{name}: could not read what is not pushed"));
+    };
+    let count = |n: i64, one: &str, many: &str| format!("{n} {}", if n == 1 { one } else { many });
+    let (ahead, changed) = (checkout.ahead.get(), checkout.changed.get());
+    let commits = if checkout.counts_unknown == Some(true) {
+        Some("commits it could not count".to_string())
+    } else if ahead > 0 {
+        Some(format!("{} not pushed", count(ahead, "commit", "commits")))
+    } else {
+        None
+    };
+    let edits = if checkout.edits_unread == Some(true) {
+        Some("edits it could not read".to_string())
+    } else if changed > 0 {
+        Some(count(changed, "uncommitted file", "uncommitted files"))
+    } else {
+        None
+    };
+    let stashes = checkout.stashes.map(|n| n.get()).filter(|n| *n > 0).map(|n| count(n, "stash", "stashes"));
+    let parts: Vec<String> = [commits, edits, stashes].into_iter().flatten().collect();
+    let (last, init) = parts.split_last()?;
+    let listed = if init.is_empty() { last.clone() } else { format!("{} and {last}", init.join(", ")) };
+    Some(format!("{name} holds {listed}"))
 }
 
 /// The line for a checkout whose read of what is not pushed did not finish, with why: what the read said last, or what
@@ -372,10 +492,10 @@ pub fn unpushed_line(name: &str, checkout: Option<&Checkout>) -> Option<String> 
 // workspace-state.ts:206
 // export const unpushedUnreadLine = (name: string, why: string): string => `${unpushedLine(name, undefined)}: ${why}`;
 pub fn unpushed_unread_line(name: &str, why: &str) -> String {
-    todo!()
+    format!("{}: {why}", unpushed_line(name, None).unwrap_or_default())
 }
 
-/// What a delete does to a create that failed before any machine was made, which is the one record with no machine id.
+// What a delete does to a create that failed before any machine was made, which is the one record with no machine id.
 // workspace-state.ts:209
 // private in the TS: port it as a private helper
 // const NO_MACHINE_MADE: MachineOnDelete = { asked: "create failed before any computer was made, so there is none to delete", done: () => "its create had made no computer" };
@@ -406,7 +526,23 @@ pub struct StandsOn {
 //   return { asked: removed, done: () => `its ${removed}` };
 // }
 pub fn on_delete_of(kind: &WorkspaceKind, copy: Option<&CopyAt>, machine_id: Option<&str>, on: Option<&StandsOn>) -> MachineOnDelete {
-    todo!()
+    if machine_id == Some("") {
+        return MachineOnDelete {
+            asked: "create failed before any computer was made, so there is none to delete".to_string(),
+            done: "its create had made no computer".to_string(),
+        };
+    }
+    match (copy, on) {
+        (None, Some(on)) => MachineOnDelete {
+            asked: format!("copy on {} is deleted", on.computer),
+            done: format!("{} is deleted from {}", on.name, on.computer),
+        },
+        (None, None) => kind_words(kind).on_delete,
+        (Some(copy), _) => {
+            let removed = format!("worktree at {} is removed and the project folder is left as it is", copy.path);
+            MachineOnDelete { asked: removed.clone(), done: format!("its {removed}") }
+        }
+    }
 }
 
 // workspace-state.ts:231
@@ -457,7 +593,26 @@ pub struct WorkspaceStateInput {
 //   }
 // }
 pub fn workspace_state(input: &WorkspaceStateInput) -> WorkspaceState {
-    todo!()
+    match input.phase {
+        WorkspacePhase::Released => WorkspaceState::Released,
+        _ if matches!(input.machine_state, Some(MachineState::Gone)) => WorkspaceState::Gone,
+        WorkspacePhase::Pausing => WorkspaceState::Pausing,
+        WorkspacePhase::Napping => WorkspaceState::Paused,
+        WorkspacePhase::Waking => WorkspaceState::Waking,
+        WorkspacePhase::Gone => WorkspaceState::Gone,
+        WorkspacePhase::Queued => WorkspaceState::Waiting,
+        WorkspacePhase::Running => {
+            if matches!(input.machine_state, Some(MachineState::Paused)) {
+                WorkspaceState::Paused
+            } else if matches!(input.machine_state, Some(MachineState::Starting)) {
+                WorkspaceState::Waking
+            } else if matches!(input.reach, Some(ReachState::Unreachable | ReachState::NoDaemon | ReachState::Zombie)) {
+                WorkspaceState::Unreachable
+            } else {
+                WorkspaceState::Running
+            }
+        }
+    }
 }
 
 /// Whether a workspace is paused or on its way there: an expected state, often the work being done, so nothing that
@@ -465,7 +620,7 @@ pub fn workspace_state(input: &WorkspaceStateInput) -> WorkspaceState {
 // workspace-state.ts:271
 // export const pausedOrPausing = (state: WorkspaceState): boolean => state === "paused" || state === "pausing";
 pub fn paused_or_pausing(state: &WorkspaceState) -> bool {
-    todo!()
+    matches!(state, WorkspaceState::Paused | WorkspaceState::Pausing)
 }
 
 /// The one state word's key for a workspace as every client knows it: its phase, and the machine state and reach of
@@ -477,7 +632,12 @@ pub fn paused_or_pausing(state: &WorkspaceState) -> bool {
 //   return workspaceState({ phase: workspace.phase, machineState: status?.machineState, reach: status?.reach.state });
 // }
 pub fn workspace_state_of(workspace: &WorkspaceView, status: Option<&WorkspaceStatus>) -> WorkspaceState {
-    todo!()
+    workspace_state(&WorkspaceStateInput {
+        phase: workspace.phase,
+        machine_state: status.map(|s| s.machine_state),
+        reach: status.map(|s| s.reach.state),
+        wake_refused: None,
+    })
 }
 
 // workspace-state.ts:281
@@ -493,8 +653,8 @@ pub fn workspace_state_of(workspace: &WorkspaceView, status: Option<&WorkspaceSt
 //   released: "Deleted",
 // };
 
-/// The two words a computer that keeps the processes and the bytes of a paused machine reads instead: a nap there
-/// is a pause, and everywhere else it is a stop, which is what the machine does to every process it was running.
+// The two words a computer that keeps the processes and the bytes of a paused machine reads instead: a nap there
+// is a pause, and everywhere else it is a stop, which is what the machine does to every process it was running.
 // workspace-state.ts:294
 // private in the TS: port it as a private helper
 // const MEMORY_WORDS: Partial<Record<WorkspaceState, string>> = { pausing: "Pausing", paused: "Paused" };
@@ -507,7 +667,20 @@ pub fn workspace_state_of(workspace: &WorkspaceView, status: Option<&WorkspaceSt
 //   return (pauseMode === "memory" ? MEMORY_WORDS[state] : undefined) ?? WORDS[state];
 // }
 pub fn workspace_word(state: &WorkspaceState, pause_mode: Option<&PauseMode>) -> String {
-    todo!()
+    let memory = matches!(pause_mode, Some(PauseMode::Memory));
+    let word = match state {
+        WorkspaceState::Pausing if memory => "Pausing",
+        WorkspaceState::Paused if memory => "Paused",
+        WorkspaceState::Running => "Running",
+        WorkspaceState::Pausing => "Stopping",
+        WorkspaceState::Paused => "Stopped",
+        WorkspaceState::Waking => "Waking",
+        WorkspaceState::Unreachable => "Unreachable",
+        WorkspaceState::Gone => "Gone",
+        WorkspaceState::Waiting => "Waiting",
+        WorkspaceState::Released => "Deleted",
+    };
+    word.to_string()
 }
 
 /// What a row this workspace's machine stands on says under WHERE: the name this host has for the computer it runs
@@ -543,7 +716,16 @@ pub struct WhereFacts {
 }
 
 pub fn where_word(record: &WhereRecord, named: Option<&str>) -> String {
-    todo!()
+    let word = named
+        .map(str::to_string)
+        .or_else(|| record.provider.clone())
+        .or_else(|| kind_words(&workspace_kind(record.kind.as_ref())).where_.map(str::to_string))
+        .unwrap_or_else(|| record.machine_id.clone());
+    if word == THIS_COMPUTER {
+        computer_word(record.facts.as_ref().and_then(|facts| facts.os.as_deref()))
+    } else {
+        word
+    }
 }
 
 /// The line a verb that moved a workspace prints once the runtime has answered: the workspace and the word the next
@@ -558,7 +740,10 @@ pub fn where_word(record: &WhereRecord, named: Option<&str>) -> String {
 //   return state === "unreachable" ? `${name} is up and not answering yet` : `${name} ${workspaceWord(state, pauseMode).toLowerCase()}`;
 // }
 pub fn workspace_state_line(name: &str, state: &WorkspaceState, pause_mode: Option<&PauseMode>) -> String {
-    todo!()
+    if matches!(state, WorkspaceState::Unreachable) {
+        return format!("{name} is up and not answering yet");
+    }
+    format!("{name} {}", workspace_word(state, pause_mode).to_lowercase())
 }
 
 /// Every word a slot beside facts can hold for a computer that is not answering, which is what lets a reader of
@@ -576,7 +761,10 @@ pub enum AwayWord {
 impl AwayWord {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            AwayWord::NoAnswer => "no answer",
+            AwayWord::Stopped => "stopped",
+        }
     }
 }
 
@@ -634,7 +822,21 @@ pub struct AbsentComputer {
 //   return { word: workspaceWord("unreachable"), away, line: `${dated}, is it on?`, said, will, sentence: `${said}; ${will}` };
 // }
 pub fn absent_computer(name: &str, away_ms: Option<f64>) -> AbsentComputer {
-    todo!()
+    let said = format!("{name} is not answering");
+    let will = "it connects on its own when it is on";
+    let dated = match away_ms {
+        None => AwayWord::NoAnswer.as_str().to_string(),
+        Some(ms) => format!("{} {}", AwayWord::NoAnswer.as_str(), offline_for(ms)),
+    };
+    AbsentComputer {
+        word: workspace_word(&WorkspaceState::Unreachable, None),
+        away: AwayWord::NoAnswer,
+        line: format!("{dated}, is it on?"),
+        sentence: format!("{said}; {will}"),
+        said,
+        will: Some(will.to_string()),
+        start: None,
+    }
 }
 
 // workspace-state.ts:370
@@ -653,7 +855,16 @@ pub fn absent_computer(name: &str, away_ms: Option<f64>) -> AbsentComputer {
 //   return { word: "Stopped", away: "stopped", line: "stopped, start again", said, sentence: said, start: START_DAEMON_WORD };
 // }
 pub fn own_daemon_down(name: &str) -> AbsentComputer {
-    todo!()
+    let said = format!("{name}'s terminals and files stopped");
+    AbsentComputer {
+        word: "Stopped".to_string(),
+        away: AwayWord::Stopped,
+        line: "stopped, start again".to_string(),
+        sentence: said.clone(),
+        said,
+        will: None,
+        start: Some(START_DAEMON_WORD.to_string()),
+    }
 }
 
 /// What the slot above the composer says while the workspace's computer is not answering. The box stays open and
@@ -663,7 +874,7 @@ pub fn own_daemon_down(name: &str) -> AbsentComputer {
 // workspace-state.ts:388
 // export const composerHeldLine = (computer: string): string => `held until ${computer} answers`;
 pub fn composer_held_line(computer: &str) -> String {
-    todo!()
+    format!("held until {computer} answers")
 }
 
 // workspace-state.ts:391
@@ -677,7 +888,13 @@ pub fn composer_held_line(computer: &str) -> String {
 //   return `Waited ${seconds < 60 ? `${seconds} s` : `${Math.round(ms / 60_000)} min`} for your computer`;
 // }
 pub fn waited_line(ms: f64) -> String {
-    todo!()
+    let seconds = (ms / 1_000.0 + 0.5).floor();
+    let span = if seconds < 60.0 {
+        format!("{} s", number_string(seconds))
+    } else {
+        format!("{} min", number_string((ms / 60_000.0 + 0.5).floor()))
+    };
+    format!("Waited {span} for your computer")
 }
 
 /// How long this host has not heard from a computer, off the row it holds for it; null on a row that never
@@ -689,7 +906,8 @@ pub fn waited_line(ms: f64) -> String {
 // }
 /// `last_seen_at` is the place's field of that name.
 pub fn away_ms_of(last_seen_at: Option<&str>, now: f64) -> Option<f64> {
-    todo!()
+    let since: jiff::Timestamp = last_seen_at?.parse().ok()?;
+    Some(now - since.as_millisecond() as f64)
 }
 
 /// A fact a computer reported before it went quiet, marked as the reading it is: what it was when it last spoke,
@@ -704,7 +922,10 @@ pub fn away_ms_of(last_seen_at: Option<&str>, now: f64) -> Option<f64> {
 //   return agoMs === null ? value : `${value}, ${word} ${offlineFor(agoMs)} ago`;
 // }
 pub fn last_known(value: &str, ago_ms: Option<f64>, word: Option<&str>) -> String {
-    todo!()
+    match ago_ms {
+        None => value.to_string(),
+        Some(ms) => format!("{value}, {} {} ago", word.unwrap_or("last seen"), offline_for(ms)),
+    }
 }
 
 // workspace-state.ts:419
@@ -790,17 +1011,17 @@ const OVER_SSH_WORD: &str = "ssh";
 // export const sshRoadOf = (road?: { readonly ssh?: string | undefined } | undefined): string | undefined =>
 //   road?.ssh === undefined || road.ssh === "" ? undefined : road.ssh;
 pub fn ssh_road_of(road: Option<&PlaceRoad>) -> Option<String> {
-    todo!()
+    road.and_then(|road| road.ssh.as_deref()).filter(|ssh| !ssh.is_empty()).map(str::to_string)
 }
 
 /// The address a box's link dials for a forward standing on its own loopback.
 // workspace-state.ts:462
 // export const backUrl = (boxPort: number): string => `http://${authority(LOOPBACK, boxPort)}`;
 pub fn back_url(box_port: f64) -> String {
-    todo!()
+    format!("http://{}", authority(LOOPBACK, box_port))
 }
 
-/// The road back to this host through the forward on a box's own loopback, the one spelling every surface says.
+// The road back to this host through the forward on a box's own loopback, the one spelling every surface says.
 // workspace-state.ts:465
 // export const BACK_OVER_SSH = `back over ${OVER_SSH_WORD}`;
 // in wsp_wire::types::workspace_state: BACK_OVER_SSH
@@ -809,7 +1030,7 @@ pub fn back_url(box_port: f64) -> String {
 // workspace-state.ts:468
 // export const dialsBackWord = (boxPort: number, name: string): string => `dials ${BACK_OVER_SSH} (${authority(LOOPBACK, boxPort)} on ${name})`;
 pub fn dials_back_word(box_port: f64, name: &str) -> String {
-    todo!()
+    format!("dials {BACK_OVER_SSH} ({} on {name})", authority(LOOPBACK, box_port))
 }
 
 /// The road a link came in on, off the address the computer says it dialled. The box writes that address, so one
@@ -818,7 +1039,10 @@ pub fn dials_back_word(box_port: f64, name: &str) -> String {
 // export const linkedOver = (dialed: string, back: PlaceBack | undefined, handed: readonly string[]): string | undefined =>
 //   back !== undefined && dialed === backUrl(back.boxPort) ? `over ${OVER_SSH_WORD}` : handed.includes(dialed) ? `at ${dialed}` : undefined;
 pub fn linked_over(dialed: &str, back: Option<&PlaceBack>, handed: &[impl AsRef<str>]) -> Option<String> {
-    todo!()
+    if back.is_some_and(|back| dialed == back_url(back.box_port.as_f64())) {
+        return Some(format!("over {OVER_SSH_WORD}"));
+    }
+    handed.iter().any(|h| h.as_ref() == dialed).then(|| format!("at {dialed}"))
 }
 
 // workspace-state.ts:475
@@ -843,7 +1067,38 @@ pub fn linked_over(dialed: &str, back: Option<&PlaceBack>, handed: &[impl AsRef<
 //   return { address, dialsBack, answered, refused, sentence: `${where}; ${when}.${refused === null ? "" : ` The last try said: ${refused}`}` };
 // }
 pub fn absent_road(input: &AbsentRoadInput) -> AbsentRoad {
-    todo!()
+    let ssh = ssh_road_of(input.road.as_ref());
+    let back = input.road.as_ref().and_then(|road| road.back.as_ref());
+    let dials_back = back.map(|back| dials_back_word(back.box_port.as_f64(), &input.name));
+    let from = match back {
+        None => input.road.as_ref().and_then(|road| road.from.as_deref()).filter(|from| !from.is_empty()),
+        Some(_) => None,
+    };
+    let address = match (&ssh, from) {
+        (Some(ssh), _) => Some(format!("{ssh} over {OVER_SSH_WORD}")),
+        (None, Some(from)) => Some(format!("{from} {DIALS_IN}")),
+        (None, None) => None,
+    };
+    let answered = match input.away_ms {
+        None => "not since it joined".to_string(),
+        Some(ms) => format!("{} ago", offline_for(ms)),
+    };
+    let refused = input.dialled.as_ref().filter(|dialled| !dialled.answered).and_then(|dialled| dialled.said.clone());
+    let where_ = match (&ssh, &dials_back, from) {
+        (Some(ssh), dials_back, _) => {
+            let and = dials_back.as_ref().map_or(String::new(), |dials| format!(", and {} {dials}", input.name));
+            format!("wsp logs in to {} at {ssh} over ssh{and}", input.name)
+        }
+        (None, Some(dials), _) => format!("{} {dials}", input.name),
+        (None, None, Some(from)) => format!("wsp waits for {} to dial in, last from {from}", input.name),
+        (None, None, None) => format!("wsp waits for {} to dial in", input.name),
+    };
+    let when = match input.away_ms {
+        None => "it has not answered since it joined".to_string(),
+        Some(ms) => format!("it last answered {} ago", offline_for(ms)),
+    };
+    let refused_tail = refused.as_ref().map_or(String::new(), |said| format!(" The last try said: {said}"));
+    AbsentRoad { address, dials_back, answered, sentence: format!("{where_}; {when}.{refused_tail}"), refused }
 }
 
 /// What one dial came to, in the slot the button that asked stands in. A computer holding its link answers the
@@ -859,7 +1114,15 @@ pub fn absent_road(input: &AbsentRoadInput) -> AbsentRoad {
 //   return `${at ?? input.name} answered over ${OVER_SSH_WORD}${took}, so the computer is on; the agent on it is not dialling this host.`;
 // }
 pub fn place_dial_line(name: &str, road: Option<&PlaceRoad>, linked: bool, dialled: &Dialled) -> String {
-    todo!()
+    if !dialled.answered {
+        return dialled.said.clone().unwrap_or_else(|| format!("{name} answered nothing."));
+    }
+    let took = dialled.round_trip_ms.map_or(String::new(), |ms| format!(" in {} ms", number_string(ms)));
+    if linked {
+        return format!("{name} answered{took}.");
+    }
+    let at = ssh_road_of(road).unwrap_or_else(|| name.to_string());
+    format!("{at} answered over {OVER_SSH_WORD}{took}, so the computer is on; the agent on it is not dialling this host.")
 }
 
 /// The one sentence a dial gets on a computer this host has no road to: it was joined by typing a code, so nothing
@@ -867,7 +1130,7 @@ pub fn place_dial_line(name: &str, road: Option<&PlaceRoad>, linked: bool, diall
 // workspace-state.ts:510
 // export const placeNoDialLine = (name: string): string => `wsp has no road to dial ${name}: it joined by typing a code, so it connects on its own when it is on.`;
 pub fn place_no_dial_line(name: &str) -> String {
-    todo!()
+    format!("wsp has no road to dial {name}: it joined by typing a code, so it connects on its own when it is on.")
 }
 
 /// The roads a dial can take, in the order the host tries them.
@@ -884,7 +1147,10 @@ pub enum PlaceDialRoad {
 impl PlaceDialRoad {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            PlaceDialRoad::Link => "link",
+            PlaceDialRoad::Ssh => "ssh",
+        }
     }
 }
 
@@ -899,7 +1165,10 @@ impl PlaceDialRoad {
 //   return sshRoadOf(place.road) === undefined ? undefined : "ssh";
 // }
 pub fn place_dial_road(present: Option<bool>, road: Option<&PlaceRoad>) -> Option<PlaceDialRoad> {
-    todo!()
+    if present == Some(true) {
+        return Some(PlaceDialRoad::Link);
+    }
+    ssh_road_of(road).map(|_| PlaceDialRoad::Ssh)
 }
 
 /// Why an action that needs the machine (send, import, export) cannot run in this state; null while running.
@@ -931,7 +1200,19 @@ pub fn place_dial_road(present: Option<bool>, road: Option<&PlaceRoad>) -> Optio
 //   }
 // }
 pub fn action_refusal(state: &WorkspaceState, action: &str, gone_words: Option<&str>, name: Option<&str>) -> Option<String> {
-    todo!()
+    match state {
+        WorkspaceState::Running => None,
+        WorkspaceState::Pausing | WorkspaceState::Paused => Some(format!("Workspace is {}; wake it to {action}", state.as_str())),
+        WorkspaceState::Waking => Some(format!("Workspace is waking; {action}s open when it is running")),
+        WorkspaceState::Unreachable => Some(format!("Workspace is unreachable; {action}s open when the machine answers")),
+        WorkspaceState::Gone => Some(gone_refusal(name, action, gone_words)),
+        WorkspaceState::Waiting if action == "send" => None,
+        WorkspaceState::Waiting => Some(format!("Workspace is waiting for a machine; {action}s open when it is running")),
+        WorkspaceState::Released => Some(format!(
+            "{}'s machine was deleted once its sub-thread was done, so there is none to {action} on",
+            name.unwrap_or("This workspace")
+        )),
+    }
 }
 
 /// What refuses a send before the workspace's state is asked: the socket to wsp, the workspace lookup, the
@@ -957,7 +1238,14 @@ pub enum SendBlock {
 impl SendBlock {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            SendBlock::Connecting => "connecting",
+            SendBlock::Reconnecting => "reconnecting",
+            SendBlock::Closed => "closed",
+            SendBlock::NotFound => "not-found",
+            SendBlock::Loading => "loading",
+            SendBlock::NoAgents => "no-agents",
+        }
     }
 }
 
@@ -970,8 +1258,8 @@ pub enum SendRefusalKind {
     Block(SendBlock),
 }
 
-/// What the composer says on the send button for each block, and the one table of those words: a harness driving
-/// the built app reads them to know the app is not ready for a key press yet.
+// What the composer says on the send button for each block, and the one table of those words: a harness driving
+// the built app reads them to know the app is not ready for a key press yet.
 // workspace-state.ts:562
 // export const SEND_BLOCK_WORDS: Record<SendBlock, string> = {
 //   connecting: "Connecting to wsp",
@@ -991,7 +1279,12 @@ pub enum SendRefusalKind {
 //   return isBlock(kind) ? SEND_BLOCK_WORDS[kind] : actionRefusal(kind, "send", goneWords, name);
 // }
 pub fn send_refusal(kind: &SendRefusalKind, gone_words: Option<&str>, name: Option<&str>) -> Option<String> {
-    todo!()
+    match kind {
+        SendRefusalKind::Block(block) => {
+            SEND_BLOCK_WORDS.iter().find(|(key, _)| *key == block.as_str()).map(|(_, words)| words.to_string())
+        }
+        SendRefusalKind::State(state) => action_refusal(state, "send", gone_words, name),
+    }
 }
 
 // workspace-state.ts:578
@@ -1016,7 +1309,13 @@ pub fn send_refusal(kind: &SendRefusalKind, gone_words: Option<&str>, name: Opti
 //   return kindWords(workspaceKind(view)).inFolder ? "sign in from a terminal on the computer the thread runs on" : CLOUD_SIGN_IN_ROAD;
 // }
 pub fn sign_in_road(kind: Option<&WorkspaceKind>) -> String {
-    todo!()
+    if is_local_workspace(kind) {
+        format!("sign in from a terminal on {THIS_COMPUTER}")
+    } else if kind_words(&workspace_kind(kind)).in_folder {
+        "sign in from a terminal on the computer the thread runs on".to_string()
+    } else {
+        CLOUD_SIGN_IN_ROAD.to_string()
+    }
 }
 
 // workspace-state.ts:596
@@ -1027,7 +1326,7 @@ pub fn sign_in_road(kind: Option<&WorkspaceKind>) -> String {
 // workspace-state.ts:600
 // export const signInRefusalLine = (view: Pick<WorkspaceView, "kind">): string => `${signInRoad(view)}, then send again`;
 pub fn sign_in_refusal_line(kind: Option<&WorkspaceKind>) -> String {
-    todo!()
+    format!("{}, then send again", sign_in_road(kind))
 }
 
 /// The composer's line before a thread's first send on the computer the app runs on, where the agents report says the
@@ -1035,7 +1334,7 @@ pub fn sign_in_refusal_line(kind: Option<&WorkspaceKind>) -> String {
 // workspace-state.ts:604
 // export const signedOutLine = (agent: string, computer: string): string => `${agent} is not signed in on ${computer}; sign in from a terminal there before you send`;
 pub fn signed_out_line(agent: &str, computer: &str) -> String {
-    todo!()
+    format!("{agent} is not signed in on {computer}; sign in from a terminal there before you send")
 }
 
 /// The composer's line for a slash command the CLI runs only in its own terminal, in place of a turn that would answer
@@ -1046,15 +1345,22 @@ pub fn signed_out_line(agent: &str, computer: &str) -> String {
 //   return `/${command.name} works only in ${catalog.label}'s own terminal; ${control}`;
 // }
 pub fn screen_command_line(command: &ScreenCommand, catalog: &HarnessCatalog, kind: Option<&WorkspaceKind>) -> String {
-    todo!()
+    let control = match command.control {
+        ScreenControl::SignIn => sign_in_road(kind),
+        ScreenControl::Model => "pick the model in the row under the box".to_string(),
+        ScreenControl::Access => "pick the access mode in the row under the box".to_string(),
+        ScreenControl::Settings => "wsp's settings open from the command palette".to_string(),
+        ScreenControl::Docs => "wsp's docs are at usewsp.com/docs".to_string(),
+    };
+    format!("/{} works only in {}'s own terminal; {control}", command.name, catalog.label)
 }
 
-/// A probe that found the machine: the edge answered, promptly or late.
+// A probe that found the machine: the edge answered, promptly or late.
 // workspace-state.ts:614
 // private in the TS: port it as a private helper
 // const ANSWERED: ReadonlySet<ReachState> = new Set<ReachState>(["reachable", "slow"]);
 
-/// A probe nothing answered: silence, or the edge dialling the guest and finding the daemon port dead.
+// A probe nothing answered: silence, or the edge dialling the guest and finding the daemon port dead.
 // workspace-state.ts:616
 // private in the TS: port it as a private helper
 // const UNANSWERED: ReadonlySet<ReachState> = new Set<ReachState>(["unreachable", "no-daemon"]);
@@ -1065,7 +1371,11 @@ pub fn screen_command_line(command: &ScreenCommand, catalog: &HarnessCatalog, ki
 // workspace-state.ts:621
 // export const daemonSilent = (reach: ReachState | null | undefined): boolean => reach != null && UNANSWERED.has(reach);
 pub fn daemon_silent(reach: Option<&ReachState>) -> bool {
-    todo!()
+    reach.is_some_and(unanswered)
+}
+
+fn unanswered(reach: &ReachState) -> bool {
+    matches!(reach, ReachState::Unreachable | ReachState::NoDaemon)
 }
 
 /// The reach word a row shows after one probe. A single silence after an answer keeps the answer's word: one slow
@@ -1079,7 +1389,13 @@ pub fn daemon_silent(reach: Option<&ReachState>) -> bool {
 //   return lastProbe !== undefined && ANSWERED.has(lastProbe) ? lastProbe : probed;
 // }
 pub fn reach_shown(last_probe: Option<&ReachState>, probed: &ReachState) -> ReachState {
-    todo!()
+    if !unanswered(probed) {
+        return *probed;
+    }
+    match last_probe {
+        Some(last) if matches!(last, ReachState::Reachable | ReachState::Slow) => *last,
+        _ => *probed,
+    }
 }
 
 /// Whether the machine is up and billing in this state: running, or running with its edge or daemon dark (the
@@ -1090,7 +1406,7 @@ pub fn reach_shown(last_probe: Option<&ReachState>, probed: &ReachState) -> Reac
 //   return state === "running" || state === "unreachable";
 // }
 pub fn is_billing(state: &WorkspaceState) -> bool {
-    todo!()
+    matches!(state, WorkspaceState::Running | WorkspaceState::Unreachable)
 }
 
 /// A record whose create failed before any machine stood under it: there is nothing to rebuild or forget, and its
@@ -1098,7 +1414,7 @@ pub fn is_billing(state: &WorkspaceState) -> bool {
 // workspace-state.ts:642
 // export const startFailed = (w: { phase: WorkspacePhase; machineId: string }): boolean => w.phase === "gone" && w.machineId === "";
 pub fn start_failed(w: &WorkspaceView) -> bool {
-    todo!()
+    w.phase == WorkspacePhase::Gone && w.machine_id.is_empty()
 }
 
 /// Rebuild is a road out: the machine is gone, a zombie the provider still calls running, or one the provider would
@@ -1110,7 +1426,7 @@ pub fn start_failed(w: &WorkspaceView) -> bool {
 //   return workspaceState(input) === "gone" || input.reach === "zombie" || (input.wakeRefused ?? null) !== null;
 // }
 pub fn needs_rebuild(input: &WorkspaceStateInput) -> bool {
-    todo!()
+    workspace_state(input) == WorkspaceState::Gone || input.reach == Some(ReachState::Zombie) || input.wake_refused.is_some()
 }
 
 /// Why a road out that opens only once the machine is gone is refused on one that is merely not answering. The
@@ -1128,7 +1444,14 @@ pub enum GoneRoad {
 // workspace-state.ts:657
 // export const notAnsweringYet = (road: "rebuild" | "forget"): string => `This one is not answering yet; the ${road} is offered once it is gone`;
 pub fn not_answering_yet(road: GoneRoad) -> String {
-    todo!()
+    format!("This one is not answering yet; the {} is offered once it is gone", road_name(road))
+}
+
+fn road_name(road: GoneRoad) -> &'static str {
+    match road {
+        GoneRoad::Rebuild => "rebuild",
+        GoneRoad::Forget => "forget",
+    }
 }
 
 // workspace-state.ts:661
@@ -1146,7 +1469,14 @@ pub fn not_answering_yet(road: GoneRoad) -> String {
 //   return road === "rebuild" ? `This one is ${word}, so nothing needs rebuilding; the rebuild is offered once a workspace is gone` : `${FORGET_NEEDS_GONE}; this one is ${word}`;
 // }
 pub fn gone_road_refusal(state: &WorkspaceState, road: GoneRoad, pause_mode: Option<&PauseMode>) -> String {
-    todo!()
+    if matches!(state, WorkspaceState::Unreachable) {
+        return not_answering_yet(road);
+    }
+    let word = workspace_word(state, pause_mode).to_lowercase();
+    match road {
+        GoneRoad::Rebuild => format!("This one is {word}, so nothing needs rebuilding; the rebuild is offered once a workspace is gone"),
+        GoneRoad::Forget => format!("{FORGET_NEEDS_GONE}; this one is {word}"),
+    }
 }
 
 /// The one sentence for a verb a gone machine cannot take (send, wake, fork), with the provider's words when the
@@ -1159,6 +1489,12 @@ pub fn gone_road_refusal(state: &WorkspaceState, road: GoneRoad, pause_mode: Opt
 //   return words === undefined || words === "" ? sentence : `${sentence} (${words})`;
 // }
 pub fn gone_refusal(name: Option<&str>, action: &str, words: Option<&str>) -> String {
-    todo!()
+    let sentence = format!(
+        "{}'s machine is gone with its disk, so work that was not pushed is lost; rebuild it to {action}, which brings back its home folder from the last saved nap",
+        name.unwrap_or("This workspace")
+    );
+    match words {
+        Some(words) if !words.is_empty() => format!("{sentence} ({words})"),
+        _ => sentence,
+    }
 }
-

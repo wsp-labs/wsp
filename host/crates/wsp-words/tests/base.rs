@@ -34,23 +34,14 @@ mod plural_fmt_threads_and_forget_notice {
 
     #[test]
     fn is_the_one_rule_for_a_count_and_its_noun_and_fmt_threads_reads_it() {
-        assert_eq!(
-            [0.0, 1.0, 2.0].iter().map(|n| plural(*n, "row")).collect::<Vec<_>>(),
-            vec!["0 rows", "1 row", "2 rows"]
-        );
+        assert_eq!([0.0, 1.0, 2.0].iter().map(|n| plural(*n, "row")).collect::<Vec<_>>(), vec!["0 rows", "1 row", "2 rows"]);
         assert_eq!(plural(1.0, "tool call"), "1 tool call");
-        assert_eq!(
-            [1.0, 2.0].iter().map(|n| fmt_threads(*n)).collect::<Vec<_>>(),
-            vec![plural(1.0, "thread"), plural(2.0, "thread")]
-        );
+        assert_eq!([1.0, 2.0].iter().map(|n| fmt_threads(*n)).collect::<Vec<_>>(), vec![plural(1.0, "thread"), plural(2.0, "thread")]);
     }
 
     #[test]
     fn counts_threads_with_the_noun_and_names_what_a_forget_takes_off_this_computer() {
-        assert_eq!(
-            [0.0, 1.0, 2.0].iter().map(|n| fmt_threads(*n)).collect::<Vec<_>>(),
-            vec!["0 threads", "1 thread", "2 threads"]
-        );
+        assert_eq!([0.0, 1.0, 2.0].iter().map(|n| fmt_threads(*n)).collect::<Vec<_>>(), vec!["0 threads", "1 thread", "2 threads"]);
         // The TS also asserts forgetNotice(1) here; forgetNotice is not in the base stubs.
     }
 }
@@ -125,12 +116,22 @@ mod pinned {
         BoatSizeWords { r#type: "medium".into(), cpu: 4.0, mem_mb: 8192.0, rate_usd_per_hour: 0.018 }
     }
 
-    fn limits(trial: bool, plan_usd: Option<f64>, machines_at_once: Option<f64>, starts: Option<(f64, f64, f64)>, credit_balance_hours: Option<f64>) -> BoatLimitsRead {
+    fn limits(
+        trial: bool,
+        plan_usd: Option<f64>,
+        machines_at_once: Option<f64>,
+        starts: Option<(f64, f64, f64)>,
+        credit_balance_hours: Option<f64>,
+    ) -> BoatLimitsRead {
         BoatLimitsRead {
             trial,
             plan_usd,
             machines_at_once,
-            starts: starts.map(|(m, h, d)| BoatStarts { minute: StartsLimit { limit: m }, hour: StartsLimit { limit: h }, day: StartsLimit { limit: d } }),
+            starts: starts.map(|(m, h, d)| BoatStarts {
+                minute: StartsLimit { limit: m },
+                hour: StartsLimit { limit: h },
+                day: StartsLimit { limit: d },
+            }),
             credit_balance_hours,
         }
     }
@@ -180,13 +181,23 @@ mod pinned {
     fn boat_added_line_says_only_what_the_account_answered() {
         assert_eq!(boat_added_line(None, &small()), "Boat added; small 2 vCPU 4 GB at $0.09/h until you pick another size."); // boatAddedLine(undefined, { type: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.09 })
         assert_eq!(boat_added_line(Some(&limits(true, None, None, None, None)), &small()), "Boat added: trial; small and default sizes."); // boatAddedLine({ trial: true }, { type: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.09 })
-        assert_eq!(boat_added_line(Some(&limits(true, None, Some(1.0), Some((12.0, 60.0, 200.0)), Some(2.25))), &small()), "Boat added: trial (2.3 h, 1 machine at once, 12 starts a minute, 60 an hour, 200 a day); small and default sizes."); // boatAddedLine({ trial: true, creditBalanceHours: 2.25, machinesAtOnce: 1, starts: { minute: { limit: 12 }, hour: { limit: 60 }, day: { limit: 200 } } }, { type: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.09 })
-        assert_eq!(boat_added_line(Some(&limits(true, None, None, None, Some(3.0))), &small()), "Boat added: trial (3 h); small and default sizes."); // boatAddedLine({ trial: true, creditBalanceHours: 3 }, { type: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.09 })
-        assert_eq!(boat_added_line(Some(&limits(false, None, None, None, None)), &medium()), "Boat added: a paid plan; medium 4 vCPU 8 GB at $0.018/h until you pick another size."); // boatAddedLine({ trial: false }, { type: "medium", cpu: 4, memMb: 8192, rateUsdPerHour: 0.018 })
+        assert_eq!(
+            boat_added_line(Some(&limits(true, None, Some(1.0), Some((12.0, 60.0, 200.0)), Some(2.25))), &small()),
+            "Boat added: trial (2.3 h, 1 machine at once, 12 starts a minute, 60 an hour, 200 a day); small and default sizes."
+        ); // boatAddedLine({ trial: true, creditBalanceHours: 2.25, machinesAtOnce: 1, starts: { minute: { limit: 12 }, hour: { limit: 60 }, day: { limit: 200 } } }, { type: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.09 })
+        assert_eq!(
+            boat_added_line(Some(&limits(true, None, None, None, Some(3.0))), &small()),
+            "Boat added: trial (3 h); small and default sizes."
+        ); // boatAddedLine({ trial: true, creditBalanceHours: 3 }, { type: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.09 })
+        assert_eq!(
+            boat_added_line(Some(&limits(false, None, None, None, None)), &medium()),
+            "Boat added: a paid plan; medium 4 vCPU 8 GB at $0.018/h until you pick another size."
+        ); // boatAddedLine({ trial: false }, { type: "medium", cpu: 4, memMb: 8192, rateUsdPerHour: 0.018 })
         assert_eq!(boat_added_line(Some(&limits(false, Some(20.0), Some(3.0), Some((12.0, 60.0, 200.0)), None)), &medium()), "Boat added: $20 plan, 3 machines at once, 12 starts a minute, 60 an hour, 200 a day; medium 4 vCPU 8 GB at $0.018/h until you pick another size."); // boatAddedLine({ trial: false, planUsd: 20, machinesAtOnce: 3, starts: { minute: { limit: 12 }, hour: { limit: 60 }, day: { limit: 200 } } }, { type: "medium", cpu: 4, memMb: 8192, rateUsdPerHour: 0.018 })
         assert_eq!(boat_forks_no_first_line(&["--size"]), "Boat forks no first machine, so --size does nothing here."); // boatForksNoFirstLine(["--size"])
         assert_eq!(boat_forks_no_first_line(&["--size", "--name"]), "Boat forks no first machine, so --size and --name do nothing here."); // boatForksNoFirstLine(["--size", "--name"])
-        assert_eq!(boat_forks_no_first_line(&[] as &[&str]), "Boat forks no first machine, so  do nothing here."); // boatForksNoFirstLine([])
+        assert_eq!(boat_forks_no_first_line(&[] as &[&str]), "Boat forks no first machine, so  do nothing here.");
+        // boatForksNoFirstLine([])
     }
 
     #[test]

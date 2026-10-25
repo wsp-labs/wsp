@@ -2,6 +2,10 @@
 //! The docker a thread finds first on its PATH. Port of the function of packages/protocol/src/docker-shim.ts at
 //! a3b870a6e; its constants are wsp_wire::types::docker_shim. See spec/shell_and_text.md.
 
+use wsp_wire::types::shell_quote::shell_quote;
+
+use crate::js::replace_first;
+
 // docker-shim.ts:5
 // in wsp_wire::types::docker_shim: DOCKER_NOTES_FOLDER
 
@@ -10,9 +14,6 @@
 
 // docker-shim.ts:11
 // in wsp_wire::types::docker_shim: DOCKER_NOTES_CAP_BYTES
-
-// docker-shim.ts:12
-const DOCKER_NOTES_KEPT_LINES: i64 = 100;
 
 /// The docker a thread finds first on its PATH, in the folder that also holds its wsp: `thread-bin` on the computer
 /// the host runs on, `place-bin` on a box. It runs the docker after it on PATH with every word as given, adding the
@@ -30,7 +31,7 @@ const DOCKER_NOTES_KEPT_LINES: i64 = 100;
 //   return DOCKER_SHIM.replace("{bin}", shellQuote(bin)).replace("{notes}", shellQuote(notes));
 // }
 pub fn docker_shim(bin: &str, notes: &str) -> String {
-    todo!()
+    replace_first(&replace_first(DOCKER_SHIM, "{bin}", &shell_quote(bin)), "{notes}", &shell_quote(notes))
 }
 
 // docker-shim.ts:29
@@ -138,4 +139,3 @@ const DOCKER_SHIM: &str = "#!/bin/sh\nbin={bin}\nnotes={notes}\npassed=${WSP_DOC
 // fi
 // exec "$real" "$@"
 // `;
-

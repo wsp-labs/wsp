@@ -2,13 +2,19 @@
 //! A recipe file as the person writes it: its kinds, what a sign-in reads as, and the options the picker offers. Port of the functions of packages/protocol/src/recipe-file.ts at
 //! a3b870a6e; its shapes and flat constants are wsp_wire::types::recipe_file. See spec/recipe_file.md.
 
-use wsp_wire::types::recipe_file::GitHubSignIn;
 use wsp_wire::types::recipe_file::RecipeFile;
 use wsp_wire::types::recipe_file::RecipeSignIn;
 use wsp_wire::types::recipe_file::ServerSignIn;
+use wsp_wire::types::recipe_file::{GitHubSignIn, COPY_KEYS_WORD};
 
 use indexmap::IndexMap;
 use serde::Serialize;
+
+use wsp_wire::types::wsp_tools::MCP_SERVER_NAME;
+
+use crate::js::js_trim;
+use crate::usage::list_words;
+use crate::words::base::plural;
 
 // How an agent or the GitHub row signs in on the computer: the token or key this computer's vault holds, set in the
 // environment of every run there, or the tool's own login run on that computer through the sign-in relay. An agent
@@ -27,6 +33,37 @@ use serde::Serialize;
 
 // recipe-file.ts:23
 // in wsp_wire::types::recipe_file: GitHubSignIn
+
+/// The leading run of characters that are not JavaScript white space.
+fn non_space_run(text: &str) -> &str {
+    &text[..text.find(crate::js::is_js_whitespace).unwrap_or(text.len())]
+}
+
+/// The file name a kind of row is called in a sentence: "agent", "MCP server", "CLI" and so on.
+fn kind_word(kind: RecipeKind) -> &'static str {
+    match kind {
+        RecipeKind::Agents => "agent",
+        RecipeKind::Mcp => "MCP server",
+        RecipeKind::Clis => "CLI",
+        RecipeKind::Skills => "skill",
+        RecipeKind::Plugins => "plugin",
+        RecipeKind::Folders => "folder",
+        RecipeKind::Configs => "config",
+    }
+}
+
+/// Every object's keys sorted by UTF-16 code unit at every depth, the way the TS's `sorted` reads them.
+fn sorted_keys(value: &serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Array(items) => serde_json::Value::Array(items.iter().map(sorted_keys).collect()),
+        serde_json::Value::Object(object) => {
+            let mut entries: Vec<(&String, &serde_json::Value)> = object.iter().collect();
+            entries.sort_by(|a, b| crate::js::utf16::cmp(a.0, b.0));
+            serde_json::Value::Object(entries.into_iter().map(|(key, value)| (key.clone(), sorted_keys(value))).collect())
+        }
+        other => other.clone(),
+    }
+}
 
 /// What `gh auth status` says of the first account it lists: the login it signs in as and its token's scopes. The
 /// token itself is never read.
@@ -50,7 +87,30 @@ pub struct GhStatus {
 }
 
 pub fn gh_status_of(said: &str) -> GhStatus {
-    todo!()
+    let mut account = None;
+    for (at, _) in said.match_indices("Logged in to ") {
+        let rest = &said[at + "Logged in to ".len()..];
+        let host = non_space_run(rest);
+        if host.is_empty() {
+            continue;
+        }
+        let Some(after_host) = rest[host.len()..].strip_prefix(' ') else { continue };
+        let Some(after_word) = after_host.strip_prefix("account ").or_else(|| after_host.strip_prefix("as ")) else { continue };
+        let login = non_space_run(after_word);
+        if !login.is_empty() {
+            account = Some(login.to_string());
+            break;
+        }
+    }
+    let scopes = said.find("Token scopes:").map(|at| {
+        let body = said[at + "Token scopes:".len()..].trim_start_matches(crate::js::is_js_whitespace);
+        let line = &body[..body.find(['\n', '\r', '\u{2028}', '\u{2029}']).unwrap_or(body.len())];
+        line.split(',')
+            .map(|scope| js_trim(&scope.replace('\'', "")).to_string())
+            .filter(|scope| !scope.is_empty())
+            .collect::<Vec<String>>()
+    });
+    GhStatus { account, scopes: scopes.filter(|scopes| !scopes.is_empty()) }
 }
 
 // How an MCP server signs in on the computer it goes to: with nothing, with a key or a token its definition
@@ -96,7 +156,7 @@ pub fn gh_status_of(said: &str) -> GhStatus {
 // recipe-file.ts:84
 // export const wspOwnServer = (name: string): boolean => name === MCP_SERVER_NAME;
 pub fn wsp_own_server(name: &str) -> bool {
-    todo!()
+    name == MCP_SERVER_NAME
 }
 
 // recipe-file.ts:87
@@ -111,7 +171,10 @@ pub fn wsp_own_server(name: &str) -> bool {
 //   return Object.keys(mcp).length === Object.keys(file.mcp).length && Object.keys(clis).length === Object.keys(file.clis).length ? file : { ...file, mcp, clis };
 // }
 pub fn without_wsp_own(file: &RecipeFile, wsp_packages: &indexmap::IndexSet<String>) -> RecipeFile {
-    todo!()
+    let mut out = file.clone();
+    out.mcp.retain(|name, _| !wsp_own_server(&name.0));
+    out.clis.retain(|name, _| !wsp_packages.contains(&name.0));
+    out
 }
 
 // The kinds of row a recipe holds, in the order a person reads them.
@@ -147,7 +210,18 @@ pub enum RecipeKind {
 //     .replace(/^-+|-+$/g, "")
 //     .slice(0, 64);
 pub fn recipe_slug(name: &str) -> String {
-    todo!()
+    let mut slug = String::new();
+    let mut in_dash_run = false;
+    for c in js_trim(name).to_lowercase().chars() {
+        if c.is_ascii_lowercase() || c.is_ascii_digit() {
+            slug.push(c);
+            in_dash_run = false;
+        } else if !in_dash_run {
+            slug.push('-');
+            in_dash_run = true;
+        }
+    }
+    slug.trim_matches('-').chars().take(64).collect()
 }
 
 // recipe-file.ts:114
@@ -167,7 +241,19 @@ pub fn recipe_slug(name: &str) -> String {
 //   };
 // }
 pub fn recipe_counts(file: &RecipeFile) -> IndexMap<RecipeKind, usize> {
-    todo!()
+    let configs = [file.configs.git.is_some(), file.configs.shell.is_some(), file.configs.github.is_some()]
+        .into_iter()
+        .filter(|present| *present)
+        .count();
+    IndexMap::from([
+        (RecipeKind::Agents, file.agents.len()),
+        (RecipeKind::Mcp, file.mcp.len()),
+        (RecipeKind::Clis, file.clis.len()),
+        (RecipeKind::Skills, file.skills.len()),
+        (RecipeKind::Plugins, file.plugins.len()),
+        (RecipeKind::Folders, file.folders.len()),
+        (RecipeKind::Configs, configs),
+    ])
 }
 
 /// One line of what a recipe holds: `2 agents, 3 CLIs, 20 skills, 1 folder, 2 configs`.
@@ -178,7 +264,13 @@ pub fn recipe_counts(file: &RecipeFile) -> IndexMap<RecipeKind, usize> {
 //   return said.length === 0 ? "nothing picked" : said.join(", ");
 // }
 pub fn recipe_summary(file: &RecipeFile) -> String {
-    todo!()
+    let said: Vec<String> =
+        recipe_counts(file).into_iter().filter(|(_, n)| *n > 0).map(|(kind, n)| plural(n as f64, kind_word(kind))).collect();
+    if said.is_empty() {
+        "nothing picked".to_string()
+    } else {
+        said.join(", ")
+    }
 }
 
 /// A recipe with what this computer has for each of its rows right now, keyed `<kind>/<row>`: a CLI's version, a
@@ -212,7 +304,9 @@ pub struct ResolvedRecipe {
 //   return JSON.stringify(sorted(resolved));
 // }
 pub fn recipe_canon(resolved: &ResolvedRecipe) -> String {
-    todo!()
+    let value =
+        serde_json::json!({ "file": serde_json::to_value(&resolved.file).expect("a recipe file serializes"), "items": resolved.items });
+    serde_json::to_string(&sorted_keys(&value)).expect("a sorted recipe serializes")
 }
 
 // One recipe as the list and the show answer it: its file, its slug, the line of what it holds, the computers that
@@ -352,7 +446,13 @@ pub struct FolderOption {
 // export const keysKeptLine = (keys: readonly string[], recipe?: string): string =>
 //   `not copied: it needs ${keys.length === 0 ? "a key" : listWords(keys)}; to send ${keys.length === 1 ? "it" : "them"}, ${recipe === undefined ? `press ${COPY_KEYS_WORD} on this row in the computer's Setup in Settings > Computers` : `pick ${COPY_KEYS_WORD} under MCP servers on the recipe ${recipe} in Settings > Recipes`}`;
 pub fn keys_kept_line(keys: &[impl AsRef<str>], recipe: Option<&str>) -> String {
-    todo!()
+    let needs = if keys.is_empty() { "a key".to_string() } else { list_words(keys) };
+    let pronoun = if keys.len() == 1 { "it" } else { "them" };
+    let place = match recipe {
+        None => format!("press {COPY_KEYS_WORD} on this row in the computer's Setup in Settings > Computers"),
+        Some(recipe) => format!("pick {COPY_KEYS_WORD} under MCP servers on the recipe {recipe} in Settings > Recipes"),
+    };
+    format!("not copied: it needs {needs}; to send {pronoun}, {place}")
 }
 
 // recipe-file.ts:198
@@ -363,7 +463,11 @@ pub fn keys_kept_line(keys: &[impl AsRef<str>], recipe: Option<&str>) -> String 
 // export const noSuchRecipeRefusal = (word: string, held: readonly string[]): string =>
 //   held.length === 0 ? `no recipe named ${word}; none is saved yet` : `no recipe named ${word}; you have ${held.join(", ")}`;
 pub fn no_such_recipe_refusal(word: &str, held: &[impl AsRef<str>]) -> String {
-    todo!()
+    if held.is_empty() {
+        return format!("no recipe named {word}; none is saved yet");
+    }
+    let held: Vec<&str> = held.iter().map(AsRef::as_ref).collect();
+    format!("no recipe named {word}; you have {}", held.join(", "))
 }
 
 // recipe-file.ts:205
@@ -374,16 +478,15 @@ pub fn no_such_recipe_refusal(word: &str, held: &[impl AsRef<str>]) -> String {
 // recipe-file.ts:209
 // export const recipeFromHereRefusal = (word: string): string => `${word} is not a computer you added; a recipe is saved from one that was set up with picks`;
 pub fn recipe_from_here_refusal(word: &str) -> String {
-    todo!()
+    format!("{word} is not a computer you added; a recipe is saved from one that was set up with picks")
 }
 
 /// The refusal a save from a computer set up before picks were kept gets.
 // recipe-file.ts:212
 // export const noPicksRefusal = (name: string): string => `${name} was set up before recipes, so it carries no picks to save; a recipe is written from the app's Add a computer, or from a computer set up with one`;
 pub fn no_picks_refusal(name: &str) -> String {
-    todo!()
+    format!("{name} was set up before recipes, so it carries no picks to save; a recipe is written from the app's Add a computer, or from a computer set up with one")
 }
 
 // recipe-file.ts:215
 // in wsp_wire::types::recipe_file: RECIPES_TICKET_REFUSAL
-

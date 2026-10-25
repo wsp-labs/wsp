@@ -3,11 +3,21 @@
 //! a call reads as, what a client shows for it, its kinds), the question tool's questions and picks, and the words a
 //! permission prompt is put to a person in. Each TS statement stands as a comment above its stub. See spec/tools.md.
 
+use crate::js::{js_collapse_whitespace, js_trim, number_string};
+use crate::project_path::{folder_name, parent_folder_name};
+use crate::words::base::{last_line, plural};
+use crate::words::turn::title_line;
+use crate::words::units::fmt_bytes;
+use serde::Serialize;
+use serde_json::Value;
 use wsp_wire::views::session::PermissionOutcome;
-use wsp_wire::views::session_events::{SessionEvent, SessionPermissionEvent};
+use wsp_wire::views::session_events::{DeltaKind, SessionEvent, SessionPermissionEvent};
 use wsp_wire::wire::helpers::{PermissionEffect, PermissionOption};
 use wsp_wire::wire::runtime::SessionAnswerOutcome;
-use serde::Serialize;
+
+mod rows;
+
+use rows::*;
 
 /// One tool call's input, as the wire's delta carries it: the JSON object the harness reported, keys in the order
 /// it wrote them.
@@ -51,7 +61,13 @@ pub enum ToolItemType {
 impl ToolItemType {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            Self::CommandExecution => "command_execution",
+            Self::FileChange => "file_change",
+            Self::WebSearch => "web_search",
+            Self::CollabAgentToolCall => "collab_agent_tool_call",
+            Self::McpToolCall => "mcp_tool_call",
+        }
     }
 }
 
@@ -71,7 +87,11 @@ pub enum ToolRequestKind {
 impl ToolRequestKind {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            Self::Command => "command",
+            Self::FileRead => "file-read",
+            Self::FileChange => "file-change",
+        }
     }
 }
 
@@ -114,7 +134,12 @@ pub struct ServerTool {
 }
 
 pub fn server_tool(tool_name: &str) -> Option<ServerTool> {
-    todo!()
+    let parts: Vec<&str> = tool_name.split("__").collect();
+    if parts.len() >= 3 && parts[0] == "mcp" && !parts[1].is_empty() {
+        Some(ServerTool { server: parts[1].to_string(), tool: parts[2..].join("__") })
+    } else {
+        None
+    }
 }
 
 /// What a call to a server's tool does, in words: `Use wsp's run`. Nothing for a tool no server lends.
@@ -124,7 +149,7 @@ pub fn server_tool(tool_name: &str) -> Option<ServerTool> {
 //   return lent === undefined ? undefined : `Use ${lent.server}'s ${lent.tool.replace(/_/g, " ")}`;
 // }
 pub fn server_tool_words(tool_name: &str) -> Option<String> {
-    todo!()
+    server_tool(tool_name).map(|lent| format!("Use {}'s {}", lent.server, lent.tool.replace('_', " ")))
 }
 
 // The fields a server's tool row shows when the call names none of the usual ones: what the call is called, then
@@ -282,7 +307,12 @@ const PICK_JOIN: &str = "|";
 //   return fields === undefined ? undefined : permissionWords(toolName).questions?.(fields);
 // }
 pub fn asked_questions(tool_name: &str, input: &str) -> Option<Vec<AskedQuestion>> {
-    todo!()
+    let fields = tool_input(input)?;
+    if ask_kind(tool_name) == AskKind::Question {
+        questions_in(&fields)
+    } else {
+        None
+    }
 }
 
 // tools.ts:172
@@ -310,7 +340,12 @@ pub fn asked_questions(tool_name: &str, input: &str) -> Option<Vec<AskedQuestion
 //   return questions.flatMap(q => q.options.map(o => ({ id: o.id, label: o.label, effect: "answer" as const })));
 // }
 pub fn question_options(tool_name: &str, input: &str) -> Vec<PermissionOption> {
-    todo!()
+    asked_questions(tool_name, input)
+        .unwrap_or_default()
+        .into_iter()
+        .flat_map(|question| question.options)
+        .map(|option| PermissionOption { id: option.id, label: option.label, effect: PermissionEffect::Answer, mode: None })
+        .collect()
 }
 
 /// The pick that answers one question with the person's own words rather than one of its choices: the words ride
@@ -319,7 +354,7 @@ pub fn question_options(tool_name: &str, input: &str) -> Vec<PermissionOption> {
 // export const otherOptionId = (question: number, words: string): string => `q${question}:other:${encodeURIComponent(words)}`;
 /// `encodeURIComponent(words)`: every UTF-8 byte percent-encoded in upper-case hex except A-Z a-z 0-9 and `-_.!~*'()`.
 pub fn other_option_id(question: usize, words: &str) -> String {
-    todo!()
+    format!("q{question}:other:{}", encode_uri_component(words))
 }
 
 // An answer typed for a question, read back off its id; nothing for any other id.
@@ -348,14 +383,23 @@ pub fn other_option_id(question: usize, words: &str) -> String {
 //   return named.length > 0 && named.every((o): o is PermissionOption => o !== undefined) ? named : undefined;
 // }
 pub fn picked_options(options: &[PermissionOption], picked: &str) -> Option<Vec<PermissionOption>> {
-    todo!()
+    let asks = options.iter().all(|option| option.effect == PermissionEffect::Answer);
+    picked
+        .split(PICK_JOIN)
+        .map(|id| {
+            let typed = if asks { typed_answer(id) } else { None };
+            options.iter().find(|option| option.id == id).cloned().or_else(|| {
+                typed.map(|(_, words)| PermissionOption { id: id.to_string(), label: words, effect: PermissionEffect::Answer, mode: None })
+            })
+        })
+        .collect()
 }
 
 /// The one id a set of ticked boxes travels as.
 // tools.ts:222
 // export const pickedOptionId = (ids: readonly string[]): string => ids.join(PICK_JOIN);
 pub fn picked_option_id(ids: &[impl AsRef<str>]) -> String {
-    todo!()
+    ids.iter().map(|id| id.as_ref()).collect::<Vec<_>>().join(PICK_JOIN)
 }
 
 /// The call's input with the person's answer written into it, which is how the harness reads a pick: every question
@@ -378,7 +422,27 @@ pub fn picked_option_id(ids: &[impl AsRef<str>]) -> String {
 /// `{ ...fields, answers }`: the call's keys in their order with `answers` last, or in its own place where the call
 /// already had an `answers` key (a spread keeps the first position of a key it overwrites).
 pub fn question_answer_input(tool_name: &str, input: &str, picked: &[impl AsRef<str>]) -> Option<ToolInput> {
-    todo!()
+    let mut fields = tool_input(input)?;
+    let questions = asked_questions(tool_name, input)?;
+    let picked: Vec<&str> = picked.iter().map(|id| id.as_ref()).collect();
+    let typed: Vec<(usize, String)> = picked.iter().filter_map(|id| typed_answer(id)).collect();
+    let mut answers = ToolInput::new();
+    for question in &questions {
+        let mut labels: Vec<String> =
+            question.options.iter().filter(|option| picked.contains(&option.id.as_str())).map(|option| option.label.clone()).collect();
+        labels.extend(typed.iter().filter(|(index, _)| *index == question.index).map(|(_, words)| words.clone()));
+        let Some(first) = labels.first().cloned() else {
+            continue;
+        };
+        let value =
+            if question.multi_select { Value::Array(labels.into_iter().map(Value::String).collect()) } else { Value::String(first) };
+        answers.insert(question.key.clone(), value);
+    }
+    if answers.is_empty() {
+        return None;
+    }
+    fields.insert("answers".to_string(), Value::Object(answers));
+    Some(fields)
 }
 
 // What the call itself reads as while it waits: the question, never the tool's own name, which is no word a
@@ -468,7 +532,14 @@ pub fn question_answer_input(tool_name: &str, input: &str, picked: &[impl AsRef<
 //   return fields === undefined ? name : row.line(fields, "asked") ?? name;
 // }
 pub fn tool_activity_line(tool_name: Option<&str>, input: &str) -> String {
-    todo!()
+    let name = tool_name.unwrap_or("tool");
+    match tool_row(name) {
+        None => server_tool_words(name).unwrap_or_else(|| name.to_string()),
+        Some(row) => match tool_input(input) {
+            None => name.to_string(),
+            Some(fields) => row.text(&fields, Moment::Asked).unwrap_or_else(|| name.to_string()),
+        },
+    }
 }
 
 /// The same call once its result says it ran: the past of the line it opened with, which is the only place a client
@@ -483,7 +554,14 @@ pub fn tool_activity_line(tool_name: Option<&str>, input: &str) -> String {
 //   return done === undefined || done === row.line(fields, "asked") ? undefined : done;
 // }
 pub fn tool_done_line(tool_name: Option<&str>, input: &str) -> Option<String> {
-    todo!()
+    let row = tool_row(tool_name.unwrap_or("tool"))?;
+    let fields = tool_input(input)?;
+    let done = row.text(&fields, Moment::Done)?;
+    if row.text(&fields, Moment::Asked).as_deref() == Some(done.as_str()) {
+        None
+    } else {
+        Some(done)
+    }
 }
 
 /// What a tool call is, for a client whose rows carry more than one line: the field to show, the shell command and
@@ -547,7 +625,35 @@ pub struct ToolCallFacts {
 //   };
 // }
 pub fn tool_call_facts(tool_name: &str, input: &str) -> ToolCallFacts {
-    todo!()
+    let row = tool_row(tool_name);
+    let lent = if row.is_none() { server_tool_words(tool_name) } else { None };
+    let mut facts = ToolCallFacts {
+        item_type: row.and_then(|row| row.item_type).or_else(|| lent.as_ref().map(|_| ToolItemType::McpToolCall)),
+        request_kind: row.and_then(|row| row.request_kind),
+        title: row.and_then(|row| row.title.map(str::to_string)).or_else(|| lent.clone()),
+        ..ToolCallFacts::default()
+    };
+    let Some(fields) = tool_input(input) else {
+        if !input.is_empty() {
+            facts.detail = Some(input.to_string());
+        }
+        return facts;
+    };
+    let mut names = row.map(|row| row.shows()).unwrap_or_default();
+    names.extend_from_slice(SHOWN_FIELDS);
+    if lent.is_some() {
+        names.extend_from_slice(SERVER_SHOWN_FIELDS);
+    }
+    facts.detail = first_field(&fields, &names);
+    if row.is_some_and(|row| row.request_kind == Some(ToolRequestKind::Command)) {
+        facts.command = tool_field(&fields, "command").map(str::to_string);
+        facts.description = tool_field(&fields, "description").map(str::to_string);
+    }
+    let changed = row.map(|row| row.changed(&fields)).unwrap_or_default();
+    if !changed.is_empty() {
+        facts.changed_files = Some(changed);
+    }
+    facts
 }
 
 /// Whether a call looked through the code, for the client that folds those rows together.
@@ -556,7 +662,7 @@ pub fn tool_call_facts(tool_name: &str, input: &str) -> ToolCallFacts {
 //   return toolName !== undefined && TOOL_ROWS.get(toolName)?.codeSearch === true;
 // }
 pub fn is_code_search_tool(tool_name: Option<&str>) -> bool {
-    todo!()
+    tool_name.and_then(tool_row).is_some_and(|row| row.code_search)
 }
 
 /// The sentence a harness stamps on a result it wrote for the agent and not for the person; it carries handles the
@@ -572,7 +678,7 @@ const INTERNAL_RESULT_MARK: &str = "This tool result is internal metadata";
 //   return text.includes(INTERNAL_RESULT_MARK);
 // }
 pub fn internal_tool_result(text: &str) -> bool {
-    todo!()
+    text.contains(INTERNAL_RESULT_MARK)
 }
 
 /// What one tool call answered, as the line under the call: its first line by the rule the call's own line is cut
@@ -587,7 +693,16 @@ pub fn internal_tool_result(text: &str) -> bool {
 // }
 /// `isError` defaults to false.
 pub fn tool_result_line(text: &str, is_error: bool) -> Option<String> {
-    todo!()
+    if internal_tool_result(text) {
+        return None;
+    }
+    let first = title_line(text);
+    match (is_error, first.is_empty()) {
+        (false, true) => None,
+        (false, false) => Some(first),
+        (true, true) => Some("failed".to_string()),
+        (true, false) => Some(format!("failed: {first}")),
+    }
 }
 
 /// What a terminal watching a turn prints once one call's result lands: what a call that changed a file changed,
@@ -605,7 +720,13 @@ pub fn tool_result_line(text: &str, is_error: bool) -> Option<String> {
 // }
 /// `result.isError` None is false.
 pub fn tool_answered_line(tool_name: Option<&str>, input: &str, text: &str, is_error: Option<bool>) -> Option<String> {
-    todo!()
+    let is_error = is_error == Some(true);
+    if !is_error && tool_call_facts(tool_name.unwrap_or("tool"), input).request_kind == Some(ToolRequestKind::FileChange) {
+        if let Some(did) = tool_done_line(tool_name, input) {
+            return Some(did);
+        }
+    }
+    tool_result_line(text, is_error)
 }
 
 /// What a call that launched a subagent said the task was, from the call's own input: the title of the fold that
@@ -617,7 +738,8 @@ pub fn tool_answered_line(tool_name: Option<&str>, input: &str, text: &str, is_e
 //   return described === undefined ? undefined : titleLine(described);
 // }
 pub fn subagent_task_line(input: &str) -> Option<String> {
-    todo!()
+    let fields = tool_input(input)?;
+    tool_field(&fields, "description").map(title_line)
 }
 
 /// What the call that launched a subagent asked it, whole: the first message of that subagent's own page.
@@ -627,7 +749,8 @@ pub fn subagent_task_line(input: &str) -> Option<String> {
 //   return fields === undefined ? undefined : toolField(fields, "prompt");
 // }
 pub fn subagent_prompt(input: &str) -> Option<String> {
-    todo!()
+    let fields = tool_input(input)?;
+    tool_field(&fields, "prompt").map(str::to_string)
 }
 
 /// What a prompt raised inside a subagent's own run says above it, so a person answering knows which of them is
@@ -635,7 +758,7 @@ pub fn subagent_prompt(input: &str) -> Option<String> {
 // tools.ts:422
 // export const subagentAskerLine = (task: string): string => `${task} asks`;
 pub fn subagent_asker_line(task: &str) -> String {
-    todo!()
+    format!("{task} asks")
 }
 
 /// Who is asking, above a prompt drawn in a thread that did not raise it: the thread whose turn is stopped on the
@@ -643,7 +766,7 @@ pub fn subagent_asker_line(task: &str) -> String {
 // tools.ts:426
 // export const waitingAskerLine = (title: string): string => `${title} asks; this thread waits on the answer`;
 pub fn waiting_asker_line(title: &str) -> String {
-    todo!()
+    format!("{title} asks; this thread waits on the answer")
 }
 
 /// What a thread is doing, as the one line a client with no transcript shows: the tool call it is running, the
@@ -661,7 +784,15 @@ pub fn waiting_asker_line(title: &str) -> String {
 //   }
 // }
 pub fn thread_working_line(e: &SessionEvent) -> Option<String> {
-    todo!()
+    match e {
+        SessionEvent::SessionDeltaEvent(delta) => match delta.kind {
+            DeltaKind::Text | DeltaKind::Thinking => last_line(&delta.text),
+            DeltaKind::ToolUse => Some(tool_activity_line(delta.tool_name.as_deref(), &delta.text)),
+            _ => None,
+        },
+        SessionEvent::SessionPermissionEvent(ask) => Some(permission_ask_line(&ask.tool_name, &ask.input, ask.detail.as_deref())),
+        _ => None,
+    }
 }
 
 // A prompt's lead in two parts: the words, and the call's own text where the call has some. They are apart because
@@ -853,7 +984,7 @@ const BODY_LABEL: &str = "show the file";
 //   return leadLine(askLead(toolName, input, detail));
 // }
 pub fn permission_ask_line(tool_name: &str, input: &str, detail: Option<&str>) -> String {
-    todo!()
+    lead_line(&ask_lead(tool_name, input, detail))
 }
 
 // One value as the row reads it: its own whitespace collapsed, so a field holding a paragraph is one line rather
@@ -947,7 +1078,45 @@ pub struct PermissionPromptWords {
 //   };
 // }
 pub fn permission_prompt_words(tool_name: &str, input: &str, detail: Option<&str>) -> PermissionPromptWords {
-    todo!()
+    let lead = ask_lead(tool_name, input, detail);
+    let mut words = PermissionPromptWords {
+        lead: lead_line(&lead),
+        says: lead.says.clone(),
+        code: lead.code.clone(),
+        rest: String::new(),
+        body: None,
+        note: None,
+        file: None,
+        edit: None,
+        questions: None,
+    };
+    if let Some(questions) = asked_questions(tool_name, input) {
+        words.questions = Some(questions);
+        return words;
+    }
+    let Some(fields) = tool_input(input) else {
+        words.rest = input.to_string();
+        return words;
+    };
+    let kind = ask_kind(tool_name);
+    let named = named_fields(kind);
+    words.rest = fields
+        .iter()
+        .filter(|(key, _)| !named.contains(&key.as_str()))
+        .map(|(key, value)| format!("{key}: {}", rest_value(value)))
+        .collect::<Vec<_>>()
+        .join("\n");
+    if kind == AskKind::Write {
+        words.body = tool_field(&fields, "content").map(|text| PromptBody { label: BODY_LABEL.to_string(), text: text.to_string() });
+    }
+    words.note = match kind {
+        AskKind::CodexCommand => detail.filter(|detail| !detail.is_empty()).map(str::to_string),
+        AskKind::Fetch => tool_field(&fields, "prompt").map(str::to_string),
+        _ => None,
+    };
+    words.file = tool_field(&fields, "file_path").map(str::to_string);
+    words.edit = edit_strings(&fields);
+    words
 }
 
 // The strings an edit swaps, off any call that carries them: the first of several edits, else the call's own. Read
@@ -970,7 +1139,7 @@ pub fn permission_prompt_words(tool_name: &str, input: &str, detail: Option<&str
 //   return permissionAskLine(ask.toolName, ask.input, ask.detail);
 // }
 pub fn asking_line(ask: &SessionPermissionEvent) -> String {
-    todo!()
+    permission_ask_line(&ask.tool_name, &ask.input, ask.detail.as_deref())
 }
 
 /// What an answered prompt row reads once it is closed, one word per outcome. The option's own label rides beside it
@@ -995,7 +1164,19 @@ pub fn asking_line(ask: &SessionPermissionEvent) -> String {
 //   }
 // }
 pub fn permission_outcome_line(outcome: PermissionOutcome, picked: Option<(&str, PermissionEffect)>) -> String {
-    todo!()
+    let named = match picked {
+        Some((label, PermissionEffect::Mode)) => format!(": {label}"),
+        _ => String::new(),
+    };
+    match outcome {
+        PermissionOutcome::Allowed => match picked {
+            Some((label, PermissionEffect::Answer)) => format!("You answered: {label}"),
+            _ => format!("Allowed{named}"),
+        },
+        PermissionOutcome::Denied => format!("Denied{named}"),
+        PermissionOutcome::Unanswered => "Nobody answered; denied".to_string(),
+        PermissionOutcome::Cancelled => "Cancelled with the turn".to_string(),
+    }
 }
 
 /// What a pick the host would not take came to, one line per outcome it can answer with, said by the app under the
@@ -1009,7 +1190,13 @@ pub fn permission_outcome_line(outcome: PermissionOutcome, picked: Option<(&str,
 // };
 /// `ANSWER_WORDS[outcome]`, word for word; None for `Answered`, which has no line.
 pub fn answer_words(outcome: SessionAnswerOutcome) -> Option<&'static str> {
-    todo!()
+    match outcome {
+        SessionAnswerOutcome::Answered => None,
+        SessionAnswerOutcome::Gone => Some("the prompt closed before the answer reached it"),
+        SessionAnswerOutcome::Unsupported => Some("this thread's agent raises no prompt this host can answer"),
+        SessionAnswerOutcome::NotFound => Some("this host holds no turn of that thread"),
+        SessionAnswerOutcome::NoOption => Some("the prompt carries no option by that id"),
+    }
 }
 
 /// What the harness is told when a person picked deny in the chat: the agent reads it as the call's result, so it
@@ -1022,7 +1209,12 @@ pub const PERMISSION_DENIED_LINE: &str = "the person denied this in the chat";
 // export const deniedLine = (reason: string | undefined): string =>
 //   reason === undefined || reason.trim() === "" ? PERMISSION_DENIED_LINE : `${PERMISSION_DENIED_LINE}, and said what to do instead: ${reason.trim()}`;
 pub fn denied_line(reason: Option<&str>) -> String {
-    todo!()
+    match reason.map(js_trim) {
+        Some(reason) if !reason.is_empty() => {
+            format!("{PERMISSION_DENIED_LINE}, and said what to do instead: {reason}")
+        }
+        _ => PERMISSION_DENIED_LINE.to_string(),
+    }
 }
 
 /// One option on a prompt that also puts the rest of the turn in another access mode, as the row shows it; the mode
@@ -1032,7 +1224,7 @@ pub fn denied_line(reason: Option<&str>) -> String {
 //   return `Allow, then ${modeLabel}`;
 // }
 pub fn permission_mode_option_label(mode_label: &str) -> String {
-    todo!()
+    format!("Allow, then {mode_label}")
 }
 
 /// What the access picker says over its list while a turn is running: what a pick does to that turn, read before the
@@ -1045,7 +1237,11 @@ pub fn permission_mode_option_label(mode_label: &str) -> String {
 //   return movesRunningTurn ? "Applies to the turn running now" : "Applies from the thread's next turn";
 // }
 pub fn access_reach_line(moves_running_turn: bool) -> String {
-    todo!()
+    if moves_running_turn {
+        "Applies to the turn running now".to_string()
+    } else {
+        "Applies from the thread's next turn".to_string()
+    }
 }
 
 /// What the composer says under the box when an access pick the harness's own row said would reach the running turn
@@ -1064,4 +1260,3 @@ pub const ACCESS_REFUSED_FIX: &str = "The next turn runs at it.";
 // tools.ts:733
 // export const ACCESS_REFUSED_LINE = `${ACCESS_REFUSED_WORDS.said} ${ACCESS_REFUSED_WORDS.fix}`;
 pub const ACCESS_REFUSED_LINE: &str = "The turn refused it. The next turn runs at it.";
-

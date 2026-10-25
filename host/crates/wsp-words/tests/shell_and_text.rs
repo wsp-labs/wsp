@@ -4,6 +4,10 @@
 //! (psCpuSeconds). Skipped: none. One test reads constants only and so passes against the stubs:
 //! `the_daemon_is_killed_last_but_never_exempt_runs_ahead_of_default_priority_and_th`.
 
+type Cases1<'a> = Vec<(Vec<&'a str>, Vec<(&'a str, &'a str)>, &'a str)>;
+type Cases2<'a> = Vec<(Vec<&'a str>, Vec<(&'a str, &'a str)>, PathBuf)>;
+type Cases3<'a> = Vec<(&'a str, Vec<&'a str>, Vec<(&'a str, &'a str)>, PathBuf)>;
+
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -11,11 +15,11 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
-use wsp_words::docker_shim::docker_shim;
-use wsp_words::oom::{work_argv, work_score_line, Argv};
 use wsp_wire::types::docker_shim::DOCKER_NOTES_CAP_BYTES;
 use wsp_wire::types::oom::{DAEMON_NICE, DAEMON_OOM_SCORE_ADJ, WORK_OOM_SCORE_ADJ};
 use wsp_wire::views::session_events::{FilePatch, PatchHunk};
+use wsp_words::docker_shim::docker_shim;
+use wsp_words::oom::{work_argv, work_score_line, Argv};
 use wsp_words::ps_time::ps_cpu_seconds;
 use wsp_words::tool_result::{kept_patch, whole_file_hunk, KeptPatch};
 
@@ -36,8 +40,14 @@ mod an_edit_s_hunks {
 
     #[test]
     fn write_a_whole_file_as_one_hunk_of_every_line_its_last_newline_ending_a_line_rath() {
-        assert_eq!(whole_file_hunk("hi\nthere\n", true), wire(json!({ "oldStart": 0, "oldLines": 0, "newStart": 1, "newLines": 2, "lines": ["+hi", "+there"] })));
-        assert_eq!(whole_file_hunk("gone", false), wire(json!({ "oldStart": 1, "oldLines": 1, "newStart": 0, "newLines": 0, "lines": ["-gone"] })));
+        assert_eq!(
+            whole_file_hunk("hi\nthere\n", true),
+            wire(json!({ "oldStart": 0, "oldLines": 0, "newStart": 1, "newLines": 2, "lines": ["+hi", "+there"] }))
+        );
+        assert_eq!(
+            whole_file_hunk("gone", false),
+            wire(json!({ "oldStart": 1, "oldLines": 1, "newStart": 0, "newLines": 0, "lines": ["-gone"] }))
+        );
         assert_eq!(whole_file_hunk("", true), wire(json!({ "oldStart": 0, "oldLines": 0, "newStart": 0, "newLines": 0, "lines": [] })));
     }
 
@@ -50,16 +60,16 @@ mod an_edit_s_hunks {
         assert_eq!(kept_patch(&patch, 100), KeptPatch { patch: patch.clone(), patch_cut: false });
         assert_eq!(kept_patch(&patch, 20), KeptPatch { patch: vec![patch[0].clone()], patch_cut: true });
         let cut: PatchHunk = wire(json!({ "oldStart": 9, "oldLines": 1, "newStart": 9, "newLines": 0, "lines": ["-cccc"] }));
-        assert_eq!(
-            kept_patch(&patch, 15),
-            KeptPatch { patch: vec![file("a", vec![patch[0].hunks[0].clone(), cut])], patch_cut: true }
-        );
+        assert_eq!(kept_patch(&patch, 15), KeptPatch { patch: vec![file("a", vec![patch[0].hunks[0].clone(), cut])], patch_cut: true });
         assert_eq!(kept_patch(&patch, 4), KeptPatch { patch: vec![], patch_cut: true });
         let created = file("n", vec![whole_file_hunk("one\ntwo\nthree\n", true)]);
         assert_eq!(
             kept_patch(&[created], 9),
             KeptPatch {
-                patch: vec![file("n", vec![wire(json!({ "oldStart": 0, "oldLines": 0, "newStart": 1, "newLines": 2, "lines": ["+one", "+two"] }))])],
+                patch: vec![file(
+                    "n",
+                    vec![wire(json!({ "oldStart": 0, "oldLines": 0, "newStart": 1, "newLines": 2, "lines": ["+one", "+two"] }))]
+                )],
                 patch_cut: true
             }
         );
@@ -70,14 +80,12 @@ mod who_the_kernel_takes_first {
     use super::*;
 
     #[test]
-
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn the_daemon_is_killed_last_but_never_exempt_runs_ahead_of_default_priority_and_th() {
         assert_eq!(DAEMON_OOM_SCORE_ADJ, -999);
-        assert!(WORK_OOM_SCORE_ADJ > 0);
-        assert!(WORK_OOM_SCORE_ADJ <= 1000);
-        assert!(DAEMON_NICE < 0);
-        assert!(DAEMON_NICE >= -20);
+        const { assert!(WORK_OOM_SCORE_ADJ > 0) }
+        const { assert!(WORK_OOM_SCORE_ADJ <= 1000) }
+        const { assert!(DAEMON_NICE < 0) }
+        const { assert!(DAEMON_NICE >= -20) }
     }
 
     #[test]
@@ -92,7 +100,9 @@ mod who_the_kernel_takes_first {
             work_argv("git", &["status", "a b", "c'd"]),
             Argv {
                 file: "/bin/sh".to_string(),
-                args: ["-c", &format!("{}; exec \"$0\" \"$@\"", work_score_line(None)), "git", "status", "a b", "c'd"].map(String::from).to_vec(),
+                args: ["-c", &format!("{}; exec \"$0\" \"$@\"", work_score_line(None)), "git", "status", "a b", "c'd"]
+                    .map(String::from)
+                    .to_vec(),
             }
         );
         let zsh = work_argv("/usr/bin/zsh", &["-l"]);
@@ -134,8 +144,13 @@ exit 7
 
     const THREAD: &str = "t_1f0c-ab";
 
+    // A fork in another test holds this write fd until its exec, and a shim that execs the script then gets ETXTBSY from
+    // inside sh, where no retry reaches it: no fork overlaps a script's write.
+    static FORKS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     fn write_script(path: &Path, script: &str) {
         use std::os::unix::fs::PermissionsExt;
+        let _no_fork = FORKS.lock().unwrap_or_else(|e| e.into_inner());
         fs::write(path, script).unwrap();
         fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
     }
@@ -143,7 +158,11 @@ exit 7
     fn spawn(command: &mut Command) -> std::process::Child {
         // A script written a moment ago can be refused with ETXTBSY while another test's fork still holds its write fd.
         for _ in 0..100 {
-            match command.spawn() {
+            let spawned = {
+                let _one_fork = FORKS.lock().unwrap_or_else(|e| e.into_inner());
+                command.spawn()
+            };
+            match spawned {
                 Err(e) if e.raw_os_error() == Some(26) => std::thread::sleep(Duration::from_millis(20)),
                 other => return other.unwrap(),
             }
@@ -193,11 +212,7 @@ exit 7
         let count: usize = fields[0].parse().unwrap();
         let argv = fields[1..=count].iter().map(|s| s.to_string()).collect();
         let tail = &fields[count + 1..];
-        Seen {
-            argv,
-            project: (tail[0] == "set").then(|| tail[1].to_string()),
-            passed: (tail[2] == "set").then(|| tail[3].to_string()),
-        }
+        Seen { argv, project: (tail[0] == "set").then(|| tail[1].to_string()), passed: (tail[2] == "set").then(|| tail[3].to_string()) }
     }
 
     struct Fixture {
@@ -278,7 +293,12 @@ exit 7
         }
 
         fn notes_of(&self, thread: &str) -> Vec<Vec<String>> {
-            fs::read_to_string(self.notes.join(thread)).unwrap().trim_end().split('\n').map(|l| l.split('\t').map(String::from).collect()).collect()
+            fs::read_to_string(self.notes.join(thread))
+                .unwrap()
+                .trim_end()
+                .split('\n')
+                .map(|l| l.split('\t').map(String::from).collect())
+                .collect()
         }
     }
 
@@ -366,7 +386,10 @@ exit 7
             assert_eq!(f.run(&["compose", "up", "-d"], vars).seen.argv, words(&["compose", "up", "-d"]));
         }
         let max = "a".repeat(64);
-        assert_eq!(f.in_thread(&["run", "x"], &[("WSP_THREAD", &max)]).seen.argv, words(&["run", "--label", &format!("wsp.thread={max}"), "x"]));
+        assert_eq!(
+            f.in_thread(&["run", "x"], &[("WSP_THREAD", &max)]).seen.argv,
+            words(&["run", "--label", &format!("wsp.thread={max}"), "x"])
+        );
         assert!(!f.notes.exists());
     }
 
@@ -375,7 +398,7 @@ exit 7
         let f = Fixture::new();
         let before = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         let from_env = [("COMPOSE_PROJECT_NAME", "from-env")];
-        let cases: Vec<(Vec<&str>, Vec<(&str, &str)>, &str)> = vec![
+        let cases: Cases1 = vec![
             (vec!["compose", "up", "-d"], vec![], ""),
             (vec!["compose", "-p", "lab", "up", "-d", "--build"], vec![], "lab"),
             (vec!["compose", "--project-name=lab-2", "create"], vec![], "lab-2"),
@@ -395,7 +418,8 @@ exit 7
         }
         let lines = f.notes_of(THREAD);
         let got: Vec<Vec<String>> = lines.iter().map(|l| l[..3].to_vec()).collect();
-        let want: Vec<Vec<String>> = cases.iter().map(|(_, _, project)| vec![THREAD.to_string(), s(&f.folder).to_string(), project.to_string()]).collect();
+        let want: Vec<Vec<String>> =
+            cases.iter().map(|(_, _, project)| vec![THREAD.to_string(), s(&f.folder).to_string(), project.to_string()]).collect();
         assert_eq!(got, want);
         for line in &lines {
             assert_eq!(line.len(), 4);
@@ -417,7 +441,7 @@ exit 7
         let deeper = sub.join("deeper");
         let elsewhere_file = format!("{}/compose.yaml", s(&elsewhere));
         let composed = [("COMPOSE_FILE", "sub/compose.yaml:compose.yaml")];
-        let cases: Vec<(Vec<&str>, Vec<(&str, &str)>, PathBuf)> = vec![
+        let cases: Cases2 = vec![
             (vec!["compose", "-f", "sub/compose.yaml", "up", "-d"], vec![], sub.clone()),
             (vec!["compose", "--file=sub/deeper/compose.yaml", "-f", "compose.yaml", "up"], vec![], deeper.clone()),
             (vec!["compose", "-f", &elsewhere_file, "up"], vec![], elsewhere.clone()),
@@ -443,7 +467,7 @@ exit 7
         let sub = f.folder.join("sub");
         let deeper = sub.join("deeper");
         let up = vec!["compose", "up"];
-        let cases: Vec<(&str, Vec<&str>, Vec<(&str, &str)>, PathBuf)> = vec![
+        let cases: Cases3 = vec![
             ("COMPOSE_FILE=sub/compose.yaml", vec!["compose", "up", "-d"], vec![], sub.clone()),
             ("A=1\nexport COMPOSE_FILE = \"sub/deeper/compose.yaml:compose.yaml\"\r", up.clone(), vec![], deeper.clone()),
             ("COMPOSE_FILE='sub/compose.yaml'", vec!["compose", "create"], vec![], sub.clone()),
@@ -535,7 +559,10 @@ exit 7
         let ran = f.run_on(&["run", "busybox"], &[("WSP_THREAD", THREAD)], &path);
         assert_eq!((ran.seen.argv.clone(), ran.status), (f.lab(&["run"], &["busybox"]), Some(7)));
         assert_eq!(ran.seen.passed, Some(format!("{}:{}", s(&other), f.bin)));
-        assert_eq!(f.run_on(&["compose", "up"], &[("WSP_THREAD", THREAD)], &format!("{path}:/usr/bin:/bin")).seen.argv, words(&["compose", "up"]));
+        assert_eq!(
+            f.run_on(&["compose", "up"], &[("WSP_THREAD", THREAD)], &format!("{path}:/usr/bin:/bin")).seen.argv,
+            words(&["compose", "up"])
+        );
         assert_eq!(f.notes_of(THREAD).len(), 1);
         assert!(!f.dir.join("other-notes").exists());
     }
@@ -576,8 +603,6 @@ mod the_cumulative_cpu_ps_prints {
 
 // Cases the spec pins; every expected value is what the TS function returned under node at a3b870a6e.
 mod pinned {
-    use super::*;
-
     use serde_json::{json, Value};
     use wsp_wire::views::session_events::FilePatch;
 
@@ -631,33 +656,79 @@ mod pinned {
 
     #[test]
     fn hunks_are_built_parsed_and_cut_by_units() {
-        assert_eq!(js(&wsp_words::tool_result::whole_file_hunk("", true)), "{\"oldStart\":0,\"oldLines\":0,\"newStart\":0,\"newLines\":0,\"lines\":[]}"); // JSON.stringify(wholeFileHunk("", "+"))
-        assert_eq!(js(&wsp_words::tool_result::whole_file_hunk("a\nb\n", true)), "{\"oldStart\":0,\"oldLines\":0,\"newStart\":1,\"newLines\":2,\"lines\":[\"+a\",\"+b\"]}"); // JSON.stringify(wholeFileHunk("a\nb\n", "+"))
-        assert_eq!(js(&wsp_words::tool_result::whole_file_hunk("a\nb", false)), "{\"oldStart\":1,\"oldLines\":2,\"newStart\":0,\"newLines\":0,\"lines\":[\"-a\",\"-b\"]}"); // JSON.stringify(wholeFileHunk("a\nb", "-"))
-        assert_eq!(js(&wsp_words::tool_result::whole_file_hunk("\n", true)), "{\"oldStart\":0,\"oldLines\":0,\"newStart\":1,\"newLines\":1,\"lines\":[\"+\"]}"); // JSON.stringify(wholeFileHunk("\n", "+"))
-        assert_eq!(js(&wsp_words::tool_result::whole_file_hunk("one", false)), "{\"oldStart\":1,\"oldLines\":1,\"newStart\":0,\"newLines\":0,\"lines\":[\"-one\"]}"); // JSON.stringify(wholeFileHunk("one", "-"))
+        assert_eq!(
+            js(&wsp_words::tool_result::whole_file_hunk("", true)),
+            "{\"oldStart\":0,\"oldLines\":0,\"newStart\":0,\"newLines\":0,\"lines\":[]}"
+        ); // JSON.stringify(wholeFileHunk("", "+"))
+        assert_eq!(
+            js(&wsp_words::tool_result::whole_file_hunk("a\nb\n", true)),
+            "{\"oldStart\":0,\"oldLines\":0,\"newStart\":1,\"newLines\":2,\"lines\":[\"+a\",\"+b\"]}"
+        ); // JSON.stringify(wholeFileHunk("a\nb\n", "+"))
+        assert_eq!(
+            js(&wsp_words::tool_result::whole_file_hunk("a\nb", false)),
+            "{\"oldStart\":1,\"oldLines\":2,\"newStart\":0,\"newLines\":0,\"lines\":[\"-a\",\"-b\"]}"
+        ); // JSON.stringify(wholeFileHunk("a\nb", "-"))
+        assert_eq!(
+            js(&wsp_words::tool_result::whole_file_hunk("\n", true)),
+            "{\"oldStart\":0,\"oldLines\":0,\"newStart\":1,\"newLines\":1,\"lines\":[\"+\"]}"
+        ); // JSON.stringify(wholeFileHunk("\n", "+"))
+        assert_eq!(
+            js(&wsp_words::tool_result::whole_file_hunk("one", false)),
+            "{\"oldStart\":1,\"oldLines\":1,\"newStart\":0,\"newLines\":0,\"lines\":[\"-one\"]}"
+        ); // JSON.stringify(wholeFileHunk("one", "-"))
         assert_eq!(js(&wsp_words::tool_result::unified_hunks("")), "[]"); // JSON.stringify(unifiedHunks(""))
-        assert_eq!(js(&wsp_words::tool_result::unified_hunks("header\n@@ -1 +1 @@\n-a\n+b\n")), "[{\"oldStart\":1,\"oldLines\":1,\"newStart\":1,\"newLines\":1,\"lines\":[\"-a\",\"+b\"]}]"); // JSON.stringify(unifiedHunks("header\n@@ -1 +1 @@\n-a\n+b\n"))
+        assert_eq!(
+            js(&wsp_words::tool_result::unified_hunks("header\n@@ -1 +1 @@\n-a\n+b\n")),
+            "[{\"oldStart\":1,\"oldLines\":1,\"newStart\":1,\"newLines\":1,\"lines\":[\"-a\",\"+b\"]}]"
+        ); // JSON.stringify(unifiedHunks("header\n@@ -1 +1 @@\n-a\n+b\n"))
         assert_eq!(js(&wsp_words::tool_result::unified_hunks("@@ -3,2 +3,0 @@\n-a\n-b\n@@ -10 +8,3 @@ fn x\n+1\n+2\n+3")), "[{\"oldStart\":3,\"oldLines\":2,\"newStart\":3,\"newLines\":0,\"lines\":[\"-a\",\"-b\"]},{\"oldStart\":10,\"oldLines\":1,\"newStart\":8,\"newLines\":3,\"lines\":[\"+1\",\"+2\",\"+3\"]}]"); // JSON.stringify(unifiedHunks("@@ -3,2 +3,0 @@\n-a\n-b\n@@ -10 +8,3 @@ fn x\n+1\n+2\n+3"))
         assert_eq!(js(&wsp_words::tool_result::unified_hunks("@@ bad @@\nx")), "[]"); // JSON.stringify(unifiedHunks("@@ bad @@\nx"))
-        assert_eq!(js(&wsp_words::tool_result::unified_hunks("@@ -1,0 +1 @@\n+only\n")), "[{\"oldStart\":1,\"oldLines\":0,\"newStart\":1,\"newLines\":1,\"lines\":[\"+only\"]}]"); // JSON.stringify(unifiedHunks("@@ -1,0 +1 @@\n+only\n"))
+        assert_eq!(
+            js(&wsp_words::tool_result::unified_hunks("@@ -1,0 +1 @@\n+only\n")),
+            "[{\"oldStart\":1,\"oldLines\":0,\"newStart\":1,\"newLines\":1,\"lines\":[\"+only\"]}]"
+        ); // JSON.stringify(unifiedHunks("@@ -1,0 +1 @@\n+only\n"))
         assert_eq!(js(&wsp_words::tool_result::kept_patch(&[], 5)), "{\"patch\":[]}"); // JSON.stringify(keptPatch([], 5))
         assert_eq!(js(&wsp_words::tool_result::kept_patch(&[fp(json!({"path":"a","hunks":[{"oldStart":1,"oldLines":2,"newStart":1,"newLines":2,"lines":["-ab","+cd"," ef","\\ No newline"]}]}))], 4)), "{\"patch\":[{\"path\":\"a\",\"hunks\":[{\"oldStart\":1,\"oldLines\":1,\"newStart\":1,\"newLines\":0,\"lines\":[\"-ab\"]}]}],\"patchCut\":true}"); // JSON.stringify(keptPatch([{"path":"a","hunks":[{"oldStart":1,"oldLines":2,"newStart":1,"newLines":2,"lines":["-ab","+cd"," ef","\\ No newline"]}]}], 4))
         assert_eq!(js(&wsp_words::tool_result::kept_patch(&[fp(json!({"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-ab","+cd"]}]})), fp(json!({"path":"b","hunks":[{"oldStart":1,"oldLines":0,"newStart":1,"newLines":1,"lines":["+x"]}]}))], 6)), "{\"patch\":[{\"path\":\"a\",\"hunks\":[{\"oldStart\":1,\"oldLines\":1,\"newStart\":1,\"newLines\":1,\"lines\":[\"-ab\",\"+cd\"]}]}],\"patchCut\":true}"); // JSON.stringify(keptPatch([{"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-ab","+cd"]}]},{"path":"b","hunks":[{"oldStart":1,"oldLines":0,"newStart":1,"newLines":1,"lines":["+x"]}]}], 6))
-        assert_eq!(js(&wsp_words::tool_result::kept_patch(&[fp(json!({"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-ab","+cd"]}]}))], 1)), "{\"patch\":[],\"patchCut\":true}"); // JSON.stringify(keptPatch([{"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-ab","+cd"]}]}], 1))
-        assert_eq!(js(&wsp_words::tool_result::kept_patch(&[fp(json!({"path":"a","movedTo":"c","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-ab"]}]})), fp(json!({"path":"b","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-zz"]}]}))], 3)), "{\"patch\":[{\"path\":\"a\",\"movedTo\":\"c\",\"hunks\":[{\"oldStart\":1,\"oldLines\":1,\"newStart\":1,\"newLines\":1,\"lines\":[\"-ab\"]}]}],\"patchCut\":true}"); // JSON.stringify(keptPatch([{"path":"a","movedTo":"c","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-ab"]}]},{"path":"b","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-zz"]}]}], 3))
-        assert_eq!(js(&wsp_words::tool_result::kept_patch(&[fp(json!({"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["+😀"]}]}))], 2)), "{\"patch\":[],\"patchCut\":true}"); // JSON.stringify(keptPatch([{"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["+😀"]}]}], 2))
+        assert_eq!(
+            js(&wsp_words::tool_result::kept_patch(
+                &[fp(json!({"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-ab","+cd"]}]}))],
+                1
+            )),
+            "{\"patch\":[],\"patchCut\":true}"
+        ); // JSON.stringify(keptPatch([{"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-ab","+cd"]}]}], 1))
+        assert_eq!(js(&wsp_words::tool_result::kept_patch(&[fp(json!({"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-ab"]}],"movedTo":"c"})), fp(json!({"path":"b","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-zz"]}]}))], 3)), "{\"patch\":[{\"path\":\"a\",\"hunks\":[{\"oldStart\":1,\"oldLines\":1,\"newStart\":1,\"newLines\":1,\"lines\":[\"-ab\"]}],\"movedTo\":\"c\"}],\"patchCut\":true}"); // JSON.stringify(keptPatch([{"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-ab"]}],"movedTo":"c"},{"path":"b","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-zz"]}]}], 3))
+        assert_eq!(
+            js(&wsp_words::tool_result::kept_patch(
+                &[fp(json!({"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["+😀"]}]}))],
+                2
+            )),
+            "{\"patch\":[],\"patchCut\":true}"
+        ); // JSON.stringify(keptPatch([{"path":"a","hunks":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["+😀"]}]}], 2))
     }
 
     #[test]
     fn oom_and_shell_startup_lines() {
-        assert_eq!(wsp_words::oom::work_score_line(None), "{ echo 500 > /proc/self/oom_score_adj; } 2>/dev/null; renice 0 $$ >/dev/null 2>&1"); // workScoreLine()
-        assert_eq!(wsp_words::oom::work_score_line(Some(-5.0)), "{ echo -5 > /proc/self/oom_score_adj; } 2>/dev/null; renice 0 $$ >/dev/null 2>&1"); // workScoreLine(-5)
+        assert_eq!(
+            wsp_words::oom::work_score_line(None),
+            "{ echo 500 > /proc/self/oom_score_adj; } 2>/dev/null; renice 0 $$ >/dev/null 2>&1"
+        ); // workScoreLine()
+        assert_eq!(
+            wsp_words::oom::work_score_line(Some(-5.0)),
+            "{ echo -5 > /proc/self/oom_score_adj; } 2>/dev/null; renice 0 $$ >/dev/null 2>&1"
+        ); // workScoreLine(-5)
         assert_eq!({ let a = wsp_words::oom::work_argv("/bin/claude", &["-p", "a b"]); js(&json!({ "file": a.file, "args": a.args })) }, "{\"file\":\"/bin/sh\",\"args\":[\"-c\",\"{ echo 500 > /proc/self/oom_score_adj; } 2>/dev/null; renice 0 $$ >/dev/null 2>&1; exec \\\"$0\\\" \\\"$@\\\"\",\"/bin/claude\",\"-p\",\"a b\"]}"); // JSON.stringify(workArgv("/bin/claude", ["-p", "a b"]))
-        assert_eq!({ let v = wsp_words::thread_shell::thread_shell_vars("/t/bin"); js(&json!({ "ZDOTDIR": v.zdotdir, "BASH_ENV": v.bash_env })) }, "{\"ZDOTDIR\":\"/t/bin\",\"BASH_ENV\":\"/t/bin/.bash_env\"}"); // JSON.stringify(threadShellVars("/t/bin"))
+        assert_eq!(
+            {
+                let v = wsp_words::thread_shell::thread_shell_vars("/t/bin");
+                js(&json!({ "ZDOTDIR": v.zdotdir, "BASH_ENV": v.bash_env }))
+            },
+            "{\"ZDOTDIR\":\"/t/bin\",\"BASH_ENV\":\"/t/bin/.bash_env\"}"
+        ); // JSON.stringify(threadShellVars("/t/bin"))
         assert_eq!(js(&wsp_words::thread_shell::thread_shell_files("/t/my bin", &env(&[]))), "[[\".zshenv\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/my bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zshenv\\\" ]] && source \\\"$ZDOTDIR/.zshenv\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/my bin'\\n[[ :$PATH: == ':/t/my bin:'* ]] || PATH='/t/my bin':$PATH\\n\"],[\".zprofile\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/my bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zprofile\\\" ]] && source \\\"$ZDOTDIR/.zprofile\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/my bin'\\n[[ :$PATH: == ':/t/my bin:'* ]] || PATH='/t/my bin':$PATH\\n\"],[\".zshrc\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/my bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zshrc\\\" ]] && source \\\"$ZDOTDIR/.zshrc\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/my bin'\\n[[ :$PATH: == ':/t/my bin:'* ]] || PATH='/t/my bin':$PATH\\n\"],[\".zlogin\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/my bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zlogin\\\" ]] && source \\\"$ZDOTDIR/.zlogin\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/my bin'\\n[[ :$PATH: == ':/t/my bin:'* ]] || PATH='/t/my bin':$PATH\\n\"],[\".bash_env\",\"case :$PATH: in ':/t/my bin:'*) ;; *) PATH='/t/my bin':$PATH ;; esac\\n\"]]"); // JSON.stringify(threadShellFiles("/t/my bin"))
         assert_eq!(js(&wsp_words::thread_shell::thread_shell_files("/t/bin", &env(&[("ZDOTDIR", "/home/u/.z"), ("BASH_ENV", "/home/u/.benv")]))), "[[\".zshenv\",\"ZDOTDIR=${_wsp_zdotdir:-'/home/u/.z'}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zshenv\\\" ]] && source \\\"$ZDOTDIR/.zshenv\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".zprofile\",\"ZDOTDIR=${_wsp_zdotdir:-'/home/u/.z'}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zprofile\\\" ]] && source \\\"$ZDOTDIR/.zprofile\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".zshrc\",\"ZDOTDIR=${_wsp_zdotdir:-'/home/u/.z'}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zshrc\\\" ]] && source \\\"$ZDOTDIR/.zshrc\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".zlogin\",\"ZDOTDIR=${_wsp_zdotdir:-'/home/u/.z'}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zlogin\\\" ]] && source \\\"$ZDOTDIR/.zlogin\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".bash_env\",\"[ -r '/home/u/.benv' ] && ! [ '/home/u/.benv' -ef '/t/bin/.bash_env' ] && . '/home/u/.benv'\\ncase :$PATH: in ':/t/bin:'*) ;; *) PATH='/t/bin':$PATH ;; esac\\n\"]]"); // JSON.stringify(threadShellFiles("/t/bin", {ZDOTDIR:"/home/u/.z", BASH_ENV:"/home/u/.benv"}))
-        assert_eq!(js(&wsp_words::thread_shell::thread_shell_files("/t/bin", &env(&[("ZDOTDIR", ""), ("BASH_ENV", "")]))), "[[\".zshenv\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zshenv\\\" ]] && source \\\"$ZDOTDIR/.zshenv\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".zprofile\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zprofile\\\" ]] && source \\\"$ZDOTDIR/.zprofile\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".zshrc\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zshrc\\\" ]] && source \\\"$ZDOTDIR/.zshrc\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".zlogin\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zlogin\\\" ]] && source \\\"$ZDOTDIR/.zlogin\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".bash_env\",\"case :$PATH: in ':/t/bin:'*) ;; *) PATH='/t/bin':$PATH ;; esac\\n\"]]"); // JSON.stringify(threadShellFiles("/t/bin", {ZDOTDIR:"", BASH_ENV:""}))
+        assert_eq!(js(&wsp_words::thread_shell::thread_shell_files("/t/bin", &env(&[("ZDOTDIR", ""), ("BASH_ENV", "")]))), "[[\".zshenv\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zshenv\\\" ]] && source \\\"$ZDOTDIR/.zshenv\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".zprofile\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zprofile\\\" ]] && source \\\"$ZDOTDIR/.zprofile\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".zshrc\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zshrc\\\" ]] && source \\\"$ZDOTDIR/.zshrc\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".zlogin\",\"ZDOTDIR=${_wsp_zdotdir:-$HOME}\\n[[ $ZDOTDIR -ef '/t/bin' ]] && ZDOTDIR=$HOME\\n_wsp_zdotdir=\\n[[ -r \\\"$ZDOTDIR/.zlogin\\\" ]] && source \\\"$ZDOTDIR/.zlogin\\\"\\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\\nZDOTDIR='/t/bin'\\n[[ :$PATH: == ':/t/bin:'* ]] || PATH='/t/bin':$PATH\\n\"],[\".bash_env\",\"case :$PATH: in ':/t/bin:'*) ;; *) PATH='/t/bin':$PATH ;; esac\\n\"]]");
+        // JSON.stringify(threadShellFiles("/t/bin", {ZDOTDIR:"", BASH_ENV:""}))
     }
 
     #[test]
@@ -668,14 +739,22 @@ mod pinned {
         assert_eq!(wsp_words::thread_cgroup::thread_cgroup("\u{e9}\u{1f600}"), "/wsp-threads/___"); // threadCgroup("é😀")
         assert_eq!(wsp_words::thread_cgroup::cgroup_join_line("/wsp-threads/t1"), "[ -f /sys/fs/cgroup/cgroup.controllers ] && mkdir -p '/sys/fs/cgroup/wsp-threads/t1' 2>/dev/null && { echo '+memory +pids' > '/sys/fs/cgroup/wsp-threads'/cgroup.subtree_control; echo $$ > '/sys/fs/cgroup/wsp-threads/t1'/cgroup.procs; } 2>/dev/null; true"); // cgroupJoinLine("/wsp-threads/t1")
         assert_eq!(wsp_words::thread_cgroup::cgroup_end_script("/wsp-threads/it's", false), "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\nwsp_end '/wsp-threads/it'\\''s' 0"); // cgroupEndScript("/wsp-threads/it's")
-        assert_eq!(wsp_words::thread_cgroup::cgroup_end_script("/wsp-threads/t1", true).lines().last().unwrap().to_string(), "wsp_end '/wsp-threads/t1' 1"); // cgroupEndScript("/wsp-threads/t1", {remove:true}).split("\n").at(-1)
+        assert_eq!(
+            wsp_words::thread_cgroup::cgroup_end_script("/wsp-threads/t1", true).lines().last().unwrap().to_string(),
+            "wsp_end '/wsp-threads/t1' 1"
+        ); // cgroupEndScript("/wsp-threads/t1", {remove:true}).split("\n").at(-1)
         assert_eq!(wsp_words::thread_cgroup::thread_cgroups_end_script(None), "wsp_end() {\n  C=$1; at=\"/sys/fs/cgroup$1\"\n  [ -d \"$at\" ] || return 0\n  mine() { g=$(sed -n 's/^0:://p' /proc/$1/cgroup 2>/dev/null); case \"$g\" in \"$C\"|\"$C\"/*) ;; *) return 1 ;; esac; s=$(sed 's/.*) //' /proc/$1/stat 2>/dev/null); [ -n \"$s\" ] && [ \"${s%% *}\" != Z ]; }\n  left() { L=; for p in $P; do mine \"$p\" && L=\"$L $p\"; done; P=$L; }\n  P=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null)\n  [ -n \"$P\" ] && kill -TERM $P 2>/dev/null\n  i=0; left; while [ $i -lt 30 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -n \"$P\" ] && kill -KILL $P 2>/dev/null\n  i=0; left; while [ $i -lt 10 ] && [ -n \"$P\" ]; do sleep 0.1; i=$((i+1)); left; done\n  [ -z \"$P\" ] || { echo \"processes$P of $C did not end\" >&2; return 1; }\n  [ \"$2\" = 1 ] || return 0\n  echo 1 > \"$at/cgroup.kill\" 2>/dev/null || { Q=$(find \"$at\" -name cgroup.procs -exec cat {} + 2>/dev/null); [ -n \"$Q\" ] && kill -KILL $Q 2>/dev/null; }\n  i=0; while [ $i -lt 30 ] && [ -d \"$at\" ]; do find \"$at\" -depth -type d -exec rmdir {} + 2>/dev/null; [ -d \"$at\" ] && sleep 0.1; i=$((i+1)); done\n  [ -d \"$at\" ] && { echo \"$C still holds processes\" >&2; return 1; }\n  return 0\n}\n[ -d '/sys/fs/cgroup/wsp-threads' ] || exit 0\nfor d in '/sys/fs/cgroup/wsp-threads'/*/; do [ -d \"$d\" ] || continue; t=$(basename \"$d\"); wsp_end '/wsp-threads'/\"$t\" 1 && echo '/sys/fs/cgroup/wsp-threads'/\"$t\"; done\nrmdir '/sys/fs/cgroup/wsp-threads' 2>/dev/null\nexit 0"); // threadCgroupsEndScript()
-        assert_eq!({ let s = wsp_words::thread_cgroup::thread_cgroups_end_script(Some("/x y")); let l: Vec<&str> = s.lines().collect(); l[l.len() - 4..].join("\n") }, "[ -d '/sys/fs/cgroup/x y' ] || exit 0\nfor d in '/sys/fs/cgroup/x y'/*/; do [ -d \"$d\" ] || continue; t=$(basename \"$d\"); wsp_end '/x y'/\"$t\" 1 && echo '/sys/fs/cgroup/x y'/\"$t\"; done\nrmdir '/sys/fs/cgroup/x y' 2>/dev/null\nexit 0"); // threadCgroupsEndScript("/x y").split("\n").slice(-4).join("\n")
+        assert_eq!({ let s = wsp_words::thread_cgroup::thread_cgroups_end_script(Some("/x y")); let l: Vec<&str> = s.lines().collect(); l[l.len() - 4..].join("\n") }, "[ -d '/sys/fs/cgroup/x y' ] || exit 0\nfor d in '/sys/fs/cgroup/x y'/*/; do [ -d \"$d\" ] || continue; t=$(basename \"$d\"); wsp_end '/x y'/\"$t\" 1 && echo '/sys/fs/cgroup/x y'/\"$t\"; done\nrmdir '/sys/fs/cgroup/x y' 2>/dev/null\nexit 0");
+        // threadCgroupsEndScript("/x y").split("\n").slice(-4).join("\n")
     }
 
     #[test]
     fn the_docker_shim_quotes_its_two_paths() {
-        assert_eq!(wsp_words::docker_shim::docker_shim("/opt/my bin/docker", "/n's").lines().take(3).collect::<Vec<_>>().join("\n"), "#!/bin/sh\nbin='/opt/my bin/docker'\nnotes='/n'\\''s'"); // dockerShim("/opt/my bin/docker", "/n's").split("\n").slice(0, 3).join("\n")
-        assert_eq!(wsp_words::js::utf16::len(&wsp_words::docker_shim::docker_shim("/b", "/n")) as f64, 3180.0); // dockerShim("/b", "/n").length
+        assert_eq!(
+            wsp_words::docker_shim::docker_shim("/opt/my bin/docker", "/n's").lines().take(3).collect::<Vec<_>>().join("\n"),
+            "#!/bin/sh\nbin='/opt/my bin/docker'\nnotes='/n'\\''s'"
+        ); // dockerShim("/opt/my bin/docker", "/n's").split("\n").slice(0, 3).join("\n")
+        assert_eq!(wsp_words::js::utf16::len(&wsp_words::docker_shim::docker_shim("/b", "/n")) as f64, 3180.0);
+        // dockerShim("/b", "/n").length
     }
 }

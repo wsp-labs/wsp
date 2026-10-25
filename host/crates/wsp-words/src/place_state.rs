@@ -4,18 +4,23 @@
 //! slot is told. Port of the functions of packages/protocol/src/place-state.ts at a3b870a6e; its constants are
 //! wsp_wire::types::place_state. See spec/place_state.md.
 
-use wsp_wire::views::place::PlaceCap;
-use wsp_wire::views::place::PlaceCapSet;
+use wsp_wire::types::js_number::{JsInt, JsNumber};
+use wsp_wire::types::place_state::{CAP_RAISE_ACT, CLOUD_CAP_DEFAULT, DELETE_AFTER_MS, THREAD_MEM_MB, TURN_WALL_MS};
+use wsp_wire::types::place_word::HERE_PLACE_ID;
+use wsp_wire::views::place::{CloudCap, ComputerCap, PlaceCap, PlaceCapSet, PlaceSettingWord, PlaceSettings, PlaceSettingsAsk, PlaceView};
 use wsp_wire::views::place_kind::PlaceKind;
-use wsp_wire::views::place::PlaceSettingWord;
-use wsp_wire::views::place::PlaceSettings;
-use wsp_wire::views::place::PlaceSettingsAsk;
-use wsp_wire::views::place::PlaceView;
-use wsp_wire::views::session_events::SessionUncappedEvent;
-use wsp_wire::views::session::ThreadCapWait;
-use wsp_wire::views::session::ThreadView;
+use wsp_wire::views::session::{SessionStatus, ThreadCapWait, ThreadCapWaitWhy, ThreadView};
+use wsp_wire::views::session_events_more::{SessionUncappedEvent, SessionUncappedEventWhy};
+use wsp_wire::views::workspace::{WorkspacePhase, WorkspaceView};
 use wsp_wire::wire::capabilities::WorkspaceSize;
-use wsp_wire::views::workspace::WorkspaceView;
+
+use crate::js::{js_round, number_string};
+use crate::place_word::{place_said, PlaceRef};
+use crate::words::base::plural;
+use crate::words::computer::{agents_line, AgentsSwitch, SPEND_LIMIT_LINE};
+use crate::words::thread::{fmt_limit, refusal_line};
+use crate::words::units::{fmt_cost, fmt_duration, fmt_size, size_offer, size_refusal, size_word, SIZE_PICK_FIX};
+use crate::workspace_state::{is_local_workspace, workspace_state, WorkspaceState, WorkspaceStateInput};
 
 /// Which computer a workspace stands on, by place id: a workspace forked on a joined computer carries that
 /// computer's id on its record. Undefined for everything on this computer or at a provider. Written once because
@@ -26,7 +31,7 @@ use wsp_wire::views::workspace::WorkspaceView;
 //   return view.place;
 // }
 pub fn workspace_place(view: &WorkspaceView) -> Option<String> {
-    todo!()
+    view.place.clone()
 }
 
 /// Which row of the places list a workspace stands on, by id: the computer its record names, this computer for a
@@ -47,7 +52,17 @@ pub fn workspace_place(view: &WorkspaceView) -> Option<String> {
 //   return view.provider === undefined ? providers[0]?.id : providers.find(p => p.id === view.provider)?.id;
 // }
 pub fn workspace_place_id(view: &WorkspaceView, places: &[PlaceView]) -> Option<String> {
-    todo!()
+    if let Some(named) = workspace_place(view) {
+        return places.iter().find(|place| place.id == named).map(|place| place.id.clone());
+    }
+    if is_local_workspace(view.kind.as_ref()) {
+        return places.iter().find(|place| place.id == HERE_PLACE_ID).or(places.first()).map(|place| place.id.clone());
+    }
+    let providers: Vec<&PlaceView> = places.iter().filter(|place| matches!(place.kind, PlaceKind::Provider)).collect();
+    match &view.provider {
+        None => providers.first().map(|place| place.id.clone()),
+        Some(provider) => providers.iter().find(|place| place.id == *provider).map(|place| place.id.clone()),
+    }
 }
 
 // place-state.ts:40
@@ -58,27 +73,28 @@ pub fn workspace_place_id(view: &WorkspaceView, places: &[PlaceView]) -> Option<
 // place-state.ts:44
 // export const threadsAtOnce = (s: WorkspaceSize): number => Math.max(1, Math.min(2 * Math.floor(s.cpu), Math.round(s.memMb / THREAD_MEM_MB)));
 pub fn threads_at_once(s: &WorkspaceSize) -> f64 {
-    todo!()
+    let by_memory = js_round(s.mem_mb.0 / THREAD_MEM_MB as f64);
+    (2.0 * s.cpu.0.floor()).min(by_memory).max(1.0)
 }
 
 // place-state.ts:46
 // export const CLOUD_CAP_DEFAULT: CloudCap = { machines: 3, spendPerDayUsd: 10 };
 // in wsp_wire::types::place_state: CLOUD_CAP_DEFAULT
 
-/// What a workspace's switch reads as when neither it nor its place sets one, and what it takes when a person names
-/// no numbers. Three machines is what one root thread's builders need and few enough that a runaway is a bill a
-/// person notices, and two levels let a lead hand work to a sub-lead; threads at once and the machines cap bound cost.
+// What a workspace's switch reads as when neither it nor its place sets one, and what it takes when a person names
+// no numbers. Three machines is what one root thread's builders need and few enough that a runaway is a bill a
+// person notices, and two levels let a lead hand work to a sub-lead; threads at once and the machines cap bound cost.
 // place-state.ts:51
 // export const AGENTS_ON: WorkspaceAgents = { spawn: true, maxMachines: 3, maxDepth: 2 };
 // in wsp_wire::types::place_state: AGENTS_ON
 
-/// How long a quiet workspace runs before it naps until the person sets another window.
+// How long a quiet workspace runs before it naps until the person sets another window.
 // place-state.ts:54
 // export const NAP_AFTER_MS = 20 * 60_000;
 // in wsp_wire::types::place_state: NAP_AFTER_MS
 
-/// The longest nap window a person may set: the provider's own timer is set behind ours at twice the window, and
-/// six hours is the longest it has accepted.
+// The longest nap window a person may set: the provider's own timer is set behind ours at twice the window, and
+// six hours is the longest it has accepted.
 // place-state.ts:57
 // export const NAP_AFTER_MAX_MS = 3 * 60 * 60_000;
 // in wsp_wire::types::place_state: NAP_AFTER_MAX_MS
@@ -87,27 +103,31 @@ pub fn threads_at_once(s: &WorkspaceSize) -> f64 {
 // place-state.ts:60
 // export const napMsOf = (minutes: number): number | null => (minutes === 0 ? null : minutes * 60_000);
 pub fn nap_ms_of(minutes: f64) -> Option<f64> {
-    todo!()
+    if minutes == 0.0 {
+        None
+    } else {
+        Some(minutes * 60_000.0)
+    }
 }
 
-/// How long a finished sub-thread's machine stays before it is deleted until the person sets another delay.
+// How long a finished sub-thread's machine stays before it is deleted until the person sets another delay.
 // place-state.ts:63
 // export const DELETE_AFTER_MS = 30 * 60_000;
 // in wsp_wire::types::place_state: DELETE_AFTER_MS
 
-/// The longest delete delay a person may set: a day.
+// The longest delete delay a person may set: a day.
 // place-state.ts:65
 // export const DELETE_AFTER_MAX_MS = 24 * 60 * 60_000;
 // in wsp_wire::types::place_state: DELETE_AFTER_MAX_MS
 
-/// The turn limit on a cloud account until the person sets one: what a forgotten turn there can bill by the hour. A
-/// computer the person owns has none by default, since TURN_IDLE_MS already ends a stuck turn and nothing there bills.
+// The turn limit on a cloud account until the person sets one: what a forgotten turn there can bill by the hour. A
+// computer the person owns has none by default, since TURN_IDLE_MS already ends a stuck turn and nothing there bills.
 // place-state.ts:69
 // export const TURN_WALL_MS = 6 * 60 * 60_000;
 // in wsp_wire::types::place_state: TURN_WALL_MS
 
-/// The longest turn limit a person may set: past a day the number is more likely minutes typed as hours than a turn
-/// anyone means to run, and off is there for one that should never stop.
+// The longest turn limit a person may set: past a day the number is more likely minutes typed as hours than a turn
+// anyone means to run, and off is there for one that should never stop.
 // place-state.ts:73
 // export const TURN_LIMIT_MAX_MS = 24 * 60 * 60_000;
 // in wsp_wire::types::place_state: TURN_LIMIT_MAX_MS
@@ -116,7 +136,11 @@ pub fn nap_ms_of(minutes: f64) -> Option<f64> {
 // place-state.ts:76
 // export const turnLimitMsOf = (hours: number): number | null => (hours === 0 ? null : hours * 3_600_000);
 pub fn turn_limit_ms_of(hours: f64) -> Option<f64> {
-    todo!()
+    if hours == 0.0 {
+        None
+    } else {
+        Some(hours * 3_600_000.0)
+    }
 }
 
 /// What a workspace runs under for one setting: its own, else its place's, else the default. Null is a value (a nap
@@ -126,7 +150,11 @@ pub fn turn_limit_ms_of(hours: f64) -> Option<f64> {
 //   return own !== undefined ? own : placed !== undefined ? placed : fallback;
 // }
 pub fn setting_for<T: Clone>(own: Option<&T>, placed: Option<&T>, fallback: &T) -> T {
-    todo!()
+    match (own, placed) {
+        (Some(own), _) => own.clone(),
+        (None, Some(placed)) => placed.clone(),
+        (None, None) => fallback.clone(),
+    }
 }
 
 /// Whether a machine in this phase holds one of its cloud's slots: a napping machine holds none, a gone or released
@@ -138,7 +166,11 @@ pub fn setting_for<T: Clone>(own: Option<&T>, placed: Option<&T>, fallback: &T) 
 //   return state !== "paused" && state !== "gone" && state !== "released" && !(w.phase === "queued" && w.queue !== undefined);
 // };
 pub fn phase_holds_slot(w: &WorkspaceView) -> bool {
-    todo!()
+    let state = workspace_state(&WorkspaceStateInput { phase: w.phase, machine_state: None, reach: None, wake_refused: None });
+    state != WorkspaceState::Paused
+        && state != WorkspaceState::Gone
+        && state != WorkspaceState::Released
+        && !(w.phase == WorkspacePhase::Queued && w.queue.is_some())
 }
 
 /// What the count reads of a workspace and of a thread.
@@ -152,12 +184,12 @@ pub type PlacedWorkspace = WorkspaceView;
 /// The fields of a thread the counts read.
 pub type PlacedThread = ThreadView;
 
-/// A dollar figure a person typed, in whole dollars where it has no cents.
+// A dollar figure a person typed, in whole dollars where it has no cents.
 // place-state.ts:97
 // private in the TS: port it as a private helper
 // const dollars = (usd: number): string => (Number.isInteger(usd) ? `$${usd}` : fmtCost(usd));
 
-/// One number of a cap, off the cap that holds it.
+// One number of a cap, off the cap that holds it.
 // place-state.ts:100
 // private in the TS: port it as a private helper
 // const capNumber = (cap: PlaceCap | undefined, key: "threads" | "machines" | "spendPerDayUsd"): number | undefined =>
@@ -166,12 +198,12 @@ pub type PlacedThread = ThreadView;
 // place-state.ts:103
 // type SettingView = Pick<PlaceView, "cap" | "capDefault" | "napMs" | "napDefault" | "turnLimitMs" | "turnLimitDefault" | "spawn" | "spawnDefault" | "size" | "sizeDefault" | "deleteAfterMs">;
 
-/// What a row says a setting runs at: the whole phrase, and the figure alone that a default beside it takes.
+// What a row says a setting runs at: the whole phrase, and the figure alone that a default beside it takes.
 // place-state.ts:105
 // type SettingSaid = { long: string; short: string };
 
-/// Every setting a person can make on a place: the key it is stored under (and for a part of the agents switch, the
-/// parts of it), the words a refusal names it by, and what a row says it runs at now or by default.
+// Every setting a person can make on a place: the key it is stored under (and for a part of the agents switch, the
+// parts of it), the words a refusal names it by, and what a row says it runs at now or by default.
 // place-state.ts:109
 // private in the TS: port it as a private helper
 // const SETTINGS: Record<PlaceSettingWord, { key: keyof PlaceSettings; parts?: readonly (keyof WorkspaceAgents)[]; words: string; reads(place: SettingView, fallback: boolean): SettingSaid | undefined }> = {
@@ -254,7 +286,17 @@ pub type PlacedThread = ThreadView;
 //   return parts === undefined ? settings[key] !== undefined : parts.some(part => settings.spawn?.[part] !== undefined);
 // }
 pub fn place_setting_named(settings: &PlaceSettings, word: &PlaceSettingWord) -> bool {
-    todo!()
+    match word {
+        PlaceSettingWord::Threads => settings.threads.is_some(),
+        PlaceSettingWord::Machines => settings.machines.is_some(),
+        PlaceSettingWord::Spend => settings.spend_per_day_usd.is_some(),
+        PlaceSettingWord::Size => settings.size.is_some(),
+        PlaceSettingWord::DeleteAfter => settings.delete_after_ms.is_some(),
+        PlaceSettingWord::Nap => settings.nap_ms.is_some(),
+        PlaceSettingWord::TurnLimit => settings.turn_limit_ms.is_some(),
+        PlaceSettingWord::Spawn => settings.spawn.as_ref().is_some_and(|spawn| spawn.spawn.is_some() || spawn.max_machines.is_some()),
+        PlaceSettingWord::MaxDepth => settings.spawn.as_ref().is_some_and(|spawn| spawn.max_depth.is_some()),
+    }
 }
 
 /// Settings with one setting taken back to its default: its key dropped, or its parts of the agents switch, and the
@@ -268,7 +310,29 @@ pub fn place_setting_named(settings: &PlaceSettings, word: &PlaceSettingWord) ->
 //   return Object.keys(spawn).length === 0 ? kept : { ...kept, spawn };
 // }
 pub fn place_setting_dropped(settings: &PlaceSettings, word: &PlaceSettingWord) -> PlaceSettings {
-    todo!()
+    let mut kept = settings.clone();
+    match word {
+        PlaceSettingWord::Threads => kept.threads = None,
+        PlaceSettingWord::Machines => kept.machines = None,
+        PlaceSettingWord::Spend => kept.spend_per_day_usd = None,
+        PlaceSettingWord::Size => kept.size = None,
+        PlaceSettingWord::DeleteAfter => kept.delete_after_ms = None,
+        PlaceSettingWord::Nap => kept.nap_ms = None,
+        PlaceSettingWord::TurnLimit => kept.turn_limit_ms = None,
+        PlaceSettingWord::Spawn | PlaceSettingWord::MaxDepth => {
+            kept.spawn = settings.spawn.clone().and_then(|mut spawn| {
+                match word {
+                    PlaceSettingWord::Spawn => {
+                        spawn.spawn = None;
+                        spawn.max_machines = None;
+                    }
+                    _ => spawn.max_depth = None,
+                }
+                (spawn.spawn.is_some() || spawn.max_machines.is_some() || spawn.max_depth.is_some()).then_some(spawn)
+            });
+        }
+    }
+    kept
 }
 
 // place-state.ts:196
@@ -325,7 +389,17 @@ pub fn place_setting_dropped(settings: &PlaceSettings, word: &PlaceSettingWord) 
 // }
 /// `set` defaults to `{}`.
 pub fn place_cap_of(place: &PlaceView, set: Option<&PlaceCapSet>) -> Option<PlaceCap> {
-    todo!()
+    match place.kind {
+        PlaceKind::Computer => {
+            let threads =
+                set.and_then(|set| set.threads).or_else(|| place.shape.as_ref().map(|shape| JsInt::from(threads_at_once(shape) as i64)));
+            threads.map(|threads| PlaceCap::ComputerCap(ComputerCap { threads }))
+        }
+        PlaceKind::Provider => Some(PlaceCap::CloudCap(CloudCap {
+            machines: set.and_then(|set| set.machines).unwrap_or_else(|| JsInt::from(cloud_default("machines") as i64)),
+            spend_per_day_usd: set.and_then(|set| set.spend_per_day_usd).unwrap_or_else(|| JsNumber(cloud_default("spendPerDayUsd"))),
+        })),
+    }
 }
 
 /// How long one turn on a place of this kind runs before the runtime stops it: what the person set there, else the
@@ -336,7 +410,12 @@ pub fn place_cap_of(place: &PlaceView, set: Option<&PlaceCapSet>) -> Option<Plac
 // }
 /// None is the TS null (no limit).
 pub fn place_turn_limit(kind: &PlaceKind, settings: &PlaceSettings) -> Option<f64> {
-    todo!()
+    let fallback = match kind {
+        PlaceKind::Computer => None,
+        PlaceKind::Provider => Some(TURN_WALL_MS as f64),
+    };
+    let placed: Option<Option<f64>> = settings.turn_limit_ms.as_ref().map(|limit| limit.as_ref().map(|ms| ms.as_f64()));
+    setting_for(None, placed.as_ref(), &fallback)
 }
 
 /// Why a set is refused on this place: nothing set or reset at all, a setting its kind does not take, or one both
@@ -359,11 +438,46 @@ pub fn place_turn_limit(kind: &PlaceKind, settings: &PlaceSettings) -> Option<f6
 // }
 /// `reset` defaults to none.
 pub fn place_set_refusal(place: &PlaceView, set: &PlaceSettingsAsk, reset: &[PlaceSettingWord]) -> Option<String> {
-    todo!()
+    let takes = settings_on(place);
+    let said_place = said_place(place);
+    let said = |words: &[PlaceSettingWord]| and_list(&words.iter().map(|word| setting_words(*word).to_string()).collect::<Vec<_>>());
+    let asked = settings_of_ask(set);
+    let named: Vec<PlaceSettingWord> = SETTING_ORDER.iter().copied().filter(|word| place_setting_named(&asked, word)).collect();
+    let added: Vec<&str> = if matches!(place.kind, PlaceKind::Computer) && place.id != HERE_PLACE_ID {
+        vec!["a new name", "a new ssh login"]
+    } else {
+        Vec::new()
+    };
+    if named.is_empty() && reset.is_empty() {
+        let mut takes_words: Vec<String> = takes.iter().map(|word| setting_words(*word).to_string()).collect();
+        takes_words.extend(added.iter().map(|word| word.to_string()));
+        return Some(format!("nothing to set on {said_place}: it takes {}", and_list(&takes_words)));
+    }
+    let mut wrong: Vec<PlaceSettingWord> = Vec::new();
+    for word in named.iter().chain(reset.iter()) {
+        if !takes.contains(word) && !wrong.contains(word) {
+            wrong.push(*word);
+        }
+    }
+    if !wrong.is_empty() {
+        return Some(format!("{said_place} takes {}, not {}", said(&takes), said(&wrong)));
+    }
+    let both: Vec<PlaceSettingWord> = named.iter().copied().filter(|word| reset.contains(word)).collect();
+    if !both.is_empty() {
+        return Some(format!("{said_place}: {} is both set and reset; name it once", said(&both)));
+    }
+    if let Some(size) = &set.size {
+        let wanted = WorkspaceSize { cpu: JsNumber(size.cpu.as_f64()), mem_mb: JsNumber(size.mem_mb.as_f64()) };
+        let sizes = place.sizes.as_deref().unwrap_or(&[]);
+        if size_offer(sizes, &wanted).is_none() {
+            return Some(refusal_line(&size_refusal(&size_word(&wanted), sizes), SIZE_PICK_FIX));
+        }
+    }
+    None
 }
 
-/// The settings a place takes: its kind's, less the nap on a place that forks nothing, whose workspaces are
-/// folders on the computer itself and never nap.
+// The settings a place takes: its kind's, less the nap on a place that forks nothing, whose workspaces are
+// folders on the computer itself and never nap.
 // place-state.ts:271
 // private in the TS: port it as a private helper
 // function settingsOn(place: Pick<PlaceView, "kind" | "takesForks" | "sizes">): readonly PlaceSettingWord[] {
@@ -379,7 +493,13 @@ pub fn place_set_refusal(place: &PlaceView, set: &PlaceSettingsAsk, reset: &[Pla
 //   return word !== "size" || (place.sizes ?? []).length > 0;
 // }
 pub fn place_takes(place: &PlaceView, word: &PlaceSettingWord) -> bool {
-    todo!()
+    if !kind_keys(&place.kind).contains(word) {
+        return false;
+    }
+    if *word == PlaceSettingWord::Nap {
+        return place.takes_forks == Some(true);
+    }
+    *word != PlaceSettingWord::Size || place.sizes.as_ref().is_some_and(|sizes| !sizes.is_empty())
 }
 
 // place-state.ts:283
@@ -401,7 +521,21 @@ pub fn place_takes(place: &PlaceView, word: &PlaceSettingWord) -> bool {
 //   return `${placeSaid(place)}: ${parts.join(", ")}`;
 // }
 pub fn place_settings_line(place: &PlaceView) -> String {
-    todo!()
+    let mut parts: Vec<String> = Vec::new();
+    for word in settings_on(place) {
+        let Some(now) = reads(place, &word, false) else {
+            continue;
+        };
+        if !place.settings.as_ref().is_some_and(|settings| place_setting_named(settings, &word)) {
+            parts.push(format!("{} (the default)", now.long));
+            continue;
+        }
+        match reads(place, &word, true) {
+            None => parts.push(now.long),
+            Some(fallback) => parts.push(format!("{} ({} by default)", now.long, fallback.short)),
+        }
+    }
+    format!("{}: {}", said_place(place), parts.join(", "))
 }
 
 /// How many of what a place's cap counts run there now: threads whose latest turn is running on a workspace that
@@ -416,7 +550,18 @@ pub fn place_settings_line(place: &PlaceView) -> String {
 //   );
 // }
 pub fn running_on(place_id: &str, places: &[PlaceView], workspaces: &[PlacedWorkspace], threads: &[PlacedThread]) -> usize {
-    todo!()
+    let Some(place) = places.iter().find(|place| place.id == place_id) else {
+        return 0;
+    };
+    let on: Vec<&WorkspaceView> =
+        workspaces.iter().filter(|workspace| workspace_place_id(workspace, places).as_deref() == Some(place_id)).collect();
+    match place.kind {
+        PlaceKind::Computer => threads
+            .iter()
+            .filter(|thread| thread.status == SessionStatus::Running && on.iter().any(|workspace| workspace.id == thread.workspace_id))
+            .count(),
+        PlaceKind::Provider => on.iter().filter(|workspace| phase_holds_slot(workspace)).count(),
+    }
 }
 
 /// What runs on a place against its cap, and how many more it takes under it. Nothing for a place with no cap.
@@ -442,7 +587,13 @@ pub struct PlaceRoom {
 }
 
 pub fn place_room(place: &PlaceView) -> Option<PlaceRoom> {
-    todo!()
+    let cap = place.cap.as_ref()?;
+    let running = place.running.map_or(0.0, |running| running.as_f64());
+    let (at_once, noun) = match place.kind {
+        PlaceKind::Computer => (cap_number(Some(cap), "threads").unwrap_or(0.0), "thread"),
+        PlaceKind::Provider => (cap_number(Some(cap), "machines").unwrap_or(0.0), "machine"),
+    };
+    Some(PlaceRoom { running, at_once, room: (at_once - running).max(0.0), noun: noun.to_string() })
 }
 
 /// The sentence a full place says: the person's number reached, else a computer that has no room for one more
@@ -454,7 +605,16 @@ pub fn place_room(place: &PlaceView) -> Option<PlaceRoom> {
 //   return place.forks?.room === 0 ? `no room on ${place.name}` : undefined;
 // }
 pub fn place_full_line(place: &PlaceView) -> Option<String> {
-    todo!()
+    if let Some(room) = place_room(place) {
+        if room.running >= room.at_once {
+            return Some(format!("full: {} of {} running", number_string(room.running), plural(room.at_once, &room.noun)));
+        }
+    }
+    if place.forks.as_ref().is_some_and(|forks| forks.room.as_f64() == 0.0) {
+        Some(format!("no room on {}", place.name))
+    } else {
+        None
+    }
 }
 
 /// What holds a turn back while its computer's threads at once is met: the computer and what runs there against its
@@ -463,7 +623,15 @@ pub fn place_full_line(place: &PlaceView) -> Option<String> {
 // export const capRunningLine = (w: ThreadCapWait): string =>
 //   w.why === "minute" ? `${w.place}'s starts this minute are used: ${w.running} of ${w.atOnce}` : `${w.place} is running ${w.running} of ${plural(w.atOnce, w.why === "slot" ? "machine" : "thread")}`;
 pub fn cap_running_line(w: &ThreadCapWait) -> String {
-    todo!()
+    let running = number_string(w.running.as_f64());
+    let at_once = number_string(w.at_once.as_f64());
+    match w.why {
+        Some(ThreadCapWaitWhy::Minute) => format!("{}'s starts this minute are used: {running} of {at_once}", w.place),
+        why => {
+            let noun = if why == Some(ThreadCapWaitWhy::Slot) { "machine" } else { "thread" };
+            format!("{} is running {running} of {}", w.place, plural(w.at_once.as_f64(), noun))
+        }
+    }
 }
 
 /// The line a held turn says where nothing beside it says it waits: the chat's working row and the command line. A
@@ -472,7 +640,13 @@ pub fn cap_running_line(w: &ThreadCapWait) -> String {
 // export const capWaitLine = (w: ThreadCapWait): string =>
 //   w.why === "slot" ? `waiting for a machine on ${w.place}: ${w.running} of ${w.atOnce} running` : w.why === "minute" ? `waiting for ${w.place}'s next minute of starts: ${w.running} of ${w.atOnce} used` : `waiting while ${capRunningLine(w)}`;
 pub fn cap_wait_line(w: &ThreadCapWait) -> String {
-    todo!()
+    let running = number_string(w.running.as_f64());
+    let at_once = number_string(w.at_once.as_f64());
+    match w.why {
+        Some(ThreadCapWaitWhy::Slot) => format!("waiting for a machine on {}: {running} of {at_once} running", w.place),
+        Some(ThreadCapWaitWhy::Minute) => format!("waiting for {}'s next minute of starts: {running} of {at_once} used", w.place),
+        None => format!("waiting while {}", cap_running_line(w)),
+    }
 }
 
 /// The bar a held thread's drawer row opens in its composer's place: the computer it waits on as the title, what runs
@@ -490,7 +664,16 @@ pub struct CapBarWords {
 }
 
 pub fn cap_bar_words(w: &ThreadCapWait) -> CapBarWords {
-    todo!()
+    let running = w.running.as_f64();
+    CapBarWords {
+        title: format!("Waiting for a thread slot on {}", w.place),
+        note: format!(
+            "{} of {} {} running. It starts on its own when one ends.",
+            number_string(running),
+            plural(w.at_once.as_f64(), "thread"),
+            if running == 1.0 { "is" } else { "are" }
+        ),
+    }
 }
 
 /// Why a held turn left its wait, as the command line's one line before its start.
@@ -498,7 +681,11 @@ pub fn cap_bar_words(w: &ThreadCapWait) -> CapBarWords {
 // export const capStartedLine = (e: Pick<SessionUncappedEvent, "why" | "atOnce">): string =>
 //   e.why === "raised" ? `started: threads raised to ${e.atOnce}` : e.why === "lent" ? "started: a thread waiting on it lent its slot" : "started: a thread slot freed";
 pub fn cap_started_line(e: &SessionUncappedEvent) -> String {
-    todo!()
+    match e.why {
+        SessionUncappedEventWhy::Raised => format!("started: threads raised to {}", number_string(e.at_once.as_f64())),
+        SessionUncappedEventWhy::Lent => "started: a thread waiting on it lent its slot".to_string(),
+        SessionUncappedEventWhy::Freed => "started: a thread slot freed".to_string(),
+    }
 }
 
 /// Why a held turn ended with nothing started: the person or its lead stopped it while it waited, or before it had
@@ -507,14 +694,22 @@ pub fn cap_started_line(e: &SessionUncappedEvent) -> String {
 // export const capStoppedLine = (w: ThreadCapWait | undefined): string =>
 //   w === undefined ? "stopped before it started" : `stopped before it started, while ${w.place} was running ${w.running} of ${plural(w.atOnce, "thread")}`;
 pub fn cap_stopped_line(w: Option<&ThreadCapWait>) -> String {
-    todo!()
+    match w {
+        None => "stopped before it started".to_string(),
+        Some(w) => format!(
+            "stopped before it started, while {} was running {} of {}",
+            w.place,
+            number_string(w.running.as_f64()),
+            plural(w.at_once.as_f64(), "thread")
+        ),
+    }
 }
 
 /// Why a start ended with nothing started: its workspace was deleted while the start was on its way, held or not.
 // place-state.ts:354
 // export const deletedBeforeStartLine = (name: string): string => `${name} was deleted before this turn started`;
 pub fn deleted_before_start_line(name: &str) -> String {
-    todo!()
+    format!("{name} was deleted before this turn started")
 }
 
 /// Why a held turn ended with nothing started: the host restarted while it waited, and a held start lives in the
@@ -522,7 +717,7 @@ pub fn deleted_before_start_line(name: &str) -> String {
 // place-state.ts:358
 // export const capRestartedLine = (place: string): string => `the host restarted while this turn waited for a slot on ${place}; nothing started, so send it again`;
 pub fn cap_restarted_line(place: &str) -> String {
-    todo!()
+    format!("the host restarted while this turn waited for a slot on {place}; nothing started, so send it again")
 }
 
 // place-state.ts:361
@@ -533,7 +728,11 @@ pub fn cap_restarted_line(place: &str) -> String {
 // place-state.ts:365
 // export const capRaiseAct = (w: ThreadCapWait): string | undefined => (w.why === undefined ? CAP_RAISE_ACT : w.why === "slot" ? "Raise machines at once" : undefined);
 pub fn cap_raise_act(w: &ThreadCapWait) -> Option<String> {
-    todo!()
+    match w.why {
+        None => Some(CAP_RAISE_ACT.to_string()),
+        Some(ThreadCapWaitWhy::Slot) => Some("Raise machines at once".to_string()),
+        Some(ThreadCapWaitWhy::Minute) => None,
+    }
 }
 
 // place-state.ts:368
@@ -545,7 +744,11 @@ pub fn cap_raise_act(w: &ThreadCapWait) -> Option<String> {
 //   return place.cap === undefined ? undefined : PLACE_CAPS[place.kind].spendLimit(place.cap);
 // }
 pub fn place_spend_limit(place: &PlaceView) -> Option<f64> {
-    todo!()
+    let cap = place.cap.as_ref()?;
+    match place.kind {
+        PlaceKind::Computer => None,
+        PlaceKind::Provider => cap_number(Some(cap), "spendPerDayUsd"),
+    }
 }
 
 /// The sentence a cloud at its day's spend says. Nothing without a spend figure, which is never guessed.
@@ -555,6 +758,170 @@ pub fn place_spend_limit(place: &PlaceView) -> Option<f64> {
 //   return limit !== undefined && spentTodayUsd !== undefined && spentTodayUsd >= limit ? SPEND_LIMIT_LINE : undefined;
 // }
 pub fn place_at_limit_line(place: &PlaceView, spent_today_usd: Option<f64>) -> Option<String> {
-    todo!()
+    let limit = place_spend_limit(place)?;
+    let spent = spent_today_usd?;
+    (spent >= limit).then(|| SPEND_LIMIT_LINE.to_string())
+}
+const SETTING_ORDER: [PlaceSettingWord; 9] = [
+    PlaceSettingWord::Threads,
+    PlaceSettingWord::Machines,
+    PlaceSettingWord::Spend,
+    PlaceSettingWord::Size,
+    PlaceSettingWord::DeleteAfter,
+    PlaceSettingWord::Nap,
+    PlaceSettingWord::TurnLimit,
+    PlaceSettingWord::Spawn,
+    PlaceSettingWord::MaxDepth,
+];
+
+struct SettingSaid {
+    long: String,
+    short: String,
 }
 
+fn kind_keys(kind: &PlaceKind) -> &'static [PlaceSettingWord] {
+    use PlaceSettingWord::*;
+    match kind {
+        PlaceKind::Computer => &[Threads, Nap, TurnLimit, Spawn, MaxDepth],
+        PlaceKind::Provider => &[Machines, Spend, Size, DeleteAfter, Nap, TurnLimit, Spawn, MaxDepth],
+    }
+}
+
+fn settings_on(place: &PlaceView) -> Vec<PlaceSettingWord> {
+    kind_keys(&place.kind).iter().copied().filter(|word| place_takes(place, word)).collect()
+}
+
+fn setting_words(word: PlaceSettingWord) -> &'static str {
+    match word {
+        PlaceSettingWord::Threads => "threads at once",
+        PlaceSettingWord::Machines => "machines at once",
+        PlaceSettingWord::Spend => "spend per day",
+        PlaceSettingWord::Size => "size",
+        PlaceSettingWord::DeleteAfter => "delete after",
+        PlaceSettingWord::Nap => "nap after",
+        PlaceSettingWord::TurnLimit => "turn limit",
+        PlaceSettingWord::Spawn => "agents may start agents",
+        PlaceSettingWord::MaxDepth => "levels deep",
+    }
+}
+
+fn and_list(words: &[String]) -> String {
+    match words.split_last() {
+        Some((last, rest)) if !rest.is_empty() => format!("{} and {last}", rest.join(", ")),
+        _ => words.join(""),
+    }
+}
+
+fn said_place(place: &PlaceView) -> String {
+    place_said(&PlaceRef { id: place.id.clone(), name: place.name.clone(), kind: Some(wire_word(&place.kind)) })
+}
+
+fn wire_word<T: serde::Serialize>(value: &T) -> String {
+    serde_json::to_value(value).ok().and_then(|word| word.as_str().map(str::to_string)).unwrap_or_default()
+}
+
+fn cloud_default(key: &str) -> f64 {
+    CLOUD_CAP_DEFAULT.iter().find(|(name, _)| *name == key).map(|(_, value)| *value).unwrap_or_default()
+}
+
+fn cap_number(cap: Option<&PlaceCap>, key: &str) -> Option<f64> {
+    match (cap?, key) {
+        (PlaceCap::ComputerCap(cap), "threads") => Some(cap.threads.as_f64()),
+        (PlaceCap::CloudCap(cap), "machines") => Some(cap.machines.as_f64()),
+        (PlaceCap::CloudCap(cap), "spendPerDayUsd") => Some(cap.spend_per_day_usd.0),
+        _ => None,
+    }
+}
+
+fn dollars(usd: f64) -> String {
+    if usd.fract() == 0.0 {
+        format!("${}", number_string(usd))
+    } else {
+        fmt_cost(usd)
+    }
+}
+
+fn at_once(n: Option<f64>, noun: &str) -> Option<SettingSaid> {
+    let n = n?;
+    Some(SettingSaid { long: format!("{} at once", plural(n, noun)), short: number_string(n) })
+}
+
+fn workspace_size(cpu: JsInt, mem_mb: JsInt) -> WorkspaceSize {
+    WorkspaceSize { cpu: cpu.0, mem_mb: mem_mb.0 }
+}
+
+fn reads(place: &PlaceView, word: &PlaceSettingWord, fallback: bool) -> Option<SettingSaid> {
+    let cap = if fallback { place.cap_default.as_ref() } else { place.cap.as_ref() };
+    match word {
+        PlaceSettingWord::Threads => at_once(cap_number(cap, "threads"), "thread"),
+        PlaceSettingWord::Machines => at_once(cap_number(cap, "machines"), "machine"),
+        PlaceSettingWord::Spend => {
+            let usd = cap_number(cap, "spendPerDayUsd")?;
+            Some(SettingSaid { long: format!("{} a day", dollars(usd)), short: dollars(usd) })
+        }
+        PlaceSettingWord::Size => {
+            let size = if fallback {
+                place.size_default.as_ref().map(|size| workspace_size(size.cpu, size.mem_mb))
+            } else {
+                place.size.as_ref().map(|size| workspace_size(size.cpu, size.mem_mb))
+            }?;
+            Some(SettingSaid { long: format!("size {}", fmt_size(&size, None)), short: size_word(&size) })
+        }
+        PlaceSettingWord::DeleteAfter => {
+            let ms = if fallback { Some(DELETE_AFTER_MS as f64) } else { place.delete_after_ms.map(|ms| ms.as_f64()) }?;
+            if ms == 0.0 {
+                return Some(SettingSaid { long: "deleted once done".to_string(), short: "at once".to_string() });
+            }
+            let minutes = number_string(ms / 60_000.0);
+            Some(SettingSaid { long: format!("deleted after {minutes} min"), short: format!("{minutes} min") })
+        }
+        PlaceSettingWord::Nap => {
+            let ms: Option<Option<f64>> =
+                if fallback { place.nap_default.map(|ms| Some(ms.as_f64())) } else { place.nap_ms.map(|ms| ms.map(|ms| ms.as_f64())) };
+            match ms? {
+                None => Some(SettingSaid { long: "never naps".to_string(), short: "never".to_string() }),
+                Some(ms) => Some(SettingSaid { long: format!("naps after {}", fmt_duration(ms, None)), short: fmt_duration(ms, None) }),
+            }
+        }
+        PlaceSettingWord::TurnLimit => {
+            let limit: Option<Option<f64>> = if fallback {
+                place.turn_limit_default.map(|ms| ms.map(|ms| ms.as_f64()))
+            } else {
+                place.turn_limit_ms.map(|ms| ms.map(|ms| ms.as_f64()))
+            };
+            match limit? {
+                None => Some(SettingSaid { long: "no turn limit".to_string(), short: "off".to_string() }),
+                Some(ms) => Some(SettingSaid { long: format!("stops a turn at {}", fmt_limit(ms)), short: fmt_limit(ms) }),
+            }
+        }
+        PlaceSettingWord::Spawn => {
+            let agents = if fallback { place.spawn_default.as_ref() } else { place.spawn.as_ref() }?;
+            let switch =
+                AgentsSwitch { spawn: agents.spawn, max_machines: agents.max_machines.as_f64(), max_depth: agents.max_depth.as_f64() };
+            Some(SettingSaid {
+                long: agents_line(Some(&switch)),
+                short: if agents.spawn { format!("on, up to {}", number_string(switch.max_machines)) } else { "off".to_string() },
+            })
+        }
+        PlaceSettingWord::MaxDepth => {
+            let depth = if fallback { place.spawn_default.as_ref() } else { place.spawn.as_ref() }?.max_depth.as_f64();
+            Some(SettingSaid {
+                long: format!("{} {} deep", number_string(depth), if depth == 1.0 { "level" } else { "levels" }),
+                short: number_string(depth),
+            })
+        }
+    }
+}
+
+fn settings_of_ask(set: &PlaceSettingsAsk) -> PlaceSettings {
+    PlaceSettings {
+        threads: set.threads,
+        machines: set.machines,
+        spend_per_day_usd: set.spend_per_day_usd,
+        nap_ms: set.nap_ms,
+        turn_limit_ms: set.turn_limit_ms,
+        spawn: set.spawn.clone(),
+        size: set.size.clone(),
+        delete_after_ms: set.delete_after_ms,
+    }
+}

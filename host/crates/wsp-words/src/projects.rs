@@ -3,14 +3,27 @@
 //! the refusals of a project in the wrong place. Port of the functions of packages/protocol/src/projects.ts at
 //! a3b870a6e; its shapes and flat constants are wsp_wire::types::projects. See spec/projects.md.
 
-use wsp_wire::views::workspace::ProjectSource;
-use wsp_wire::views::workspace::ProjectView;
-use wsp_wire::views::workspace_kind::WorkspaceKind;
-use wsp_wire::views::workspace::WorkspaceProject;
+use std::sync::LazyLock;
 
+use regex::Regex;
 use serde::Serialize;
+use url::Url;
+use wsp_wire::types::place_word::HERE_PLACE_ID;
+use wsp_wire::types::projects::{ADD_FORMS_LINE, OWNER_REPO};
+use wsp_wire::types::shell_quote::shell_quote;
+use wsp_wire::views::workspace::{
+    ProjectSource, ProjectSourceFolder, ProjectSourceGit, ProjectSourceGithub, ProjectSourceGitlab, ProjectView, WorkspaceProject,
+};
+use wsp_wire::views::workspace_kind::WorkspaceKind;
+use wsp_wire::wire::daemon::EXEC_DEADLINE_EXIT;
 
 use crate::exit::HostError;
+use crate::js::{is_js_whitespace, js_round, js_trim, js_trim_end, number_string, JS_WS};
+use crate::place_word::{names_place, PlaceRef, RefusalHalves};
+use crate::project_path::{folder_name, under_project};
+use crate::words::base::last_line;
+use crate::words::computer::{this_computer, THIS_COMPUTER};
+use crate::workspace_state::{kind_words, workspace_kind};
 
 /// What a caller is told once a project is recorded: what it is called, where its code comes from, the computer it
 /// lives on and where a workspace of it holds the checkout, then the line that makes one. The command line prints it
@@ -20,8 +33,12 @@ use crate::exit::HostError;
 // export function addedProjectLine(project: ProjectView, named: ReadonlyMap<string, string> | undefined, platform: "darwin" | "linux"): string {
 //   return addedProjectOn(project, computerNamed(project.computer, named, platform));
 // }
-pub fn added_project_line(project: &ProjectView, named: Option<&indexmap::IndexMap<String, String>>, platform: &crate::words::computer::Platform) -> String {
-    todo!()
+pub fn added_project_line(
+    project: &ProjectView,
+    named: Option<&indexmap::IndexMap<String, String>>,
+    platform: &crate::words::computer::Platform,
+) -> String {
+    added_project_on(project, &computer_named(&project.computer, named, platform))
 }
 
 /// The same sentence where the computer's word is already in hand, which is the landing's road: the add says how
@@ -33,7 +50,10 @@ pub fn added_project_line(project: &ProjectView, named: Option<&indexmap::IndexM
 //   return `${project.name} ${project.id}: ${sourceWord(project.source)} on ${computer}, at ${project.path}${here ? `\nopen a thread on it with: wsp run ${shellQuote(project.name)} "<message>"` : ""}`;
 // }
 pub fn added_project_on(project: &ProjectView, computer: &str) -> String {
-    todo!()
+    let here = copies_folder(&kind_for_computer(&project.computer, None));
+    let open =
+        if here { format!("\nopen a thread on it with: wsp run {} \"<message>\"", shell_quote(&project.name)) } else { String::new() };
+    format!("{} {}: {} on {computer}, at {}{open}", project.name, project.id, source_word(&project.source), project.path)
 }
 
 /// What the add says before any work runs on that computer: what is being recorded and where its code comes from,
@@ -45,7 +65,7 @@ pub fn added_project_on(project: &ProjectView, computer: &str) -> String {
 //   return `${name} from ${sourceWord(source)}${seeding ? "" : ", nothing seeded"}.`;
 // }
 pub fn adding_project_line(name: &str, source: &ProjectSource, seeding: bool) -> String {
-    todo!()
+    format!("{name} from {}{}.", source_word(source), if seeding { "" } else { ", nothing seeded" })
 }
 
 /// What one word to `wsp add` names: a computer of the person's own over ssh, a repo a computer clones by its own
@@ -75,9 +95,38 @@ pub enum SourceKind {
     Folder,
 }
 
+static GITHUB_OR_GITLAB_REPO: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(github|gitlab)\.com/[^/]+/[^/]+$").expect("GITHUB_OR_GITLAB_REPO is a valid pattern"));
+static SCP_LOGIN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+:").expect("SCP_LOGIN is a valid pattern"));
+static LOGIN_AT_HOST: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+$").expect("LOGIN_AT_HOST is a valid pattern"));
+static OWNER_SLASH_REPO: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$").expect("OWNER_SLASH_REPO is a valid pattern"));
+
+/// The repo a word names with the host in front of it taken off, as `gh` takes the bare owner/repo.
+fn without_host(word: &str) -> &str {
+    word.strip_prefix("github.com/").or_else(|| word.strip_prefix("gitlab.com/")).unwrap_or(word)
+}
+
 /// The TS throw (ADD_FORMS_LINE) is the Err.
 pub fn source_kind(word: &str) -> Result<SourceKind, HostError> {
-    todo!()
+    if word.starts_with(['/', '~', '.']) {
+        return Ok(SourceKind::Folder);
+    }
+    if let Some(host) = GITHUB_OR_GITLAB_REPO.captures(word) {
+        return Ok(if &host[1] == "gitlab" { SourceKind::Gitlab } else { SourceKind::Github });
+    }
+    if word.contains("://") || SCP_LOGIN.is_match(word) || word.ends_with(".git") {
+        return Ok(SourceKind::Git);
+    }
+    if LOGIN_AT_HOST.is_match(word) {
+        return Ok(SourceKind::Computer);
+    }
+    if OWNER_SLASH_REPO.is_match(word) {
+        return Ok(SourceKind::Github);
+    }
+    Err(HostError::new(ADD_FORMS_LINE))
 }
 
 // projects.ts:58
@@ -92,7 +141,12 @@ pub fn source_kind(word: &str) -> Result<SourceKind, HostError> {
 //   return source.kind === "git" ? source.url : source.repo;
 // }
 pub fn source_word(source: &ProjectSource) -> String {
-    todo!()
+    match source {
+        ProjectSource::Folder(folder) => folder.path.clone(),
+        ProjectSource::Git(git) => git.url.clone(),
+        ProjectSource::Github(github) => github.repo.clone(),
+        ProjectSource::Gitlab(gitlab) => gitlab.repo.clone(),
+    }
 }
 
 /// What a project is called: the repo's last word without .git, or the folder's own name.
@@ -104,7 +158,12 @@ pub fn source_word(source: &ProjectSource) -> String {
 //   return last.replace(/\.git$/, "");
 // }
 pub fn project_name_of(source: &ProjectSource) -> String {
-    todo!()
+    if let ProjectSource::Folder(folder) = source {
+        return folder_name(&folder.path);
+    }
+    let word = source_word(source);
+    let last = word.trim_end_matches('/').rsplit(['/', ':']).next().unwrap_or_default();
+    last.strip_suffix(".git").unwrap_or(last).to_string()
 }
 
 /// Where a project's checkout sits inside a workspace of it: the folder itself where the source is one the
@@ -120,7 +179,11 @@ pub fn project_name_of(source: &ProjectSource) -> String {
 // }
 /// The TS throw is the Err.
 pub fn project_path_on(source: &ProjectSource, name: &str, home: Option<&str>) -> Result<String, HostError> {
-    todo!()
+    match (source, home) {
+        (ProjectSource::Folder(folder), _) => Ok(folder.path.clone()),
+        (_, None) => Err(HostError::new(format!("{name} is a repo, and that computer holds no checkout of its own to put one in"))),
+        (_, Some(home)) => Ok(format!("{home}/{name}")),
+    }
 }
 
 /// The source one word names, off the kind that word is: the shape the record keeps. A word naming a computer is
@@ -135,7 +198,20 @@ pub fn project_path_on(source: &ProjectSource, name: &str, home: Option<&str>) -
 // }
 /// `kind` is never `SourceKind::Computer` (the TS excludes it).
 pub fn project_source_of(word: &str, kind: &SourceKind, folder_path: Option<&str>) -> ProjectSource {
-    todo!()
+    match kind {
+        SourceKind::Folder => ProjectSource::Folder(ProjectSourceFolder { path: folder_path.unwrap_or(word).to_string() }),
+        SourceKind::Git => ProjectSource::Git(ProjectSourceGit { url: word.to_string() }),
+        SourceKind::Github | SourceKind::Gitlab => {
+            let repo = without_host(word);
+            let repo = repo.strip_suffix(".git").unwrap_or(repo).to_string();
+            if *kind == SourceKind::Github {
+                ProjectSource::Github(ProjectSourceGithub { repo })
+            } else {
+                ProjectSource::Gitlab(ProjectSourceGitlab { repo })
+            }
+        }
+        SourceKind::Computer => unreachable!("a computer is no project's source"),
+    }
 }
 
 /// Why a second project on one source on one computer is refused: one source per computer is one project, and a
@@ -144,7 +220,7 @@ pub fn project_source_of(word: &str, kind: &SourceKind, folder_path: Option<&str
 // export const sameSourceRefusal = (name: string, computer: string): string =>
 //   `that source is already a project on ${computer}, ${name}; one source on one computer is one project`;
 pub fn same_source_refusal(name: &str, computer: &str) -> String {
-    todo!()
+    format!("that source is already a project on {computer}, {name}; one source on one computer is one project")
 }
 
 /// Why a repo's url with no computer and no folder named records nothing: it is cloned into a folder here or by
@@ -153,14 +229,20 @@ pub fn same_source_refusal(name: &str, computer: &str) -> String {
 // export const noComputerForSourceLine = (word: string, computers: readonly string[]): string =>
 //   `${word} is a repo: clone it here with --into <folder>${computers.length === 0 ? "" : `, or name the computer that clones it with --on ${computers.join(" | ")}`}`;
 pub fn no_computer_for_source_line(word: &str, computers: &[impl AsRef<str>]) -> String {
-    todo!()
+    let computers: Vec<&str> = computers.iter().map(|c| c.as_ref()).collect();
+    let tail = if computers.is_empty() {
+        String::new()
+    } else {
+        format!(", or name the computer that clones it with --on {}", computers.join(" | "))
+    };
+    format!("{word} is a repo: clone it here with --into <folder>{tail}")
 }
 
 /// Why a repo on this computer records nothing without a folder: the clone goes where the person says.
 // projects.ts:109
 // export const cloneIntoNeeded = (word: string): string => `${word} is a repo; name the folder to clone it in with --into <folder>`;
 pub fn clone_into_needed(word: &str) -> String {
-    todo!()
+    format!("{word} is a repo; name the folder to clone it in with --into <folder>")
 }
 
 /// Why the repo's folder inside the one picked is no place to clone into: the clone would land among files that are
@@ -168,7 +250,7 @@ pub fn clone_into_needed(word: &str) -> String {
 // projects.ts:113
 // export const cloneIntoTakenLine = (folder: string, free: string): string => `${folder} already holds files; clone into ${free}, or pick another folder`;
 pub fn clone_into_taken_line(folder: &str, free: &str) -> String {
-    todo!()
+    format!("{folder} already holds files; clone into {free}, or pick another folder")
 }
 
 /// Why a file is no place to clone into, with the next free folder of the repo's name where it stands at the
@@ -177,7 +259,11 @@ pub fn clone_into_taken_line(folder: &str, free: &str) -> String {
 // export const cloneIntoFileLine = (path: string, free?: string): string =>
 //   `${path} is a file; ${free === undefined ? "pick a folder to clone the repo in" : `clone into ${free}, or pick another folder`}`;
 pub fn clone_into_file_line(path: &str, free: Option<&str>) -> String {
-    todo!()
+    let said = match free {
+        None => "pick a folder to clone the repo in".to_string(),
+        Some(free) => format!("clone into {free}, or pick another folder"),
+    };
+    format!("{path} is a file; {said}")
 }
 
 /// Why --into beside a computer that is not this one is refused: the folder is on the computer named, and the other
@@ -185,7 +271,7 @@ pub fn clone_into_file_line(path: &str, free: Option<&str>) -> String {
 // projects.ts:122
 // export const intoIsHereLine = (here: string): string => `--into is a folder on ${here}; drop --on to clone there, or drop --into to clone on the computer you named`;
 pub fn into_is_here_line(here: &str) -> String {
-    todo!()
+    format!("--into is a folder on {here}; drop --on to clone there, or drop --into to clone on the computer you named")
 }
 
 // projects.ts:125
@@ -194,19 +280,28 @@ pub fn into_is_here_line(here: &str) -> String {
 // projects.ts:127
 // private in the TS: port it as a private helper
 // const CLONE_HOST = /^[A-Za-z0-9][A-Za-z0-9.-]*$/;
+static CLONE_HOST: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9][A-Za-z0-9.-]*$").expect("CLONE_HOST is a valid pattern"));
 
 // A login ssh is handed: nothing it could read as an option, and nothing a shell or a url would have to escape.
 // projects.ts:129
 // private in the TS: port it as a private helper
 // const CLONE_USER = /^[A-Za-z0-9_.][A-Za-z0-9_.-]*$/;
+static CLONE_USER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.][A-Za-z0-9_.-]*$").expect("CLONE_USER is a valid pattern"));
 
 // projects.ts:130
 // private in the TS: port it as a private helper
 // const SCP_FORM = /^[A-Za-z0-9_.][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*:[^\s-][^\s]*$/;
+static SCP_FORM: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(r"^[A-Za-z0-9_.][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*:[^{JS_WS}-][^{JS_WS}]*$"))
+        .expect("SCP_FORM is a valid pattern")
+});
 
 // `owner/name` as GitHub and GitLab spell a repo: nothing a shell, a url or a git config key would have to escape.
 // projects.ts:132
 // in wsp_wire::types::projects: OWNER_REPO
+static OWNER_REPO_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!("(?-u){OWNER_REPO}")).expect("OWNER_REPO is a valid pattern"));
 
 /// Why a repo word is not one this computer clones, or nothing where it is: an https url, an ssh url, git's scp form
 /// or owner/repo, with no credentials in it, no login, host or path that git or ssh could read as an option, and no
@@ -237,7 +332,41 @@ pub fn into_is_here_line(here: &str) -> String {
 //   return undefined;
 // }
 pub fn clone_url_refusal(word: &str) -> Option<String> {
-    todo!()
+    let refused = || Some(format!("{word} is not a repo address wsp clones; give its https or ssh url, or owner/repo"));
+    if word.chars().any(is_js_whitespace) || word.starts_with('-') {
+        return refused();
+    }
+    let Ok(kind) = source_kind(word) else {
+        return refused();
+    };
+    match kind {
+        SourceKind::Github | SourceKind::Gitlab => {
+            return if OWNER_REPO_PATTERN.is_match(without_host(word)) { None } else { refused() };
+        }
+        SourceKind::Git => {}
+        _ => return refused(),
+    }
+    if SCP_FORM.is_match(word) {
+        return None;
+    }
+    let Ok(url) = Url::parse(word) else {
+        return refused();
+    };
+    let https = match url.scheme() {
+        "https" => true,
+        "ssh" => false,
+        _ => return refused(),
+    };
+    if url.password().is_some_and(|p| !p.is_empty()) || (https && !url.username().is_empty()) {
+        return refused();
+    }
+    if !url.username().is_empty() && !CLONE_USER.is_match(url.username()) {
+        return refused();
+    }
+    if !CLONE_HOST.is_match(url.host_str().unwrap_or_default()) || url.path().len() <= 1 {
+        return refused();
+    }
+    None
 }
 
 // What a sign-in failure reads like from git, ssh and gh: a private repo answers "not found" to a clone with no
@@ -245,6 +374,10 @@ pub fn clone_url_refusal(word: &str) -> Option<String> {
 // projects.ts:164
 // private in the TS: port it as a private helper
 // const SIGN_IN_FAILURE = /authentication failed|could not read username|terminal prompts disabled|permission denied \(publickey\)|not found|could not resolve to a repository|gh auth login|HTTP 40[13]/i;
+static SIGN_IN_FAILURE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i-u:authentication failed|could not read username|terminal prompts disabled|permission denied \(publickey\)|not found|could not resolve to a repository|gh auth login|HTTP 40[13])")
+        .expect("SIGN_IN_FAILURE is a valid pattern")
+});
 
 /// What a failed clone says: git's own last line, and where it failed for want of a login, how to give it one.
 // projects.ts:167
@@ -254,7 +387,24 @@ pub fn clone_url_refusal(word: &str) -> Option<String> {
 //   return SIGN_IN_FAILURE.test(said) ? `${last}; sign in with gh auth login, or use the repo's ssh url` : last;
 // }
 pub fn clone_failed_line(said: &str) -> String {
-    todo!()
+    let last = js_trim(js_trim_end(said).rsplit('\n').next().unwrap_or_default());
+    if last.is_empty() {
+        return "the clone failed and said nothing".to_string();
+    }
+    if SIGN_IN_FAILURE.is_match(said) {
+        format!("{last}; sign in with gh auth login, or use the repo's ssh url")
+    } else {
+        last.to_string()
+    }
+}
+
+/// The rest of the first line that opens `remote: wsp: `, trimmed, as `/^remote: wsp: (.+)$/m` captures it. A line ends at
+/// any of the four characters JavaScript's `.` and `$` stop at.
+fn remote_wsp_line(said: &str) -> Option<String> {
+    said.split(['\n', '\r', '\u{2028}', '\u{2029}']).find_map(|line| {
+        let rest = line.strip_prefix("remote: wsp: ")?;
+        (!rest.is_empty()).then(|| js_trim(rest).to_string())
+    })
 }
 
 /// Why a clone on a machine failed, in one sentence: the host's refusal where its broker refused git, else git's own
@@ -281,7 +431,18 @@ pub struct CloneFailed {
 }
 
 pub fn clone_on_machine_failed_line(o: &CloneFailed) -> String {
-    todo!()
+    let clone = format!("the clone of {} on {}", o.repo, o.on);
+    if let Some(host) = remote_wsp_line(&o.said) {
+        return format!("{clone} failed: {host}");
+    }
+    if let Some(last) = last_line(&o.said).filter(|last| !last.starts_with("Cloning into ")) {
+        return format!("{clone} failed: {last}");
+    }
+    if i64::from(o.exit_code) == EXEC_DEADLINE_EXIT {
+        let minutes = number_string(js_round(o.limit_ms / 60_000.0));
+        return format!("{clone} did not finish in {minutes} minutes, and git said nothing past its start");
+    }
+    format!("{clone} ended with exit {}, and git said nothing past its start", number_string(f64::from(o.exit_code)))
 }
 
 /// Why a folder on this computer seeding a project on another computer needs the person's answer first: what git
@@ -291,7 +452,7 @@ pub fn clone_on_machine_failed_line(o: &CloneFailed) -> String {
 // export const seedChoiceNeeded = (folder: string): string =>
 //   `${folder} would seed the project on that computer, so what travels is yours to pick: read the menu and add it again with your ticks, or --yes for the ones the catalogue ticks itself`;
 pub fn seed_choice_needed(folder: &str) -> String {
-    todo!()
+    format!("{folder} would seed the project on that computer, so what travels is yours to pick: read the menu and add it again with your ticks, or --yes for the ones the catalogue ticks itself")
 }
 
 // projects.ts:193
@@ -310,7 +471,7 @@ pub fn seed_choice_needed(folder: &str) -> String {
 // projects.ts:205
 // export const notOnThisComputerLine = (project: string): string => `${project} is not on this computer, so no thread runs in its folder here`;
 pub fn not_on_this_computer_line(project: &str) -> String {
-    todo!()
+    format!("{project} is not on this computer, so no thread runs in its folder here")
 }
 
 /// A thread on a computer the person joined naming a project on another computer that no lead of its reaches: a
@@ -319,7 +480,7 @@ pub fn not_on_this_computer_line(project: &str) -> String {
 // projects.ts:210
 // export const childOnAnotherComputerLine = (from: string, to: string): string => `a thread on ${from} cannot start one on ${to} yet; the person can start it there, or name a project on ${from}`;
 pub fn child_on_another_computer_line(from: &str, to: &str) -> String {
-    todo!()
+    format!("a thread on {from} cannot start one on {to} yet; the person can start it there, or name a project on {from}")
 }
 
 /// A thread on a computer the person joined with a login that is not root: that computer's daemon runs a folder's git
@@ -329,28 +490,28 @@ pub fn child_on_another_computer_line(from: &str, to: &str) -> String {
 // export const placeLoginNotRootLine = (computer: string, user: string): string =>
 //   `threads on ${computer} would run as ${user}, and wsp runs threads on a computer you added only as root for now; remove ${computer} and add it again with a root login`;
 pub fn place_login_not_root_line(computer: &str, user: &str) -> String {
-    todo!()
+    format!("threads on {computer} would run as {user}, and wsp runs threads on a computer you added only as root for now; remove {computer} and add it again with a root login")
 }
 
 /// A branch named for a thread on a computer the person joined, where wsp makes no worktree yet.
 // projects.ts:219
 // export const placeBranchLine = (computer: string): string => `wsp makes no worktrees on ${computer} yet; start the thread without a branch, or make one inside the project folder with git worktree add and name it as the folder`;
 pub fn place_branch_line(computer: &str) -> String {
-    todo!()
+    format!("wsp makes no worktrees on {computer} yet; start the thread without a branch, or make one inside the project folder with git worktree add and name it as the folder")
 }
 
 /// A folder a thread may not run in: only the project folder and the worktrees of its repo are a project's.
 // projects.ts:222
 // export const cwdOutsideLine = (path: string, project: string): string => `${path} is not in ${project} or a worktree of it; wsp add it first`;
 pub fn cwd_outside_line(path: &str, project: &str) -> String {
-    todo!()
+    format!("{path} is not in {project} or a worktree of it; wsp add it first")
 }
 
 /// A start's folder that is not there: refused before the agent is launched into it, which would only die.
 // projects.ts:224
 // export const noCwdLine = (path: string): string => `there is no folder at ${path}; name one that exists`;
 pub fn no_cwd_line(path: &str) -> String {
-    todo!()
+    format!("there is no folder at {path}; name one that exists")
 }
 
 /// What taking a thread away on this computer takes, the question a delete puts first: the thread's turns and
@@ -362,7 +523,10 @@ pub fn no_cwd_line(path: &str) -> String {
 //     : `Delete thread ${threadId}?\nIts turns and checkpoints leave this computer, and the worktree at ${worktree} with it where no other thread is in it; the branch and the project folder are left as they are.`;
 // }
 pub fn thread_delete_question(thread_id: &str, worktree: Option<&str>) -> String {
-    todo!()
+    match worktree {
+        None => format!("Delete thread {thread_id}?\nIts turns and checkpoints leave this computer; the folder it worked in is left as it is."),
+        Some(worktree) => format!("Delete thread {thread_id}?\nIts turns and checkpoints leave this computer, and the worktree at {worktree} with it where no other thread is in it; the branch and the project folder are left as they are."),
+    }
 }
 
 /// What a thread delete did.
@@ -372,14 +536,20 @@ pub fn thread_delete_question(thread_id: &str, worktree: Option<&str>) -> String
 // }
 /// `worktree` and `threads` are the TS `gone` object's fields.
 pub fn thread_deleted_line(thread_id: &str, worktree: Option<&str>, threads: f64) -> String {
-    todo!()
+    match worktree {
+        None => format!("deleted thread {thread_id}"),
+        Some(worktree) => {
+            let threads = if threads == 1.0 { "its one thread".to_string() } else { format!("its {} threads", number_string(threads)) };
+            format!("deleted thread {thread_id}, the worktree at {worktree} and {threads}")
+        }
+    }
 }
 
 /// What a worktree removal says once git took it away.
 // projects.ts:240
 // export const worktreeRemovedLine = (branch: string): string => `removed the worktree for ${branch}; the branch stays`;
 pub fn worktree_removed_line(branch: &str) -> String {
-    todo!()
+    format!("removed the worktree for {branch}; the branch stays")
 }
 
 // projects.ts:243
@@ -389,7 +559,7 @@ pub fn worktree_removed_line(branch: &str) -> String {
 // projects.ts:246
 // export const threadOnMachineLine = (machine: string): string => `a thread on ${machine} goes with its machine; wsp delete ${machine} takes both`;
 pub fn thread_on_machine_line(machine: &str) -> String {
-    todo!()
+    format!("a thread on {machine} goes with its machine; wsp delete {machine} takes both")
 }
 
 // projects.ts:249
@@ -402,14 +572,14 @@ pub fn thread_on_machine_line(machine: &str) -> String {
 // projects.ts:255
 // export const localFolderRefusal = (name: string): string => `${name} is a project's folder, which delete and forget leave alone`;
 pub fn local_folder_refusal(name: &str) -> String {
-    todo!()
+    format!("{name} is a project's folder, which delete and forget leave alone")
 }
 
 /// A worktree's record on this computer named to delete or forget: a worktree goes by its own verb or with its thread.
 // projects.ts:258
 // export const localWorktreeRefusal = (name: string): string => `${name} is a worktree of a project on this computer, which delete and forget leave alone`;
 pub fn local_worktree_refusal(name: &str) -> String {
-    todo!()
+    format!("{name} is a worktree of a project on this computer, which delete and forget leave alone")
 }
 
 /// The line a thread is told when the worktree it ran in is gone and its next turn runs in the project folder.
@@ -417,7 +587,7 @@ pub fn local_worktree_refusal(name: &str) -> String {
 // export const threadMovedLine = (from: string, to: string, fresh: boolean): string =>
 //   `its worktree at ${from} is gone, so it goes on in ${to}${fresh ? " in a fresh session of its agent" : ""}`;
 pub fn thread_moved_line(from: &str, to: &str, fresh: bool) -> String {
-    todo!()
+    format!("its worktree at {from} is gone, so it goes on in {to}{}", if fresh { " in a fresh session of its agent" } else { "" })
 }
 
 /// Why a start on a pull request runs in the worktree holding its branch as that worktree stands.
@@ -432,23 +602,29 @@ pub fn thread_moved_line(from: &str, to: &str, fresh: bool) -> String {
 // } as const;
 /// The TS PR_BEHIND_WORDS.
 pub mod pr_behind_words {
+    use crate::js::number_string;
+
     pub fn changed(number: f64, path: &str) -> String {
-        todo!()
+        format!("this worktree is behind pull request #{} and holds files no commit has, so it was not updated; commit them, then run git pull --ff-only in {path}", number_string(number))
     }
     pub fn diverged(number: f64, path: &str) -> String {
-        todo!()
+        format!("this worktree's branch and pull request #{} have gone different ways, so it was not updated; run git pull --rebase in {path} to bring them together", number_string(number))
     }
     pub fn folder(number: f64, path: &str) -> String {
-        todo!()
+        format!("this project folder is behind pull request #{}, and wsp never moves your own checkout; run git pull --ff-only in {path} to update it", number_string(number))
     }
     pub fn not_made(number: f64, path: &str) -> String {
-        todo!()
+        format!(
+            "this worktree is behind pull request #{}, and wsp moves only worktrees it made; run git pull --ff-only in {path} to update it",
+            number_string(number)
+        )
     }
     pub fn by_head(number: f64, path: &str, remote: &str) -> String {
-        todo!()
+        let n = number_string(number);
+        format!("this worktree is behind pull request #{n}; run git pull --ff-only {remote} pull/{n}/head in {path} to update it")
     }
     pub fn unread(number: f64, said: &str) -> String {
-        todo!()
+        format!("pull request #{} could not be read just now ({said}), so this worktree may be behind it", number_string(number))
     }
 }
 
@@ -457,7 +633,11 @@ pub mod pr_behind_words {
 // export const worktreeChangedLine = (files: number): string =>
 //   `that worktree has ${files} ${files === 1 ? "file" : "files"} not committed; commit ${files === 1 ? "it" : "them"}, or remove it with --force to lose ${files === 1 ? "it" : "them"}`;
 pub fn worktree_changed_line(files: f64) -> String {
-    todo!()
+    let (noun, pronoun) = if files == 1.0 { ("file", "it") } else { ("files", "them") };
+    format!(
+        "that worktree has {} {noun} not committed; commit {pronoun}, or remove it with --force to lose {pronoun}",
+        number_string(files)
+    )
 }
 
 /// Why a settled worktree wsp made still stands: files no commit holds, a turn running in it, or a week of either,
@@ -465,7 +645,7 @@ pub fn worktree_changed_line(files: f64) -> String {
 // projects.ts:280
 // export const keptChangedLine = (files: number): string => `${files} ${files === 1 ? "file" : "files"} not committed`;
 pub fn kept_changed_line(files: f64) -> String {
-    todo!()
+    format!("{} {} not committed", number_string(files), if files == 1.0 { "file" } else { "files" })
 }
 
 // projects.ts:281
@@ -479,7 +659,7 @@ pub fn kept_changed_line(files: f64) -> String {
 // projects.ts:286
 // export const worktreeCommandRunningLine = (command: string, path: string): string => `${command} runs in the new worktree at ${path} before its threads start`;
 pub fn worktree_command_running_line(command: &str, path: &str) -> String {
-    todo!()
+    format!("{command} runs in the new worktree at {path} before its threads start")
 }
 
 /// How one such command ended where it did not end well: its exit code and its last line, or the minutes it ran
@@ -497,12 +677,23 @@ pub enum WorktreeCommandEnd {
 // const endWords = (end: WorktreeCommandEnd): string =>
 //   "stoppedAfterMin" in end ? `was stopped after ${end.stoppedAfterMin} minutes` : `exited ${end.exitCode}${end.said === "" ? "" : `: ${end.said}`}`;
 
+/// How a command ended, in the words after its name.
+fn end_words(end: &WorktreeCommandEnd) -> String {
+    match end {
+        WorktreeCommandEnd::Stopped { stopped_after_min } => format!("was stopped after {} minutes", number_string(*stopped_after_min)),
+        WorktreeCommandEnd::Exited { exit_code, said } => {
+            let said = if said.is_empty() { String::new() } else { format!(": {said}") };
+            format!("exited {}{said}", number_string(f64::from(*exit_code)))
+        }
+    }
+}
+
 /// One that did not end well; the threads there start all the same.
 // projects.ts:295
 // export const worktreeCommandFailedLine = (command: string, path: string, end: WorktreeCommandEnd): string =>
 //   `${command} in the new worktree at ${path} ${endWords(end)}; threads there start without it`;
 pub fn worktree_command_failed_line(command: &str, path: &str, end: &WorktreeCommandEnd) -> String {
-    todo!()
+    format!("{command} in the new worktree at {path} {}; threads there start without it", end_words(end))
 }
 
 /// One command as the first thread in a new worktree reads it: where it ran when not at the top, and how it ended
@@ -511,7 +702,9 @@ pub fn worktree_command_failed_line(command: &str, path: &str, end: &WorktreeCom
 // export const worktreeStepWords = (command: string, folder: string, end?: WorktreeCommandEnd): string =>
 //   `${command}${folder === "." ? "" : ` in ${folder}`}${end === undefined ? "" : ` (${endWords(end)})`}`;
 pub fn worktree_step_words(command: &str, folder: &str, end: Option<&WorktreeCommandEnd>) -> String {
-    todo!()
+    let folder = if folder == "." { String::new() } else { format!(" in {folder}") };
+    let end = end.map_or(String::new(), |end| format!(" ({})", end_words(end)));
+    format!("{command}{folder}{end}")
 }
 
 /// The line the first thread in a new worktree opens with: what the worktree ran before the thread started, one
@@ -519,14 +712,16 @@ pub fn worktree_step_words(command: &str, folder: &str, end: Option<&WorktreeCom
 // projects.ts:305
 // export const worktreeSetupLine = (steps: readonly string[]): string => ["Before this thread started, its new worktree ran:", ...steps.map(step => `- ${step}`)].join("\n");
 pub fn worktree_setup_line(steps: &[impl AsRef<str>]) -> String {
-    todo!()
+    let mut lines = vec!["Before this thread started, its new worktree ran:".to_string()];
+    lines.extend(steps.iter().map(|step| format!("- {}", step.as_ref())));
+    lines.join("\n")
 }
 
 /// A removal asked of a branch with no worktree wsp made: a worktree the person or an agent made is theirs to remove.
 // projects.ts:308
 // export const notMadeWorktreeLine = (branch: string): string => `wsp made no worktree for ${branch}; git worktree remove takes one wsp did not make`;
 pub fn not_made_worktree_line(branch: &str) -> String {
-    todo!()
+    format!("wsp made no worktree for {branch}; git worktree remove takes one wsp did not make")
 }
 
 /// Why an old copy of a project folder was left on disk when the host moved off copies; one line per copy in the
@@ -548,6 +743,8 @@ pub fn not_made_worktree_line(branch: &str) -> String {
 // } as const;
 /// The TS OLD_COPY_WORDS: fixed words as constants, sentences as functions.
 pub mod old_copy_words {
+    use crate::js::number_string;
+
     pub const CHANGED: &str = "it has changes no commit holds";
     pub const STASHED: &str = "it holds stashed changes";
     pub const NO_PROJECT: &str = "its project is no longer recorded";
@@ -555,16 +752,17 @@ pub mod old_copy_words {
     pub const NO_COPIER: &str = "this host has no daemon binary to remove it with";
     pub const ENDED: &str = "the host moved off copies, so this copy's threads end here";
     pub fn unread(said: &str) -> String {
-        todo!()
+        format!("git could not read it: {said}")
     }
     pub fn fetch_failed(said: &str) -> String {
-        todo!()
+        format!("the fetch of its branches into the project failed: {said}")
     }
     pub fn not_removed(said: &str) -> String {
-        todo!()
+        format!("it could not be removed: {said}")
     }
     pub fn kept(copies: f64, file: &str) -> String {
-        todo!()
+        let (noun, pronoun) = if copies == 1.0 { ("copy", "it") } else { ("copies", "them") };
+        format!("{} old {noun} kept with work in {pronoun}; see {file}", number_string(copies))
     }
 }
 
@@ -572,7 +770,7 @@ pub mod old_copy_words {
 // projects.ts:328
 // export const noBranchesLine = (project: string): string => `${project} is not a git repo, so it has no branches`;
 pub fn no_branches_line(project: &str) -> String {
-    todo!()
+    format!("{project} is not a git repo, so it has no branches")
 }
 
 /// Why a folder on a computer that is not this one records nothing: nothing carries a folder there yet, so its
@@ -581,7 +779,7 @@ pub fn no_branches_line(project: &str) -> String {
 // export const folderOnCopyRefusal = (computer: string): string =>
 //   `${computer} takes a repo it can clone, not a folder on this computer; give the repo's url, or add the folder here with no --on`;
 pub fn folder_on_copy_refusal(computer: &str) -> String {
-    todo!()
+    format!("{computer} takes a repo it can clone, not a folder on this computer; give the repo's url, or add the folder here with no --on")
 }
 
 /// Why a cloud records no project with the cloud off: a project and its threads on a cloud's machines are the cloud's
@@ -592,14 +790,17 @@ pub fn folder_on_copy_refusal(computer: &str) -> String {
 //   fix: "Record the project on this computer or on a computer you added.",
 // });
 pub fn cloud_project_refusal(cloud: &str) -> crate::place_word::RefusalHalves {
-    todo!()
+    RefusalHalves {
+        happened: format!("{cloud} holds no project of its own on this host"),
+        fix: "Record the project on this computer or on a computer you added.".to_string(),
+    }
 }
 
 /// What a remove says on the computer the app runs on: the folder is the project, so nothing of it moves.
 // projects.ts:343
 // export const projectRemovedHereLine = (name: string): string => `${name} is no longer a project here; its code is where it was`;
 pub fn project_removed_here_line(name: &str) -> String {
-    todo!()
+    format!("{name} is no longer a project here; its code is where it was")
 }
 
 // projects.ts:349
@@ -610,7 +811,7 @@ pub fn project_removed_here_line(name: &str) -> String {
 // projects.ts:353
 // export const projectLeftOnComputerLine = (name: string, computer: string, folder: string): string => `${name} is no longer a project on ${computer}; its folder ${folder} stays there as it is`;
 pub fn project_left_on_computer_line(name: &str, computer: &str, folder: &str) -> String {
-    todo!()
+    format!("{name} is no longer a project on {computer}; its folder {folder} stays there as it is")
 }
 
 /// What a remove says for a project a provider keeps in an image: nothing runs on any machine, and the image
@@ -619,7 +820,11 @@ pub fn project_left_on_computer_line(name: &str, computer: &str, folder: &str) -
 // export const projectRemovedAtProviderLine = (name: string, computer: string, snapshotId?: string): string =>
 //   `${name} is no longer a project on ${computer}; ${snapshotId === undefined ? "nothing of it was held there" : `its project image ${snapshotId} stays at the provider`}`;
 pub fn project_removed_at_provider_line(name: &str, computer: &str, snapshot_id: Option<&str>) -> String {
-    todo!()
+    let held = match snapshot_id {
+        None => "nothing of it was held there".to_string(),
+        Some(id) => format!("its project image {id} stays at the provider"),
+    };
+    format!("{name} is no longer a project on {computer}; {held}")
 }
 
 /// What the seeding says where the computer already keeps this project's memory at the path its agent reads:
@@ -629,7 +834,7 @@ pub fn project_removed_at_provider_line(name: &str, computer: &str, snapshot_id:
 // export const seedMemoryKeptLine = (computer: string): string =>
 //   `${computer} already keeps this project's memory where its agent reads it, so what the agent has kept there stays and the memory from your folder was not landed over it`;
 pub fn seed_memory_kept_line(computer: &str) -> String {
-    todo!()
+    format!("{computer} already keeps this project's memory where its agent reads it, so what the agent has kept there stays and the memory from your folder was not landed over it")
 }
 
 /// Why a project cannot be dropped yet, with the workspaces standing on it.
@@ -637,7 +842,9 @@ pub fn seed_memory_kept_line(computer: &str) -> String {
 // export const projectInUseRefusal = (name: string, workspaces: readonly string[]): string =>
 //   `${name} has ${workspaces.length === 1 ? "a workspace" : "workspaces"} standing on it: ${workspaces.join(", ")}; delete ${workspaces.length === 1 ? "its threads" : "their threads"} first`;
 pub fn project_in_use_refusal(name: &str, workspaces: &[impl AsRef<str>]) -> String {
-    todo!()
+    let names: Vec<&str> = workspaces.iter().map(|w| w.as_ref()).collect();
+    let (what, theirs) = if names.len() == 1 { ("a workspace", "its threads") } else { ("workspaces", "their threads") };
+    format!("{name} has {what} standing on it: {}; delete {theirs} first", names.join(", "))
 }
 
 /// The whole of what a caller held to one project reads about a word naming another: absence and nothing else,
@@ -645,7 +852,7 @@ pub fn project_in_use_refusal(name: &str, workspaces: &[impl AsRef<str>]) -> Str
 // projects.ts:372
 // export const bareNoSuchProjectLine = (ref: string): string => `no project ${JSON.stringify(ref)}`;
 pub fn bare_no_such_project_line(r#ref: &str) -> String {
-    todo!()
+    format!("no project {}", serde_json::Value::from(r#ref))
 }
 
 /// Why a word names no project here, with the ones it could have named.
@@ -653,7 +860,9 @@ pub fn bare_no_such_project_line(r#ref: &str) -> String {
 // export const noSuchProjectLine = (ref: string, names: readonly string[]): string =>
 //   `${bareNoSuchProjectLine(ref)}; ${names.length === 0 ? "wsp add <folder> records one" : `this host holds ${names.join(", ")}`}`;
 pub fn no_such_project_line(r#ref: &str, names: &[impl AsRef<str>]) -> String {
-    todo!()
+    let held: Vec<&str> = names.iter().map(|n| n.as_ref()).collect();
+    let rest = if held.is_empty() { "wsp add <folder> records one".to_string() } else { format!("this host holds {}", held.join(", ")) };
+    format!("{}; {rest}", bare_no_such_project_line(r#ref))
 }
 
 /// Why a workspace cannot be made without naming its project, with the projects to name.
@@ -661,7 +870,8 @@ pub fn no_such_project_line(r#ref: &str, names: &[impl AsRef<str>]) -> String {
 // export const nameTheProjectLine = (names: readonly string[]): string =>
 //   `name the project this work is on: ${names.join(", ")}`;
 pub fn name_the_project_line(names: &[impl AsRef<str>]) -> String {
-    todo!()
+    let held: Vec<&str> = names.iter().map(|n| n.as_ref()).collect();
+    format!("name the project this work is on: {}", held.join(", "))
 }
 
 /// A path as the machine's own shell would show it: `~` for its home and anything under it, the path as given
@@ -672,7 +882,16 @@ pub fn name_the_project_line(names: &[impl AsRef<str>]) -> String {
 //   return path === home ? "~" : `~${path.slice(home.length)}`;
 // }
 pub fn home_shortened(path: &str, home: Option<&str>) -> String {
-    todo!()
+    match home {
+        Some(home) if under_project(path, home) => {
+            if path == home {
+                "~".to_string()
+            } else {
+                format!("~{}", &path[home.len()..])
+            }
+        }
+        _ => path.to_string(),
+    }
 }
 
 // projects.ts:390
@@ -684,7 +903,7 @@ pub fn home_shortened(path: &str, home: Option<&str>) -> String {
 //   return `${folderName(dest)} registered at ${dest}; nothing was copied.`;
 // }
 pub fn registered_line(dest: &str) -> String {
-    todo!()
+    format!("{} registered at {dest}; nothing was copied.", folder_name(dest))
 }
 
 /// Whether a project image already holds this project's checkout, so a fork of it clones and installs nothing: the
@@ -696,7 +915,7 @@ pub fn registered_line(dest: &str) -> String {
 //   return projects !== undefined && projects.some(p => p.dest === path);
 // }
 pub fn image_carries_checkout(projects: Option<&[WorkspaceProject]>, path: &str) -> bool {
-    todo!()
+    projects.is_some_and(|projects| projects.iter().any(|p| p.dest == path))
 }
 
 /// What a fork of a project golden starts with, after the created line; nothing for an image carrying none.
@@ -705,7 +924,11 @@ pub fn image_carries_checkout(projects: Option<&[WorkspaceProject]>, path: &str)
 //   return projects.length === 0 ? "" : ` with ${projects.map(p => p.name).join(", ")} in place`;
 // }
 pub fn projects_in_place(projects: &[WorkspaceProject]) -> String {
-    todo!()
+    if projects.is_empty() {
+        return String::new();
+    }
+    let names: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
+    format!(" with {} in place", names.join(", "))
 }
 
 /// The name a fork of a project golden goes by: the newest project it carries, which is also the name `new --from`
@@ -716,7 +939,7 @@ pub fn projects_in_place(projects: &[WorkspaceProject]) -> String {
 // }
 /// `projects` and `snapshot_id` are the TS object's fields.
 pub fn golden_fork_name(projects: &[WorkspaceProject], snapshot_id: &str) -> String {
-    todo!()
+    projects.last().map_or_else(|| snapshot_id.to_string(), |p| p.name.clone())
 }
 
 /// Why an import onto this computer takes no consent flags: nothing is carried, cut, sent or replaced by a register.
@@ -725,7 +948,12 @@ pub fn golden_fork_name(projects: &[WorkspaceProject], snapshot_id: &str) -> Str
 //   return `${flags.join(", ")} ${flags.length === 1 ? "has" : "have"} no meaning on this computer: the folder is registered at its path and nothing is carried, cut or replaced`;
 // }
 pub fn register_takes_no_consent_line(flags: &[impl AsRef<str>]) -> String {
-    todo!()
+    let flags: Vec<&str> = flags.iter().map(|f| f.as_ref()).collect();
+    let has = if flags.len() == 1 { "has" } else { "have" };
+    format!(
+        "{} {has} no meaning on this computer: the folder is registered at its path and nothing is carried, cut or replaced",
+        flags.join(", ")
+    )
 }
 
 /// The first line of a thread opened with no folder named outright: the project, where the caller named one, and the
@@ -735,7 +963,10 @@ pub fn register_takes_no_consent_line(flags: &[impl AsRef<str>]) -> String {
 //   return project === undefined ? `thread ${threadId} in ${folder}` : `thread ${threadId} on ${project} in ${folder}`;
 // }
 pub fn thread_opened_line(thread_id: &str, project: Option<&str>, folder: &str) -> String {
-    todo!()
+    match project {
+        None => format!("thread {thread_id} in {folder}"),
+        Some(project) => format!("thread {thread_id} on {project} in {folder}"),
+    }
 }
 
 /// Whether a workspace of this kind is a copy of a folder on this computer, made by directory, and forks no image:
@@ -745,7 +976,7 @@ pub fn thread_opened_line(thread_id: &str, project: Option<&str>, folder: &str) 
 //   return kindWords(kind).copiesFolder;
 // }
 pub fn copies_folder(kind: &WorkspaceKind) -> bool {
-    todo!()
+    kind_words(kind).copies_folder
 }
 
 /// Whether a thread on a workspace of this kind runs in its project's folder, so a start makes nothing: the reading
@@ -755,7 +986,7 @@ pub fn copies_folder(kind: &WorkspaceKind) -> bool {
 //   return kindWords(kind).inFolder;
 // }
 pub fn runs_in_folder(kind: &WorkspaceKind) -> bool {
-    todo!()
+    kind_words(kind).in_folder
 }
 
 /// Whether a workspace of this kind is a folder on a computer the person joined, reached over that computer's link:
@@ -766,7 +997,8 @@ pub fn runs_in_folder(kind: &WorkspaceKind) -> bool {
 //   return kindWords(kind).inFolder && !kindWords(kind).copiesFolder;
 // }
 pub fn folder_on_joined(kind: &WorkspaceKind) -> bool {
-    todo!()
+    let words = kind_words(kind);
+    words.in_folder && !words.copies_folder
 }
 
 /// Whether a record is a folder's that no thread names: the host makes one before a folder's first thread and keeps
@@ -777,7 +1009,7 @@ pub fn folder_on_joined(kind: &WorkspaceKind) -> bool {
 // }
 /// `kind` is the record's own field.
 pub fn bare_folder(kind: Option<&WorkspaceKind>, holds_thread: bool) -> bool {
-    todo!()
+    !holds_thread && runs_in_folder(&workspace_kind(kind))
 }
 
 /// The kind of workspace a computer makes: the computer the app runs on and every computer the person joined run a
@@ -790,7 +1022,13 @@ pub fn bare_folder(kind: Option<&WorkspaceKind>, holds_thread: bool) -> bool {
 //   return computer === HERE_PLACE_ID ? "local" : joined ? "place" : "cloud";
 // }
 pub fn kind_for_computer(computer: &str, joined: Option<bool>) -> WorkspaceKind {
-    todo!()
+    if computer == HERE_PLACE_ID {
+        WorkspaceKind::Local
+    } else if joined.unwrap_or(false) {
+        WorkspaceKind::Place
+    } else {
+        WorkspaceKind::Cloud
+    }
 }
 
 /// Where a workspace of a project on this computer lands: a copy of a folder beside the app for a project here, a
@@ -812,7 +1050,13 @@ pub enum WorkspaceLands {
 //   return computer === wired ? { at: "wired" } : { at: "place", place: computer };
 // }
 pub fn workspace_lands(computer: &str, wired: Option<&str>) -> WorkspaceLands {
-    todo!()
+    if copies_folder(&kind_for_computer(computer, None)) {
+        WorkspaceLands::Here
+    } else if wired == Some(computer) {
+        WorkspaceLands::Wired
+    } else {
+        WorkspaceLands::Place { place: computer.to_string() }
+    }
 }
 
 /// Whether a workspace of a project on `computer` stands on this place's row. The provider the host forks on is a
@@ -823,7 +1067,10 @@ pub fn workspace_lands(computer: &str, wired: Option<&str>) -> WorkspaceLands {
 // }
 /// `place_id` and `place_name` are the place's id and name.
 pub fn lands_on(computer: &str, place_id: &str, place_name: &str) -> bool {
-    todo!()
+    if workspace_lands(computer, None) == WorkspaceLands::Here {
+        return place_id == HERE_PLACE_ID;
+    }
+    names_place(&PlaceRef { id: place_id.to_string(), name: place_name.to_string(), kind: None }, computer)
 }
 
 /// Why a project on this computer takes none of the words a fork takes: its threads run in its own folder, so there
@@ -833,7 +1080,9 @@ pub fn lands_on(computer: &str, place_id: &str, place_name: &str) -> bool {
 // export const copyTakesNone = (project: string, words: readonly string[], computer: string = THIS_COMPUTER): string =>
 //   `${project} is on ${computer}, where threads run in its folder and nothing forks, so it takes no ${words.join(", ")}`;
 pub fn copy_takes_none(project: &str, words: &[impl AsRef<str>], computer: Option<&str>) -> String {
-    todo!()
+    let computer = computer.unwrap_or(THIS_COMPUTER);
+    let words: Vec<&str> = words.iter().map(|w| w.as_ref()).collect();
+    format!("{project} is on {computer}, where threads run in its folder and nothing forks, so it takes no {}", words.join(", "))
 }
 
 /// What a computer is called in a row or a line: the name this wsp holds for it, and this computer's own word
@@ -845,8 +1094,15 @@ pub fn copy_takes_none(project: &str, words: &[impl AsRef<str>], computer: Optio
 // export function computerNamed(computer: string, named: ReadonlyMap<string, string> | undefined, platform: "darwin" | "linux"): string {
 //   return computer === HERE_PLACE_ID ? thisComputer(platform) : (named?.get(computer) ?? computer);
 // }
-pub fn computer_named(computer: &str, named: Option<&indexmap::IndexMap<String, String>>, platform: &crate::words::computer::Platform) -> String {
-    todo!()
+pub fn computer_named(
+    computer: &str,
+    named: Option<&indexmap::IndexMap<String, String>>,
+    platform: &crate::words::computer::Platform,
+) -> String {
+    if computer == HERE_PLACE_ID {
+        return this_computer(*platform);
+    }
+    named.and_then(|named| named.get(computer)).cloned().unwrap_or_else(|| computer.to_string())
 }
 
 /// Why a thread opened with no project named, from a folder that is in no project, opens nothing; `named` is the
@@ -856,6 +1112,5 @@ pub fn computer_named(computer: &str, named: Option<&indexmap::IndexMap<String, 
 //   return `${named} is needed outside your projects: run from inside a project's folder, or name the project`;
 // }
 pub fn no_thread_target_line(named: &str) -> String {
-    todo!()
+    format!("{named} is needed outside your projects: run from inside a project's folder, or name the project")
 }
-

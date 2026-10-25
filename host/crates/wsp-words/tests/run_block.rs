@@ -49,7 +49,6 @@ mod which_of_a_reply_s_code_blocks_a_person_can_run {
 
     #[test]
 
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn says_in_one_sentence_how_an_agent_labels_a_command_for_the_person() {
         assert!(RUN_BLOCK_WORDS.contains("`sh`"), "{RUN_BLOCK_WORDS}");
         assert!(!RUN_BLOCK_WORDS.ends_with('.'));
@@ -107,7 +106,10 @@ mod what_a_finished_run_says_and_sends {
         assert!(message.starts_with("I ran `npm test` and it exited 1. The last lines it printed:\n\n```text\n"), "{message}");
         assert!(message.ends_with("line 199\n```"), "{message}");
         assert_eq!(message.split('\n').filter(|l| l.starts_with("line ")).count(), RUN_SENT_LINES as usize);
-        assert_eq!(run_output_message("true", &ended(RunState::Exited, Some(0), None), ""), "I ran `true` and it exited 0. It printed nothing.");
+        assert_eq!(
+            run_output_message("true", &ended(RunState::Exited, Some(0), None), ""),
+            "I ran `true` and it exited 0. It printed nothing."
+        );
     }
 }
 
@@ -116,7 +118,8 @@ mod what_reaches_the_shell_and_the_agent_is_what_the_person_saw {
 
     #[test]
     fn offers_no_run_on_a_block_holding_a_character_the_page_would_draw_reordered_not_a() {
-        let hidden = ["\u{202e} ;rm -rf ~", "\u{2066}x\u{2069}", "\u{200b}", "\u{200d}", "\u{feff}", "\u{2060}", "\u{7}", "\u{1b}[2J", "\r"];
+        let hidden =
+            ["\u{202e} ;rm -rf ~", "\u{2066}x\u{2069}", "\u{200b}", "\u{200d}", "\u{feff}", "\u{2060}", "\u{7}", "\u{1b}[2J", "\r"];
         for h in hidden {
             assert_eq!(runnable_command("sh", &format!("kill 60082{h}")), None, "{h:?}");
         }
@@ -212,24 +215,77 @@ mod pinned {
     fn how_a_run_ended_and_what_send_output_says() {
         assert_eq!(run_block_key("m1", 0), "m1@0"); // runBlockKey("m1", 0)
         assert_eq!(run_ended_words(&RunEnd { state: RunState::Exited, exit_code: Some(0), signal: None }), "Exited 0"); // runEndedWords({"state":"exited","exitCode":0})
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(0), signal: None }, "out"), "I ran `ls` and it exited 0. The last lines it printed:\n\n```text\nout\n```"); // runOutputMessage("ls", {"state":"exited","exitCode":0}, "out")
+        assert_eq!(
+            run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(0), signal: None }, "out"),
+            "I ran `ls` and it exited 0. The last lines it printed:\n\n```text\nout\n```"
+        ); // runOutputMessage("ls", {"state":"exited","exitCode":0}, "out")
         assert_eq!(run_ended_words(&RunEnd { state: RunState::Exited, exit_code: None, signal: None }), "Exited 0"); // runEndedWords({"state":"exited"})
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: None, signal: None }, "out"), "I ran `ls` and it exited 0. The last lines it printed:\n\n```text\nout\n```"); // runOutputMessage("ls", {"state":"exited"}, "out")
+        assert_eq!(
+            run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: None, signal: None }, "out"),
+            "I ran `ls` and it exited 0. The last lines it printed:\n\n```text\nout\n```"
+        ); // runOutputMessage("ls", {"state":"exited"}, "out")
         assert_eq!(run_ended_words(&RunEnd { state: RunState::Exited, exit_code: Some(2), signal: None }), "Exited 2"); // runEndedWords({"state":"exited","exitCode":2})
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(2), signal: None }, "out"), "I ran `ls` and it exited 2. The last lines it printed:\n\n```text\nout\n```"); // runOutputMessage("ls", {"state":"exited","exitCode":2}, "out")
+        assert_eq!(
+            run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(2), signal: None }, "out"),
+            "I ran `ls` and it exited 2. The last lines it printed:\n\n```text\nout\n```"
+        ); // runOutputMessage("ls", {"state":"exited","exitCode":2}, "out")
         assert_eq!(run_ended_words(&RunEnd { state: RunState::Exited, exit_code: None, signal: Some(9) }), "Stopped by signal 9"); // runEndedWords({"state":"exited","signal":9})
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: None, signal: Some(9) }, "out"), "I ran `ls` and stopped by signal 9. The last lines it printed:\n\n```text\nout\n```"); // runOutputMessage("ls", {"state":"exited","signal":9}, "out")
+        assert_eq!(
+            run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: None, signal: Some(9) }, "out"),
+            "I ran `ls` and stopped by signal 9. The last lines it printed:\n\n```text\nout\n```"
+        ); // runOutputMessage("ls", {"state":"exited","signal":9}, "out")
         assert_eq!(run_ended_words(&RunEnd { state: RunState::Exited, exit_code: Some(1), signal: Some(15) }), "Stopped by signal 15"); // runEndedWords({"state":"exited","exitCode":1,"signal":15})
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(1), signal: Some(15) }, "out"), "I ran `ls` and stopped by signal 15. The last lines it printed:\n\n```text\nout\n```"); // runOutputMessage("ls", {"state":"exited","exitCode":1,"signal":15}, "out")
+        assert_eq!(
+            run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(1), signal: Some(15) }, "out"),
+            "I ran `ls` and stopped by signal 15. The last lines it printed:\n\n```text\nout\n```"
+        ); // runOutputMessage("ls", {"state":"exited","exitCode":1,"signal":15}, "out")
         assert_eq!(run_ended_words(&RunEnd { state: RunState::Moved, exit_code: None, signal: None }), "Moved to a terminal tab"); // runEndedWords({"state":"moved"})
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Moved, exit_code: None, signal: None }, "out"), "I ran `ls` and moved to a terminal tab. The last lines it printed:\n\n```text\nout\n```"); // runOutputMessage("ls", {"state":"moved"}, "out")
-        assert_eq!(run_ended_words(&RunEnd { state: RunState::Lost, exit_code: None, signal: None }), "Ended unseen: its terminal went away first"); // runEndedWords({"state":"lost"})
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Lost, exit_code: None, signal: None }, "out"), "I ran `ls` and ended unseen: its terminal went away first. The last lines it printed:\n\n```text\nout\n```"); // runOutputMessage("ls", {"state":"lost"}, "out")
+        assert_eq!(
+            run_output_message("ls", &RunEnd { state: RunState::Moved, exit_code: None, signal: None }, "out"),
+            "I ran `ls` and moved to a terminal tab. The last lines it printed:\n\n```text\nout\n```"
+        ); // runOutputMessage("ls", {"state":"moved"}, "out")
+        assert_eq!(
+            run_ended_words(&RunEnd { state: RunState::Lost, exit_code: None, signal: None }),
+            "Ended unseen: its terminal went away first"
+        ); // runEndedWords({"state":"lost"})
+        assert_eq!(
+            run_output_message("ls", &RunEnd { state: RunState::Lost, exit_code: None, signal: None }, "out"),
+            "I ran `ls` and ended unseen: its terminal went away first. The last lines it printed:\n\n```text\nout\n```"
+        ); // runOutputMessage("ls", {"state":"lost"}, "out")
         assert_eq!(run_ended_words(&RunEnd { state: RunState::Running, exit_code: None, signal: None }), "Running"); // runEndedWords({"state":"running"})
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Running, exit_code: None, signal: None }, "out"), "I ran `ls` and running. The last lines it printed:\n\n```text\nout\n```"); // runOutputMessage("ls", {"state":"running"}, "out")
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(0), signal: None }, "  \n "), "I ran `ls` and it exited 0. It printed nothing."); // runOutputMessage("ls", {state:"exited",exitCode:0}, "  \n ")
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(0), signal: None }, "a````b"), "I ran `ls` and it exited 0. The last lines it printed:\n\n`````text\na````b\n`````"); // runOutputMessage("ls", {state:"exited",exitCode:0}, "a````b")
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(0), signal: None }, &(0..65).map(|i| format!("l{i}")).collect::<Vec<_>>().join("\n")).split('\n').count() as f64, 64.0); // runOutputMessage("ls", {state:"exited",exitCode:0}, Array.from({length:65},(_, i)=>"l"+i).join("\n")).split("\n").length
-        assert_eq!(run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(0), signal: None }, &(0..65).map(|i| format!("l{i}")).collect::<Vec<_>>().join("\n")).split('\n').nth(3).unwrap().to_string(), "l5"); // runOutputMessage("ls", {state:"exited",exitCode:0}, Array.from({length:65},(_, i)=>"l"+i).join("\n")).split("\n")[3]
+        assert_eq!(
+            run_output_message("ls", &RunEnd { state: RunState::Running, exit_code: None, signal: None }, "out"),
+            "I ran `ls` and running. The last lines it printed:\n\n```text\nout\n```"
+        ); // runOutputMessage("ls", {"state":"running"}, "out")
+        assert_eq!(
+            run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(0), signal: None }, "  \n "),
+            "I ran `ls` and it exited 0. It printed nothing."
+        ); // runOutputMessage("ls", {state:"exited",exitCode:0}, "  \n ")
+        assert_eq!(
+            run_output_message("ls", &RunEnd { state: RunState::Exited, exit_code: Some(0), signal: None }, "a````b"),
+            "I ran `ls` and it exited 0. The last lines it printed:\n\n`````text\na````b\n`````"
+        ); // runOutputMessage("ls", {state:"exited",exitCode:0}, "a````b")
+        assert_eq!(
+            run_output_message(
+                "ls",
+                &RunEnd { state: RunState::Exited, exit_code: Some(0), signal: None },
+                &(0..65).map(|i| format!("l{i}")).collect::<Vec<_>>().join("\n")
+            )
+            .split('\n')
+            .count() as f64,
+            64.0
+        ); // runOutputMessage("ls", {state:"exited",exitCode:0}, Array.from({length:65},(_, i)=>"l"+i).join("\n")).split("\n").length
+        assert_eq!(
+            run_output_message(
+                "ls",
+                &RunEnd { state: RunState::Exited, exit_code: Some(0), signal: None },
+                &(0..65).map(|i| format!("l{i}")).collect::<Vec<_>>().join("\n")
+            )
+            .split('\n')
+            .nth(3)
+            .unwrap()
+            .to_string(),
+            "l5"
+        ); // runOutputMessage("ls", {state:"exited",exitCode:0}, Array.from({length:65},(_, i)=>"l"+i).join("\n")).split("\n")[3]
     }
 }

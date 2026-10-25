@@ -20,7 +20,10 @@ mod the_exit_code_every_wsp_verb_answers_with {
         assert_eq!(ExitClass::Ok.words(), "it did what its line says; with --json stdout holds the answer");
         assert_eq!(ExitClass::Provider.words(), "the host, the runtime, a provider or the machine refused or failed");
         assert_eq!(ExitClass::Auth.words(), "no key, no sign-in, or the host refused the token");
-        assert_eq!(ExitClass::Usage.words(), "the line was refused before anything ran: a missing argument, an unknown flag or a value nothing takes");
+        assert_eq!(
+            ExitClass::Usage.words(),
+            "the line was refused before anything ran: a missing argument, an unknown flag or a value nothing takes"
+        );
         for c in ExitClass::ALL {
             assert!(!c.words().contains('\u{2014}'), "{c:?}");
         }
@@ -43,14 +46,20 @@ mod the_exit_code_every_wsp_verb_answers_with {
     #[test]
     fn the_failure_object_is_the_message_the_class_and_the_code_the_class_owns_and_par() {
         let failure = verb_failure(&usage_refusal("wsp forget takes one workspace.", "usage: wsp forget <workspace>"));
-        assert_eq!(serde_json::to_value(&failure).unwrap(), json!({ "error": "wsp forget takes one workspace. usage: wsp forget <workspace>", "class": "usage", "exit": 3 }));
+        assert_eq!(
+            serde_json::to_value(&failure).unwrap(),
+            json!({ "error": "wsp forget takes one workspace. usage: wsp forget <workspace>", "class": "usage", "exit": 3 })
+        );
         let parsed: VerbFailure = serde_json::from_value(serde_json::to_value(&failure).unwrap()).unwrap();
         assert_eq!(parsed, failure);
         assert_eq!(
             serde_json::to_value(verb_failure(&auth_refusal("the host's token file is missing: /x"))).unwrap(),
             json!({ "error": "the host's token file is missing: /x", "class": "auth", "exit": 2 })
         );
-        assert_eq!(serde_json::to_value(verb_failure(&HostError::new("no workspace nope"))).unwrap(), json!({ "error": "no workspace nope", "class": "provider", "exit": 1 }));
+        assert_eq!(
+            serde_json::to_value(verb_failure(&HostError::new("no workspace nope"))).unwrap(),
+            json!({ "error": "no workspace nope", "class": "provider", "exit": 1 })
+        );
         assert!(serde_json::from_value::<VerbFailure>(json!({ "error": "x", "class": "ok", "exit": 0 })).is_err());
     }
 
@@ -156,7 +165,17 @@ mod pinned {
         assert_eq!(Kind::NotFound.class(), ExitClass::Usage);
         assert_eq!(Kind::ProcessesLeft.class(), ExitClass::Usage);
         assert_eq!(Kind::Auth.class(), ExitClass::Auth);
-        for k in [Kind::Ticket, Kind::Conflict, Kind::Concurrency, Kind::StartLimit, Kind::Plan, Kind::Missing, Kind::Unreachable, Kind::Refused, Kind::Reauth] {
+        for k in [
+            Kind::Ticket,
+            Kind::Conflict,
+            Kind::Concurrency,
+            Kind::StartLimit,
+            Kind::Plan,
+            Kind::Missing,
+            Kind::Unreachable,
+            Kind::Refused,
+            Kind::Reauth,
+        ] {
             assert_eq!(k.class(), ExitClass::Provider, "{k:?}");
         }
         let none = HostError::new("x");
@@ -179,7 +198,10 @@ mod pinned {
         slate.warnings = Some(vec![json!("w")]);
         slate.errors = Some(vec![json!("e")]);
         let failure = verb_failure(&slate);
-        assert_eq!(serde_json::to_string(&failure).unwrap(), r#"{"error":"slate refused","class":"provider","exit":1,"errors":["e"],"warnings":["w"]}"#);
+        assert_eq!(
+            serde_json::to_string(&failure).unwrap(),
+            r#"{"error":"slate refused","class":"provider","exit":1,"errors":["e"],"warnings":["w"]}"#
+        );
         assert_eq!(serde_json::to_value(problem_lists_of(&slate)).unwrap(), json!({ "errors": ["e"], "warnings": ["w"] }));
     }
 
@@ -235,5 +257,25 @@ mod pinned {
         );
         assert_eq!(json_line(&json!(null), None), "null");
         assert_eq!(json_line(&json!("\u{2028}é/"), None), "\"\u{2028}é/\"");
+    }
+}
+
+mod the_host_key_an_installer_error_carries {
+    use super::*;
+
+    #[test]
+    fn rides_an_error_of_kind_host_key_and_is_offered_back_only_there() {
+        // install.ts:69: Object.assign(new Error(line), { kind: "host-key", hostKey: key }); manage.ts:321 reads it
+        // only when the kind is host-key and the key is a string.
+        let e = HostError::with_host_key("the key is not confirmed", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK");
+        assert_eq!(e.kind, Some(Kind::HostKey));
+        assert_eq!(e.offered_host_key(), Some("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK"));
+        assert_eq!(exit_class_of(&e), ExitClass::Provider);
+        assert_eq!(e.message, "the key is not confirmed");
+
+        let other = HostError { host_key: Some("ssh-ed25519 AAAA".to_string()), ..err_with_kind("no", "refused") };
+        assert_eq!(other.offered_host_key(), None);
+        assert_eq!(HostError::new("plain").offered_host_key(), None);
+        assert_eq!(err_with_kind("no key", "host-key").offered_host_key(), None);
     }
 }

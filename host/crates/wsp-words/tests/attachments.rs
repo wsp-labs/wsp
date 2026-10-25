@@ -8,8 +8,7 @@ use std::process::Command;
 use indexmap::IndexSet;
 use serde_json::{json, Value};
 use wsp_wire::types::attachments::{
-    Attachment, AttachmentRecord, FILES_DIR, FILES_MAX, FILE_MAX_BYTES, FILE_MAX_WORDS, IMAGE_MAX_BYTES, IMAGE_MAX_WORDS,
-    IMAGE_TYPE_WORDS,
+    Attachment, AttachmentRecord, FILES_DIR, FILES_MAX, FILE_MAX_BYTES, FILE_MAX_WORDS, IMAGE_MAX_BYTES, IMAGE_MAX_WORDS, IMAGE_TYPE_WORDS,
 };
 use wsp_words::attachments::*;
 
@@ -142,18 +141,12 @@ mod the_caps_in_the_person_s_words {
     #[test]
     fn any_type_travels_as_a_file_and_one_with_no_name_is_called_by_its_place() {
         assert_eq!(files_refusal(&[kept(pdf(1024, "report.pdf")), kept(json!({ "mediaType": "", "bytes": b64(10) }))]), None);
-        assert_eq!(
-            files_refusal(&[kept(json!({ "mediaType": "text/plain", "bytes": "" }))]).as_deref(),
-            Some("file 1 is empty")
-        );
+        assert_eq!(files_refusal(&[kept(json!({ "mediaType": "text/plain", "bytes": "" }))]).as_deref(), Some("file 1 is empty"));
     }
 
     #[test]
     fn an_empty_image_is_refused_rather_than_sent_as_nothing() {
-        assert_eq!(
-            files_refusal(&[kept(json!({ "mediaType": "image/png", "bytes": "" }))]).as_deref(),
-            Some("image 1 is empty")
-        );
+        assert_eq!(files_refusal(&[kept(json!({ "mediaType": "image/png", "bytes": "" }))]).as_deref(), Some("image 1 is empty"));
     }
 
     #[test]
@@ -228,10 +221,7 @@ mod the_type_read_off_the_bytes_never_off_the_name {
         assert_eq!(image_type_of(&head(&[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])).as_deref(), Some("image/png"));
         assert_eq!(image_type_of(&head(&[0xff, 0xd8, 0xff, 0xe0])).as_deref(), Some("image/jpeg"));
         assert_eq!(image_type_of(&head(&[0x47, 0x49, 0x46, 0x38, 0x39, 0x61])).as_deref(), Some("image/gif"));
-        assert_eq!(
-            image_type_of(&[0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50]).as_deref(),
-            Some("image/webp")
-        );
+        assert_eq!(image_type_of(&[0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50]).as_deref(), Some("image/webp"));
     }
 
     #[test]
