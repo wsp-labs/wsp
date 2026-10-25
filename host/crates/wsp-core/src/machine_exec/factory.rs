@@ -5,21 +5,20 @@
 use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::Arc;
 
-use futures::future::{BoxFuture, Shared};
+use futures::future::{LocalBoxFuture, Shared};
 use wsp_adapters::port::{Attached, AttachRunOptions, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory};
 use wsp_engine::errors::{EngineError, RetryClock};
 use wsp_engine::Machine;
 
 use super::rules::{ReadingSet, TurnWaiting};
 use crate::ids::Ids;
-use crate::owner_thread::OwnerThread;
 
 /// The clock both limits read; ms epoch.
-pub type NowFn = Arc<dyn Fn() -> i64 + Send + Sync>;
+pub type NowFn = Arc<dyn Fn() -> i64>;
 /// What every wait runs on, the poll's and the launch retry's; tests hand in one that moves the clock.
-pub type SleepFn = Arc<dyn Fn(u64) -> BoxFuture<'static, ()> + Send + Sync>;
+pub type SleepFn = Arc<dyn Fn(u64) -> LocalBoxFuture<'static, ()>>;
 /// The words a run the kernel may have killed fails with, asked with when the turn started; `None` leaves the code.
-pub type KilledWhy = Arc<dyn Fn(i64) -> BoxFuture<'static, Option<String>> + Send + Sync>;
+pub type KilledWhy = Arc<dyn Fn(i64) -> LocalBoxFuture<'static, Option<String>>>;
 
 // TS machine-exec.ts:47-81
 // export interface MachineExecOptions {
@@ -81,7 +80,7 @@ pub struct MachineExecOptions {
     pub asks_until_stopped: bool,
     pub killed_why: Option<KilledWhy>,
     /// Where a run's name, sentinels and late-line keys are drawn from (rule 3.16); `OsIds` when `None`.
-    pub ids: Option<Arc<dyn Ids + Send + Sync>>,
+    pub ids: Option<Arc<dyn Ids>>,
 }
 
 /// A launch's posts as the reader that follows them asks after them (machine-exec.ts:89-93).
@@ -96,13 +95,12 @@ pub struct Posting {
 
 /// The launch's outcome as the reader awaits it: `Ok` once the run is known to be up, else the failure the turn ends
 /// on, already in the words and kind of machine_exec_factory rule 8.
-pub type Launched = Shared<BoxFuture<'static, Result<(), ExecFailure>>>;
+pub type Launched = Shared<LocalBoxFuture<'static, Result<(), ExecFailure>>>;
 
 /// What the factory and every stream it opens read: the machine and the resolved options.
 pub struct Core {
-    /// Behind `OwnerThread`: the engine's `Machine` is not `Send`, and the factory must be (wsp-adapters' port).
-    pub machine: OwnerThread<Arc<dyn Machine>>,
-    pub launch_on: Option<OwnerThread<Arc<dyn Machine>>>,
+    pub machine: Arc<dyn Machine>,
+    pub launch_on: Option<Arc<dyn Machine>>,
     pub poll_ms: u64,
     pub idle_ms: f64,
     pub deadline_ms: f64,
@@ -117,7 +115,7 @@ pub struct Core {
     pub asks_until_stopped: bool,
     pub killed_why: Option<KilledWhy>,
     pub waiting: TurnWaiting,
-    pub ids: Arc<dyn Ids + Send + Sync>,
+    pub ids: Arc<dyn Ids>,
 }
 
 impl Core {
@@ -258,7 +256,7 @@ impl ExecStreamFactory for MachineExecFactory {
     //     if (res.stdout.includes(HANDSHAKE.gone)) return "gone";
     //     throw new Error(`the machine did not answer whether it still holds ${run}; ${machineAnswer(res)}`);
     //   };
-    fn attach(&self, run: &str, options: AttachRunOptions) -> Option<BoxFuture<'static, Result<Attached, ExecFailure>>> {
+    fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
         todo!()
     }
 
@@ -290,7 +288,7 @@ impl ExecStreamFactory for MachineExecFactory {
     //     for (const bases of pages) await machine.exec(page(bases), { timeoutMs: execTimeoutMs });
     //     return stale;
     //   };
-    fn sweep(&self, keep: &[String]) -> Option<BoxFuture<'static, Result<Vec<String>, ExecFailure>>> {
+    fn sweep(&self, keep: &[String]) -> Option<LocalBoxFuture<'static, Result<Vec<String>, ExecFailure>>> {
         todo!()
     }
 }
