@@ -14,7 +14,11 @@ use serde_json::{json, Value};
 use machines_b_support::kinds_ctx::*;
 use machines_b_support::*;
 use wsp_engine::machine::MachineBackend;
-use wsp_machines::machines::core_types::{KindModule, Live, StageReport, WorkspaceRecord};
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::kinds::{BrokeredLaunch, KindsArea, KindsCtx};
 use wsp_wire::types::shell_quote::shell_line;
 use wsp_wire::views::workspace::ProjectView;
@@ -221,7 +225,7 @@ fn says_gits_last_line_when_the_clone_fails_and_leaves_no_folder_it_made() {
 // The clone and install inside a fork (rules 2 and 3).
 
 /// A fork of a project on `default`, its machine answering `ls -A` with `listing`.
-fn fork(listing: &str, project_extra: Value, record_extra: Value) -> (Rc<FakeHost>, Rc<KindsArea>, Live, Arc<FakeMachine>, ProjectView) {
+fn fork(listing: &str, project_extra: Value, record_extra: Value) -> (Rc<FakeHost>, Rc<KindsArea>, Entry, Arc<FakeMachine>, ProjectView) {
     let (host, area) = kinds();
     let p = project("pr_1", "/root/spoo-landing", project_extra);
     hold(&p);
@@ -235,7 +239,7 @@ fn fork(listing: &str, project_extra: Value, record_extra: Value) -> (Rc<FakeHos
     (host, area, entry, machine, p)
 }
 
-async fn land(area: &KindsArea, entry: &Live, p: &ProjectView, report: StageReport) -> Result<(), HostError> {
+async fn land(area: &KindsArea, entry: &Entry, p: &ProjectView, report: StageReport) -> Result<(), HostError> {
     area.module_of(WorkspaceKind::Cloud).ok().expect("cloud is wired").land_project(entry, &serde_json::to_value(p).unwrap(), report).await
 }
 
@@ -380,7 +384,7 @@ fn thread_folder_takes_cwd_then_the_kinds_folder_then_the_project() {
 // ---------------------------------------------------------------------------------------------------------------
 // What the broker holds and the launch a brokered workspace carries (rules 16 to 19).
 
-fn brokered_entry(host: &FakeHost, id: &str) -> Live {
+fn brokered_entry(host: &FakeHost, id: &str) -> Entry {
     host.put_live(record_of(id, json!({ "branchOfRecord": of_record() }), &[]), FakeMachine::new(&format!("bx_{id}")))
 }
 
@@ -536,7 +540,7 @@ fn srv_world(set: impl FnOnce(&mut Door)) -> impl FnOnce(&mut World) {
     }
 }
 
-fn srv_entry(host: &FakeHost) -> Live {
+fn srv_entry(host: &FakeHost) -> Entry {
     host.put_live(record_of("ws_p", json!({ "kind": "place", "place": "srv", "project": "pr_p", "name": "lab" }), &["sub"]), FakeMachine::new("srv-machine"))
 }
 

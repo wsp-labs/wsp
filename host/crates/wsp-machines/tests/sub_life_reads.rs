@@ -11,7 +11,11 @@ use serde_json::Value;
 
 use machines_b_support::*;
 use wsp_engine::machine::MachineBackend;
-use wsp_machines::machines::core_types::WorkspaceRecord;
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_life::*;
 use wsp_words::exit::HostError;
 
@@ -182,7 +186,7 @@ impl BackendFor for Keeps {
 /// A backend with no lifecycle at all.
 struct NoLife;
 
-#[async_trait::async_trait]
+#[async_trait::async_trait(?Send)]
 impl MachineBackend for NoLife {
     fn capabilities(&self) -> wsp_engine::machine::Capabilities {
         boat_capabilities()
