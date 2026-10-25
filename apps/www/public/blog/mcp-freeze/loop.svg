@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540" font-family="Inter Variable, Inter, system-ui, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#7a7168"/></marker></defs>
+<text x="105" y="20" text-anchor="middle" font-size="11" font-weight="600" letter-spacing="1.4" fill="#8a8178">TERMINAL</text>
+<text x="365" y="20" text-anchor="middle" font-size="11" font-weight="600" letter-spacing="1.4" fill="#8a8178">CLAUDE SESSIONS</text>
+<text x="615" y="20" text-anchor="middle" font-size="11" font-weight="600" letter-spacing="1.4" fill="#8a8178">MCP COPIES</text>
+<text x="860" y="20" text-anchor="middle" font-size="11" font-weight="600" letter-spacing="1.4" fill="#8a8178">REPO</text>
+<path d="M190 270 C 232 270, 228 70, 268 70" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M460 70 L 528 70" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M700 70 C 742 70, 738 270, 778 270" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M190 270 C 232 270, 228 170, 268 170" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M460 170 L 528 170" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M700 170 C 742 170, 738 270, 778 270" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M190 270 C 232 270, 228 270, 268 270" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M460 270 L 528 270" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M700 270 C 742 270, 738 270, 778 270" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M190 270 C 232 270, 228 370, 268 370" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M460 370 L 528 370" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M700 370 C 742 370, 738 270, 778 270" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M190 270 C 232 270, 228 470, 268 470" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M460 470 L 528 470" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M700 470 C 742 470, 738 270, 778 270" fill="none" stroke="#5c554e" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="20" y="222" width="170" height="96" rx="14" fill="#24211e" stroke="#4a443d" stroke-width="1.5"/>
+<text x="105.0" y="264.3" text-anchor="middle" font-size="18" font-weight="650" fill="#f1ebe2">cmux</text>
+<text x="105.0" y="286.55" text-anchor="middle" font-size="13" font-weight="500" fill="#b3aaa0">27.52 GB on its line</text>
+<rect x="270" y="42" width="190" height="56" rx="14" fill="rgba(217,119,87,0.13)" stroke="#d97757" stroke-width="1.5"/>
+<text x="365.0" y="75.25" text-anchor="middle" font-size="15" font-weight="600" fill="#f4c8b6">Claude session 1</text>
+<rect x="530" y="42" width="170" height="56" rx="14" fill="rgba(229,72,77,0.13)" stroke="#e5484d" stroke-width="1.5"/>
+<text x="615.0" y="75.25" text-anchor="middle" font-size="15" font-weight="600" fill="#f7b8ba">indexer copy</text>
+<rect x="270" y="142" width="190" height="56" rx="14" fill="rgba(217,119,87,0.13)" stroke="#d97757" stroke-width="1.5"/>
+<text x="365.0" y="175.25" text-anchor="middle" font-size="15" font-weight="600" fill="#f4c8b6">Claude session 2</text>
+<rect x="530" y="142" width="170" height="56" rx="14" fill="rgba(229,72,77,0.13)" stroke="#e5484d" stroke-width="1.5"/>
+<text x="615.0" y="175.25" text-anchor="middle" font-size="15" font-weight="600" fill="#f7b8ba">indexer copy</text>
+<rect x="270" y="242" width="190" height="56" rx="14" fill="rgba(217,119,87,0.13)" stroke="#d97757" stroke-width="1.5"/>
+<text x="365.0" y="275.25" text-anchor="middle" font-size="15" font-weight="600" fill="#f4c8b6">Claude session 3</text>
+<rect x="530" y="242" width="170" height="56" rx="14" fill="rgba(229,72,77,0.13)" stroke="#e5484d" stroke-width="1.5"/>
+<text x="615.0" y="275.25" text-anchor="middle" font-size="15" font-weight="600" fill="#f7b8ba">indexer copy</text>
+<rect x="270" y="342" width="190" height="56" rx="14" fill="rgba(217,119,87,0.13)" stroke="#d97757" stroke-width="1.5"/>
+<text x="365.0" y="375.25" text-anchor="middle" font-size="15" font-weight="600" fill="#f4c8b6">Claude session 4</text>
+<rect x="530" y="342" width="170" height="56" rx="14" fill="rgba(229,72,77,0.13)" stroke="#e5484d" stroke-width="1.5"/>
+<text x="615.0" y="375.25" text-anchor="middle" font-size="15" font-weight="600" fill="#f7b8ba">indexer copy</text>
+<rect x="270" y="442" width="190" height="56" rx="14" fill="rgba(217,119,87,0.13)" stroke="#d97757" stroke-width="1.5"/>
+<text x="365.0" y="475.25" text-anchor="middle" font-size="15" font-weight="600" fill="#f4c8b6">Claude session 5</text>
+<rect x="530" y="442" width="170" height="56" rx="14" fill="rgba(229,72,77,0.13)" stroke="#e5484d" stroke-width="1.5"/>
+<text x="615.0" y="475.25" text-anchor="middle" font-size="15" font-weight="600" fill="#f7b8ba">indexer copy</text>
+<rect x="780" y="222" width="160" height="96" rx="14" fill="rgba(76,141,255,0.13)" stroke="#4c8dff" stroke-width="1.5"/>
+<text x="860.0" y="263.6" text-anchor="middle" font-size="16" font-weight="650" fill="#cfe0ff">the same repo</text>
+<text x="860.0" y="286.55" text-anchor="middle" font-size="13" font-weight="500" fill="#9bb8ee">17 submodules</text>
+</svg>

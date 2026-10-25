@@ -1,0 +1,15 @@
+{
+  "kind": "tweet",
+  "url": "https://x.com/amaan8429/status/2109973146447352078",
+  "name": "Amaan",
+  "handle": "amaan8429",
+  "avatar": "/blog/embeds/tweet-2109973146447352078/avatar.jpg",
+  "text": "my M4 pro is dying",
+  "date": "2026-10-13T11:42:54.000Z",
+  "media": [
+    {
+      "kind": "photo",
+      "src": "/blog/embeds/tweet-2109973146447352078/media-0.jpg"
+    }
+  ]
+}
