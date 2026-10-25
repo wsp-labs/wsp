@@ -120,6 +120,67 @@
       "seq": 6
     },
     {
+      "type": "session.held",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "seq": 5
+    },
+    {
+      "type": "session.starting",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "harness": "claude",
+      "seq": 7
+    },
+    {
+      "type": "session.start",
+      "workspaceId": "<ws-1>",
+      "sessionId": "<uuid-2>",
+      "turnId": "<uuid-4>",
+      "threadId": "<uuid-3>",
+      "prompt": "hi",
+      "opensThread": true,
+      "startedBy": "person",
+      "model": "claude-haiku-5-5",
+      "cwd": "/",
+      "permissionMode": "bypassPermissions",
+      "effort": "high",
+      "agent": "claude",
+      "tools": [],
+      "at": "<time in ms>",
+      "pos": 1,
+      "seq": 8
+    },
+    {
+      "type": "thread.head",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "facts": {
+        "id": "<uuid-3>",
+        "threadId": "<uuid-3>",
+        "workspaceId": "<ws-1>",
+        "harness": "claude",
+        "startedBy": "person",
+        "status": "running",
+        "title": "hi",
+        "sessionId": "<uuid-2>",
+        "claudeSessionId": "<uuid-2>",
+        "startedAt": "<time in ms>",
+        "cwd": "/",
+        "pid": "<moving>",
+        "agentPid": "<moving>",
+        "readAt": "<time in ms>",
+        "permissionMode": "bypassPermissions",
+        "turns": 1,
+        "ran": true,
+        "model": "claude-haiku-5-5",
+        "effort": "high",
+        "turnId": "<uuid-4>"
+      },
+      "pos": 1,
+      "seq": 9
+    },
+    {
       "type": "session.delta",
       "workspaceId": "<ws-1>",
       "sessionId": "<uuid-2>",
@@ -160,69 +221,31 @@
       "seq": 12
     },
     {
-      "type": "session.held",
+      "type": "thread.head",
       "workspaceId": "<ws-1>",
       "threadId": "<uuid-3>",
-      "seq": 5
-    },
-    {
-      "type": "session.row",
-      "workspaceId": "<ws-1>",
-      "threadId": "<uuid-3>",
-      "id": "<uuid-2>",
-      "row": {
-        "id": "<uuid-2>",
+      "facts": {
+        "id": "<uuid-3>",
+        "threadId": "<uuid-3>",
         "workspaceId": "<ws-1>",
         "harness": "claude",
+        "startedBy": "person",
         "status": "completed",
-        "startedBy": "person",
-        "threadId": "<uuid-3>",
-        "prompt": "hi",
-        "startedAt": "<time in ms>",
-        "model": "claude-haiku-5-5",
-        "effort": "high",
-        "permissionMode": "bypassPermissions",
-        "cwd": "/",
+        "title": "hi",
+        "sessionId": "<uuid-2>",
         "claudeSessionId": "<uuid-2>",
-        "lastLine": "ok",
+        "startedAt": "<time in ms>",
         "endedAt": "<time in ms>",
-        "readAt": "<time in ms>",
-        "project": {
-          "id": "<pr-1>",
-          "name": "scratch"
-        },
-        "computerName": "<computer>"
-      },
-      "seq": 13
-    },
-    {
-      "type": "session.row",
-      "workspaceId": "<ws-1>",
-      "threadId": "<uuid-3>",
-      "id": "<uuid-2>",
-      "row": {
-        "id": "<uuid-2>",
-        "workspaceId": "<ws-1>",
-        "harness": "claude",
-        "status": "running",
-        "startedBy": "person",
-        "threadId": "<uuid-3>",
-        "prompt": "hi",
-        "startedAt": "<time in ms>",
-        "model": "claude-haiku-5-5",
-        "effort": "high",
-        "permissionMode": "bypassPermissions",
         "cwd": "/",
-        "claudeSessionId": "<uuid-2>",
-        "pid": "<moving>",
-        "agentPid": "<moving>",
+        "lastLine": "ok",
         "readAt": "<time in ms>",
-        "project": {
-          "id": "<pr-1>",
-          "name": "scratch"
-        },
-        "computerName": "<computer>"
+        "permissionMode": "bypassPermissions",
+        "turns": 1,
+        "ran": true,
+        "model": "claude-haiku-5-5",
+        "effort": "high"
       },
+      "pos": 4,
       "seq": 13
     },
     {
@@ -256,87 +279,64 @@
       "seq": 9
     },
     {
-      "type": "session.start",
-      "workspaceId": "<ws-1>",
-      "sessionId": "<uuid-2>",
-      "turnId": "<uuid-4>",
-      "threadId": "<uuid-3>",
-      "prompt": "hi",
-      "opensThread": true,
-      "startedBy": "person",
-      "model": "claude-haiku-5-5",
-      "cwd": "/",
-      "permissionMode": "bypassPermissions",
-      "effort": "high",
-      "agent": "claude",
-      "tools": [],
-      "at": "<time in ms>",
-      "pos": 1,
-      "seq": 8
-    },
-    {
-      "type": "session.starting",
+      "type": "session.row",
       "workspaceId": "<ws-1>",
       "threadId": "<uuid-3>",
-      "harness": "claude",
-      "seq": 7
-    },
-    {
-      "type": "thread.head",
-      "workspaceId": "<ws-1>",
-      "threadId": "<uuid-3>",
-      "facts": {
-        "id": "<uuid-3>",
-        "threadId": "<uuid-3>",
+      "id": "<uuid-2>",
+      "row": {
+        "id": "<uuid-2>",
         "workspaceId": "<ws-1>",
         "harness": "claude",
-        "startedBy": "person",
-        "status": "completed",
-        "title": "hi",
-        "sessionId": "<uuid-2>",
-        "claudeSessionId": "<uuid-2>",
-        "startedAt": "<time in ms>",
-        "endedAt": "<time in ms>",
-        "cwd": "/",
-        "lastLine": "ok",
-        "readAt": "<time in ms>",
-        "permissionMode": "bypassPermissions",
-        "turns": 1,
-        "ran": true,
-        "model": "claude-haiku-5-5",
-        "effort": "high"
-      },
-      "pos": 4,
-      "seq": 13
-    },
-    {
-      "type": "thread.head",
-      "workspaceId": "<ws-1>",
-      "threadId": "<uuid-3>",
-      "facts": {
-        "id": "<uuid-3>",
-        "threadId": "<uuid-3>",
-        "workspaceId": "<ws-1>",
-        "harness": "claude",
-        "startedBy": "person",
         "status": "running",
-        "title": "hi",
-        "sessionId": "<uuid-2>",
-        "claudeSessionId": "<uuid-2>",
+        "startedBy": "person",
+        "threadId": "<uuid-3>",
+        "prompt": "hi",
         "startedAt": "<time in ms>",
+        "model": "claude-haiku-5-5",
+        "effort": "high",
+        "permissionMode": "bypassPermissions",
         "cwd": "/",
+        "claudeSessionId": "<uuid-2>",
         "pid": "<moving>",
         "agentPid": "<moving>",
         "readAt": "<time in ms>",
-        "permissionMode": "bypassPermissions",
-        "turns": 1,
-        "ran": true,
+        "project": {
+          "id": "<pr-1>",
+          "name": "scratch"
+        },
+        "computerName": "<computer>"
+      },
+      "seq": 13
+    },
+    {
+      "type": "session.row",
+      "workspaceId": "<ws-1>",
+      "threadId": "<uuid-3>",
+      "id": "<uuid-2>",
+      "row": {
+        "id": "<uuid-2>",
+        "workspaceId": "<ws-1>",
+        "harness": "claude",
+        "status": "completed",
+        "startedBy": "person",
+        "threadId": "<uuid-3>",
+        "prompt": "hi",
+        "startedAt": "<time in ms>",
         "model": "claude-haiku-5-5",
         "effort": "high",
-        "turnId": "<uuid-4>"
+        "permissionMode": "bypassPermissions",
+        "cwd": "/",
+        "claudeSessionId": "<uuid-2>",
+        "lastLine": "ok",
+        "endedAt": "<time in ms>",
+        "readAt": "<time in ms>",
+        "project": {
+          "id": "<pr-1>",
+          "name": "scratch"
+        },
+        "computerName": "<computer>"
       },
-      "pos": 1,
-      "seq": 9
+      "seq": 13
     },
     {
       "type": "workspace.cost",

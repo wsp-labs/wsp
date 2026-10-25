@@ -2,15 +2,15 @@
   "replies": [],
   "events": [
     {
+      "id": null,
+      "ok": false,
+      "error": "a request is one JSON object, not a bare value or an array"
+    },
+    {
       "close": {
         "code": 4401,
         "reason": "unauthorized"
       }
-    },
-    {
-      "id": null,
-      "ok": false,
-      "error": "a request is one JSON object, not a bare value or an array"
     }
   ]
 }
