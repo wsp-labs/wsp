@@ -32,10 +32,7 @@ mod the_agents_report_on_the_wire {
         let words = |line: &str| command_words(line);
         let owned = |w: &[&str]| Some(w.iter().map(|s| s.to_string()).collect::<Vec<String>>());
         assert_eq!(words("npx -y @acme/mcp"), owned(&["npx", "-y", "@acme/mcp"]));
-        assert_eq!(
-            words("  uvx  'a b'  \"c \\\" d\" e\\ f $HOME "),
-            owned(&["uvx", "a b", "c \" d", "e f", "$HOME"])
-        );
+        assert_eq!(words("  uvx  'a b'  \"c \\\" d\" e\\ f $HOME "), owned(&["uvx", "a b", "c \" d", "e f", "$HOME"]));
         assert_eq!(words("node '' x"), owned(&["node", "", "x"]));
         assert_eq!(words(""), owned(&[]));
         assert_eq!(words("x \"unclosed"), None);

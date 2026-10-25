@@ -36,7 +36,7 @@ async fn a_reader_holding_the_phase_sees_waking_while_the_check_runs_and_running
         seen2.lock().unwrap().push(phase);
         async { Ok(None) }.boxed_local()
     }));
-    let mut ws = Workspace::new(machine.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
+    let ws = Workspace::new(machine.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
     *cell.lock().unwrap() = Some(ws.phase_cell());
     assert_eq!(ws.wake(false).await.unwrap(), WakeResult { reason: None });
     assert_eq!(*seen.lock().unwrap(), vec![WorkspacePhase::Waking]);
@@ -47,11 +47,11 @@ async fn a_reader_holding_the_phase_sees_waking_while_the_check_runs_and_running
 #[tokio::test]
 async fn a_wake_of_a_running_workspace_does_nothing_and_a_nap_of_a_napping_one_does_nothing() {
     let machine = common::fake_machine::FakeMachine::new("m1");
-    let mut ws = Workspace::new(machine.clone(), hooks(2), WorkspaceInitial::default());
+    let ws = Workspace::new(machine.clone(), hooks(2), WorkspaceInitial::default());
     assert_eq!(ws.wake(false).await.unwrap(), WakeResult::default());
     assert_eq!(machine.calls(), Vec::<String>::new());
     assert!(ws.is_first_life());
-    let mut napping =
+    let napping =
         Workspace::new(machine.clone(), hooks(2), WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
     napping.nap().await.unwrap();
     assert_eq!(machine.calls(), Vec::<String>::new());
@@ -70,7 +70,7 @@ async fn a_landed_wake_sends_no_resume_on_its_first_attempt_but_does_on_its_seco
         let fault = (*n == 1).then(|| "daemon silent".to_string());
         async move { Ok(fault) }.boxed_local()
     }));
-    let mut ws = Workspace::new(machine.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
+    let ws = Workspace::new(machine.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
     let got = ws.wake(true).await.unwrap();
     assert_eq!(got.reason.as_deref(), Some("attempt 1: daemon silent"));
     assert_eq!(machine.calls(), vec!["pause".to_string(), "resume".to_string()]);
@@ -96,7 +96,7 @@ async fn a_failed_re_pause_is_one_more_fault_and_the_wake_goes_on() {
         }
         .boxed_local()
     }));
-    let mut ws = Workspace::new(machine.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
+    let ws = Workspace::new(machine.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
     let e = ws.wake(false).await.unwrap_err();
     let line = wsp_words::words::computer::wake_failed_line("m1", "attempt 1: silent; re-pause failed: stop refused; attempt 2: silent");
     assert_eq!(e.to_string(), line);
@@ -108,7 +108,7 @@ async fn a_failed_re_pause_is_one_more_fault_and_the_wake_goes_on() {
 #[tokio::test]
 async fn a_wake_with_zero_attempts_fails_at_once_with_no_faults_and_no_move() {
     let machine = common::fake_machine::FakeMachine::new("m1");
-    let mut ws = Workspace::new(machine.clone(), hooks(0), WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
+    let ws = Workspace::new(machine.clone(), hooks(0), WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: None });
     let e = ws.wake(false).await.unwrap_err();
     assert_eq!(e.to_string(), wsp_words::words::computer::wake_failed_line("m1", ""));
     assert_eq!(machine.calls(), Vec::<String>::new());
@@ -137,7 +137,7 @@ async fn an_upgrade_exports_retires_resurrects_imports_in_that_order_and_lands_r
         l3.lock().unwrap().push(format!("import {} {}", m.id(), String::from_utf8(bytes).unwrap()));
         async { Ok(()) }.boxed_local()
     }));
-    let mut ws = Workspace::new(old.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
+    let ws = Workspace::new(old.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
     ws.upgrade(None).await.unwrap();
     assert_eq!(*log.lock().unwrap(), vec!["export old".to_string(), "resurrect false".to_string(), "import new vault".to_string()]);
     assert_eq!(old.calls(), vec!["kill".to_string()]);
@@ -163,7 +163,7 @@ async fn an_upgrade_over_the_vault_cap_goes_on_with_no_import() {
         *i.lock().unwrap() = true;
         async { Ok(()) }.boxed_local()
     }));
-    let mut ws = Workspace::new(old.clone(), h, WorkspaceInitial::default());
+    let ws = Workspace::new(old.clone(), h, WorkspaceInitial::default());
     ws.upgrade(None).await.unwrap();
     assert!(!*imported.lock().unwrap());
     assert_eq!(ws.machine_id(), "new");
@@ -182,12 +182,12 @@ async fn a_rebuild_whose_old_machine_is_already_gone_still_lands_and_any_other_r
     h.retire = Some(Arc::new(|_m| {
         async { Err(EngineError::Provider(wsp_engine::errors::classify(404, Some("not_found"), Some("gone"), None))) }.boxed_local()
     }));
-    let mut ws = Workspace::new(old.clone(), h.clone(), WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
+    let ws = Workspace::new(old.clone(), h.clone(), WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
     ws.rebuild().await.unwrap();
     assert_eq!((ws.machine_id(), ws.current_phase(), ws.is_first_life()), ("new".to_string(), WorkspacePhase::Running, true));
 
     h.retire = Some(Arc::new(|_m| async { Err(EngineError::Other { message: "delete refused".into(), code: None }) }.boxed_local()));
-    let mut ws = Workspace::new(old.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
+    let ws = Workspace::new(old.clone(), h, WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
     let e = ws.rebuild().await.unwrap_err();
     assert_eq!(e.to_string(), "delete refused");
     // The swap stood before the retire failed; the phase did not move.
@@ -199,7 +199,7 @@ async fn a_rebuild_whose_old_machine_is_already_gone_still_lands_and_any_other_r
 #[tokio::test]
 async fn a_port_route_is_kept_per_port_and_a_remint_drops_only_that_port() {
     let machine = common::fake_machine::FakeMachine::new("m1");
-    let mut ws = Workspace::new(machine.clone(), hooks(1), WorkspaceInitial::default());
+    let ws = Workspace::new(machine.clone(), hooks(1), WorkspaceInitial::default());
     let a = ws.port_reach(3000).await.unwrap();
     let b = ws.daemon_reach().await.unwrap();
     let a2 = ws.port_reach(3000).await.unwrap();

@@ -59,7 +59,9 @@ mod notify_line {
         assert_eq!(
             notify_line(
                 THREAD,
-                &result(json!({ "status": "completed", "durationMs": 492_000, "costUsd": 1.94, "text": "Ran the gate.\n\nAll 12 tests green.\n" })),
+                &result(
+                    json!({ "status": "completed", "durationMs": 492_000, "costUsd": 1.94, "text": "Ran the gate.\n\nAll 12 tests green.\n" })
+                ),
                 None
             ),
             "thread c452d1e8 finished (completed, 8m 12s, $1.94): All 12 tests green."
@@ -73,7 +75,11 @@ mod notify_line {
             "thread c452d1e8 finished (failed, 3.0s): the harness died"
         );
         assert_eq!(
-            notify_line(THREAD, &result(json!({ "status": "interrupted", "durationMs": 12_000, "costUsd": 0.03, "text": "Stopped mid-way." })), None),
+            notify_line(
+                THREAD,
+                &result(json!({ "status": "interrupted", "durationMs": 12_000, "costUsd": 0.03, "text": "Stopped mid-way." })),
+                None
+            ),
             "thread c452d1e8 finished (interrupted, 12s, $0.03): Stopped mid-way."
         );
         assert_eq!(
@@ -135,7 +141,9 @@ mod notify_line {
         assert_eq!(
             notify_line(
                 THREAD,
-                &result(json!({ "status": "completed", "durationMs": 492_000, "costUsd": 1.94, "text": "Ran the gate.\n\nAll 12 tests green.\n" })),
+                &result(
+                    json!({ "status": "completed", "durationMs": 492_000, "costUsd": 1.94, "text": "Ran the gate.\n\nAll 12 tests green.\n" })
+                ),
                 Some(NotifyLength::Whole)
             ),
             "thread c452d1e8 finished (completed, 8m 12s, $1.94): Ran the gate.\n\nAll 12 tests green."
@@ -208,8 +216,22 @@ mod a_turn_s_activity_in_one_line_each {
     #[test]
     fn says_a_turn_s_model_and_tokens_in_short_figures_and_nothing_the_agent_did_not_re() {
         assert_eq!(
-            [0.0, 251.0, 999.0, 1_000.0, 4_269.0, 12_400.0, 22_564.0, 200_000.0, 999_600.0, 1_000_000.0, 1_250_000.0, 687_400_000.0, 7_369_100_000.0]
-                .map(fmt_tokens),
+            [
+                0.0,
+                251.0,
+                999.0,
+                1_000.0,
+                4_269.0,
+                12_400.0,
+                22_564.0,
+                200_000.0,
+                999_600.0,
+                1_000_000.0,
+                1_250_000.0,
+                687_400_000.0,
+                7_369_100_000.0
+            ]
+            .map(fmt_tokens),
             ["0", "251", "999", "1k", "4.27k", "12.4k", "22.6k", "200k", "1M", "1M", "1.25M", "687M", "7.37B"]
         );
         let sonnet = TurnFacts { model: some("claude-sonnet-4-5"), tokens: Some((12_400.0, 251.0)) };
@@ -330,7 +352,10 @@ mod opening_title {
         let exact = "Rename the thread by its opening words and stop.";
         assert_eq!(utf16(exact), 48);
         assert_eq!(opening_title(exact), exact);
-        assert_eq!(opening_title(&format!("{} now.", &exact[..exact.len() - 1])), "Rename the thread by its opening words and stop\u{2026}");
+        assert_eq!(
+            opening_title(&format!("{} now.", &exact[..exact.len() - 1])),
+            "Rename the thread by its opening words and stop\u{2026}"
+        );
         assert_eq!(
             opening_title("Ticket: wsp-map#408, four fixes in one round, the header glyph first."),
             "Ticket: wsp-map#408, four fixes in one round\u{2026}"
@@ -412,7 +437,10 @@ mod refused_turn {
     fn a_refusal_wsp_knows_no_road_out_of_keeps_the_agent_s_sentence_alone_and_is_class() {
         let road = RefusalRoad { road: some(""), cause: None };
         assert_eq!(
-            refused_turn(&result(json!({ "status": "completed", "text": "  Overloaded  ", "tokens": { "input": 0, "output": 0 } })), Some(&road)),
+            refused_turn(
+                &result(json!({ "status": "completed", "text": "  Overloaded  ", "tokens": { "input": 0, "output": 0 } })),
+                Some(&road)
+            ),
             result(json!({ "status": "failed", "tokens": { "input": 0, "output": 0 }, "error": "Overloaded" }))
         );
         assert_eq!(
@@ -504,10 +532,16 @@ mod pinned {
         assert_eq!(notify_reply(&res(json!({"status":"completed","text":"  \n "})), Some(NotifyLength::Whole)), None); // notifyReply({"status":"completed","text":"  \n "}, "whole")
         assert_eq!(notify_body(&res(json!({"status":"completed","text":"  \n "})), None), None); // notifyBody({"status":"completed","text":"  \n "})
         assert_eq!(notify_reply(&res(json!({"status":"completed","text":"a\n\nb  c\n"})), None), Some("b c".to_string())); // notifyReply({"status":"completed","text":"a\n\nb  c\n"})
-        assert_eq!(notify_reply(&res(json!({"status":"completed","text":"a\n\nb  c\n"})), Some(NotifyLength::Whole)), Some("a\n\nb  c".to_string())); // notifyReply({"status":"completed","text":"a\n\nb  c\n"}, "whole")
+        assert_eq!(
+            notify_reply(&res(json!({"status":"completed","text":"a\n\nb  c\n"})), Some(NotifyLength::Whole)),
+            Some("a\n\nb  c".to_string())
+        ); // notifyReply({"status":"completed","text":"a\n\nb  c\n"}, "whole")
         assert_eq!(notify_body(&res(json!({"status":"completed","text":"a\n\nb  c\n"})), None), Some("b c".to_string())); // notifyBody({"status":"completed","text":"a\n\nb  c\n"})
         assert_eq!(notify_reply(&res(json!({"status":"failed","error":"boom","text":"partial\nlast"})), None), Some("last".to_string())); // notifyReply({"status":"failed","error":"boom","text":"partial\nlast"})
-        assert_eq!(notify_reply(&res(json!({"status":"failed","error":"boom","text":"partial\nlast"})), Some(NotifyLength::Whole)), Some("partial\nlast".to_string())); // notifyReply({"status":"failed","error":"boom","text":"partial\nlast"}, "whole")
+        assert_eq!(
+            notify_reply(&res(json!({"status":"failed","error":"boom","text":"partial\nlast"})), Some(NotifyLength::Whole)),
+            Some("partial\nlast".to_string())
+        ); // notifyReply({"status":"failed","error":"boom","text":"partial\nlast"}, "whole")
         assert_eq!(notify_body(&res(json!({"status":"failed","error":"boom","text":"partial\nlast"})), None), Some("boom".to_string())); // notifyBody({"status":"failed","error":"boom","text":"partial\nlast"})
         assert_eq!(notify_reply(&res(json!({"status":"failed"})), None), None); // notifyReply({"status":"failed"})
         assert_eq!(notify_reply(&res(json!({"status":"failed"})), Some(NotifyLength::Whole)), None); // notifyReply({"status":"failed"}, "whole")
@@ -517,7 +551,8 @@ mod pinned {
         assert_eq!(notify_body(&res(json!({"status":"interrupted","text":"x"})), None), Some("x".to_string())); // notifyBody({"status":"interrupted","text":"x"})
         assert_eq!(notify_reply(&res(json!({"status":"completed","error":"warn","text":" "})), None), None); // notifyReply({"status":"completed","error":"warn","text":" "})
         assert_eq!(notify_reply(&res(json!({"status":"completed","error":"warn","text":" "})), Some(NotifyLength::Whole)), None); // notifyReply({"status":"completed","error":"warn","text":" "}, "whole")
-        assert_eq!(notify_body(&res(json!({"status":"completed","error":"warn","text":" "})), None), Some("warn".to_string())); // notifyBody({"status":"completed","error":"warn","text":" "})
+        assert_eq!(notify_body(&res(json!({"status":"completed","error":"warn","text":" "})), None), Some("warn".to_string()));
+        // notifyBody({"status":"completed","error":"warn","text":" "})
     }
 
     #[test]
@@ -537,32 +572,68 @@ mod pinned {
         assert_eq!(listed_failure(Some("\n\n  first  line \nsecond")), "first line"); // listedFailure("\n\n  first  line \nsecond")
         assert_eq!(listed_failure(Some("yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy")), "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\u{2026}"); // listedFailure("yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy")
         assert_eq!(subagent_asked(&format!("  {}", "w ".repeat(200))), "w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w\u{2026}"); // subagentAsked("  " + "w ".repeat(200))
-        assert_eq!(js(&turn_lines(&res(json!({"status":"failed","text":"- done"})), Some("reason here"))), "{\"lastLine\":\"done\",\"failure\":\"reason here\"}"); // JSON.stringify(turnLines({status:"failed",text:"- done"}, "reason here"))
+        assert_eq!(
+            js(&turn_lines(&res(json!({"status":"failed","text":"- done"})), Some("reason here"))),
+            "{\"lastLine\":\"done\",\"failure\":\"reason here\"}"
+        ); // JSON.stringify(turnLines({status:"failed",text:"- done"}, "reason here"))
         assert_eq!(js(&turn_lines(&res(json!({"status":"completed"})), Some("ignored"))), "{}"); // JSON.stringify(turnLines({status:"completed"}, "ignored"))
-        assert_eq!(js(&turn_lines(&res(json!({"status":"failed","error":"e1\ne2"})), None)), "{\"failure\":\"e1\"}"); // JSON.stringify(turnLines({status:"failed",error:"e1\ne2"}))
+        assert_eq!(js(&turn_lines(&res(json!({"status":"failed","error":"e1\ne2"})), None)), "{\"failure\":\"e1\"}");
+        // JSON.stringify(turnLines({status:"failed",error:"e1\ne2"}))
     }
 
     #[test]
     fn the_notify_line_names_eight_units_of_the_thread() {
-        assert_eq!(notify_line("\u{1f600}abcdefghij", &res(json!({"status":"completed","durationMs":61000,"costUsd":0.004,"text":"ok"})), None), "thread \u{1f600}abcdef finished (completed, 1m 1s, $0.00): ok"); // notifyLine("😀abcdefghij", {status:"completed",durationMs:61000,costUsd:0.004,text:"ok"})
-        assert_eq!(notify_line("abc", &res(json!({"status":"failed","durationMs":5000,"waitedMs":9000})), None), "thread abc finished (failed, 1ms)"); // notifyLine("abc", {status:"failed",durationMs:5000,waitedMs:9000})
+        assert_eq!(
+            notify_line("\u{1f600}abcdefghij", &res(json!({"status":"completed","durationMs":61000,"costUsd":0.004,"text":"ok"})), None),
+            "thread \u{1f600}abcdef finished (completed, 1m 1s, $0.00): ok"
+        ); // notifyLine("😀abcdefghij", {status:"completed",durationMs:61000,costUsd:0.004,text:"ok"})
+        assert_eq!(
+            notify_line("abc", &res(json!({"status":"failed","durationMs":5000,"waitedMs":9000})), None),
+            "thread abc finished (failed, 1ms)"
+        ); // notifyLine("abc", {status:"failed",durationMs:5000,waitedMs:9000})
         assert_eq!(unread_line("\n  \n  hello there \nmore"), "the agent never read this message: hello there"); // unreadLine("\n  \n  hello there \nmore")
         assert_eq!(unread_line(""), "the agent never read this message: "); // unreadLine("")
-        assert_eq!(wait_timed_out_line(&[] as &[&str], 1000.0), "0 threads still running after 1.0s"); // waitTimedOutLine([], 1000)
+        assert_eq!(wait_timed_out_line(&[] as &[&str], 1000.0), "0 threads still running after 1.0s");
+        // waitTimedOutLine([], 1000)
     }
 
     #[test]
     fn worked_waited_and_spend_parts_keep_their_order() {
-        assert_eq!(turn_worked_ms(&TurnClocks { duration_ms: Some(5000.0), waited_ms: Some(9000.0), cost_usd: None }), Some(Worked { worked: 0.0, waited: 5000.0 })); // JSON.stringify(turnWorkedMs({durationMs:5000,waitedMs:9000}))
-        assert_eq!(turn_worked_ms(&TurnClocks { duration_ms: Some(5000.0), waited_ms: Some(-3.0), cost_usd: None }), Some(Worked { worked: 5000.0, waited: 0.0 })); // JSON.stringify(turnWorkedMs({durationMs:5000,waitedMs:-3}))
+        assert_eq!(
+            turn_worked_ms(&TurnClocks { duration_ms: Some(5000.0), waited_ms: Some(9000.0), cost_usd: None }),
+            Some(Worked { worked: 0.0, waited: 5000.0 })
+        ); // JSON.stringify(turnWorkedMs({durationMs:5000,waitedMs:9000}))
+        assert_eq!(
+            turn_worked_ms(&TurnClocks { duration_ms: Some(5000.0), waited_ms: Some(-3.0), cost_usd: None }),
+            Some(Worked { worked: 5000.0, waited: 0.0 })
+        ); // JSON.stringify(turnWorkedMs({durationMs:5000,waitedMs:-3}))
         assert_eq!(turn_worked_ms(&TurnClocks { duration_ms: None, waited_ms: Some(3.0), cost_usd: None }), None); // JSON.stringify(turnWorkedMs({waitedMs:3}) ?? null)
-        assert_eq!(js(&turn_settled_parts(&TurnClocks { duration_ms: Some(4000.0), waited_ms: Some(210000.0), cost_usd: Some(0.5) }, Some(1.25), Some("list price"))), "[\"Worked for 1ms\",\"waited on you 4.0s\",\"$0.50 list price this turn\",\"$1.25 in threads it opened\"]"); // JSON.stringify(turnSettledParts({durationMs:4000,waitedMs:210000,costUsd:0.5}, 1.25, "list price"))
-        assert_eq!(js(&turn_settled_parts(&TurnClocks { duration_ms: Some(4000.0), waited_ms: Some(4000.0), cost_usd: None }, Some(0.0), None)), "[\"Worked for 1ms\",\"waited on you 4.0s\"]"); // JSON.stringify(turnSettledParts({durationMs:4000,waitedMs:4000}, 0))
+        assert_eq!(
+            js(&turn_settled_parts(
+                &TurnClocks { duration_ms: Some(4000.0), waited_ms: Some(210000.0), cost_usd: Some(0.5) },
+                Some(1.25),
+                Some("list price")
+            )),
+            "[\"Worked for 1ms\",\"waited on you 4.0s\",\"$0.50 list price this turn\",\"$1.25 in threads it opened\"]"
+        ); // JSON.stringify(turnSettledParts({durationMs:4000,waitedMs:210000,costUsd:0.5}, 1.25, "list price"))
+        assert_eq!(
+            js(&turn_settled_parts(&TurnClocks { duration_ms: Some(4000.0), waited_ms: Some(4000.0), cost_usd: None }, Some(0.0), None)),
+            "[\"Worked for 1ms\",\"waited on you 4.0s\"]"
+        ); // JSON.stringify(turnSettledParts({durationMs:4000,waitedMs:4000}, 0))
         assert_eq!(js(&turn_settled_parts(&TurnClocks::default(), Some(2.0), None)), "[\"$2.00 in threads it opened\"]"); // JSON.stringify(turnSettledParts({}, 2))
         assert_eq!(js(&turn_facts_parts(&TurnFacts { model: Some(String::new()), tokens: None }, None)), "[]"); // JSON.stringify(turnFactsParts({model:""}, undefined))
-        assert_eq!(js(&turn_facts_parts(&TurnFacts { model: Some("m".into()), tokens: Some((999500.0, 3.0)) }, Some("Label"))), "[\"Label\",\"1M in\",\"3 out\"]"); // JSON.stringify(turnFactsParts({model:"m",tokens:{input:999500,output:3}}, "Label"))
-        assert_eq!(turn_end_line(&res(json!({"status":"interrupted","durationMs":1000,"model":"m","tokens":{"input":1,"output":2},"error":"stopped"}))), "interrupted  Worked for 1.0s  m  1 in  2 out: stopped"); // turnEndLine({status:"interrupted",durationMs:1000,model:"m",tokens:{input:1,output:2},error:"stopped"})
-        assert_eq!(turn_end_line(&res(json!({"status":"completed","error":"ignored"}))), "completed"); // turnEndLine({status:"completed",error:"ignored"})
+        assert_eq!(
+            js(&turn_facts_parts(&TurnFacts { model: Some("m".into()), tokens: Some((999500.0, 3.0)) }, Some("Label"))),
+            "[\"Label\",\"1M in\",\"3 out\"]"
+        ); // JSON.stringify(turnFactsParts({model:"m",tokens:{input:999500,output:3}}, "Label"))
+        assert_eq!(
+            turn_end_line(&res(
+                json!({"status":"interrupted","durationMs":1000,"model":"m","tokens":{"input":1,"output":2},"error":"stopped"})
+            )),
+            "interrupted  Worked for 1.0s  m  1 in  2 out: stopped"
+        ); // turnEndLine({status:"interrupted",durationMs:1000,model:"m",tokens:{input:1,output:2},error:"stopped"})
+        assert_eq!(turn_end_line(&res(json!({"status":"completed","error":"ignored"}))), "completed");
+        // turnEndLine({status:"completed",error:"ignored"})
     }
 
     #[test]
@@ -578,22 +649,60 @@ mod pinned {
         assert_eq!(anthropic_retry_why(Some("unknown"), None), "Anthropic did not answer"); // anthropicRetryWhy("unknown", undefined)
         assert_eq!(anthropic_retry_why(None, Some(502.0)), "Anthropic answered 502"); // anthropicRetryWhy(undefined, 502)
         assert_eq!(retry_line(&Retry { attempt: 2.0, of: None, why: None }), "Trying again (2)"); // retryLine({attempt:2})
-        assert_eq!(retry_line(&Retry { attempt: 2.0, of: Some(10.0), why: Some("anthropic was overloaded".into()) }), "Anthropic was overloaded, trying again (2 of 10)"); // retryLine({attempt:2,of:10,why:"anthropic was overloaded"})
+        assert_eq!(
+            retry_line(&Retry { attempt: 2.0, of: Some(10.0), why: Some("anthropic was overloaded".into()) }),
+            "Anthropic was overloaded, trying again (2 of 10)"
+        ); // retryLine({attempt:2,of:10,why:"anthropic was overloaded"})
         assert_eq!(retry_line(&Retry { attempt: 1.0, of: None, why: Some(String::new()) }), ", trying again (1)"); // retryLine({attempt:1,why:""})
         assert_eq!(plan_steps_line(&[]), "Plan: 0 of 0 steps done"); // planStepsLine([])
-        assert_eq!(plan_steps_line(&[PlanStep { text: "a".into(), state: StepState::Done }, PlanStep { text: "b".into(), state: StepState::Working }, PlanStep { text: "c".into(), state: StepState::Pending }]), "Plan: 1 of 3 steps done\n- [x] a\n- [ ] b (working)\n- [ ] c"); // planStepsLine([{text:"a",state:"done"},{text:"b",state:"working"},{text:"c",state:"pending"}])
+        assert_eq!(
+            plan_steps_line(&[
+                PlanStep { text: "a".into(), state: StepState::Done },
+                PlanStep { text: "b".into(), state: StepState::Working },
+                PlanStep { text: "c".into(), state: StepState::Pending }
+            ]),
+            "Plan: 1 of 3 steps done\n- [x] a\n- [ ] b (working)\n- [ ] c"
+        ); // planStepsLine([{text:"a",state:"done"},{text:"b",state:"working"},{text:"c",state:"pending"}])
         assert_eq!(turn_changes_line(&TurnChanges { files: vec![], others: None, shared: false }), "Changed 0 files, +0 -0"); // turnChangesLine({files:[]})
-        assert_eq!(turn_changes_line(&TurnChanges { files: vec![FileLines { additions: 3.0, deletions: 1.0 }], others: Some(0), shared: false }), "Changed 1 file, +3 -1"); // turnChangesLine({files:[{additions:3,deletions:1}],others:[]})
-        assert_eq!(turn_changes_line(&TurnChanges { files: vec![], others: Some(2), shared: false }), "No files from this thread's edits; 2 files also changed in this folder"); // turnChangesLine({files:[],others:[1,2]})
-        assert_eq!(turn_changes_line(&TurnChanges { files: vec![FileLines { additions: 1.0, deletions: 0.0 }, FileLines { additions: 2.0, deletions: 5.0 }], others: None, shared: true }), "2 files changed in this folder, +3 -5; other threads worked in it too"); // turnChangesLine({files:[{additions:1,deletions:0},{additions:2,deletions:5}],shared:true})
-        assert_eq!(turn_changes_line(&TurnChanges { files: vec![FileLines { additions: 1.0, deletions: 0.0 }], others: Some(1), shared: true }), "Changed 1 file, +1 -0; 1 file also changed in this folder"); // turnChangesLine({files:[{additions:1,deletions:0}],others:[1],shared:true})
+        assert_eq!(
+            turn_changes_line(&TurnChanges { files: vec![FileLines { additions: 3.0, deletions: 1.0 }], others: Some(0), shared: false }),
+            "Changed 1 file, +3 -1"
+        ); // turnChangesLine({files:[{additions:3,deletions:1}],others:[]})
+        assert_eq!(
+            turn_changes_line(&TurnChanges { files: vec![], others: Some(2), shared: false }),
+            "No files from this thread's edits; 2 files also changed in this folder"
+        ); // turnChangesLine({files:[],others:[1,2]})
+        assert_eq!(
+            turn_changes_line(&TurnChanges {
+                files: vec![FileLines { additions: 1.0, deletions: 0.0 }, FileLines { additions: 2.0, deletions: 5.0 }],
+                others: None,
+                shared: true
+            }),
+            "2 files changed in this folder, +3 -5; other threads worked in it too"
+        ); // turnChangesLine({files:[{additions:1,deletions:0},{additions:2,deletions:5}],shared:true})
+        assert_eq!(
+            turn_changes_line(&TurnChanges { files: vec![FileLines { additions: 1.0, deletions: 0.0 }], others: Some(1), shared: true }),
+            "Changed 1 file, +1 -0; 1 file also changed in this folder"
+        ); // turnChangesLine({files:[{additions:1,deletions:0}],others:[1],shared:true})
     }
 
     #[test]
     fn a_refused_turn_keeps_only_the_fields_it_had() {
-        assert_eq!(js(&refused_turn(&res(json!({"status":"completed","text":"  no  ","error":"e","durationMs":5,"model":"m"})), Some(&RefusalRoad { road: Some("sign in".into()), cause: Some(TurnRefusal::SignIn) }))), "{\"status\":\"failed\",\"durationMs\":5,\"model\":\"m\",\"error\":\"no; sign in\",\"refusal\":\"sign-in\"}"); // JSON.stringify(refusedTurn({status:"completed",text:"  no  ",error:"e",durationMs:5,model:"m"}, {road:"sign in", cause:"sign-in"}))
+        assert_eq!(
+            js(&refused_turn(
+                &res(json!({"status":"completed","text":"  no  ","error":"e","durationMs":5,"model":"m"})),
+                Some(&RefusalRoad { road: Some("sign in".into()), cause: Some(TurnRefusal::SignIn) })
+            )),
+            "{\"status\":\"failed\",\"durationMs\":5,\"model\":\"m\",\"error\":\"no; sign in\",\"refusal\":\"sign-in\"}"
+        ); // JSON.stringify(refusedTurn({status:"completed",text:"  no  ",error:"e",durationMs:5,model:"m"}, {road:"sign in", cause:"sign-in"}))
         assert_eq!(js(&refused_turn(&res(json!({"status":"completed"})), None)), "{\"status\":\"failed\"}"); // JSON.stringify(refusedTurn({status:"completed"}))
-        assert_eq!(js(&refused_turn(&res(json!({"status":"failed","error":"e","costUsd":0})), Some(&RefusalRoad { road: Some(String::new()), cause: None }))), "{\"status\":\"failed\",\"costUsd\":0,\"error\":\"e\"}"); // JSON.stringify(refusedTurn({status:"failed",error:"e",costUsd:0}, {road:""}))
+        assert_eq!(
+            js(&refused_turn(
+                &res(json!({"status":"failed","error":"e","costUsd":0})),
+                Some(&RefusalRoad { road: Some(String::new()), cause: None })
+            )),
+            "{\"status\":\"failed\",\"costUsd\":0,\"error\":\"e\"}"
+        ); // JSON.stringify(refusedTurn({status:"failed",error:"e",costUsd:0}, {road:""}))
     }
 
     #[test]
@@ -604,17 +713,20 @@ mod pinned {
         assert_eq!(opening_title("Fix it. Then more."), "Fix it."); // openingTitle("Fix it. Then more.")
         assert_eq!(opening_title("Version 1.2 is out! Yes"), "Version 1.2 is out!"); // openingTitle("Version 1.2 is out! Yes")
         assert_eq!(opening_title("Why? Because"), "Why?"); // openingTitle("Why? Because")
-        assert_eq!(opening_title("no stop at all here and it is quite a long line of words to cut down"), "no stop at all here and it is quite a long line\u{2026}"); // openingTitle("no stop at all here and it is quite a long line of words to cut down")
+        assert_eq!(
+            opening_title("no stop at all here and it is quite a long line of words to cut down"),
+            "no stop at all here and it is quite a long line\u{2026}"
+        ); // openingTitle("no stop at all here and it is quite a long line of words to cut down")
         assert_eq!(opening_title("e.g.this"), "e.g.this"); // openingTitle("e.g.this")
         assert_eq!(opening_title(""), ""); // openingTitle("")
         assert_eq!(opening_title("Done."), "Done."); // openingTitle("Done.")
         assert_eq!(opening_title("a.b. c"), "a.b."); // openingTitle("a.b. c")
-        assert_eq!(kept_opening(&"a".repeat(600)) == "a".repeat(600), true); // keptOpening("a".repeat(600)) === "a".repeat(600)
+        assert!(kept_opening(&"a".repeat(600)) == "a".repeat(600)); // keptOpening("a".repeat(600)) === "a".repeat(600)
         assert_eq!(wsp_words::js::utf16::len(&kept_opening(&"a".repeat(601))) as f64, 600.0); // keptOpening("a".repeat(601)).length
         assert_eq!(wsp_words::js::utf16::len(&kept_opening(&format!("{}\u{1f600}b", "a".repeat(599)))) as f64, 599.0); // keptOpening("a".repeat(599) + "😀" + "b").length
         assert_eq!(wsp_words::js::utf16::len(&kept_opening(&format!("{}\u{1f600}b", "a".repeat(598)))) as f64, 600.0); // keptOpening("a".repeat(598) + "😀" + "b").length
-        assert_eq!(opening_cut(&"a".repeat(598)), false); // openingCut("a".repeat(598))
-        assert_eq!(opening_cut(&"a".repeat(599)), true); // openingCut("a".repeat(599))
+        assert!(!opening_cut(&"a".repeat(598))); // openingCut("a".repeat(598))
+        assert!(opening_cut(&"a".repeat(599))); // openingCut("a".repeat(599))
     }
 
     #[test]
@@ -625,10 +737,17 @@ mod pinned {
         assert_eq!(source_word(stored_title_source("Fix the bug please", Some("Fix the bug"))), "person"); // storedTitleSource("Fix the bug please", "Fix the bug")
         assert_eq!(source_word(stored_title_source("", Some("x"))), "person"); // storedTitleSource("", "x")
         assert_eq!(source_word(stored_title_source("My own name", Some("Fix"))), "person"); // storedTitleSource("My own name", "Fix")
-        assert_eq!(source_word(stored_title_source("Your earlier session for this thread was lost, so it continues here in a new one. rest", None)), "seed"); // storedTitleSource("Your earlier session for this thread was lost, so it continues here in a new one. rest", undefined)
+        assert_eq!(
+            source_word(stored_title_source(
+                "Your earlier session for this thread was lost, so it continues here in a new one. rest",
+                None
+            )),
+            "seed"
+        ); // storedTitleSource("Your earlier session for this thread was lost, so it continues here in a new one. rest", undefined)
         assert_eq!(source_word(stored_title_source("Anything", None)), "person"); // storedTitleSource("Anything", undefined)
         assert_eq!(source_word(stored_title_source("  Fix   the\nbug ", Some("Fix the bug"))), "seed"); // storedTitleSource("  Fix   the\nbug ", "Fix the bug")
-        assert_eq!(source_word(stored_title_source("wwwwwwwwww more words", Some(&format!("wwwwwwwwww {}", "z".repeat(600))))), "person"); // storedTitleSource("wwwwwwwwww more words", "wwwwwwwwww " + "z".repeat(600))
+        assert_eq!(source_word(stored_title_source("wwwwwwwwww more words", Some(&format!("wwwwwwwwww {}", "z".repeat(600))))), "person");
+        // storedTitleSource("wwwwwwwwww more words", "wwwwwwwwww " + "z".repeat(600))
     }
 
     #[test]
@@ -645,9 +764,13 @@ mod pinned {
         assert_eq!(generated_title("two\nlines"), None); // generatedTitle("two\nlines")
         assert_eq!(generated_title("\"\""), None); // generatedTitle("\"\"")
         assert_eq!(generated_title("..."), None); // generatedTitle("...")
-        assert_eq!(generated_title("A title that is far too long to be a title at all really"), Some("A title that is far too long to be a".to_string())); // generatedTitle("A title that is far too long to be a title at all really")
+        assert_eq!(
+            generated_title("A title that is far too long to be a title at all really"),
+            Some("A title that is far too long to be a".to_string())
+        ); // generatedTitle("A title that is far too long to be a title at all really")
         assert_eq!(generated_title("Supercalifragilisticexpialidociousandmorebeyondforty"), None); // generatedTitle("Supercalifragilisticexpialidociousandmorebeyondforty")
-        assert_eq!(generated_title("\"unbalanced"), Some("\"unbalanced".to_string())); // generatedTitle("\"unbalanced")
+        assert_eq!(generated_title("\"unbalanced"), Some("\"unbalanced".to_string()));
+        // generatedTitle("\"unbalanced")
     }
 
     #[test]
@@ -657,6 +780,7 @@ mod pinned {
         assert_eq!(fmt_clock(Some(1788744070500.0), &utc), "01:21:10"); // fmtClock(1788744070500)
         assert_eq!(no_messages_line("0123456789"), "thread 01234567 has no messages in the transcript this host holds"); // noMessagesLine("0123456789")
         assert_eq!(no_reply_line("ab"), "thread ab has not replied yet"); // noReplyLine("ab")
-        assert_eq!(lost_session_prompt("T", "P"), "Your earlier session for this thread was lost, so it continues here in a new one. The thread so far, oldest first:\n\nT\n\nThe new message:\n\nP"); // lostSessionPrompt("T", "P")
+        assert_eq!(lost_session_prompt("T", "P"), "Your earlier session for this thread was lost, so it continues here in a new one. The thread so far, oldest first:\n\nT\n\nThe new message:\n\nP");
+        // lostSessionPrompt("T", "P")
     }
 }
