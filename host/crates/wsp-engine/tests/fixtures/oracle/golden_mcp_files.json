@@ -1,0 +1,1630 @@
+{
+  "READ_MS": 120000,
+  "MCP_READ_MARK": "wsp-mcp",
+  "MCP_READ_END": "wsp-mcp end",
+  "mcpRowId": [
+    {
+      "agent": "claude",
+      "at": false,
+      "name": "github",
+      "out": "agents/mcp/claude/github"
+    },
+    {
+      "agent": "claude",
+      "at": true,
+      "name": "zomato",
+      "out": "agents/mcp/claude/home/zomato"
+    },
+    {
+      "agent": "claude",
+      "at": "/root/code/my app",
+      "name": "db",
+      "out": "agents/mcp/claude/@%2Froot%2Fcode%2Fmy%20app/db"
+    },
+    {
+      "agent": "codex",
+      "at": "/root/a/b",
+      "name": "x/y",
+      "out": "agents/mcp/codex/@%2Froot%2Fa%2Fb/x/y"
+    },
+    {
+      "agent": "claude",
+      "at": "",
+      "name": "e",
+      "out": "agents/mcp/claude/@/e"
+    }
+  ],
+  "scopeRowId": [
+    {
+      "agent": "claude",
+      "scope": {},
+      "name": "github",
+      "out": "agents/mcp/claude/github"
+    },
+    {
+      "agent": "claude",
+      "scope": {
+        "project": {
+          "from": "/Users/dev",
+          "to": "/root"
+        }
+      },
+      "name": "zomato",
+      "out": "agents/mcp/claude/home/zomato"
+    },
+    {
+      "agent": "claude",
+      "scope": {
+        "folder": "/root/code/app"
+      },
+      "name": "db",
+      "out": "agents/mcp/claude/@%2Froot%2Fcode%2Fapp/db"
+    },
+    {
+      "agent": "claude",
+      "scope": {
+        "folder": "/root/code/app",
+        "project": {
+          "from": "/Users/dev",
+          "to": "/root"
+        }
+      },
+      "name": "db",
+      "out": "agents/mcp/claude/@%2Froot%2Fcode%2Fapp/db"
+    },
+    {
+      "agent": "claude",
+      "scope": {
+        "folder": ""
+      },
+      "name": "e",
+      "out": "agents/mcp/claude/@/e"
+    }
+  ],
+  "parseMcpId": [
+    {
+      "id": "agents/mcp/claude/github",
+      "out": {
+        "agent": "claude",
+        "home": false,
+        "name": "github"
+      }
+    },
+    {
+      "id": "agents/mcp/claude/home/zomato",
+      "out": {
+        "agent": "claude",
+        "home": true,
+        "name": "zomato"
+      }
+    },
+    {
+      "id": "agents/mcp/claude/home/a/b",
+      "out": {
+        "agent": "claude",
+        "home": false,
+        "name": "home/a/b"
+      }
+    },
+    {
+      "id": "agents/mcp/claude/home",
+      "out": {
+        "agent": "claude",
+        "home": false,
+        "name": "home"
+      }
+    },
+    {
+      "id": "agents/mcp/claude/@%2Froot%2Fcode%2Fmy%20app/db",
+      "out": {
+        "agent": "claude",
+        "home": false,
+        "folder": "/root/code/my app",
+        "name": "db"
+      }
+    },
+    {
+      "id": "agents/mcp/claude/@%2Froot/a/b",
+      "out": {
+        "agent": "claude",
+        "home": false,
+        "folder": "/root",
+        "name": "a/b"
+      }
+    },
+    {
+      "id": "agents/mcp/claude/@x",
+      "out": {
+        "agent": "claude",
+        "home": false,
+        "name": "@x"
+      }
+    },
+    {
+      "id": "agents/mcp/claude/x/y/z",
+      "out": {
+        "agent": "claude",
+        "home": false,
+        "name": "x/y/z"
+      }
+    },
+    {
+      "id": "agents/mcp/claude",
+      "out": null
+    },
+    {
+      "id": "agents/mcp/",
+      "out": null
+    },
+    {
+      "id": "agents/mcp/mcp-remote",
+      "out": null
+    },
+    {
+      "id": "agents/mcp/mcp-remote/x",
+      "out": {
+        "agent": "mcp-remote",
+        "home": false,
+        "name": "x"
+      }
+    },
+    {
+      "id": "agents/claude",
+      "out": null
+    },
+    {
+      "id": "tools/brew/gh",
+      "out": null
+    },
+    {
+      "id": "agents/mcp//name",
+      "out": {
+        "agent": "",
+        "home": false,
+        "name": "name"
+      }
+    }
+  ],
+  "refused": [
+    {
+      "message": "the provider refused the call",
+      "out": {
+        "exitCode": -1,
+        "stdout": "",
+        "stderr": "the provider refused the call"
+      }
+    },
+    {
+      "message": "",
+      "out": {
+        "exitCode": -1,
+        "stdout": "",
+        "stderr": ""
+      }
+    }
+  ],
+  "readReason": [
+    {
+      "res": {
+        "exitCode": 124,
+        "stdout": "secret config",
+        "stderr": "err"
+      },
+      "timeoutS": null,
+      "out": "timed out after 120s"
+    },
+    {
+      "res": {
+        "exitCode": 124,
+        "stdout": "secret config",
+        "stderr": "err"
+      },
+      "timeoutS": 30,
+      "out": "timed out after 30s"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "secret\nmore",
+        "stderr": ""
+      },
+      "timeoutS": null,
+      "out": "exit 1"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "secret\nmore",
+        "stderr": ""
+      },
+      "timeoutS": 30,
+      "out": "exit 1"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "secret",
+        "stderr": "Error: cut\n"
+      },
+      "timeoutS": null,
+      "out": "Error: cut"
+    },
+    {
+      "res": {
+        "exitCode": 1,
+        "stdout": "secret",
+        "stderr": "Error: cut\n"
+      },
+      "timeoutS": 30,
+      "out": "Error: cut"
+    },
+    {
+      "res": {
+        "exitCode": -1,
+        "stdout": "",
+        "stderr": "refused by the provider"
+      },
+      "timeoutS": null,
+      "out": "refused by the provider"
+    },
+    {
+      "res": {
+        "exitCode": -1,
+        "stdout": "",
+        "stderr": "refused by the provider"
+      },
+      "timeoutS": 30,
+      "out": "refused by the provider"
+    }
+  ],
+  "readFailed": [
+    {
+      "res": {
+        "exitCode": 124,
+        "stdout": "x",
+        "stderr": ""
+      },
+      "out": "the config edit did not run (timed out after 120s)"
+    },
+    {
+      "res": {
+        "exitCode": -1,
+        "stdout": "",
+        "stderr": "nope"
+      },
+      "out": "the config edit did not run (nope)"
+    },
+    {
+      "res": {
+        "exitCode": 2,
+        "stdout": "only stdout",
+        "stderr": ""
+      },
+      "out": "the config edit did not run (exit 2)"
+    }
+  ],
+  "readConfigsCmd": [
+    {
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ],
+          "base": "/root"
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/it's here.toml"
+          ],
+          "base": "/root/.codex"
+        }
+      ],
+      "out": "wsp_mcp_read() {\n  i=\"$1\"; b=$(realpath \"$2\" 2>/dev/null) || b=; shift 2; n=0\n  for f in \"$@\"; do\n    if [ -e \"$f\" ] || [ -L \"$f\" ]; then\n      r=$(realpath \"$f\" 2>/dev/null) && [ -n \"$b\" ] && case $r/ in \"${b%/}\"/*) [ -f \"$r\" ] ;; *) false ;; esac || { printf 'wsp-mcp %s %s -plain\\n' \"$i\" \"$n\"; return 0; }\n      if [ \"$(head -c 33554433 < \"$r\" | wc -c | tr -d ' ')\" -gt 33554432 ]; then printf 'wsp-mcp %s %s -cap\\n' \"$i\" \"$n\"; return 0; fi\n      printf 'wsp-mcp %s %s ' \"$i\" \"$n\"; head -c 33554432 < \"$r\" | base64 | tr -d '\\n'; printf '\\n'; return 0\n    fi\n    n=$((n+1))\n  done\n  printf 'wsp-mcp %s - -\\n' \"$i\"\n}\nwsp_mcp_read 0 '/root' '/root/.claude-cfg/.claude.json'\nwsp_mcp_read 1 '/root/.codex' '/root/.codex/config.toml' '/root/it'\\''s here.toml'\nprintf '%s\\n' 'wsp-mcp end'"
+    },
+    {
+      "scopes": [],
+      "out": "wsp_mcp_read() {\n  i=\"$1\"; b=$(realpath \"$2\" 2>/dev/null) || b=; shift 2; n=0\n  for f in \"$@\"; do\n    if [ -e \"$f\" ] || [ -L \"$f\" ]; then\n      r=$(realpath \"$f\" 2>/dev/null) && [ -n \"$b\" ] && case $r/ in \"${b%/}\"/*) [ -f \"$r\" ] ;; *) false ;; esac || { printf 'wsp-mcp %s %s -plain\\n' \"$i\" \"$n\"; return 0; }\n      if [ \"$(head -c 33554433 < \"$r\" | wc -c | tr -d ' ')\" -gt 33554432 ]; then printf 'wsp-mcp %s %s -cap\\n' \"$i\" \"$n\"; return 0; fi\n      printf 'wsp-mcp %s %s ' \"$i\" \"$n\"; head -c 33554432 < \"$r\" | base64 | tr -d '\\n'; printf '\\n'; return 0\n    fi\n    n=$((n+1))\n  done\n  printf 'wsp-mcp %s - -\\n' \"$i\"\n}\nprintf '%s\\n' 'wsp-mcp end'"
+    },
+    {
+      "scopes": [
+        {
+          "files": [],
+          "base": "/root"
+        }
+      ],
+      "out": "wsp_mcp_read() {\n  i=\"$1\"; b=$(realpath \"$2\" 2>/dev/null) || b=; shift 2; n=0\n  for f in \"$@\"; do\n    if [ -e \"$f\" ] || [ -L \"$f\" ]; then\n      r=$(realpath \"$f\" 2>/dev/null) && [ -n \"$b\" ] && case $r/ in \"${b%/}\"/*) [ -f \"$r\" ] ;; *) false ;; esac || { printf 'wsp-mcp %s %s -plain\\n' \"$i\" \"$n\"; return 0; }\n      if [ \"$(head -c 33554433 < \"$r\" | wc -c | tr -d ' ')\" -gt 33554432 ]; then printf 'wsp-mcp %s %s -cap\\n' \"$i\" \"$n\"; return 0; fi\n      printf 'wsp-mcp %s %s ' \"$i\" \"$n\"; head -c 33554432 < \"$r\" | base64 | tr -d '\\n'; printf '\\n'; return 0\n    fi\n    n=$((n+1))\n  done\n  printf 'wsp-mcp %s - -\\n' \"$i\"\n}\nwsp_mcp_read 0 '/root' \nprintf '%s\\n' 'wsp-mcp end'"
+    }
+  ],
+  "readWhole": [
+    {
+      "stdout": "",
+      "out": false
+    },
+    {
+      "stdout": "wsp-mcp end",
+      "out": true
+    },
+    {
+      "stdout": "x\n  wsp-mcp end  \n",
+      "out": true
+    },
+    {
+      "stdout": "wsp-mcp endx",
+      "out": false
+    }
+  ],
+  "parseConfigs": [
+    {
+      "stdout": "",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": null
+    },
+    {
+      "stdout": "noise only\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": null
+    },
+    {
+      "stdout": "wsp-mcp 0 0 eyJhIjoxfQ==\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        {
+          "path": "/root/.claude-cfg/.claude.json",
+          "text": "{\"a\":1}",
+          "sum": "3792662609 7"
+        },
+        null,
+        null
+      ]
+    },
+    {
+      "stdout": "wsp-mcp 0 0 eyJhIjoxfQ==\nwsp-mcp 1 1 eCA9IDE=\nwsp-mcp end\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        {
+          "path": "/root/.claude-cfg/.claude.json",
+          "text": "{\"a\":1}",
+          "sum": "3792662609 7"
+        },
+        {
+          "path": "/root/.codex/alt.toml",
+          "text": "x = 1",
+          "sum": "2716366660 5"
+        },
+        null
+      ]
+    },
+    {
+      "stdout": "wsp-mcp 0 0\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        {
+          "path": "/root/.claude-cfg/.claude.json",
+          "text": "",
+          "sum": "4294967295 0"
+        },
+        null,
+        null
+      ]
+    },
+    {
+      "stdout": "wsp-mcp 0 0 \n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        {
+          "path": "/root/.claude-cfg/.claude.json",
+          "text": "",
+          "sum": "4294967295 0"
+        },
+        null,
+        null
+      ]
+    },
+    {
+      "stdout": "wsp-mcp 0 - -\nwsp-mcp 1 - -\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "stdout": "wsp-mcp 0 0 -plain\nwsp-mcp 1 0 -cap\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        {
+          "path": "/root/.claude-cfg/.claude.json",
+          "unread": "it is not a plain file, or it is a link out of the folder it belongs to, and wsp reads neither"
+        },
+        {
+          "path": "/root/.codex/config.toml",
+          "unread": "it is over 32 MB, more than wsp reads of an agent's config"
+        },
+        null
+      ]
+    },
+    {
+      "stdout": "wsp-mcp 7 0 eA==\nwsp-mcp 0 9 eA==\nwsp-mcp x y z\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "stdout": "  wsp-mcp 0 0 eA==  \r\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        {
+          "path": "/root/.claude-cfg/.claude.json",
+          "text": "x",
+          "sum": "12738659 1"
+        },
+        null,
+        null
+      ]
+    },
+    {
+      "stdout": "wsp-mcp 0 0 !!notbase64**\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        {
+          "path": "/root/.claude-cfg/.claude.json",
+          "text": "��[jǺ",
+          "sum": "3447567065 6"
+        },
+        null,
+        null
+      ]
+    },
+    {
+      "stdout": "wsp-mcp 0 0 Zmlyc3Q=\nwsp-mcp 0 0 c2Vjb25k\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        {
+          "path": "/root/.claude-cfg/.claude.json",
+          "text": "second",
+          "sum": "584190957 6"
+        },
+        null,
+        null
+      ]
+    },
+    {
+      "stdout": "wsp-mcp 0 0 4pyTIMOp\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        {
+          "path": "/root/.claude-cfg/.claude.json",
+          "text": "✓ é",
+          "sum": "1897083943 6"
+        },
+        null,
+        null
+      ]
+    },
+    {
+      "stdout": "wsp-mcp 0 0 eA\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        {
+          "path": "/root/.claude-cfg/.claude.json",
+          "text": "x",
+          "sum": "12738659 1"
+        },
+        null,
+        null
+      ]
+    },
+    {
+      "stdout": "wsp-mcp  0 0 eA==\n",
+      "scopes": [
+        {
+          "files": [
+            "/root/.claude-cfg/.claude.json"
+          ]
+        },
+        {
+          "files": [
+            "/root/.codex/config.toml",
+            "/root/.codex/alt.toml"
+          ]
+        },
+        {
+          "files": []
+        }
+      ],
+      "out": [
+        {
+          "path": "/root/.claude-cfg/.claude.json",
+          "text": "",
+          "sum": "4294967295 0"
+        },
+        null,
+        null
+      ]
+    }
+  ],
+  "plan": {
+    "agents": [
+      {
+        "id": "claude",
+        "label": "Claude Code",
+        "scopes": [
+          {
+            "files": [
+              "/root/.claude-cfg/.claude.json"
+            ],
+            "format": "McpServersJson",
+            "keep": [
+              "github",
+              "gsc",
+              "survivor",
+              "local"
+            ],
+            "drop": [
+              {
+                "name": "notes",
+                "reason": "macOS-only"
+              }
+            ]
+          },
+          {
+            "files": [
+              "/root/.claude-cfg/.claude.json"
+            ],
+            "format": "McpServersJson",
+            "project": {
+              "from": "/Users/dev",
+              "to": "/root"
+            },
+            "keep": [
+              "zomato",
+              "whatsapp"
+            ],
+            "drop": []
+          }
+        ],
+        "aside": []
+      },
+      {
+        "id": "codex",
+        "label": "Codex",
+        "scopes": [
+          {
+            "files": [
+              "/root/.codex/config.toml",
+              "/root/.codex/alt.toml"
+            ],
+            "format": "CodexToml",
+            "keep": [
+              "grafana",
+              "keeper"
+            ],
+            "drop": [
+              {
+                "name": "sentry",
+                "reason": "unticked",
+                "keys": [
+                  "SENTRY_TOKEN"
+                ]
+              }
+            ]
+          }
+        ],
+        "aside": []
+      },
+      {
+        "id": "opencode",
+        "label": "OpenCode",
+        "scopes": [
+          {
+            "files": [
+              "/root/.config/opencode/opencode.json"
+            ],
+            "format": "OpencodeJson",
+            "keep": [
+              "ctx"
+            ],
+            "drop": []
+          }
+        ],
+        "aside": [
+          {
+            "id": "agents/mcp/opencode/late",
+            "name": "late",
+            "reason": "OpenCode is not ticked, so its config did not travel"
+          }
+        ]
+      }
+    ],
+    "guestHome": "/root",
+    "rewrites": [
+      [
+        "/Users/dev/",
+        "/root/"
+      ],
+      [
+        "/opt/homebrew/",
+        "/home/linuxbrew/.linuxbrew/"
+      ]
+    ],
+    "binDirs": [
+      "/Users/dev/.local/bin/",
+      "~/.local/bin/",
+      "/opt/homebrew/bin/",
+      "/opt/homebrew/sbin/"
+    ],
+    "tools": [
+      {
+        "id": "tools/brew/survivor-bin",
+        "ticked": false,
+        "reason": "unticked by you"
+      },
+      {
+        "id": "tools/npm/keeper",
+        "ticked": true
+      },
+      {
+        "id": "tools/cargo/local-mcp",
+        "ticked": true
+      }
+    ]
+  },
+  "rewriteString": [
+    {
+      "s": "npx",
+      "command": true,
+      "out": "npx"
+    },
+    {
+      "s": "/Users/dev/.local/bin/uv",
+      "command": true,
+      "out": "uv"
+    },
+    {
+      "s": "/Users/dev/.local/bin/sub/uv",
+      "command": true,
+      "out": "/root/.local/bin/sub/uv"
+    },
+    {
+      "s": "~/.local/bin/codebase-memory-mcp",
+      "command": true,
+      "out": "codebase-memory-mcp"
+    },
+    {
+      "s": "/opt/homebrew/bin/uvx",
+      "command": true,
+      "out": "uvx"
+    },
+    {
+      "s": "/opt/homebrew/bin/uvx",
+      "command": false,
+      "out": "/home/linuxbrew/.linuxbrew/bin/uvx"
+    },
+    {
+      "s": "/Users/dev/.config/x.json",
+      "command": false,
+      "out": "/root/.config/x.json"
+    },
+    {
+      "s": "--config=/Users/dev/.config/grafana.toml",
+      "command": false,
+      "out": "--config=/root/.config/grafana.toml"
+    },
+    {
+      "s": "-c=/Users/dev/x",
+      "command": false,
+      "out": "-c=/root/x"
+    },
+    {
+      "s": "--weird flag=/Users/dev/x",
+      "command": false,
+      "out": "--weird flag=/Users/dev/x"
+    },
+    {
+      "s": "/opt/homebrew/lib/node",
+      "command": false,
+      "out": "/home/linuxbrew/.linuxbrew/lib/node"
+    },
+    {
+      "s": "/Users/dev",
+      "command": false,
+      "out": "/Users/dev"
+    },
+    {
+      "s": "/Users/dev/",
+      "command": false,
+      "out": "/root/"
+    },
+    {
+      "s": "",
+      "command": true,
+      "out": ""
+    }
+  ],
+  "mcpPlanFor": [
+    {
+      "rows": [
+        {
+          "label": "agents/claude",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/claude"
+        },
+        {
+          "label": "agents/codex",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/codex"
+        },
+        {
+          "label": "agents/mcp/claude/github",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/mcp/claude/github"
+        },
+        {
+          "label": "agents/mcp/claude/gsc",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": false,
+          "rung": "agents",
+          "id": "agents/mcp/claude/gsc",
+          "reason": "unticked by you"
+        },
+        {
+          "label": "agents/mcp/claude/stripe",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/mcp/claude/stripe",
+          "consent": true
+        },
+        {
+          "label": "agents/mcp/claude/home/zomato",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/mcp/claude/home/zomato"
+        },
+        {
+          "label": "agents/mcp/codex/grafana",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": false,
+          "rung": "agents",
+          "id": "agents/mcp/codex/grafana"
+        },
+        {
+          "label": "agents/mcp/gemini/memory",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/mcp/gemini/memory"
+        },
+        {
+          "label": "agents/mcp/mcp-remote",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/mcp/mcp-remote"
+        },
+        {
+          "label": "gh",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": false,
+          "rung": "tools",
+          "id": "tools/brew/gh",
+          "reason": "not wanted"
+        },
+        {
+          "label": "keeper",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/npm/keeper"
+        },
+        {
+          "label": "b",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "label": "kubectl",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/catalog/kubectl"
+        }
+      ],
+      "home": "/Users/dev",
+      "out": {
+        "agents": [
+          {
+            "id": "claude",
+            "label": "Claude Code",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "keep": [
+                  "github"
+                ],
+                "drop": [
+                  {
+                    "name": "gsc",
+                    "reason": "unticked by you"
+                  },
+                  {
+                    "name": "stripe",
+                    "reason": "credential-shaped; not copied without your answer on its row"
+                  }
+                ]
+              },
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "project": {
+                  "from": "/Users/dev",
+                  "to": "/root"
+                },
+                "keep": [
+                  "zomato"
+                ],
+                "drop": []
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "codex",
+            "label": "Codex",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.codex/config.toml"
+                ],
+                "format": "CodexToml",
+                "keep": [],
+                "drop": [
+                  {
+                    "name": "grafana",
+                    "reason": "unticked"
+                  }
+                ]
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "gemini",
+            "label": "Gemini CLI",
+            "scopes": [],
+            "aside": [
+              {
+                "id": "agents/mcp/gemini/memory",
+                "name": "memory",
+                "reason": "Gemini CLI is not ticked, so its config did not travel"
+              }
+            ]
+          }
+        ],
+        "guestHome": "/root",
+        "rewrites": [
+          [
+            "/Users/dev/",
+            "/root/"
+          ],
+          [
+            "/opt/homebrew/",
+            "/home/linuxbrew/.linuxbrew/"
+          ]
+        ],
+        "binDirs": [
+          "/Users/dev/.local/bin/",
+          "~/.local/bin/",
+          "/opt/homebrew/bin/",
+          "/opt/homebrew/sbin/"
+        ],
+        "tools": [
+          {
+            "id": "tools/brew/gh",
+            "ticked": false,
+            "reason": "not wanted"
+          },
+          {
+            "id": "tools/npm/keeper",
+            "ticked": true
+          }
+        ]
+      }
+    },
+    {
+      "rows": [
+        {
+          "label": "agents/claude",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/claude"
+        },
+        {
+          "label": "agents/codex",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/codex"
+        },
+        {
+          "label": "agents/mcp/claude/github",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/mcp/claude/github"
+        },
+        {
+          "label": "agents/mcp/claude/gsc",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": false,
+          "rung": "agents",
+          "id": "agents/mcp/claude/gsc",
+          "reason": "unticked by you"
+        },
+        {
+          "label": "agents/mcp/claude/stripe",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/mcp/claude/stripe",
+          "consent": true
+        },
+        {
+          "label": "agents/mcp/claude/home/zomato",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/mcp/claude/home/zomato"
+        },
+        {
+          "label": "agents/mcp/codex/grafana",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": false,
+          "rung": "agents",
+          "id": "agents/mcp/codex/grafana"
+        },
+        {
+          "label": "agents/mcp/gemini/memory",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/mcp/gemini/memory"
+        },
+        {
+          "label": "agents/mcp/mcp-remote",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/mcp/mcp-remote"
+        },
+        {
+          "label": "gh",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": false,
+          "rung": "tools",
+          "id": "tools/brew/gh",
+          "reason": "not wanted"
+        },
+        {
+          "label": "keeper",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/npm/keeper"
+        },
+        {
+          "label": "b",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "label": "kubectl",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "tools",
+          "id": "tools/catalog/kubectl"
+        }
+      ],
+      "home": "/Users/dev",
+      "guestHome": "/srv/guest",
+      "binDirs": [
+        "/usr/local/bin/"
+      ],
+      "out": {
+        "agents": [
+          {
+            "id": "claude",
+            "label": "Claude Code",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "keep": [
+                  "github"
+                ],
+                "drop": [
+                  {
+                    "name": "gsc",
+                    "reason": "unticked by you"
+                  },
+                  {
+                    "name": "stripe",
+                    "reason": "credential-shaped; not copied without your answer on its row"
+                  }
+                ]
+              },
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "project": {
+                  "from": "/Users/dev",
+                  "to": "/srv/guest"
+                },
+                "keep": [
+                  "zomato"
+                ],
+                "drop": []
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "codex",
+            "label": "Codex",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.codex/config.toml"
+                ],
+                "format": "CodexToml",
+                "keep": [],
+                "drop": [
+                  {
+                    "name": "grafana",
+                    "reason": "unticked"
+                  }
+                ]
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "gemini",
+            "label": "Gemini CLI",
+            "scopes": [],
+            "aside": [
+              {
+                "id": "agents/mcp/gemini/memory",
+                "name": "memory",
+                "reason": "Gemini CLI is not ticked, so its config did not travel"
+              }
+            ]
+          }
+        ],
+        "guestHome": "/srv/guest",
+        "rewrites": [
+          [
+            "/Users/dev/",
+            "/srv/guest/"
+          ],
+          [
+            "/opt/homebrew/",
+            "/home/linuxbrew/.linuxbrew/"
+          ]
+        ],
+        "binDirs": [
+          "/Users/dev/.local/bin/",
+          "~/.local/bin/",
+          "/usr/local/bin/"
+        ],
+        "tools": [
+          {
+            "id": "tools/brew/gh",
+            "ticked": false,
+            "reason": "not wanted"
+          },
+          {
+            "id": "tools/npm/keeper",
+            "ticked": true
+          }
+        ]
+      }
+    },
+    {
+      "rows": [
+        {
+          "label": "agents/claude",
+          "paths": [],
+          "bytes": 0,
+          "default": "bring",
+          "bring": true,
+          "rung": "agents",
+          "id": "agents/claude"
+        }
+      ],
+      "home": "/Users/dev",
+      "out": null
+    }
+  ],
+  "landConfigs": [
+    {
+      "name": "nothing changed lands nothing",
+      "read": [
+        {
+          "path": "/root/a.json",
+          "text": "{}\n",
+          "sum": "s1"
+        }
+      ],
+      "texts": [
+        [
+          "/root/a.json",
+          "{}\n"
+        ]
+      ],
+      "rules": [],
+      "out": null,
+      "calls": []
+    },
+    {
+      "name": "two changed files land through the byte road, then one write each",
+      "read": [
+        {
+          "path": "/root/a.json",
+          "text": "{}\n",
+          "sum": "s1"
+        },
+        null,
+        {
+          "path": "/root/c.toml",
+          "unread": "not a plain file"
+        }
+      ],
+      "texts": [
+        [
+          "/root/a.json",
+          "{\"x\":1}\n"
+        ],
+        [
+          "/root/b.json",
+          "{}\n"
+        ],
+        [
+          "/root/c.toml",
+          "x"
+        ]
+      ],
+      "rules": [],
+      "out": null,
+      "calls": [
+        {
+          "kind": "put",
+          "text": "/root/.wsp-config-tmp.abababababab\n{\"x\":1}\n",
+          "timeoutMs": 120000
+        },
+        {
+          "kind": "put",
+          "text": "/root/.wsp-config-tmp.abababababab\n{}\n",
+          "timeoutMs": 120000
+        },
+        {
+          "kind": "put",
+          "text": "/root/.wsp-config-tmp.abababababab\nx",
+          "timeoutMs": 120000
+        },
+        {
+          "kind": "exec",
+          "text": "(\numask 077\nl='/root/.wsp-config-tmp.abababababab'\ntrap 'rm -f -- \"$l\"' EXIT\nb=$(realpath '/root') || exit 1\nf='/root/a.json'\nif [ -e \"$f\" ] || [ -L \"$f\" ]; then\n  :\n  r=$(realpath \"$f\" 2>/dev/null) || { printf '%s\\000%s\\000' \"$f\" \"$(readlink \"$f\")\"; exit 4; }\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$f\" \"$r\"; exit 4 ;; esac\n  [ -z \"$(find \"$r\" -links +1)\" ] || { printf '%s\\000' \"$f\"; exit 6; }\nelse\n  { printf '%s\\000' \"$f\"; exit 5; }\n  d=${f%/*}; a=$d\n  while [ -n \"$a\" ] && [ ! -e \"$a\" ]; do a=${a%/*}; done\n  r=$(realpath \"${a:-/}\") || exit 1\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$a\" \"$r\"; exit 4 ;; esac\n  mkdir -p \"$d\" || exit 1\n  r=$f\nfi\nfor s in \"${f%/*}\" \"${r%/*}\"; do LC_ALL=C find \"$s\" -maxdepth 1 -type f \\( -name '.wsp-config-tmp.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].part[0-9]*' \\) -mmin +10 -exec rm -f {} + 2>/dev/null; done\nn=$(mktemp \"${r%/*}/.wsp-config-tmp.XXXXXX\") || exit 1\ntrap 'rm -f -- \"$n\" \"$l\"' EXIT\nif { [ -e \"$r\" ] || [ -L \"$r\" ]; }; then cp -p \"$r\" \"$n\" || exit 1; fi\ncat \"$l\" > \"$n\" || exit 1\n[ \"$(wc -c < \"$n\" | tr -d ' ')\" = 8 ] || exit 1\n[ \"$(cksum < \"$r\")\" = 's1' ] || { printf '%s\\000' \"$f\"; exit 5; }\nmv -f \"$n\" \"$r\" || exit 1\n) || exit $?\n(\numask 077\nl='/root/.wsp-config-tmp.abababababab'\ntrap 'rm -f -- \"$l\"' EXIT\nb=$(realpath '/root') || exit 1\nf='/root/b.json'\nif [ -e \"$f\" ] || [ -L \"$f\" ]; then\n  { printf '%s\\000' \"$f\"; exit 5; }\n  r=$(realpath \"$f\" 2>/dev/null) || { printf '%s\\000%s\\000' \"$f\" \"$(readlink \"$f\")\"; exit 4; }\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$f\" \"$r\"; exit 4 ;; esac\n  [ -z \"$(find \"$r\" -links +1)\" ] || { printf '%s\\000' \"$f\"; exit 6; }\nelse\n  :\n  d=${f%/*}; a=$d\n  while [ -n \"$a\" ] && [ ! -e \"$a\" ]; do a=${a%/*}; done\n  r=$(realpath \"${a:-/}\") || exit 1\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$a\" \"$r\"; exit 4 ;; esac\n  mkdir -p \"$d\" || exit 1\n  r=$f\nfi\nfor s in \"${f%/*}\" \"${r%/*}\"; do LC_ALL=C find \"$s\" -maxdepth 1 -type f \\( -name '.wsp-config-tmp.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].part[0-9]*' \\) -mmin +10 -exec rm -f {} + 2>/dev/null; done\nn=$(mktemp \"${r%/*}/.wsp-config-tmp.XXXXXX\") || exit 1\ntrap 'rm -f -- \"$n\" \"$l\"' EXIT\nif { [ -e \"$r\" ] || [ -L \"$r\" ]; }; then cp -p \"$r\" \"$n\" || exit 1; fi\ncat \"$l\" > \"$n\" || exit 1\n[ \"$(wc -c < \"$n\" | tr -d ' ')\" = 3 ] || exit 1\n{ [ -e \"$r\" ] || [ -L \"$r\" ]; } && { printf '%s\\000' \"$f\"; exit 5; }\nmv -f \"$n\" \"$r\" || exit 1\n) || exit $?\n(\numask 077\nl='/root/.wsp-config-tmp.abababababab'\ntrap 'rm -f -- \"$l\"' EXIT\nb=$(realpath '/root/.codex') || exit 1\nf='/root/c.toml'\nif [ -e \"$f\" ] || [ -L \"$f\" ]; then\n  { printf '%s\\000' \"$f\"; exit 5; }\n  r=$(realpath \"$f\" 2>/dev/null) || { printf '%s\\000%s\\000' \"$f\" \"$(readlink \"$f\")\"; exit 4; }\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$f\" \"$r\"; exit 4 ;; esac\n  [ -z \"$(find \"$r\" -links +1)\" ] || { printf '%s\\000' \"$f\"; exit 6; }\nelse\n  :\n  d=${f%/*}; a=$d\n  while [ -n \"$a\" ] && [ ! -e \"$a\" ]; do a=${a%/*}; done\n  r=$(realpath \"${a:-/}\") || exit 1\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$a\" \"$r\"; exit 4 ;; esac\n  mkdir -p \"$d\" || exit 1\n  r=$f\nfi\nfor s in \"${f%/*}\" \"${r%/*}\"; do LC_ALL=C find \"$s\" -maxdepth 1 -type f \\( -name '.wsp-config-tmp.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].part[0-9]*' \\) -mmin +10 -exec rm -f {} + 2>/dev/null; done\nn=$(mktemp \"${r%/*}/.wsp-config-tmp.XXXXXX\") || exit 1\ntrap 'rm -f -- \"$n\" \"$l\"' EXIT\nif { [ -e \"$r\" ] || [ -L \"$r\" ]; }; then cp -p \"$r\" \"$n\" || exit 1; fi\ncat \"$l\" > \"$n\" || exit 1\n[ \"$(wc -c < \"$n\" | tr -d ' ')\" = 1 ] || exit 1\n{ [ -e \"$r\" ] || [ -L \"$r\" ]; } && { printf '%s\\000' \"$f\"; exit 5; }\nmv -f \"$n\" \"$r\" || exit 1\n) || exit $?",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a landing that fails is swept",
+      "read": [],
+      "texts": [
+        [
+          "/root/a.json",
+          "{}\n"
+        ]
+      ],
+      "rules": [
+        {
+          "has": "/root/",
+          "kind": "put",
+          "seq": [
+            {
+              "throws": "the upload broke"
+            }
+          ]
+        }
+      ],
+      "out": "the edited config did not land (the upload broke)",
+      "calls": [
+        {
+          "kind": "put",
+          "text": "/root/.wsp-config-tmp.abababababab\n{}\n",
+          "timeoutMs": 120000
+        },
+        {
+          "kind": "exec",
+          "text": "rm -f '/root/.wsp-config-tmp.abababababab'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a write the machine refuses is swept with the refusal's words",
+      "read": [
+        {
+          "path": "/root/a.json",
+          "text": "{}\n",
+          "sum": "s1"
+        }
+      ],
+      "texts": [
+        [
+          "/root/a.json",
+          "{\"y\":2}\n"
+        ]
+      ],
+      "rules": [
+        {
+          "has": "wsp-config",
+          "kind": "exec",
+          "seq": [
+            {
+              "exit": 3,
+              "stderr": "something else\n"
+            }
+          ]
+        }
+      ],
+      "out": "the edited config did not land (something else)",
+      "calls": [
+        {
+          "kind": "put",
+          "text": "/root/.wsp-config-tmp.abababababab\n{\"y\":2}\n",
+          "timeoutMs": 120000
+        },
+        {
+          "kind": "exec",
+          "text": "(\numask 077\nl='/root/.wsp-config-tmp.abababababab'\ntrap 'rm -f -- \"$l\"' EXIT\nb=$(realpath '/root') || exit 1\nf='/root/a.json'\nif [ -e \"$f\" ] || [ -L \"$f\" ]; then\n  :\n  r=$(realpath \"$f\" 2>/dev/null) || { printf '%s\\000%s\\000' \"$f\" \"$(readlink \"$f\")\"; exit 4; }\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$f\" \"$r\"; exit 4 ;; esac\n  [ -z \"$(find \"$r\" -links +1)\" ] || { printf '%s\\000' \"$f\"; exit 6; }\nelse\n  { printf '%s\\000' \"$f\"; exit 5; }\n  d=${f%/*}; a=$d\n  while [ -n \"$a\" ] && [ ! -e \"$a\" ]; do a=${a%/*}; done\n  r=$(realpath \"${a:-/}\") || exit 1\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$a\" \"$r\"; exit 4 ;; esac\n  mkdir -p \"$d\" || exit 1\n  r=$f\nfi\nfor s in \"${f%/*}\" \"${r%/*}\"; do LC_ALL=C find \"$s\" -maxdepth 1 -type f \\( -name '.wsp-config-tmp.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].part[0-9]*' \\) -mmin +10 -exec rm -f {} + 2>/dev/null; done\nn=$(mktemp \"${r%/*}/.wsp-config-tmp.XXXXXX\") || exit 1\ntrap 'rm -f -- \"$n\" \"$l\"' EXIT\nif { [ -e \"$r\" ] || [ -L \"$r\" ]; }; then cp -p \"$r\" \"$n\" || exit 1; fi\ncat \"$l\" > \"$n\" || exit 1\n[ \"$(wc -c < \"$n\" | tr -d ' ')\" = 8 ] || exit 1\n[ \"$(cksum < \"$r\")\" = 's1' ] || { printf '%s\\000' \"$f\"; exit 5; }\nmv -f \"$n\" \"$r\" || exit 1\n) || exit $?",
+          "timeoutMs": 20000
+        },
+        {
+          "kind": "exec",
+          "text": "rm -f '/root/.wsp-config-tmp.abababababab'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a write call that rejects",
+      "read": [],
+      "texts": [
+        [
+          "/root/a.json",
+          "{}\n"
+        ]
+      ],
+      "rules": [
+        {
+          "has": "printf",
+          "kind": "exec",
+          "seq": [
+            {
+              "throws": "lost"
+            }
+          ]
+        }
+      ],
+      "out": "the edited config did not land (lost)",
+      "calls": [
+        {
+          "kind": "put",
+          "text": "/root/.wsp-config-tmp.abababababab\n{}\n",
+          "timeoutMs": 120000
+        },
+        {
+          "kind": "exec",
+          "text": "(\numask 077\nl='/root/.wsp-config-tmp.abababababab'\ntrap 'rm -f -- \"$l\"' EXIT\nb=$(realpath '/root') || exit 1\nf='/root/a.json'\nif [ -e \"$f\" ] || [ -L \"$f\" ]; then\n  { printf '%s\\000' \"$f\"; exit 5; }\n  r=$(realpath \"$f\" 2>/dev/null) || { printf '%s\\000%s\\000' \"$f\" \"$(readlink \"$f\")\"; exit 4; }\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$f\" \"$r\"; exit 4 ;; esac\n  [ -z \"$(find \"$r\" -links +1)\" ] || { printf '%s\\000' \"$f\"; exit 6; }\nelse\n  :\n  d=${f%/*}; a=$d\n  while [ -n \"$a\" ] && [ ! -e \"$a\" ]; do a=${a%/*}; done\n  r=$(realpath \"${a:-/}\") || exit 1\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$a\" \"$r\"; exit 4 ;; esac\n  mkdir -p \"$d\" || exit 1\n  r=$f\nfi\nfor s in \"${f%/*}\" \"${r%/*}\"; do LC_ALL=C find \"$s\" -maxdepth 1 -type f \\( -name '.wsp-config-tmp.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].part[0-9]*' \\) -mmin +10 -exec rm -f {} + 2>/dev/null; done\nn=$(mktemp \"${r%/*}/.wsp-config-tmp.XXXXXX\") || exit 1\ntrap 'rm -f -- \"$n\" \"$l\"' EXIT\nif { [ -e \"$r\" ] || [ -L \"$r\" ]; }; then cp -p \"$r\" \"$n\" || exit 1; fi\ncat \"$l\" > \"$n\" || exit 1\n[ \"$(wc -c < \"$n\" | tr -d ' ')\" = 3 ] || exit 1\n{ [ -e \"$r\" ] || [ -L \"$r\" ]; } && { printf '%s\\000' \"$f\"; exit 5; }\nmv -f \"$n\" \"$r\" || exit 1\n) || exit $?",
+          "timeoutMs": 20000
+        },
+        {
+          "kind": "exec",
+          "text": "rm -f '/root/.wsp-config-tmp.abababababab'",
+          "timeoutMs": 20000
+        }
+      ]
+    }
+  ]
+}
