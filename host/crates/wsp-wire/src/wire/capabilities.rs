@@ -3,7 +3,9 @@
 
 #![allow(unused_imports)]
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::de::Error as _;
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use super::helpers::ReqId;
@@ -61,10 +63,12 @@ pub enum PauseMode {
     #[serde(rename = "disk")]
     Disk,
 }
-/// The fields sit in the order a backend writes them (`{ ...BOX_CAPABILITIES, sizes }`, engine/src/box-backend.ts:541):
-/// `sizes` after `ownNetwork`, not where the schema lists it.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// A backend writes the keys in the order its code builds them, which is not the schema's: a box and Solari build
+/// `{ ...BOX_CAPABILITIES, sizes }` (engine/src/box-backend.ts:546), so `sizes` comes last; the local, no-provider, fake
+/// and place-machine backends list `sizes` after `templates` (engine/src/local-backend.ts:158-178). `sizes_last` is
+/// which of the two, read off the frame's own key order, and the host sends the object as built.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(remote = "Self", rename_all = "camelCase")]
 pub struct Capabilities {
     pub live_clone_forks: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -82,6 +86,48 @@ pub struct Capabilities {
     pub copies: bool,
     pub own_network: bool,
     pub sizes: Vec<MachineSizeOffer>,
+    #[serde(skip)]
+    pub sizes_last: bool,
+}
+
+impl Serialize for Capabilities {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut map = s.serialize_map(None)?;
+        map.serialize_entry("liveCloneForks", &self.live_clone_forks)?;
+        if let Some(mode) = &self.pause_mode {
+            map.serialize_entry("pauseMode", mode)?;
+        }
+        map.serialize_entry("replacesMachine", &self.replaces_machine)?;
+        map.serialize_entry("previewUrls", &self.preview_urls)?;
+        map.serialize_entry("signedUrls", &self.signed_urls)?;
+        map.serialize_entry("callbackRelay", &self.callback_relay)?;
+        map.serialize_entry("diskSnapshots", &self.disk_snapshots)?;
+        map.serialize_entry("images", &self.images)?;
+        map.serialize_entry("snapshotsAnyLife", &self.snapshots_any_life)?;
+        map.serialize_entry("snapshotListing", &self.snapshot_listing)?;
+        map.serialize_entry("templates", &self.templates)?;
+        if !self.sizes_last {
+            map.serialize_entry("sizes", &self.sizes)?;
+        }
+        map.serialize_entry("kept", &self.kept)?;
+        map.serialize_entry("copies", &self.copies)?;
+        map.serialize_entry("ownNetwork", &self.own_network)?;
+        if self.sizes_last {
+            map.serialize_entry("sizes", &self.sizes)?;
+        }
+        map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Capabilities {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let frame = Value::deserialize(d)?;
+        let at = |key: &str| frame.as_object().and_then(|keys| keys.keys().position(|k| k == key));
+        let sizes_last = at("sizes") > at("kept");
+        let mut read = Capabilities::deserialize(frame).map_err(D::Error::custom)?;
+        read.sizes_last = sizes_last;
+        Ok(read)
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
