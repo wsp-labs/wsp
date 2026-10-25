@@ -166,6 +166,9 @@ fn main() {
         let dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
         ui::init(if dark { Side::Dark } else { Side::Light }, cx);
         local_store::init(kept.clone(), cx);
+        if !browser_check {
+            desktop::carry::on_launch(&state, cx);
+        }
         // The browser pane's pages keep their cookies and storage beside the store; a check run's go with its scratch.
         cx.set_global(screens::browser::page::DataDir { path: kept.with_file_name("browser"), kept: !browser_check });
         composer::init(cx);
