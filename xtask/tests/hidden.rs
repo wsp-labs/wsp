@@ -57,3 +57,60 @@ fn a_short_id_that_happens_to_be_all_digits_reads_like_any_other() {
     let doctor = |id: &str| json!({ "exit": 1, "stdout": "", "stderr": format!("no checkpoint of the files at thread {id}'s turn end") });
     assert!(alike(doctor("3fa0c2d1"), doctor("79097289"), &Facts::default()), "the TS host disagrees with itself");
 }
+
+/// A replay that started at 2026-10-25T19:35:23.456Z.
+fn started() -> Facts {
+    Facts { started: Some(1_792_956_923_456), ..Facts::default() }
+}
+
+#[test]
+fn a_time_written_as_a_rust_library_writes_it_is_compared() {
+    // JavaScript's toISOString writes milliseconds and Z; chrono's to_rfc3339 writes +00:00, and nanoseconds when it has them.
+    let row = |at: &str| json!({ "id": 2, "ok": true, "thread": { "createdAt": at } });
+    let ts = row("2026-10-25T19:35:25.456Z");
+    for port in ["2026-10-25T19:35:25.456+00:00", "2026-10-25T19:35:25.456789012Z", "2026-10-25T19:35:25Z"] {
+        assert!(!alike(ts.clone(), row(port), &started()), "{port} reads like 2026-10-25T19:35:25.456Z");
+    }
+}
+
+#[test]
+fn a_time_sent_as_a_number_where_the_ts_host_writes_text_is_compared() {
+    let row = |at: Value| json!({ "id": 2, "ok": true, "thread": { "createdAt": at } });
+    assert!(!alike(row(json!("2026-10-25T19:35:25.456Z")), row(json!(1_792_956_925_456_i64)), &started()));
+}
+
+#[test]
+fn a_refusal_naming_another_id_than_the_one_asked_about_is_compared() {
+    // 247 goldens hold a refusal naming the id the request sent, as "no such workspace: <ws-1>"; a port that names the
+    // wrong variable names another id, which the request never sent and which does not move between two runs.
+    let refusal = |id: &str| json!({ "id": 2, "ok": false, "error": format!("no such workspace: {id}") });
+    assert!(!alike(refusal("ws_00aa11"), refusal("ws_7f3e21"), &Facts::default()));
+}
+
+#[test]
+fn a_moving_value_of_the_wrong_kind_is_compared() {
+    let turn = |pid: Value| json!({ "id": 2, "ok": true, "turn": { "pid": pid } });
+    assert!(!alike(turn(json!(41234)), turn(Value::Null), &Facts::default()), "a pid of null reads like a pid");
+}
+
+#[test]
+fn a_ticket_that_is_empty_is_compared() {
+    let ticket = |t: &str| json!({ "id": 2, "ok": true, "ticket": t, "expiresAt": 1_793_000_000_000_i64 });
+    assert!(!alike(ticket("Fq3oN2x7Lr8sV1kZ0aYbW6tD5pC4mE9h"), ticket(""), &Facts::default()));
+}
+
+#[test]
+fn json_lines_keep_their_last_newline() {
+    // The contract: with --json, one object per line; a line a reader waits for ends in a newline.
+    let out = |stdout: &str| json!({ "exit": 0, "stdout": stdout, "stderr": "" });
+    assert!(!alike(out("{\"agent\":\"claude\"}\n{\"ok\":true}\n"), out("{\"agent\":\"claude\"}\n{\"ok\":true}"), &Facts::default()));
+}
+
+#[test]
+fn a_door_port_no_host_listens_on_is_compared() {
+    // The door's port is read off the answer itself, so whatever port it names is blanked.
+    let mut facts = Facts::default();
+    facts.add("41857", "<port>");
+    let door = |port: u16| json!({ "id": 2, "ok": true, "door": { "port": port, "url": format!("ws://0.0.0.0:{port}/") } });
+    assert!(!alike(door(45013), door(9999), &facts), "a door that names a port nobody listens on reads like the TS host");
+}

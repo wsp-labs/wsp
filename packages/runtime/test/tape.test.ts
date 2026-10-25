@@ -136,6 +136,24 @@ describe("the tap", () => {
     expect(readFileSync(join(dir, readdirSync(dir)[0]!), "utf8")).not.toContain("redacted");
   });
 
+  it("blanks what a real host's day carries on the command line and the tool server: logins, its own ticket, nested env, typed keys, the turn's token", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    const turn = "0123456789abcdef0123456789abcdef";
+    const secrets = ["Zq9amK2vLpR7sTb4WnY8x", "Zq9bmK2vLpR7sTb4WnY8x", "Zq9cmK2vLpR7sTb4WnY8x", "Zq9dmK2vLpR7sTb4WnY8x", ["glpat", "Zq9mK2vLpR7sTb4WnY8x"].join("-"), turn];
+    const [login, ticket, env, typed, glpat] = secrets;
+    const cli = tapeOf({ [TAPE_DIR_ENV]: dir, WSP_HOST_TOKEN: turn }, "cli")!;
+    cli.in({ argv: ["projects", "add", `https://deploy:${login}@git.example/repo.git`] });
+    cli.in({ argv: ["add", `https://host.example/?ticket=${ticket}`] });
+    cli.in({ argv: ["exec", "t", "--", "echo", turn] });
+    const ws = tapeOf({ [TAPE_DIR_ENV]: dir }, "ws", HOST_TOKEN)!;
+    ws.in({ id: 7, op: "daemon.send", channel: "c1", frame: { id: 1, op: "pty.create", env: { OPENAI_API_KEY: env } } });
+    ws.in({ id: 8, op: "daemon.send", channel: "c1", frame: { op: "pty.write", ptyId: "p1", data: `${typed}\r` } });
+    const mcp = tapeOf({ [TAPE_DIR_ENV]: dir }, "mcp")!;
+    mcp.in({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "servers_add", arguments: { name: "gl", env: { GITLAB_TOKEN: glpat } } } });
+    const text = readdirSync(dir).map(f => readFileSync(join(dir, f), "utf8")).join("");
+    expect(secrets.filter(s => text.includes(s))).toEqual([]);
+  });
+
   it("writes nothing when no folder is named", () => {
     dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
     expect(tapeOf({}, "ws")).toBeUndefined();
