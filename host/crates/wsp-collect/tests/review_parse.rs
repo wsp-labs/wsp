@@ -487,7 +487,6 @@ fn a_codex_config_smol_toml_reads_still_trusts_the_folder() {
         ("an inline table with a trailing comma", "t = { a = 1, }"),
         ("an inline table over two lines", "t = { a = 1,\n b = 2 }"),
         ("the escape \\e", "s = \"\\e\""),
-        ("a time with no seconds", "d = 07:32Z"),
         ("February 30", "d = 2024-02-30"),
         ("February 29 in a year with none", "d = 2023-02-29T00:00:00Z"),
         ("a float past f64 range", "e = 1e400"),
@@ -506,7 +505,7 @@ fn a_codex_config_smol_toml_reads_still_trusts_the_folder() {
 
 #[test]
 fn a_codex_config_smol_toml_refuses_does_not_trust_the_folder() {
-    // smol-toml refuses an integer it cannot hold exactly in a double and a leap second; the toml crate takes both.
+    // smol-toml refuses an integer it cannot hold exactly in a double, a leap second and a time with a zone and no date.
     // Node: the file does not parse, the folder is not trusted, no project server is found.
     let want = json!({ "servers": [], "read": [] });
     let mut differs = Vec::new();
@@ -515,6 +514,7 @@ fn a_codex_config_smol_toml_refuses_does_not_trust_the_folder() {
         ("i64::MAX", "n = 9223372036854775807"),
         ("i64::MIN", "n = -9223372036854775808"),
         ("a leap second", "d = 1979-05-27T07:32:60Z"),
+        ("a time with an offset and no date", "d = 07:32Z"),
     ] {
         let got = codex_project(body);
         if got != want {
