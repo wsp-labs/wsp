@@ -32,10 +32,33 @@ export function slateChartAxis(values: readonly number[]): { from: number; to: n
   return five.to - five.from < four.to - four.from ? five : four;
 }
 
-/** An x as the axis labels it: a time in ms or an ISO time by the clock, anything else as written. */
-export function slateAxisWord(x: SlateJson | undefined): string {
-  if (typeof x === "number" && x > 1e12) return fmtClock(x).slice(0, 5);
-  if (typeof x === "string" && /^\d{4}-\d{2}-\d{2}T/.test(x) && Number.isFinite(Date.parse(x))) return fmtClock(Date.parse(x)).slice(0, 5);
+const DAY = 86_400_000;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** An x as a moment: ms past 2001, or an ISO date or time. */
+function axisTime(x: SlateJson | undefined): number | undefined {
+  if (typeof x === "number") return x > 1e12 ? x : undefined;
+  if (typeof x !== "string" || !(DATE_ONLY.test(x) || /^\d{4}-\d{2}-\d{2}T/.test(x))) return undefined;
+  const ms = Date.parse(x);
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
+/** How long a list of x values spans, in ms, where they are times; 0 otherwise. */
+export function slateAxisSpan(xs: readonly (SlateJson | undefined)[]): number {
+  const times = xs.map(axisTime).filter((t): t is number => t !== undefined);
+  return times.length < 2 ? 0 : Math.max(...times) - Math.min(...times);
+}
+
+/** An x as the axis labels it: a time by the clock, by its date (Oct 12) where the axis spans a day or more or the x is
+ * a date alone, anything else as written. */
+export function slateAxisWord(x: SlateJson | undefined, span = 0): string {
+  const ms = axisTime(x);
+  if (ms !== undefined) {
+    const dateOnly = typeof x === "string" && DATE_ONLY.test(x);
+    if (!dateOnly && span < DAY) return fmtClock(ms).slice(0, 5);
+    // A date alone is midnight UTC, so it reads as that day in every time zone.
+    return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", ...(dateOnly ? { timeZone: "UTC" } : {}) });
+  }
   return x === undefined || x === null ? "" : typeof x === "string" ? x : JSON.stringify(x);
 }
 

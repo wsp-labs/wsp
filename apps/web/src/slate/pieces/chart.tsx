@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // A line over a list, drawn by the Usage page's own chart: x and value read per row, oldest first.
-import { slateAxisWord as word, slateChartAxis, type SlateJson, type SlatePropValue } from "@wsp/protocol/slate";
+import { slateAxisSpan, slateAxisWord as word, slateChartAxis, type SlateJson, type SlatePropValue } from "@wsp/protocol/slate";
 import { UsageChart } from "../../settings/usageChart.js";
 import type { PieceView, PieceViewProps } from "../SlateView.js";
 import { useCallback, useState } from "react";
@@ -31,8 +31,9 @@ function axisFor(values: readonly number[], format: SlateJson | undefined): { fr
   return { from, to, parts };
 }
 
-/** The panel decides a chart's height, not the agent: 200 px in the 400 px panel, 260 once it is widened. */
-const heightFor = (width: number): number => (width >= 560 ? 260 : 200);
+/** A normal chart's height follows the panel, 200 px in the 400 px panel and 260 once it is widened; a small or large
+ * one keeps the height its word names at any width. */
+const heightFor = (width: number, size: SlateJson | undefined): number => (size === "small" ? 120 : size === "large" ? 320 : width >= 560 ? 260 : 200);
 
 /** The figure's own width, read as it changes. */
 export function useWidth(): [(node: HTMLElement | null) => (() => void) | undefined, number] {
@@ -68,8 +69,10 @@ export const chart: PieceView = {
     // A series that holds one value the whole window says so on the legend's line; the plot comes back once it moves.
     // One sample is not yet a series: it draws its plot, the axis and its point, from the first read on.
     const flat = rows.length > 1 && rows.every(r => r.v === rows[0]!.v);
-    // One chart per slate carries the accent; any other draws its line in the muted ink.
-    const tone = slate.isLoud("accent", id) ? "accent" : "muted";
+    // A tone the agent named holds; else one chart per slate carries the accent and any other draws its line muted.
+    const named = toneOf(props["tone"], slate, id);
+    const tone: Tone = props["tone"] !== undefined && named !== "default" ? named : slate.isLoud("accent", id) ? "accent" : "muted";
+    const span = slateAxisSpan(rows.map(r => r.x));
     const comma = label.indexOf(", ");
     const name = comma < 0 ? label : label.slice(0, comma);
     const what = [comma < 0 ? undefined : label.slice(comma + 2), unit].filter(Boolean).join(", ");
@@ -94,9 +97,9 @@ export const chart: PieceView = {
           <UsageChart
             steps={values.map((_, i) => i)}
             lines={[{ key: "line", label, points: values, ink: { className: TONE_INK[tone] } }]}
-            stepWord={i => word(rows[Math.min(i, rows.length - 1)]?.x)}
-            ticks={rows.length === 1 ? [{ at: 1, word: word(rows[0]!.x) }] : [{ at: 0, word: word(rows[0]!.x) }, { at: 1, word: word(rows.at(-1)!.x) }]}
-            height={heightFor(width)}
+            stepWord={i => word(rows[Math.min(i, rows.length - 1)]?.x, span)}
+            ticks={rows.length === 1 ? [{ at: 1, word: word(rows[0]!.x, span) }] : [{ at: 0, word: word(rows[0]!.x, span) }, { at: 1, word: word(rows.at(-1)!.x, span) }]}
+            height={heightFor(width, props["height"])}
             figure={shown}
             axisFigure={v => figure(v, props["format"]) ?? ""}
             label={label}
@@ -115,6 +118,7 @@ function SeriesChart({ label, items, series, x, props, id, slate }: { label: str
   const [ref, width] = useWidth();
   const stacked = props["stack"] === true;
   const xs = items.map((item, index) => (x === undefined ? index : slate.resolve(x, { item, index })));
+  const span = slateAxisSpan(xs);
   const own = series.map(s => items.map((item, index) => { const v = slate.resolve(s.value, { item, index }); return typeof v === "number" && Number.isFinite(v) ? v : 0; }));
   const drawn = stacked ? own.map((_, k) => own[0]!.map((__, i) => own.slice(0, k + 1).reduce((sum, line) => sum + line[i]!, 0))) : own;
   const chartTone: Tone = slate.isLoud("accent", id) ? "accent" : "default";
@@ -154,9 +158,9 @@ function SeriesChart({ label, items, series, x, props, id, slate }: { label: str
         <UsageChart
           steps={items.map((_, i) => i)}
           lines={series.map((s, k) => ({ key: `s${k}`, label: s.label, points: drawn[k]!, ink: inks[k]! }))}
-          stepWord={i => word(xs[Math.min(i, xs.length - 1)])}
-          ticks={[{ at: 0, word: word(xs[0]) }, { at: 1, word: word(xs.at(-1)) }]}
-          height={heightFor(width)}
+          stepWord={i => word(xs[Math.min(i, xs.length - 1)], span)}
+          ticks={[{ at: 0, word: word(xs[0], span) }, { at: 1, word: word(xs.at(-1), span) }]}
+          height={heightFor(width, props["height"])}
           figure={shown}
           axisFigure={v => figure(v, props["format"]) ?? ""}
           label={label}

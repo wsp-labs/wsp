@@ -90,7 +90,7 @@ describe("a tool run's result by its shape", () => {
   it("keeps a failed tool run and a command's output as lines", () => {
     const failed = draw(INBOX, { inbox: { state: "failed", err: "account not found", why: "the tool said it failed", runs: 1 } }).container;
     expect(failed.querySelector('[data-slate-result="inbox"]')).toBeNull();
-    expect(failed.querySelector('[role="log"]')!.textContent).toBe("account not found");
+    expect(failed.querySelector("[data-slate-summary]")!.textContent).toBe("account not found");
     cleanup();
     const cmd = compiled(`<slate title="Disk">
   <run name="df" cmd="df -h /" />
@@ -98,7 +98,7 @@ describe("a tool run's result by its shape", () => {
 </slate>`);
     const lines = draw(cmd, { df: { state: "done", out: "[1,2]", json: [1, 2], runs: 1 } }).container;
     expect(lines.querySelector('[data-slate-result="df"]')).toBeNull();
-    expect(lines.querySelector('[role="log"]')!.textContent).toBe("[1,2]");
+    expect(lines.querySelector("[data-slate-summary]")!.textContent).toBe("[1,2]");
   });
 });
 

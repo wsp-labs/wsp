@@ -66,13 +66,15 @@ describe("a refreshing run", () => {
     expect(piece(c, "other").querySelector("[data-slate-refreshing]")).toBeNull();
     const log = piece(c, "log");
     expect(log.querySelector("[data-slate-refreshing]")).not.toBeNull();
-    expect(log.querySelector("[role=log]")!.textContent).toBe("412 processes");
+    // The summary leads with the last line where no runner's tally reads; the raw lines fold under it.
+    expect(log.querySelector("[data-slate-summary]")!.textContent).toBe("412 processes");
+    expect(log.querySelector("[role=log]")).toBeNull();
     expect(log.querySelector("[data-slate-cancel]")).toBeNull();
     expect(log.textContent).not.toContain("Running");
     push({ $procs: { state: "done", exit: 0, out: "415 processes", lines: ["415 processes"], runs: 2 } });
     expect(piece(c, "count").textContent).toBe("415 processes");
     expect(c.querySelector("[data-slate-refreshing]")).toBeNull();
-    expect(log.querySelector("[role=log]")!.textContent).toBe("415 processes");
+    expect(log.querySelector("[data-slate-summary]")!.textContent).toBe("415 processes");
   });
 
   it("says itself in the slate's header for a piece under no section", () => {
@@ -92,6 +94,7 @@ describe("a refreshing run", () => {
     act(() => engine.appendLines("procs", ["one", "two"]));
     push({ $procs: { state: "done", exit: 0, runs: 1 } });
     push({ $procs: { state: "running", refreshing: true, exit: 0, runs: 2 } });
+    fireEvent.click(piece(view.container, "log").querySelector("[data-slate-fold]")!);
     const log = () => piece(view.container, "log").querySelector("[role=log]")!.textContent;
     expect(log()).toBe("onetwo");
     act(() => {
