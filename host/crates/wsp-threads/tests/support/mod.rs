@@ -8,5 +8,7 @@
 
 pub mod fake;
 pub mod generated;
+pub mod session;
 
 pub use fake::*;
+pub use session::*;
