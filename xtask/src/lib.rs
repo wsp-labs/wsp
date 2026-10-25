@@ -9,6 +9,7 @@ pub mod golden;
 pub mod held;
 pub mod host;
 pub mod normalize;
+pub mod sandbox;
 pub mod seed;
 pub mod tape;
 pub mod unit;

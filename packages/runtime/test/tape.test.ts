@@ -87,6 +87,20 @@ describe("the tap", () => {
     ]);
   });
 
+  it("blanks a paired device's token where an answer hands it out or a join nests it, and a join code in any door", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    const device = "device-token-kept-off-tape";
+    const joinCode = "K7QX-M2PA";
+    const ws = tapeOf({ [TAPE_DIR_ENV]: dir }, "ws", HOST_TOKEN)!;
+    ws.out({ id: 2, ok: true, deviceId: "d_1", deviceToken: device });
+    ws.out({ id: 3, ok: true, placeId: "p_1", device: { deviceId: "d_2", deviceToken: `${device}-nested` } });
+    ws.out({ id: 4, ok: true, joins: [{ line: `wsp join https://host.example --code ${joinCode}.SHA256:abc` }] });
+    const cli = tapeOf({ [TAPE_DIR_ENV]: dir }, "cli")!;
+    cli.in({ argv: ["join", "https://host.example", "--code", `${joinCode}.SHA256:abc`] });
+    const text = readdirSync(dir).map(f => readFileSync(join(dir, f), "utf8")).join("");
+    for (const secret of [device, `${device}-nested`, joinCode]) expect(text).not.toContain(secret);
+  });
+
   it("writes nothing when no folder is named", () => {
     dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
     expect(tapeOf({}, "ws")).toBeUndefined();
