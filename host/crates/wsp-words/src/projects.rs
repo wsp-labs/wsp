@@ -7,15 +7,18 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 use serde::Serialize;
+use url::Url;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::projects::{ADD_FORMS_LINE, OWNER_REPO};
 use wsp_wire::types::shell_quote::shell_quote;
-use wsp_wire::views::workspace::{ProjectSource, ProjectSourceFolder, ProjectSourceGit, ProjectSourceGithub, ProjectSourceGitlab, ProjectView, WorkspaceProject};
+use wsp_wire::views::workspace::{
+    ProjectSource, ProjectSourceFolder, ProjectSourceGit, ProjectSourceGithub, ProjectSourceGitlab, ProjectView, WorkspaceProject,
+};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::wire::daemon::EXEC_DEADLINE_EXIT;
 
 use crate::exit::HostError;
-use crate::js::{is_js_whitespace, js_round, js_trim, js_trim_end, number_string};
+use crate::js::{is_js_whitespace, js_round, js_trim, js_trim_end, number_string, JS_WS};
 use crate::place_word::{names_place, PlaceRef, RefusalHalves};
 use crate::project_path::{folder_name, under_project};
 use crate::words::base::last_line;
@@ -30,7 +33,11 @@ use crate::workspace_state::{kind_words, workspace_kind};
 // export function addedProjectLine(project: ProjectView, named: ReadonlyMap<string, string> | undefined, platform: "darwin" | "linux"): string {
 //   return addedProjectOn(project, computerNamed(project.computer, named, platform));
 // }
-pub fn added_project_line(project: &ProjectView, named: Option<&indexmap::IndexMap<String, String>>, platform: &crate::words::computer::Platform) -> String {
+pub fn added_project_line(
+    project: &ProjectView,
+    named: Option<&indexmap::IndexMap<String, String>>,
+    platform: &crate::words::computer::Platform,
+) -> String {
     added_project_on(project, &computer_named(&project.computer, named, platform))
 }
 
@@ -44,7 +51,8 @@ pub fn added_project_line(project: &ProjectView, named: Option<&indexmap::IndexM
 // }
 pub fn added_project_on(project: &ProjectView, computer: &str) -> String {
     let here = copies_folder(&kind_for_computer(&project.computer, None));
-    let open = if here { format!("\nopen a thread on it with: wsp run {} \"<message>\"", shell_quote(&project.name)) } else { String::new() };
+    let open =
+        if here { format!("\nopen a thread on it with: wsp run {} \"<message>\"", shell_quote(&project.name)) } else { String::new() };
     format!("{} {}: {} on {computer}, at {}{open}", project.name, project.id, source_word(&project.source), project.path)
 }
 
@@ -89,9 +97,12 @@ pub enum SourceKind {
 
 static GITHUB_OR_GITLAB_REPO: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(github|gitlab)\.com/[^/]+/[^/]+$").expect("GITHUB_OR_GITLAB_REPO is a valid pattern"));
-static SCP_LOGIN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+:").expect("SCP_LOGIN is a valid pattern"));
-static LOGIN_AT_HOST: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+$").expect("LOGIN_AT_HOST is a valid pattern"));
-static OWNER_SLASH_REPO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$").expect("OWNER_SLASH_REPO is a valid pattern"));
+static SCP_LOGIN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+:").expect("SCP_LOGIN is a valid pattern"));
+static LOGIN_AT_HOST: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+$").expect("LOGIN_AT_HOST is a valid pattern"));
+static OWNER_SLASH_REPO: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$").expect("OWNER_SLASH_REPO is a valid pattern"));
 
 /// The repo a word names with the host in front of it taken off, as `gh` takes the bare owner/repo.
 fn without_host(word: &str) -> &str {
@@ -219,7 +230,11 @@ pub fn same_source_refusal(name: &str, computer: &str) -> String {
 //   `${word} is a repo: clone it here with --into <folder>${computers.length === 0 ? "" : `, or name the computer that clones it with --on ${computers.join(" | ")}`}`;
 pub fn no_computer_for_source_line(word: &str, computers: &[impl AsRef<str>]) -> String {
     let computers: Vec<&str> = computers.iter().map(|c| c.as_ref()).collect();
-    let tail = if computers.is_empty() { String::new() } else { format!(", or name the computer that clones it with --on {}", computers.join(" | ")) };
+    let tail = if computers.is_empty() {
+        String::new()
+    } else {
+        format!(", or name the computer that clones it with --on {}", computers.join(" | "))
+    };
     format!("{word} is a repo: clone it here with --into <folder>{tail}")
 }
 
@@ -271,175 +286,22 @@ static CLONE_HOST: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9][
 // projects.ts:129
 // private in the TS: port it as a private helper
 // const CLONE_USER = /^[A-Za-z0-9_.][A-Za-z0-9_.-]*$/;
-static CLONE_USER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.][A-Za-z0-9_.-]*$").expect("CLONE_USER is a valid pattern"));
+static CLONE_USER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.][A-Za-z0-9_.-]*$").expect("CLONE_USER is a valid pattern"));
 
 // projects.ts:130
 // private in the TS: port it as a private helper
 // const SCP_FORM = /^[A-Za-z0-9_.][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*:[^\s-][^\s]*$/;
-/// The whitespace JavaScript's `\s` matches, as sub_thread.rs spells it.
-const JS_WS: &str = r"\t\n\x0B\x0C\r \x{A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF}";
 static SCP_FORM: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(r"^[A-Za-z0-9_.][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*:[^{JS_WS}-][^{JS_WS}]*$")).expect("SCP_FORM is a valid pattern")
+    Regex::new(&format!(r"^[A-Za-z0-9_.][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*:[^{JS_WS}-][^{JS_WS}]*$"))
+        .expect("SCP_FORM is a valid pattern")
 });
 
 // `owner/name` as GitHub and GitLab spell a repo: nothing a shell, a url or a git config key would have to escape.
 // projects.ts:132
 // in wsp_wire::types::projects: OWNER_REPO
-static OWNER_REPO_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!("(?-u){OWNER_REPO}")).expect("OWNER_REPO is a valid pattern"));
-
-/// The parts of `new URL(word)` a clone is judged by, for the two schemes a clone takes. https is special: its authority
-/// ends at a backslash too and its host is IDNA-mapped. ssh is opaque: its host is kept as written.
-struct CloneUrl {
-    scheme: &'static str,
-    username: String,
-    password: String,
-    hostname: String,
-    pathname: String,
-}
-
-fn parse_clone_url(word: &str) -> Option<CloneUrl> {
-    let input = word.trim_matches(|c: char| c <= ' ');
-    let (scheme, rest) = input.split_once(':')?;
-    let scheme = match scheme.to_ascii_lowercase().as_str() {
-        "https" => "https",
-        "ssh" => "ssh",
-        _ => return None,
-    };
-    let special = scheme == "https";
-    let (authority, path) = if special {
-        split_at_first(rest.trim_start_matches(['/', '\\']), |c| matches!(c, '/' | '\\' | '?' | '#'))
-    } else {
-        split_at_first(rest.strip_prefix("//")?, |c| matches!(c, '/' | '?' | '#'))
-    };
-    let (userinfo, hostport) = authority.rsplit_once('@').unwrap_or(("", authority));
-    let (username, password) = userinfo.split_once(':').unwrap_or((userinfo, ""));
-    if hostport.starts_with('[') {
-        return None;
-    }
-    let (host, port) = hostport.split_once(':').unwrap_or((hostport, ""));
-    if !port.is_empty() && (!port.bytes().all(|b| b.is_ascii_digit()) || port.parse::<u32>().map_or(true, |p| p > 65535)) {
-        return None;
-    }
-    let hostname = if special { domain_to_ascii(&percent_decode(host)?) } else { host.to_string() };
-    let path = path.split(['?', '#']).next().unwrap_or_default();
-    let pathname = if special && path.is_empty() { "/".to_string() } else { path.to_string() };
-    Some(CloneUrl { scheme, username: username.to_string(), password: password.to_string(), hostname, pathname })
-}
-
-fn split_at_first(s: &str, end: impl Fn(char) -> bool) -> (&str, &str) {
-    s.find(end).map_or((s, ""), |i| s.split_at(i))
-}
-
-/// The https host as WHATWG's domain-to-ASCII gives it for the letters a repo's host holds: lowercased, each non-ASCII
-/// label in punycode. UTS 46's full mapping table is not carried, so an exotic character can map differently.
-fn domain_to_ascii(domain: &str) -> String {
-    let dotted: String = domain.chars().map(|c| if matches!(c, '\u{3002}' | '\u{ff0e}' | '\u{ff61}') { '.' } else { c }).collect();
-    dotted
-        .split('.')
-        .map(|label| {
-            let lower = label.to_lowercase();
-            if lower.is_ascii() {
-                lower
-            } else {
-                format!("xn--{}", punycode(&lower))
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(".")
-}
-
-/// Percent-decoding into the UTF-8 text WHATWG reads a special host from; bytes that are no UTF-8 are no host.
-fn percent_decode(input: &str) -> Option<String> {
-    let bytes = input.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        let escape = bytes
-            .get(i + 1..i + 3)
-            .filter(|hex| hex.iter().all(u8::is_ascii_hexdigit))
-            .and_then(|hex| u8::from_str_radix(std::str::from_utf8(hex).ok()?, 16).ok());
-        match escape {
-            Some(byte) if bytes[i] == b'%' => {
-                out.push(byte);
-                i += 3;
-            }
-            _ => {
-                out.push(bytes[i]);
-                i += 1;
-            }
-        }
-    }
-    String::from_utf8(out).ok()
-}
-
-const PUNY_BASE: u32 = 36;
-const PUNY_TMIN: u32 = 1;
-const PUNY_TMAX: u32 = 26;
-const PUNY_SKEW: u32 = 38;
-const PUNY_DAMP: u32 = 700;
-
-/// RFC 3492's encoding of one label: its basic code points, a dash, then the rest as deltas.
-fn punycode(label: &str) -> String {
-    let points: Vec<u32> = label.chars().map(u32::from).collect();
-    let mut out: String = label.chars().filter(char::is_ascii).collect();
-    let basic = out.len() as u32;
-    let mut handled = basic;
-    if basic > 0 {
-        out.push('-');
-    }
-    let (mut n, mut delta, mut bias) = (0x80, 0, 72);
-    while (handled as usize) < points.len() {
-        let m = points.iter().copied().filter(|&c| c >= n).min().unwrap_or(n);
-        delta += (m - n) * (handled + 1);
-        n = m;
-        for &c in &points {
-            if c < n {
-                delta += 1;
-            }
-            if c == n {
-                let mut q = delta;
-                let mut k = PUNY_BASE;
-                loop {
-                    let t = if k <= bias {
-                        PUNY_TMIN
-                    } else if k >= bias + PUNY_TMAX {
-                        PUNY_TMAX
-                    } else {
-                        k - bias
-                    };
-                    if q < t {
-                        break;
-                    }
-                    out.push(punycode_digit(t + (q - t) % (PUNY_BASE - t)));
-                    q = (q - t) / (PUNY_BASE - t);
-                    k += PUNY_BASE;
-                }
-                out.push(punycode_digit(q));
-                bias = punycode_adapt(delta, handled + 1, handled == basic);
-                delta = 0;
-                handled += 1;
-            }
-        }
-        delta += 1;
-        n += 1;
-    }
-    out
-}
-
-fn punycode_adapt(delta: u32, points: u32, first: bool) -> u32 {
-    let mut delta = if first { delta / PUNY_DAMP } else { delta / 2 };
-    delta += delta / points;
-    let mut k = 0;
-    while delta > ((PUNY_BASE - PUNY_TMIN) * PUNY_TMAX) / 2 {
-        delta /= PUNY_BASE - PUNY_TMIN;
-        k += PUNY_BASE;
-    }
-    k + ((PUNY_BASE - PUNY_TMIN + 1) * delta) / (delta + PUNY_SKEW)
-}
-
-fn punycode_digit(d: u32) -> char {
-    char::from(if d < 26 { b'a' + d as u8 } else { b'0' + (d - 26) as u8 })
-}
+static OWNER_REPO_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!("(?-u){OWNER_REPO}")).expect("OWNER_REPO is a valid pattern"));
 
 /// Why a repo word is not one this computer clones, or nothing where it is: an https url, an ssh url, git's scp form
 /// or owner/repo, with no credentials in it, no login, host or path that git or ssh could read as an option, and no
@@ -487,16 +349,21 @@ pub fn clone_url_refusal(word: &str) -> Option<String> {
     if SCP_FORM.is_match(word) {
         return None;
     }
-    let Some(url) = parse_clone_url(word) else {
+    let Ok(url) = Url::parse(word) else {
         return refused();
     };
-    if !url.password.is_empty() || (url.scheme == "https" && !url.username.is_empty()) {
+    let https = match url.scheme() {
+        "https" => true,
+        "ssh" => false,
+        _ => return refused(),
+    };
+    if url.password().is_some_and(|p| !p.is_empty()) || (https && !url.username().is_empty()) {
         return refused();
     }
-    if !url.username.is_empty() && !CLONE_USER.is_match(&url.username) {
+    if !url.username().is_empty() && !CLONE_USER.is_match(url.username()) {
         return refused();
     }
-    if !CLONE_HOST.is_match(&url.hostname) || url.pathname.len() <= 1 {
+    if !CLONE_HOST.is_match(url.host_str().unwrap_or_default()) || url.path().len() <= 1 {
         return refused();
     }
     None
@@ -747,7 +614,10 @@ pub mod pr_behind_words {
         format!("this project folder is behind pull request #{}, and wsp never moves your own checkout; run git pull --ff-only in {path} to update it", number_string(number))
     }
     pub fn not_made(number: f64, path: &str) -> String {
-        format!("this worktree is behind pull request #{}, and wsp moves only worktrees it made; run git pull --ff-only in {path} to update it", number_string(number))
+        format!(
+            "this worktree is behind pull request #{}, and wsp moves only worktrees it made; run git pull --ff-only in {path} to update it",
+            number_string(number)
+        )
     }
     pub fn by_head(number: f64, path: &str, remote: &str) -> String {
         let n = number_string(number);
@@ -764,7 +634,10 @@ pub mod pr_behind_words {
 //   `that worktree has ${files} ${files === 1 ? "file" : "files"} not committed; commit ${files === 1 ? "it" : "them"}, or remove it with --force to lose ${files === 1 ? "it" : "them"}`;
 pub fn worktree_changed_line(files: f64) -> String {
     let (noun, pronoun) = if files == 1.0 { ("file", "it") } else { ("files", "them") };
-    format!("that worktree has {} {noun} not committed; commit {pronoun}, or remove it with --force to lose {pronoun}", number_string(files))
+    format!(
+        "that worktree has {} {noun} not committed; commit {pronoun}, or remove it with --force to lose {pronoun}",
+        number_string(files)
+    )
 }
 
 /// Why a settled worktree wsp made still stands: files no commit holds, a turn running in it, or a week of either,
@@ -1077,7 +950,10 @@ pub fn golden_fork_name(projects: &[WorkspaceProject], snapshot_id: &str) -> Str
 pub fn register_takes_no_consent_line(flags: &[impl AsRef<str>]) -> String {
     let flags: Vec<&str> = flags.iter().map(|f| f.as_ref()).collect();
     let has = if flags.len() == 1 { "has" } else { "have" };
-    format!("{} {has} no meaning on this computer: the folder is registered at its path and nothing is carried, cut or replaced", flags.join(", "))
+    format!(
+        "{} {has} no meaning on this computer: the folder is registered at its path and nothing is carried, cut or replaced",
+        flags.join(", ")
+    )
 }
 
 /// The first line of a thread opened with no folder named outright: the project, where the caller named one, and the
@@ -1218,7 +1094,11 @@ pub fn copy_takes_none(project: &str, words: &[impl AsRef<str>], computer: Optio
 // export function computerNamed(computer: string, named: ReadonlyMap<string, string> | undefined, platform: "darwin" | "linux"): string {
 //   return computer === HERE_PLACE_ID ? thisComputer(platform) : (named?.get(computer) ?? computer);
 // }
-pub fn computer_named(computer: &str, named: Option<&indexmap::IndexMap<String, String>>, platform: &crate::words::computer::Platform) -> String {
+pub fn computer_named(
+    computer: &str,
+    named: Option<&indexmap::IndexMap<String, String>>,
+    platform: &crate::words::computer::Platform,
+) -> String {
     if computer == HERE_PLACE_ID {
         return this_computer(*platform);
     }
@@ -1234,4 +1114,3 @@ pub fn computer_named(computer: &str, named: Option<&indexmap::IndexMap<String, 
 pub fn no_thread_target_line(named: &str) -> String {
     format!("{named} is needed outside your projects: run from inside a project's folder, or name the project")
 }
-

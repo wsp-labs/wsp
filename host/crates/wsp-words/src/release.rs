@@ -55,7 +55,9 @@ use crate::semver::compare_versions;
 // release.ts:46
 // export const releaseAbove = (view: Pick<ReleaseView, "latest">, ...running: string[]): boolean => view.latest !== undefined && running.some(version => compareVersions(view.latest!.version, version) > 0);
 pub fn release_above(view: &ReleaseView, running: &[impl AsRef<str>]) -> bool {
-    view.latest.as_ref().is_some_and(|latest| running.iter().any(|version| compare_versions(&latest.version, version.as_ref()) == Ordering::Greater))
+    view.latest
+        .as_ref()
+        .is_some_and(|latest| running.iter().any(|version| compare_versions(&latest.version, version.as_ref()) == Ordering::Greater))
 }
 
 /// The one word a reading says wherever it is shown: the number whenever one was read, else the state.
@@ -82,4 +84,3 @@ pub fn release_word(view: &ReleaseView) -> String {
 
 // release.ts:58
 // in wsp_wire::types::release: HOST_RESTART_TICKET_REFUSAL
-

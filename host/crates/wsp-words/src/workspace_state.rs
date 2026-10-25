@@ -6,22 +6,24 @@
 
 use wsp_wire::types::changes::Checkout;
 use wsp_wire::views::harness::HarnessCatalog;
-use wsp_wire::wire::capabilities::PauseMode;
-use wsp_wire::views::place::PlaceBack;
-use wsp_wire::views::workspace::{MachineState, ReachState};
-use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::harness::ScreenCommand;
+use wsp_wire::views::place::PlaceBack;
 use wsp_wire::views::workspace::WorkspacePhase;
 use wsp_wire::views::workspace::WorkspaceStatus;
 use wsp_wire::views::workspace::WorkspaceView;
+use wsp_wire::views::workspace::{MachineState, ReachState};
+use wsp_wire::views::workspace_kind::WorkspaceKind;
+use wsp_wire::wire::capabilities::PauseMode;
 
 use serde::Serialize;
 use wsp_wire::types::app_ports::LOOPBACK;
-use wsp_wire::types::workspace_state::{BACK_OVER_SSH, CLOUD_SIGN_IN_ROAD, COMPUTER_LEFT, FORGET_NEEDS_GONE, SEND_BLOCK_WORDS, START_DAEMON_WORD};
+use wsp_wire::types::workspace_state::{
+    BACK_OVER_SSH, CLOUD_SIGN_IN_ROAD, COMPUTER_LEFT, FORGET_NEEDS_GONE, SEND_BLOCK_WORDS, START_DAEMON_WORD,
+};
 use wsp_wire::views::harness::ScreenControl;
 
 use crate::app_ports::authority;
-use crate::js::number_string;
+use crate::js::{number_string, upper_first};
 use crate::words::base::fmt_threads;
 use crate::words::computer::{computer_word, JOINED_COMPUTER, MACHINE_WSP_FORKS, THIS_COMPUTER};
 use crate::words::places::offline_for;
@@ -245,8 +247,8 @@ pub enum ReadingRoad {
     Off,
 }
 
-/// The words per kind, the one table every client reads instead of comparing a kind itself. Adding a kind is a row
-/// here.
+// The words per kind, the one table every client reads instead of comparing a kind itself. Adding a kind is a row
+// here.
 // workspace-state.ts:115
 // export const WORKSPACE_KIND_WORDS: Record<WorkspaceKind, WorkspaceKindWords> = {
 //   cloud: { machine: MACHINE_WSP_FORKS, rowReadsMachine: true, cpu: "vCPU", where: A_PROVIDER, driven: true, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: false, agents: true, onDelete: { asked: "computer is deleted in the cloud", done: machineId => `computer ${machineId} is gone in the cloud` } },
@@ -433,18 +435,14 @@ pub struct CopyAt {
 //   return `${each} ${records.charAt(0).toUpperCase()}${records.slice(1)}`;
 // }
 pub fn delete_copies_notice(copies: &[CopyToDelete], threads: f64) -> String {
-    let asked: Vec<String> = copies
-        .iter()
-        .map(|c| on_delete_of(&c.kind, c.copy.as_ref(), c.machine_id.as_deref(), c.on.as_ref()).asked)
-        .collect();
+    let asked: Vec<String> =
+        copies.iter().map(|c| on_delete_of(&c.kind, c.copy.as_ref(), c.machine_id.as_deref(), c.on.as_ref()).asked).collect();
     let records = format!("their records and {} leave this computer.", fmt_threads(threads));
     if asked.first().is_some_and(|first| asked.iter().all(|a| a == first)) {
         return format!("Each one's {}; {records}", asked[0]);
     }
     let each: Vec<String> = copies.iter().zip(&asked).map(|(c, asked)| format!("{}: its {asked}.", c.name)).collect();
-    let mut chars = records.chars();
-    let head: String = chars.next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
-    format!("{} {head}{}", each.join(" "), chars.as_str())
+    format!("{} {}", each.join(" "), upper_first(&records))
 }
 
 /// What a copy holds that its remote lacks, the line a delete's confirmation names before anything goes: its commits
@@ -497,7 +495,7 @@ pub fn unpushed_unread_line(name: &str, why: &str) -> String {
     format!("{}: {why}", unpushed_line(name, None).unwrap_or_default())
 }
 
-/// What a delete does to a create that failed before any machine was made, which is the one record with no machine id.
+// What a delete does to a create that failed before any machine was made, which is the one record with no machine id.
 // workspace-state.ts:209
 // private in the TS: port it as a private helper
 // const NO_MACHINE_MADE: MachineOnDelete = { asked: "create failed before any computer was made, so there is none to delete", done: () => "its create had made no computer" };
@@ -655,8 +653,8 @@ pub fn workspace_state_of(workspace: &WorkspaceView, status: Option<&WorkspaceSt
 //   released: "Deleted",
 // };
 
-/// The two words a computer that keeps the processes and the bytes of a paused machine reads instead: a nap there
-/// is a pause, and everywhere else it is a stop, which is what the machine does to every process it was running.
+// The two words a computer that keeps the processes and the bytes of a paused machine reads instead: a nap there
+// is a pause, and everywhere else it is a stop, which is what the machine does to every process it was running.
 // workspace-state.ts:294
 // private in the TS: port it as a private helper
 // const MEMORY_WORDS: Partial<Record<WorkspaceState, string>> = { pausing: "Pausing", paused: "Paused" };
@@ -1023,7 +1021,7 @@ pub fn back_url(box_port: f64) -> String {
     format!("http://{}", authority(LOOPBACK, box_port))
 }
 
-/// The road back to this host through the forward on a box's own loopback, the one spelling every surface says.
+// The road back to this host through the forward on a box's own loopback, the one spelling every surface says.
 // workspace-state.ts:465
 // export const BACK_OVER_SSH = `back over ${OVER_SSH_WORD}`;
 // in wsp_wire::types::workspace_state: BACK_OVER_SSH
@@ -1260,8 +1258,8 @@ pub enum SendRefusalKind {
     Block(SendBlock),
 }
 
-/// What the composer says on the send button for each block, and the one table of those words: a harness driving
-/// the built app reads them to know the app is not ready for a key press yet.
+// What the composer says on the send button for each block, and the one table of those words: a harness driving
+// the built app reads them to know the app is not ready for a key press yet.
 // workspace-state.ts:562
 // export const SEND_BLOCK_WORDS: Record<SendBlock, string> = {
 //   connecting: "Connecting to wsp",
@@ -1282,7 +1280,9 @@ pub enum SendRefusalKind {
 // }
 pub fn send_refusal(kind: &SendRefusalKind, gone_words: Option<&str>, name: Option<&str>) -> Option<String> {
     match kind {
-        SendRefusalKind::Block(block) => SEND_BLOCK_WORDS.iter().find(|(key, _)| *key == block.as_str()).map(|(_, words)| words.to_string()),
+        SendRefusalKind::Block(block) => {
+            SEND_BLOCK_WORDS.iter().find(|(key, _)| *key == block.as_str()).map(|(_, words)| words.to_string())
+        }
         SendRefusalKind::State(state) => action_refusal(state, "send", gone_words, name),
     }
 }
@@ -1355,12 +1355,12 @@ pub fn screen_command_line(command: &ScreenCommand, catalog: &HarnessCatalog, ki
     format!("/{} works only in {}'s own terminal; {control}", command.name, catalog.label)
 }
 
-/// A probe that found the machine: the edge answered, promptly or late.
+// A probe that found the machine: the edge answered, promptly or late.
 // workspace-state.ts:614
 // private in the TS: port it as a private helper
 // const ANSWERED: ReadonlySet<ReachState> = new Set<ReachState>(["reachable", "slow"]);
 
-/// A probe nothing answered: silence, or the edge dialling the guest and finding the daemon port dead.
+// A probe nothing answered: silence, or the edge dialling the guest and finding the daemon port dead.
 // workspace-state.ts:616
 // private in the TS: port it as a private helper
 // const UNANSWERED: ReadonlySet<ReachState> = new Set<ReachState>(["unreachable", "no-daemon"]);
@@ -1498,4 +1498,3 @@ pub fn gone_refusal(name: Option<&str>, action: &str, words: Option<&str>) -> St
         _ => sentence,
     }
 }
-

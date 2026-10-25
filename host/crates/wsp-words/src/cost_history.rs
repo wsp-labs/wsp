@@ -171,7 +171,7 @@ fn around(points: &[WorkspaceCostEvent], t: f64) -> Option<(usize, Option<usize>
     }
     let (mut lo, mut hi) = (0usize, points.len() - 1);
     while lo < hi {
-        let mid = (lo + hi + 1) / 2;
+        let mid = (lo + hi).div_ceil(2);
         if parse_at(&points[mid].at) <= t {
             lo = mid;
         } else {

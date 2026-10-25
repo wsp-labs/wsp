@@ -23,12 +23,8 @@ use crate::words::units::fmt_bytes;
 //   "image/webp": { word: "webp", ext: "webp" },
 // };
 /// The TS IMAGE_TYPES: (media type, word, extension), in its order.
-pub const IMAGE_TYPES: &[(&str, &str, &str)] = &[
-    ("image/png", "png", "png"),
-    ("image/jpeg", "jpeg", "jpg"),
-    ("image/gif", "gif", "gif"),
-    ("image/webp", "webp", "webp"),
-];
+pub const IMAGE_TYPES: &[(&str, &str, &str)] =
+    &[("image/png", "png", "png"), ("image/jpeg", "jpeg", "jpg"), ("image/gif", "gif", "gif"), ("image/webp", "webp", "webp")];
 
 // What one image may weigh. A harness reads an image whole into its request, and the bytes travel base64 on our own
 // wire, so the cap bounds both.
@@ -96,11 +92,7 @@ pub fn attachment_bytes(bytes: &str) -> f64 {
 //   return { mediaType: file.mediaType, bytes: attachmentBytes(file), ...(file.name !== undefined ? { name: file.name } : {}) };
 // }
 pub fn attachment_record(file: &Attachment) -> AttachmentRecord {
-    AttachmentRecord {
-        media_type: file.media_type.clone(),
-        bytes: JsInt(JsNumber(attachment_bytes(&file.bytes))),
-        name: file.name.clone(),
-    }
+    AttachmentRecord { media_type: file.media_type.clone(), bytes: JsInt(JsNumber(attachment_bytes(&file.bytes))), name: file.name.clone() }
 }
 
 // attachments.ts:75
@@ -133,18 +125,18 @@ pub fn attachment_record(file: &Attachment) -> AttachmentRecord {
 //   const starts = (at: number, want: readonly number[]): boolean => want.every((byte, i) => bytes[at + i] === byte);
 //   return MAGIC.find(m => starts(0, m.head) && (m.at8 === undefined || starts(8, m.at8)))?.mediaType ?? null;
 // }
+/// A media type, the bytes it starts with and the bytes that must also follow at offset 8.
+type Magic<'a> = (&'a str, &'a [u8], Option<&'a [u8]>);
+
 pub fn image_type_of(bytes: &[u8]) -> Option<String> {
     let starts = |at: usize, want: &[u8]| want.iter().enumerate().all(|(i, byte)| bytes.get(at + i) == Some(byte));
-    let magic: [(&str, &[u8], Option<&[u8]>); 4] = [
+    let magic: [Magic; 4] = [
         ("image/png", &[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], None),
         ("image/jpeg", &[0xff, 0xd8, 0xff], None),
         ("image/gif", &[0x47, 0x49, 0x46, 0x38], None),
         ("image/webp", &[0x52, 0x49, 0x46, 0x46], Some(&[0x57, 0x45, 0x42, 0x50])),
     ];
-    magic
-        .iter()
-        .find(|(_, head, at8)| starts(0, head) && (*at8).map_or(true, |at8| starts(8, at8)))
-        .map(|(media, _, _)| media.to_string())
+    magic.iter().find(|(_, head, at8)| starts(0, head) && (*at8).is_none_or(|at8| starts(8, at8))).map(|(media, _, _)| media.to_string())
 }
 
 /// The refusal of a path the person named that this computer has no file at, or has something other than a file at:
@@ -383,13 +375,7 @@ pub fn safe_file_name(name: Option<&str>) -> String {
     let last = name.unwrap_or("").rsplit(['/', '\\']).next().unwrap_or("");
     let mapped: String = last
         .chars()
-        .flat_map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') {
-                vec![c]
-            } else {
-                vec!['-'; c.len_utf16()]
-            }
-        })
+        .flat_map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') { vec![c] } else { vec!['-'; c.len_utf16()] })
         .collect();
     let plain = mapped.trim_start_matches(['.', '-']);
     if plain.chars().all(|c| c == '.' || c == '-') {
@@ -467,12 +453,8 @@ pub fn land_files_line(folder: &str, dir: &str) -> String {
 //   return dirs.length === 0 ? "true" : `cd ${shellQuote(folder)} && [ ! -L ${FILES_DIR} ] && rm -rf -- ${dirs.join(" ")}`;
 // }
 pub fn drop_files_line(folder: &str, thread_ids: &[impl AsRef<str>]) -> String {
-    let dirs: Vec<String> = thread_ids
-        .iter()
-        .map(|id| id.as_ref())
-        .filter(|id| plain_id(id))
-        .map(|id| shell_quote(&format!("{FILES_DIR}/{id}")))
-        .collect();
+    let dirs: Vec<String> =
+        thread_ids.iter().map(|id| id.as_ref()).filter(|id| plain_id(id)).map(|id| shell_quote(&format!("{FILES_DIR}/{id}"))).collect();
     if dirs.is_empty() {
         return "true".to_string();
     }

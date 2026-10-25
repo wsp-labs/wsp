@@ -25,8 +25,12 @@ pub struct ProviderKeyWords {
 // };
 pub fn provider_key_words(provider: &str) -> Option<ProviderKeyWords> {
     match provider {
-        "box" => Some(ProviderKeyWords { name: "Boat", key_name: "Boat API key", key_console: Some("boat.dev/dashboard"), sub_threads: true }),
-        "solari" => Some(ProviderKeyWords { name: "Solari", key_name: "Solari API key", key_console: Some(SOLARI_CONSOLE), sub_threads: false }),
+        "box" => {
+            Some(ProviderKeyWords { name: "Boat", key_name: "Boat API key", key_console: Some("boat.dev/dashboard"), sub_threads: true })
+        }
+        "solari" => {
+            Some(ProviderKeyWords { name: "Solari", key_name: "Solari API key", key_console: Some(SOLARI_CONSOLE), sub_threads: false })
+        }
         _ => None,
     }
 }
@@ -72,7 +76,10 @@ pub fn place_said(place: &PlaceRef) -> String {
 // place-word.ts:47
 // export const cloudNamed = (ids: readonly string[], word: string): string | undefined => ids.find(id => namesPlace({ id, name: id, kind: "provider" }, word));
 pub fn cloud_named(ids: &[impl AsRef<str>], word: &str) -> Option<String> {
-    ids.iter().map(AsRef::as_ref).find(|id| names_place(&PlaceRef { id: id.to_string(), name: id.to_string(), kind: Some("provider".into()) }, word)).map(String::from)
+    ids.iter()
+        .map(AsRef::as_ref)
+        .find(|id| names_place(&PlaceRef { id: id.to_string(), name: id.to_string(), kind: Some("provider".into()) }, word))
+        .map(String::from)
 }
 
 /// Whether the word names this place: its id or name exactly, or, for a provider, its id, name or provider name with
@@ -139,7 +146,10 @@ fn is_ssh_login(ssh: &str) -> bool {
 // }
 pub fn place_ssh_refusal(place: &PlaceRef, ssh: &str) -> Option<RefusalHalves> {
     if place.id == HERE_PLACE_ID || is_provider(place) {
-        return Some(halves(format!("{} is reached over no ssh login of yours", place.name), "Give a new login to one of the computers you added instead."));
+        return Some(halves(
+            format!("{} is reached over no ssh login of yours", place.name),
+            "Give a new login to one of the computers you added instead.",
+        ));
     }
     let fix = "Write it as the user and the host ssh logs in with, root@hetzner for one.";
     if ssh.is_empty() {
@@ -151,7 +161,10 @@ pub fn place_ssh_refusal(place: &PlaceRef, ssh: &str) -> Option<RefusalHalves> {
 // place-word.ts:76
 // export const placeSshOtherRefusal = (ssh: string, name: string): RefusalHalves => ({ happened: `${ssh} reaches a computer that is not ${name}, so nothing was saved`, fix: `Give the login that reaches ${name} itself.` });
 pub fn place_ssh_other_refusal(ssh: &str, name: &str) -> RefusalHalves {
-    halves(format!("{ssh} reaches a computer that is not {name}, so nothing was saved"), format!("Give the login that reaches {name} itself."))
+    halves(
+        format!("{ssh} reaches a computer that is not {name}, so nothing was saved"),
+        format!("Give the login that reaches {name} itself."),
+    )
 }
 
 // place-word.ts:78

@@ -117,11 +117,7 @@ pub fn words_within(line: &str, room: usize) -> Option<String> {
 //   return last === undefined ? undefined : last.replace(/\s+/g, " ").trim();
 // }
 pub fn last_line(text: &str) -> Option<String> {
-    let last = text
-        .split('\n')
-        .map(|line| line.strip_suffix('\r').unwrap_or(line))
-        .filter(|line| !crate::js::js_trim(line).is_empty())
-        .last()?;
+    let last = text.split('\n').map(|line| line.strip_suffix('\r').unwrap_or(line)).rfind(|line| !crate::js::js_trim(line).is_empty())?;
     Some(crate::js::js_trim(&crate::js::js_collapse_whitespace(last)).to_string())
 }
 

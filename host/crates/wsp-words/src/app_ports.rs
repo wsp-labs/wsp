@@ -3,10 +3,12 @@
 //! a3b870a6e; its shapes and flat constants are wsp_wire::types::app_ports. See spec/app_ports.md.
 
 use serde::Serialize;
+use url::Url;
 
 use wsp_wire::types::app_ports::{DEFAULT_PORT, LOOPBACK, WS_PATH};
 use wsp_wire::wire::limits::host_of;
 
+use crate::exit::HostError;
 use crate::js::{js_trim, number_string};
 
 // app-ports.ts:10
@@ -62,7 +64,9 @@ fn js_number(text: &str) -> f64 {
     let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
     let (mantissa, exponent) = unsigned.split_at(unsigned.find(['e', 'E']).unwrap_or(unsigned.len()));
     let mantissa_ok = match mantissa.split_once('.') {
-        Some((whole, fraction)) => (whole.is_empty() || digits(whole)) && (fraction.is_empty() || digits(fraction)) && (digits(whole) || digits(fraction)),
+        Some((whole, fraction)) => {
+            (whole.is_empty() || digits(whole)) && (fraction.is_empty() || digits(fraction)) && (digits(whole) || digits(fraction))
+        }
         None => digits(mantissa),
     };
     let exponent_ok = exponent.is_empty() || digits(exponent[1..].trim_start_matches(['+', '-']));
@@ -70,55 +74,6 @@ fn js_number(text: &str) -> f64 {
         return f64::NAN;
     }
     t.parse::<f64>().unwrap_or(f64::NAN)
-}
-
-/// The path a URL names, the way the URL parser writes it: dot segments resolved, characters the path set percent-encodes
-/// escaped, a backslash a slash for the special schemes, and no trailing slash left on.
-fn pathname_of(url: &str) -> String {
-    let Some(at) = url.find("://") else { return String::new() };
-    let scheme = url[..at].to_ascii_lowercase();
-    let special = matches!(scheme.as_str(), "ftp" | "file" | "http" | "https" | "ws" | "wss");
-    let rest = &url[at + 3..];
-    let is_sep = |c: char| c == '/' || (special && c == '\\');
-    let authority_end = rest.find(|c: char| is_sep(c) || c == '?' || c == '#').unwrap_or(rest.len());
-    let after = &rest[authority_end..];
-    let raw = &after[..after.find(['?', '#']).unwrap_or(after.len())];
-    let Some(body) = raw.strip_prefix(is_sep) else { return String::new() };
-    let parts: Vec<&str> = body.split(is_sep).collect();
-    let mut out: Vec<String> = Vec::new();
-    for (i, part) in parts.iter().enumerate() {
-        let last = i + 1 == parts.len();
-        match part.to_ascii_lowercase().as_str() {
-            "." | "%2e" => {
-                if last {
-                    out.push(String::new());
-                }
-            }
-            ".." | ".%2e" | "%2e." | "%2e%2e" => {
-                out.pop();
-                if last {
-                    out.push(String::new());
-                }
-            }
-            _ => out.push(encode_path_part(part)),
-        }
-    }
-    format!("/{}", out.join("/")).trim_end_matches('/').to_string()
-}
-
-fn encode_path_part(part: &str) -> String {
-    let mut out = String::new();
-    for c in part.chars() {
-        if c <= ' ' || c > '~' || matches!(c, '"' | '#' | '<' | '>' | '?' | '`' | '{' | '}') {
-            let mut buf = [0; 4];
-            for b in c.encode_utf8(&mut buf).bytes() {
-                out.push_str(&format!("%{b:02X}"));
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 /// The hostname of a host as URL gives it: the host with its port taken off, brackets kept for an IPv6 literal.
@@ -141,7 +96,9 @@ fn is_bare_address(word: &str) -> bool {
     if let Some(rest) = word.strip_prefix('[') {
         let Some(end) = rest.find(']') else { return false };
         let inner = &rest[..end];
-        !inner.is_empty() && inner.bytes().all(|b| b.is_ascii_hexdigit() || b == b':') && rest[end + 1..].strip_prefix(':').is_some_and(port_ok)
+        !inner.is_empty()
+            && inner.bytes().all(|b| b.is_ascii_hexdigit() || b == b':')
+            && rest[end + 1..].strip_prefix(':').is_some_and(port_ok)
     } else {
         let Some(colon) = word.find(':') else { return false };
         let name = &word[..colon];
@@ -160,10 +117,12 @@ fn is_bare_address(word: &str) -> bool {
 //   const path = parsed.pathname.replace(/\/+$/, "");
 //   return `${scheme}//${parsed.host}${path}${WS_PATH}`;
 // }
-pub fn ws_url_of(url: &str) -> String {
-    let host = host_of(url).expect("Invalid URL");
-    let scheme = if matches!(scheme_of(url).as_deref(), Some("https" | "wss")) { "wss:" } else { "ws:" };
-    format!("{scheme}//{host}{}{WS_PATH}", pathname_of(url))
+pub fn ws_url_of(url: &str) -> Result<String, HostError> {
+    let parsed = Url::parse(url).map_err(|_| HostError::new("Invalid URL"))?;
+    let scheme = if matches!(parsed.scheme(), "https" | "wss") { "wss:" } else { "ws:" };
+    let host = parsed.host_str().unwrap_or_default();
+    let port = parsed.port().map_or(String::new(), |port| format!(":{port}"));
+    Ok(format!("{scheme}//{host}{port}{}{WS_PATH}", parsed.path().trim_end_matches('/')))
 }
 
 /// An address as a person reads and types it: the host and its port, which is the short form joinAddressOf takes
@@ -460,4 +419,3 @@ pub fn port_instead_line(ports: &AppPorts) -> String {
 pub fn state_file_line(state_path: &str) -> String {
     format!("Setting up {state_path}; --state <path> starts a fresh setup instead.")
 }
-

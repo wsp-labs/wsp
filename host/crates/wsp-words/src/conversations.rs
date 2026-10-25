@@ -391,4 +391,3 @@ pub fn conversations_failed_line(agent: &str, why: &str) -> String {
 pub fn conversations_update_fix(computer: &str) -> String {
     format!("Update {computer} with wsp add {computer} --update to list them.")
 }
-

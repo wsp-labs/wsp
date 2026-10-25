@@ -16,7 +16,7 @@ use wsp_wire::types::pull_request::PullRequestState;
 use wsp_wire::types::pull_request::{CheckState, Mergeable, ReviewState, CHECK_LOG_BYTES, SENT_HUNK_LINES};
 
 use crate::exit::HostError;
-use crate::js::{js_trim, number_string, utf16};
+use crate::js::{js_trim, number_string, upper_first, utf16};
 use crate::quote::{fence_for, one_line};
 
 // Where a pull request stands, in the three words every host of them has.
@@ -274,11 +274,7 @@ pub fn pull_request_word(seen: &PullRequestSeen) -> String {
 //   return word === "" ? word : word[0]!.toUpperCase() + word.slice(1);
 // }
 pub fn capitalised(word: &str) -> String {
-    match word.chars().next() {
-        None => String::new(),
-        Some(first) if (first as u32) > 0xFFFF => word.to_string(),
-        Some(first) => format!("{}{}", first.to_uppercase(), &word[first.len_utf8()..]),
-    }
+    upper_first(word)
 }
 
 /// Whether a merge can be offered on it now: open, the host says it merges, and no check has failed.
@@ -287,7 +283,9 @@ pub fn capitalised(word: &str) -> String {
 //   return fact.state === "open" && fact.mergeable === "mergeable" && !fact.checks.some(c => c.state === "fail");
 // }
 pub fn pull_request_mergeable(fact: &PullRequestFact) -> bool {
-    fact.state == PullRequestState::Open && fact.mergeable == Mergeable::Mergeable && !fact.checks.iter().any(|c| c.state == CheckState::Fail)
+    fact.state == PullRequestState::Open
+        && fact.mergeable == Mergeable::Mergeable
+        && !fact.checks.iter().any(|c| c.state == CheckState::Fail)
 }
 
 /// What a workspace's pull request reads as where the git host's own signed-in command line is on neither this
@@ -396,11 +394,8 @@ pub fn check_failed_prompt(check: &PullRequestCheck, commit: &CheckedCommit, log
         Some(description) if !js_trim(description).is_empty() => format!(", and it says: \"{}\"", one_line(description)),
         _ => String::new(),
     };
-    let mut lines = vec![format!(
-        "The check \"{}\"{workflow} failed on commit {}{subject}{says}.",
-        one_line(&check.name),
-        utf16::cut(&commit.oid, 7),
-    )];
+    let mut lines =
+        vec![format!("The check \"{}\"{workflow} failed on commit {}{subject}{says}.", one_line(&check.name), utf16::cut(&commit.oid, 7),)];
     if let Some(log) = log.filter(|log| !log.lines.is_empty()) {
         let whole = log.lines.join("\n");
         let text = tail_within(&whole, CHECK_LOG_BYTES as f64);
@@ -537,27 +532,37 @@ pub fn sent_lead_line(number: f64) -> String {
 //   return [sentLeadLine(number), "", ...quoted, "Make the changes that hold up, then commit and push."].join("\n");
 // }
 /// The TS throw (an item not on the page) is the Err.
-pub fn pull_request_send_prompt(comments: &[PullRequestComment], reviews: &[PullRequestReview], review_comments: &[PullRequestReviewComment], items: &[PageItem], number: f64) -> Result<String, HostError> {
+pub fn pull_request_send_prompt(
+    comments: &[PullRequestComment],
+    reviews: &[PullRequestReview],
+    review_comments: &[PullRequestReviewComment],
+    items: &[PageItem],
+    number: f64,
+) -> Result<String, HostError> {
     let refusal = |item: &PageItem| HostError::new(no_such_item_refusal(item));
     let mut blocks: Vec<(String, Vec<String>)> = Vec::new();
     for item in items {
         match item.kind {
             PageItemKind::Comment => {
-                let c = comments.iter().find(|c| c.id.0.0 == item.id).ok_or_else(|| refusal(item))?;
+                let c = comments.iter().find(|c| c.id.0 .0 == item.id).ok_or_else(|| refusal(item))?;
                 blocks.push((sent_author(&c.author, c.association.as_deref()), fenced("text", js_trim(&c.body))));
             }
             PageItemKind::Review => {
-                let r = reviews.iter().find(|r| r.id.as_ref().map(|id| id.0.0) == Some(item.id)).ok_or_else(|| refusal(item))?;
-                let from = format!("{}, a review marked {}", sent_author(&r.author, r.association.as_deref()), one_line(&r.state.replace('_', " ")));
+                let r = reviews.iter().find(|r| r.id.as_ref().map(|id| id.0 .0) == Some(item.id)).ok_or_else(|| refusal(item))?;
+                let from = format!(
+                    "{}, a review marked {}",
+                    sent_author(&r.author, r.association.as_deref()),
+                    one_line(&r.state.replace('_', " "))
+                );
                 blocks.push((from, fenced("text", js_trim(&r.body))));
             }
             PageItemKind::ReviewComment => {
-                let c = review_comments.iter().find(|c| c.id.0.0 == item.id).ok_or_else(|| refusal(item))?;
+                let c = review_comments.iter().find(|c| c.id.0 .0 == item.id).ok_or_else(|| refusal(item))?;
                 let kept: Vec<&str> = c.hunk.as_deref().unwrap_or("").split('\n').filter(|line| !line.starts_with("@@")).collect();
                 let hunk = kept[kept.len().saturating_sub(SENT_HUNK_LINES as usize)..].join("\n");
                 let mut lines = if hunk.is_empty() { Vec::new() } else { fenced("diff", &hunk) };
                 lines.extend(fenced("text", js_trim(&c.body)));
-                let line = c.line.as_ref().map_or(String::new(), |line| format!(":{}", number_string(line.0.0)));
+                let line = c.line.as_ref().map_or(String::new(), |line| format!(":{}", number_string(line.0 .0)));
                 let from = format!("{}, on {}{line}", sent_author(&c.author, c.association.as_deref()), one_line(&c.path));
                 blocks.push((from, lines));
             }
@@ -638,7 +643,7 @@ pub fn fix_nothing_line(workspace: &str, base: &str) -> String {
 //   return r.merged ? `${workspace}: merged #${r.number} (${r.method})` : `${workspace}: #${r.number} merges when its checks pass`;
 // }
 pub fn merged_line(workspace: &str, r: &MergeResult) -> String {
-    let number = number_string(r.number.0.0);
+    let number = number_string(r.number.0 .0);
     if r.merged {
         format!("{workspace}: merged #{number} ({})", method_word(r.method))
     } else {

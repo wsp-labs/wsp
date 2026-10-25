@@ -247,7 +247,9 @@ pub fn child_on_no_branch_refusal(child: &str) -> String {
 //   return `${project} has no remote, so a child on another computer cannot be merged; add a remote to the project to merge across computers`;
 // }
 pub fn no_remote_for_tree_line(project: &str) -> String {
-    format!("{project} has no remote, so a child on another computer cannot be merged; add a remote to the project to merge across computers")
+    format!(
+        "{project} has no remote, so a child on another computer cannot be merged; add a remote to the project to merge across computers"
+    )
 }
 
 /// The row's note under a child whose push was refused, pointing at that computer's sign-in.
@@ -276,7 +278,10 @@ pub struct MergeChild {
 }
 
 pub fn merge_child_prompt(o: &MergeChild) -> String {
-    let files = if o.conflicts.is_empty() { "; resolve the conflicts".to_string() } else { format!("; resolve the conflicts in {}", o.conflicts.join(", ")) };
+    let files = if o.conflicts.is_empty() {
+        "; resolve the conflicts".to_string()
+    } else {
+        format!("; resolve the conflicts in {}", o.conflicts.join(", "))
+    };
     format!("Fetch {} {} and merge it into {} with a merge commit{files}; run the tests; commit.", o.remote, o.child_branch, o.lead_branch)
 }
-

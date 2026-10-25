@@ -45,9 +45,7 @@ pub fn spawns_thread(tool_name: &str) -> bool {
 // }
 /// None is the TS undefined.
 pub fn launch_has_slate(servers: Option<&indexmap::IndexMap<String, McpServerSpec>>) -> bool {
-    servers
-        .and_then(|servers| servers.get(wsp_wire::types::wsp_tools::MCP_SERVER_NAME))
-        .is_some_and(|wsp| wsp.no_slate.is_none())
+    servers.and_then(|servers| servers.get(wsp_wire::types::wsp_tools::MCP_SERVER_NAME)).is_some_and(|wsp| wsp.no_slate.is_none())
 }
 
 // wsp-tools.ts:37
@@ -164,4 +162,3 @@ pub fn threads_followed(tool_name: &str, input: &str) -> Option<Followed> {
         }
     }
 }
-

@@ -151,16 +151,10 @@ mod where_the_composer_s_model_lists_came_from_in_one_line {
             catalog_source_line(&table(json!({ "source": "harness", "version": "0.153.0" })), THIS_COMPUTER),
             "Codex 0.153.0 on this computer",
         );
-        assert_eq!(
-            catalog_source_line(&table(json!({ "source": "harness", "version": null })), "hetzner"),
-            "Codex on hetzner",
-        );
+        assert_eq!(catalog_source_line(&table(json!({ "source": "harness", "version": null })), "hetzner"), "Codex on hetzner",);
         // The reason belongs to the fallback: a binary that filled the lists has nothing to explain.
         assert_eq!(
-            catalog_source_line(
-                &table(json!({ "source": "harness", "version": "0.153.0", "refusal": "not signed in" })),
-                THIS_COMPUTER,
-            ),
+            catalog_source_line(&table(json!({ "source": "harness", "version": "0.153.0", "refusal": "not signed in" })), THIS_COMPUTER,),
             "Codex 0.153.0 on this computer",
         );
     }
@@ -183,7 +177,8 @@ mod where_the_composer_s_model_lists_came_from_in_one_line {
         let machine = Regex::new("(?i)machine").unwrap();
         for r#where in [THIS_COMPUTER, "hetzner"] {
             for catalog in &kinds {
-                for line in [catalog_source_line(catalog, r#where)] {
+                {
+                    let line = catalog_source_line(catalog, r#where);
                     assert!(!machine.is_match(&line), "{line}");
                 }
             }
@@ -244,10 +239,7 @@ mod a_record_the_sweep_restored_and_a_name_a_fork_cannot_take {
     #[test]
     fn refuses_a_taken_name_and_a_name_being_deleted_in_words_a_person_can_act_on() {
         assert_eq!(name_taken_refusal("first"), "first is already a workspace; pick another name, or delete it first");
-        assert_eq!(
-            name_deleting_refusal("first"),
-            "first is being deleted; wait for the delete to finish, then fork it again",
-        );
+        assert_eq!(name_deleting_refusal("first"), "first is being deleted; wait for the delete to finish, then fork it again",);
     }
 }
 
@@ -291,10 +283,7 @@ mod the_nap_s_words_when_its_vault_was_not_stored {
 
     #[test]
     fn the_verdict_says_what_the_nap_did_and_what_stands_which_is_nothing_where_no_nap() {
-        assert_eq!(
-            vault_kept_line(Some("2026-09-08T07:10:04.444Z")),
-            "the nap saved no backup; what was saved before is kept",
-        );
+        assert_eq!(vault_kept_line(Some("2026-09-08T07:10:04.444Z")), "the nap saved no backup; what was saved before is kept",);
         // A workspace whose first nap failed has no earlier backup to keep, and the row beside this one says "no
         // backup" with no day: a line promising one kept would be the app inventing a file.
         assert_eq!(vault_kept_line(None), "the nap saved no backup; nothing is saved off the machine");
@@ -313,15 +302,9 @@ mod the_nap_s_words_when_its_vault_was_not_stored {
     #[test]
     fn vaultstaleline_is_the_one_word_every_surface_shows_for_a_machine_whose_files_are() {
         let refused = vault_over_cap_line(677_178_573.0, 209_715_200.0);
-        assert_eq!(
-            vault_stale_line(Some("2026-09-08T07:10:04.444Z"), Some(&refused)),
-            some("no backup since 2026-09-08"),
-        );
+        assert_eq!(vault_stale_line(Some("2026-09-08T07:10:04.444Z"), Some(&refused)), some("no backup since 2026-09-08"),);
         // The day is the whole of it: the vault that stands can be days old, and the row has about thirty characters.
-        assert_eq!(
-            vault_stale_line(Some("2026-09-01T23:59:59Z"), Some(&refused)),
-            some("no backup since 2026-09-01"),
-        );
+        assert_eq!(vault_stale_line(Some("2026-09-01T23:59:59Z"), Some(&refused)), some("no backup since 2026-09-01"),);
         assert!(js_len(&vault_stale_line(Some("2026-09-08T07:10:04.444Z"), Some(&refused)).unwrap()) <= 29);
         assert_eq!(vault_stale_line(None, Some(&refused)), some("no backup"));
         assert_eq!(vault_stale_line(Some("2026-09-08T07:10:04.444Z"), None), None);
@@ -335,10 +318,7 @@ mod wsp_init_on_once_an_image_stands {
     #[test]
     fn says_in_one_sentence_that_the_image_is_built_at_its_own_place_when_on_named_anot() {
         let home = PlaceNamed { id: "p_abc".to_string(), name: "spoo".to_string(), kind: None };
-        assert_eq!(
-            image_home_kept_line(Some("solari"), &home),
-            some("your image lives on spoo, so it is built there and not on solari"),
-        );
+        assert_eq!(image_home_kept_line(Some("solari"), &home), some("your image lives on spoo, so it is built there and not on solari"),);
         assert_eq!(image_home_kept_line(Some("spoo"), &home), None);
         assert_eq!(image_home_kept_line(Some("p_abc"), &home), None);
         assert_eq!(image_home_kept_line(None, &home), None);
@@ -362,12 +342,8 @@ mod a_create_s_own_words {
 
     #[test]
     fn every_line_of_the_log_is_written_one_way_lower_case_no_full_stop_no_machine_s_id() {
-        let lines = [
-            starting_line("clone-test", "box"),
-            hostname_set_line("clone-test"),
-            HOSTNAME_KEPT.to_string(),
-            CREATE_READY.to_string(),
-        ];
+        let lines =
+            [starting_line("clone-test", "box"), hostname_set_line("clone-test"), HOSTNAME_KEPT.to_string(), CREATE_READY.to_string()];
         let fk = Regex::new(r"\bfk_").unwrap();
         for line in &lines {
             let first: String = line.chars().take(1).collect();
@@ -455,15 +431,25 @@ mod pinned {
         assert_eq!(aside_wall_line(120000.0), "the side question had no answer after 2m and was stopped"); // asideWallLine(120000)
         assert_eq!(rewind_children_line(&[] as &[&str]), "stop the threads under this one first (); a rewind never stops them for you"); // rewindChildrenLine([])
         assert_eq!(rewind_children_line(&["a", "b"]), "stop the threads under this one first (a, b); a rewind never stops them for you"); // rewindChildrenLine(["a", "b"])
-        assert_eq!(rewind_beside_line("t"), "another thread in this folder is working (t), and its files would go back too; let its turn end or stop it first"); // rewindBesideLine("t")
-        assert_eq!(rewind_no_anchor_line("codex"), "codex left no point in that reply to cut its conversation at, so only the files can go back"); // rewindNoAnchorLine("codex")
+        assert_eq!(
+            rewind_beside_line("t"),
+            "another thread in this folder is working (t), and its files would go back too; let its turn end or stop it first"
+        ); // rewindBesideLine("t")
+        assert_eq!(
+            rewind_no_anchor_line("codex"),
+            "codex left no point in that reply to cut its conversation at, so only the files can go back"
+        ); // rewindNoAnchorLine("codex")
         assert_eq!(rewind_kept_line("codex keeps it", true), "codex keeps it; the files went back and every turn stays"); // rewindKeptLine("codex keeps it", true)
         assert_eq!(rewind_kept_line("codex keeps it", false), "codex keeps it; every turn stays"); // rewindKeptLine("codex keeps it", false)
         assert_eq!(rewind_note(&RewindNote { turns: 1.0, files: true, cuts_conversation: true, agent: "claude".into(), kept: None }), "The turn after this reply leaves the conversation, and the files go back to how they stood at this reply. If another thread has worked in this folder since this reply, the files stay as they are. Undo rewind puts them back until the next turn in this folder ends; the conversation does not come back."); // rewindNote({"turns":1,"files":true,"cutsConversation":true,"agent":"claude"})
-        assert_eq!(rewind_note(&RewindNote { turns: 3.0, files: false, cuts_conversation: true, agent: "claude".into(), kept: None }), "The 3 turns after this reply leave the conversation; the files stay as they are."); // rewindNote({"turns":3,"files":false,"cutsConversation":true,"agent":"claude"})
+        assert_eq!(
+            rewind_note(&RewindNote { turns: 3.0, files: false, cuts_conversation: true, agent: "claude".into(), kept: None }),
+            "The 3 turns after this reply leave the conversation; the files stay as they are."
+        ); // rewindNote({"turns":3,"files":false,"cutsConversation":true,"agent":"claude"})
         assert_eq!(rewind_note(&RewindNote { turns: 2.0, files: true, cuts_conversation: false, agent: "Codex".into(), kept: None }), "Codex keeps its own history, so the conversation stays and the files go back to how they stood at this reply. If another thread has worked in this folder since this reply, the files stay as they are. Undo rewind puts them back until the next turn in this folder ends."); // rewindNote({"turns":2,"files":true,"cutsConversation":false,"agent":"Codex"})
         assert_eq!(rewind_note(&RewindNote { turns: 2.0, files: true, cuts_conversation: true, agent: "x".into(), kept: Some("codex keeps its history".into()) }), "Codex keeps its history, so the conversation stays and the files go back to how they stood at this reply. If another thread has worked in this folder since this reply, the files stay as they are. Undo rewind puts them back until the next turn in this folder ends."); // rewindNote({"turns":2,"files":true,"cutsConversation":true,"agent":"x","kept":"codex keeps its history"})
-        assert_eq!(rewind_note(&RewindNote { turns: 2.0, files: false, cuts_conversation: false, agent: "x".into(), kept: Some("".into()) }), ", so the conversation stays and the files go back to how they stood at this reply. If another thread has worked in this folder since this reply, the files stay as they are. Undo rewind puts them back until the next turn in this folder ends."); // rewindNote({"turns":2,"files":false,"cutsConversation":false,"agent":"x","kept":""})
+        assert_eq!(rewind_note(&RewindNote { turns: 2.0, files: false, cuts_conversation: false, agent: "x".into(), kept: Some("".into()) }), ", so the conversation stays and the files go back to how they stood at this reply. If another thread has worked in this folder since this reply, the files stay as they are. Undo rewind puts them back until the next turn in this folder ends.");
+        // rewindNote({"turns":2,"files":false,"cutsConversation":false,"agent":"x","kept":""})
     }
 
     #[test]
@@ -492,45 +478,111 @@ mod pinned {
         assert_eq!(fork_no_turn_line("t9"), "that thread holds no turn t9"); // forkNoTurnLine("t9")
         assert_eq!(fork_no_anchor_line("codex"), "codex left no point in that turn to fork its conversation at"); // forkNoAnchorLine("codex")
         assert_eq!(fork_refused_line("codex", "why"), "codex could not fork the conversation: why"); // forkRefusedLine("codex", "why")
-        assert_eq!(thread_runs_on_line("claude", "codex"), "this thread runs on claude; open a new thread to run codex"); // threadRunsOnLine("claude", "codex")
+        assert_eq!(thread_runs_on_line("claude", "codex"), "this thread runs on claude; open a new thread to run codex");
+        // threadRunsOnLine("claude", "codex")
     }
 
     #[test]
     fn codex_and_catalog_lines() {
         assert_eq!(codex_not_signed_in_line("codex login"), "Codex is not signed in where this thread runs; run codex login there"); // codexNotSignedInLine("codex login")
-        assert_eq!(codex_missing_env_line("OPENAI_KEY"), "Codex's model provider reads its key from the environment variable OPENAI_KEY, which is not set on this machine"); // codexMissingEnvLine("OPENAI_KEY")
-        assert_eq!(catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"})), "spoo"), "Codex 0.153.0 on spoo"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"}, "spoo")
-        assert_eq!(no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"}))), "Codex reported no models"); // noModelsLine({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"})
-        assert_eq!(catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":null})), "spoo"), "Codex on spoo"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"harness","version":null}, "spoo")
-        assert_eq!(no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":null}))), "Codex reported no models"); // noModelsLine({"harness":"codex","label":"Codex","source":"harness","version":null})
-        assert_eq!(catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":null})), "spoo"), "codex table"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":null}, "spoo")
-        assert_eq!(no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":null}))), "No model in the Codex table"); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":null})
-        assert_eq!(catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"})), "spoo"), "codex gave nothing, pinned 0.150"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"}, "spoo")
-        assert_eq!(no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"}))), "No model in the Codex table"); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"})
-        assert_eq!(catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":"0.150"})), "spoo"), "codex table, 0.150"); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":"0.150"}, "spoo")
-        assert_eq!(no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":"0.150"}))), "No model in the Codex table"); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":"0.150"})
-        assert_eq!(codex_reconnect_line(185000.0), "stopped after 3m 05s of Codex reconnecting to its model provider with no answer"); // codexReconnectLine(185000)
+        assert_eq!(
+            codex_missing_env_line("OPENAI_KEY"),
+            "Codex's model provider reads its key from the environment variable OPENAI_KEY, which is not set on this machine"
+        ); // codexMissingEnvLine("OPENAI_KEY")
+        assert_eq!(
+            catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"})), "spoo"),
+            "Codex 0.153.0 on spoo"
+        ); // catalogSourceLine({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"}, "spoo")
+        assert_eq!(
+            no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"}))),
+            "Codex reported no models"
+        ); // noModelsLine({"harness":"codex","label":"Codex","source":"harness","version":"0.153.0"})
+        assert_eq!(
+            catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":null})), "spoo"),
+            "Codex on spoo"
+        ); // catalogSourceLine({"harness":"codex","label":"Codex","source":"harness","version":null}, "spoo")
+        assert_eq!(
+            no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"harness","version":null}))),
+            "Codex reported no models"
+        ); // noModelsLine({"harness":"codex","label":"Codex","source":"harness","version":null})
+        assert_eq!(
+            catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":null})), "spoo"),
+            "codex table"
+        ); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":null}, "spoo")
+        assert_eq!(
+            no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":null}))),
+            "No model in the Codex table"
+        ); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":null})
+        assert_eq!(
+            catalog_source_line(
+                &catalog(
+                    json!({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"})
+                ),
+                "spoo"
+            ),
+            "codex gave nothing, pinned 0.150"
+        ); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"}, "spoo")
+        assert_eq!(
+            no_models_line(&catalog(
+                json!({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"})
+            )),
+            "No model in the Codex table"
+        ); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":"pinned 0.150","refusal":"codex gave nothing"})
+        assert_eq!(
+            catalog_source_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":"0.150"})), "spoo"),
+            "codex table, 0.150"
+        ); // catalogSourceLine({"harness":"codex","label":"Codex","source":"table","version":"0.150"}, "spoo")
+        assert_eq!(
+            no_models_line(&catalog(json!({"harness":"codex","label":"Codex","source":"table","version":"0.150"}))),
+            "No model in the Codex table"
+        ); // noModelsLine({"harness":"codex","label":"Codex","source":"table","version":"0.150"})
+        assert_eq!(codex_reconnect_line(185000.0), "stopped after 3m 05s of Codex reconnecting to its model provider with no answer");
+        // codexReconnectLine(185000)
     }
 
     #[test]
     fn memory_lines_read_the_share_and_the_next_size_up() {
-        assert_eq!(memory_near_full(0_f64, 0_f64), false); // memoryNearFull({used:0,total:0})
-        assert_eq!(memory_near_full(9_f64, 10_f64), true); // memoryNearFull({used:9,total:10})
-        assert_eq!(memory_near_full(8.99_f64, 10_f64), false); // memoryNearFull({used:8.99,total:10})
-        assert_eq!(memory_near_full(1_f64, 0_f64), false); // memoryNearFull({used:1,total:0})
-        assert_eq!(memory_near_full(10_f64, 10_f64), true); // memoryNearFull({used:10,total:10})
+        assert!(!memory_near_full(0_f64, 0_f64)); // memoryNearFull({used:0,total:0})
+        assert!(memory_near_full(9_f64, 10_f64)); // memoryNearFull({used:9,total:10})
+        assert!(!memory_near_full(8.99_f64, 10_f64)); // memoryNearFull({used:8.99,total:10})
+        assert!(!memory_near_full(1_f64, 0_f64)); // memoryNearFull({used:1,total:0})
+        assert!(memory_near_full(10_f64, 10_f64)); // memoryNearFull({used:10,total:10})
         assert_eq!(out_of_memory_line(&MemoryReading { used: 3.59 * 1073741824.0, total: 3.94 * 1073741824.0, load1: 6.25 }), "Out of memory (3.6 GB of 3.9 GB used, load 6.3) when the thread's computer last answered; the work there took the memory, not a fault in the computer"); // outOfMemoryLine({used:3.59*1024**3,total:3.94*1024**3,load1:6.25})
         assert_eq!(out_of_memory_line(&MemoryReading { used: 100.0, total: 200.0, load1: 0.05 }), "Out of memory (100 B of 200 B used, load 0.1) when the thread's computer last answered; the work there took the memory, not a fault in the computer"); // outOfMemoryLine({used:100,total:200,load1:0.05})
-        assert_eq!(out_of_memory_row_line(&MemoryReading { used: 3.59 * 1073741824.0, total: 3.94 * 1073741824.0, load1: 1.0 }), "out of memory, 3.6 of 3.9 GB"); // outOfMemoryRowLine({used:3.59*1024**3,total:3.94*1024**3,load1:1})
-        assert_eq!(bigger_size_line(&serde_json::from_value::<WorkspaceSize>(serde_json::json!({ "cpu": 2.0, "memMb": 4096.0 })).unwrap(), &[]), "No size with more memory is offered; run less in the thread at once"); // biggerSizeLine({cpu:2,memMb:4096}, [])
-        assert_eq!(bigger_size_line(&serde_json::from_value::<WorkspaceSize>(serde_json::json!({ "cpu": 2.0, "memMb": 4096.0 })).unwrap(), &[serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 8.0, "memMb": 16384.0, "rateUsdPerHour": 0.4 })).unwrap(), serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 2.0, "memMb": 4096.0, "rateUsdPerHour": 0.1 })).unwrap(), serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 4.0, "memMb": 8192.0, "rateUsdPerHour": 0.2 })).unwrap(), serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 6.0, "memMb": 8192.0, "rateUsdPerHour": 0.3 })).unwrap()]), "A thread on 4\u{a0}vCPU,\u{a0}8\u{a0}GB ($0.20/hr) fits more; pick it when you start the next one"); // biggerSizeLine({cpu:2,memMb:4096}, [{cpu:8,memMb:16384,rateUsdPerHour:0.4},{cpu:2,memMb:4096,rateUsdPerHour:0.1},{cpu:4,memMb:8192,rateUsdPerHour:0.2},{cpu:6,memMb:8192,rateUsdPerHour:0.3}])
+        assert_eq!(
+            out_of_memory_row_line(&MemoryReading { used: 3.59 * 1073741824.0, total: 3.94 * 1073741824.0, load1: 1.0 }),
+            "out of memory, 3.6 of 3.9 GB"
+        ); // outOfMemoryRowLine({used:3.59*1024**3,total:3.94*1024**3,load1:1})
+        assert_eq!(
+            bigger_size_line(&serde_json::from_value::<WorkspaceSize>(serde_json::json!({ "cpu": 2.0, "memMb": 4096.0 })).unwrap(), &[]),
+            "No size with more memory is offered; run less in the thread at once"
+        ); // biggerSizeLine({cpu:2,memMb:4096}, [])
+        assert_eq!(
+            bigger_size_line(
+                &serde_json::from_value::<WorkspaceSize>(serde_json::json!({ "cpu": 2.0, "memMb": 4096.0 })).unwrap(),
+                &[
+                    serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 8.0, "memMb": 16384.0, "rateUsdPerHour": 0.4 }))
+                        .unwrap(),
+                    serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 2.0, "memMb": 4096.0, "rateUsdPerHour": 0.1 }))
+                        .unwrap(),
+                    serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 4.0, "memMb": 8192.0, "rateUsdPerHour": 0.2 }))
+                        .unwrap(),
+                    serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 6.0, "memMb": 8192.0, "rateUsdPerHour": 0.3 }))
+                        .unwrap()
+                ]
+            ),
+            "A thread on 4\u{a0}vCPU,\u{a0}8\u{a0}GB ($0.20/hr) fits more; pick it when you start the next one"
+        ); // biggerSizeLine({cpu:2,memMb:4096}, [{cpu:8,memMb:16384,rateUsdPerHour:0.4},{cpu:2,memMb:4096,rateUsdPerHour:0.1},{cpu:4,memMb:8192,rateUsdPerHour:0.2},{cpu:6,memMb:8192,rateUsdPerHour:0.3}])
     }
 
     #[test]
     fn vault_and_create_lines() {
         assert_eq!(vault_over_cap_line(3221225472.0, 2147483648.0), "the export was 3 GB, over the 2 GB cap"); // vaultOverCapLine(3*1024**3, 2*1024**3)
         assert_eq!(store_unread_line("codex", "EACCES"), "could not read codex on the machine, so nothing from it travelled: EACCES"); // storeUnreadLine("codex", "EACCES")
-        assert_eq!(state_entry_refusal("../x", "a symlink"), "the agents' state from the machine holds ../x, which is a symlink; nothing of it was landed"); // stateEntryRefusal("../x", "a symlink")
+        assert_eq!(
+            state_entry_refusal("../x", "a symlink"),
+            "the agents' state from the machine holds ../x, which is a symlink; nothing of it was landed"
+        ); // stateEntryRefusal("../x", "a symlink")
         assert_eq!(vault_kept_line(None), "the nap saved no backup; nothing is saved off the machine"); // vaultKeptLine({})
         assert_eq!(vault_kept_line(Some("2026-10-01T00:00:00.000Z")), "the nap saved no backup; what was saved before is kept"); // vaultKeptLine({vaultedAt:"2026-10-01T00:00:00.000Z"})
         assert_eq!(vault_stale_line(None, None), None); // vaultStaleLine({})
@@ -541,7 +593,10 @@ mod pinned {
         assert_eq!(starting_line("w", "Boat"), "starting w on Boat"); // startingLine("w", "Boat")
         assert_eq!(copying_folder_line("/a", "/b"), "copying /a to /b"); // copyingFolderLine("/a", "/b")
         assert_eq!(copy_first_line("Boat", "w", 0.0), "building your image on Boat first, about ten minutes, then w forks from it"); // copyFirstLine("Boat", "w", 0)
-        assert_eq!(copy_first_line("Boat", "w", 0.09000000000000001), "building your image on Boat first, about ten minutes, billed at $0.09/hr while it builds, then w forks from it"); // copyFirstLine("Boat", "w", 0.09000000000000001)
+        assert_eq!(
+            copy_first_line("Boat", "w", 0.09000000000000001),
+            "building your image on Boat first, about ten minutes, billed at $0.09/hr while it builds, then w forks from it"
+        ); // copyFirstLine("Boat", "w", 0.09000000000000001)
     }
 
     #[test]
@@ -551,29 +606,74 @@ mod pinned {
         assert_eq!(iso_seconds(1788744070999.0), "2026-09-07T01:21:10Z"); // isoSeconds(1788744070999)
         assert_eq!(iso_seconds(-1.0), "1969-12-31T23:59:59Z"); // isoSeconds(-1)
         assert_eq!(gone_words("m1", None), "machine m1 is gone at the provider"); // goneWords("m1")
-        assert_eq!(gone_words("m1", Some(&GoneSighting { by: GoneSeenBy::StatusPoll, at: 1788744070500.0, answer: None })), "machine m1 is gone at the provider: the status poll found it gone at 2026-09-07T01:21:10Z"); // goneWords("m1", {"by":"status poll","at":1788744070500})
-        assert_eq!(gone_words("m1", Some(&GoneSighting { by: GoneSeenBy::RecordLoad, at: 0.0, answer: Some("".into()) })), "machine m1 is gone at the provider: the record load found it gone at 1970-01-01T00:00:00Z"); // goneWords("m1", {"by":"record load","at":0,"answer":""})
-        assert_eq!(gone_words("m1", Some(&GoneSighting { by: GoneSeenBy::Sweep, at: 0.0, answer: Some("404 Not Found".into()) })), "machine m1 is gone at the provider: the sweep found it gone at 1970-01-01T00:00:00Z (404 Not Found)"); // goneWords("m1", {"by":"sweep","at":0,"answer":"404 Not Found"})
-        assert_eq!(gone_unconfirmed_line("m1", "404"), "machine m1 answered 404 when this host started; wsp is asking the provider again before it calls it gone"); // goneUnconfirmedLine("m1", "404")
-        assert_eq!(record_restored_line("m1", "w", "id1"), "reap: recorded m1 as workspace w (id1): a machine from this setup that no record claimed; it bills until wsp delete w"); // recordRestoredLine("m1", "w", "id1")
+        assert_eq!(
+            gone_words("m1", Some(&GoneSighting { by: GoneSeenBy::StatusPoll, at: 1788744070500.0, answer: None })),
+            "machine m1 is gone at the provider: the status poll found it gone at 2026-09-07T01:21:10Z"
+        ); // goneWords("m1", {"by":"status poll","at":1788744070500})
+        assert_eq!(
+            gone_words("m1", Some(&GoneSighting { by: GoneSeenBy::RecordLoad, at: 0.0, answer: Some("".into()) })),
+            "machine m1 is gone at the provider: the record load found it gone at 1970-01-01T00:00:00Z"
+        ); // goneWords("m1", {"by":"record load","at":0,"answer":""})
+        assert_eq!(
+            gone_words("m1", Some(&GoneSighting { by: GoneSeenBy::Sweep, at: 0.0, answer: Some("404 Not Found".into()) })),
+            "machine m1 is gone at the provider: the sweep found it gone at 1970-01-01T00:00:00Z (404 Not Found)"
+        ); // goneWords("m1", {"by":"sweep","at":0,"answer":"404 Not Found"})
+        assert_eq!(
+            gone_unconfirmed_line("m1", "404"),
+            "machine m1 answered 404 when this host started; wsp is asking the provider again before it calls it gone"
+        ); // goneUnconfirmedLine("m1", "404")
+        assert_eq!(
+            record_restored_line("m1", "w", "id1"),
+            "reap: recorded m1 as workspace w (id1): a machine from this setup that no record claimed; it bills until wsp delete w"
+        ); // recordRestoredLine("m1", "w", "id1")
         assert_eq!(name_taken_refusal("w"), "w is already a workspace; pick another name, or delete it first"); // nameTakenRefusal("w")
         assert_eq!(name_deleting_refusal("w"), "w is being deleted; wait for the delete to finish, then fork it again"); // nameDeletingRefusal("w")
-        assert_eq!(delete_refused_line("w", "m1", "running"), "w's machine m1 is still running after three asks; run wsp delete again or delete it at the provider"); // deleteRefusedLine("w", "m1", "running")
+        assert_eq!(
+            delete_refused_line("w", "m1", "running"),
+            "w's machine m1 is still running after three asks; run wsp delete again or delete it at the provider"
+        ); // deleteRefusedLine("w", "m1", "running")
     }
 
     #[test]
     fn places_and_threads_named_by_a_word() {
-        assert_eq!(build_place_ask_line(&["a", "b"]), "a, b run workspaces and none of them is the default place; name the one to build your image on with --on"); // buildPlaceAskLine(["a", "b"])
-        assert_eq!(place_forks_nothing_pick_line("here", &["a", "b"]), "here forks no machines; name a place that runs workspaces with --on: a, b"); // placeForksNothingPickLine("here", ["a", "b"])
+        assert_eq!(
+            build_place_ask_line(&["a", "b"]),
+            "a, b run workspaces and none of them is the default place; name the one to build your image on with --on"
+        ); // buildPlaceAskLine(["a", "b"])
+        assert_eq!(
+            place_forks_nothing_pick_line("here", &["a", "b"]),
+            "here forks no machines; name a place that runs workspaces with --on: a, b"
+        ); // placeForksNothingPickLine("here", ["a", "b"])
         assert_eq!(image_built_on_line("Boat"), "your image is built on Boat"); // imageBuiltOnLine("Boat")
-        assert_eq!(not_a_thread_line("spoo", WordIs::Project, "wsp send", false), "spoo is a project; wsp send takes a thread, as wsp threads spoo lists them."); // notAThreadLine("spoo", "project", "wsp send")
-        assert_eq!(not_a_thread_line("m1", WordIs::Machine, "wsp agents", true), "m1 is a machine; wsp agents takes a thread, or a computer with --on, as wsp threads lists them."); // notAThreadLine("m1", "machine", "wsp agents", true)
-        assert_eq!(not_a_thread_line("spoo", WordIs::Project, "wsp agents", true), "spoo is a project; wsp agents takes a thread, or a computer with --on, as wsp threads spoo lists them."); // notAThreadLine("spoo", "project", "wsp agents", true)
+        assert_eq!(
+            not_a_thread_line("spoo", WordIs::Project, "wsp send", false),
+            "spoo is a project; wsp send takes a thread, as wsp threads spoo lists them."
+        ); // notAThreadLine("spoo", "project", "wsp send")
+        assert_eq!(
+            not_a_thread_line("m1", WordIs::Machine, "wsp agents", true),
+            "m1 is a machine; wsp agents takes a thread, or a computer with --on, as wsp threads lists them."
+        ); // notAThreadLine("m1", "machine", "wsp agents", true)
+        assert_eq!(
+            not_a_thread_line("spoo", WordIs::Project, "wsp agents", true),
+            "spoo is a project; wsp agents takes a thread, or a computer with --on, as wsp threads spoo lists them."
+        ); // notAThreadLine("spoo", "project", "wsp agents", true)
         assert_eq!(shared_folder_line(&["a"]), "thread a works in this folder too"); // sharedFolderLine(["a"])
         assert_eq!(shared_folder_line(&["a", "b"]), "threads a and b work in this folder too"); // sharedFolderLine(["a", "b"])
         assert_eq!(shared_folder_line(&["a", "b", "c"]), "threads a, b and c work in this folder too"); // sharedFolderLine(["a", "b", "c"])
         assert_eq!(thread_elsewhere_line("0123456789"), "thread 01234567 does not work in this folder"); // threadElsewhereLine("0123456789")
-        assert_eq!(child_beside_lead_line("0123456789", "abcdefghij"), "thread 01234567 works in the same folder as thread abcdefgh; there is nothing apart to merge."); // childBesideLeadLine("0123456789", "abcdefghij")
+        assert_eq!(
+            child_beside_lead_line("0123456789", "abcdefghij"),
+            "thread 01234567 works in the same folder as thread abcdefgh; there is nothing apart to merge."
+        ); // childBesideLeadLine("0123456789", "abcdefghij")
         assert_eq!(no_project_line("x"), "no project x"); // noProjectLine("x")
+    }
+}
+
+mod shared_folder_line_of_none {
+    #[test]
+    fn prints_what_javascript_prints_for_an_empty_list() {
+        // node 22: sharedFolderLine([]) reads others.slice(0, -1).join(", ") as "" and others.at(-1) as undefined.
+        let none: [&str; 0] = [];
+        assert_eq!(wsp_words::words::thread::shared_folder_line(&none), "threads  and undefined work in this folder too");
     }
 }

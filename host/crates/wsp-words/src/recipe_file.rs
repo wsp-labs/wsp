@@ -2,10 +2,10 @@
 //! A recipe file as the person writes it: its kinds, what a sign-in reads as, and the options the picker offers. Port of the functions of packages/protocol/src/recipe-file.ts at
 //! a3b870a6e; its shapes and flat constants are wsp_wire::types::recipe_file. See spec/recipe_file.md.
 
-use wsp_wire::types::recipe_file::{GitHubSignIn, COPY_KEYS_WORD};
 use wsp_wire::types::recipe_file::RecipeFile;
 use wsp_wire::types::recipe_file::RecipeSignIn;
 use wsp_wire::types::recipe_file::ServerSignIn;
+use wsp_wire::types::recipe_file::{GitHubSignIn, COPY_KEYS_WORD};
 
 use indexmap::IndexMap;
 use serde::Serialize;
@@ -105,7 +105,10 @@ pub fn gh_status_of(said: &str) -> GhStatus {
     let scopes = said.find("Token scopes:").map(|at| {
         let body = said[at + "Token scopes:".len()..].trim_start_matches(crate::js::is_js_whitespace);
         let line = &body[..body.find(['\n', '\r', '\u{2028}', '\u{2029}']).unwrap_or(body.len())];
-        line.split(',').map(|scope| js_trim(&scope.replace('\'', "")).to_string()).filter(|scope| !scope.is_empty()).collect::<Vec<String>>()
+        line.split(',')
+            .map(|scope| js_trim(&scope.replace('\'', "")).to_string())
+            .filter(|scope| !scope.is_empty())
+            .collect::<Vec<String>>()
     });
     GhStatus { account, scopes: scopes.filter(|scopes| !scopes.is_empty()) }
 }
@@ -238,7 +241,10 @@ pub fn recipe_slug(name: &str) -> String {
 //   };
 // }
 pub fn recipe_counts(file: &RecipeFile) -> IndexMap<RecipeKind, usize> {
-    let configs = [file.configs.git.is_some(), file.configs.shell.is_some(), file.configs.github.is_some()].into_iter().filter(|present| *present).count();
+    let configs = [file.configs.git.is_some(), file.configs.shell.is_some(), file.configs.github.is_some()]
+        .into_iter()
+        .filter(|present| *present)
+        .count();
     IndexMap::from([
         (RecipeKind::Agents, file.agents.len()),
         (RecipeKind::Mcp, file.mcp.len()),
@@ -258,8 +264,13 @@ pub fn recipe_counts(file: &RecipeFile) -> IndexMap<RecipeKind, usize> {
 //   return said.length === 0 ? "nothing picked" : said.join(", ");
 // }
 pub fn recipe_summary(file: &RecipeFile) -> String {
-    let said: Vec<String> = recipe_counts(file).into_iter().filter(|(_, n)| *n > 0).map(|(kind, n)| plural(n as f64, kind_word(kind))).collect();
-    if said.is_empty() { "nothing picked".to_string() } else { said.join(", ") }
+    let said: Vec<String> =
+        recipe_counts(file).into_iter().filter(|(_, n)| *n > 0).map(|(kind, n)| plural(n as f64, kind_word(kind))).collect();
+    if said.is_empty() {
+        "nothing picked".to_string()
+    } else {
+        said.join(", ")
+    }
 }
 
 /// A recipe with what this computer has for each of its rows right now, keyed `<kind>/<row>`: a CLI's version, a
@@ -293,7 +304,8 @@ pub struct ResolvedRecipe {
 //   return JSON.stringify(sorted(resolved));
 // }
 pub fn recipe_canon(resolved: &ResolvedRecipe) -> String {
-    let value = serde_json::json!({ "file": serde_json::to_value(&resolved.file).expect("a recipe file serializes"), "items": resolved.items });
+    let value =
+        serde_json::json!({ "file": serde_json::to_value(&resolved.file).expect("a recipe file serializes"), "items": resolved.items });
     serde_json::to_string(&sorted_keys(&value)).expect("a sorted recipe serializes")
 }
 
@@ -478,4 +490,3 @@ pub fn no_picks_refusal(name: &str) -> String {
 
 // recipe-file.ts:215
 // in wsp_wire::types::recipe_file: RECIPES_TICKET_REFUSAL
-

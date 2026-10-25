@@ -6,9 +6,9 @@
 use wsp_wire::types::init_job::{InitDraft, InitJob, InitScreen, InitScreenId};
 use wsp_wire::wire::capabilities::{MachineSizeOffer, PlaceCapacity, WorkspaceSize};
 
-use indexmap::IndexSet;
 use crate::js::{js_round, js_trim, locale_number, number_string, to_fixed, utf16, Grouping};
 use crate::words::base::plural;
+use indexmap::IndexSet;
 use regex::Regex;
 use wsp_wire::types::init_job::InitScreenItemLock;
 use wsp_wire::types::js_number::JsNumber;
@@ -91,7 +91,7 @@ pub fn fmt_disk_bytes(n: f64) -> String {
 //   return `${(Math.ceil((n / MIB) * 10) / 10).toFixed(1)} MB`;
 // }
 pub fn fmt_bytes_over(n: f64) -> String {
-    if n < MIB || n >= GIB {
+    if !(MIB..GIB).contains(&n) {
         return fmt_bytes(n);
     }
     format!("{} MB", to_fixed(((n / MIB) * 10.0).ceil() / 10.0, 1))
@@ -437,12 +437,7 @@ pub fn box_room_lines(capacity: &PlaceCapacity) -> Vec<String> {
             number_string(cpu_taken),
             number_string((cores - cpu_taken).max(0.0))
         ),
-        format!(
-            "{}, {} in use by forks, {} free",
-            fmt_mem_gb(mem_mb),
-            fmt_mem_gb(mem_taken),
-            fmt_mem_gb((mem_mb - mem_taken).max(0.0))
-        ),
+        format!("{}, {} in use by forks, {} free", fmt_mem_gb(mem_mb), fmt_mem_gb(mem_taken), fmt_mem_gb((mem_mb - mem_taken).max(0.0))),
     ]
 }
 
@@ -508,7 +503,11 @@ pub const DOCTOR_UNSERVED: &str = "the host that answered wired no doctor for th
 // export const hereDaemonBehindLine = (version: number, host: number, fix: string): string =>
 //   `this computer's wsp daemon is version ${version} and this wsp needs ${host}; ${fix} stages the right one`;
 pub fn here_daemon_behind_line(version: f64, host: f64, fix: &str) -> String {
-    format!("this computer's wsp daemon is version {} and this wsp needs {}; {fix} stages the right one", number_string(version), number_string(host))
+    format!(
+        "this computer's wsp daemon is version {} and this wsp needs {}; {fix} stages the right one",
+        number_string(version),
+        number_string(host)
+    )
 }
 
 /// What a child verb's failure that the verb itself never worded comes to: one sentence naming the verb and where
@@ -577,7 +576,7 @@ pub fn size_from_word(word: &str) -> Option<WorkspaceSize> {
     let m = Regex::new(r"^([0-9]+)x([0-9]+(?:\.[0-9]+)?)$").ok()?.captures(js_trim(word))?;
     let cpu: f64 = m[1].parse().ok()?;
     let mem_mb = js_round(m[2].parse::<f64>().ok()? * 1024.0);
-    (cpu > 0.0 && mem_mb > 0.0).then(|| WorkspaceSize { cpu: JsNumber(cpu), mem_mb: JsNumber(mem_mb) })
+    (cpu > 0.0 && mem_mb > 0.0).then_some(WorkspaceSize { cpu: JsNumber(cpu), mem_mb: JsNumber(mem_mb) })
 }
 
 /// The row a size names among the ones offered, with whatever that row carries beside the shape, or nothing where
@@ -760,11 +759,8 @@ pub fn starts_used_line(window: StartWindow, used: f64, limit: f64, plan: Option
         None | Some("") => "the machine",
         Some(what) => what,
     };
-    let head = format!(
-        "Boat's starts for {when} are used ({} of {}{plan}), so {what} was not started",
-        number_string(used),
-        number_string(limit)
-    );
+    let head =
+        format!("Boat's starts for {when} are used ({} of {}{plan}), so {what} was not started", number_string(used), number_string(limit));
     match window {
         StartWindow::Minute => format!("{head}; start it again in a minute."),
         StartWindow::Hour => format!("{head}; start it again later in the hour, or move to a plan with more at boat.dev/dashboard."),

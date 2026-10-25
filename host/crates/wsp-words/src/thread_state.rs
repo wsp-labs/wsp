@@ -241,7 +241,7 @@ pub fn settle_moment(t: &SettleFacts, settle_ms: Option<f64>, held: bool) -> Opt
     }
     let last = [t.started_at, t.ended_at].into_iter().flatten().reduce(f64::max);
     if let Some(settled_at) = t.settled_at {
-        if last.map_or(true, |last| settled_at >= last) {
+        if last.is_none_or(|last| settled_at >= last) {
             return Some(SettleMoment { ms: settled_at, by_hand: true });
         }
     }
@@ -260,9 +260,5 @@ fn unseen_at(thread: &ThreadView, ended_at: Option<f64>) -> Option<f64> {
     }
     let read_at = thread.read_at.as_ref().map(|at| at.0);
     let woke_at = thread.woke_at.as_ref().map(|at| at.0);
-    [ended_at, woke_at]
-        .into_iter()
-        .flatten()
-        .filter(|at| read_at.map_or(true, |read| read < *at))
-        .reduce(f64::max)
+    [ended_at, woke_at].into_iter().flatten().filter(|at| read_at.is_none_or(|read| read < *at)).reduce(f64::max)
 }

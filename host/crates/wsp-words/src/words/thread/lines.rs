@@ -3,13 +3,12 @@
 //! validator refusal, machine, disk and resize lines, the words every door quotes about turns, and the two-halves
 //! refusal line with redaction. Each TS statement stands as a comment above its stub. See spec/thread_lines.md.
 
-use wsp_wire::wire::capabilities::WorkspaceSize;
 use crate::js::{is_js_whitespace, js_collapse_whitespace, js_round, js_trim, js_trim_end, number_string, utf16};
 use crate::words::base::plural;
 use crate::words::units::{fmt_bytes_of, fmt_disk_bytes, fmt_duration, fmt_mem_gb, fmt_uptime, size_word, DurationStyle};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::shell_quote::shell_line;
-
+use wsp_wire::wire::capabilities::WorkspaceSize;
 
 /// A limit as one unit: whole hours when it is hours, else whole minutes.
 // thread.ts:9
@@ -185,10 +184,8 @@ pub struct HarnessEnded {
 pub fn validator_refusal(error: &str) -> Option<String> {
     let issues: serde_json::Value = serde_json::from_str(error).ok()?;
     let issues = issues.as_array().filter(|rows| !rows.is_empty())?;
-    let rows: Vec<(&str, &Vec<serde_json::Value>)> = issues
-        .iter()
-        .map(|row| Some((row.get("code")?.as_str()?, row.get("path")?.as_array()?)))
-        .collect::<Option<_>>()?;
+    let rows: Vec<(&str, &Vec<serde_json::Value>)> =
+        issues.iter().map(|row| Some((row.get("code")?.as_str()?, row.get("path")?.as_array()?))).collect::<Option<_>>()?;
     let fields: Vec<&str> = rows.iter().filter_map(|(_, path)| path.first()?.as_str()).collect();
     if rows.iter().any(|(code, _)| *code == "invalid_union_discriminator") && fields.iter().all(|field| *field == "op") {
         return Some("the host does not serve this line; it runs another version of wsp, restart it with wsp restart".to_string());
@@ -718,7 +715,8 @@ pub const COORDINATOR_HANDOFF: &str = "A caller that is not a wsp thread cannot 
 /// turn's own launch, so one it does not know is a caller naming a turn it is not, and reading it as the person would
 /// put a builder's report in front of nobody.
 // thread.ts:360
-pub const NO_SUCH_TURN: &str = "no turn on this host carries that token; only wsp running inside a turn has one, and a turn that ended has none";
+pub const NO_SUCH_TURN: &str =
+    "no turn on this host carries that token; only wsp running inside a turn has one, and a turn that ended has none";
 
 /// What a send meets when its thread's last turn has replied but its agent process is still running (a child it did
 /// not wait for, a lingering task): the row still reads running and is not free for a new turn, so the message waits

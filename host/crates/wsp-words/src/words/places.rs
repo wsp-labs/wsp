@@ -18,7 +18,7 @@ use wsp_wire::views::project_bundle::{
     ProjectExportEvent, ProjectExportStage, ProjectImportEvent, ProjectImportStage, ProjectSecret, TerminalConfig, TerminalRgb,
 };
 
-use crate::js::{js_round, js_trim, number_string, utf16};
+use crate::js::{js_round, js_trim, number_string, upper_first, utf16};
 use crate::semver::compare_versions;
 use crate::words::base::plural;
 use crate::words::units::{fmt_bytes, fmt_cost, fmt_duration, fmt_rate};
@@ -69,7 +69,7 @@ pub const SESSIONS_NOTE: &str = "Ticked agents' sessions go with the folder. The
 //   return `${s.signals.join(", ")}, ${fmtBytes(s.bytes)}`;
 // }
 pub fn secret_signals_line(s: &ProjectSecret) -> String {
-    let signals: Vec<String> = s.signals.iter().map(|signal| wire_word(signal)).collect();
+    let signals: Vec<String> = s.signals.iter().map(wire_word).collect();
     format!("{}, {}", signals.join(", "), fmt_bytes(s.bytes.0))
 }
 
@@ -183,7 +183,7 @@ pub fn import_progress(events: &[ProjectImportEvent], workspace_name: &str) -> O
             ProjectImportStage::Failed => return None,
         }
     }
-    (!events.is_empty()).then(|| TripProgress { line, fraction })
+    (!events.is_empty()).then_some(TripProgress { line, fraction })
 }
 
 /// An export's events folded into the one progress line and its bar. The runtime packs and downloads the folder,
@@ -250,7 +250,7 @@ pub fn export_progress(events: &[ProjectExportEvent], here: &str) -> Option<Trip
             ProjectExportStage::Failed => return None,
         }
     }
-    (!events.is_empty()).then(|| TripProgress { line, fraction })
+    (!events.is_empty()).then_some(TripProgress { line, fraction })
 }
 
 /// A color as a Ghostty file writes it.
@@ -305,7 +305,7 @@ pub fn terminal_config_lines(config: &TerminalConfig) -> Vec<String> {
         ("palette", if set == 0 { None } else { Some(format!("{set} of 16 colors")) }),
         ("selection-background", config.selection_background.as_ref().map(hex_color)),
         ("cursor-color", config.cursor_color.as_ref().map(hex_color)),
-        ("cursor-style", config.cursor_style.as_ref().map(|style| wire_word(style))),
+        ("cursor-style", config.cursor_style.as_ref().map(wire_word)),
         ("cursor-style-blink", config.cursor_style_blink.map(|blink| blink.to_string())),
         ("window-padding-x", config.window_padding_x.as_ref().map(|padding| pair(padding.left.0, padding.right.0))),
         ("window-padding-y", config.window_padding_y.as_ref().map(|padding| pair(padding.top.0, padding.bottom.0))),
@@ -325,11 +325,7 @@ pub fn terminal_config_lines(config: &TerminalConfig) -> Vec<String> {
 // }
 /// `id` is a WorkspaceGlyph's wire word.
 pub fn look_word(id: &str) -> String {
-    let mut chars = id.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
-    }
+    upper_first(id)
 }
 
 /// The custom properties a workspace's theme paints with, the one place the theme object is read. The gradient is
@@ -402,7 +398,10 @@ pub fn shell_version_notice(shell: Option<&str>, host: &str, label: Option<&str>
         Some(label) => format!("the host {label}"),
     };
     let Some(shell) = shell else {
-        return Some(ShellVersionNotice { line: format!("this app is older than {named}, which is {host}: get the new app"), update: true });
+        return Some(ShellVersionNotice {
+            line: format!("this app is older than {named}, which is {host}: get the new app"),
+            update: true,
+        });
     };
     let order = compare_versions(shell, host);
     if order == Ordering::Equal {
@@ -548,9 +547,16 @@ pub fn places_spend_foot(month_usd: f64, providers: f64) -> String {
 pub fn place_engine_line(view: &PlaceView) -> Option<String> {
     let engine = view.engine.as_ref()?;
     if matches!(engine, PlaceViewEngine::None) {
-        return Some(format!("{} has no container engine; a project's docker compose runs there once you install Docker or podman on it", view.name));
+        return Some(format!(
+            "{} has no container engine; a project's docker compose runs there once you install Docker or podman on it",
+            view.name
+        ));
     }
-    Some(format!("{} runs a project's own containers on {}; a workspace made with --engine gets a socket to it and sees its own containers alone", view.name, wire_word(engine)))
+    Some(format!(
+        "{} runs a project's own containers on {}; a workspace made with --engine gets a socket to it and sees its own containers alone",
+        view.name,
+        wire_word(engine)
+    ))
 }
 
 /// An agent wsp hands a token or a key of the person's at every turn, which needs no login on the computer.
@@ -656,7 +662,9 @@ pub fn codex_key_refused_line(key_env: &str, reason: &str, login: &str) -> Strin
     let cut = utf16::cut(js_trim(reason), REFUSAL_REASON_MAX);
     let said = js_trim(&cut);
     let because = if said.is_empty() { String::new() } else { format!(": {said}") };
-    format!("OpenAI refused your {key_env}{because}. Put a working key in ~/.wsp/.env, or sign Codex in where this thread runs with {login}.")
+    format!(
+        "OpenAI refused your {key_env}{because}. Put a working key in ~/.wsp/.env, or sign Codex in where this thread runs with {login}."
+    )
 }
 
 /// The verb alone, for the host road that runs that leave on another computer over the line that computer said
@@ -833,7 +841,11 @@ pub fn provider_key_still_line(still: &[KeyStill]) -> String {
     } else {
         "of each"
     };
-    format!("Its key is still in {}, which a host started {} reads first; take it out {tail}.", wheres.join(" and in "), readers.join(" or "))
+    format!(
+        "Its key is still in {}, which a host started {} reads first; take it out {tail}.",
+        wheres.join(" and in "),
+        readers.join(" or ")
+    )
 }
 
 /// What removing a provider answers once every machine this host made there is gone: the key forgotten with them, or
@@ -866,11 +878,7 @@ pub fn provider_removed_line(name: &str, deleted: f64, still: Option<&str>, snap
 // export const providerForgetQuestion = (name: string, tasks: number): string =>
 //   `Forget ${name}?\nThe key ${tasks === 0 ? "leaves" : `and ${tasksRecords(tasks, true)} leave`} this host. ${forgetBills(name, "is")}`;
 pub fn provider_forget_question(name: &str, tasks: f64) -> String {
-    let leaves = if tasks == 0.0 {
-        "leaves".to_string()
-    } else {
-        format!("and {} leave", tasks_records(tasks, true))
-    };
+    let leaves = if tasks == 0.0 { "leaves".to_string() } else { format!("and {} leave", tasks_records(tasks, true)) };
     format!("Forget {name}?\nThe key {leaves} this host. {}", forget_bills(name, "is"))
 }
 
@@ -957,17 +965,9 @@ pub struct SavedImage {
 }
 
 pub fn provider_kept_line(name: &str, deleted: f64, left: &[LeftThere]) -> String {
-    let named = left
-        .iter()
-        .take(PROVIDER_LEFT_NAMED)
-        .map(|machine| format!("{} ({})", machine.id, machine.said))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let more = if left.len() > PROVIDER_LEFT_NAMED {
-        format!(" and {} more", left.len() - PROVIDER_LEFT_NAMED)
-    } else {
-        String::new()
-    };
+    let named =
+        left.iter().take(PROVIDER_LEFT_NAMED).map(|machine| format!("{} ({})", machine.id, machine.said)).collect::<Vec<_>>().join(", ");
+    let more = if left.len() > PROVIDER_LEFT_NAMED { format!(" and {} more", left.len() - PROVIDER_LEFT_NAMED) } else { String::new() };
     let one = left.len() == 1;
     format!(
         "{} wsp made at {name} {} not gone: {named}{more}. The key is kept until {}{}. Remove {name} again to ask once more.",
@@ -1012,11 +1012,8 @@ pub fn provider_images_line(name: &str, images: &[SavedImage]) -> String {
 pub fn provider_images_left_line(name: &str, images: &[SavedImage]) -> String {
     let named = named_images(images);
     let one = images.len() == 1;
-    let stay = if one {
-        format!("Its image snapshot {named} stays")
-    } else {
-        format!("Its {} image snapshots, {named}, stay", images.len())
-    };
+    let stay =
+        if one { format!("Its image snapshot {named} stays") } else { format!("Its {} image snapshots, {named}, stay", images.len()) };
     format!(
         "{stay} at {name} and {} every month; add the key again and remove {name} to delete {}.",
         if one { "bills" } else { "bill" },
@@ -1332,11 +1329,7 @@ pub fn fmt_theme_vars(theme: &WorkspaceTheme, app_dark: bool) -> ThemeVars {
             "radial-gradient(circle at 0% 0%, {first} 0%, transparent 70%), radial-gradient(circle at 100% 0%, {second} 0%, transparent 70%), linear-gradient(to top, {third} 0%, transparent 65%)"
         ),
     };
-    ThemeVars {
-        space_gradient,
-        space_grain: number_string(theme.grain.0),
-        space_tint: fmt_rgb(&theme_ink(theme, app_dark), None),
-    }
+    ThemeVars { space_gradient, space_grain: number_string(theme.grain.0), space_tint: fmt_rgb(&theme_ink(theme, app_dark), None) }
 }
 
 /// What a system notification says when a thread's turn finished while nobody was looking: the page's own line and

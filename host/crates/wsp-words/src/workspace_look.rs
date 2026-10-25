@@ -5,7 +5,9 @@
 
 use crate::js::js_round;
 use wsp_wire::types::js_number::JsNumber;
-use wsp_wire::types::workspace_look::{ThemeDot, ThemeHarmony, ThemeMode, WorkspaceTheme, THEME_GRAIN_STEPS, THEME_MIN_OPACITY, WORD_FLOOR, INK_FLOOR};
+use wsp_wire::types::workspace_look::{
+    ThemeDot, ThemeHarmony, ThemeMode, WorkspaceTheme, INK_FLOOR, THEME_GRAIN_STEPS, THEME_MIN_OPACITY, WORD_FLOOR,
+};
 
 // The glyphs offered, in the order the picker shows them; each id names one icon of the app's set.
 // workspace-look.ts:15
@@ -153,10 +155,9 @@ pub fn harmonies_of(count: usize) -> Vec<ThemeHarmony> {
 // }
 pub fn harmony_dots(first: &ThemeDot, harmony: ThemeHarmony) -> Vec<ThemeDot> {
     let mut dots = vec![first.clone()];
-    dots.extend(harmony_angles(harmony).iter().map(|offset| ThemeDot {
-        angle: JsNumber((first.angle.0 + offset) % 360.0),
-        radius: first.radius,
-    }));
+    dots.extend(
+        harmony_angles(harmony).iter().map(|offset| ThemeDot { angle: JsNumber((first.angle.0 + offset) % 360.0), radius: first.radius }),
+    );
     dots
 }
 
@@ -206,7 +207,7 @@ pub fn cycle_harmony(theme: &WorkspaceTheme) -> WorkspaceTheme {
 // export const snapGrain = (grain: number): number => Math.round(Math.min(1, Math.max(0, grain)) * THEME_GRAIN_STEPS) / THEME_GRAIN_STEPS;
 pub fn snap_grain(grain: f64) -> f64 {
     let steps = THEME_GRAIN_STEPS as f64;
-    js_round(grain.max(0.0).min(1.0) * steps) / steps
+    js_round(grain.clamp(0.0, 1.0) * steps) / steps
 }
 
 // workspace-look.ts:134
@@ -260,11 +261,7 @@ pub fn hsl_to_rgb(h: f64, s: f64, l: f64) -> Rgb {
             p
         }
     };
-    [
-        js_round(channel(h + 1.0 / 3.0) * 255.0),
-        js_round(channel(h) * 255.0),
-        js_round(channel(h - 1.0 / 3.0) * 255.0),
-    ]
+    [js_round(channel(h + 1.0 / 3.0) * 255.0), js_round(channel(h) * 255.0), js_round(channel(h - 1.0 / 3.0) * 255.0)]
 }
 
 // workspace-look.ts:159
@@ -491,11 +488,11 @@ pub fn theme_ink(theme: &WorkspaceTheme, app_dark: bool) -> Rgb {
             if on_washed >= INK_FLOOR as f64 {
                 return ink;
             }
-            if best.map_or(true, |(_, found)| on_washed > found) {
+            if best.is_none_or(|(_, found)| on_washed > found) {
                 best = Some((ink, on_washed));
             }
         }
-        lightness = (lightness + step).max(0.0).min(1.0);
+        lightness = (lightness + step).clamp(0.0, 1.0);
     }
     best.map_or_else(|| at(lightness), |(ink, _)| ink)
 }
@@ -552,13 +549,7 @@ pub const THEME_PRESETS: [ThemePreset; 8] = [
 /// `id` key at runtime, which WorkspaceTheme has no field for.)
 pub fn default_theme() -> WorkspaceTheme {
     let first = &THEME_PRESETS[0];
-    WorkspaceTheme {
-        dots: preset_dots(first),
-        harmony: first.harmony,
-        grain: JsNumber(0.0),
-        opacity: JsNumber(0.5),
-        mode: ThemeMode::Auto,
-    }
+    WorkspaceTheme { dots: preset_dots(first), harmony: first.harmony, grain: JsNumber(0.0), opacity: JsNumber(0.5), mode: ThemeMode::Auto }
 }
 
 /// A preset applied over a theme: the dots and harmony move, the rest stays.
@@ -626,9 +617,5 @@ fn over(top: &Rgb, alpha: f64, under: &Rgb) -> Rgb {
 
 fn words_read(theme: &WorkspaceTheme, side: Side, alpha: f64) -> f64 {
     let ink = side_ink(side);
-    theme
-        .dots
-        .iter()
-        .map(|dot| contrast_ratio(&ink.foreground, &over(&dot_colour(dot), alpha, &ink.ground)))
-        .fold(f64::INFINITY, f64::min)
+    theme.dots.iter().map(|dot| contrast_ratio(&ink.foreground, &over(&dot_colour(dot), alpha, &ink.ground))).fold(f64::INFINITY, f64::min)
 }

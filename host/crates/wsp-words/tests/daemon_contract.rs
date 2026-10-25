@@ -8,11 +8,6 @@
 
 use serde_json::{json, Map, Value};
 use std::collections::HashSet;
-use wsp_words::daemon_contract::*;
-use wsp_words::docker_shim::docker_shim;
-use wsp_words::oom::work_score_line;
-use wsp_words::project_path::{place_daemon_paths, place_login_files, place_owned_paths, probe_path};
-use wsp_words::words::units::NOT_ON_THIS_KIND;
 use wsp_wire::types::attachments::IMAGE_MAX_BYTES;
 use wsp_wire::types::daemon_contract::*;
 use wsp_wire::types::oom::{DAEMON_NICE, DAEMON_OOM_SCORE_ADJ, WORK_OOM_SCORE_ADJ};
@@ -24,6 +19,11 @@ use wsp_wire::wire::daemon_version::{DAEMON_ROOTS_PATH, DAEMON_VERSION};
 use wsp_wire::wire::limits::{EXEC_BODY_MAX, GUEST_ARGV_MAX, GUEST_CWD_MAX, GUEST_TOKEN_MAX, HTTP_URL_MAX, USAGE_STORES_MAX};
 use wsp_wire::wire::machine_link::{NOT_ON_THIS_ROAD, NO_IMAGES_HERE};
 use wsp_wire::wire::place_link::{host_key_refusal, PLACE_LINK_NONCE_BYTES};
+use wsp_words::daemon_contract::*;
+use wsp_words::docker_shim::docker_shim;
+use wsp_words::oom::work_score_line;
+use wsp_words::project_path::{place_daemon_paths, place_login_files, place_owned_paths, probe_path};
+use wsp_words::words::units::NOT_ON_THIS_KIND;
 
 const CONTRACT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../daemon/fixtures/contract");
 

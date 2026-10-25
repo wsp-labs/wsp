@@ -3,8 +3,8 @@
 //! packages/protocol/src/plan-alerts.ts at a3b870a6e (PlanAlert, PLAN_ALERT_STEPS and UsageAlertEvent are
 //! wsp_wire::types::plan_alerts). See spec/costs_and_alerts.md.
 
-use wsp_wire::types::plan_alerts::PlanAlert;
 use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::types::plan_alerts::PlanAlert;
 use wsp_wire::types::plan_alerts::{PlanAlertBack, PlanAlertBlocked, PlanAlertLow};
 use wsp_wire::types::usage::{AccountLimit, LimitKind, LimitStatus, LimitWindow};
 
@@ -56,11 +56,7 @@ pub fn block_ends_at(r: &Reading) -> Option<f64> {
         return None;
     }
     let resets = |windows: Vec<&LimitWindow>| -> Vec<f64> {
-        windows
-            .into_iter()
-            .filter(|w| counted(w))
-            .filter_map(|w| w.resets_at.as_ref().map(|at| at.0))
-            .collect()
+        windows.into_iter().filter(|w| counted(w)).filter_map(|w| w.resets_at.as_ref().map(|at| at.0)).collect()
     };
     let ends = resets(r.windows.iter().filter(|w| w.used_percent.0 >= 100.0).collect());
     let all = if ends.is_empty() { resets(r.windows.iter().collect()) } else { ends };
@@ -107,7 +103,7 @@ pub fn plan_alerts_of(before: Option<&Reading>, after: &Reading, at: f64) -> Vec
             [90.0, 70.0]
                 .into_iter()
                 .find(|step| prior < *step && w.used_percent.0 >= *step)
-                .map(|step| PlanAlert::Low(PlanAlertLow { window: w.kind.clone(), step: JsNumber(step) }))
+                .map(|step| PlanAlert::Low(PlanAlertLow { window: w.kind, step: JsNumber(step) }))
         })
         .collect()
 }

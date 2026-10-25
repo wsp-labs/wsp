@@ -297,4 +297,3 @@ pub fn run_output_message(command: &str, run: &RunEnd, output: &str) -> String {
     let fence = "`".repeat(3.max(longest + 1));
     format!("I ran `{command}` and {ended}. The last lines it printed:\n\n{fence}text\n{tail}\n{fence}")
 }
-

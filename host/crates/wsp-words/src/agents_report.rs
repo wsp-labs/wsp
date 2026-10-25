@@ -169,7 +169,9 @@ pub fn system_skill_refusal(name: &str) -> String {
 // agents-report.ts:137
 // export const pluginSkillRefusal = (name: string, plugin: string, agent: string): string => `${name} comes with the plugin ${plugin}, so it goes with it; turn the plugin off with wsp plugins disable ${plugin} --agent ${agent}.`;
 pub fn plugin_skill_refusal(name: &str, plugin: &str, agent: &str) -> String {
-    format!("{name} comes with the plugin {plugin}, so it goes with it; turn the plugin off with wsp plugins disable {plugin} --agent {agent}.")
+    format!(
+        "{name} comes with the plugin {plugin}, so it goes with it; turn the plugin off with wsp plugins disable {plugin} --agent {agent}."
+    )
 }
 
 /// Why a project's skill is not turned off: it lives in the repo, and the rename would be a change to it.
@@ -228,9 +230,7 @@ pub fn command_words(line: &str) -> Option<Vec<String>> {
     while i < chars.len() {
         let c = chars[i];
         if c == '\'' {
-            let Some(end) = chars[i + 1..].iter().position(|&x| x == '\'').map(|p| p + i + 1) else {
-                return None;
-            };
+            let end = chars[i + 1..].iter().position(|&x| x == '\'').map(|p| p + i + 1)?;
             word.get_or_insert_with(String::new).extend(&chars[i + 1..end]);
             i = end;
         } else if c == '"' {
@@ -810,4 +810,3 @@ pub fn tool_not_installed_fix(name: &str) -> String {
 
 // agents-report.ts:558
 // in wsp_wire::types::agents_report: AGENTS_KEY_REFUSAL
-

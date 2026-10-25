@@ -23,7 +23,11 @@ mod outside_line_tests {
 
     // const loud = { notifyNeeds: "notify-sound", notifyDone: "notify-sound", planAlerts: true }, with fields overridden.
     fn loud(needs: &str, done: &str, plan_alerts: bool) -> GeneralPreferences {
-        serde_json::from_value(crate::support::over(crate::support::general_preferences(), json!({ "notifyNeeds": needs, "notifyDone": done, "planAlerts": plan_alerts }))).unwrap()
+        serde_json::from_value(crate::support::over(
+            crate::support::general_preferences(),
+            json!({ "notifyNeeds": needs, "notifyDone": done, "planAlerts": plan_alerts }),
+        ))
+        .unwrap()
     }
 
     fn line(title: &str, body: &str, show: bool, sound: bool) -> Option<OutsideLine> {
@@ -57,7 +61,10 @@ mod outside_line_tests {
             assert_eq!(outside_line(&finished(), &default_preferences()), line("Fix login finished", "spoo", true, false));
             assert_eq!(outside_line(&awake(), &default_preferences()), line(NEEDS_YOU, "b1 is awake", true, false));
             assert_eq!(outside_line(&finished(), &loud("notify-sound", "off", true)), None);
-            assert_eq!(outside_line(&finished(), &loud("notify-sound", "notify-sound", true)), line("Fix login finished", "spoo", true, true));
+            assert_eq!(
+                outside_line(&finished(), &loud("notify-sound", "notify-sound", true)),
+                line("Fix login finished", "spoo", true, true)
+            );
             assert_eq!(
                 outside_line(
                     &OutsideMoment::Failed { thread: s("Fix login"), r#where: s("spoo"), error: Some(s("API Error: 529\n overloaded")) },
@@ -66,7 +73,10 @@ mod outside_line_tests {
                 line("Fix login stopped", "API Error: 529 overloaded", true, true)
             );
             assert_eq!(
-                outside_line(&OutsideMoment::Failed { thread: s("Fix login"), r#where: s("spoo"), error: None }, &loud("notify-sound", "sound", true)),
+                outside_line(
+                    &OutsideMoment::Failed { thread: s("Fix login"), r#where: s("spoo"), error: None },
+                    &loud("notify-sound", "sound", true)
+                ),
                 line("Fix login stopped", "spoo", false, true)
             );
             assert_eq!(outside_line(&awake(), &loud("off", "notify-sound", true)), line(NEEDS_YOU, "b1 is awake", true, true));
@@ -74,7 +84,10 @@ mod outside_line_tests {
 
         #[test]
         fn a_plan_alert_shows_with_no_sound_under_its_own_switch() {
-            let plan = || OutsideMoment::Plan { label: s("Claude Max"), alert: serde_json::from_value(serde_json::json!({ "kind": "blocked" })).unwrap() };
+            let plan = || OutsideMoment::Plan {
+                label: s("Claude Max"),
+                alert: serde_json::from_value(serde_json::json!({ "kind": "blocked" })).unwrap(),
+            };
             assert_eq!(outside_line(&plan(), &loud("off", "off", true)), line("Claude Max reached its plan limit", "", true, false));
             assert_eq!(outside_line(&plan(), &loud("notify-sound", "notify-sound", false)), None);
         }
@@ -82,23 +95,38 @@ mod outside_line_tests {
         #[test]
         fn a_computer_s_setup_says_it_failed_or_needs_the_person_under_the_needs_you_choice_and_ready_() {
             assert_eq!(
-                outside_line(&OutsideMoment::SetupFailed { computer: s("spoo"), said: s("the base tools did not install:\n apt said no") }, &default_preferences()),
+                outside_line(
+                    &OutsideMoment::SetupFailed { computer: s("spoo"), said: s("the base tools did not install:\n apt said no") },
+                    &default_preferences()
+                ),
                 line("spoo: setup failed", "the base tools did not install: apt said no", true, true)
             );
             assert_eq!(
-                outside_line(&OutsideMoment::SetupNeedsYou { computer: s("spoo"), what: s("sign in to Claude Code") }, &default_preferences()),
+                outside_line(
+                    &OutsideMoment::SetupNeedsYou { computer: s("spoo"), what: s("sign in to Claude Code") },
+                    &default_preferences()
+                ),
                 line(NEEDS_YOU, "spoo needs you: sign in to Claude Code", true, true)
             );
             assert_eq!(
                 outside_line(&OutsideMoment::SetupReady { computer: s("spoo"), missed: None }, &default_preferences()),
                 line("spoo is ready", "", true, false)
             );
-            assert_eq!(outside_line(&OutsideMoment::SetupReady { computer: s("spoo"), missed: None }, &loud("notify-sound", "off", true)), None);
             assert_eq!(
-                outside_line(&OutsideMoment::SetupReady { computer: s("spoo"), missed: Some(s("2 folders did not clone")) }, &loud("notify-sound", "notify-sound", true)),
+                outside_line(&OutsideMoment::SetupReady { computer: s("spoo"), missed: None }, &loud("notify-sound", "off", true)),
+                None
+            );
+            assert_eq!(
+                outside_line(
+                    &OutsideMoment::SetupReady { computer: s("spoo"), missed: Some(s("2 folders did not clone")) },
+                    &loud("notify-sound", "notify-sound", true)
+                ),
                 line("spoo is ready; 2 folders did not clone", "", true, true)
             );
-            assert_eq!(outside_line(&OutsideMoment::SetupFailed { computer: s("spoo"), said: s("x") }, &loud("off", "notify-sound", true)), None);
+            assert_eq!(
+                outside_line(&OutsideMoment::SetupFailed { computer: s("spoo"), said: s("x") }, &loud("off", "notify-sound", true)),
+                None
+            );
         }
 
         // Not ported: "a line keeps the page's id for the click to hand back, and drops an open an older page put on it"
@@ -258,8 +286,14 @@ mod plan_alerts_tests {
         fn says_each_alert_in_a_line_that_names_the_account() {
             let low: PlanAlert = serde_json::from_value(json!({ "kind": "low", "window": "session", "step": 70 })).unwrap();
             assert_eq!(plan_alert_line("Claude Max", &low), "Claude Max has used 70% of its session");
-            assert_eq!(plan_alert_line("Claude Max", &serde_json::from_value::<PlanAlert>(serde_json::json!({ "kind": "blocked" })).unwrap()), "Claude Max reached its plan limit");
-            assert_eq!(plan_alert_line("Claude Max", &serde_json::from_value::<PlanAlert>(serde_json::json!({ "kind": "back" })).unwrap()), "Claude Max can run again: its plan limit reset");
+            assert_eq!(
+                plan_alert_line("Claude Max", &serde_json::from_value::<PlanAlert>(serde_json::json!({ "kind": "blocked" })).unwrap()),
+                "Claude Max reached its plan limit"
+            );
+            assert_eq!(
+                plan_alert_line("Claude Max", &serde_json::from_value::<PlanAlert>(serde_json::json!({ "kind": "back" })).unwrap()),
+                "Claude Max can run again: its plan limit reset"
+            );
         }
     }
 }
@@ -268,8 +302,8 @@ mod cost_history_tests {
     use super::*;
     use jiff::tz::TimeZone;
     use jiff::Timestamp;
-    use wsp_words::cost_history::{accrued_at, append_cost_point, day_start, month_start, rate_at, spent_since};
     use wsp_wire::types::cost_history::COST_HISTORY_CAP;
+    use wsp_words::cost_history::{accrued_at, append_cost_point, day_start, month_start, rate_at, spent_since};
     use wsp_words::words::places::spend_meter_word;
 
     // Date.parse of an ISO stamp, in ms.
@@ -475,7 +509,6 @@ mod cost_history_tests {
     }
 }
 
-
 // Cases the spec pins; every expected value is what the TS function returned under node at a3b870a6e.
 mod pinned {
     use wsp_words::plan_alerts::*;
@@ -511,34 +544,172 @@ mod pinned {
         assert_eq!(js(&append_cost_point(&[], &ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"}))).iter().map(|p| p.at.clone()).collect::<Vec<_>>()), "[\"2026-10-01T00:00:00.000Z\"]"); // JSON.stringify(appendCostPoint([], {"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"}).map(p => p.at))
         assert_eq!(js(&append_cost_point(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"}))], &ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.05,"at":"2026-10-01T00:30:00.000Z"}))).iter().map(|p| p.at.clone()).collect::<Vec<_>>()), "[\"2026-10-01T00:00:00.000Z\",\"2026-10-01T00:30:00.000Z\"]"); // JSON.stringify(appendCostPoint([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"}], {"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.05,"at":"2026-10-01T00:30:00.000Z"}).map(p => p.at))
         assert_eq!(js(&append_cost_point(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:01:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:02:00.000Z"}))], &ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:03:00.000Z"}))).iter().map(|p| p.at.clone()).collect::<Vec<_>>()), "[\"2026-10-01T00:00:00.000Z\",\"2026-10-01T00:01:00.000Z\",\"2026-10-01T00:03:00.000Z\"]"); // JSON.stringify(appendCostPoint([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:01:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:02:00.000Z"}], {"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:03:00.000Z"}).map(p => p.at))
-        assert_eq!(js(&append_cost_point(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:01:00.000Z"}))], &ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:03:00.000Z"}))).iter().map(|p| p.at.clone()).collect::<Vec<_>>()), "[\"2026-10-01T00:00:00.000Z\",\"2026-10-01T00:01:00.000Z\",\"2026-10-01T00:03:00.000Z\"]"); // JSON.stringify(appendCostPoint([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:01:00.000Z"}], {"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:03:00.000Z"}).map(p => p.at))
+        assert_eq!(js(&append_cost_point(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:01:00.000Z"}))], &ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:03:00.000Z"}))).iter().map(|p| p.at.clone()).collect::<Vec<_>>()), "[\"2026-10-01T00:00:00.000Z\",\"2026-10-01T00:01:00.000Z\",\"2026-10-01T00:03:00.000Z\"]");
+        // JSON.stringify(appendCostPoint([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:01:00.000Z"}], {"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:03:00.000Z"}).map(p => p.at))
     }
 
     #[test]
     fn a_total_reads_off_the_line_between_ticks() {
-        assert_eq!(accrued_past(&ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.36,"awakeMs":0,"accruedUsd":1.5,"at":"2026-10-01T00:00:00.000Z"})), 3600000.0), 1.8599999999999999); // accruedPast({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.36,"awakeMs":0,"accruedUsd":1.5,"at":"2026-10-01T00:00:00.000Z"}, 3600000)
-        assert_eq!(accrued_past(&ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":2,"at":"2026-10-01T00:00:00.000Z"})), 10.0), 2.0); // accruedPast({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":2,"at":"2026-10-01T00:00:00.000Z"}, 10)
-        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790812799999.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "null"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790812799999) ?? "null")
-        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790812799999.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "null"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790812799999) ?? "null")
-        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790812800000.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "0"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790812800000) ?? "null")
-        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790812800000.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "0.1"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790812800000) ?? "null")
-        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790814600000.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "0.05"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790814600000) ?? "null")
-        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790814600000.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "0.1"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790814600000) ?? "null")
-        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790816400000.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "0.1"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790816400000) ?? "null")
-        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790816400000.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "0.1"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790816400000) ?? "null")
-        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790821800000.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "0.30000000000000004"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790821800000) ?? "null")
-        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790821800000.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "0.2"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790821800000) ?? "null")
-        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790842800000.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "0.4"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790842800000) ?? "null")
-        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790842800000.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "0"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790842800000) ?? "null")
-        assert_eq!(accrued_at(&[], 5.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "null"); // String(accruedAt([], 5) ?? "null")
-        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":1,"at":"2026-10-01T00:10:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":2,"at":"2026-10-01T00:10:00.000Z"}))], 1790813400000.0).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "null".into()), "2"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":1,"at":"2026-10-01T00:10:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":2,"at":"2026-10-01T00:10:00.000Z"}], 1790813400000) ?? "null")
-        assert_eq!(wsp_words::js::number_string(spent_since(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790812800000.0, None)), "0.4"); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790812800000, undefined))
-        assert_eq!(wsp_words::js::number_string(spent_since(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790814600000.0, None)), "0.35000000000000003"); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790814600000, undefined))
-        assert_eq!(wsp_words::js::number_string(spent_since(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790814600000.0, Some(1790818200000.0))), "0.10000000000000002"); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790814600000, 1790818200000))
-        assert_eq!(wsp_words::js::number_string(spent_since(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790809200000.0, Some(1790816400000.0))), "0.1"); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790809200000, 1790816400000))
-        assert_eq!(wsp_words::js::number_string(spent_since(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790848800000.0, Some(1790836800000.0))), "0"); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790848800000, 1790836800000))
-        assert_eq!(wsp_words::js::number_string(spent_since(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790827200000.0, Some(1790830800000.0))), "0"); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790827200000, 1790830800000))
-        assert_eq!(wsp_words::js::number_string(spent_since(&[], 0.0, None)), "0"); // String(spentSince([], 0))
+        assert_eq!(
+            accrued_past(
+                &ev(
+                    json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.36,"awakeMs":0,"accruedUsd":1.5,"at":"2026-10-01T00:00:00.000Z"})
+                ),
+                3600000.0
+            ),
+            1.8599999999999999
+        ); // accruedPast({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.36,"awakeMs":0,"accruedUsd":1.5,"at":"2026-10-01T00:00:00.000Z"}, 3600000)
+        assert_eq!(
+            accrued_past(
+                &ev(
+                    json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":2,"at":"2026-10-01T00:00:00.000Z"})
+                ),
+                10.0
+            ),
+            2.0
+        ); // accruedPast({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":2,"at":"2026-10-01T00:00:00.000Z"}, 10)
+        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790812799999.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "null"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790812799999) ?? "null")
+        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790812799999.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "null"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790812799999) ?? "null")
+        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790812800000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "0"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790812800000) ?? "null")
+        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790812800000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "0.1"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790812800000) ?? "null")
+        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790814600000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "0.05"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790814600000) ?? "null")
+        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790814600000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "0.1"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790814600000) ?? "null")
+        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790816400000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "0.1"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790816400000) ?? "null")
+        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790816400000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "0.1"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790816400000) ?? "null")
+        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790821800000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "0.30000000000000004"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790821800000) ?? "null")
+        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790821800000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "0.2"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790821800000) ?? "null")
+        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790842800000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "0.4"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790842800000) ?? "null")
+        assert_eq!(rate_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}))], 1790842800000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "0"); // String(rateAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790842800000) ?? "null")
+        assert_eq!(accrued_at(&[], 5.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "null"); // String(accruedAt([], 5) ?? "null")
+        assert_eq!(accrued_at(&[ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":1,"at":"2026-10-01T00:10:00.000Z"})), ev(json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":2,"at":"2026-10-01T00:10:00.000Z"}))], 1790813400000.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "2"); // String(accruedAt([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":1,"at":"2026-10-01T00:10:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":2,"at":"2026-10-01T00:10:00.000Z"}], 1790813400000) ?? "null")
+        assert_eq!(
+            wsp_words::js::number_string(spent_since(
+                &[
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"})
+                    )
+                ],
+                1790812800000.0,
+                None
+            )),
+            "0.4"
+        ); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790812800000, undefined))
+        assert_eq!(
+            wsp_words::js::number_string(spent_since(
+                &[
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"})
+                    )
+                ],
+                1790814600000.0,
+                None
+            )),
+            "0.35000000000000003"
+        ); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790814600000, undefined))
+        assert_eq!(
+            wsp_words::js::number_string(spent_since(
+                &[
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"})
+                    )
+                ],
+                1790814600000.0,
+                Some(1790818200000.0)
+            )),
+            "0.10000000000000002"
+        ); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790814600000, 1790818200000))
+        assert_eq!(
+            wsp_words::js::number_string(spent_since(
+                &[
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"})
+                    )
+                ],
+                1790809200000.0,
+                Some(1790816400000.0)
+            )),
+            "0.1"
+        ); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790809200000, 1790816400000))
+        assert_eq!(
+            wsp_words::js::number_string(spent_since(
+                &[
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"})
+                    )
+                ],
+                1790848800000.0,
+                Some(1790836800000.0)
+            )),
+            "0"
+        ); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790848800000, 1790836800000))
+        assert_eq!(
+            wsp_words::js::number_string(spent_since(
+                &[
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"})
+                    ),
+                    ev(
+                        json!({"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"})
+                    )
+                ],
+                1790827200000.0,
+                Some(1790830800000.0)
+            )),
+            "0"
+        ); // String(spentSince([{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0,"at":"2026-10-01T00:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.1,"awakeMs":0,"accruedUsd":0.1,"at":"2026-10-01T01:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0.2,"awakeMs":0,"accruedUsd":0.2,"at":"2026-10-01T02:00:00.000Z"},{"type":"workspace.cost","workspaceId":"w","phase":"running","rateUsdPerHour":0,"awakeMs":0,"accruedUsd":0.4,"at":"2026-10-01T03:00:00.000Z"}], 1790827200000, 1790830800000))
+        assert_eq!(wsp_words::js::number_string(spent_since(&[], 0.0, None)), "0");
+        // String(spentSince([], 0))
     }
 
     #[test]
@@ -548,34 +719,109 @@ mod pinned {
         assert_eq!(month_start(1767225600000.0, &jiff::tz::TimeZone::UTC), 1767225600000.0); // monthStart(1767225600000)
         assert_eq!(day_start(1767225600000.0, &jiff::tz::TimeZone::UTC), 1767225600000.0); // dayStart(1767225600000)
         assert_eq!(month_start(1798761599999.0, &jiff::tz::TimeZone::UTC), 1796083200000.0); // monthStart(1798761599999)
-        assert_eq!(day_start(1798761599999.0, &jiff::tz::TimeZone::UTC), 1798675200000.0); // dayStart(1798761599999)
+        assert_eq!(day_start(1798761599999.0, &jiff::tz::TimeZone::UTC), 1798675200000.0);
+        // dayStart(1798761599999)
     }
 
     #[test]
     fn a_plan_is_blocked_and_alerts_only_as_it_gets_worse() {
-        assert_eq!(plan_blocked(&lim(json!({"windows":[],"status":"reached"}))), true); // planBlocked({"windows":[],"status":"reached"})
-        assert_eq!(plan_blocked(&lim(json!({"windows":[{"kind":"session","usedPercent":100}]}))), true); // planBlocked({"windows":[{"kind":"session","usedPercent":100}]})
-        assert_eq!(plan_blocked(&lim(json!({"windows":[{"kind":"overage","usedPercent":150}]}))), false); // planBlocked({"windows":[{"kind":"overage","usedPercent":150}]})
-        assert_eq!(plan_blocked(&lim(json!({"windows":[{"kind":"week","usedPercent":99.9}]}))), false); // planBlocked({"windows":[{"kind":"week","usedPercent":99.9}]})
-        assert_eq!(plan_blocked(&lim(json!({"windows":[]}))), false); // planBlocked({"windows":[]})
-        assert_eq!(block_ends_at(&lim(json!({"windows":[{"kind":"session","usedPercent":100,"resetsAt":50},{"kind":"week","usedPercent":100,"resetsAt":90},{"kind":"month","usedPercent":10,"resetsAt":999}]}))).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "none".into()), "90"); // String(blockEndsAt({"windows":[{"kind":"session","usedPercent":100,"resetsAt":50},{"kind":"week","usedPercent":100,"resetsAt":90},{"kind":"month","usedPercent":10,"resetsAt":999}]}) ?? "none")
-        assert_eq!(block_ends_at(&lim(json!({"windows":[{"kind":"session","usedPercent":10,"resetsAt":50},{"kind":"week","usedPercent":20,"resetsAt":90}],"status":"reached"}))).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "none".into()), "90"); // String(blockEndsAt({"windows":[{"kind":"session","usedPercent":10,"resetsAt":50},{"kind":"week","usedPercent":20,"resetsAt":90}],"status":"reached"}) ?? "none")
-        assert_eq!(block_ends_at(&lim(json!({"windows":[{"kind":"session","usedPercent":100}],"status":"reached"}))).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "none".into()), "none"); // String(blockEndsAt({"windows":[{"kind":"session","usedPercent":100}],"status":"reached"}) ?? "none")
-        assert_eq!(block_ends_at(&lim(json!({"windows":[{"kind":"overage","usedPercent":100,"resetsAt":7},{"kind":"session","usedPercent":100,"resetsAt":5}]}))).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "none".into()), "5"); // String(blockEndsAt({"windows":[{"kind":"overage","usedPercent":100,"resetsAt":7},{"kind":"session","usedPercent":100,"resetsAt":5}]}) ?? "none")
-        assert_eq!(block_ends_at(&lim(json!({"windows":[]}))).map(|n| wsp_words::js::number_string(n)).unwrap_or_else(|| "none".into()), "none"); // String(blockEndsAt({"windows":[]}) ?? "none")
-        assert_eq!(js(&plan_alerts_of(None, &lim(json!({"windows":[{"kind":"session","usedPercent":75}]})), 100.0)), "[{\"kind\":\"low\",\"window\":\"session\",\"step\":70}]"); // JSON.stringify(planAlertsOf(undefined, {"windows":[{"kind":"session","usedPercent":75}]}, 100))
-        assert_eq!(js(&plan_alerts_of(Some(&lim(json!({"windows":[{"kind":"session","usedPercent":75}]}))), &lim(json!({"windows":[{"kind":"session","usedPercent":80}]})), 100.0)), "[]"); // JSON.stringify(planAlertsOf({"windows":[{"kind":"session","usedPercent":75}]}, {"windows":[{"kind":"session","usedPercent":80}]}, 100))
-        assert_eq!(js(&plan_alerts_of(Some(&lim(json!({"windows":[{"kind":"session","usedPercent":60}]}))), &lim(json!({"windows":[{"kind":"session","usedPercent":95},{"kind":"week","usedPercent":70}]})), 100.0)), "[{\"kind\":\"low\",\"window\":\"session\",\"step\":90},{\"kind\":\"low\",\"window\":\"week\",\"step\":70}]"); // JSON.stringify(planAlertsOf({"windows":[{"kind":"session","usedPercent":60}]}, {"windows":[{"kind":"session","usedPercent":95},{"kind":"week","usedPercent":70}]}, 100))
-        assert_eq!(js(&plan_alerts_of(Some(&lim(json!({"windows":[{"kind":"session","usedPercent":95,"resetsAt":10}]}))), &lim(json!({"windows":[{"kind":"session","usedPercent":95}]})), 100.0)), "[{\"kind\":\"low\",\"window\":\"session\",\"step\":90}]"); // JSON.stringify(planAlertsOf({"windows":[{"kind":"session","usedPercent":95,"resetsAt":10}]}, {"windows":[{"kind":"session","usedPercent":95}]}, 100))
-        assert_eq!(js(&plan_alerts_of(Some(&lim(json!({"windows":[{"kind":"session","usedPercent":95,"resetsAt":1000}]}))), &lim(json!({"windows":[{"kind":"session","usedPercent":96}]})), 100.0)), "[]"); // JSON.stringify(planAlertsOf({"windows":[{"kind":"session","usedPercent":95,"resetsAt":1000}]}, {"windows":[{"kind":"session","usedPercent":96}]}, 100))
-        assert_eq!(js(&plan_alerts_of(Some(&lim(json!({"windows":[],"status":"reached"}))), &lim(json!({"windows":[]})), 100.0)), "[{\"kind\":\"back\"}]"); // JSON.stringify(planAlertsOf({"windows":[],"status":"reached"}, {"windows":[]}, 100))
-        assert_eq!(js(&plan_alerts_of(Some(&lim(json!({"windows":[]}))), &lim(json!({"windows":[],"status":"reached"})), 100.0)), "[{\"kind\":\"blocked\"}]"); // JSON.stringify(planAlertsOf({"windows":[]}, {"windows":[],"status":"reached"}, 100))
-        assert_eq!(js(&plan_alerts_of(Some(&lim(json!({"windows":[],"status":"reached"}))), &lim(json!({"windows":[],"status":"reached"})), 100.0)), "[]"); // JSON.stringify(planAlertsOf({"windows":[],"status":"reached"}, {"windows":[],"status":"reached"}, 100))
+        assert!(plan_blocked(&lim(json!({"windows":[],"status":"reached"})))); // planBlocked({"windows":[],"status":"reached"})
+        assert!(plan_blocked(&lim(json!({"windows":[{"kind":"session","usedPercent":100}]})))); // planBlocked({"windows":[{"kind":"session","usedPercent":100}]})
+        assert!(!plan_blocked(&lim(json!({"windows":[{"kind":"overage","usedPercent":150}]})))); // planBlocked({"windows":[{"kind":"overage","usedPercent":150}]})
+        assert!(!plan_blocked(&lim(json!({"windows":[{"kind":"week","usedPercent":99.9}]})))); // planBlocked({"windows":[{"kind":"week","usedPercent":99.9}]})
+        assert!(!plan_blocked(&lim(json!({"windows":[]})))); // planBlocked({"windows":[]})
+        assert_eq!(block_ends_at(&lim(json!({"windows":[{"kind":"session","usedPercent":100,"resetsAt":50},{"kind":"week","usedPercent":100,"resetsAt":90},{"kind":"month","usedPercent":10,"resetsAt":999}]}))).map(wsp_words::js::number_string).unwrap_or_else(|| "none".into()), "90"); // String(blockEndsAt({"windows":[{"kind":"session","usedPercent":100,"resetsAt":50},{"kind":"week","usedPercent":100,"resetsAt":90},{"kind":"month","usedPercent":10,"resetsAt":999}]}) ?? "none")
+        assert_eq!(block_ends_at(&lim(json!({"windows":[{"kind":"session","usedPercent":10,"resetsAt":50},{"kind":"week","usedPercent":20,"resetsAt":90}],"status":"reached"}))).map(wsp_words::js::number_string).unwrap_or_else(|| "none".into()), "90"); // String(blockEndsAt({"windows":[{"kind":"session","usedPercent":10,"resetsAt":50},{"kind":"week","usedPercent":20,"resetsAt":90}],"status":"reached"}) ?? "none")
+        assert_eq!(
+            block_ends_at(&lim(json!({"windows":[{"kind":"session","usedPercent":100}],"status":"reached"})))
+                .map(wsp_words::js::number_string)
+                .unwrap_or_else(|| "none".into()),
+            "none"
+        ); // String(blockEndsAt({"windows":[{"kind":"session","usedPercent":100}],"status":"reached"}) ?? "none")
+        assert_eq!(
+            block_ends_at(&lim(
+                json!({"windows":[{"kind":"overage","usedPercent":100,"resetsAt":7},{"kind":"session","usedPercent":100,"resetsAt":5}]})
+            ))
+            .map(wsp_words::js::number_string)
+            .unwrap_or_else(|| "none".into()),
+            "5"
+        ); // String(blockEndsAt({"windows":[{"kind":"overage","usedPercent":100,"resetsAt":7},{"kind":"session","usedPercent":100,"resetsAt":5}]}) ?? "none")
+        assert_eq!(block_ends_at(&lim(json!({"windows":[]}))).map(wsp_words::js::number_string).unwrap_or_else(|| "none".into()), "none"); // String(blockEndsAt({"windows":[]}) ?? "none")
+        assert_eq!(
+            js(&plan_alerts_of(None, &lim(json!({"windows":[{"kind":"session","usedPercent":75}]})), 100.0)),
+            "[{\"kind\":\"low\",\"window\":\"session\",\"step\":70}]"
+        ); // JSON.stringify(planAlertsOf(undefined, {"windows":[{"kind":"session","usedPercent":75}]}, 100))
+        assert_eq!(
+            js(&plan_alerts_of(
+                Some(&lim(json!({"windows":[{"kind":"session","usedPercent":75}]}))),
+                &lim(json!({"windows":[{"kind":"session","usedPercent":80}]})),
+                100.0
+            )),
+            "[]"
+        ); // JSON.stringify(planAlertsOf({"windows":[{"kind":"session","usedPercent":75}]}, {"windows":[{"kind":"session","usedPercent":80}]}, 100))
+        assert_eq!(
+            js(&plan_alerts_of(
+                Some(&lim(json!({"windows":[{"kind":"session","usedPercent":60}]}))),
+                &lim(json!({"windows":[{"kind":"session","usedPercent":95},{"kind":"week","usedPercent":70}]})),
+                100.0
+            )),
+            "[{\"kind\":\"low\",\"window\":\"session\",\"step\":90},{\"kind\":\"low\",\"window\":\"week\",\"step\":70}]"
+        ); // JSON.stringify(planAlertsOf({"windows":[{"kind":"session","usedPercent":60}]}, {"windows":[{"kind":"session","usedPercent":95},{"kind":"week","usedPercent":70}]}, 100))
+        assert_eq!(
+            js(&plan_alerts_of(
+                Some(&lim(json!({"windows":[{"kind":"session","usedPercent":95,"resetsAt":10}]}))),
+                &lim(json!({"windows":[{"kind":"session","usedPercent":95}]})),
+                100.0
+            )),
+            "[{\"kind\":\"low\",\"window\":\"session\",\"step\":90}]"
+        ); // JSON.stringify(planAlertsOf({"windows":[{"kind":"session","usedPercent":95,"resetsAt":10}]}, {"windows":[{"kind":"session","usedPercent":95}]}, 100))
+        assert_eq!(
+            js(&plan_alerts_of(
+                Some(&lim(json!({"windows":[{"kind":"session","usedPercent":95,"resetsAt":1000}]}))),
+                &lim(json!({"windows":[{"kind":"session","usedPercent":96}]})),
+                100.0
+            )),
+            "[]"
+        ); // JSON.stringify(planAlertsOf({"windows":[{"kind":"session","usedPercent":95,"resetsAt":1000}]}, {"windows":[{"kind":"session","usedPercent":96}]}, 100))
+        assert_eq!(
+            js(&plan_alerts_of(Some(&lim(json!({"windows":[],"status":"reached"}))), &lim(json!({"windows":[]})), 100.0)),
+            "[{\"kind\":\"back\"}]"
+        ); // JSON.stringify(planAlertsOf({"windows":[],"status":"reached"}, {"windows":[]}, 100))
+        assert_eq!(
+            js(&plan_alerts_of(Some(&lim(json!({"windows":[]}))), &lim(json!({"windows":[],"status":"reached"})), 100.0)),
+            "[{\"kind\":\"blocked\"}]"
+        ); // JSON.stringify(planAlertsOf({"windows":[]}, {"windows":[],"status":"reached"}, 100))
+        assert_eq!(
+            js(&plan_alerts_of(
+                Some(&lim(json!({"windows":[],"status":"reached"}))),
+                &lim(json!({"windows":[],"status":"reached"})),
+                100.0
+            )),
+            "[]"
+        ); // JSON.stringify(planAlertsOf({"windows":[],"status":"reached"}, {"windows":[],"status":"reached"}, 100))
         assert_eq!(js(&plan_alerts_of(None, &lim(json!({"windows":[{"kind":"overage","usedPercent":99}]})), 100.0)), "[]"); // JSON.stringify(planAlertsOf(undefined, {"windows":[{"kind":"overage","usedPercent":99}]}, 100))
-        assert_eq!(plan_alert_line("Claude Max", &serde_json::from_value::<PlanAlert>(json!({"kind":"low","window":"week_opus","step":70})).unwrap()), "Claude Max has used 70% of its Opus week"); // planAlertLine("Claude Max", {"kind":"low","window":"week_opus","step":70})
-        assert_eq!(plan_alert_line("Claude Max", &serde_json::from_value::<PlanAlert>(json!({"kind":"low","window":"overage","step":90})).unwrap()), "Claude Max has used 90% of its extra usage"); // planAlertLine("Claude Max", {"kind":"low","window":"overage","step":90})
-        assert_eq!(plan_alert_line("Claude Max", &serde_json::from_value::<PlanAlert>(json!({"kind":"blocked"})).unwrap()), "Claude Max reached its plan limit"); // planAlertLine("Claude Max", {"kind":"blocked"})
-        assert_eq!(plan_alert_line("Claude Max", &serde_json::from_value::<PlanAlert>(json!({"kind":"back"})).unwrap()), "Claude Max can run again: its plan limit reset"); // planAlertLine("Claude Max", {"kind":"back"})
+        assert_eq!(
+            plan_alert_line(
+                "Claude Max",
+                &serde_json::from_value::<PlanAlert>(json!({"kind":"low","window":"week_opus","step":70})).unwrap()
+            ),
+            "Claude Max has used 70% of its Opus week"
+        ); // planAlertLine("Claude Max", {"kind":"low","window":"week_opus","step":70})
+        assert_eq!(
+            plan_alert_line(
+                "Claude Max",
+                &serde_json::from_value::<PlanAlert>(json!({"kind":"low","window":"overage","step":90})).unwrap()
+            ),
+            "Claude Max has used 90% of its extra usage"
+        ); // planAlertLine("Claude Max", {"kind":"low","window":"overage","step":90})
+        assert_eq!(
+            plan_alert_line("Claude Max", &serde_json::from_value::<PlanAlert>(json!({"kind":"blocked"})).unwrap()),
+            "Claude Max reached its plan limit"
+        ); // planAlertLine("Claude Max", {"kind":"blocked"})
+        assert_eq!(
+            plan_alert_line("Claude Max", &serde_json::from_value::<PlanAlert>(json!({"kind":"back"})).unwrap()),
+            "Claude Max can run again: its plan limit reset"
+        ); // planAlertLine("Claude Max", {"kind":"back"})
     }
 
     #[test]
@@ -585,8 +831,17 @@ mod pinned {
         assert_eq!(setup_ready_line("spoo", None), "spoo is ready"); // setupReadyLine("spoo")
         assert_eq!(setup_ready_line("spoo", Some("codex was not signed in")), "spoo is ready; codex was not signed in"); // setupReadyLine("spoo", "codex was not signed in")
         assert_eq!(how(wsp_words::general_prefs::notify_by(serde_json::from_value(json!("off")).unwrap())), "null"); // JSON.stringify(notifyBy("off") ?? null)
-        assert_eq!(how(wsp_words::general_prefs::notify_by(serde_json::from_value(json!("notify")).unwrap())), "{\"show\":true,\"sound\":false}"); // JSON.stringify(notifyBy("notify") ?? null)
-        assert_eq!(how(wsp_words::general_prefs::notify_by(serde_json::from_value(json!("sound")).unwrap())), "{\"show\":false,\"sound\":true}"); // JSON.stringify(notifyBy("sound") ?? null)
-        assert_eq!(how(wsp_words::general_prefs::notify_by(serde_json::from_value(json!("notify-sound")).unwrap())), "{\"show\":true,\"sound\":true}"); // JSON.stringify(notifyBy("notify-sound") ?? null)
+        assert_eq!(
+            how(wsp_words::general_prefs::notify_by(serde_json::from_value(json!("notify")).unwrap())),
+            "{\"show\":true,\"sound\":false}"
+        ); // JSON.stringify(notifyBy("notify") ?? null)
+        assert_eq!(
+            how(wsp_words::general_prefs::notify_by(serde_json::from_value(json!("sound")).unwrap())),
+            "{\"show\":false,\"sound\":true}"
+        ); // JSON.stringify(notifyBy("sound") ?? null)
+        assert_eq!(
+            how(wsp_words::general_prefs::notify_by(serde_json::from_value(json!("notify-sound")).unwrap())),
+            "{\"show\":true,\"sound\":true}"
+        ); // JSON.stringify(notifyBy("notify-sound") ?? null)
     }
 }

@@ -168,14 +168,32 @@ mod fmt_duration_fmt_elapsed_and_fmt_cost {
     #[test]
     fn fmt_duration_s_short_style_reads_ms_under_a_second_tenths_under_ten_whole_second() {
         let got: Vec<String> = [
-            0.0, 7.0, 999.0, 1500.0, 9960.0, 10458.0, 59_400.0, 59_600.0, 60_000.0, 101_515.0, 492_000.0, 862_399.0, 3_665_000.0, -5.0, f64::NAN, 4000.0,
+            0.0,
+            7.0,
+            999.0,
+            1500.0,
+            9960.0,
+            10458.0,
+            59_400.0,
+            59_600.0,
+            60_000.0,
+            101_515.0,
+            492_000.0,
+            862_399.0,
+            3_665_000.0,
+            -5.0,
+            f64::NAN,
+            4000.0,
         ]
         .iter()
         .map(|ms| fmt_duration(*ms, None))
         .collect();
         assert_eq!(
             got,
-            vec!["1ms", "7ms", "999ms", "1.5s", "10s", "10s", "59s", "60s", "1m", "1m 42s", "8m 12s", "14m 22s", "61m 5s", "0ms", "0ms", "4.0s"]
+            vec![
+                "1ms", "7ms", "999ms", "1.5s", "10s", "10s", "59s", "60s", "1m", "1m 42s", "8m 12s", "14m 22s", "61m 5s", "0ms", "0ms",
+                "4.0s"
+            ]
         );
     }
 
@@ -263,7 +281,10 @@ mod machine_size_words {
         assert_eq!(fmt_size(&size(1.0, 4096.0), None), nb("1 vCPU, 4 GB"));
         assert_eq!(place_facts_line(&size(1.0, 4096.0), None), nb("1 core, 4 GB"));
         assert_eq!(
-            box_room_lines(&wire(crate::support::over(crate::support::place_capacity(), json!({ "cores": 1, "memMb": 4096, "cpuTaken": 0, "memTakenMb": 0 }))))[0],
+            box_room_lines(&wire(crate::support::over(
+                crate::support::place_capacity(),
+                json!({ "cores": 1, "memMb": 4096, "cpuTaken": 0, "memTakenMb": 0 })
+            )))[0],
             "1 core, 0 in use by forks, 1 free"
         );
         assert_eq!(fmt_cpus(1.0, Some(CpuWord::Cores)), "1 core");
@@ -285,7 +306,8 @@ mod machine_size_words {
 
     #[test]
     fn size_from_word_names_nothing_for_a_word_that_is_not_a_size() {
-        let got: Vec<Option<WorkspaceSize>> = ["big", "2", "x4", "2x", "0x4", "2x0", "2 x 4", "2x4x8", "-2x4"].iter().map(|w| size_from_word(w)).collect();
+        let got: Vec<Option<WorkspaceSize>> =
+            ["big", "2", "x4", "2x", "0x4", "2x0", "2 x 4", "2x4x8", "-2x4"].iter().map(|w| size_from_word(w)).collect();
         assert_eq!(got, vec![None; 9]);
     }
 
@@ -331,11 +353,17 @@ mod machine_cap_refusal {
 
     #[test]
     fn names_the_machines_holding_the_slots_and_the_move_that_frees_one_without_saying() {
-        assert_eq!(machine_cap_refusal(&["first", "t-cap"], NONE, None), "both machine slots are in use: first, t-cap. Pause one or wait for a nap.");
+        assert_eq!(
+            machine_cap_refusal(&["first", "t-cap"], NONE, None),
+            "both machine slots are in use: first, t-cap. Pause one or wait for a nap."
+        );
         // A slot held by a machine this host cannot name is still held, so one holder is no proof of a one-slot plan.
         assert_eq!(machine_cap_refusal(&["first"], NONE, None), "a machine slot is in use: first. Pause it or wait for a nap.");
         assert_eq!(machine_cap_refusal(&["a", "b", "c"], NONE, None), "machine slots are in use: a, b, c. Pause one or wait for a nap.");
-        assert_eq!(machine_cap_refusal(&["a", "b", "c", "d"], NONE, None), "machine slots are in use: a, b, c, d. Pause one or wait for a nap.");
+        assert_eq!(
+            machine_cap_refusal(&["a", "b", "c", "d"], NONE, None),
+            "machine slots are in use: a, b, c, d. Pause one or wait for a nap."
+        );
     }
 
     #[test]
@@ -414,7 +442,10 @@ mod the_words_the_clients_print_for_the_job {
         let set = |ids: &[&str]| -> Vec<String> { ids.iter().map(|s| s.to_string()).collect() };
 
         // A locked row is on, a row with a picker is not counted, and a row nothing measured adds nothing.
-        assert_eq!(init_tally_of(&tools, &set(&["rust", "bun"]).into_iter().collect::<IndexSet<_>>()), InitTally { count: 3.0, bytes: 300.0 * MIB + 4.0 * gib });
+        assert_eq!(
+            init_tally_of(&tools, &set(&["rust", "bun"]).into_iter().collect::<IndexSet<_>>()),
+            InitTally { count: 3.0, bytes: 300.0 * MIB + 4.0 * gib }
+        );
         assert_eq!(init_tally_of(&logins, &IndexSet::new()), InitTally { count: 0.0, bytes: 0.0 });
         // Agents ticked to 663 MB and tools to 4.3 GB: the tools step counts its own rows and reads the whole image.
         assert_eq!(init_image_bytes(&job, None), 663.0 * MIB + 300.0 * MIB + 4.0 * gib);
@@ -427,19 +458,27 @@ mod the_words_the_clients_print_for_the_job {
         assert_eq!(init_image_bytes(&job_of(2.0 * gib, None), None), 2.0 * gib + 663.0 * MIB + 300.0 * MIB + 4.0 * gib);
         let drafted = || job_of(0.0, Some(json!([{ "at": "tools", "ticks": ["rust", "swift"], "answers": {} }])));
         assert_eq!(init_image_bytes(&drafted(), None), 663.0 * MIB + 300.0 * MIB + 7.0 * gib);
-        assert_eq!(
-            init_image_bytes(&drafted(), Some(&CurrentTicks { at: "tools".to_string(), ticks: vec![] })),
-            663.0 * MIB + 300.0 * MIB
-        );
+        assert_eq!(init_image_bytes(&drafted(), Some(&CurrentTicks { at: "tools".to_string(), ticks: vec![] })), 663.0 * MIB + 300.0 * MIB);
         assert_eq!(
             init_image_bytes(&job, Some(&CurrentTicks { at: "agents".to_string(), ticks: vec!["claude".to_string()] })),
             208.0 * MIB + 300.0 * MIB + 4.0 * gib
         );
-        assert_eq!(init_image_bytes(&wire(json!({ "id": "j", "road": "manual", "phase": "answering", "keys": {}, "step": 0, "stoppable": false, "rows": [], "progress": { "done": 0, "total": 0 }, "log": [], "screens": [] })), None), 0.0);
+        assert_eq!(
+            init_image_bytes(
+                &wire(
+                    json!({ "id": "j", "road": "manual", "phase": "answering", "keys": {}, "step": 0, "stoppable": false, "rows": [], "progress": { "done": 0, "total": 0 }, "log": [], "screens": [] })
+                ),
+                None
+            ),
+            0.0
+        );
         // The one rule for a screen's ticks as they stand, which the screen's draft and the estimate both read. The TS
         // spreads a Set in insertion order, which the IndexSet keeps.
         assert_eq!(init_ticks_of(&tools, None).into_iter().collect::<Vec<_>>(), set(&["rust", "bun"]));
-        assert_eq!(init_ticks_of(&tools, Some(&wire(json!({ "at": "tools", "ticks": ["swift"], "answers": {} })))).into_iter().collect::<Vec<_>>(), set(&["swift"]));
+        assert_eq!(
+            init_ticks_of(&tools, Some(&wire(json!({ "at": "tools", "ticks": ["swift"], "answers": {} })))).into_iter().collect::<Vec<_>>(),
+            set(&["swift"])
+        );
         // The estimate reads in the tone its share of the disk earns, never its weight: 4.9 GB is the danger weight and a quarter of the disk.
         assert_eq!(disk_tone(init_image_bytes(&job, None), total), SizeTone::Muted);
         assert_eq!(size_tone(init_image_bytes(&job, None)), SizeTone::Danger);
@@ -521,15 +560,16 @@ mod pinned {
         assert_eq!(fmt_bytes_of(900.0 * 1048576.0, 3.9 * 1073741824.0, None), "900 MB of 3.9 GB"); // fmtBytesOf(900*1048576, 3.9*1024**3)
         assert_eq!(fmt_bytes_of(3.6 * 1073741824.0, 3.9 * 1073741824.0, None), "3.6 of 3.9 GB"); // fmtBytesOf(3.6*1024**3, 3.9*1024**3)
         assert_eq!(fmt_bytes_of(512.0, 1000.0, None), "512 of 1000 B"); // fmtBytesOf(512, 1000)
-        assert_eq!(fmt_bytes_of(160e9, 160e9, Some(fmt_disk_bytes)), "160 of 160 GB"); // fmtBytesOf(160e9, 160e9, fmtDiskBytes)
+        assert_eq!(fmt_bytes_of(160e9, 160e9, Some(fmt_disk_bytes)), "160 of 160 GB");
+        // fmtBytesOf(160e9, 160e9, fmtDiskBytes)
     }
 
     #[test]
     fn rates_and_prices_read_the_rounded_thousandth() {
-        assert_eq!(charges_nothing(None), true); // chargesNothing(undefined)
-        assert_eq!(charges_nothing(Some(0.0)), true); // chargesNothing(0)
-        assert_eq!(charges_nothing(Some(-0.0)), true); // chargesNothing(-0)
-        assert_eq!(charges_nothing(Some(0.001)), false); // chargesNothing(0.001)
+        assert!(charges_nothing(None)); // chargesNothing(undefined)
+        assert!(charges_nothing(Some(0.0))); // chargesNothing(0)
+        assert!(charges_nothing(Some(-0.0))); // chargesNothing(-0)
+        assert!(!charges_nothing(Some(0.001))); // chargesNothing(0.001)
         assert_eq!(fmt_price(0.0), "free"); // fmtPrice(0)
         assert_eq!(fmt_price(0.09000000000000001), "$0.09/hr"); // fmtPrice(0.09000000000000001)
         assert_eq!(fmt_rate_dollars(0.09000000000000001_f64), "$0.09"); // fmtRateDollars(0.09000000000000001)
@@ -567,8 +607,14 @@ mod pinned {
         assert_eq!(fmt_cpus(1.0, None), "1 vCPU"); // fmtCpus(1)
         assert_eq!(fmt_cpus(1.0, Some(CpuWord::Cores)), "1 core"); // fmtCpus(1, "cores")
         assert_eq!(fmt_cpus(0.5, Some(CpuWord::Cores)), "0.5 cores"); // fmtCpus(0.5, "cores")
-        assert_eq!(size_got_line(&sz(2.0, 4096.0), &sz(4.0, 8192.0), true), "asked for 2\u{a0}vCPU,\u{a0}4\u{a0}GB; the machine has 4\u{a0}vCPU,\u{a0}8\u{a0}GB"); // sizeGotLine({ cpu: 2, memMb: 4096 }, { cpu: 4, memMb: 8192 }, true)
-        assert_eq!(size_got_line(&sz(2.0, 4096.0), &sz(4.0, 8192.0), false), "the image's size is 2\u{a0}vCPU,\u{a0}4\u{a0}GB; the machine has 4\u{a0}vCPU,\u{a0}8\u{a0}GB"); // sizeGotLine({ cpu: 2, memMb: 4096 }, { cpu: 4, memMb: 8192 }, false)
+        assert_eq!(
+            size_got_line(&sz(2.0, 4096.0), &sz(4.0, 8192.0), true),
+            "asked for 2\u{a0}vCPU,\u{a0}4\u{a0}GB; the machine has 4\u{a0}vCPU,\u{a0}8\u{a0}GB"
+        ); // sizeGotLine({ cpu: 2, memMb: 4096 }, { cpu: 4, memMb: 8192 }, true)
+        assert_eq!(
+            size_got_line(&sz(2.0, 4096.0), &sz(4.0, 8192.0), false),
+            "the image's size is 2\u{a0}vCPU,\u{a0}4\u{a0}GB; the machine has 4\u{a0}vCPU,\u{a0}8\u{a0}GB"
+        ); // sizeGotLine({ cpu: 2, memMb: 4096 }, { cpu: 4, memMb: 8192 }, false)
         assert_eq!(place_facts_line(&sz(1.0, 512.0), None), "1\u{a0}core,\u{a0}0.5\u{a0}GB"); // placeFactsLine({ cpu: 1, memMb: 512 })
         assert_eq!(size_word(&sz(2.0, 512.0)), "2x0.5"); // sizeWord({ cpu: 2, memMb: 512 })
         assert_eq!(size_word(&sz(2.0, 1000.0)), "2x1"); // sizeWord({ cpu: 2, memMb: 1000 })
@@ -583,7 +629,8 @@ mod pinned {
         assert_eq!(js(&size_from_word("2x4x")), "null"); // JSON.stringify(sizeFromWord("2x4x") ?? null)
         assert_eq!(js(&size_from_word("")), "null"); // JSON.stringify(sizeFromWord("") ?? null)
         assert_eq!(js(&size_from_word("1x0.0005")), "{\"cpu\":1,\"memMb\":1}"); // JSON.stringify(sizeFromWord("1x0.0005") ?? null)
-        assert_eq!(size_refusal("9x9", &[]), "9x9 is not a size this provider offers; the sizes are "); // sizeRefusal("9x9", [])
+        assert_eq!(size_refusal("9x9", &[]), "9x9 is not a size this provider offers; the sizes are ");
+        // sizeRefusal("9x9", [])
     }
 
     #[test]
@@ -663,36 +710,65 @@ mod pinned {
 
     #[test]
     fn boat_lines_say_only_what_boat_answered() {
-        assert_eq!(machine_cap_refusal(&[] as &[&str], &[] as &[&str], Some("")), "the provider is at its machine cap and no machine of this computer holds a slot; free one at the provider and try again"); // machineCapRefusal([], [], "")
+        assert_eq!(
+            machine_cap_refusal(&[] as &[&str], &[] as &[&str], Some("")),
+            "the provider is at its machine cap and no machine of this computer holds a slot; free one at the provider and try again"
+        ); // machineCapRefusal([], [], "")
         assert_eq!(machine_cap_refusal(&[] as &[&str], &[] as &[&str], Some("Too many concurrent sessions")), "the provider is at its machine cap and no machine of this computer holds a slot; free one at the provider and try again. The provider said: Too many concurrent sessions"); // machineCapRefusal([], [], "Too many concurrent sessions")
-        assert_eq!(machine_cap_refusal(&["a", "b", "c"], &[] as &[&str], None), "machine slots are in use: a, b, c. Pause one or wait for a nap."); // machineCapRefusal(["a", "b", "c"], [], undefined)
-        assert_eq!(starts_used_line(StartWindow::Minute, 12.0, 12.0, Some("the trial"), Some("spoo-1")), "Boat's starts for this minute are used (12 of 12 on the trial), so spoo-1 was not started; start it again in a minute."); // startsUsedLine("minute", 12, 12, "the trial", "spoo-1")
+        assert_eq!(
+            machine_cap_refusal(&["a", "b", "c"], &[] as &[&str], None),
+            "machine slots are in use: a, b, c. Pause one or wait for a nap."
+        ); // machineCapRefusal(["a", "b", "c"], [], undefined)
+        assert_eq!(
+            starts_used_line(StartWindow::Minute, 12.0, 12.0, Some("the trial"), Some("spoo-1")),
+            "Boat's starts for this minute are used (12 of 12 on the trial), so spoo-1 was not started; start it again in a minute."
+        ); // startsUsedLine("minute", 12, 12, "the trial", "spoo-1")
         assert_eq!(starts_used_line(StartWindow::Hour, 60.0, 60.0, None, Some("")), "Boat's starts for this hour are used (60 of 60), so the machine was not started; start it again later in the hour, or move to a plan with more at boat.dev/dashboard."); // startsUsedLine("hour", 60, 60, undefined, "")
         assert_eq!(starts_used_line(StartWindow::Day, 200.0, 200.0, Some("the $20 plan"), None), "Boat's starts for today are used (200 of 200 on the $20 plan), so the machine was not started; Boat counts the day again tomorrow, or a plan with more starts is at boat.dev/dashboard."); // startsUsedLine("day", 200, 200, "the $20 plan", undefined)
         assert_eq!(boat_plan_words(true, Some(20.0)), Some("the trial".to_string())); // boatPlanWords(true, 20)
         assert_eq!(boat_plan_words(false, None), None); // boatPlanWords(false, undefined)
         assert_eq!(boat_plan_words(false, Some(19.5)), Some("the $19.5 plan".to_string())); // boatPlanWords(false, 19.5)
-        assert_eq!(boat_request_limit_wait_line("POST /boxes", 1001.0, 2.0, 3.0), "POST /boxes met Boat's limit of 1,000 requests a minute from one address; asking again in 2s, try 2 of 3"); // boatRequestLimitWaitLine("POST /boxes", 1001, 2, 3)
-        assert_eq!(boat_request_limit_wait_line("GET /limits", 0.0, 1.0, 3.0), "GET /limits met Boat's limit of 1,000 requests a minute from one address; asking again in 0s, try 1 of 3"); // boatRequestLimitWaitLine("GET /limits", 0, 1, 3)
+        assert_eq!(
+            boat_request_limit_wait_line("POST /boxes", 1001.0, 2.0, 3.0),
+            "POST /boxes met Boat's limit of 1,000 requests a minute from one address; asking again in 2s, try 2 of 3"
+        ); // boatRequestLimitWaitLine("POST /boxes", 1001, 2, 3)
+        assert_eq!(
+            boat_request_limit_wait_line("GET /limits", 0.0, 1.0, 3.0),
+            "GET /limits met Boat's limit of 1,000 requests a minute from one address; asking again in 0s, try 1 of 3"
+        ); // boatRequestLimitWaitLine("GET /limits", 0, 1, 3)
         assert_eq!(boat_cancelled_line(None, None), "Boat could not get a machine and cancelled the create; start it again."); // boatCancelledLine(undefined, undefined)
-        assert_eq!(boat_cancelled_line(Some("spoo"), Some("")), "Boat could not get a machine for spoo and cancelled the create; start it again."); // boatCancelledLine("spoo", "")
-        assert_eq!(boat_cancelled_line(Some("spoo"), Some("no room")), "Boat could not get a machine for spoo and cancelled the create (no room); start it again."); // boatCancelledLine("spoo", "no room")
+        assert_eq!(
+            boat_cancelled_line(Some("spoo"), Some("")),
+            "Boat could not get a machine for spoo and cancelled the create; start it again."
+        ); // boatCancelledLine("spoo", "")
+        assert_eq!(
+            boat_cancelled_line(Some("spoo"), Some("no room")),
+            "Boat could not get a machine for spoo and cancelled the create (no room); start it again."
+        ); // boatCancelledLine("spoo", "no room")
         assert_eq!(boat_box_state_line("b1", "pending"), "Boat's machine b1 is pending"); // boatBoxStateLine("b1", "pending")
-        assert_eq!(boat_refused_log_line("POST /boxes", 429.0, None, None, "slow down\nsecond line"), "Boat refused POST /boxes: 429 code=none requestId=none: slow down"); // boatRefusedLogLine("POST /boxes", 429, undefined, undefined, "slow down\nsecond line")
-        assert_eq!(boat_refused_log_line("POST /boxes", 500.0, Some("E1"), Some("r-9"), &"y".repeat(305)), "Boat refused POST /boxes: 500 code=E1 requestId=r-9: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"); // boatRefusedLogLine("POST /boxes", 500, "E1", "r-9", "y".repeat(305))
+        assert_eq!(
+            boat_refused_log_line("POST /boxes", 429.0, None, None, "slow down\nsecond line"),
+            "Boat refused POST /boxes: 429 code=none requestId=none: slow down"
+        ); // boatRefusedLogLine("POST /boxes", 429, undefined, undefined, "slow down\nsecond line")
+        assert_eq!(boat_refused_log_line("POST /boxes", 500.0, Some("E1"), Some("r-9"), &"y".repeat(305)), "Boat refused POST /boxes: 500 code=E1 requestId=r-9: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy");
+        // boatRefusedLogLine("POST /boxes", 500, "E1", "r-9", "y".repeat(305))
     }
 
     #[test]
     fn disk_expiry_holds_at_the_keep_instant() {
         assert_eq!(disk_gone_released_line("x"), "x; the next send starts a new machine from the image"); // diskGoneReleasedLine("x")
         assert_eq!(disk_gone_replaced_line("x"), "x; it runs on a new machine from the image now"); // diskGoneReplacedLine("x")
-        assert_eq!(disk_expired_line("Oct 9"), "Its machine's disk was kept until Oct 9, so a send may find it gone and start a new machine"); // diskExpiredLine("Oct 9")
-        assert_eq!(disk_expired(&DiskKeep { disk_kept_until: Some(100.0), status: "idle", asking: None }, 100.0), true); // diskExpired({ diskKeptUntil: 100, status: "idle" }, 100)
-        assert_eq!(disk_expired(&DiskKeep { disk_kept_until: Some(101.0), status: "idle", asking: None }, 100.0), false); // diskExpired({ diskKeptUntil: 101, status: "idle" }, 100)
-        assert_eq!(disk_expired(&DiskKeep { disk_kept_until: Some(100.0), status: "running", asking: None }, 200.0), false); // diskExpired({ diskKeptUntil: 100, status: "running" }, 200)
-        assert_eq!(disk_expired(&DiskKeep { disk_kept_until: Some(100.0), status: "idle", asking: Some("t1") }, 200.0), false); // diskExpired({ diskKeptUntil: 100, status: "idle", asking: "t1" }, 200)
-        assert_eq!(disk_expired(&DiskKeep { disk_kept_until: Some(100.0), status: "idle", asking: Some("") }, 200.0), false); // diskExpired({ diskKeptUntil: 100, status: "idle", asking: "" }, 200)
-        assert_eq!(disk_expired(&DiskKeep { disk_kept_until: None, status: "idle", asking: None }, 200.0), false); // diskExpired({ status: "idle" }, 200)
+        assert_eq!(
+            disk_expired_line("Oct 9"),
+            "Its machine's disk was kept until Oct 9, so a send may find it gone and start a new machine"
+        ); // diskExpiredLine("Oct 9")
+        assert!(disk_expired(&DiskKeep { disk_kept_until: Some(100.0), status: "idle", asking: None }, 100.0)); // diskExpired({ diskKeptUntil: 100, status: "idle" }, 100)
+        assert!(!disk_expired(&DiskKeep { disk_kept_until: Some(101.0), status: "idle", asking: None }, 100.0)); // diskExpired({ diskKeptUntil: 101, status: "idle" }, 100)
+        assert!(!disk_expired(&DiskKeep { disk_kept_until: Some(100.0), status: "running", asking: None }, 200.0)); // diskExpired({ diskKeptUntil: 100, status: "running" }, 200)
+        assert!(!disk_expired(&DiskKeep { disk_kept_until: Some(100.0), status: "idle", asking: Some("t1") }, 200.0)); // diskExpired({ diskKeptUntil: 100, status: "idle", asking: "t1" }, 200)
+        assert!(!disk_expired(&DiskKeep { disk_kept_until: Some(100.0), status: "idle", asking: Some("") }, 200.0)); // diskExpired({ diskKeptUntil: 100, status: "idle", asking: "" }, 200)
+        assert!(!disk_expired(&DiskKeep { disk_kept_until: None, status: "idle", asking: None }, 200.0));
+        // diskExpired({ status: "idle" }, 200)
     }
 
     #[test]
@@ -704,11 +780,24 @@ mod pinned {
         assert_eq!(init_disk_line(3.0 * 1073741824.0, 2.0 * 1073741824.0), "about 3 GB of 2 GB on the image, over by 1 GB"); // initDiskLine(3*1024**3, 2*1024**3)
         assert_eq!(init_disk_line(2.0 * 1073741824.0, 2.0 * 1073741824.0), "about 2 GB of 2 GB on the image"); // initDiskLine(2*1024**3, 2*1024**3)
         assert_eq!(fmt_px(13.5), "13.5 px"); // fmtPx(13.5)
-        assert_eq!(present_elsewhere_line("node", "/opt/x/bin/node", "by brew", &["/opt/homebrew/bin", "/usr/local/bin"]), "node answers from /opt/x/bin/node, outside where brew puts it (/opt/homebrew/bin, /usr/local/bin)"); // presentElsewhereLine("node", "/opt/x/bin/node", "by brew", ["/opt/homebrew/bin", "/usr/local/bin"])
+        assert_eq!(
+            present_elsewhere_line("node", "/opt/x/bin/node", "by brew", &["/opt/homebrew/bin", "/usr/local/bin"]),
+            "node answers from /opt/x/bin/node, outside where brew puts it (/opt/homebrew/bin, /usr/local/bin)"
+        ); // presentElsewhereLine("node", "/opt/x/bin/node", "by brew", ["/opt/homebrew/bin", "/usr/local/bin"])
         assert_eq!(present_elsewhere_line("node", "/x", "npm", &[] as &[&str]), "node answers from /x, outside where npm puts it ()"); // presentElsewhereLine("node", "/x", "npm", [])
-        assert_eq!(present_elsewhere_line("node", "/x", "bytheway road", &["/a"]), "node answers from /x, outside where bytheway road puts it (/a)"); // presentElsewhereLine("node", "/x", "bytheway road", ["/a"])
-        assert_eq!(doctor_computer_row_line("spoo", "2026-10-25T10:00:00.000Z"), "the computers row read it present at 2026-10-25T10:00:00.000Z; wsp add spoo --update reads it again"); // doctorComputerRowLine("spoo", "2026-10-25T10:00:00.000Z")
-        assert_eq!(here_daemon_behind_line(7.0, 9.0, "wsp update"), "this computer's wsp daemon is version 7 and this wsp needs 9; wsp update stages the right one"); // hereDaemonBehindLine(7, 9, "wsp update")
-        assert_eq!(copy_verb_failed_line(-1.0), "the daemon's copy verb failed (exit -1); the host log has its output"); // copyVerbFailedLine(-1)
+        assert_eq!(
+            present_elsewhere_line("node", "/x", "bytheway road", &["/a"]),
+            "node answers from /x, outside where bytheway road puts it (/a)"
+        ); // presentElsewhereLine("node", "/x", "bytheway road", ["/a"])
+        assert_eq!(
+            doctor_computer_row_line("spoo", "2026-10-25T10:00:00.000Z"),
+            "the computers row read it present at 2026-10-25T10:00:00.000Z; wsp add spoo --update reads it again"
+        ); // doctorComputerRowLine("spoo", "2026-10-25T10:00:00.000Z")
+        assert_eq!(
+            here_daemon_behind_line(7.0, 9.0, "wsp update"),
+            "this computer's wsp daemon is version 7 and this wsp needs 9; wsp update stages the right one"
+        ); // hereDaemonBehindLine(7, 9, "wsp update")
+        assert_eq!(copy_verb_failed_line(-1.0), "the daemon's copy verb failed (exit -1); the host log has its output");
+        // copyVerbFailedLine(-1)
     }
 }

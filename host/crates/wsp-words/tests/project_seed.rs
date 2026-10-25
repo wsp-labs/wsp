@@ -74,7 +74,8 @@ mod what_a_seed_ticks_before_anybody_touches_the_menu {
     #[test]
     fn never_ticks_a_login_whatever_a_remembered_choice_says_about_it() {
         let base = plan();
-        let remembered = SeedPlan { remembered: true, files: base.files.iter().cloned().map(|f| SeedFile { ticked: true, ..f }).collect(), ..base };
+        let remembered =
+            SeedPlan { remembered: true, files: base.files.iter().cloned().map(|f| SeedFile { ticked: true, ..f }).collect(), ..base };
         let files = default_seed_choice(&remembered).files;
         assert!(!files.contains(&".git-credentials".to_string()), "{files:?}");
     }
@@ -91,7 +92,10 @@ mod what_a_person_s_own_words_make_of_the_menu {
 
     #[test]
     fn unticks_a_path_they_cut_and_ticks_one_the_catalog_does_not_carry_when_they_keep() {
-        assert_eq!(seed_choice_from(&plan(), &NONE, &[".env.local"], &SeedFlags::default()).unwrap().files, strings(&[".claude/settings.local.json"]));
+        assert_eq!(
+            seed_choice_from(&plan(), &NONE, &[".env.local"], &SeedFlags::default()).unwrap().files,
+            strings(&[".claude/settings.local.json"])
+        );
         assert_eq!(
             seed_choice_from(&plan(), &[".next-mock"], &NONE, &SeedFlags::default()).unwrap().files,
             strings(&[".env.local", ".claude/settings.local.json", ".next-mock"])
@@ -104,7 +108,10 @@ mod what_a_person_s_own_words_make_of_the_menu {
         assert_eq!((no_memory.memory, no_memory.commits), (false, true));
         let no_commits = seed_choice_from(&plan(), &NONE, &NONE, &SeedFlags { commits: Some(false), ..Default::default() }).unwrap();
         assert_eq!((no_commits.memory, no_commits.commits), (true, false));
-        assert_eq!(seed_choice_from(&plan(), &NONE, &NONE, &SeedFlags { remember: Some(true), ..Default::default() }).unwrap().remember, Some(true));
+        assert_eq!(
+            seed_choice_from(&plan(), &NONE, &NONE, &SeedFlags { remember: Some(true), ..Default::default() }).unwrap().remember,
+            Some(true)
+        );
         assert_eq!(seed_choice_from(&plan(), &NONE, &NONE, &SeedFlags::default()).unwrap().remember, None);
     }
 
@@ -168,11 +175,19 @@ mod a_project_s_seed_picks {
         let none = project_seed_lines(&project_seed_of("lab", &p, &SeedPicks { files: vec![], missing: vec![] }, false));
         assert_eq!(none.rows[1..].iter().map(|r| r[0].as_str()).collect::<Vec<_>>(), p.files.iter().map(|_| " ").collect::<Vec<_>>());
         assert_eq!(none.foot, strings(&["0 picked. Nothing was saved; add --yes to save these picks."]));
-        let some = project_seed_lines(&project_seed_of("lab", &p, &SeedPicks { files: strings(&[".env.local"]), missing: strings(&["old.env"]) }, true));
+        let some = project_seed_lines(&project_seed_of(
+            "lab",
+            &p,
+            &SeedPicks { files: strings(&[".env.local"]), missing: strings(&["old.env"]) },
+            true,
+        ));
         assert_eq!(some.rows[1][0], "x");
         assert_eq!(
             some.foot,
-            strings(&["Picked but not in the folder now, so a sub-thread starts without: old.env.", "1 picked, 4 KB. Saved: every later sub-thread of lab gets these."])
+            strings(&[
+                "Picked but not in the folder now, so a sub-thread starts without: old.env.",
+                "1 picked, 4 KB. Saved: every later sub-thread of lab gets these."
+            ])
         );
     }
 }
@@ -276,8 +291,15 @@ mod what_the_seeding_stage_says_as_the_files_go_and_once_they_have_landed {
         );
         // A memory folder is no file of the seed's: the menu counts it on a row of its own and so does this line,
         // so a seed of nothing but the memory reads as nought files here and as one file there.
-        let only_memory = SeedPlan { unpushed: None, memory: Some(SeedPlanMemory { key: "-Users-dev-spoo-landing".to_string(), files: 1.into(), bytes: 69.into() }), ..plan() };
-        assert_eq!(seeding_line(&only_memory, &choice(&[], true, false)), "Seeding 0 files, Claude Code memory (1 file, 69 B), from /Users/dev/spoo-landing.");
+        let only_memory = SeedPlan {
+            unpushed: None,
+            memory: Some(SeedPlanMemory { key: "-Users-dev-spoo-landing".to_string(), files: 1.into(), bytes: 69.into() }),
+            ..plan()
+        };
+        assert_eq!(
+            seeding_line(&only_memory, &choice(&[], true, false)),
+            "Seeding 0 files, Claude Code memory (1 file, 69 B), from /Users/dev/spoo-landing."
+        );
         // Nothing ticked at all still says where it came from.
         let bare = SeedPlan { memory: None, unpushed: None, ..plan() };
         assert_eq!(seeding_line(&bare, &choice(&[], false, false)), "Seeding 0 files, from /Users/dev/spoo-landing.");
