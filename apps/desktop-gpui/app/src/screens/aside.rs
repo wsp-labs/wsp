@@ -162,7 +162,7 @@ fn grow(workspace: &str, id: u64, text: &str, cx: &mut App) {
 
 fn settle(workspace: &str, id: u64, reply: Result<String, String>, cx: &mut App) {
     let Some(asides) = cx.try_global::<Asides>() else { return };
-    if !asides.by_workspace.get(workspace).is_some_and(|a| a.id == id) {
+    if asides.by_workspace.get(workspace).is_none_or(|a| a.id != id) {
         return;
     }
     if let Some(aside) = cx.global_mut::<Asides>().by_workspace.get_mut(workspace) {

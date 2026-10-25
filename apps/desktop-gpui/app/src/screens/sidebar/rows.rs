@@ -101,7 +101,7 @@ impl Sidebar {
             .values()
             .filter(|w| w.get("kind").and_then(Value::as_str) == Some("cloud"))
             // A machine whose record names a listed thread as the one that started it is drawn under that thread.
-            .filter(|w| !w.get("parentThreadId").and_then(Value::as_str).is_some_and(|lead| self.thread(lead).is_some()))
+            .filter(|w| w.get("parentThreadId").and_then(Value::as_str).is_none_or(|lead| self.thread(lead).is_none()))
             .filter_map(|w| {
                 let made = w.get("createdAt").and_then(Value::as_str).and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok());
                 Some((made.map_or(0., |t| t.timestamp_millis() as f64), w.get("id")?.as_str()?.to_owned()))

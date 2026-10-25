@@ -343,7 +343,7 @@ impl Dock {
     pub fn held(&self) -> bool {
         if self.multi() {
             let ticked = self.ticked();
-            return !ticked.iter().any(|t| t != OTHER) && !(ticked.iter().any(|t| t == OTHER) && self.typed_some);
+            return !(ticked.iter().any(|t| t != OTHER) || (ticked.iter().any(|t| t == OTHER) && self.typed_some));
         }
         self.field_open() && !self.consent() && !self.typed_some
     }
