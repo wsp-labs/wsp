@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use wsp_wire::wire::capabilities::Capabilities;
 
-use crate::errors::Result;
-use crate::fetch::Fetch;
+use crate::errors::{EngineError, Result};
+use crate::fetch::{platform_fetch, Fetch, FetchRequest};
 use crate::machine::{BytesLanded, Machine};
 
 /// land-bytes.ts:9.
@@ -22,17 +22,30 @@ pub struct LandBytesOptions {
 
 /// land-bytes.ts:18. Whether the machine carries a road of the backend's own for bytes: `machine.offers().put_bytes`.
 pub fn has_byte_road(machine: &dyn Machine) -> bool {
-    todo!()
+    machine.offers().put_bytes
 }
 
 /// land-bytes.ts:24. The provider mints a signed URL, or the backend carries its own road.
 pub fn lands_bytes(capabilities: &Capabilities, machine: &dyn Machine) -> bool {
-    todo!()
+    capabilities.signed_urls || has_byte_road(machine)
 }
 
 /// land-bytes.ts:30. The backend's own road first: `put_bytes(path, bytes, timeout_ms)` and its answer as it came.
 /// Else `upload_url(path)` and one `PUT` of the bytes to it, no headers, answering `None`; a status outside 200..300 is
 /// an `Other` with `<path> did not land on <machine id>: HTTP <status>`. A failed fetch is the failure as it was.
 pub async fn land_bytes(machine: &dyn Machine, path: &str, bytes: &[u8], opts: LandBytesOptions) -> Result<Option<BytesLanded>> {
-    todo!()
+    if has_byte_road(machine) {
+        return machine.put_bytes(path, bytes, opts.timeout_ms).await;
+    }
+    let url = machine.upload_url(path).await?;
+    let fetch = opts.fetch.clone().unwrap_or_else(platform_fetch);
+    let req = FetchRequest { method: "PUT".into(), url, headers: Vec::new(), body: Some(bytes.to_vec()), abort: None };
+    let put = fetch.fetch(req).await.map_err(EngineError::Road)?;
+    if !put.ok() {
+        return Err(EngineError::Other {
+            message: format!("{path} did not land on {}: HTTP {}", machine.id(), put.status),
+            code: None,
+        });
+    }
+    Ok(None)
 }

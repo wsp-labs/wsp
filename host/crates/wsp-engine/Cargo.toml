@@ -19,6 +19,10 @@ indexmap = { version = "2", features = ["serde"] }
 jiff = "0.2"
 libc = "0.2"
 rand = "0.8"
+# The platform HTTP client (fetch.rs). The ring provider only: with aws-lc-rs on as well, both providers in one process
+# panic at run time (#2450's design).
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "stream"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
