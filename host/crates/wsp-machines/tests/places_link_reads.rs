@@ -111,7 +111,7 @@ impl PlaceDoor for TestDoor {
         if let Some(ms) = opts.timeout_ms {
             frame.insert("timeoutMs".into(), json!(ms));
         }
-        let said = reach.request("exec", frame).await?;
+        let said = reach.request("exec", frame).await.map_err(|e| err(e.message))?;
         Ok(serde_json::from_value(Value::Object(said)).expect("an exec answer"))
     }
     async fn report_of(&self, place_id: &str) -> PlaceResult<Option<PlaceReport>> { unreachable!("link_reads reads none of this") }
@@ -220,7 +220,7 @@ struct Tag {
     logins: Option<String>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for Tag {
     fn capabilities(&self) -> Capabilities {
         serde_json::from_value(facts_json(None)["capabilities"].clone()).expect("capabilities")

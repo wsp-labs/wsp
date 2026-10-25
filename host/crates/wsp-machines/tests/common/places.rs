@@ -3,8 +3,7 @@
 //! records and views areas (slice b's, faked at the traits `setup.rs` and `link.rs` declare), the recording roads and
 //! a provisioner whose steps the test holds and answers, after `test/places-setup.test.ts:204-280`.
 //!
-//! Four shapes here follow stand-ins until their owners land them (wsp-core's clock, reach and devices, wsp-store's
-//! store); when they land, only this file moves.
+//! The clock, reach, devices and store here are wsp-core's and wsp-store's real traits.
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -19,7 +18,9 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
 use tokio::sync::oneshot;
 
-use wsp_core::types::pending::Clock;
+use wsp_core::clock::{Cancel, Clock, Timer as ClockTimer};
+use wsp_core::devices::{HeldDevice, MintMore};
+use wsp_core::reach::{ReachError, ReachStats};
 use wsp_core::types::pending::{DaemonReach, DeviceDoor, Store};
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_engine::provision::{EngineStep, ProvisionOn, ProvisionPlan, ProvisionStage, SetupRun};
@@ -28,6 +29,9 @@ use wsp_wire::types::agents_report::{AgentsSignInEvent, SignInLine};
 use wsp_wire::types::recipe_file::{RecipeFile, RecipeFileFoldersValue};
 use wsp_wire::views::place::{PlaceProvisionRow, PlaceSetupStep};
 use wsp_wire::views::place_more::{PlaceHolds, PlaceRemovedTook, PlaceSettings, PlaceView};
+use wsp_wire::views::workspace_more::ThreadScope;
+use wsp_wire::wire::daemon::DaemonLinkStatus;
+use wsp_wire::wire::devices::{DeviceVia, DeviceView};
 use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_wire::wire::machine_link::BackendFacts;
 use wsp_wire::wire::place_link::{PlaceAuthRefusal, PlaceProveRequest, PlaceReport};
@@ -77,14 +81,19 @@ pub fn base64_of(text: &str) -> String {
     base64::engine::general_purpose::STANDARD.encode(text)
 }
 
-/// A plain error with that message, built whole: `HostError::new` is wsp-words' and not written yet.
+/// A plain error with that message.
 pub fn err(message: impl Into<String>) -> HostError {
-    HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: Vec::new() }
+    HostError::new(message)
+}
+
+/// What a lost link answers a frame with.
+pub fn reach_err(message: impl Into<String>) -> ReachError {
+    ReachError { message: message.into(), kind: None, status: None, code: None }
 }
 
 /// The engine's `PlaceAbsent` as the areas read it once it is a `HostError`: kind `absent`.
 pub fn absent(message: impl Into<String>) -> HostError {
-    HostError { kind: Some(wsp_words::exit::Kind::Other("absent".into())), ..err(message) }
+    HostError::with_kind(message, wsp_words::exit::Kind::Other("absent".into()))
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -146,12 +155,12 @@ impl Clock for TestClock {
         self.now.get()
     }
 
-    fn schedule(&self, run: Box<dyn FnOnce()>, ms: u64) -> Box<dyn FnOnce()> {
+    fn schedule(&self, run: ClockTimer, ms: i64) -> Cancel {
         let id = self.seq.get() + 1;
         self.seq.set(id);
-        self.timers.borrow_mut().push(Timer { id, at: self.now.get() + ms as i64, run: Some(run) });
+        self.timers.borrow_mut().push(Timer { id, at: self.now.get() + ms, run: Some(run) });
         let timers = Rc::clone(&self.timers);
-        Box::new(move || {
+        Rc::new(move || {
             if let Some(t) = timers.borrow_mut().iter_mut().find(|t| t.id == id) {
                 t.run = None;
             }
@@ -241,27 +250,39 @@ impl FakeReach {
 
 #[async_trait(?Send)]
 impl DaemonReach for FakeReach {
-    async fn request(&self, op: &str, params: Map<String, Value>) -> Result<Map<String, Value>, HostError> {
+    async fn ready(&self) -> Result<(), ReachError> {
+        Ok(())
+    }
+
+    async fn request(&self, op: &str, params: Map<String, Value>) -> Result<Map<String, Value>, ReachError> {
         self.frames.borrow_mut().push((op.to_string(), params.clone()));
         if self.closed.get() {
-            return Err(err("connection lost"));
+            return Err(reach_err("connection lost"));
         }
         let reply = (self.script.borrow().clone())(op, &params);
         match reply {
             Reply::Ok(m) => Ok(m),
-            Reply::Err(e) => Err(err(e)),
+            Reply::Err(e) => Err(reach_err(e)),
             Reply::Hang => {
                 let (tx, rx) = oneshot::channel();
                 self.lost.borrow_mut().push(tx);
                 let _ = rx.await;
-                Err(err("connection lost"))
+                Err(reach_err("connection lost"))
             }
             Reply::Later(rx) => match rx.await {
                 Ok(Ok(m)) => Ok(m),
-                Ok(Err(e)) => Err(err(e)),
-                Err(_) => Err(err("connection lost")),
+                Ok(Err(e)) => Err(reach_err(e)),
+                Err(_) => Err(reach_err("connection lost")),
             },
         }
+    }
+
+    fn status(&self) -> Option<DaemonLinkStatus> {
+        None
+    }
+
+    fn stats(&self) -> ReachStats {
+        ReachStats::default()
     }
 
     fn close(&self) {
@@ -441,6 +462,30 @@ impl DeviceDoor for FakeDevices {
     }
     async fn admit(&self, _name: &str, _now: i64) -> Result<wsp_core::types::pending::PairedDevice, HostError> {
         unreachable!("not read by places-a")
+    }
+    async fn admit_account(&self, _name: &str, _via: DeviceVia, _now: i64) -> Result<wsp_core::types::pending::PairedDevice, HostError> {
+        unreachable!("not read by places-a")
+    }
+    async fn refuses(&self, _fingerprint: &str) -> Result<bool, HostError> {
+        Ok(false)
+    }
+    async fn mint(&self, _name: &str, _scope: ThreadScope, _now: i64, _more: MintMore) -> Result<wsp_core::types::pending::PairedDevice, HostError> {
+        unreachable!("not read by places-a")
+    }
+    async fn revoke_asides(&self) -> Result<(), HostError> {
+        Ok(())
+    }
+    async fn r#match(&self, _token: &str) -> Result<Option<HeldDevice>, HostError> {
+        Ok(None)
+    }
+    async fn seen(&self, _id: &str, _now: i64) -> Result<Option<HeldDevice>, HostError> {
+        Ok(None)
+    }
+    async fn list(&self) -> Result<Vec<DeviceView>, HostError> {
+        Ok(Vec::new())
+    }
+    async fn revoke(&self, _id: &str) -> Result<bool, HostError> {
+        Ok(false)
     }
 }
 

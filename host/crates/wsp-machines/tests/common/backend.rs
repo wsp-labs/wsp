@@ -32,7 +32,7 @@ pub struct Tagged {
     pub tag: String,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for Tagged {
     fn capabilities(&self) -> Capabilities {
         serde_json::from_value(facts_json(None)["capabilities"].clone()).expect("capabilities")
