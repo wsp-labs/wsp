@@ -37,8 +37,9 @@ same state the TS case does. Each spec's last section maps every rule to its tes
   answering a cancel). The TS reads `Date.now()` raw at setup.ts:144, :1079, :1084 and link.ts:204, and
   `setTimeout`/`setInterval` at setup.ts:153, :235, :1032, link.ts:184 and helpers.ts:58; the Rust reads the clock at
   each, so the tests drive time with the fake clock and never sleep. `unref` has no Rust meaning and is dropped.
-- **JSON key order** is the TS object literal's (serde_json `preserve_order`). Where a test compares a record or a
-  row, it compares keys in order: `landed_on` and `taken_report` pin orders the TS spread makes.
+- **JSON key order** is the TS object literal's (serde_json `preserve_order`) wherever the value is a map: a report's
+  `login` (an `IndexMap`), whose order `taken_report` pins. The wire's rows, setups and records are structs, so their
+  keys come in the struct's order and the tests compare values.
 - **Errors.** Every failure is `wsp_words::exit::HostError`. A TS `Object.assign(new Error(m), { kind: "usage" })`
   is `HostError::with_kind(m, Kind::Usage)`; `{ kind: "conflict" }` is `Kind::Conflict`. The TS error classes of
   `types.ts` are slice b's constructors and predicates (`is_place_provisioning`, `is_place_absent` from the engine).
