@@ -1,3 +1,7 @@
-{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there sends into its lead with wsp send and lists it with wsp threads"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEA2cPjmFiaeSqYzgHDgc1dZk3dBoe7YfZ8dYmMbB1OM/Q=","nonce":"jzzRrr10CfOrnxWeiSvCKS4FYpE6kaEjsF6/uoHasG4=","ephemeral":"+pokG8M7gHqkV/9R/DL6tBZEmhjeSafucUDLhsYwe00=","id":1,"op":"place.join"}}
-{"in":{"signature":"tpkJtssbJQhQIrTf5gffj9W8gyUlnJqHpZ3L8Mk6Cb7F3Aa1C+nwcFoHwC3+c0yycrqOdQuqEA8LBWfr3mMsBw==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}
+{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there reaches its lead by its words alone: no stop of the lead, no send that waits on its reply or carries a file"}}
+{"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"in":{"id":2,"op":"sessions.list"}}
+{"in":{"workspaceId":"ws_00000001","id":3,"op":"harnesses.list"}}
+{"in":{"ref":"ws_00000001","id":4,"op":"workspaces.resolve"}}
+{"in":{"workspaceId":"ws_00000001","id":5,"op":"workspaces.wake"}}
+{"in":{"workspaceId":"ws_00000001","prompt":"see the file","harness":"claude","thread":"00000000-0000-4000-8000-000000000002","attachments":[{"mediaType":"application/octet-stream","name":"notes.sh","bytes":"ZWNobyBoaQo="}],"startedBy":"cli","requestId":"00000000-0000-4000-8000-000000000005","answerHeld":true,"id":6,"op":"sessions.start"}}
