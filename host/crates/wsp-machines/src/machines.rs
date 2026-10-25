@@ -2,6 +2,7 @@
 //! `packages/runtime/src/machines/`.
 
 pub mod boot;
+pub mod core_types;
 pub mod brokered;
 pub mod create;
 pub mod daemon;

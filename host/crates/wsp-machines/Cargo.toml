@@ -9,16 +9,21 @@ description = "The machines area of the runtime: places, machines, images, and t
 
 [dependencies]
 async-trait = "0.1"
+futures = "0.3"
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"
 tokio = { version = "1", features = ["process", "time", "io-util", "fs", "rt", "macros", "sync"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+wsp-adapters = { path = "../wsp-adapters" }
+wsp-catalog = { path = "../wsp-catalog" }
 wsp-core = { path = "../wsp-core" }
 wsp-engine = { path = "../wsp-engine" }
 wsp-store = { path = "../wsp-store" }
 wsp-wire = { path = "../wsp-wire" }
 wsp-words = { path = "../wsp-words" }
+wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
 
 [dev-dependencies]
 tempfile = "3"
