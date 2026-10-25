@@ -27,7 +27,7 @@ fn since_value(s: &Since) -> Value {
 }
 
 fn broke(message: &str) -> HostError {
-    HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }
+    HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, marks: vec![] }
 }
 
 type Log = Rc<RefCell<Vec<String>>>;
