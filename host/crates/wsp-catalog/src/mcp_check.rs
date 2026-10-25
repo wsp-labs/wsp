@@ -4,7 +4,7 @@
 use serde::Serialize;
 
 use crate::js_regex::JsRegex;
-use crate::pending::McpAuth;
+use wsp_wire::types::agents_report::McpAuth;
 
 /// The harness's word on one server (mcp-check.ts:127).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

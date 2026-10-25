@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 
 use indexmap::IndexMap;
 
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 use crate::roads::{InstallRoad, ReleaseAssets};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

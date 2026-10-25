@@ -4,7 +4,7 @@
 use indexmap::IndexMap;
 use serde::Serialize;
 
-use crate::pending::HttpBearer;
+use wsp_wire::wire::daemon::HttpBearer;
 
 /// One module per harness (mcp-oauth.ts:202).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

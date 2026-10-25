@@ -6,7 +6,7 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 
 use crate::mcp::{KnownValue, McpFormat, McpReferred, ReferredServer, WholeRef};
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// `WSP_MCP_<server>_<header>` upper-cased, every character outside A-Z 0-9 _ an underscore (mcp.ts:181).
 pub fn mcp_header_variable(server: &str, header: &str) -> String {

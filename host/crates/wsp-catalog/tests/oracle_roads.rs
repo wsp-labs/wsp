@@ -8,7 +8,8 @@ use serde_json::{json, Map, Value};
 use wsp_catalog::base_image::BASE_IMAGE_COMMANDS;
 use wsp_catalog::linux_casks::{linux_casks, CURSOR, GCLOUD, KUBECTL};
 use wsp_catalog::mac_paths::{MAC_BIN_DIRS, MAC_BREW, MAC_ONLY};
-use wsp_catalog::pending::{ToolPin, TOOL_PREFIX};
+use wsp_wire::views::golden_image::ToolPin;
+use wsp_wire::types::daemon_contract::TOOL_PREFIX;
 use wsp_catalog::release_pins::{pinned_release, RELEASE_PINS};
 use wsp_catalog::road_modules::*;
 use wsp_catalog::road_release::{asset_install, release_install, ASSET_ARCH_AARCH64, ASSET_ARCH_X86_64, ASSET_SKIPPED};
@@ -187,7 +188,7 @@ mod constants_and_scripts {
 
     #[test]
     fn a_pin_stands_while_the_version_is_its_tag_or_none_and_goes_once_it_moved() {
-        let pin = ToolPin { tag: "1.0".into(), ..Default::default() };
+        let pin = ToolPin { tag: "1.0".into(), sha256: None, arch: None, latest: None };
         assert_eq!(pin_state_of(None, None), PinState::None);
         assert_eq!(pin_state_of(Some("1.0"), None), PinState::None);
         assert_eq!(pin_state_of(None, Some(&pin)), PinState::Same);

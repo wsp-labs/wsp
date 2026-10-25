@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use regex::Regex;
 use wsp_catalog::catalog::catalog_tools;
 use wsp_catalog::marks::{brand_marks, server_mark, tool_mark};
-use wsp_catalog::pending::McpRowTransport;
+use wsp_wire::types::agents_report::{McpRowTransport, McpRowTransportHttp, McpRowTransportStdio};
 
 // The CLIs that draw the neutral terminal glyph on purpose: no mark is registered for them yet.
 const TERMINAL_GLYPH: [&str; 58] = [
@@ -17,11 +17,11 @@ const TERMINAL_GLYPH: [&str; 58] = [
 ];
 
 fn http(host: &str) -> McpRowTransport {
-    McpRowTransport::Http { host: host.to_string() }
+    McpRowTransport::Http(McpRowTransportHttp { host: host.to_string() })
 }
 
 fn stdio(line: &str) -> McpRowTransport {
-    McpRowTransport::Stdio { line: line.to_string() }
+    McpRowTransport::Stdio(McpRowTransportStdio { line: line.to_string() })
 }
 
 fn server_id(transport: &McpRowTransport) -> Option<String> {

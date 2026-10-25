@@ -12,7 +12,7 @@ use wsp_catalog::config_write::{
     config_landing, config_refusal, config_sum, config_write_line, under_base, ConfigWrite, CONFIG_CHANGED_EXIT, CONFIG_LINKS_EXIT,
     CONFIG_LINK_EXIT,
 };
-use wsp_catalog::pending::config_hard_link_refusal;
+use wsp_words::agents_report::config_hard_link_refusal;
 
 fn home() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::Builder::new().prefix("wsp-config-write-").tempdir().unwrap();

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::mcp_travelled::FromTo;
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// How a server starts (mcp.ts:15).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

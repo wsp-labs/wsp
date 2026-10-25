@@ -9,7 +9,7 @@ use wsp_catalog::catalog::catalog_agents;
 use wsp_catalog::jsonc::parse_jsonc;
 use wsp_catalog::mcp::{McpFormat, McpReferred, McpResolved, McpTransport, ReferredServer, CODEX_TOML, GEMINI_SETTINGS_JSON, MCP_SERVERS_JSON, OPENCODE_JSON};
 use wsp_catalog::mcp_refs::{mcp_header_variable, oauth_secrets_in, refers, servers_by_name, still_stands, ByName, Dropped, HeldValue, KnownEntry};
-use wsp_catalog::pending::HostError;
+use wsp_words::exit::HostError;
 
 const HOME: &str = "/Users/dev";
 const TOKEN: &str = "lin_api_TESTONLY";

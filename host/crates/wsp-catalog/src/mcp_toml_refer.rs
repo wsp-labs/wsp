@@ -4,7 +4,7 @@
 use indexmap::IndexSet;
 
 use crate::mcp::{KnownValue, McpReferred};
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// The key a table line sets, unquoted (mcp.ts:1597).
 pub fn toml_key(line: &str) -> Option<String> {

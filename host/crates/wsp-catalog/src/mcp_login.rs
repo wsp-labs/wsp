@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::js_regex::JsRegex;
 use crate::mcp::McpServer;
-use crate::pending::{HostError, PageReach};
+use wsp_words::exit::HostError;
+use wsp_wire::types::agents_report::PageReach;
 
 /// One module per harness (mcp-login.ts:229-243): a command, or a line typed inside the harness's own session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

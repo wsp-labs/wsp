@@ -3,7 +3,7 @@
 //! `mcp.excluded`) and OpenCode's `mcp`. Port of packages/catalog/src/mcp.ts:470-1255 less the reference writer, at
 //! a3b870a6e; the spec is spec/mcp_json.md. Every function takes one of the three JSON formats and panics on Codex's.
 use crate::mcp::{McpEditScope, McpEdited, McpFormat, McpMergeScope, McpMerged, McpResolved, McpServer, McpTransport, RewriteString, WholeRef};
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// The key a format's servers sit under: `mcpServers` or `mcp` (mcp.ts:1184, 1229).
 pub fn servers_key(format: McpFormat) -> &'static str {

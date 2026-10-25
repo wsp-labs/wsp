@@ -4,7 +4,10 @@
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::pending::{HostError, PluginBrings, PluginMissing, PluginScope};
+use wsp_words::exit::HostError;
+use wsp_wire::types::agents_report::PluginBrings;
+use wsp_wire::types::agents_report::PluginMissing;
+use wsp_wire::types::agents_report::PluginScope;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootsFrom {
@@ -71,7 +74,7 @@ pub struct PluginSkillDirs {
 }
 
 /// plugins.ts:322.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FoundPlugin {
     pub id: String,
@@ -99,7 +102,7 @@ pub struct FoundPlugin {
 }
 
 /// plugins.ts:341.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize)]
 pub struct PluginsFound {
     pub plugins: Vec<FoundPlugin>,
     pub refused: Vec<String>,

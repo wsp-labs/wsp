@@ -6,7 +6,7 @@ use std::sync::LazyLock;
 
 use serde::Serialize;
 
-use crate::pending::CarryModule;
+use wsp_wire::views::workspace_more::CarryModule;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -71,7 +71,7 @@ pub fn runs_threads(id: &str) -> bool {
 }
 
 /// What a new worktree in one ecosystem gets (ecosystems/module.ts:10).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct EcosystemModule {
     #[serde(flatten)]
     pub carry: CarryModule,

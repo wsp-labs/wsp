@@ -4,7 +4,7 @@
 use indexmap::IndexSet;
 
 use crate::mcp::{KnownValue, McpFormat, McpReferred};
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// `format.refer` for a JSON format (mcp.ts:957).
 pub fn refer(format: McpFormat, text: &str, only: Option<&str>, known: &[KnownValue], outside: &IndexSet<String>) -> Result<McpReferred, HostError> {

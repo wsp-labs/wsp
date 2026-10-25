@@ -3,7 +3,7 @@
 //! packages/catalog/src/hooks.ts and codex-hooks.ts at a3b870a6e; the spec is spec/hooks.md.
 use serde::Serialize;
 
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// Where a script lands on the guest, absolute; nothing when it cannot travel (hooks.ts:11).
 pub type HookPlacer<'a> = &'a dyn Fn(&str) -> Option<String>;

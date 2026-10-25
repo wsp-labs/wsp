@@ -5,7 +5,7 @@
 use serde_json::Value;
 
 use crate::jsonc_tree::{Comment, JsonPath, Node};
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// One change: the value at the path set, or taken out where it is `None` (mcp.ts:486). A last step of `Index(-1)`
 /// puts the value after an array's last element.

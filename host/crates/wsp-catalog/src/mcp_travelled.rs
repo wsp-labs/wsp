@@ -2,7 +2,7 @@
 //! The servers one scope of an agent's JSON config carries in the copy that travelled. Port of
 //! packages/catalog/src/mcp-travelled.ts at a3b870a6e; spec/jsonc.md.
 use crate::jsonc::JsonObject;
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// A laptop folder and the machine folder its servers belong to now.
 #[derive(Debug, Clone, PartialEq, Eq)]

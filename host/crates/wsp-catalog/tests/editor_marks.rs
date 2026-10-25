@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use regex::Regex;
 use wsp_catalog::marks::{editor_mark, editor_marks};
-use wsp_catalog::pending::EditorId;
+use wsp_wire::views::preferences::EditorId;
 
 const EDITOR_IDS: [EditorId; 14] = [
     EditorId::Vscode,

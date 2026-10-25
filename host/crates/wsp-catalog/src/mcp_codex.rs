@@ -2,7 +2,7 @@
 //! Codex's own reads of its TOML: what a server's start hands it, and the trust table. Port of
 //! packages/catalog/src/mcp-codex.ts at a3b870a6e; the spec is spec/mcp_toml_refer.md.
 use crate::mcp::{McpResolved, McpServer};
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// env_vars pass through where they have a value; each env_http_headers and bearer_token_env_var header must have one
 /// (mcp-codex.ts:12).

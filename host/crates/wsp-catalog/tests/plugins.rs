@@ -11,10 +11,15 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use wsp_catalog::catalog::catalog_entry;
-use wsp_catalog::pending::{config_changed_refusal, HostError, PluginBrings, PluginMissing, PluginScope};
+use wsp_words::agents_report::config_changed_refusal;
+use wsp_words::exit::HostError;
+use wsp_wire::types::agents_report::PluginBrings;
+use wsp_wire::types::agents_report::PluginMissing;
+use wsp_wire::types::agents_report::PluginScope;
 use wsp_catalog::plugins::{in_store, join_path, plain_values, FoundPlugin, PeekGroup, Peeked, PluginIo, PluginProject, PluginShelf, PluginSkillDirs, PluginsFound};
 
 #[derive(Deserialize)]
+
 struct ClaudeInit {
     plugins: Vec<InitPlugin>,
     agents: Vec<String>,
@@ -196,7 +201,7 @@ impl PluginIo for FilesIo {
                 *held = Some(next);
             }
             Some(EditMode::Record) => {}
-            None => return Err(HostError::plain("this road writes no settings file")),
+            None => return Err(HostError::new("this road writes no settings file")),
         }
         self.edits.lock().unwrap().push(Edit { file: file.to_string(), base: base.to_string() });
         Ok(())
@@ -538,7 +543,7 @@ mod codexs_plugins_through_its_app_server {
         assert_eq!(brags[0].missing, Some(PluginMissing::Uninstalled));
         assert_eq!(brags[0].source.as_deref(), Some("/x/mk/brag"));
         assert_eq!(
-            wsp_catalog::pending::plugin_missing_line("brag@brag", "brag", Some(PluginMissing::Uninstalled), true, "Codex", "lab-box"),
+            wsp_words::agents_report::plugin_missing_line(&brag_row(brags[0]), "Codex", "lab-box"),
             "The config.toml on lab-box names brag@brag, but Codex has it in its marketplace brag and not installed, so no turn loads it."
         );
     }
@@ -606,5 +611,25 @@ mod the_whole_read_is_the_ts_read {
     fn codexs_read_is_every_ts_row_with_its_config_version_and_file() {
         same(&read(PluginShelf::Codex, &codex_io(CodexOpts::default()), &[]), "codex");
         same(&read(PluginShelf::Codex, &codex_io(CodexOpts { uninstalled: Some("brag@brag"), ..CodexOpts::default() }), &[]), "codexUninstalled");
+    }
+}
+
+fn brag_row(found: &FoundPlugin) -> wsp_wire::types::agents_report::PluginRow {
+    let none = || Vec::new();
+    wsp_wire::types::agents_report::PluginRow {
+        agent: "codex".to_string(),
+        id: found.id.clone(),
+        name: "brag".to_string(),
+        marketplace: found.marketplace.clone(),
+        version: None,
+        scope: PluginScope::User,
+        on: found.on,
+        missing: found.missing,
+        description: None,
+        source: found.source.clone(),
+        brings: PluginBrings { skills: none(), commands: none(), subagents: none(), hooks: none(), servers: none(), lsp: none(), apps: none() },
+        project: None,
+        path: None,
+        set_in: None,
     }
 }

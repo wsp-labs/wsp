@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The one write of an agent's config file on any computer, as a line for that computer's own sh. Port of
 //! packages/catalog/src/config-write.ts at a3b870a6e; the spec is spec/mcp_launch.md.
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// The home where the store sits under it, else the store (config-write.ts:341).
 pub fn store_base(store: &str, home: &str) -> String {

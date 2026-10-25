@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use wsp_catalog::context::*;
 use wsp_catalog::git_hosts::*;
 use wsp_catalog::marks::*;
-use wsp_catalog::pending::McpRowTransport;
+use wsp_wire::types::agents_report::McpRowTransport;
 use wsp_catalog::seed::*;
 use wsp_catalog::skills::claude_plugin_skills;
 

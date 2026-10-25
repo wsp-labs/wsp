@@ -5,7 +5,9 @@ use indexmap::IndexMap;
 use serde::Serialize;
 
 use crate::js_regex::JsRegex;
-use crate::pending::{AgentSignInKind, SignInFinish, SignInRoad};
+use wsp_wire::types::agents_report::AgentSignInKind;
+use wsp_wire::types::init_job::SignInFinish;
+use wsp_wire::types::agents_report::SignInRoad;
 
 /// One status reader per sign-in row, the closures of signin.ts:344-536 by the row they sit on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
