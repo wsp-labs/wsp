@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use indexmap::IndexMap;
-use wsp_catalog::road_modules::{road_step, BREW_PREFIX, HOMEBREW_COMMIT, HOMEBREW_TAG};
-use wsp_catalog::roads::RoadName;
+use wsp_catalog::road_modules::{road_module_named, road_step, BREW_PREFIX, HOMEBREW_COMMIT, HOMEBREW_TAG};
+use wsp_catalog::roads::{is_road, RoadName};
 use wsp_wire::wire::machine_link::ExecResult;
 use wsp_words::words::base::{listed_name, name_list};
 use wsp_words::words::thread::{step_retry_line, timed_out_line};
@@ -89,14 +89,9 @@ fn skipped_by_reason(skipped: &[&ToolResult]) -> String {
 //   return housekeeping !== undefined ? `${parts.join(", ")}; ${housekeeping}` : parts.join(", ");
 // }
 
-/// The ROAD_MODULES words of the two roads a source install reports (`release`, `go`). The catalog's RoadModule
-/// carries no `words` yet, so they are spelled here, from road-modules.ts:417 and :550.
-fn road_words(kind: &str) -> &str {
-    match kind {
-        "release" => "from its release",
-        "go" => "with go install",
-        other => other,
-    }
+/// golden-tools.ts:81: `ROAD_MODULES[t.road.kind].words`; a kind that is no road reads as itself.
+fn road_words(kind: &str) -> String {
+    is_road(Some(kind)).map_or_else(|| kind.to_string(), |road| road_module_named(road).words())
 }
 
 fn summarize(tools: &[ToolResult], housekeeping: Option<&str>) -> String {
@@ -317,8 +312,8 @@ fn brew_lock_wait_cmd() -> String {
 }
 
 fn road_named(manager: &str) -> Result<RoadName> {
-    serde_json::from_value(serde_json::Value::String(manager.to_string()))
-        .map_err(|_| EngineError::Other { message: format!("{manager} is not a road"), code: None })
+    is_road(Some(manager))
+        .ok_or_else(|| EngineError::Other { message: "Cannot read properties of undefined (reading 'limitS')".to_string(), code: None })
 }
 
 struct Loop<'a> {

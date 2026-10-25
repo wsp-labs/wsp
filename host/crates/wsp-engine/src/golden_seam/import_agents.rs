@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Unit import_agents (spec/golden-import_agents.md): golden-import.ts:1348-1403 and 1422-1534 at a4033dc34. The
 //! ticked agents' installers, the one Node step their floors ask for, and the agents as steps of the tools loop.
-use indexmap::IndexMap;
-use wsp_catalog::catalog::{catalog_agents, install_line, smoke_of, AgentEntry, CatalogEntry};
-use wsp_catalog::roads::{NODE_RELEASES, UV_INSTALL};
+use std::collections::HashSet;
 
-use super::import_roads::{pin_read_of, road_word};
-use super::{AgentsPlan, PinRead, RecipeEntry, ToolInstall};
+use indexmap::IndexMap;
+use wsp_catalog::catalog::{catalog_agents, catalog_tool_for, install_line, smoke_of, AgentEntry, CatalogEntry};
+use wsp_catalog::road_modules::{road_module, road_module_named};
+use wsp_catalog::roads::{node_install_script, NODE_BIN, NODE_PATH_LINE, NODE_RELEASES, ROADS, UV_INSTALL};
+use wsp_wire::views::golden_image::MCP_ID_PREFIX;
+use wsp_words::js::to_number;
+
+use super::import_roads::{asks_version, manager_behind, path_line, pin_read_of, road_reads, road_word, shown_of};
+use super::{AgentInstall, AgentsPlan, NodeInstall, PinRead, RecipeEntry, SkippedItem, ToolInstall};
 
 /// golden-import.ts:1350 `AgentInstaller`. `road` is the road's name.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -43,21 +48,7 @@ pub const AGENT_NODE_STEP: &str = "agents/node";
 /// golden-import.ts:1389 `agentInstallers(agents)`: each agent's by its id in the slice's order, then `aider`'s line.
 /// An agent whose road gives no install line is a catalog fault: the TS throws at load, and this panics.
 pub fn agent_installers(agents: &[AgentEntry]) -> IndexMap<String, AgentInstaller> {
-    let mut out = IndexMap::new();
-    for a in agents {
-        let install = install_line(&CatalogEntry::Agent(a.clone())).unwrap_or_else(|e| panic!("{}: {e}", a.id));
-        out.insert(
-            a.id.clone(),
-            AgentInstaller {
-                name: a.name.clone(),
-                install,
-                smoke: smoke_of(&CatalogEntry::Agent(a.clone())),
-                road: road_word(a.install_road.name()).to_string(),
-                node: a.node,
-                pin: Some(pin_read_of(&a.install_road, &a.bin, None)),
-            },
-        );
-    }
+    let mut out: IndexMap<String, AgentInstaller> = agents.iter().map(|a| (a.id.clone(), agent_installer(a))).collect();
     out.insert(
         "aider".to_string(),
         AgentInstaller {
@@ -70,6 +61,19 @@ pub fn agent_installers(agents: &[AgentEntry]) -> IndexMap<String, AgentInstalle
         },
     );
     out
+}
+
+/// golden-import.ts:1368 `agentInstaller`: an agent's installer as the catalog gives it.
+fn agent_installer(a: &AgentEntry) -> AgentInstaller {
+    let entry = CatalogEntry::Agent(a.clone());
+    AgentInstaller {
+        name: a.name.clone(),
+        install: install_line(&entry).unwrap_or_else(|e| panic!("{}: {e}", a.id)),
+        smoke: smoke_of(&entry),
+        road: road_word(a.install_road.name()).to_string(),
+        node: a.node,
+        pin: Some(pin_read_of(&a.install_road, &a.bin, None)),
+    }
 }
 
 // TS golden-import.ts:1376-1384
@@ -163,7 +167,86 @@ pub fn node_floor_check(floor: u32) -> String {
 // }
 /// golden-import.ts:1462 `agentInstallsFor(entries, agents, now)`, `now` in ms since the epoch.
 pub fn agent_installs_for_rows(entries: &[RecipeEntry], agents: &[AgentEntry], now_ms: i64) -> AgentsPlan {
-    todo!()
+    let table = agent_installers(agents);
+    let mut installs: Vec<AgentInstall> = Vec::new();
+    let mut skipped: Vec<SkippedItem> = Vec::new();
+    let mut on_node: HashSet<String> = HashSet::new();
+    for e in entries {
+        if e.bring != Some(true) || e.rung != "agents" || e.id.starts_with(MCP_ID_PREFIX) {
+            continue;
+        }
+        let key = agent_key(&e.id);
+        let entry = agents.iter().find(|a| a.id == key);
+        let installer = match entry {
+            Some(a) => Some(pinned_installer(a, e)),
+            None => table.get(key).cloned(),
+        };
+        let Some(i) = installer else {
+            skipped.push(SkippedItem { id: e.id.clone(), note: "no installer known".to_string() });
+            continue;
+        };
+        let runs_on_node = match entry {
+            Some(a) => manager_behind(road_module(&a.install_road).after()).is_some(),
+            None => is_npm_global(&i.install),
+        };
+        if runs_on_node {
+            on_node.insert(e.id.clone());
+        }
+        installs.push(AgentInstall { id: e.id.clone(), name: i.name, install: i.install, smoke: i.smoke, road: i.road, node: i.node, pin: i.pin });
+    }
+    installs.retain(|a| match a.node {
+        Some(floor) if node_major_for(floor, now_ms).is_none() => {
+            skipped.push(SkippedItem { id: a.id.clone(), note: format!("needs Node {floor}, none pinned") });
+            false
+        }
+        _ => true,
+    });
+    let floor = installs.iter().filter_map(|a| a.node).max().unwrap_or_else(catalog_node_major);
+    let needs: Vec<&AgentInstall> = installs.iter().filter(|a| a.node.is_some() || on_node.contains(&a.id)).collect();
+    let node = match node_major_for(floor, now_ms) {
+        Some(major) if !needs.is_empty() => NODE_RELEASES.iter().find(|(m, _)| *m == major).map(|(_, release)| NodeInstall {
+            floor,
+            version: release.version.to_string(),
+            agents: needs.iter().map(|a| a.name.clone()).collect(),
+            cmd: node_install_script(floor, release),
+        }),
+        _ => None,
+    };
+    AgentsPlan { installs, skipped, node }
+}
+
+/// golden-import.ts:1398 `NPM_INSTALL_LINE.test`: some line is `npm install -g [--ignore-scripts ]<name>@<version>`.
+fn is_npm_global(install: &str) -> bool {
+    let spec_ok = |s: &str| {
+        !s.is_empty() && !s.chars().any(char::is_whitespace) && s.char_indices().any(|(i, c)| c == '@' && i >= 1 && i + 1 < s.len())
+    };
+    install.split(['\n', '\r', '\u{2028}', '\u{2029}']).any(|line| {
+        line.strip_prefix("npm install -g ")
+            .is_some_and(|rest| spec_ok(rest) || rest.strip_prefix("--ignore-scripts ").is_some_and(spec_ok))
+    })
+}
+
+/// golden-import.ts:154 `name`: the id after its first `/`.
+fn agent_key(id: &str) -> &str {
+    id.split_once('/').map_or(id, |(_, rest)| rest)
+}
+
+/// golden-import.ts:1401 `CATALOG_NODE_MAJOR`.
+fn catalog_node_major() -> u32 {
+    catalog_tool_for("node").and_then(|t| t.major.as_ref()).map_or(0.0, |m| to_number(&m.version)) as u32
+}
+
+/// golden-import.ts:1452 `pinnedInstaller`.
+fn pinned_installer(a: &AgentEntry, row: &RecipeEntry) -> AgentInstaller {
+    let at = row
+        .pin
+        .as_ref()
+        .filter(|pin| pin.latest.is_none())
+        .and_then(|pin| road_module(&a.install_road).at(&a.install_road, &pin.tag));
+    match at {
+        Some(install_road) => agent_installer(&AgentEntry { install_road, ..a.clone() }),
+        None => agent_installer(a),
+    }
 }
 
 /// `agentInstallsFor(ids.map(row))`, as the provision tests call it: each id a ticked row as provision.test.ts:121
@@ -218,7 +301,47 @@ pub fn agent_installs_for(ids: &[&str]) -> AgentsPlan {
 // }
 /// golden-import.ts:1512 `agentSteps(plan, agents, path, prefix)`.
 pub fn agent_steps_with(plan: &AgentsPlan, agents: &[AgentEntry], path: &str, prefix: Option<&str>) -> Vec<ToolInstall> {
-    todo!()
+    let mut out: Vec<ToolInstall> = Vec::new();
+    if let Some(node) = &plan.node {
+        out.push(ToolInstall {
+            id: AGENT_NODE_STEP.to_string(),
+            label: format!("Node {}", node.version),
+            manager: "script".to_string(),
+            cmd: node.cmd.clone(),
+            shown: Some(format!("Node {} for {}", node.version, node.agents.join(", "))),
+            check: Some(node_floor_check(node.floor)),
+            bin: Some(NODE_BIN.to_string()),
+            ..Default::default()
+        });
+    }
+    for a in &plan.installs {
+        let entry = agents.iter().find(|e| e.id == agent_key(&a.id));
+        let waits = plan.node.is_some() && agent_road_behind(&a.road);
+        let mut step = ToolInstall {
+            id: a.id.clone(),
+            label: a.name.clone(),
+            manager: a.road.clone(),
+            cmd: format!("{}\n{NODE_PATH_LINE}\n{}", path_line(path, prefix), a.install),
+            shown: Some(shown_of(&a.install.split('\n').collect::<Vec<_>>())),
+            check: Some(a.smoke.clone()),
+            after: waits.then(|| AGENT_NODE_STEP.to_string()),
+            pin: a.pin.clone(),
+            ..Default::default()
+        };
+        if let Some(e) = entry {
+            let reads = road_reads(&e.install_road, &e.bin, prefix);
+            step.bin = Some(e.bin.clone());
+            step.present = reads.present;
+            step.bins = reads.bins;
+            step.asks = asks_version(&e.install_road);
+        }
+        out.push(step);
+    }
+    out
+}
+
+fn agent_road_behind(road: &str) -> bool {
+    ROADS.iter().find(|r| r.as_str() == road).is_some_and(|r| manager_behind(road_module_named(*r).after()).is_some())
 }
 
 /// golden-import.ts:1512 `agentSteps(plan, CATALOG_AGENTS, path, prefix)`, as provision runs it.

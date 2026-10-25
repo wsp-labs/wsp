@@ -2,10 +2,26 @@
 //! Unit import_plan (spec/golden-import_plan.md): golden-import.ts:1009-1015 and 1073-1234 at a4033dc34. A recipe's
 //! ticked tools rows as the steps of the one tools loop: Homebrew and its toolchain, the managers, the rows, the rows
 //! outside the catalog, each waiting on what it needs.
-use wsp_wire::views::golden_image::RecipeCustomRow;
+use std::collections::HashSet;
 
-use super::{BaseRow, BrewTable, RecipeEntry, SkippedItem, ToolInstall};
-use crate::errors::Result;
+use indexmap::IndexMap;
+use wsp_catalog::catalog::{below_line, base_entry_for, catalog_tool_for, ToolEntry};
+use wsp_catalog::road_modules::{
+    as_linuxbrew, brew_has_check, install_homes, road_module, road_module_named, APT_INDEX, APT_UPDATE, BREW, BREW_PREFIX, BREW_REAL,
+    BREW_REPO, BREW_SHIM_PRESENT, HOMEBREW_COMMIT, HOMEBREW_STEP, HOMEBREW_TAG, LINUXBREW_HOME, LINUXBREW_SHIM,
+};
+use wsp_catalog::roads::{is_road, InstallRoad, RoadName, APT_ENV};
+use wsp_wire::types::shell_quote::shell_quote;
+use wsp_wire::views::golden_image::{package_of, tool_row_id, tool_row_prefix, RecipeCustomRow, BREW_ID_PREFIX};
+
+use super::import_roads::{
+    apt_index_step, asks_version, base_row_for, brew_tap_check, brewfile_for, catalog_tool_of, custom_installs_for, manager_behind,
+    manager_formula, path_line, pin_read_of, road_reads, road_step_reads, row_road, via_road, Brewfile, PlannedRow, ViaRoad,
+    CATALOG_PREFIX, MANAGER_ORDER, MANAGER_STEP,
+};
+use super::{BaseRow, Below, BrewTable, RecipeEntry, SkippedItem, ToolInstall};
+use crate::brew_shared::{brew_shared_check, brew_shared_deps, BREW_TOOLCHAIN};
+use crate::errors::{EngineError, Result};
 
 /// golden-import.ts:1009 `ToolsPlan`.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -189,7 +205,420 @@ pub fn tool_installs_for_rows(
     path: &str,
     prefix: Option<&str>,
 ) -> Result<ToolsPlan> {
-    todo!()
+    let brew = brewfile_for(entries, table);
+    let empty = BrewTable::new();
+    let tool_rows: Vec<&RecipeEntry> =
+        entries.iter().filter(|e| e.bring == Some(true) && e.rung == "tools" && base_row_for(e, &empty).is_none()).collect();
+    let mut skipped = brew.skipped.clone();
+    let mut catalog: Vec<(RecipeEntry, PlannedRow)> = Vec::new();
+    for e in &tool_rows {
+        if !e.id.starts_with(CATALOG_PREFIX) && catalog_tool_of(e).is_none() {
+            continue;
+        }
+        match row_road(e, table) {
+            Some(planned) => catalog.push(((*e).clone(), planned)),
+            None => skipped.push(SkippedItem { id: e.id.clone(), note: "not in the catalog".to_string() }),
+        }
+    }
+    let npm_ticked: HashSet<String> =
+        tool_rows.iter().filter(|e| e.id.starts_with(&tool_row_prefix("npm"))).map(|e| package_of(&e.id)).collect();
+    let mut plan = Plan {
+        entries,
+        table,
+        custom,
+        path,
+        prefix,
+        tool_rows,
+        catalog,
+        npm_ticked,
+        toolchain: Vec::new(),
+        toolchain_last: "tools/homebrew".to_string(),
+        installs: Vec::new(),
+        skipped,
+        managers: IndexMap::new(),
+        manager_formulae: Vec::new(),
+        resolved: HashSet::new(),
+        brought: HashSet::new(),
+        brew,
+    };
+    plan.run()?;
+    Ok(ToolsPlan { installs: plan.installs, skipped: plan.skipped, base: plan.brew.base, brewfile: plan.brew.text })
+}
+
+/// What a manager is brought by (golden-import.ts:1116): what rows of its roads wait on, and the step or the catalog
+/// row that brings it.
+struct Brings {
+    after: String,
+    step: Option<ToolInstall>,
+    row: Option<(RecipeEntry, PlannedRow)>,
+}
+
+struct Plan<'a> {
+    entries: &'a [RecipeEntry],
+    table: &'a BrewTable,
+    custom: &'a [RecipeCustomRow],
+    path: &'a str,
+    prefix: Option<&'a str>,
+    tool_rows: Vec<&'a RecipeEntry>,
+    catalog: Vec<(RecipeEntry, PlannedRow)>,
+    npm_ticked: HashSet<String>,
+    toolchain: Vec<ToolInstall>,
+    toolchain_last: String,
+    installs: Vec<ToolInstall>,
+    skipped: Vec<SkippedItem>,
+    managers: IndexMap<RoadName, Brings>,
+    manager_formulae: Vec<String>,
+    resolved: HashSet<RoadName>,
+    brought: HashSet<RoadName>,
+    brew: Brewfile,
+}
+
+fn failure(message: String) -> EngineError {
+    EngineError::Other { message, code: None }
+}
+
+/// golden-import.ts:1073 `viaBrew`.
+fn via_brew(formula: &str, path: &str, prefix: Option<&str>) -> Result<(String, String)> {
+    match via_road(&InstallRoad::Brew { formula: formula.to_string(), pin: None }, formula, path, prefix) {
+        ViaRoad::Step { cmd, shown } => Ok((cmd, shown)),
+        ViaRoad::Note(note) => Err(failure(format!("{formula}: {note}"))),
+    }
+}
+
+/// golden-import.ts:1080 `managerRoad`.
+fn manager_road(c: &RecipeCustomRow) -> Option<RoadName> {
+    is_road(c.manager.as_deref())
+}
+
+/// golden-import.ts:359 `depOf`.
+fn dep_of(planned: &PlannedRow) -> Option<String> {
+    planned.after.clone().or_else(|| road_module(&planned.road).after().map(str::to_string))
+}
+
+impl Plan<'_> {
+    fn rows_of(&self, manager: RoadName) -> Vec<&RecipeEntry> {
+        let prefix = tool_row_prefix(manager.as_str());
+        self.tool_rows.iter().copied().filter(|e| e.id.starts_with(&prefix)).collect()
+    }
+
+    fn catalog_rows_of(&self, manager: RoadName) -> Vec<(RecipeEntry, PlannedRow)> {
+        self.catalog.iter().filter(|(_, p)| p.road.name() == manager).cloned().collect()
+    }
+
+    fn custom_of(&self, manager: RoadName) -> usize {
+        self.custom.iter().filter(|c| manager_road(c) == Some(manager)).count()
+    }
+
+    fn as_manager(&self, id: &str) -> bool {
+        self.managers.values().any(|m| m.row.as_ref().is_some_and(|(e, _)| e.id == id))
+    }
+
+    fn run(&mut self) -> Result<()> {
+        let (path, prefix) = (self.path, self.prefix);
+        let mut last = "tools/homebrew".to_string();
+        for f in BREW_TOOLCHAIN {
+            let id = format!("tools/brew-toolchain/{f}");
+            let (cmd, shown) = via_brew(f, path, prefix)?;
+            self.toolchain.push(ToolInstall {
+                id: id.clone(),
+                label: format!("Homebrew's {f}"),
+                manager: "brew".to_string(),
+                cmd,
+                shown: Some(shown),
+                after: Some(last),
+                check: Some(brew_has_check(&[f])),
+                ..Default::default()
+            });
+            last = id;
+        }
+        self.toolchain_last = last;
+
+        for manager in MANAGER_ORDER {
+            if self.rows_of(manager).len() + self.catalog_rows_of(manager).len() + self.custom_of(manager) == 0 {
+                continue;
+            }
+            self.resolve_manager(manager)?;
+        }
+        let owners: Vec<RoadName> = self.catalog.iter().filter_map(|(_, p)| manager_behind(dep_of(p).as_deref())).collect();
+        for owner in owners {
+            self.resolve_manager(owner)?;
+        }
+        let catalog_formulae: Vec<String> = self
+            .catalog
+            .iter()
+            .filter(|(_, p)| p.road.name() == RoadName::Brew)
+            .flat_map(|(_, p)| road_module(&p.road).names(&p.road))
+            .collect();
+
+        if self.brew.taps.len() + self.brew.formulae.len() > 0
+            || self.manager_formulae.len() + catalog_formulae.len() + self.custom_of(RoadName::Brew) > 0
+        {
+            self.installs.push(ToolInstall {
+                id: "tools/homebrew".to_string(),
+                label: "Homebrew".to_string(),
+                manager: "brew".to_string(),
+                cmd: format!("{}\n{}", path_line(path, prefix), homebrew_bootstrap()),
+                shown: Some(format!("git clone github.com/Homebrew/brew at {HOMEBREW_TAG}")),
+                bin: Some("brew".to_string()),
+                present: Some(BREW_SHIM_PRESENT.clone()),
+                ..Default::default()
+            });
+            self.installs.extend(self.toolchain.clone());
+            for t in &self.brew.taps {
+                self.installs.push(ToolInstall {
+                    id: format!("tools/brew-tap/{t}"),
+                    label: t.clone(),
+                    manager: "brew".to_string(),
+                    cmd: format!("{}\n{}", path_line(path, prefix), as_linuxbrew(&format!("tap {t}"))),
+                    shown: Some(format!("brew tap {t}")),
+                    after: Some(self.toolchain_last.clone()),
+                    check: Some(brew_tap_check(t)),
+                    ..Default::default()
+                });
+            }
+            let formulae: Vec<String> =
+                self.brew.formulae.iter().chain(&self.manager_formulae).chain(&catalog_formulae).cloned().collect();
+            if formulae.len() > 1 {
+                self.installs.push(ToolInstall {
+                    id: "tools/brew-shared".to_string(),
+                    label: "shared Homebrew dependencies".to_string(),
+                    manager: "brew".to_string(),
+                    cmd: format!("{}\n{}", path_line(path, prefix), brew_shared_deps(&formulae)),
+                    shown: Some(format!("brew install the dependencies {} share", formulae.join(", "))),
+                    after: Some(self.toolchain_last.clone()),
+                    check: Some(brew_shared_check(&formulae)),
+                    ..Default::default()
+                });
+            }
+            for f in self.brew.formulae.clone() {
+                let road = InstallRoad::Brew { formula: f.clone(), pin: None };
+                let (cmd, shown) = via_brew(&f, path, prefix)?;
+                let reads = road_step_reads(&road, &f, prefix);
+                self.installs.push(ToolInstall {
+                    id: format!("{BREW_ID_PREFIX}{f}"),
+                    label: f.clone(),
+                    manager: "brew".to_string(),
+                    cmd,
+                    shown: Some(shown),
+                    present: reads.present,
+                    bins: reads.bins,
+                    check: reads.check,
+                    after: Some(self.toolchain_last.clone()),
+                    pin: Some(pin_read_of(&road, &f, prefix)),
+                    ..Default::default()
+                });
+            }
+        }
+
+        for manager in MANAGER_ORDER {
+            let rows: Vec<RecipeEntry> = self.rows_of(manager).into_iter().cloned().collect();
+            let from_catalog: Vec<(RecipeEntry, PlannedRow)> =
+                self.catalog_rows_of(manager).into_iter().filter(|(e, _)| !self.as_manager(&e.id)).collect();
+            if rows.len() + from_catalog.len() + self.custom_of(manager) == 0 {
+                continue;
+            }
+            self.bring_manager(manager)?;
+            for e in &rows {
+                if let Some(planned) = row_road(e, self.table) {
+                    self.plan(e, &planned)?;
+                }
+            }
+            for (e, planned) in &from_catalog {
+                self.plan(e, planned)?;
+            }
+        }
+        for r in self.brew.roads.clone() {
+            let e = self.entries.iter().find(|x| x.id == r.id).expect("a planned road names a row of the recipe");
+            let planned = row_road(e, self.table).expect("a planned road is a row's road");
+            self.plan(e, &planned)?;
+        }
+        for (e, planned) in self.catalog.clone() {
+            if !MANAGER_ORDER.contains(&planned.road.name()) && !self.as_manager(&e.id) {
+                self.plan(&e, &planned)?;
+            }
+        }
+        let mut afters: Vec<Option<String>> = Vec::new();
+        for c in self.custom {
+            afters.push(match manager_road(c) {
+                Some(road) => self.after_road(road)?,
+                None => None,
+            });
+        }
+        let custom = self.custom;
+        let installs = custom_installs_for(
+            custom,
+            &|c| afters[custom.iter().position(|x| std::ptr::eq(x, c)).expect("a row of the plan's own")].clone(),
+            path,
+            prefix,
+        );
+        self.installs.extend(installs);
+        Ok(())
+    }
+
+    fn resolve_manager(&mut self, manager: RoadName) -> Result<()> {
+        if !self.resolved.insert(manager) {
+            return Ok(());
+        }
+        let name = manager.as_str();
+        if base_entry_for(name).is_some() {
+            return Ok(());
+        }
+        let own = format!("{MANAGER_STEP}{name}");
+        let entry: Option<&'static ToolEntry> = catalog_tool_for(name);
+        let formula = manager_formula(manager);
+        let from_catalog = entry.and_then(|entry| {
+            self.catalog.iter().find(|(e, _)| catalog_tool_of(e).is_some_and(|t| t.id == entry.id)).cloned()
+        });
+        let mac_formula = [formula.as_deref(), Some(name)].into_iter().flatten().find(|f| self.brew.formulae.iter().any(|x| x == f));
+        let (path, prefix) = (self.path, self.prefix);
+        if let Some(f) = mac_formula {
+            self.managers.insert(manager, Brings { after: format!("{BREW_ID_PREFIX}{f}"), step: None, row: None });
+        } else if let Some((e, planned)) = from_catalog {
+            self.managers.insert(manager, Brings { after: e.id.clone(), step: None, row: Some((e, planned)) });
+        } else if self.npm_ticked.contains(name) {
+            self.managers.insert(manager, Brings { after: tool_row_id("npm", name), step: None, row: None });
+        } else if let Some(formula) = formula {
+            let (cmd, shown) = via_brew(&formula, path, prefix)?;
+            let reads = road_reads(&InstallRoad::Brew { formula: formula.clone(), pin: None }, name, prefix);
+            let step = ToolInstall {
+                id: own.clone(),
+                label: name.to_string(),
+                manager: "brew".to_string(),
+                cmd,
+                shown: Some(shown),
+                present: reads.present,
+                bins: reads.bins,
+                after: Some(self.toolchain_last.clone()),
+                bin: Some(name.to_string()),
+                ..Default::default()
+            };
+            self.managers.insert(manager, Brings { after: own, step: Some(step), row: None });
+            self.manager_formulae.push(formula);
+        } else if let Some(entry) = entry {
+            let (cmd, shown) = match via_road(&entry.install_road, &entry.bin, path, prefix) {
+                ViaRoad::Step { cmd, shown } => (cmd, shown),
+                ViaRoad::Note(note) => return Err(failure(format!("{}: {note}", entry.id))),
+            };
+            let step = ToolInstall {
+                id: own.clone(),
+                label: entry.name.clone(),
+                manager: entry.install_road.name().as_str().to_string(),
+                cmd,
+                shown: Some(shown),
+                bin: Some(entry.bin.clone()),
+                ..Default::default()
+            };
+            self.managers.insert(manager, Brings { after: own, step: Some(step), row: None });
+        } else {
+            return Err(failure(format!("{name} is neither in the base, nor in the catalog, nor a formula")));
+        }
+        Ok(())
+    }
+
+    fn after_dep(&mut self, dep: Option<&str>, road: RoadName) -> Result<Option<String>> {
+        if dep == Some(APT_INDEX) {
+            let step_id = format!("tools/{APT_INDEX}");
+            if !self.installs.iter().any(|t| t.id == step_id) {
+                let cmd = format!("{}\n{}", path_line(self.path, self.prefix), *APT_UPDATE);
+                self.installs.push(apt_index_step(&step_id, &cmd));
+            }
+            return Ok(Some(step_id));
+        }
+        if dep == Some(HOMEBREW_STEP) {
+            return Ok(Some(self.toolchain_last.clone()));
+        }
+        let owner = manager_behind(dep);
+        if let Some(owner) = owner {
+            self.resolve_manager(owner)?;
+        }
+        self.bring_manager(owner.unwrap_or(road))
+    }
+
+    fn after_road(&mut self, road: RoadName) -> Result<Option<String>> {
+        self.after_dep(road_module_named(road).after(), road)
+    }
+
+    fn bring_manager(&mut self, manager: RoadName) -> Result<Option<String>> {
+        let Some(brings) = self.managers.get(&manager) else { return Ok(None) };
+        let after = brings.after.clone();
+        if !self.brought.insert(manager) {
+            return Ok(Some(after));
+        }
+        let (step, row) = (brings.step.clone(), brings.row.clone());
+        if let Some(mut step) = step {
+            let behind = self.after_road(is_road(Some(&step.manager)).expect("a manager step names a road"))?;
+            if behind.is_some() {
+                step.after = behind;
+            }
+            self.installs.push(step);
+        }
+        if let Some((e, planned)) = row {
+            self.plan(&e, &planned)?;
+        }
+        Ok(Some(after))
+    }
+
+    fn plan(&mut self, e: &RecipeEntry, planned: &PlannedRow) -> Result<()> {
+        let (path, prefix) = (self.path, self.prefix);
+        let bin = planned.bin.clone().unwrap_or_else(|| package_of(&e.id));
+        let (mut cmd, shown) = match via_road(&planned.road, &bin, path, prefix) {
+            ViaRoad::Step { cmd, shown } => (cmd, shown),
+            ViaRoad::Note(note) => {
+                self.skipped.push(SkippedItem { id: e.id.clone(), note });
+                return Ok(());
+            }
+        };
+        let after = self.after_dep(dep_of(planned).as_deref(), planned.road.name())?;
+        let mut below = None;
+        if let Some(b) = &planned.below {
+            let line = below_line(&planned.road, b, &bin, &install_homes(prefix)).map_err(|err| failure(err.message))?;
+            cmd = format!("{}\n{line}", path_line(path, prefix));
+            below = Some(Below { node: b.node.clone(), asks: asks_version(&b.road) });
+        }
+        let reads = road_reads(&planned.road, &bin, prefix);
+        self.installs.push(ToolInstall {
+            id: e.id.clone(),
+            label: e.label.clone(),
+            manager: planned.road.name().as_str().to_string(),
+            cmd,
+            shown: Some(shown),
+            below,
+            present: reads.present,
+            bins: reads.bins,
+            after,
+            bin: planned.bin.clone(),
+            note: planned.note.clone(),
+            asks: asks_version(&planned.road),
+            pin: Some(pin_read_of(&planned.road, &bin, prefix)),
+            ..Default::default()
+        });
+        Ok(())
+    }
+}
+
+/// golden-import.ts:828 `homebrewBootstrap`.
+fn homebrew_bootstrap() -> String {
+    let (brew, repo, real) = (BREW.as_str(), BREW_REPO.as_str(), BREW_REAL.as_str());
+    [
+        "set -euo pipefail".to_string(),
+        APT_ENV.to_string(),
+        format!("if [ ! -x {brew} ]; then"),
+        "  if command -v apt-get >/dev/null 2>&1; then apt-get update -qq >/dev/null 2>&1 || true; apt-get install -y -qq procps curl file git >/dev/null 2>&1 || true; fi".to_string(),
+        "  id -u linuxbrew >/dev/null 2>&1 || useradd -m -s /bin/bash linuxbrew".to_string(),
+        format!("  git clone -q --depth 1 --branch {HOMEBREW_TAG} https://github.com/Homebrew/brew {repo}"),
+        format!("  test \"$(git -C {repo} rev-parse HEAD)\" = \"{HOMEBREW_COMMIT}\""),
+        format!("  git -C {repo} remote set-branches origin '*'"),
+        format!("  git -C {repo} fetch -q --depth 1 origin main || echo \"origin/main did not fetch: brew update reads the branch in full\""),
+        format!("  mkdir -p {BREW_PREFIX}/bin \"$(dirname {real})\""),
+        format!("  ln -sfn ../Homebrew/bin/brew {real}"),
+        format!("  chown -R linuxbrew:linuxbrew {LINUXBREW_HOME}"),
+        "fi".to_string(),
+        format!("rm -f {brew}"),
+        format!("printf '%s\\n' {} > {brew}", shell_quote(&LINUXBREW_SHIM)),
+        format!("chmod 0755 {brew}"),
+        format!("{} >/dev/null", as_linuxbrew("--version")),
+    ]
+    .join("\n")
 }
 
 /// `toolInstallsFor(ids.map(row), new Map(), [], path, prefix).installs`, as the provision tests call it: each id a

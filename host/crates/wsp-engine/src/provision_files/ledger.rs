@@ -4,7 +4,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future::LocalBoxFuture;
+use futures::channel::{mpsc, oneshot};
+use futures::future::{select, Either, LocalBoxFuture};
+use futures::{FutureExt, StreamExt};
 use indexmap::{IndexMap, IndexSet};
 use sha2::{Digest, Sha256};
 use wsp_catalog::catalog::mcp_agents;
@@ -12,13 +14,19 @@ use wsp_catalog::mcp_launch::{launch_server_road, own_server_config};
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_words::agents_report::servers_unread_line;
 use wsp_words::project_path::place_provision_paths;
-use wsp_words::views::place_setup_words::provision_list_read_line;
+use wsp_words::views::place_setup_words::{provision_list_read_line, provision_packed_line, Packed};
+use wsp_wire::views::place::{PlaceProvisionKind, PlaceProvisionRow, PlaceProvisionRowOutcome};
 
-use super::land::{dest_test, key_test, once_test, root_of, store_roots, RootOf, LAND_MS, NO_DIGEST};
+use super::land::{
+    dest_test, file_label, key_test, land_agent_files, lands_once, once_paths_of, once_test, root_of, standing_digests, store_roots,
+    LandAgentFiles, RootOf, LAND_MS, NO_DIGEST,
+};
 use super::{FilesSay, LandFilesResult, ProvisionLanding, StoreRoots};
 use crate::errors::{EngineError, Result};
 use crate::exec_detached::{INLINE_EXEC_MS, OLD_APPEND_MARKS};
-use crate::golden_seam::{land_configs, parse_configs, parse_mcp_id, read_configs_cmd, PackFiles, ReadAsk, ScopeFile, ScopeRead, READ_MS};
+use crate::golden_seam::{
+    land_configs, parse_configs, parse_mcp_id, read_configs_cmd, LeaveOut, PackFiles, ReadAsk, ScopeFile, ScopeRead, StagedFile, READ_MS,
+};
 use crate::machine::{ExecOptions, Machine, RunOptions};
 
 const TAB: &str = r"\t";
@@ -322,7 +330,120 @@ pub struct ProvisionFilesAsk {
 /// provision-files.ts:814 `provisionFiles`. Never fails: a pack or a landing that fails is one failed row per
 /// planned path with the error's first line.
 pub async fn provision_files(machine: &dyn Machine, o: ProvisionFilesAsk) -> LandFilesResult {
-    todo!()
+    let say: FilesSay = o.say.clone().unwrap_or_else(|| Arc::new(|_: &str| {}));
+    let roots = store_roots(&o.home, &o.stores);
+    match files_round(machine, &o, &say, &roots).await {
+        Ok(result) => result,
+        Err(e) => {
+            let message = e.to_string();
+            let note = message.split('\n').next().unwrap_or_default().to_string();
+            LandFilesResult {
+                rows: o
+                    .lands
+                    .iter()
+                    .map(|l| PlaceProvisionRow {
+                        id: format!("files/{}", l.dest),
+                        label: file_label(Some(l.label.as_str()), &o.home, &l.dest, &roots),
+                        outcome: PlaceProvisionRowOutcome::Failed,
+                        kind: Some(PlaceProvisionKind::File),
+                        step: None,
+                        note: Some(note.clone()),
+                        fix: None,
+                        keys: None,
+                        ms: None,
+                        earlier: None,
+                        project: None,
+                    })
+                    .collect(),
+                owned: IndexMap::new(),
+                skipped: Vec::new(),
+            }
+        }
+    }
+}
+
+type LeaveOutRequest = (Vec<StagedFile>, oneshot::Sender<Vec<String>>);
+
+/// The pack's leave-out callback runs on this machine, which the pack's `'static` closure cannot hold: it sends each
+/// request to the loop in `files_round`, which owns the machine borrow and answers.
+async fn files_round(machine: &dyn Machine, o: &ProvisionFilesAsk, say: &FilesSay, roots: &StoreRoots) -> Result<LandFilesResult> {
+    let once = once_paths_of(&o.lands);
+    let (requests, mut asked) = mpsc::unbounded::<LeaveOutRequest>();
+    let leave_out: LeaveOut = Arc::new(move |staged: Vec<StagedFile>| {
+        let requests = requests.clone();
+        async move {
+            let (reply, answer) = oneshot::channel();
+            requests.unbounded_send((staged, reply)).map_err(|_| leave_out_gone())?;
+            answer.await.map_err(|_| leave_out_gone())
+        }
+        .boxed_local()
+    });
+    let mut packing = (o.pack)(Some(leave_out));
+    let packed = loop {
+        match select(packing, asked.next()).await {
+            Either::Left((packed, _)) => break packed?,
+            Either::Right((None, rest)) => break rest.await?,
+            Either::Right((Some((staged, reply)), rest)) => {
+                packing = rest;
+                let _ = reply.send(left_out(machine, &o.home, roots, &once, &staged).await);
+            }
+        }
+    };
+    let packed_line = Packed { bytes: packed.bytes as f64, files: packed.files.map(|n| n as f64), stood: packed.stood.as_ref().map(|s| s.len() as f64) };
+    say(&provision_packed_line(o.lands.len() as f64, &packed_line));
+    let landed = land_agent_files(
+        machine,
+        LandAgentFiles {
+            home: o.home.clone(),
+            tar: packed.tar.clone(),
+            lands: o.lands.clone(),
+            stood: packed.stood.clone().unwrap_or_default(),
+            say: say.clone(),
+            roots: roots.clone(),
+        },
+    )
+    .await?;
+    let left = packed.skipped.iter().enumerate().map(|(i, s)| PlaceProvisionRow {
+        id: format!("left-out/{i}"),
+        label: s.path.clone(),
+        outcome: PlaceProvisionRowOutcome::Skipped,
+        kind: Some(PlaceProvisionKind::File),
+        step: None,
+        note: Some(s.note.clone()),
+        fix: None,
+        keys: None,
+        ms: None,
+        earlier: None,
+        project: None,
+    });
+    let mut rows = landed.rows;
+    rows.extend(left);
+    let mut skipped = packed.skipped.clone();
+    skipped.extend(landed.skipped);
+    Ok(LandFilesResult { rows, owned: landed.owned, skipped })
+}
+
+fn leave_out_gone() -> EngineError {
+    EngineError::Other { message: "the files round stopped answering what is left out".to_string(), code: None }
+}
+
+/// provision-files.ts:823: the paths the pack leaves out, which are the staged files whose bytes already stand there
+/// and whose line in the list agrees. The read hashes under the home alone, so a file whose agent's folder moved to a
+/// store always travels; a path that lands once always travels.
+async fn left_out(machine: &dyn Machine, home: &str, roots: &StoreRoots, once: &[String], staged: &[StagedFile]) -> Vec<String> {
+    let under_home: Vec<String> = staged.iter().filter(|f| root_of(home, roots, &f.dest).root == home).map(|f| f.dest.clone()).collect();
+    let Some(standing) = standing_digests(machine, home, &under_home).await else {
+        return Vec::new();
+    };
+    staged
+        .iter()
+        .filter(|f| {
+            !lands_once(&f.dest, once)
+                && standing.at.get(&f.dest) == Some(&f.digest)
+                && standing.listed.get(&f.dest) == Some(&f.digest)
+        })
+        .map(|f| f.dest.clone())
+        .collect()
 }
 
 /// provision-files.ts:852 `unlandScript(home, dests, roots = [])`. Byte for byte the TS's text.
