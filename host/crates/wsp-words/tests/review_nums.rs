@@ -3,6 +3,8 @@
 //! ps_time, semver, release, regexp, quote) against node 22.23.4 running the TS at a3b870a6e. Every expected value was
 //! printed by node (see the commands in the review report); each test fails today for the reason in its name.
 
+#![allow(clippy::excessive_precision)]
+
 use serde_json::json;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::usage::{LimitKind, LimitWindow};

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Port of packages/protocol/src/words/places.ts at a3b870a6e: the words of the computers table and its rows, a
+//! Port of packages/protocol/src/words/places.ts at the cut (383708c78): the words of the computers table and its rows, a
 //! provider's remove and forget, the import and export progress lines, the hosts menu and table, the terminal
 //! config readout, a theme's paint and a cloud's plan line. Each TS statement stands as a comment above its stub.
 //! See spec/places.md.
@@ -12,7 +12,7 @@ use serde::Serialize;
 use wsp_wire::types::agents_report::AgentSignInState;
 use wsp_wire::types::workspace_look::WorkspaceTheme;
 use wsp_wire::views::desktop_bridge::{ContextMenuItem, HostsView};
-use wsp_wire::views::place::{CloudPlan, CloudStarts, PlaceView, PlaceViewEngine};
+use wsp_wire::views::place::{CloudPlan, CloudStarts, PlaceView};
 use wsp_wire::views::place_kind::PlaceKind;
 use wsp_wire::views::project_bundle::{
     ProjectExportEvent, ProjectExportStage, ProjectImportEvent, ProjectImportStage, ProjectSecret, TerminalConfig, TerminalRgb,
@@ -259,7 +259,8 @@ pub fn export_progress(events: &[ProjectExportEvent], here: &str) -> Option<Trip
 //   return `#${[r, g, b].map(c => c.toString(16).padStart(2, "0")).join("")}`;
 // }
 pub fn hex_color(rgb: &TerminalRgb) -> String {
-    format!("#{:02x}{:02x}{:02x}", rgb.r.get(), rgb.g.get(), rgb.b.get())
+    let channel = |c: f64| format!("{:0>2}", crate::js::to_string_radix_16(c));
+    format!("#{}{}{}", channel(rgb.r.as_f64()), channel(rgb.g.as_f64()), channel(rgb.b.as_f64()))
 }
 
 // places.ts:131
@@ -433,7 +434,9 @@ pub mod host_words {
 //   return hours < 24 ? `${hours} h` : `${Math.floor(hours / 24)} d`;
 // }
 pub fn offline_for(ms: f64) -> String {
-    let minutes = (ms / 60_000.0).floor().max(0.0);
+    // `Math.max(0, x)` keeps a NaN, which `f64::max` drops.
+    let floored = (ms / 60_000.0).floor();
+    let minutes = if floored < 0.0 { 0.0 } else { floored };
     if minutes < 60.0 {
         return format!("{} min", number_string(minutes));
     }
@@ -534,29 +537,6 @@ pub fn place_spend_line(month_usd: f64, rate_usd_per_hour: f64, workspaces: f64)
 // }
 pub fn places_spend_foot(month_usd: f64, providers: f64) -> String {
     format!("{} across {}", spent_this_month(month_usd), plural(providers, "provider"))
-}
-
-/// The doctor's word on the engine a project's own containers run on here: the engine when the box has one, else
-/// the line that says installing one opens it. A place that has not yet said reads nothing.
-// places.ts:267
-// export function placeEngineLine(view: Pick<PlaceView, "name" | "engine">): string | undefined {
-//   if (view.engine === undefined) return undefined;
-//   if (view.engine === "none") return `${view.name} has no container engine; a project's docker compose runs there once you install Docker or podman on it`;
-//   return `${view.name} runs a project's own containers on ${view.engine}; a workspace made with --engine gets a socket to it and sees its own containers alone`;
-// }
-pub fn place_engine_line(view: &PlaceView) -> Option<String> {
-    let engine = view.engine.as_ref()?;
-    if matches!(engine, PlaceViewEngine::None) {
-        return Some(format!(
-            "{} has no container engine; a project's docker compose runs there once you install Docker or podman on it",
-            view.name
-        ));
-    }
-    Some(format!(
-        "{} runs a project's own containers on {}; a workspace made with --engine gets a socket to it and sees its own containers alone",
-        view.name,
-        wire_word(engine)
-    ))
 }
 
 /// An agent wsp hands a token or a key of the person's at every turn, which needs no login on the computer.

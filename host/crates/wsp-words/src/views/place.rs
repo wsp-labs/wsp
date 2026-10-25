@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What a computer's row calls its kind, and the count of what a recipe put on it. Port of the functions of packages/protocol/src/views/place.ts that wsp-wire left to this crate, at
-//! a3b870a6e; that file's shapes are wsp-wire's. See spec/views_place.md.
+//! the cut (383708c78); that file's shapes are wsp-wire's. See spec/views_place.md.
 
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::views::place::{PlaceProvisionKind, PROVISION_KIND_WORDS};

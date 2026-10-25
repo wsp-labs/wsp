@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! A sub-thread on a machine of its own: the sizes it may take, the preamble that tells its agent how to get the
 //! code and hand it back, the strip and spawn words a client shows, and the lines and refusals of its end. Port of
-//! the functions of packages/protocol/src/sub-thread.ts at a3b870a6e; its shapes and flat constants are
+//! the functions of packages/protocol/src/sub-thread.ts at the cut (383708c78); its shapes and flat constants are
 //! wsp_wire::types::sub_thread. See spec/sub_thread.md.
 
 use std::sync::LazyLock;
@@ -772,12 +772,9 @@ pub fn sub_from_unread_refusal(r#ref: &str, said: &str) -> crate::exit::HostErro
 
 /// S6: no image on the cloud.
 // sub-thread.ts:268
-// export const subNoImageRefusal = (on: string): Error => usage(`${on} holds no image of yours yet`, `Build one in Settings > Computers > ${on}, or run wsp init --on ${on.toLowerCase()}.`);
+// export const subNoImageRefusal = (on: string): Error => usage(`${on} holds no image of yours yet`, `Build one in Settings > Computers > ${on}.`);
 pub fn sub_no_image_refusal(on: &str) -> crate::exit::HostError {
-    usage(
-        &format!("{on} holds no image of yours yet"),
-        &format!("Build one in Settings > Computers > {on}, or run wsp init --on {}.", on.to_lowercase()),
-    )
+    usage(&format!("{on} holds no image of yours yet"), &format!("Build one in Settings > Computers > {on}."))
 }
 
 /// S6: the image holds no sign-in for the remote's git host, so the sub-thread could fetch nothing private and push nothing.
@@ -785,7 +782,7 @@ pub fn sub_no_image_refusal(on: &str) -> crate::exit::HostError {
 // export const subNoSignInRefusal = (on: string, host: { label: string; cli: string; login: string }, repo: string): Error =>
 //   usage(
 //     `the image on ${on} holds no ${host.label} sign-in (${host.cli}), so a sub-thread could neither clone ${repo} nor push its branch`,
-//     `Run wsp init --on ${on.toLowerCase()} again with the ${host.login} set to copy.`,
+//     `Seal the image on ${on} again with the ${host.login} set to copy.`,
 //   );
 /// The TS `{ label, cli, login }` of the git host.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -801,7 +798,7 @@ pub fn sub_no_sign_in_refusal(on: &str, host: &GitHostWords, repo: &str) -> Host
             "the image on {on} holds no {} sign-in ({}), so a sub-thread could neither clone {repo} nor push its branch",
             host.label, host.cli
         ),
-        &format!("Run wsp init --on {} again with the {} set to copy.", on.to_lowercase(), host.login),
+        &format!("Seal the image on {on} again with the {} set to copy.", host.login),
     )
 }
 
@@ -1255,8 +1252,8 @@ pub struct KeptOn {
 //   }
 // }
 fn shell_command_of(input: &str) -> String {
-    match serde_json::from_str::<serde_json::Value>(input) {
-        Ok(serde_json::Value::Object(fields)) => match fields.get("command") {
+    match crate::v8_json::parse_json_lax(input) {
+        Some(serde_json::Value::Object(fields)) => match fields.get("command") {
             Some(serde_json::Value::String(command)) => command.clone(),
             _ => input.to_string(),
         },
@@ -1334,7 +1331,9 @@ pub fn is_sub_oom_line(line: &str) -> bool {
         return false;
     };
     let head = rest.find(['\n', '\r', '\u{2028}', '\u{2029}']).unwrap_or(rest.len());
-    rest[..head].match_indices(" was killed for memory: ").any(|(at, _)| at >= 1)
+    // The delimiter starts and ends with a space, so a second copy may share the first's last space.
+    let line = &rest[..head];
+    (1..line.len()).any(|at| line.is_char_boundary(at) && line[at..].starts_with(" was killed for memory: "))
 }
 
 /// The line under a sub-thread's brief and the steps it opens to, the stages the spawn reports with the facts it read:

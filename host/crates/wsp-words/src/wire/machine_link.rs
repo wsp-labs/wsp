@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The sentences of forgetting a computer that holds work, and of a place that is no workspace. Port of the functions of packages/protocol/src/wire/machine-link.ts that wsp-wire left to this crate, at
-//! a3b870a6e; that file's shapes are wsp-wire's. See spec/wire_machine_link.md.
+//! the cut (383708c78); that file's shapes are wsp-wire's. See spec/wire_machine_link.md.
 
 /// What a forget of a computer whose link is down does, in its order, the one sentence the command line asks with
 /// and the app's dialog says before its button: the leave tried over the ssh login it was added on where it has one,

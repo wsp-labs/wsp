@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The app's addresses: the hash a thread, a workspace or a setting is opened by, and the pairing code a first open carries. Port of the functions of packages/protocol/src/app-address.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::app_address. See spec/app_address.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::app_address. See spec/app_address.md.
 
 use serde::Serialize;
 
@@ -173,18 +173,6 @@ pub fn app_hash(address: &AppAddress) -> String {
         format!("{base}{NEW}")
     } else {
         base
-    }
-}
-
-/// The hash wsp init opens the app on: the workspace it made, or none, with the code that lets the browser in.
-// app-address.ts:48
-// export function openingHash(code: string, workspaceId?: string): string {
-//   return `${workspaceId === undefined ? CODE_ALONE : `${workspaceHash(workspaceId)}${CODE}`}${encodeURIComponent(code)}`;
-// }
-pub fn opening_hash(code: &str, workspace_id: Option<&str>) -> String {
-    match workspace_id {
-        None => format!("{CODE_ALONE}{}", encode_uri_component(code)),
-        Some(workspace_id) => format!("{}{CODE}{}", workspace_hash(workspace_id), encode_uri_component(code)),
     }
 }
 

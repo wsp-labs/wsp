@@ -182,8 +182,8 @@ pub fn sub_deleted_line(thread_id: &str, on: &str) -> String {
 // private in the TS: port it as a private helper
 // const utcDay = (at: number): string => `${new Date(at).toISOString().slice(0, 10)} UTC`;
 pub(super) fn utc_day(at: f64) -> String {
-    let day = jiff::Timestamp::from_millisecond(at as i64).expect("a cloud's keep is a moment jiff holds");
-    format!("{} UTC", day.strftime("%Y-%m-%d"))
+    let day = crate::js_date::iso_string(at).map_or_else(|| "Invalid Date".to_string(), |iso| iso.chars().take(10).collect());
+    format!("{day} UTC")
 }
 
 /// The line a sub-thread's finished line to its lead ends with, off the done's read: the branch pushed and the merge

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Port of packages/protocol/src/words/computer.ts at a3b870a6e: what this computer, a joined computer and a fork are
+//! Port of packages/protocol/src/words/computer.ts at the cut (383708c78): what this computer, a joined computer and a fork are
 //! called, every refusal a thread's own token, a guest line and a paired device meet, the host-key and root-shell
 //! checks of a computer being added, and the lines a pause, a wake and a stop on a joined computer end with. Each TS
 //! statement stands as a comment above its stub. See spec/computer.md.
@@ -27,14 +27,6 @@ pub enum Platform {
 /// sidebar row's second line and the Machine tab's lineage all read this one phrase.
 // computer.ts:9
 pub const THIS_COMPUTER: &str = "this computer";
-
-/// The one sentence for a project a run just recorded on this computer: wsp init's last tick says it, so where its
-/// threads run is named the same way whichever road wrote the record.
-// computer.ts:13
-// export const thisComputerLine = (name: string, folder: string): string => `Threads on ${name} run in ${folder} on ${THIS_COMPUTER}, under your own sign-ins.`;
-pub fn this_computer_line(name: &str, folder: &str) -> String {
-    format!("Threads on {name} run in {folder} on {THIS_COMPUTER}, under your own sign-ins.")
-}
 
 /// What a place's machine is, in every sentence and every row that names it: a computer of the person's own that
 /// dialled this host and holds the link, so wsp drives it with the daemon protocol and never made it.
@@ -128,14 +120,6 @@ pub fn ports_word(c: &Capabilities, computer: &str) -> String {
 pub fn no_preview_route_line(port: f64, computer: &str) -> String {
     let port = number_string(port);
     format!("{computer} opens no address this pane can reach for port {port}; it answers as localhost:{port} on that computer.")
-}
-
-/// The heading over the tools a package manager here has that no catalog row carries: the wizard's own screen and
-/// the `wsp recipe scan` section are one section, so they carry one name.
-// computer.ts:70
-// export const alsoTitle = (platform: "darwin" | "linux"): string => `Also on ${thisComputer(platform)}`;
-pub fn also_title(platform: Platform) -> String {
-    format!("Also on {}", this_computer(platform))
 }
 
 /// The one sentence a local workspace refuses a request relayed from a machine with. A local workspace is this
@@ -409,31 +393,6 @@ pub const SPAWN_ACTS_ALLOWED: [SpawnAct; 9] = [
     SpawnAct::MergeIn,
     SpawnAct::DeleteSub,
 ];
-
-/// The one sentence a thread's own token is refused with when the folder or machine it runs on was made with its
-/// agents' switch off, which no line turns on again.
-// computer.ts:163
-// export function agentsOffRefusal(workspace: string, act: SpawnAct): string {
-//   return `agents on ${workspace} may not ${SPAWN_ACTS[act]}, since it was made with them off; ask the person`;
-// }
-pub fn agents_off_refusal(workspace: &str, act: SpawnAct) -> String {
-    format!("agents on {workspace} may not {}, since it was made with them off; ask the person", act.words())
-}
-
-/// The refusal where the switch that is off is a computer's, over a folder there that holds none of its own: the
-/// thread refused, and the line that turns the switch back on.
-// computer.ts:169
-// export function agentsOffComputerRefusal(threadId: string, computer: string, act: SpawnAct): string {
-//   return `thread ${threadWord(threadId)} may not ${SPAWN_ACTS[act]}, since agents on ${computer} are off; turn them on with ${shellLine(["wsp", "computers", "set", computer, "--spawn", "on"])}`;
-// }
-pub fn agents_off_computer_refusal(thread_id: &str, computer: &str, act: SpawnAct) -> String {
-    format!(
-        "thread {} may not {}, since agents on {computer} are off; turn them on with {}",
-        thread_word(thread_id),
-        act.words(),
-        shell_line(&["wsp", "computers", "set", computer, "--spawn", "on"])
-    )
-}
 
 /// Why a thread may not act where this host no longer holds the folder it works in.
 // computer.ts:174
@@ -997,43 +956,4 @@ pub const ID_PREFIX_MIN: usize = 4;
 pub fn id_prefix_refusal(r#ref: &str, ids: &[impl AsRef<str>]) -> String {
     let ids: Vec<&str> = ids.iter().map(|id| id.as_ref()).collect();
     format!("{} workspaces start with {} ({}); give more of the id", ids.len(), r#ref, ids.join(", "))
-}
-
-/// The workspace table's cell for the switch: the machines a root thread there may hold, and empty where a person
-/// turned it off.
-// computer.ts:454
-// export function agentsWord(agents: { spawn: boolean; maxMachines: number } | undefined): string {
-//   return agents?.spawn !== true ? "" : `${agents.maxMachines} ${agents.maxMachines === 1 ? "machine" : "machines"}`;
-// }
-/// A switch for agents spawning, as a record holds it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct AgentsSwitch {
-    pub spawn: bool,
-    pub max_machines: f64,
-    pub max_depth: f64,
-}
-
-pub fn agents_word(agents: Option<&AgentsSwitch>) -> String {
-    match agents {
-        Some(a) if a.spawn => {
-            format!("{} {}", number_string(a.max_machines), if a.max_machines == 1.0 { "machine" } else { "machines" })
-        }
-        _ => String::new(),
-    }
-}
-
-/// What a listing and a computer's row say about a switch, one line either way.
-// computer.ts:459
-// export function agentsLine(agents: { spawn: boolean; maxMachines: number; maxDepth: number } | undefined): string {
-//   return agents?.spawn !== true ? "agents may not spawn" : `agents may spawn: up to ${agents.maxMachines} ${agents.maxMachines === 1 ? "machine" : "machines"}`;
-// }
-pub fn agents_line(agents: Option<&AgentsSwitch>) -> String {
-    match agents {
-        Some(a) if a.spawn => format!(
-            "agents may spawn: up to {} {}",
-            number_string(a.max_machines),
-            if a.max_machines == 1.0 { "machine" } else { "machines" }
-        ),
-        _ => "agents may not spawn".to_string(),
-    }
 }

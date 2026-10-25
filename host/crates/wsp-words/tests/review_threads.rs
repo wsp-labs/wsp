@@ -63,10 +63,7 @@ fn f03_the_oom_delimiter_may_share_its_last_space() {
 // F4. thread.ts:443-445 `agents.join(", ") || "none"`, lines.rs:915 no_adapter_line: one empty id joins to "" which is falsy.
 #[test]
 fn f04_no_adapter_line_of_one_empty_id_says_none() {
-    assert_eq!(
-        no_adapter_line("h", &[""]),
-        "no adapter registered for harness \"h\"; agents on this host: none"
-    );
+    assert_eq!(no_adapter_line("h", &[""]), "no adapter registered for harness \"h\"; agents on this host: none");
 }
 
 // F5. thread.ts:64,95 REQUEST_WORDS is a plain object, so `REQUEST_WORDS["constructor"]` is Object itself and is joined
@@ -114,7 +111,9 @@ fn f08b_answers_list_integer_like_question_texts_first() {
     let answered = question_answer_input("AskUserQuestion", input, &picked).map(Value::Object).map(|v| serde_json::to_string(&v).unwrap());
     assert_eq!(
         answered.as_deref(),
-        Some(r#"{"questions":[{"question":"b","options":[{"label":"x"}]},{"question":"1","options":[{"label":"y"}]},{"question":"0","options":[{"label":"z"}]}],"answers":{"0":"z","1":"y","b":"x"}}"#)
+        Some(
+            r#"{"questions":[{"question":"b","options":[{"label":"x"}]},{"question":"1","options":[{"label":"y"}]},{"question":"0","options":[{"label":"z"}]}],"answers":{"0":"z","1":"y","b":"x"}}"#
+        )
     );
 }
 
@@ -131,7 +130,12 @@ fn f09_a_percent_plus_escape_is_not_a_typed_answer() {
 fn f10_a_typed_answer_for_a_huge_question_number_is_still_read() {
     assert_eq!(
         picked_options(&answer_options(), "q99999999999999999999:other:x"),
-        Some(vec![PermissionOption { id: "q99999999999999999999:other:x".into(), label: "x".into(), effect: PermissionEffect::Answer, mode: None }])
+        Some(vec![PermissionOption {
+            id: "q99999999999999999999:other:x".into(),
+            label: "x".into(),
+            effect: PermissionEffect::Answer,
+            mode: None
+        }])
     );
 }
 

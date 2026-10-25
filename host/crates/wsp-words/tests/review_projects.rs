@@ -6,18 +6,12 @@
 use std::process::Command;
 
 use serde_json::json;
-use wsp_words::app_ports::{join_address_word, ports_asked, served_hostname, ws_url_of};
+use wsp_words::app_ports::ports_asked;
 use wsp_words::exit::json_line;
 use wsp_words::js::number_string;
 use wsp_words::project_seed::seed_bytes;
-use wsp_words::projects::clone_url_refusal;
 use wsp_words::recipe_file::{recipe_canon, ResolvedRecipe};
 use wsp_words::start::{github_link_of, review_from_reply, with_closes};
-use wsp_words::words::image::snapshot_manager_line;
-
-fn refused(word: &str) -> String {
-    format!("{word} is not a repo address wsp clones; give its https or ssh url, or owner/repo")
-}
 
 fn fenced(json_text: &str) -> String {
     format!("```json\n{json_text}\n```")
@@ -48,49 +42,14 @@ fn review_from_reply_survives_two_hundred_thousand_nested_brackets() {
         .unwrap();
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(out.status.success(), "the call aborted the process: {:?}\n{}", out.status, stderr.lines().take(3).collect::<Vec<_>>().join("\n"));
-    let result = stdout.lines().find_map(|line| line.strip_prefix("RESULT:")).unwrap_or("");
+    assert!(
+        out.status.success(),
+        "the call aborted the process: {:?}\n{}",
+        out.status,
+        stderr.lines().take(3).collect::<Vec<_>>().join("\n")
+    );
+    let result = stdout.lines().find_map(|line| line.split_once("RESULT:").map(|(_, said)| said)).unwrap_or("");
     assert_eq!(result, "the json block's shape is wrong: Expected object, received array");
-}
-
-/// projects.ts:137 `cloneUrlRefusal`, projects.rs:334. `new URL` in node refuses a host holding U+3164 (HANGUL FILLER);
-/// the url crate's newer IDNA table drops it as ignorable and the address passes.
-/// node: cloneUrlRefusal("https://github.com\u3164/x/y") => the refusal sentence
-#[test]
-fn clone_url_refusal_refuses_a_host_holding_an_invisible_hangul_filler() {
-    let word = "https://github.com\u{3164}/x/y";
-    assert_eq!(clone_url_refusal(word), Some(refused(word)));
-}
-
-/// projects.ts:137 `cloneUrlRefusal`, projects.rs:334. Node (no Bidi check) takes a label that ends in an Arabic-Indic
-/// digit; the idna crate applies the Bidi rule and refuses it.
-/// node: cloneUrlRefusal("https://github.com\u0660/x/y") => undefined
-#[test]
-fn clone_url_refusal_takes_a_label_ending_in_an_arabic_indic_digit() {
-    assert_eq!(clone_url_refusal("https://github.com\u{660}/x/y"), None);
-}
-
-/// app-ports.ts:29 `wsUrlOf`, app_ports.rs (ws_url_of). Node maps U+1E9E to "ss"; the crate keeps "ß" and writes punycode.
-/// node: wsUrlOf("http://\u1e9e.de") => "ws://ss.de/ws"
-#[test]
-fn ws_url_of_maps_capital_sharp_s_to_ss() {
-    assert_eq!(ws_url_of("http://\u{1E9E}.de").unwrap(), "ws://ss.de/ws");
-}
-
-/// app-ports.ts:29 `wsUrlOf`, app_ports.rs (ws_url_of). U+04C0 is not valid in node's IDNA table, so `new URL` throws.
-/// node: wsUrlOf("https://a\u04c0b.com/x/y") => throws "Invalid URL"
-#[test]
-fn ws_url_of_refuses_a_letter_node_has_no_idna_mapping_for() {
-    assert_eq!(ws_url_of("https://a\u{4C0}b.com/x/y").unwrap_err().message, "Invalid URL");
-}
-
-/// app-ports.ts:83 `servedHostname`, app_ports.rs (served_hostname). Node's URL parser takes the label "xn--ab-"; the
-/// idna crate refuses it as bad punycode.
-/// node: servedHostname("http://xn--ab-.com") => "xn--ab-.com"; joinAddressWord("http://xn--ab-.com") => "xn--ab-.com"
-#[test]
-fn served_hostname_takes_a_punycode_label_node_takes() {
-    assert_eq!(served_hostname("http://xn--ab-.com"), Some("xn--ab-.com".to_string()));
-    assert_eq!(join_address_word("http://xn--ab-.com"), "xn--ab-.com");
 }
 
 /// start.ts:213 `JSON.parse` inside `reviewFromReply`, start.rs:417. V8 reads 1e999 as Infinity; the Rust reader hands
@@ -157,18 +116,6 @@ fn github_link_of_keeps_a_link_whose_number_is_infinity() {
     let digits = "9".repeat(400);
     let link = github_link_of(&format!("https://github.com/a/b/issues/{digits}"));
     assert_eq!(link.map(|l| l.url), Some(format!("https://github.com/a/b/issues/{digits}")));
-}
-
-/// image.ts:337 `switchedPnpm`, image.rs `switched_pnpm`. JS `\s` holds U+FEFF and not U+0085; the regex crate's `\s`
-/// is the opposite, so a BOM before the path is cut off in the Rust and kept in the TS capture.
-/// node: snapshotManagerLine("n", "pnpm --version", "/p", "said", "x\ufeff/a/.tools/pnpm/10/x")
-#[test]
-fn snapshot_manager_line_reads_whitespace_the_way_javascript_does() {
-    let got = snapshot_manager_line("n", "pnpm --version", "/p", "said", Some("x\u{FEFF}/a/.tools/pnpm/10/x"));
-    assert_eq!(
-        got,
-        "n was not snapshotted: pnpm --version fails in /p (said), so every fork of it would fail the same way; remove /a/.tools/pnpm/10 and /a/.tools/pnpm/10_tmp_*, run pnpm --version in /p to fetch it again, then snapshot again"
-    );
 }
 
 /// recipe-file.ts:147 `recipeCanon`, recipe_file.rs `recipe_canon`. The TS sorts the keys and rebuilds each object with

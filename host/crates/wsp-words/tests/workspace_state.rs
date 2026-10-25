@@ -462,6 +462,7 @@ mod workspace_state_test {
             // access is what a thread here runs at when nobody names one: a fork costs a rebuild and nothing else, and this
             // computer is the person's own, so both run every action; the computers somebody owns and works on ask first.
             let sources: &[&str] = &["git", "github", "gitlab", "folder"];
+            let cloud_sources: &[&str] = &["git", "github", "gitlab"];
             // `done` is the TS `expect.any(Function)`: it is read through `done_for`, and only its presence is asked here.
             let mut cloud = kind_words(&WorkspaceKind::Cloud);
             assert!(!std::mem::take(&mut cloud.on_delete.done).is_empty());
@@ -476,10 +477,9 @@ mod workspace_state_test {
                     daemon: true,
                     metrics: ReadingRoad::Daemon,
                     processes: ReadingRoad::Daemon,
-                    project_sources: sources,
+                    project_sources: cloud_sources,
                     copies_folder: false,
                     in_folder: false,
-                    agents: true,
                     on_delete: MachineOnDelete { asked: "computer is deleted in the cloud".into(), done: String::new() },
                 }
             );
@@ -504,7 +504,6 @@ mod workspace_state_test {
                     project_sources: sources,
                     copies_folder: true,
                     in_folder: true,
-                    agents: true,
                     on_delete: MachineOnDelete { asked: "computer is left as it is".into(), done: String::new() },
                 }
             );
@@ -526,21 +525,15 @@ mod workspace_state_test {
                     project_sources: sources,
                     copies_folder: false,
                     in_folder: true,
-                    agents: true,
                     on_delete: MachineOnDelete { asked: "computer is left as it is".into(), done: String::new() },
                 }
             );
-            // The machines wsp forks and this computer run agents that drive this host, each over its own road.
-            assert!(agents_may_drive(&WorkspaceKind::Cloud));
-            assert!(agents_may_drive(&WorkspaceKind::Local));
-            // A thread in a folder on a joined computer reaches the wsp tools through the door that computer's daemon binds.
-            assert!(agents_may_drive(&WorkspaceKind::Place));
             // Which kind of source a computer's projects come from: this computer copies a folder of yours beside itself and
             // clones a repo into a folder you name first, and a machine wsp forks takes a repo any of the three ways it can be
             // named and a folder here it clones and seeds from. Whether the folder is copied here is its own word, since a
             // computer that clones takes a folder as a source and still holds a checkout of it.
             assert_eq!(kind_words(&WorkspaceKind::Local).project_sources, ["git", "github", "gitlab", "folder"]);
-            assert_eq!(kind_words(&WorkspaceKind::Cloud).project_sources, ["git", "github", "gitlab", "folder"]);
+            assert_eq!(kind_words(&WorkspaceKind::Cloud).project_sources, ["git", "github", "gitlab"]);
             assert!(kind_words(&WorkspaceKind::Local).copies_folder);
             assert!(!kind_words(&WorkspaceKind::Cloud).copies_folder);
         }

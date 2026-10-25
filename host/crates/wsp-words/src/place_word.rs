@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What a person calls a provider and its key, how a word names a place, and the refusals of a rename or a login
-//! change on a computer. Port of the functions of packages/protocol/src/place-word.ts at a3b870a6e (its flat
+//! change on a computer. Port of the functions of packages/protocol/src/place-word.ts at the cut (383708c78) (its flat
 //! constants, HERE_PLACE_ID and SOLARI_CONSOLE, are wsp_wire::types::place_word). Each TS statement stands as a
 //! comment above its stub. See spec/place_word.md.
 
@@ -40,7 +40,12 @@ pub const PROVIDER_KEY_IDS: [&str; 2] = ["box", "solari"];
 
 // place-word.ts:38
 // export const providerKeyName = (provider: string): string => PROVIDER_KEY_WORDS[provider]?.name ?? provider;
+/// The table is a plain object in the TS, so `constructor` finds `Object`, whose own `name` reads "Object"; every other
+/// key `Object.prototype` holds is a function named as the key, or an object with no name, and reads as itself.
 pub fn provider_key_name(provider: &str) -> String {
+    if provider == "constructor" {
+        return "Object".to_string();
+    }
     provider_key_words(provider).map_or(provider, |w| w.name).to_string()
 }
 

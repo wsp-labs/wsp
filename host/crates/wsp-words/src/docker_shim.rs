@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The docker a thread finds first on its PATH. Port of the function of packages/protocol/src/docker-shim.ts at
-//! a3b870a6e; its constants are wsp_wire::types::docker_shim. See spec/shell_and_text.md.
+//! the cut (383708c78); its constants are wsp_wire::types::docker_shim. See spec/shell_and_text.md.
 
 use wsp_wire::types::shell_quote::shell_quote;
 

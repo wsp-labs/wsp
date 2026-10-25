@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The state word a workspace reads as, the words each kind of workspace takes, what a delete takes, what a
 //! computer that is not answering says, and the refusals of a send or an action in a state. Port of the functions
-//! of packages/protocol/src/workspace-state.ts at a3b870a6e; its flat constants are
+//! of packages/protocol/src/workspace-state.ts at the cut (383708c78); its flat constants are
 //! wsp_wire::types::workspace_state. See spec/workspace_state.md.
 
 use wsp_wire::types::changes::Checkout;
@@ -23,7 +23,7 @@ use wsp_wire::types::workspace_state::{
 use wsp_wire::views::harness::ScreenControl;
 
 use crate::app_ports::authority;
-use crate::js::{number_string, upper_first};
+use crate::js::{js_round, number_string, upper_first};
 use crate::words::base::fmt_threads;
 use crate::words::computer::{computer_word, JOINED_COMPUTER, MACHINE_WSP_FORKS, THIS_COMPUTER};
 use crate::words::places::offline_for;
@@ -148,11 +148,6 @@ pub fn turn_spend_word(view: Option<Option<&WorkspaceKind>>) -> Option<String> {
 //    * no machine, no copy, no name of its own, and every thread of the folder shares one record. This computer, and a
 //    * computer the person joined, whose folder is reached over its link. */
 //   inFolder: boolean;
-//   /** Whether the agents on a machine of this kind could drive this host at all, which is what says the spawn switch
-//    * means anything there. A fork's agents reach the host over the road a scoped token opens, and this computer's
-//    * over its loopback with a token of the same scope; a machine somebody already owns is handed no wsp to drive
-//    * one with, so there the switch would hand out a token that opens nothing. */
-//   agents: boolean;
 //   /** What a delete does to a machine of this kind, which is never the same sentence twice: wsp takes away the
 //    * machine it forked, leaves this computer alone, and on a machine somebody owns takes off what it put there and
 //    * leaves the machine standing. */
@@ -173,7 +168,6 @@ pub struct WorkspaceKindWords {
     pub project_sources: &'static [&'static str],
     pub copies_folder: bool,
     pub in_folder: bool,
-    pub agents: bool,
     pub on_delete: MachineOnDelete,
 }
 
@@ -194,14 +188,32 @@ pub struct MachineOnDelete {
 }
 
 impl MachineOnDelete {
-    /// The TS `done(machineId)`.
+    /// The TS `done(machineId)`: the machine's id where `done` holds its slot, and a NUL of the text's own, which was
+    /// written doubled, as the one it was.
     pub fn done_for(&self, machine_id: &str) -> String {
-        self.done.replacen(MACHINE_ID_SLOT, machine_id, 1)
+        let mut out = String::new();
+        let mut chars = self.done.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c != MACHINE_ID_SLOT {
+                out.push(c);
+            } else if chars.peek() == Some(&MACHINE_ID_SLOT) {
+                chars.next();
+                out.push(MACHINE_ID_SLOT);
+            } else {
+                out.push_str(machine_id);
+            }
+        }
+        out
     }
 }
 
-/// Where a kind's `done` names the machine's id. A NUL, since no name, path or id wsp holds can carry one.
+/// Where a kind's `done` names the machine's id: a lone NUL. A NUL in a name or a path that goes into `done` is written
+/// doubled.
 const MACHINE_ID_SLOT: char = '\0';
+
+fn in_done(text: &str) -> String {
+    text.replace(MACHINE_ID_SLOT, "\0\0")
+}
 
 // workspace-state.ts:97
 // in wsp_wire::types::workspace_state: COMPUTER_LEFT
@@ -251,9 +263,9 @@ pub enum ReadingRoad {
 // here.
 // workspace-state.ts:115
 // export const WORKSPACE_KIND_WORDS: Record<WorkspaceKind, WorkspaceKindWords> = {
-//   cloud: { machine: MACHINE_WSP_FORKS, rowReadsMachine: true, cpu: "vCPU", where: A_PROVIDER, driven: true, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: false, agents: true, onDelete: { asked: "computer is deleted in the cloud", done: machineId => `computer ${machineId} is gone in the cloud` } },
-//   local: { machine: THIS_COMPUTER, rowReadsMachine: true, cpu: "cores", where: THIS_COMPUTER, driven: false, daemon: true, metrics: "host", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: true, inFolder: true, agents: true, onDelete: { asked: COMPUTER_LEFT, done: () => `its ${COMPUTER_LEFT}` } },
-//   place: { machine: JOINED_COMPUTER, rowReadsMachine: false, cpu: "cores", where: null, driven: false, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: true, agents: true, onDelete: { asked: COMPUTER_LEFT, done: () => `its ${COMPUTER_LEFT}` } },
+//   cloud: { machine: MACHINE_WSP_FORKS, rowReadsMachine: true, cpu: "vCPU", where: A_PROVIDER, driven: true, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab"], copiesFolder: false, inFolder: false, onDelete: { asked: "computer is deleted in the cloud", done: machineId => `computer ${machineId} is gone in the cloud` } },
+//   local: { machine: THIS_COMPUTER, rowReadsMachine: true, cpu: "cores", where: THIS_COMPUTER, driven: false, daemon: true, metrics: "host", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: true, inFolder: true, onDelete: { asked: COMPUTER_LEFT, done: () => `its ${COMPUTER_LEFT}` } },
+//   place: { machine: JOINED_COMPUTER, rowReadsMachine: false, cpu: "cores", where: null, driven: false, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: true, onDelete: { asked: COMPUTER_LEFT, done: () => `its ${COMPUTER_LEFT}` } },
 // };
 // Read through `kind_words`: a row holds a String, so the table is not a constant.
 
@@ -262,6 +274,7 @@ pub enum ReadingRoad {
 //   return WORKSPACE_KIND_WORDS[kind];
 // }
 pub fn kind_words(kind: &WorkspaceKind) -> WorkspaceKindWords {
+    const CLOUD_SOURCES: &[&str] = &["git", "github", "gitlab"];
     const PROJECT_SOURCES: &[&str] = &["git", "github", "gitlab", "folder"];
     let left = || MachineOnDelete { asked: COMPUTER_LEFT.to_string(), done: format!("its {COMPUTER_LEFT}") };
     match kind {
@@ -274,10 +287,9 @@ pub fn kind_words(kind: &WorkspaceKind) -> WorkspaceKindWords {
             daemon: true,
             metrics: ReadingRoad::Daemon,
             processes: ReadingRoad::Daemon,
-            project_sources: PROJECT_SOURCES,
+            project_sources: CLOUD_SOURCES,
             copies_folder: false,
             in_folder: false,
-            agents: true,
             on_delete: MachineOnDelete {
                 asked: "computer is deleted in the cloud".to_string(),
                 done: format!("computer {MACHINE_ID_SLOT} is gone in the cloud"),
@@ -295,7 +307,6 @@ pub fn kind_words(kind: &WorkspaceKind) -> WorkspaceKindWords {
             project_sources: PROJECT_SOURCES,
             copies_folder: true,
             in_folder: true,
-            agents: true,
             on_delete: left(),
         },
         WorkspaceKind::Place => WorkspaceKindWords {
@@ -310,7 +321,6 @@ pub fn kind_words(kind: &WorkspaceKind) -> WorkspaceKindWords {
             project_sources: PROJECT_SOURCES,
             copies_folder: false,
             in_folder: true,
-            agents: true,
             on_delete: left(),
         },
     }
@@ -339,28 +349,6 @@ pub fn reading_road(kind: &WorkspaceKind, reading: &KindReading) -> ReadingRoad 
         KindReading::Metrics => words.metrics,
         KindReading::Processes => words.processes,
     }
-}
-
-/// Whether the spawn switch means anything on a workspace of this kind, the one reading both doors that set it
-/// take: the create that names it on a new workspace and the verb that turns it on for one that exists.
-// workspace-state.ts:140
-// export function agentsMayDrive(kind: WorkspaceKind): boolean {
-//   return WORKSPACE_KIND_WORDS[kind].agents;
-// }
-pub fn agents_may_drive(kind: &WorkspaceKind) -> bool {
-    kind_words(kind).agents
-}
-
-/// The one sentence both those doors refuse with, so a person reads the same thing whichever they typed.
-// workspace-state.ts:145
-// export function agentsKindRefusal(kind: WorkspaceKind): string {
-//   return `agents on ${machineWord(kind)} cannot drive this host, so the spawn switch would hand out a token that opens nothing; it is for the machines wsp forks and this computer`;
-// }
-pub fn agents_kind_refusal(kind: &WorkspaceKind) -> String {
-    format!(
-        "agents on {} cannot drive this host, so the spawn switch would hand out a token that opens nothing; it is for the machines wsp forks and this computer",
-        machine_word(kind)
-    )
 }
 
 /// What a sentence calls this workspace's machine. Every kind answers for itself: a refusal on a machine wsp forks
@@ -535,12 +523,12 @@ pub fn on_delete_of(kind: &WorkspaceKind, copy: Option<&CopyAt>, machine_id: Opt
     match (copy, on) {
         (None, Some(on)) => MachineOnDelete {
             asked: format!("copy on {} is deleted", on.computer),
-            done: format!("{} is deleted from {}", on.name, on.computer),
+            done: format!("{} is deleted from {}", in_done(&on.name), in_done(&on.computer)),
         },
         (None, None) => kind_words(kind).on_delete,
         (Some(copy), _) => {
             let removed = format!("worktree at {} is removed and the project folder is left as it is", copy.path);
-            MachineOnDelete { asked: removed.clone(), done: format!("its {removed}") }
+            MachineOnDelete { asked: removed.clone(), done: format!("its {}", in_done(&removed)) }
         }
     }
 }
@@ -888,12 +876,9 @@ pub fn composer_held_line(computer: &str) -> String {
 //   return `Waited ${seconds < 60 ? `${seconds} s` : `${Math.round(ms / 60_000)} min`} for your computer`;
 // }
 pub fn waited_line(ms: f64) -> String {
-    let seconds = (ms / 1_000.0 + 0.5).floor();
-    let span = if seconds < 60.0 {
-        format!("{} s", number_string(seconds))
-    } else {
-        format!("{} min", number_string((ms / 60_000.0 + 0.5).floor()))
-    };
+    let seconds = js_round(ms / 1_000.0);
+    let span =
+        if seconds < 60.0 { format!("{} s", number_string(seconds)) } else { format!("{} min", number_string(js_round(ms / 60_000.0))) };
     format!("Waited {span} for your computer")
 }
 
@@ -906,8 +891,8 @@ pub fn waited_line(ms: f64) -> String {
 // }
 /// `last_seen_at` is the place's field of that name.
 pub fn away_ms_of(last_seen_at: Option<&str>, now: f64) -> Option<f64> {
-    let since: jiff::Timestamp = last_seen_at?.parse().ok()?;
-    Some(now - since.as_millisecond() as f64)
+    let since = crate::date_parse::date_parse(last_seen_at?);
+    (!since.is_nan()).then_some(now - since)
 }
 
 /// A fact a computer reported before it went quiet, marked as the reading it is: what it was when it last spoke,

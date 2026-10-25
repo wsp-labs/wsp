@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The words of a project's icon. Port of the functions of packages/protocol/src/project-look.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::project_look. See spec/project_look.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::project_look. See spec/project_look.md.
 
 use serde::Serialize;
 

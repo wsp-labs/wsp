@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What a place's cap is and what it counts, read off the rows the host lists: which place a workspace runs on, the
 //! settings each kind of place takes and how a row says them, the room left, and the lines a thread waiting for a
-//! slot is told. Port of the functions of packages/protocol/src/place-state.ts at a3b870a6e; its constants are
+//! slot is told. Port of the functions of packages/protocol/src/place-state.ts at the cut (383708c78); its constants are
 //! wsp_wire::types::place_state. See spec/place_state.md.
 
 use wsp_wire::types::js_number::{JsInt, JsNumber};
@@ -17,7 +17,7 @@ use wsp_wire::wire::capabilities::WorkspaceSize;
 use crate::js::{js_round, number_string};
 use crate::place_word::{place_said, PlaceRef};
 use crate::words::base::plural;
-use crate::words::computer::{agents_line, AgentsSwitch, SPEND_LIMIT_LINE};
+use crate::words::computer::SPEND_LIMIT_LINE;
 use crate::words::thread::{fmt_limit, refusal_line};
 use crate::words::units::{fmt_cost, fmt_duration, fmt_size, size_offer, size_refusal, size_word, SIZE_PICK_FIX};
 use crate::workspace_state::{is_local_workspace, workspace_state, WorkspaceState, WorkspaceStateInput};
@@ -81,11 +81,11 @@ pub fn threads_at_once(s: &WorkspaceSize) -> f64 {
 // export const CLOUD_CAP_DEFAULT: CloudCap = { machines: 3, spendPerDayUsd: 10 };
 // in wsp_wire::types::place_state: CLOUD_CAP_DEFAULT
 
-// What a workspace's switch reads as when neither it nor its place sets one, and what it takes when a person names
+// What a workspace's caps read as when neither it nor its place sets any, and what it takes when a person names
 // no numbers. Three machines is what one root thread's builders need and few enough that a runaway is a bill a
 // person notices, and two levels let a lead hand work to a sub-lead; threads at once and the machines cap bound cost.
 // place-state.ts:51
-// export const AGENTS_ON: WorkspaceAgents = { spawn: true, maxMachines: 3, maxDepth: 2 };
+// export const AGENTS_ON: WorkspaceAgents = { maxMachines: 3, maxDepth: 2 };
 // in wsp_wire::types::place_state: AGENTS_ON
 
 // How long a quiet workspace runs before it naps until the person sets another window.
@@ -202,7 +202,7 @@ pub type PlacedThread = ThreadView;
 // place-state.ts:105
 // type SettingSaid = { long: string; short: string };
 
-// Every setting a person can make on a place: the key it is stored under (and for a part of the agents switch, the
+// Every setting a person can make on a place: the key it is stored under (and for a part of the agents caps, the
 // parts of it), the words a refusal names it by, and what a row says it runs at now or by default.
 // place-state.ts:109
 // private in the TS: port it as a private helper
@@ -252,14 +252,13 @@ pub type PlacedThread = ThreadView;
 //       return ms === null ? { long: "no turn limit", short: "off" } : { long: `stops a turn at ${fmtLimit(ms)}`, short: fmtLimit(ms) };
 //     },
 //   },
-//   spawn: {
+//   "max-machines": {
 //     key: "spawn",
-//     parts: ["spawn", "maxMachines"],
-//     words: "agents may start agents",
+//     parts: ["maxMachines"],
+//     words: "machines under a root thread",
 //     reads: (p, fallback) => {
-//       const agents = fallback ? p.spawnDefault : p.spawn;
-//       if (agents === undefined) return undefined;
-//       return { long: agentsLine(agents), short: agents.spawn ? `on, up to ${agents.maxMachines}` : "off" };
+//       const machines = (fallback ? p.spawnDefault : p.spawn)?.maxMachines;
+//       return machines === undefined ? undefined : { long: `up to ${plural(machines, "machine")} under a root thread`, short: String(machines) };
 //     },
 //   },
 //   "max-depth": {
@@ -279,7 +278,7 @@ pub type PlacedThread = ThreadView;
 //   return n === undefined ? undefined : { long: `${plural(n, noun)} at once`, short: String(n) };
 // }
 
-/// Whether settings, held or asked for, name one setting: its key, or any of its parts of the agents switch.
+/// Whether settings, held or asked for, name one setting: its key, or any of its parts of the agents caps.
 // place-state.ts:181
 // export function placeSettingNamed(settings: PlaceSettings, word: PlaceSettingWord): boolean {
 //   const { key, parts } = SETTINGS[word];
@@ -294,13 +293,13 @@ pub fn place_setting_named(settings: &PlaceSettings, word: &PlaceSettingWord) ->
         PlaceSettingWord::DeleteAfter => settings.delete_after_ms.is_some(),
         PlaceSettingWord::Nap => settings.nap_ms.is_some(),
         PlaceSettingWord::TurnLimit => settings.turn_limit_ms.is_some(),
-        PlaceSettingWord::Spawn => settings.spawn.as_ref().is_some_and(|spawn| spawn.spawn.is_some() || spawn.max_machines.is_some()),
+        PlaceSettingWord::Spawn => settings.spawn.as_ref().is_some_and(|spawn| spawn.max_machines.is_some()),
         PlaceSettingWord::MaxDepth => settings.spawn.as_ref().is_some_and(|spawn| spawn.max_depth.is_some()),
     }
 }
 
-/// Settings with one setting taken back to its default: its key dropped, or its parts of the agents switch, and the
-/// switch with them once nothing of it is left.
+/// Settings with one setting taken back to its default: its key dropped, or its parts of the agents caps, and the
+/// caps with them once nothing of them is left.
 // place-state.ts:188
 // export function placeSettingDropped(settings: PlaceSettings, word: PlaceSettingWord): PlaceSettings {
 //   const { key, parts } = SETTINGS[word];
@@ -322,10 +321,7 @@ pub fn place_setting_dropped(settings: &PlaceSettings, word: &PlaceSettingWord) 
         PlaceSettingWord::Spawn | PlaceSettingWord::MaxDepth => {
             kept.spawn = settings.spawn.clone().and_then(|mut spawn| {
                 match word {
-                    PlaceSettingWord::Spawn => {
-                        spawn.spawn = None;
-                        spawn.max_machines = None;
-                    }
+                    PlaceSettingWord::Spawn => spawn.max_machines = None,
                     _ => spawn.max_depth = None,
                 }
                 (spawn.spawn.is_some() || spawn.max_machines.is_some() || spawn.max_depth.is_some()).then_some(spawn)
@@ -357,7 +353,7 @@ pub fn place_setting_dropped(settings: &PlaceSettings, word: &PlaceSettingWord) 
 // private in the TS: port it as a private helper
 // const PLACE_CAPS: Record<PlaceKind, PlaceCapRule> = {
 //   computer: {
-//     keys: ["threads", "nap", "turn-limit", "spawn", "max-depth"],
+//     keys: ["threads", "nap", "turn-limit", "max-machines", "max-depth"],
 //     turnLimit: null,
 //     capOf: (place, set) => {
 //       const threads = set.threads ?? (place.shape === undefined ? undefined : threadsAtOnce(place.shape));
@@ -372,7 +368,7 @@ pub fn place_setting_dropped(settings: &PlaceSettings, word: &PlaceSettingWord) 
 //     },
 //   },
 //   provider: {
-//     keys: ["machines", "spend", "size", "delete-after", "nap", "turn-limit", "spawn", "max-depth"],
+//     keys: ["machines", "spend", "size", "delete-after", "nap", "turn-limit", "max-machines", "max-depth"],
 //     turnLimit: TURN_WALL_MS,
 //     capOf: (_place, set) => ({ machines: set.machines ?? CLOUD_CAP_DEFAULT.machines, spendPerDayUsd: set.spendPerDayUsd ?? CLOUD_CAP_DEFAULT.spendPerDayUsd }),
 //     atOnce: cap => ("machines" in cap ? cap.machines : 0),
@@ -800,7 +796,7 @@ fn setting_words(word: PlaceSettingWord) -> &'static str {
         PlaceSettingWord::DeleteAfter => "delete after",
         PlaceSettingWord::Nap => "nap after",
         PlaceSettingWord::TurnLimit => "turn limit",
-        PlaceSettingWord::Spawn => "agents may start agents",
+        PlaceSettingWord::Spawn => "machines under a root thread",
         PlaceSettingWord::MaxDepth => "levels deep",
     }
 }
@@ -895,13 +891,8 @@ fn reads(place: &PlaceView, word: &PlaceSettingWord, fallback: bool) -> Option<S
             }
         }
         PlaceSettingWord::Spawn => {
-            let agents = if fallback { place.spawn_default.as_ref() } else { place.spawn.as_ref() }?;
-            let switch =
-                AgentsSwitch { spawn: agents.spawn, max_machines: agents.max_machines.as_f64(), max_depth: agents.max_depth.as_f64() };
-            Some(SettingSaid {
-                long: agents_line(Some(&switch)),
-                short: if agents.spawn { format!("on, up to {}", number_string(switch.max_machines)) } else { "off".to_string() },
-            })
+            let machines = if fallback { place.spawn_default.as_ref() } else { place.spawn.as_ref() }?.max_machines.as_f64();
+            Some(SettingSaid { long: format!("up to {} under a root thread", plural(machines, "machine")), short: number_string(machines) })
         }
         PlaceSettingWord::MaxDepth => {
             let depth = if fallback { place.spawn_default.as_ref() } else { place.spawn.as_ref() }?.max_depth.as_f64();
