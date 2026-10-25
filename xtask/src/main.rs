@@ -74,25 +74,6 @@ const SANDBOX_ENV: &str = "WSP_PARITY_SANDBOX";
 /// The folder the copy inside the sandbox may write, which is where the goldens go.
 const WRITABLE_ENV: &str = "WSP_PARITY_WRITABLE";
 
-/// What the copy inside the namespaces does before it runs: loopback up; every top-level folder but the kernel's, the
-/// devices and /tmp read-only, so nothing a replayed command does reaches what is installed on this computer; an empty
-/// /run, so no service manager or bus socket answers it; and the parity folder writable again for the goldens, which a
-/// bind of it alone does not do: it keeps the read-only flag of the folder it was taken from. Then / as the working
-/// folder, since one taken before the binds still writes through the old mount.
-const SANDBOX_SH: &str = r#"set -e
-PATH="$PATH:/usr/sbin:/sbin"
-ip link set lo up
-mount --make-rprivate /
-for d in /*; do
-  case "$d" in /proc|/sys|/dev|/tmp|/run) continue ;; esac
-  if [ -d "$d" ] && [ ! -L "$d" ]; then mount --bind -o ro "$d" "$d"; fi
-done
-mount -t tmpfs -o mode=755 tmpfs /run
-mount --bind "$WSP_PARITY_WRITABLE" "$WSP_PARITY_WRITABLE"
-mount -o remount,bind,rw "$WSP_PARITY_WRITABLE"
-cd /
-exec "$0" "$@""#;
-
 /// The copy inside the sandbox is the first process of its PID namespace, which the kernel hands no signal it has no
 /// handler for: a Ctrl-C would leave it running. Ending it ends the namespace and every host in it.
 extern "C" fn end_the_run(_: libc::c_int) {
@@ -182,18 +163,14 @@ fn sandboxed(root: &Path, run: &Run) -> Result<Option<ExitCode>, String> {
     }
     // SAFETY: geteuid reads the process's own id and cannot fail.
     let root_user = unsafe { libc::geteuid() } == 0;
-    // --kill-child: unshare ends the copy inside if unshare itself is killed.
-    let mut flags = vec!["--net", "--mount", "--pid", "--fork", "--mount-proc", "--kill-child"];
-    if !root_user {
-        flags.push("--map-root-user");
-    }
+    let flags = xtask::sandbox::flags(root_user);
     if !Command::new("unshare").args(&flags).arg("true").status().is_ok_and(|s| s.success()) {
         return Err(refused.into());
     }
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let status = Command::new("unshare")
         .args(&flags)
-        .args(["--", "/bin/sh", "-c", SANDBOX_SH])
+        .args(["--", "/bin/sh", "-c", xtask::sandbox::SCRIPT])
         .arg(exe)
         .args(std::env::args_os().skip(1))
         .env(SANDBOX_ENV, "1")
