@@ -1,0 +1,6995 @@
+[
+ {
+  "type": "DeltaKind",
+  "case": "full",
+  "input": "tool_result",
+  "output": "\"tool_result\""
+ },
+ {
+  "type": "DeltaKind",
+  "case": "minimal",
+  "input": "text",
+  "output": "\"text\""
+ },
+ {
+  "type": "DeltaKind",
+  "case": "value thinking",
+  "input": "thinking",
+  "output": "\"thinking\""
+ },
+ {
+  "type": "DeltaKind",
+  "case": "value note",
+  "input": "note",
+  "output": "\"note\""
+ },
+ {
+  "type": "DeltaKind",
+  "case": "value tool_use",
+  "input": "tool_use",
+  "output": "\"tool_use\""
+ },
+ {
+  "type": "DeltaKind",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "FilePatch",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "hunks": [
+    {
+     "oldStart": 7,
+     "oldLines": 7,
+     "newStart": 7,
+     "newLines": 7,
+     "lines": [
+      "text é"
+     ]
+    }
+   ],
+   "movedTo": "text é"
+  },
+  "output": "{\"path\":\"text é\",\"hunks\":[{\"oldStart\":7,\"oldLines\":7,\"newStart\":7,\"newLines\":7,\"lines\":[\"text é\"]}],\"movedTo\":\"text é\"}"
+ },
+ {
+  "type": "FilePatch",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "hunks": []
+  },
+  "output": "{\"path\":\"s\",\"hunks\":[]}"
+ },
+ {
+  "type": "FilePatch",
+  "case": "nulls",
+  "input": {
+   "path": "s",
+   "hunks": [],
+   "movedTo": "s"
+  },
+  "output": "{\"path\":\"s\",\"hunks\":[],\"movedTo\":\"s\"}"
+ },
+ {
+  "type": "FilePatch",
+  "case": "missing path",
+  "input": {
+   "hunks": [
+    {
+     "oldStart": 7,
+     "oldLines": 7,
+     "newStart": 7,
+     "newLines": 7,
+     "lines": [
+      "text é"
+     ]
+    }
+   ],
+   "movedTo": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PatchHunk",
+  "case": "full",
+  "input": {
+   "oldStart": 7,
+   "oldLines": 7,
+   "newStart": 7,
+   "newLines": 7,
+   "lines": [
+    "text é"
+   ]
+  },
+  "output": "{\"oldStart\":7,\"oldLines\":7,\"newStart\":7,\"newLines\":7,\"lines\":[\"text é\"]}"
+ },
+ {
+  "type": "PatchHunk",
+  "case": "minimal",
+  "input": {
+   "oldStart": 7,
+   "oldLines": 7,
+   "newStart": 7,
+   "newLines": 7,
+   "lines": []
+  },
+  "output": "{\"oldStart\":7,\"oldLines\":7,\"newStart\":7,\"newLines\":7,\"lines\":[]}"
+ },
+ {
+  "type": "PatchHunk",
+  "case": "missing oldStart",
+  "input": {
+   "oldLines": 7,
+   "newStart": 7,
+   "newLines": 7,
+   "lines": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "oldStart"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PatchHunk",
+  "case": "oldStart: not an integer",
+  "input": {
+   "oldStart": 2.5,
+   "oldLines": 7,
+   "newStart": 7,
+   "newLines": 7,
+   "lines": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "oldStart"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PatchHunk",
+  "case": "oldLines: not an integer",
+  "input": {
+   "oldStart": 7,
+   "oldLines": 2.5,
+   "newStart": 7,
+   "newLines": 7,
+   "lines": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "oldLines"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PatchHunk",
+  "case": "newStart: not an integer",
+  "input": {
+   "oldStart": 7,
+   "oldLines": 7,
+   "newStart": 2.5,
+   "newLines": 7,
+   "lines": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "newStart"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PatchHunk",
+  "case": "newLines: not an integer",
+  "input": {
+   "oldStart": 7,
+   "oldLines": 7,
+   "newStart": 7,
+   "newLines": 2.5,
+   "lines": [
+    "text é"
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "newLines"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PlanStep",
+  "case": "full",
+  "input": {
+   "text": "text é",
+   "state": "done"
+  },
+  "output": "{\"text\":\"text é\",\"state\":\"done\"}"
+ },
+ {
+  "type": "PlanStep",
+  "case": "minimal",
+  "input": {
+   "text": "s",
+   "state": "pending"
+  },
+  "output": "{\"text\":\"s\",\"state\":\"pending\"}"
+ },
+ {
+  "type": "PlanStep",
+  "case": "missing text",
+  "input": {
+   "state": "done"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "text"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PlanStep",
+  "case": "state: not one of its values",
+  "input": {
+   "text": "text é",
+   "state": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RunState",
+  "case": "full",
+  "input": "lost",
+  "output": "\"lost\""
+ },
+ {
+  "type": "RunState",
+  "case": "minimal",
+  "input": "running",
+  "output": "\"running\""
+ },
+ {
+  "type": "RunState",
+  "case": "value exited",
+  "input": "exited",
+  "output": "\"exited\""
+ },
+ {
+  "type": "RunState",
+  "case": "value moved",
+  "input": "moved",
+  "output": "\"moved\""
+ },
+ {
+  "type": "RunState",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RunStep",
+  "case": "full",
+  "input": {
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "lost",
+   "ptyId": "text é",
+   "exitCode": 7,
+   "signal": 7,
+   "output": "text é",
+   "threadId": "text é",
+   "turnId": "text é"
+  },
+  "output": "{\"runId\":\"text é\",\"block\":\"text é\",\"command\":\"text é\",\"state\":\"lost\",\"ptyId\":\"text é\",\"exitCode\":7,\"signal\":7,\"output\":\"text é\",\"threadId\":\"text é\",\"turnId\":\"text é\"}"
+ },
+ {
+  "type": "RunStep",
+  "case": "minimal",
+  "input": {
+   "runId": "s",
+   "block": "s",
+   "command": "s",
+   "state": "running",
+   "threadId": "s",
+   "turnId": "s"
+  },
+  "output": "{\"runId\":\"s\",\"block\":\"s\",\"command\":\"s\",\"state\":\"running\",\"threadId\":\"s\",\"turnId\":\"s\"}"
+ },
+ {
+  "type": "RunStep",
+  "case": "nulls",
+  "input": {
+   "runId": "s",
+   "block": "s",
+   "command": "s",
+   "state": "running",
+   "ptyId": "s",
+   "exitCode": 7,
+   "signal": 7,
+   "output": "s",
+   "threadId": "s",
+   "turnId": "s"
+  },
+  "output": "{\"runId\":\"s\",\"block\":\"s\",\"command\":\"s\",\"state\":\"running\",\"ptyId\":\"s\",\"exitCode\":7,\"signal\":7,\"output\":\"s\",\"threadId\":\"s\",\"turnId\":\"s\"}"
+ },
+ {
+  "type": "RunStep",
+  "case": "missing runId",
+  "input": {
+   "block": "text é",
+   "command": "text é",
+   "state": "lost",
+   "ptyId": "text é",
+   "exitCode": 7,
+   "signal": 7,
+   "output": "text é",
+   "threadId": "text é",
+   "turnId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "runId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RunStep",
+  "case": "state: not one of its values",
+  "input": {
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "not-a-value",
+   "ptyId": "text é",
+   "exitCode": 7,
+   "signal": 7,
+   "output": "text é",
+   "threadId": "text é",
+   "turnId": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RunStep",
+  "case": "exitCode: not an integer",
+  "input": {
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "lost",
+   "ptyId": "text é",
+   "exitCode": 2.5,
+   "signal": 7,
+   "output": "text é",
+   "threadId": "text é",
+   "turnId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "exitCode"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RunStep",
+  "case": "signal: not an integer",
+  "input": {
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "lost",
+   "ptyId": "text é",
+   "exitCode": 7,
+   "signal": 2.5,
+   "output": "text é",
+   "threadId": "text é",
+   "turnId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "signal"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionBehindEvent",
+  "case": "full",
+  "input": {
+   "type": "session.behind",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "text": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"text\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.behind"
+  }
+ },
+ {
+  "type": "SessionBehindEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.behind",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "text": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"text\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.behind"
+  }
+ },
+ {
+  "type": "SessionBehindEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.behind",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "text": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"text\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.behind"
+  }
+ },
+ {
+  "type": "SessionBehindEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.behind",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionBehindEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.behind",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionBehindEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.behind",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionCappedEvent",
+  "case": "full",
+  "input": {
+   "type": "session.capped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "placeId": "text é",
+   "place": "text é",
+   "running": 7,
+   "atOnce": 7,
+   "why": "minute",
+   "requestId": "text é",
+   "prompt": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"placeId\":\"text é\",\"place\":\"text é\",\"running\":7,\"atOnce\":7,\"why\":\"minute\",\"requestId\":\"text é\",\"prompt\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.capped"
+  }
+ },
+ {
+  "type": "SessionCappedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.capped",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "placeId": "s",
+   "place": "s",
+   "running": 7,
+   "atOnce": 7
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"placeId\":\"s\",\"place\":\"s\",\"running\":7,\"atOnce\":7}",
+  "tag": {
+   "key": "type",
+   "value": "session.capped"
+  }
+ },
+ {
+  "type": "SessionCappedEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.capped",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "placeId": "s",
+   "place": "s",
+   "running": 7,
+   "atOnce": 7,
+   "why": "slot",
+   "requestId": "s",
+   "prompt": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"placeId\":\"s\",\"place\":\"s\",\"running\":7,\"atOnce\":7,\"why\":\"slot\",\"requestId\":\"s\",\"prompt\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.capped"
+  }
+ },
+ {
+  "type": "SessionCappedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.capped",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "placeId": "text é",
+   "place": "text é",
+   "running": 7,
+   "atOnce": 7,
+   "why": "minute",
+   "requestId": "text é",
+   "prompt": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionCappedEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.capped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "placeId": "text é",
+   "place": "text é",
+   "running": 7,
+   "atOnce": 7,
+   "why": "minute",
+   "requestId": "text é",
+   "prompt": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionCappedEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.capped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "placeId": "text é",
+   "place": "text é",
+   "running": 7,
+   "atOnce": 7,
+   "why": "minute",
+   "requestId": "text é",
+   "prompt": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionCappedEvent",
+  "case": "running: not an integer",
+  "input": {
+   "type": "session.capped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "placeId": "text é",
+   "place": "text é",
+   "running": 2.5,
+   "atOnce": 7,
+   "why": "minute",
+   "requestId": "text é",
+   "prompt": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "running"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionCappedEvent",
+  "case": "atOnce: not an integer",
+  "input": {
+   "type": "session.capped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "placeId": "text é",
+   "place": "text é",
+   "running": 7,
+   "atOnce": 2.5,
+   "why": "minute",
+   "requestId": "text é",
+   "prompt": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "atOnce"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionCappedEvent",
+  "case": "why: not one of its values",
+  "input": {
+   "type": "session.capped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "placeId": "text é",
+   "place": "text é",
+   "running": 7,
+   "atOnce": 7,
+   "why": "not-a-value",
+   "requestId": "text é",
+   "prompt": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "why"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionChangesEvent",
+  "case": "full",
+  "input": {
+   "type": "session.changes",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "from": "text é",
+   "to": "text é",
+   "files": [
+    {
+     "path": "text é",
+     "kind": "text é",
+     "additions": 2.5,
+     "deletions": 2.5
+    }
+   ],
+   "moved": [
+    "text é"
+   ],
+   "shared": true,
+   "others": [
+    {
+     "path": "text é",
+     "kind": "text é",
+     "additions": 2.5,
+     "deletions": 2.5
+    }
+   ]
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"from\":\"text é\",\"to\":\"text é\",\"files\":[{\"path\":\"text é\",\"kind\":\"text é\",\"additions\":2.5,\"deletions\":2.5}],\"moved\":[\"text é\"],\"shared\":true,\"others\":[{\"path\":\"text é\",\"kind\":\"text é\",\"additions\":2.5,\"deletions\":2.5}]}",
+  "tag": {
+   "key": "type",
+   "value": "session.changes"
+  }
+ },
+ {
+  "type": "SessionChangesEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.changes",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "from": "s",
+   "to": "s",
+   "files": [],
+   "moved": []
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"from\":\"s\",\"to\":\"s\",\"files\":[],\"moved\":[]}",
+  "tag": {
+   "key": "type",
+   "value": "session.changes"
+  }
+ },
+ {
+  "type": "SessionChangesEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.changes",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "from": "s",
+   "to": "s",
+   "files": [],
+   "moved": [],
+   "shared": true,
+   "others": []
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"from\":\"s\",\"to\":\"s\",\"files\":[],\"moved\":[],\"shared\":true,\"others\":[]}",
+  "tag": {
+   "key": "type",
+   "value": "session.changes"
+  }
+ },
+ {
+  "type": "SessionChangesEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.changes",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "from": "text é",
+   "to": "text é",
+   "files": [
+    {
+     "path": "text é",
+     "kind": "text é",
+     "additions": 2.5,
+     "deletions": 2.5
+    }
+   ],
+   "moved": [
+    "text é"
+   ],
+   "shared": true,
+   "others": [
+    {
+     "path": "text é",
+     "kind": "text é",
+     "additions": 2.5,
+     "deletions": 2.5
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionChangesEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.changes",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "from": "text é",
+   "to": "text é",
+   "files": [
+    {
+     "path": "text é",
+     "kind": "text é",
+     "additions": 2.5,
+     "deletions": 2.5
+    }
+   ],
+   "moved": [
+    "text é"
+   ],
+   "shared": true,
+   "others": [
+    {
+     "path": "text é",
+     "kind": "text é",
+     "additions": 2.5,
+     "deletions": 2.5
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionChangesEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.changes",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "from": "text é",
+   "to": "text é",
+   "files": [
+    {
+     "path": "text é",
+     "kind": "text é",
+     "additions": 2.5,
+     "deletions": 2.5
+    }
+   ],
+   "moved": [
+    "text é"
+   ],
+   "shared": true,
+   "others": [
+    {
+     "path": "text é",
+     "kind": "text é",
+     "additions": 2.5,
+     "deletions": 2.5
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionCheckpointEvent",
+  "case": "full",
+  "input": {
+   "type": "session.checkpoint",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "ref": "text é",
+   "based": true,
+   "anchor": "text é",
+   "kept": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"ref\":\"text é\",\"based\":true,\"anchor\":\"text é\",\"kept\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.checkpoint"
+  }
+ },
+ {
+  "type": "SessionCheckpointEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.checkpoint",
+   "workspaceId": "s",
+   "sessionId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.checkpoint"
+  }
+ },
+ {
+  "type": "SessionCheckpointEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.checkpoint",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "ref": "s",
+   "based": true,
+   "anchor": "s",
+   "kept": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"ref\":\"s\",\"based\":true,\"anchor\":\"s\",\"kept\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.checkpoint"
+  }
+ },
+ {
+  "type": "SessionCheckpointEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.checkpoint",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "ref": "text é",
+   "based": true,
+   "anchor": "text é",
+   "kept": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionCheckpointEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.checkpoint",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "ref": "text é",
+   "based": true,
+   "anchor": "text é",
+   "kept": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionCheckpointEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.checkpoint",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "ref": "text é",
+   "based": true,
+   "anchor": "text é",
+   "kept": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionCompactedEvent",
+  "case": "full",
+  "input": {
+   "type": "session.compacted",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "before": 2.5,
+   "after": 2.5,
+   "line": 7
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"before\":2.5,\"after\":2.5,\"line\":7}",
+  "tag": {
+   "key": "type",
+   "value": "session.compacted"
+  }
+ },
+ {
+  "type": "SessionCompactedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.compacted",
+   "workspaceId": "s",
+   "sessionId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.compacted"
+  }
+ },
+ {
+  "type": "SessionCompactedEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.compacted",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "before": 3,
+   "after": 3,
+   "line": 7
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"before\":3,\"after\":3,\"line\":7}",
+  "tag": {
+   "key": "type",
+   "value": "session.compacted"
+  }
+ },
+ {
+  "type": "SessionCompactedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.compacted",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "before": 2.5,
+   "after": 2.5,
+   "line": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionCompactedEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.compacted",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "before": 2.5,
+   "after": 2.5,
+   "line": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionCompactedEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.compacted",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "before": 2.5,
+   "after": 2.5,
+   "line": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionCompactedEvent",
+  "case": "line: not an integer",
+  "input": {
+   "type": "session.compacted",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "before": 2.5,
+   "after": 2.5,
+   "line": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionCompactedEvent",
+  "case": "line: under 0",
+  "input": {
+   "type": "session.compacted",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "before": 2.5,
+   "after": 2.5,
+   "line": 0
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionContextEvent",
+  "case": "full",
+  "input": {
+   "type": "session.context",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "context": 2.5,
+   "window": 2.5
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"context\":2.5,\"window\":2.5}",
+  "tag": {
+   "key": "type",
+   "value": "session.context"
+  }
+ },
+ {
+  "type": "SessionContextEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.context",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "context": 3
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"context\":3}",
+  "tag": {
+   "key": "type",
+   "value": "session.context"
+  }
+ },
+ {
+  "type": "SessionContextEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.context",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "context": 3,
+   "window": 3
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"context\":3,\"window\":3}",
+  "tag": {
+   "key": "type",
+   "value": "session.context"
+  }
+ },
+ {
+  "type": "SessionContextEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.context",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "context": 2.5,
+   "window": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionContextEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.context",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "context": 2.5,
+   "window": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionContextEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.context",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "context": 2.5,
+   "window": 2.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "full",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"kind\":\"tool_result\",\"text\":\"text é\",\"messageId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"isError\":true,\"parentToolUseId\":\"text é\",\"cwd\":\"text é\",\"line\":7,\"cut\":7,\"bytes\":7,\"exitCode\":7,\"durationMs\":2.5,\"patch\":[{\"path\":\"text é\",\"hunks\":[{\"oldStart\":7,\"oldLines\":7,\"newStart\":7,\"newLines\":7,\"lines\":[]}],\"movedTo\":\"text é\"}],\"patchCut\":true}",
+  "tag": {
+   "key": "type",
+   "value": "session.delta"
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "kind": "text",
+   "text": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"kind\":\"text\",\"text\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.delta"
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "kind": "text",
+   "text": "s",
+   "messageId": "s",
+   "toolName": "s",
+   "toolUseId": "s",
+   "isError": false,
+   "parentToolUseId": "s",
+   "cwd": "s",
+   "line": 7,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 3,
+   "patch": [],
+   "patchCut": true
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"kind\":\"text\",\"text\":\"s\",\"messageId\":\"s\",\"toolName\":\"s\",\"toolUseId\":\"s\",\"isError\":false,\"parentToolUseId\":\"s\",\"cwd\":\"s\",\"line\":7,\"cut\":7,\"bytes\":7,\"exitCode\":7,\"durationMs\":3,\"patch\":[],\"patchCut\":true}",
+  "tag": {
+   "key": "type",
+   "value": "session.delta"
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.delta",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "kind: not one of its values",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "not-a-value",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "isError: not a boolean",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": "yes",
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "isError"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "line: not an integer",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 2.5,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "line: under 0",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 0,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "cut: not an integer",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 2.5,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "cut"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "cut: under 0",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 0,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "cut"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "bytes: not an integer",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 7,
+   "bytes": 2.5,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "bytes: under 0",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 7,
+   "bytes": -1,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "exitCode: not an integer",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 2.5,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "exitCode"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionDeltaEvent",
+  "case": "durationMs: under 0",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": -1,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [
+      {
+       "oldStart": 7,
+       "oldLines": 7,
+       "newStart": 7,
+       "newLines": 7,
+       "lines": []
+      }
+     ],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "durationMs"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionDoneEvent",
+  "case": "full",
+  "input": {
+   "type": "session.done",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "result": {
+    "status": "failed",
+    "durationMs": 2.5,
+    "waitedMs": 2.5,
+    "costUsd": 2.5,
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5,
+     "context": 2.5,
+     "window": 2.5
+    },
+    "model": "text é",
+    "models": [
+     {
+      "model": "text é",
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "costUsd": 2.5
+     }
+    ],
+    "text": "text é",
+    "error": "text é",
+    "unreached": true,
+    "refusal": "sign-in",
+    "limit": {
+     "resetsAt": 2.5
+    }
+   }
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"result\":{\"status\":\"failed\",\"durationMs\":2.5,\"waitedMs\":2.5,\"costUsd\":2.5,\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5,\"context\":2.5,\"window\":2.5},\"model\":\"text é\",\"models\":[{\"model\":\"text é\",\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"costUsd\":2.5}],\"text\":\"text é\",\"error\":\"text é\",\"unreached\":true,\"refusal\":\"sign-in\",\"limit\":{\"resetsAt\":2.5}}}",
+  "tag": {
+   "key": "type",
+   "value": "session.done"
+  }
+ },
+ {
+  "type": "SessionDoneEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.done",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "result": {
+    "status": "completed"
+   }
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"result\":{\"status\":\"completed\"}}",
+  "tag": {
+   "key": "type",
+   "value": "session.done"
+  }
+ },
+ {
+  "type": "SessionDoneEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.done",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "result": {
+    "status": "completed"
+   }
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"result\":{\"status\":\"completed\"}}",
+  "tag": {
+   "key": "type",
+   "value": "session.done"
+  }
+ },
+ {
+  "type": "SessionDoneEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.done",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "result": {
+    "status": "failed",
+    "durationMs": 2.5,
+    "waitedMs": 2.5,
+    "costUsd": 2.5,
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5,
+     "context": 2.5,
+     "window": 2.5
+    },
+    "model": "text é",
+    "models": [
+     {
+      "model": "text é",
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "costUsd": 2.5
+     }
+    ],
+    "text": "text é",
+    "error": "text é",
+    "unreached": true,
+    "refusal": "sign-in",
+    "limit": {
+     "resetsAt": 2.5
+    }
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionDoneEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.done",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "result": {
+    "status": "failed",
+    "durationMs": 2.5,
+    "waitedMs": 2.5,
+    "costUsd": 2.5,
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5,
+     "context": 2.5,
+     "window": 2.5
+    },
+    "model": "text é",
+    "models": [
+     {
+      "model": "text é",
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "costUsd": 2.5
+     }
+    ],
+    "text": "text é",
+    "error": "text é",
+    "unreached": true,
+    "refusal": "sign-in",
+    "limit": {
+     "resetsAt": 2.5
+    }
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionDoneEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.done",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "result": {
+    "status": "failed",
+    "durationMs": 2.5,
+    "waitedMs": 2.5,
+    "costUsd": 2.5,
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5,
+     "context": 2.5,
+     "window": 2.5
+    },
+    "model": "text é",
+    "models": [
+     {
+      "model": "text é",
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "costUsd": 2.5
+     }
+    ],
+    "text": "text é",
+    "error": "text é",
+    "unreached": true,
+    "refusal": "sign-in",
+    "limit": {
+     "resetsAt": 2.5
+    }
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionEarlierEvent",
+  "case": "full",
+  "input": {
+   "type": "session.earlier",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "who": "note",
+   "text": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"who\":\"note\",\"text\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.earlier"
+  }
+ },
+ {
+  "type": "SessionEarlierEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.earlier",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "who": "person",
+   "text": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"who\":\"person\",\"text\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.earlier"
+  }
+ },
+ {
+  "type": "SessionEarlierEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.earlier",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "who": "person",
+   "text": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"who\":\"person\",\"text\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.earlier"
+  }
+ },
+ {
+  "type": "SessionEarlierEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.earlier",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "who": "note",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionEarlierEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.earlier",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "who": "note",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionEarlierEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.earlier",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "who": "note",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionEarlierEvent",
+  "case": "who: not one of its values",
+  "input": {
+   "type": "session.earlier",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "who": "not-a-value",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "who"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionEndEvent",
+  "case": "full",
+  "input": {
+   "type": "session.end",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "exitCode": 2.5,
+   "sawResult": true,
+   "reason": "text é",
+   "unstarted": true,
+   "prompt": "text é",
+   "promptless": true
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"exitCode\":2.5,\"sawResult\":true,\"reason\":\"text é\",\"unstarted\":true,\"prompt\":\"text é\",\"promptless\":true}",
+  "tag": {
+   "key": "type",
+   "value": "session.end"
+  }
+ },
+ {
+  "type": "SessionEndEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.end",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "exitCode": 3,
+   "sawResult": false
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"exitCode\":3,\"sawResult\":false}",
+  "tag": {
+   "key": "type",
+   "value": "session.end"
+  }
+ },
+ {
+  "type": "SessionEndEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.end",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "exitCode": null,
+   "sawResult": false,
+   "reason": "s",
+   "unstarted": true,
+   "prompt": "s",
+   "promptless": true
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"exitCode\":null,\"sawResult\":false,\"reason\":\"s\",\"unstarted\":true,\"prompt\":\"s\",\"promptless\":true}",
+  "tag": {
+   "key": "type",
+   "value": "session.end"
+  }
+ },
+ {
+  "type": "SessionEndEvent",
+  "case": "missing exitCode, which is null or a value but never absent",
+  "input": {
+   "type": "session.end",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "sawResult": true,
+   "reason": "text é",
+   "unstarted": true,
+   "prompt": "text é",
+   "promptless": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "exitCode"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionEndEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.end",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "exitCode": 2.5,
+   "sawResult": true,
+   "reason": "text é",
+   "unstarted": true,
+   "prompt": "text é",
+   "promptless": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionEndEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.end",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "exitCode": 2.5,
+   "sawResult": true,
+   "reason": "text é",
+   "unstarted": true,
+   "prompt": "text é",
+   "promptless": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionEndEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.end",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "exitCode": 2.5,
+   "sawResult": true,
+   "reason": "text é",
+   "unstarted": true,
+   "prompt": "text é",
+   "promptless": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionEndEvent",
+  "case": "sawResult: not a boolean",
+  "input": {
+   "type": "session.end",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "exitCode": 2.5,
+   "sawResult": "yes",
+   "reason": "text é",
+   "unstarted": true,
+   "prompt": "text é",
+   "promptless": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "sawResult"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionEvent",
+  "case": "full",
+  "input": {
+   "type": "thread.waited",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "ms": 7,
+   "said": "text é"
+  },
+  "output": "{\"type\":\"thread.waited\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"ms\":7,\"said\":\"text é\"}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.start",
+   "workspaceId": "s",
+   "sessionId": "s"
+  },
+  "output": "{\"type\":\"session.start\",\"workspaceId\":\"s\",\"sessionId\":\"s\"}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 0",
+  "input": {
+   "type": "session.start",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "afterCut": true,
+   "afterLimit": 2.5,
+   "opensThread": true,
+   "startedBy": "agent",
+   "model": "text é",
+   "cwd": "text é",
+   "permissionMode": "text é",
+   "effort": "text é",
+   "agent": "text é",
+   "tools": [
+    "text é"
+   ],
+   "harness": {
+    "slashCommands": [
+     "text é"
+    ],
+    "permissionMode": "text é",
+    "agents": [
+     "text é"
+    ]
+   }
+  },
+  "output": "{\"type\":\"session.start\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"prompt\":\"text é\",\"attachments\":[{\"mediaType\":\"text é\",\"bytes\":7,\"name\":\"text é\"}],\"requestId\":\"text é\",\"via\":\"slate\",\"afterCut\":true,\"afterLimit\":2.5,\"opensThread\":true,\"startedBy\":\"agent\",\"model\":\"text é\",\"cwd\":\"text é\",\"permissionMode\":\"text é\",\"effort\":\"text é\",\"agent\":\"text é\",\"tools\":[\"text é\"],\"harness\":{\"slashCommands\":[\"text é\"],\"permissionMode\":\"text é\",\"agents\":[\"text é\"]}}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 1",
+  "input": {
+   "type": "session.delta",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "kind": "tool_result",
+   "text": "text é",
+   "messageId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "isError": true,
+   "parentToolUseId": "text é",
+   "cwd": "text é",
+   "line": 7,
+   "cut": 7,
+   "bytes": 7,
+   "exitCode": 7,
+   "durationMs": 2.5,
+   "patch": [
+    {
+     "path": "text é",
+     "hunks": [],
+     "movedTo": "text é"
+    }
+   ],
+   "patchCut": true
+  },
+  "output": "{\"type\":\"session.delta\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"kind\":\"tool_result\",\"text\":\"text é\",\"messageId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"isError\":true,\"parentToolUseId\":\"text é\",\"cwd\":\"text é\",\"line\":7,\"cut\":7,\"bytes\":7,\"exitCode\":7,\"durationMs\":2.5,\"patch\":[{\"path\":\"text é\",\"hunks\":[],\"movedTo\":\"text é\"}],\"patchCut\":true}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 2",
+  "input": {
+   "type": "session.done",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "result": {
+    "status": "failed",
+    "durationMs": 2.5,
+    "waitedMs": 2.5,
+    "costUsd": 2.5,
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5,
+     "context": 2.5,
+     "window": 2.5
+    },
+    "model": "text é",
+    "models": [
+     {
+      "model": "text é",
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      }
+     }
+    ],
+    "text": "text é",
+    "error": "text é",
+    "unreached": true,
+    "refusal": "sign-in",
+    "limit": {
+     "resetsAt": 2.5
+    }
+   }
+  },
+  "output": "{\"type\":\"session.done\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"result\":{\"status\":\"failed\",\"durationMs\":2.5,\"waitedMs\":2.5,\"costUsd\":2.5,\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5,\"context\":2.5,\"window\":2.5},\"model\":\"text é\",\"models\":[{\"model\":\"text é\",\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5}}],\"text\":\"text é\",\"error\":\"text é\",\"unreached\":true,\"refusal\":\"sign-in\",\"limit\":{\"resetsAt\":2.5}}}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 3",
+  "input": {
+   "type": "session.end",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "exitCode": 2.5,
+   "sawResult": true,
+   "reason": "text é",
+   "unstarted": true,
+   "prompt": "text é",
+   "promptless": true
+  },
+  "output": "{\"type\":\"session.end\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"exitCode\":2.5,\"sawResult\":true,\"reason\":\"text é\",\"unstarted\":true,\"prompt\":\"text é\",\"promptless\":true}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 4",
+  "input": {
+   "type": "session.steer",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "waiting": true
+  },
+  "output": "{\"type\":\"session.steer\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"prompt\":\"text é\",\"attachments\":[{\"mediaType\":\"text é\",\"bytes\":7,\"name\":\"text é\"}],\"requestId\":\"text é\",\"via\":\"slate\",\"waiting\":true}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 5",
+  "input": {
+   "type": "session.notify",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "notify": "text é",
+   "text": "text é"
+  },
+  "output": "{\"type\":\"session.notify\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"notify\":\"text é\",\"text\":\"text é\"}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 6",
+  "input": {
+   "type": "session.permission",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "askId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "parentToolUseId": "text é",
+   "input": "text é",
+   "detail": "text é",
+   "options": [
+    {
+     "id": "text é",
+     "label": "text é",
+     "effect": "answer",
+     "mode": "text é"
+    }
+   ]
+  },
+  "output": "{\"type\":\"session.permission\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"askId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"parentToolUseId\":\"text é\",\"input\":\"text é\",\"detail\":\"text é\",\"options\":[{\"id\":\"text é\",\"label\":\"text é\",\"effect\":\"answer\",\"mode\":\"text é\"}]}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 7",
+  "input": {
+   "type": "session.permission.closed",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "askId": "text é",
+   "outcome": "cancelled",
+   "optionId": "text é"
+  },
+  "output": "{\"type\":\"session.permission.closed\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"askId\":\"text é\",\"outcome\":\"cancelled\",\"optionId\":\"text é\"}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 8",
+  "input": {
+   "type": "session.checkpoint",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "ref": "text é",
+   "based": true,
+   "anchor": "text é",
+   "kept": "text é"
+  },
+  "output": "{\"type\":\"session.checkpoint\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"ref\":\"text é\",\"based\":true,\"anchor\":\"text é\",\"kept\":\"text é\"}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 9",
+  "input": {
+   "type": "session.changes",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "from": "text é",
+   "to": "text é",
+   "files": [
+    {
+     "path": "text é",
+     "kind": "text é",
+     "additions": 2.5,
+     "deletions": 2.5
+    }
+   ],
+   "moved": [
+    "text é"
+   ],
+   "shared": true,
+   "others": [
+    {
+     "path": "text é",
+     "kind": "text é",
+     "additions": 2.5,
+     "deletions": 2.5
+    }
+   ]
+  },
+  "output": "{\"type\":\"session.changes\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"from\":\"text é\",\"to\":\"text é\",\"files\":[{\"path\":\"text é\",\"kind\":\"text é\",\"additions\":2.5,\"deletions\":2.5}],\"moved\":[\"text é\"],\"shared\":true,\"others\":[{\"path\":\"text é\",\"kind\":\"text é\",\"additions\":2.5,\"deletions\":2.5}]}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 10",
+  "input": {
+   "type": "session.plan",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "steps": [
+    {
+     "text": "text é",
+     "state": "done"
+    }
+   ],
+   "text": "text é"
+  },
+  "output": "{\"type\":\"session.plan\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"steps\":[{\"text\":\"text é\",\"state\":\"done\"}],\"text\":\"text é\"}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 11",
+  "input": {
+   "type": "session.compacted",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "before": 2.5,
+   "after": 2.5,
+   "line": 7
+  },
+  "output": "{\"type\":\"session.compacted\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"before\":2.5,\"after\":2.5,\"line\":7}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 12",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "attempt": 7,
+   "of": 7,
+   "why": "text é",
+   "line": 7
+  },
+  "output": "{\"type\":\"session.retry\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"attempt\":7,\"of\":7,\"why\":\"text é\",\"line\":7}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 13",
+  "input": {
+   "type": "session.context",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "context": 2.5,
+   "window": 2.5
+  },
+  "output": "{\"type\":\"session.context\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"context\":2.5,\"window\":2.5}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 14",
+  "input": {
+   "type": "session.run",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "lost",
+   "ptyId": "text é",
+   "exitCode": 7,
+   "signal": 7,
+   "output": "text é"
+  },
+  "output": "{\"type\":\"session.run\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"runId\":\"text é\",\"block\":\"text é\",\"command\":\"text é\",\"state\":\"lost\",\"ptyId\":\"text é\",\"exitCode\":7,\"signal\":7,\"output\":\"text é\"}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 15",
+  "input": {
+   "type": "session.moved",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "from": "text é",
+   "to": "text é",
+   "branch": "text é",
+   "fresh": true
+  },
+  "output": "{\"type\":\"session.moved\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"from\":\"text é\",\"to\":\"text é\",\"branch\":\"text é\",\"fresh\":true}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 16",
+  "input": {
+   "type": "session.behind",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "text": "text é"
+  },
+  "output": "{\"type\":\"session.behind\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"text\":\"text é\"}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 17",
+  "input": {
+   "type": "session.notice",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "text": "text é"
+  },
+  "output": "{\"type\":\"session.notice\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"text\":\"text é\"}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 18",
+  "input": {
+   "type": "session.earlier",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "who": "note",
+   "text": "text é"
+  },
+  "output": "{\"type\":\"session.earlier\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"who\":\"note\",\"text\":\"text é\"}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 19",
+  "input": {
+   "type": "session.capped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "placeId": "text é",
+   "place": "text é",
+   "running": 7,
+   "atOnce": 7,
+   "why": "minute",
+   "requestId": "text é",
+   "prompt": "text é"
+  },
+  "output": "{\"type\":\"session.capped\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"placeId\":\"text é\",\"place\":\"text é\",\"running\":7,\"atOnce\":7,\"why\":\"minute\",\"requestId\":\"text é\",\"prompt\":\"text é\"}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 20",
+  "input": {
+   "type": "session.uncapped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "why": "lent",
+   "atOnce": 7
+  },
+  "output": "{\"type\":\"session.uncapped\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"why\":\"lent\",\"atOnce\":7}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 21",
+  "input": {
+   "type": "session.subagent",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "task": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "title": "text é",
+   "summary": "text é",
+   "depth": 7,
+   "model": "text é",
+   "asked": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   },
+   "line": 7
+  },
+  "output": "{\"type\":\"session.subagent\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"task\":\"text é\",\"state\":\"stopped\",\"parentToolUseId\":\"text é\",\"title\":\"text é\",\"summary\":\"text é\",\"depth\":7,\"model\":\"text é\",\"asked\":\"text é\",\"usage\":{\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"toolUses\":7,\"durationMs\":2.5},\"line\":7}"
+ },
+ {
+  "type": "SessionEvent",
+  "case": "variant 22",
+  "input": {
+   "type": "session.slate",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "cause": "run",
+   "version": 7,
+   "by": "timer",
+   "pieces": [
+    "text é"
+   ],
+   "run": "text é"
+  },
+  "output": "{\"type\":\"session.slate\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"cause\":\"run\",\"version\":7,\"by\":\"timer\",\"pieces\":[\"text é\"],\"run\":\"text é\"}"
+ },
+ {
+  "type": "SessionHarness",
+  "case": "full",
+  "input": {
+   "slashCommands": [
+    "text é"
+   ],
+   "permissionMode": "text é",
+   "agents": [
+    "text é"
+   ]
+  },
+  "output": "{\"slashCommands\":[\"text é\"],\"permissionMode\":\"text é\",\"agents\":[\"text é\"]}"
+ },
+ {
+  "type": "SessionHarness",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "SessionHarness",
+  "case": "nulls",
+  "input": {
+   "slashCommands": [],
+   "permissionMode": "s",
+   "agents": []
+  },
+  "output": "{\"slashCommands\":[],\"permissionMode\":\"s\",\"agents\":[]}"
+ },
+ {
+  "type": "SessionHeldEvent",
+  "case": "full",
+  "input": {
+   "type": "session.held",
+   "workspaceId": "text é",
+   "threadId": "text é",
+   "requestId": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"threadId\":\"text é\",\"requestId\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.held"
+  }
+ },
+ {
+  "type": "SessionHeldEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.held",
+   "workspaceId": "s",
+   "threadId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"threadId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.held"
+  }
+ },
+ {
+  "type": "SessionHeldEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.held",
+   "workspaceId": "s",
+   "threadId": "s",
+   "requestId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"threadId\":\"s\",\"requestId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.held"
+  }
+ },
+ {
+  "type": "SessionHeldEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.held",
+   "threadId": "text é",
+   "requestId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionMovedEvent",
+  "case": "full",
+  "input": {
+   "type": "session.moved",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "from": "text é",
+   "to": "text é",
+   "branch": "text é",
+   "fresh": true
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"from\":\"text é\",\"to\":\"text é\",\"branch\":\"text é\",\"fresh\":true}",
+  "tag": {
+   "key": "type",
+   "value": "session.moved"
+  }
+ },
+ {
+  "type": "SessionMovedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.moved",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "from": "s",
+   "to": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"from\":\"s\",\"to\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.moved"
+  }
+ },
+ {
+  "type": "SessionMovedEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.moved",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "from": "s",
+   "to": "s",
+   "branch": "s",
+   "fresh": true
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"from\":\"s\",\"to\":\"s\",\"branch\":\"s\",\"fresh\":true}",
+  "tag": {
+   "key": "type",
+   "value": "session.moved"
+  }
+ },
+ {
+  "type": "SessionMovedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.moved",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "from": "text é",
+   "to": "text é",
+   "branch": "text é",
+   "fresh": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionMovedEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.moved",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "from": "text é",
+   "to": "text é",
+   "branch": "text é",
+   "fresh": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionMovedEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.moved",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "from": "text é",
+   "to": "text é",
+   "branch": "text é",
+   "fresh": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionNoticeEvent",
+  "case": "full",
+  "input": {
+   "type": "session.notice",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "text": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"text\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.notice"
+  }
+ },
+ {
+  "type": "SessionNoticeEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.notice",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "text": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"text\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.notice"
+  }
+ },
+ {
+  "type": "SessionNoticeEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.notice",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "text": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"text\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.notice"
+  }
+ },
+ {
+  "type": "SessionNoticeEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.notice",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionNoticeEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.notice",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionNoticeEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.notice",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionNotifyEvent",
+  "case": "full",
+  "input": {
+   "type": "session.notify",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "notify": "text é",
+   "text": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"notify\":\"text é\",\"text\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.notify"
+  }
+ },
+ {
+  "type": "SessionNotifyEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.notify",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "notify": "s",
+   "text": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"notify\":\"s\",\"text\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.notify"
+  }
+ },
+ {
+  "type": "SessionNotifyEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.notify",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "notify": "s",
+   "text": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"notify\":\"s\",\"text\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.notify"
+  }
+ },
+ {
+  "type": "SessionNotifyEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.notify",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "notify": "text é",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionNotifyEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.notify",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "notify": "text é",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionNotifyEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.notify",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "notify": "text é",
+   "text": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionPermissionClosedEvent",
+  "case": "full",
+  "input": {
+   "type": "session.permission.closed",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "askId": "text é",
+   "outcome": "cancelled",
+   "optionId": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"askId\":\"text é\",\"outcome\":\"cancelled\",\"optionId\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.permission.closed"
+  }
+ },
+ {
+  "type": "SessionPermissionClosedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.permission.closed",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "askId": "s",
+   "outcome": "allowed"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"askId\":\"s\",\"outcome\":\"allowed\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.permission.closed"
+  }
+ },
+ {
+  "type": "SessionPermissionClosedEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.permission.closed",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "askId": "s",
+   "outcome": "allowed",
+   "optionId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"askId\":\"s\",\"outcome\":\"allowed\",\"optionId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.permission.closed"
+  }
+ },
+ {
+  "type": "SessionPermissionClosedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.permission.closed",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "askId": "text é",
+   "outcome": "cancelled",
+   "optionId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionPermissionClosedEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.permission.closed",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "askId": "text é",
+   "outcome": "cancelled",
+   "optionId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionPermissionClosedEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.permission.closed",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "askId": "text é",
+   "outcome": "cancelled",
+   "optionId": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionPermissionClosedEvent",
+  "case": "outcome: not one of its values",
+  "input": {
+   "type": "session.permission.closed",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "askId": "text é",
+   "outcome": "not-a-value",
+   "optionId": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "outcome"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionPermissionEvent",
+  "case": "full",
+  "input": {
+   "type": "session.permission",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "askId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "parentToolUseId": "text é",
+   "input": "text é",
+   "detail": "text é",
+   "options": [
+    {
+     "id": "text é",
+     "label": "text é",
+     "effect": "answer",
+     "mode": "text é"
+    }
+   ]
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"askId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"parentToolUseId\":\"text é\",\"input\":\"text é\",\"detail\":\"text é\",\"options\":[{\"id\":\"text é\",\"label\":\"text é\",\"effect\":\"answer\",\"mode\":\"text é\"}]}",
+  "tag": {
+   "key": "type",
+   "value": "session.permission"
+  }
+ },
+ {
+  "type": "SessionPermissionEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.permission",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "askId": "s",
+   "toolName": "s",
+   "input": "s",
+   "options": []
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"askId\":\"s\",\"toolName\":\"s\",\"input\":\"s\",\"options\":[]}",
+  "tag": {
+   "key": "type",
+   "value": "session.permission"
+  }
+ },
+ {
+  "type": "SessionPermissionEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.permission",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "askId": "s",
+   "toolName": "s",
+   "toolUseId": "s",
+   "parentToolUseId": "s",
+   "input": "s",
+   "detail": "s",
+   "options": []
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"askId\":\"s\",\"toolName\":\"s\",\"toolUseId\":\"s\",\"parentToolUseId\":\"s\",\"input\":\"s\",\"detail\":\"s\",\"options\":[]}",
+  "tag": {
+   "key": "type",
+   "value": "session.permission"
+  }
+ },
+ {
+  "type": "SessionPermissionEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.permission",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "askId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "parentToolUseId": "text é",
+   "input": "text é",
+   "detail": "text é",
+   "options": [
+    {
+     "id": "text é",
+     "label": "text é",
+     "effect": "answer",
+     "mode": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionPermissionEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.permission",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "askId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "parentToolUseId": "text é",
+   "input": "text é",
+   "detail": "text é",
+   "options": [
+    {
+     "id": "text é",
+     "label": "text é",
+     "effect": "answer",
+     "mode": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionPermissionEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.permission",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "askId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "parentToolUseId": "text é",
+   "input": "text é",
+   "detail": "text é",
+   "options": [
+    {
+     "id": "text é",
+     "label": "text é",
+     "effect": "answer",
+     "mode": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionPlanEvent",
+  "case": "full",
+  "input": {
+   "type": "session.plan",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "steps": [
+    {
+     "text": "text é",
+     "state": "done"
+    }
+   ],
+   "text": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"steps\":[{\"text\":\"text é\",\"state\":\"done\"}],\"text\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.plan"
+  }
+ },
+ {
+  "type": "SessionPlanEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.plan",
+   "workspaceId": "s",
+   "sessionId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.plan"
+  }
+ },
+ {
+  "type": "SessionPlanEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.plan",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "steps": [],
+   "text": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"steps\":[],\"text\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.plan"
+  }
+ },
+ {
+  "type": "SessionPlanEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.plan",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "steps": [
+    {
+     "text": "text é",
+     "state": "done"
+    }
+   ],
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionPlanEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.plan",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "steps": [
+    {
+     "text": "text é",
+     "state": "done"
+    }
+   ],
+   "text": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionPlanEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.plan",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "steps": [
+    {
+     "text": "text é",
+     "state": "done"
+    }
+   ],
+   "text": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionQueuedEvent",
+  "case": "full",
+  "input": {
+   "type": "session.queued",
+   "workspaceId": "text é",
+   "threadId": "text é",
+   "harness": "text é",
+   "prompt": "text é",
+   "requestId": "text é",
+   "waitsFor": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"threadId\":\"text é\",\"harness\":\"text é\",\"prompt\":\"text é\",\"requestId\":\"text é\",\"waitsFor\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.queued"
+  }
+ },
+ {
+  "type": "SessionQueuedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.queued",
+   "workspaceId": "s",
+   "threadId": "s",
+   "harness": "s",
+   "prompt": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"threadId\":\"s\",\"harness\":\"s\",\"prompt\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.queued"
+  }
+ },
+ {
+  "type": "SessionQueuedEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.queued",
+   "workspaceId": "s",
+   "threadId": "s",
+   "harness": "s",
+   "prompt": "s",
+   "requestId": "s",
+   "waitsFor": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"threadId\":\"s\",\"harness\":\"s\",\"prompt\":\"s\",\"requestId\":\"s\",\"waitsFor\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.queued"
+  }
+ },
+ {
+  "type": "SessionQueuedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.queued",
+   "threadId": "text é",
+   "harness": "text é",
+   "prompt": "text é",
+   "requestId": "text é",
+   "waitsFor": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "full",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "attempt": 7,
+   "of": 7,
+   "why": "text é",
+   "line": 7
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"attempt\":7,\"of\":7,\"why\":\"text é\",\"line\":7}",
+  "tag": {
+   "key": "type",
+   "value": "session.retry"
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "attempt": 7
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"attempt\":7}",
+  "tag": {
+   "key": "type",
+   "value": "session.retry"
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "attempt": 7,
+   "of": 7,
+   "why": "s",
+   "line": 7
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"attempt\":7,\"of\":7,\"why\":\"s\",\"line\":7}",
+  "tag": {
+   "key": "type",
+   "value": "session.retry"
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.retry",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "attempt": 7,
+   "of": 7,
+   "why": "text é",
+   "line": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "attempt": 7,
+   "of": 7,
+   "why": "text é",
+   "line": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "attempt": 7,
+   "of": 7,
+   "why": "text é",
+   "line": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "attempt: not an integer",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "attempt": 2.5,
+   "of": 7,
+   "why": "text é",
+   "line": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "attempt"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "attempt: under 0",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "attempt": 0,
+   "of": 7,
+   "why": "text é",
+   "line": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "attempt"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "of: not an integer",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "attempt": 7,
+   "of": 2.5,
+   "why": "text é",
+   "line": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "of"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "of: under 0",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "attempt": 7,
+   "of": 0,
+   "why": "text é",
+   "line": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "of"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "line: not an integer",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "attempt": 7,
+   "of": 7,
+   "why": "text é",
+   "line": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionRetryEvent",
+  "case": "line: under 0",
+  "input": {
+   "type": "session.retry",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "attempt": 7,
+   "of": 7,
+   "why": "text é",
+   "line": 0
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionRowEvent",
+  "case": "full",
+  "input": {
+   "type": "session.row",
+   "workspaceId": "text é",
+   "threadId": "text é",
+   "id": "text é",
+   "row": {
+    "id": "text é",
+    "workspaceId": "text é",
+    "harness": "text é",
+    "status": "failed",
+    "startedBy": "agent",
+    "claudeSessionId": "text é",
+    "threadId": "text é",
+    "parentThreadId": "text é",
+    "rootThreadId": "text é",
+    "attempt": "text é",
+    "prompt": "text é",
+    "harnessTitle": "text é",
+    "titleSource": "person",
+    "startedAt": 2.5,
+    "endedAt": 2.5,
+    "cwd": "text é",
+    "refusal": "sign-in",
+    "limit": {
+     "resetsAt": 2.5
+    },
+    "resumeAt": 2.5,
+    "costUsd": 2.5,
+    "lastLine": "text é",
+    "failure": "text é",
+    "model": "text é",
+    "effort": "text é",
+    "permissionMode": "text é",
+    "contextWindow": "text é",
+    "fast": true,
+    "asking": "text é",
+    "waitingOn": {
+     "threadId": "text é",
+     "workspaceId": "text é",
+     "sessionId": "text é",
+     "title": "text é",
+     "prompt": {
+      "askId": "text é",
+      "toolName": "text é",
+      "toolUseId": "text é",
+      "parentToolUseId": "text é",
+      "input": "text é",
+      "detail": "text é",
+      "options": []
+     }
+    },
+    "setupRefusal": "text é",
+    "project": {
+     "id": "text é",
+     "name": "text é"
+    },
+    "computerName": "text é",
+    "sub": {
+     "state": "released",
+     "on": "text é",
+     "machine": "text é",
+     "size": {
+      "cpu": 7,
+      "memMb": 7,
+      "name": "text é"
+     },
+     "rateUsdPerHour": 2.5,
+     "branch": "text é",
+     "result": {
+      "branch": "text é",
+      "pushedSha": "text é",
+      "commits": 7,
+      "unpushed": 7,
+      "changed": 7,
+      "onBranch": "text é",
+      "norepo": true,
+      "readFailed": "text é",
+      "readAt": "text é",
+      "pushRefused": "text é"
+     },
+     "held": {
+      "files": 7,
+      "commits": 7
+     },
+     "deleteAt": 2.5,
+     "releasedAt": 2.5,
+     "cloudGone": true,
+     "sessionNotKept": "text é",
+     "spawn": {
+      "startedAt": 2.5,
+      "branch": {
+       "branch": "text é",
+       "sha": "text é",
+       "ms": 7
+      },
+      "machine": {
+       "since": 2.5,
+       "states": []
+      },
+      "files": {
+       "since": 2.5,
+       "paths": [],
+       "bytes": 7
+      },
+      "readyAt": 2.5,
+      "failed": {
+       "step": "files",
+       "said": "text é"
+      },
+      "uncommitted": 7,
+      "asked": "text é",
+      "notSent": "text é",
+      "replaced": [],
+      "log": []
+     }
+    },
+    "diskKeptUntil": 2.5,
+    "diskGone": "text é",
+    "capped": {
+     "placeId": "text é",
+     "place": "text é",
+     "running": 7,
+     "atOnce": 7,
+     "why": "minute"
+    },
+    "waitsFor": "text é",
+    "pid": 7,
+    "agentPid": 7,
+    "subagents": [
+     {
+      "id": "text é",
+      "title": "text é",
+      "state": "stopped",
+      "parentToolUseId": "text é",
+      "depth": 7,
+      "model": "text é",
+      "asked": "text é",
+      "startedAt": 2.5,
+      "endedAt": 2.5,
+      "lastLine": "text é",
+      "failure": "text é",
+      "usage": {}
+     }
+    ],
+    "readAt": 2.5,
+    "settledAt": 2.5,
+    "pinnedAt": 2.5,
+    "order": 2.5,
+    "foldedAt": 2.5,
+    "replaces": "text é",
+    "replacedBy": "text é",
+    "snoozedUntil": 2.5,
+    "wokeAt": 2.5,
+    "section": {
+     "name": "idle",
+     "whileState": "text é"
+    },
+    "rewoundAt": 2.5,
+    "forkedFrom": {
+     "threadId": "text é",
+     "turnId": "text é",
+     "title": "text é"
+    }
+   }
+  },
+  "output": "{\"workspaceId\":\"text é\",\"threadId\":\"text é\",\"id\":\"text é\",\"row\":{\"id\":\"text é\",\"workspaceId\":\"text é\",\"harness\":\"text é\",\"status\":\"failed\",\"startedBy\":\"agent\",\"claudeSessionId\":\"text é\",\"threadId\":\"text é\",\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"attempt\":\"text é\",\"prompt\":\"text é\",\"harnessTitle\":\"text é\",\"titleSource\":\"person\",\"startedAt\":2.5,\"endedAt\":2.5,\"cwd\":\"text é\",\"refusal\":\"sign-in\",\"limit\":{\"resetsAt\":2.5},\"resumeAt\":2.5,\"costUsd\":2.5,\"lastLine\":\"text é\",\"failure\":\"text é\",\"model\":\"text é\",\"effort\":\"text é\",\"permissionMode\":\"text é\",\"contextWindow\":\"text é\",\"fast\":true,\"asking\":\"text é\",\"waitingOn\":{\"threadId\":\"text é\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"title\":\"text é\",\"prompt\":{\"askId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"parentToolUseId\":\"text é\",\"input\":\"text é\",\"detail\":\"text é\",\"options\":[]}},\"setupRefusal\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\"},\"computerName\":\"text é\",\"sub\":{\"state\":\"released\",\"on\":\"text é\",\"machine\":\"text é\",\"size\":{\"cpu\":7,\"memMb\":7,\"name\":\"text é\"},\"rateUsdPerHour\":2.5,\"branch\":\"text é\",\"result\":{\"branch\":\"text é\",\"pushedSha\":\"text é\",\"commits\":7,\"unpushed\":7,\"changed\":7,\"onBranch\":\"text é\",\"norepo\":true,\"readFailed\":\"text é\",\"readAt\":\"text é\",\"pushRefused\":\"text é\"},\"held\":{\"files\":7,\"commits\":7},\"deleteAt\":2.5,\"releasedAt\":2.5,\"cloudGone\":true,\"sessionNotKept\":\"text é\",\"spawn\":{\"startedAt\":2.5,\"branch\":{\"branch\":\"text é\",\"sha\":\"text é\",\"ms\":7},\"machine\":{\"since\":2.5,\"states\":[]},\"files\":{\"since\":2.5,\"paths\":[],\"bytes\":7},\"readyAt\":2.5,\"failed\":{\"step\":\"files\",\"said\":\"text é\"},\"uncommitted\":7,\"asked\":\"text é\",\"notSent\":\"text é\",\"replaced\":[],\"log\":[]}},\"diskKeptUntil\":2.5,\"diskGone\":\"text é\",\"capped\":{\"placeId\":\"text é\",\"place\":\"text é\",\"running\":7,\"atOnce\":7,\"why\":\"minute\"},\"waitsFor\":\"text é\",\"pid\":7,\"agentPid\":7,\"subagents\":[{\"id\":\"text é\",\"title\":\"text é\",\"state\":\"stopped\",\"parentToolUseId\":\"text é\",\"depth\":7,\"model\":\"text é\",\"asked\":\"text é\",\"startedAt\":2.5,\"endedAt\":2.5,\"lastLine\":\"text é\",\"failure\":\"text é\",\"usage\":{}}],\"readAt\":2.5,\"settledAt\":2.5,\"pinnedAt\":2.5,\"order\":2.5,\"foldedAt\":2.5,\"replaces\":\"text é\",\"replacedBy\":\"text é\",\"snoozedUntil\":2.5,\"wokeAt\":2.5,\"section\":{\"name\":\"idle\",\"whileState\":\"text é\"},\"rewoundAt\":2.5,\"forkedFrom\":{\"threadId\":\"text é\",\"turnId\":\"text é\",\"title\":\"text é\"}}}",
+  "tag": {
+   "key": "type",
+   "value": "session.row"
+  }
+ },
+ {
+  "type": "SessionRowEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.row",
+   "workspaceId": "s",
+   "id": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"id\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.row"
+  }
+ },
+ {
+  "type": "SessionRowEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.row",
+   "workspaceId": "s",
+   "threadId": "s",
+   "id": "s",
+   "row": {
+    "id": "s",
+    "workspaceId": "s",
+    "harness": "s",
+    "status": "running"
+   }
+  },
+  "output": "{\"workspaceId\":\"s\",\"threadId\":\"s\",\"id\":\"s\",\"row\":{\"id\":\"s\",\"workspaceId\":\"s\",\"harness\":\"s\",\"status\":\"running\"}}",
+  "tag": {
+   "key": "type",
+   "value": "session.row"
+  }
+ },
+ {
+  "type": "SessionRowEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.row",
+   "threadId": "text é",
+   "id": "text é",
+   "row": {
+    "id": "text é",
+    "workspaceId": "text é",
+    "harness": "text é",
+    "status": "failed",
+    "startedBy": "agent",
+    "claudeSessionId": "text é",
+    "threadId": "text é",
+    "parentThreadId": "text é",
+    "rootThreadId": "text é",
+    "attempt": "text é",
+    "prompt": "text é",
+    "harnessTitle": "text é",
+    "titleSource": "person",
+    "startedAt": 2.5,
+    "endedAt": 2.5,
+    "cwd": "text é",
+    "refusal": "sign-in",
+    "limit": {
+     "resetsAt": 2.5
+    },
+    "resumeAt": 2.5,
+    "costUsd": 2.5,
+    "lastLine": "text é",
+    "failure": "text é",
+    "model": "text é",
+    "effort": "text é",
+    "permissionMode": "text é",
+    "contextWindow": "text é",
+    "fast": true,
+    "asking": "text é",
+    "waitingOn": {
+     "threadId": "text é",
+     "workspaceId": "text é",
+     "sessionId": "text é",
+     "title": "text é",
+     "prompt": {
+      "askId": "text é",
+      "toolName": "text é",
+      "toolUseId": "text é",
+      "parentToolUseId": "text é",
+      "input": "text é",
+      "detail": "text é",
+      "options": []
+     }
+    },
+    "setupRefusal": "text é",
+    "project": {
+     "id": "text é",
+     "name": "text é"
+    },
+    "computerName": "text é",
+    "sub": {
+     "state": "released",
+     "on": "text é",
+     "machine": "text é",
+     "size": {
+      "cpu": 7,
+      "memMb": 7,
+      "name": "text é"
+     },
+     "rateUsdPerHour": 2.5,
+     "branch": "text é",
+     "result": {
+      "branch": "text é",
+      "pushedSha": "text é",
+      "commits": 7,
+      "unpushed": 7,
+      "changed": 7,
+      "onBranch": "text é",
+      "norepo": true,
+      "readFailed": "text é",
+      "readAt": "text é",
+      "pushRefused": "text é"
+     },
+     "held": {
+      "files": 7,
+      "commits": 7
+     },
+     "deleteAt": 2.5,
+     "releasedAt": 2.5,
+     "cloudGone": true,
+     "sessionNotKept": "text é",
+     "spawn": {
+      "startedAt": 2.5,
+      "branch": {
+       "branch": "text é",
+       "sha": "text é",
+       "ms": 7
+      },
+      "machine": {
+       "since": 2.5,
+       "states": []
+      },
+      "files": {
+       "since": 2.5,
+       "paths": [],
+       "bytes": 7
+      },
+      "readyAt": 2.5,
+      "failed": {
+       "step": "files",
+       "said": "text é"
+      },
+      "uncommitted": 7,
+      "asked": "text é",
+      "notSent": "text é",
+      "replaced": [],
+      "log": []
+     }
+    },
+    "diskKeptUntil": 2.5,
+    "diskGone": "text é",
+    "capped": {
+     "placeId": "text é",
+     "place": "text é",
+     "running": 7,
+     "atOnce": 7,
+     "why": "minute"
+    },
+    "waitsFor": "text é",
+    "pid": 7,
+    "agentPid": 7,
+    "subagents": [
+     {
+      "id": "text é",
+      "title": "text é",
+      "state": "stopped",
+      "parentToolUseId": "text é",
+      "depth": 7,
+      "model": "text é",
+      "asked": "text é",
+      "startedAt": 2.5,
+      "endedAt": 2.5,
+      "lastLine": "text é",
+      "failure": "text é",
+      "usage": {}
+     }
+    ],
+    "readAt": 2.5,
+    "settledAt": 2.5,
+    "pinnedAt": 2.5,
+    "order": 2.5,
+    "foldedAt": 2.5,
+    "replaces": "text é",
+    "replacedBy": "text é",
+    "snoozedUntil": 2.5,
+    "wokeAt": 2.5,
+    "section": {
+     "name": "idle",
+     "whileState": "text é"
+    },
+    "rewoundAt": 2.5,
+    "forkedFrom": {
+     "threadId": "text é",
+     "turnId": "text é",
+     "title": "text é"
+    }
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionRunEvent",
+  "case": "full",
+  "input": {
+   "type": "session.run",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "lost",
+   "ptyId": "text é",
+   "exitCode": 7,
+   "signal": 7,
+   "output": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"runId\":\"text é\",\"block\":\"text é\",\"command\":\"text é\",\"state\":\"lost\",\"ptyId\":\"text é\",\"exitCode\":7,\"signal\":7,\"output\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.run"
+  }
+ },
+ {
+  "type": "SessionRunEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.run",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "runId": "s",
+   "block": "s",
+   "command": "s",
+   "state": "running"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"runId\":\"s\",\"block\":\"s\",\"command\":\"s\",\"state\":\"running\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.run"
+  }
+ },
+ {
+  "type": "SessionRunEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.run",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "runId": "s",
+   "block": "s",
+   "command": "s",
+   "state": "running",
+   "ptyId": "s",
+   "exitCode": 7,
+   "signal": 7,
+   "output": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"runId\":\"s\",\"block\":\"s\",\"command\":\"s\",\"state\":\"running\",\"ptyId\":\"s\",\"exitCode\":7,\"signal\":7,\"output\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.run"
+  }
+ },
+ {
+  "type": "SessionRunEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.run",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "lost",
+   "ptyId": "text é",
+   "exitCode": 7,
+   "signal": 7,
+   "output": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionRunEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.run",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "lost",
+   "ptyId": "text é",
+   "exitCode": 7,
+   "signal": 7,
+   "output": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionRunEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.run",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "lost",
+   "ptyId": "text é",
+   "exitCode": 7,
+   "signal": 7,
+   "output": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionRunEvent",
+  "case": "state: not one of its values",
+  "input": {
+   "type": "session.run",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "not-a-value",
+   "ptyId": "text é",
+   "exitCode": 7,
+   "signal": 7,
+   "output": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionRunEvent",
+  "case": "exitCode: not an integer",
+  "input": {
+   "type": "session.run",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "lost",
+   "ptyId": "text é",
+   "exitCode": 2.5,
+   "signal": 7,
+   "output": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "exitCode"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionRunEvent",
+  "case": "signal: not an integer",
+  "input": {
+   "type": "session.run",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "runId": "text é",
+   "block": "text é",
+   "command": "text é",
+   "state": "lost",
+   "ptyId": "text é",
+   "exitCode": 7,
+   "signal": 2.5,
+   "output": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "signal"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionStartEvent",
+  "case": "full",
+  "input": {
+   "type": "session.start",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "afterCut": true,
+   "afterLimit": 2.5,
+   "opensThread": true,
+   "startedBy": "agent",
+   "model": "text é",
+   "cwd": "text é",
+   "permissionMode": "text é",
+   "effort": "text é",
+   "agent": "text é",
+   "tools": [
+    "text é"
+   ],
+   "harness": {
+    "slashCommands": [
+     "text é"
+    ],
+    "permissionMode": "text é",
+    "agents": [
+     "text é"
+    ]
+   }
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"prompt\":\"text é\",\"attachments\":[{\"mediaType\":\"text é\",\"bytes\":7,\"name\":\"text é\"}],\"requestId\":\"text é\",\"via\":\"slate\",\"afterCut\":true,\"afterLimit\":2.5,\"opensThread\":true,\"startedBy\":\"agent\",\"model\":\"text é\",\"cwd\":\"text é\",\"permissionMode\":\"text é\",\"effort\":\"text é\",\"agent\":\"text é\",\"tools\":[\"text é\"],\"harness\":{\"slashCommands\":[\"text é\"],\"permissionMode\":\"text é\",\"agents\":[\"text é\"]}}",
+  "tag": {
+   "key": "type",
+   "value": "session.start"
+  }
+ },
+ {
+  "type": "SessionStartEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.start",
+   "workspaceId": "s",
+   "sessionId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.start"
+  }
+ },
+ {
+  "type": "SessionStartEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.start",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "prompt": "s",
+   "attachments": [],
+   "requestId": "s",
+   "via": "slate",
+   "afterCut": true,
+   "afterLimit": 3,
+   "opensThread": true,
+   "startedBy": "person",
+   "model": "s",
+   "cwd": "s",
+   "permissionMode": "s",
+   "effort": "s",
+   "agent": "s",
+   "tools": [],
+   "harness": {}
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"prompt\":\"s\",\"attachments\":[],\"requestId\":\"s\",\"via\":\"slate\",\"afterCut\":true,\"afterLimit\":3,\"opensThread\":true,\"startedBy\":\"person\",\"model\":\"s\",\"cwd\":\"s\",\"permissionMode\":\"s\",\"effort\":\"s\",\"agent\":\"s\",\"tools\":[],\"harness\":{}}",
+  "tag": {
+   "key": "type",
+   "value": "session.start"
+  }
+ },
+ {
+  "type": "SessionStartEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.start",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "afterCut": true,
+   "afterLimit": 2.5,
+   "opensThread": true,
+   "startedBy": "agent",
+   "model": "text é",
+   "cwd": "text é",
+   "permissionMode": "text é",
+   "effort": "text é",
+   "agent": "text é",
+   "tools": [
+    "text é"
+   ],
+   "harness": {
+    "slashCommands": [
+     "text é"
+    ],
+    "permissionMode": "text é",
+    "agents": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionStartEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.start",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "afterCut": true,
+   "afterLimit": 2.5,
+   "opensThread": true,
+   "startedBy": "agent",
+   "model": "text é",
+   "cwd": "text é",
+   "permissionMode": "text é",
+   "effort": "text é",
+   "agent": "text é",
+   "tools": [
+    "text é"
+   ],
+   "harness": {
+    "slashCommands": [
+     "text é"
+    ],
+    "permissionMode": "text é",
+    "agents": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionStartEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.start",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "afterCut": true,
+   "afterLimit": 2.5,
+   "opensThread": true,
+   "startedBy": "agent",
+   "model": "text é",
+   "cwd": "text é",
+   "permissionMode": "text é",
+   "effort": "text é",
+   "agent": "text é",
+   "tools": [
+    "text é"
+   ],
+   "harness": {
+    "slashCommands": [
+     "text é"
+    ],
+    "permissionMode": "text é",
+    "agents": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionStartEvent",
+  "case": "startedBy: not one of its values",
+  "input": {
+   "type": "session.start",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "afterCut": true,
+   "afterLimit": 2.5,
+   "opensThread": true,
+   "startedBy": "not-a-value",
+   "model": "text é",
+   "cwd": "text é",
+   "permissionMode": "text é",
+   "effort": "text é",
+   "agent": "text é",
+   "tools": [
+    "text é"
+   ],
+   "harness": {
+    "slashCommands": [
+     "text é"
+    ],
+    "permissionMode": "text é",
+    "agents": [
+     "text é"
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "startedBy"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionStartingEvent",
+  "case": "full",
+  "input": {
+   "type": "session.starting",
+   "workspaceId": "text é",
+   "threadId": "text é",
+   "harness": "text é",
+   "installs": true,
+   "requestId": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"threadId\":\"text é\",\"harness\":\"text é\",\"installs\":true,\"requestId\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.starting"
+  }
+ },
+ {
+  "type": "SessionStartingEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.starting",
+   "workspaceId": "s",
+   "threadId": "s",
+   "harness": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"threadId\":\"s\",\"harness\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.starting"
+  }
+ },
+ {
+  "type": "SessionStartingEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.starting",
+   "workspaceId": "s",
+   "threadId": "s",
+   "harness": "s",
+   "installs": true,
+   "requestId": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"threadId\":\"s\",\"harness\":\"s\",\"installs\":true,\"requestId\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.starting"
+  }
+ },
+ {
+  "type": "SessionStartingEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.starting",
+   "threadId": "text é",
+   "harness": "text é",
+   "installs": true,
+   "requestId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionSteerEvent",
+  "case": "full",
+  "input": {
+   "type": "session.steer",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "waiting": true
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"prompt\":\"text é\",\"attachments\":[{\"mediaType\":\"text é\",\"bytes\":7,\"name\":\"text é\"}],\"requestId\":\"text é\",\"via\":\"slate\",\"waiting\":true}",
+  "tag": {
+   "key": "type",
+   "value": "session.steer"
+  }
+ },
+ {
+  "type": "SessionSteerEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.steer",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "prompt": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"prompt\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.steer"
+  }
+ },
+ {
+  "type": "SessionSteerEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.steer",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "prompt": "s",
+   "attachments": [],
+   "requestId": "s",
+   "via": "slate",
+   "waiting": false
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"prompt\":\"s\",\"attachments\":[],\"requestId\":\"s\",\"via\":\"slate\",\"waiting\":false}",
+  "tag": {
+   "key": "type",
+   "value": "session.steer"
+  }
+ },
+ {
+  "type": "SessionSteerEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.steer",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "waiting": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionSteerEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.steer",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "waiting": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionSteerEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.steer",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "waiting": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionSteerEvent",
+  "case": "waiting: not a boolean",
+  "input": {
+   "type": "session.steer",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "prompt": "text é",
+   "attachments": [
+    {
+     "mediaType": "text é",
+     "bytes": 7,
+     "name": "text é"
+    }
+   ],
+   "requestId": "text é",
+   "via": "slate",
+   "waiting": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "waiting"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionSubagentEvent",
+  "case": "full",
+  "input": {
+   "type": "session.subagent",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "task": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "title": "text é",
+   "summary": "text é",
+   "depth": 7,
+   "model": "text é",
+   "asked": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   },
+   "line": 7
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"task\":\"text é\",\"state\":\"stopped\",\"parentToolUseId\":\"text é\",\"title\":\"text é\",\"summary\":\"text é\",\"depth\":7,\"model\":\"text é\",\"asked\":\"text é\",\"usage\":{\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"toolUses\":7,\"durationMs\":2.5},\"line\":7}",
+  "tag": {
+   "key": "type",
+   "value": "session.subagent"
+  }
+ },
+ {
+  "type": "SessionSubagentEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.subagent",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "task": "s",
+   "state": "running"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"task\":\"s\",\"state\":\"running\"}",
+  "tag": {
+   "key": "type",
+   "value": "session.subagent"
+  }
+ },
+ {
+  "type": "SessionSubagentEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.subagent",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "task": "s",
+   "state": "running",
+   "parentToolUseId": "s",
+   "title": "s",
+   "summary": "s",
+   "depth": 7,
+   "model": "s",
+   "asked": "s",
+   "usage": {},
+   "line": 7
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"task\":\"s\",\"state\":\"running\",\"parentToolUseId\":\"s\",\"title\":\"s\",\"summary\":\"s\",\"depth\":7,\"model\":\"s\",\"asked\":\"s\",\"usage\":{},\"line\":7}",
+  "tag": {
+   "key": "type",
+   "value": "session.subagent"
+  }
+ },
+ {
+  "type": "SessionSubagentEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.subagent",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "task": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "title": "text é",
+   "summary": "text é",
+   "depth": 7,
+   "model": "text é",
+   "asked": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   },
+   "line": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionSubagentEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.subagent",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "task": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "title": "text é",
+   "summary": "text é",
+   "depth": 7,
+   "model": "text é",
+   "asked": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   },
+   "line": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionSubagentEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.subagent",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "task": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "title": "text é",
+   "summary": "text é",
+   "depth": 7,
+   "model": "text é",
+   "asked": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   },
+   "line": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionSubagentEvent",
+  "case": "state: not one of its values",
+  "input": {
+   "type": "session.subagent",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "task": "text é",
+   "state": "not-a-value",
+   "parentToolUseId": "text é",
+   "title": "text é",
+   "summary": "text é",
+   "depth": 7,
+   "model": "text é",
+   "asked": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   },
+   "line": 7
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionSubagentEvent",
+  "case": "depth: not an integer",
+  "input": {
+   "type": "session.subagent",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "task": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "title": "text é",
+   "summary": "text é",
+   "depth": 2.5,
+   "model": "text é",
+   "asked": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   },
+   "line": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "depth"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionSubagentEvent",
+  "case": "depth: under 0",
+  "input": {
+   "type": "session.subagent",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "task": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "title": "text é",
+   "summary": "text é",
+   "depth": 0,
+   "model": "text é",
+   "asked": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   },
+   "line": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "depth"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionSubagentEvent",
+  "case": "line: not an integer",
+  "input": {
+   "type": "session.subagent",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "task": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "title": "text é",
+   "summary": "text é",
+   "depth": 7,
+   "model": "text é",
+   "asked": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   },
+   "line": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionSubagentEvent",
+  "case": "line: under 0",
+  "input": {
+   "type": "session.subagent",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "task": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "title": "text é",
+   "summary": "text é",
+   "depth": 7,
+   "model": "text é",
+   "asked": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   },
+   "line": 0
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "line"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionUncappedEvent",
+  "case": "full",
+  "input": {
+   "type": "session.uncapped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "why": "lent",
+   "atOnce": 7
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"why\":\"lent\",\"atOnce\":7}",
+  "tag": {
+   "key": "type",
+   "value": "session.uncapped"
+  }
+ },
+ {
+  "type": "SessionUncappedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "session.uncapped",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "why": "freed",
+   "atOnce": 7
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"why\":\"freed\",\"atOnce\":7}",
+  "tag": {
+   "key": "type",
+   "value": "session.uncapped"
+  }
+ },
+ {
+  "type": "SessionUncappedEvent",
+  "case": "nulls",
+  "input": {
+   "type": "session.uncapped",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "why": "freed",
+   "atOnce": 7
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"why\":\"freed\",\"atOnce\":7}",
+  "tag": {
+   "key": "type",
+   "value": "session.uncapped"
+  }
+ },
+ {
+  "type": "SessionUncappedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "session.uncapped",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "why": "lent",
+   "atOnce": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionUncappedEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "session.uncapped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "why": "lent",
+   "atOnce": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionUncappedEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "session.uncapped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "why": "lent",
+   "atOnce": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SessionUncappedEvent",
+  "case": "why: not one of its values",
+  "input": {
+   "type": "session.uncapped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "why": "not-a-value",
+   "atOnce": 7
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "why"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionUncappedEvent",
+  "case": "atOnce: not an integer",
+  "input": {
+   "type": "session.uncapped",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "why": "lent",
+   "atOnce": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "atOnce"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadWaitedEvent",
+  "case": "full",
+  "input": {
+   "type": "thread.waited",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "ms": 7,
+   "said": "text é"
+  },
+  "output": "{\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"ms\":7,\"said\":\"text é\"}",
+  "tag": {
+   "key": "type",
+   "value": "thread.waited"
+  }
+ },
+ {
+  "type": "ThreadWaitedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "thread.waited",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "threadId": "s",
+   "ms": 7
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"threadId\":\"s\",\"ms\":7}",
+  "tag": {
+   "key": "type",
+   "value": "thread.waited"
+  }
+ },
+ {
+  "type": "ThreadWaitedEvent",
+  "case": "nulls",
+  "input": {
+   "type": "thread.waited",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "at": 3,
+   "turnId": "s",
+   "threadId": "s",
+   "pos": 7,
+   "copiedFrom": "s",
+   "ms": 7,
+   "said": "s"
+  },
+  "output": "{\"workspaceId\":\"s\",\"sessionId\":\"s\",\"at\":3,\"turnId\":\"s\",\"threadId\":\"s\",\"pos\":7,\"copiedFrom\":\"s\",\"ms\":7,\"said\":\"s\"}",
+  "tag": {
+   "key": "type",
+   "value": "thread.waited"
+  }
+ },
+ {
+  "type": "ThreadWaitedEvent",
+  "case": "missing workspaceId",
+  "input": {
+   "type": "thread.waited",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "ms": 7,
+   "said": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspaceId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadWaitedEvent",
+  "case": "pos: not an integer",
+  "input": {
+   "type": "thread.waited",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 2.5,
+   "copiedFrom": "text é",
+   "ms": 7,
+   "said": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadWaitedEvent",
+  "case": "pos: under 0",
+  "input": {
+   "type": "thread.waited",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 0,
+   "copiedFrom": "text é",
+   "ms": 7,
+   "said": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "pos"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ThreadWaitedEvent",
+  "case": "ms: not an integer",
+  "input": {
+   "type": "thread.waited",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "ms": 2.5,
+   "said": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "ms"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadWaitedEvent",
+  "case": "ms: under 0",
+  "input": {
+   "type": "thread.waited",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "at": 2.5,
+   "turnId": "text é",
+   "threadId": "text é",
+   "pos": 7,
+   "copiedFrom": "text é",
+   "ms": -1,
+   "said": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "ms"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "TurnChangedFile",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "kind": "text é",
+   "additions": 2.5,
+   "deletions": 2.5
+  },
+  "output": "{\"path\":\"text é\",\"kind\":\"text é\",\"additions\":2.5,\"deletions\":2.5}"
+ },
+ {
+  "type": "TurnChangedFile",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "kind": "s",
+   "additions": 3,
+   "deletions": 3
+  },
+  "output": "{\"path\":\"s\",\"kind\":\"s\",\"additions\":3,\"deletions\":3}"
+ },
+ {
+  "type": "TurnChangedFile",
+  "case": "missing path",
+  "input": {
+   "kind": "text é",
+   "additions": 2.5,
+   "deletions": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TurnResult",
+  "case": "full",
+  "input": {
+   "status": "failed",
+   "durationMs": 2.5,
+   "waitedMs": 2.5,
+   "costUsd": 2.5,
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5,
+    "context": 2.5,
+    "window": 2.5
+   },
+   "model": "text é",
+   "models": [
+    {
+     "model": "text é",
+     "tokens": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "costUsd": 2.5
+    }
+   ],
+   "text": "text é",
+   "error": "text é",
+   "unreached": true,
+   "refusal": "sign-in",
+   "limit": {
+    "resetsAt": 2.5
+   }
+  },
+  "output": "{\"status\":\"failed\",\"durationMs\":2.5,\"waitedMs\":2.5,\"costUsd\":2.5,\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5,\"context\":2.5,\"window\":2.5},\"model\":\"text é\",\"models\":[{\"model\":\"text é\",\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"costUsd\":2.5}],\"text\":\"text é\",\"error\":\"text é\",\"unreached\":true,\"refusal\":\"sign-in\",\"limit\":{\"resetsAt\":2.5}}"
+ },
+ {
+  "type": "TurnResult",
+  "case": "minimal",
+  "input": {
+   "status": "completed"
+  },
+  "output": "{\"status\":\"completed\"}"
+ },
+ {
+  "type": "TurnResult",
+  "case": "nulls",
+  "input": {
+   "status": "completed",
+   "durationMs": 3,
+   "waitedMs": 3,
+   "costUsd": 3,
+   "tokens": {
+    "input": 3,
+    "output": 3
+   },
+   "model": "s",
+   "models": [],
+   "text": "s",
+   "error": "s",
+   "unreached": true,
+   "refusal": "sign-in",
+   "limit": {}
+  },
+  "output": "{\"status\":\"completed\",\"durationMs\":3,\"waitedMs\":3,\"costUsd\":3,\"tokens\":{\"input\":3,\"output\":3},\"model\":\"s\",\"models\":[],\"text\":\"s\",\"error\":\"s\",\"unreached\":true,\"refusal\":\"sign-in\",\"limit\":{}}"
+ },
+ {
+  "type": "TurnResult",
+  "case": "missing status",
+  "input": {
+   "durationMs": 2.5,
+   "waitedMs": 2.5,
+   "costUsd": 2.5,
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5,
+    "context": 2.5,
+    "window": 2.5
+   },
+   "model": "text é",
+   "models": [
+    {
+     "model": "text é",
+     "tokens": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "costUsd": 2.5
+    }
+   ],
+   "text": "text é",
+   "error": "text é",
+   "unreached": true,
+   "refusal": "sign-in",
+   "limit": {
+    "resetsAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "status"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TurnResult",
+  "case": "status: not one of its values",
+  "input": {
+   "status": "not-a-value",
+   "durationMs": 2.5,
+   "waitedMs": 2.5,
+   "costUsd": 2.5,
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5,
+    "context": 2.5,
+    "window": 2.5
+   },
+   "model": "text é",
+   "models": [
+    {
+     "model": "text é",
+     "tokens": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "costUsd": 2.5
+    }
+   ],
+   "text": "text é",
+   "error": "text é",
+   "unreached": true,
+   "refusal": "sign-in",
+   "limit": {
+    "resetsAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "status"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TurnResult",
+  "case": "refusal: not one of its values",
+  "input": {
+   "status": "failed",
+   "durationMs": 2.5,
+   "waitedMs": 2.5,
+   "costUsd": 2.5,
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5,
+    "context": 2.5,
+    "window": 2.5
+   },
+   "model": "text é",
+   "models": [
+    {
+     "model": "text é",
+     "tokens": {
+      "input": 2.5,
+      "output": 2.5,
+      "cached": 2.5,
+      "cacheWrite": 2.5,
+      "reasoning": 2.5
+     },
+     "costUsd": 2.5
+    }
+   ],
+   "text": "text é",
+   "error": "text é",
+   "unreached": true,
+   "refusal": "not-a-value",
+   "limit": {
+    "resetsAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "refusal"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TurnStatus",
+  "case": "full",
+  "input": "failed",
+  "output": "\"failed\""
+ },
+ {
+  "type": "TurnStatus",
+  "case": "minimal",
+  "input": "completed",
+  "output": "\"completed\""
+ },
+ {
+  "type": "TurnStatus",
+  "case": "value interrupted",
+  "input": "interrupted",
+  "output": "\"interrupted\""
+ },
+ {
+  "type": "TurnStatus",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TurnTokens",
+  "case": "full",
+  "input": {
+   "input": 2.5,
+   "output": 2.5,
+   "cached": 2.5,
+   "cacheWrite": 2.5,
+   "reasoning": 2.5,
+   "context": 2.5,
+   "window": 2.5
+  },
+  "output": "{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5,\"context\":2.5,\"window\":2.5}"
+ },
+ {
+  "type": "TurnTokens",
+  "case": "minimal",
+  "input": {
+   "input": 3,
+   "output": 3
+  },
+  "output": "{\"input\":3,\"output\":3}"
+ },
+ {
+  "type": "TurnTokens",
+  "case": "nulls",
+  "input": {
+   "input": 3,
+   "output": 3,
+   "cached": 3,
+   "cacheWrite": 3,
+   "reasoning": 3,
+   "context": 3,
+   "window": 3
+  },
+  "output": "{\"input\":3,\"output\":3,\"cached\":3,\"cacheWrite\":3,\"reasoning\":3,\"context\":3,\"window\":3}"
+ },
+ {
+  "type": "TurnTokens",
+  "case": "missing input",
+  "input": {
+   "output": 2.5,
+   "cached": 2.5,
+   "cacheWrite": 2.5,
+   "reasoning": 2.5,
+   "context": 2.5,
+   "window": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "input"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

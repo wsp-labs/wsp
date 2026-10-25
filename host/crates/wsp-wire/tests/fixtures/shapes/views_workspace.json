@@ -1,0 +1,7394 @@
+[
+ {
+  "type": "BranchOfRecord",
+  "case": "full",
+  "input": {
+   "repoId": 7,
+   "owner": "text é",
+   "name": "text é",
+   "branch": "text é",
+   "startSha": "text é",
+   "public": true
+  },
+  "output": "{\"repoId\":7,\"owner\":\"text é\",\"name\":\"text é\",\"branch\":\"text é\",\"startSha\":\"text é\",\"public\":true}"
+ },
+ {
+  "type": "BranchOfRecord",
+  "case": "minimal",
+  "input": {
+   "repoId": 7,
+   "owner": "s",
+   "name": "s",
+   "branch": "s"
+  },
+  "output": "{\"repoId\":7,\"owner\":\"s\",\"name\":\"s\",\"branch\":\"s\"}"
+ },
+ {
+  "type": "BranchOfRecord",
+  "case": "nulls",
+  "input": {
+   "repoId": 7,
+   "owner": "s",
+   "name": "s",
+   "branch": "s",
+   "startSha": "s",
+   "public": true
+  },
+  "output": "{\"repoId\":7,\"owner\":\"s\",\"name\":\"s\",\"branch\":\"s\",\"startSha\":\"s\",\"public\":true}"
+ },
+ {
+  "type": "BranchOfRecord",
+  "case": "missing repoId",
+  "input": {
+   "owner": "text é",
+   "name": "text é",
+   "branch": "text é",
+   "startSha": "text é",
+   "public": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "repoId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "BranchOfRecord",
+  "case": "repoId: not an integer",
+  "input": {
+   "repoId": 2.5,
+   "owner": "text é",
+   "name": "text é",
+   "branch": "text é",
+   "startSha": "text é",
+   "public": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "repoId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "BranchOfRecord",
+  "case": "repoId: under 0",
+  "input": {
+   "repoId": 0,
+   "owner": "text é",
+   "name": "text é",
+   "branch": "text é",
+   "startSha": "text é",
+   "public": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "repoId"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "BranchOfRecord",
+  "case": "owner: shorter than 1",
+  "input": {
+   "repoId": 7,
+   "owner": "",
+   "name": "text é",
+   "branch": "text é",
+   "startSha": "text é",
+   "public": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "owner"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "BranchOfRecord",
+  "case": "name: shorter than 1",
+  "input": {
+   "repoId": 7,
+   "owner": "text é",
+   "name": "",
+   "branch": "text é",
+   "startSha": "text é",
+   "public": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "BranchOfRecord",
+  "case": "branch: shorter than 1",
+  "input": {
+   "repoId": 7,
+   "owner": "text é",
+   "name": "text é",
+   "branch": "",
+   "startSha": "text é",
+   "public": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "branch"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "BranchOfRecord",
+  "case": "startSha: shorter than 1",
+  "input": {
+   "repoId": 7,
+   "owner": "text é",
+   "name": "text é",
+   "branch": "text é",
+   "startSha": "",
+   "public": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "startSha"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "Carried",
+  "case": "full",
+  "input": "nothing",
+  "output": "\"nothing\""
+ },
+ {
+  "type": "Carried",
+  "case": "minimal",
+  "input": "deps-and-config",
+  "output": "\"deps-and-config\""
+ },
+ {
+  "type": "Carried",
+  "case": "value config-only",
+  "input": "config-only",
+  "output": "\"config-only\""
+ },
+ {
+  "type": "Carried",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CarryModule",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "lockfiles": [
+    "text é"
+   ],
+   "carry": [
+    "text é"
+   ],
+   "never": [
+    "text é"
+   ],
+   "installed": "text é"
+  },
+  "output": "{\"id\":\"text é\",\"lockfiles\":[\"text é\"],\"carry\":[\"text é\"],\"never\":[\"text é\"],\"installed\":\"text é\"}"
+ },
+ {
+  "type": "CarryModule",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "lockfiles": [],
+   "carry": [],
+   "never": []
+  },
+  "output": "{\"id\":\"s\",\"lockfiles\":[],\"carry\":[],\"never\":[]}"
+ },
+ {
+  "type": "CarryModule",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "lockfiles": [],
+   "carry": [],
+   "never": [],
+   "installed": "s"
+  },
+  "output": "{\"id\":\"s\",\"lockfiles\":[],\"carry\":[],\"never\":[],\"installed\":\"s\"}"
+ },
+ {
+  "type": "CarryModule",
+  "case": "missing id",
+  "input": {
+   "lockfiles": [
+    "text é"
+   ],
+   "carry": [
+    "text é"
+   ],
+   "never": [
+    "text é"
+   ],
+   "installed": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CopyAsk",
+  "case": "full",
+  "input": {
+   "from": "text é",
+   "to": "text é",
+   "base": "text é",
+   "exclude": [
+    "text é"
+   ],
+   "sizeLineBytes": 7,
+   "road": "worktree"
+  },
+  "output": "{\"from\":\"text é\",\"to\":\"text é\",\"base\":\"text é\",\"exclude\":[\"text é\"],\"sizeLineBytes\":7,\"road\":\"worktree\"}"
+ },
+ {
+  "type": "CopyAsk",
+  "case": "minimal",
+  "input": {
+   "from": "s",
+   "to": "s",
+   "exclude": [],
+   "sizeLineBytes": 7
+  },
+  "output": "{\"from\":\"s\",\"to\":\"s\",\"exclude\":[],\"sizeLineBytes\":7}"
+ },
+ {
+  "type": "CopyAsk",
+  "case": "nulls",
+  "input": {
+   "from": "s",
+   "to": "s",
+   "base": "s",
+   "exclude": [],
+   "sizeLineBytes": 7,
+   "road": "clonefile"
+  },
+  "output": "{\"from\":\"s\",\"to\":\"s\",\"base\":\"s\",\"exclude\":[],\"sizeLineBytes\":7,\"road\":\"clonefile\"}"
+ },
+ {
+  "type": "CopyAsk",
+  "case": "missing from",
+  "input": {
+   "to": "text é",
+   "base": "text é",
+   "exclude": [
+    "text é"
+   ],
+   "sizeLineBytes": 7,
+   "road": "worktree"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "from"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CopyAsk",
+  "case": "sizeLineBytes: not an integer",
+  "input": {
+   "from": "text é",
+   "to": "text é",
+   "base": "text é",
+   "exclude": [
+    "text é"
+   ],
+   "sizeLineBytes": 2.5,
+   "road": "worktree"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "sizeLineBytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CopyAsk",
+  "case": "sizeLineBytes: under 0",
+  "input": {
+   "from": "text é",
+   "to": "text é",
+   "base": "text é",
+   "exclude": [
+    "text é"
+   ],
+   "sizeLineBytes": -1,
+   "road": "worktree"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "sizeLineBytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "CopyAsk",
+  "case": "road: not one of its values",
+  "input": {
+   "from": "text é",
+   "to": "text é",
+   "base": "text é",
+   "exclude": [
+    "text é"
+   ],
+   "sizeLineBytes": 7,
+   "road": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "road"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CopyReport",
+  "case": "full",
+  "input": {
+   "road": "worktree",
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "fetched": true,
+   "carried": "nothing",
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    "text é"
+   ],
+   "bytes": 7,
+   "ms": 7,
+   "fellBack": "text é"
+  },
+  "output": "{\"road\":\"worktree\",\"path\":\"text é\",\"base\":\"text é\",\"branch\":\"text é\",\"fetched\":true,\"carried\":\"nothing\",\"excluded\":[\"text é\"],\"skipped\":[\"text é\"],\"bytes\":7,\"ms\":7,\"fellBack\":\"text é\"}"
+ },
+ {
+  "type": "CopyReport",
+  "case": "minimal",
+  "input": {
+   "road": "clonefile",
+   "path": "s",
+   "base": "s",
+   "branch": "s",
+   "fetched": false,
+   "carried": "deps-and-config",
+   "excluded": [],
+   "bytes": 7,
+   "ms": 7
+  },
+  "output": "{\"road\":\"clonefile\",\"path\":\"s\",\"base\":\"s\",\"branch\":\"s\",\"fetched\":false,\"carried\":\"deps-and-config\",\"excluded\":[],\"bytes\":7,\"ms\":7}"
+ },
+ {
+  "type": "CopyReport",
+  "case": "nulls",
+  "input": {
+   "road": "clonefile",
+   "path": "s",
+   "base": "s",
+   "branch": "s",
+   "fetched": false,
+   "carried": "deps-and-config",
+   "excluded": [],
+   "skipped": [],
+   "bytes": 7,
+   "ms": 7,
+   "fellBack": "s"
+  },
+  "output": "{\"road\":\"clonefile\",\"path\":\"s\",\"base\":\"s\",\"branch\":\"s\",\"fetched\":false,\"carried\":\"deps-and-config\",\"excluded\":[],\"skipped\":[],\"bytes\":7,\"ms\":7,\"fellBack\":\"s\"}"
+ },
+ {
+  "type": "CopyReport",
+  "case": "missing road",
+  "input": {
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "fetched": true,
+   "carried": "nothing",
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    "text é"
+   ],
+   "bytes": 7,
+   "ms": 7,
+   "fellBack": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "road"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CopyReport",
+  "case": "road: not one of its values",
+  "input": {
+   "road": "not-a-value",
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "fetched": true,
+   "carried": "nothing",
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    "text é"
+   ],
+   "bytes": 7,
+   "ms": 7,
+   "fellBack": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "road"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CopyReport",
+  "case": "fetched: not a boolean",
+  "input": {
+   "road": "worktree",
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "fetched": "yes",
+   "carried": "nothing",
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    "text é"
+   ],
+   "bytes": 7,
+   "ms": 7,
+   "fellBack": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "fetched"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CopyReport",
+  "case": "carried: not one of its values",
+  "input": {
+   "road": "worktree",
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "fetched": true,
+   "carried": "not-a-value",
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    "text é"
+   ],
+   "bytes": 7,
+   "ms": 7,
+   "fellBack": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "carried"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CopyReport",
+  "case": "bytes: not an integer",
+  "input": {
+   "road": "worktree",
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "fetched": true,
+   "carried": "nothing",
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    "text é"
+   ],
+   "bytes": 2.5,
+   "ms": 7,
+   "fellBack": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CopyReport",
+  "case": "bytes: under 0",
+  "input": {
+   "road": "worktree",
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "fetched": true,
+   "carried": "nothing",
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    "text é"
+   ],
+   "bytes": -1,
+   "ms": 7,
+   "fellBack": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "CopyReport",
+  "case": "ms: not an integer",
+  "input": {
+   "road": "worktree",
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "fetched": true,
+   "carried": "nothing",
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    "text é"
+   ],
+   "bytes": 7,
+   "ms": 2.5,
+   "fellBack": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "ms"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CopyReport",
+  "case": "ms: under 0",
+  "input": {
+   "road": "worktree",
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "fetched": true,
+   "carried": "nothing",
+   "excluded": [
+    "text é"
+   ],
+   "skipped": [
+    "text é"
+   ],
+   "bytes": 7,
+   "ms": -1,
+   "fellBack": "text é"
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "ms"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "CopyRoad",
+  "case": "full",
+  "input": "worktree",
+  "output": "\"worktree\""
+ },
+ {
+  "type": "CopyRoad",
+  "case": "minimal",
+  "input": "clonefile",
+  "output": "\"clonefile\""
+ },
+ {
+  "type": "CopyRoad",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "DaemonKind",
+  "case": "full",
+  "input": "place",
+  "output": "\"place\""
+ },
+ {
+  "type": "DaemonKind",
+  "case": "minimal",
+  "input": "cloud",
+  "output": "\"cloud\""
+ },
+ {
+  "type": "DaemonKind",
+  "case": "value local",
+  "input": "local",
+  "output": "\"local\""
+ },
+ {
+  "type": "DaemonKind",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "DaemonReachView",
+  "case": "full",
+  "input": {
+   "url": "text é",
+   "expiresAt": 2.5,
+   "daemonToken": "text é"
+  },
+  "output": "{\"url\":\"text é\",\"expiresAt\":2.5,\"daemonToken\":\"text é\"}"
+ },
+ {
+  "type": "DaemonReachView",
+  "case": "minimal",
+  "input": {
+   "url": "s",
+   "expiresAt": 3
+  },
+  "output": "{\"url\":\"s\",\"expiresAt\":3}"
+ },
+ {
+  "type": "DaemonReachView",
+  "case": "nulls",
+  "input": {
+   "url": "s",
+   "expiresAt": 3,
+   "daemonToken": "s"
+  },
+  "output": "{\"url\":\"s\",\"expiresAt\":3,\"daemonToken\":\"s\"}"
+ },
+ {
+  "type": "DaemonReachView",
+  "case": "missing url",
+  "input": {
+   "expiresAt": 2.5,
+   "daemonToken": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "url"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "EventAsker",
+  "case": "full",
+  "input": {
+   "threadId": "text é",
+   "rootThreadId": "text é"
+  },
+  "output": "{\"threadId\":\"text é\",\"rootThreadId\":\"text é\"}"
+ },
+ {
+  "type": "EventAsker",
+  "case": "minimal",
+  "input": {
+   "threadId": "s",
+   "rootThreadId": "s"
+  },
+  "output": "{\"threadId\":\"s\",\"rootThreadId\":\"s\"}"
+ },
+ {
+  "type": "EventAsker",
+  "case": "missing threadId",
+  "input": {
+   "rootThreadId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "threadId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "FoundModule",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "folder": "text é",
+   "rebuild": true
+  },
+  "output": "{\"id\":\"text é\",\"folder\":\"text é\",\"rebuild\":true}"
+ },
+ {
+  "type": "FoundModule",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "folder": "s",
+   "rebuild": false
+  },
+  "output": "{\"id\":\"s\",\"folder\":\"s\",\"rebuild\":false}"
+ },
+ {
+  "type": "FoundModule",
+  "case": "missing id",
+  "input": {
+   "folder": "text é",
+   "rebuild": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "FoundModule",
+  "case": "rebuild: not a boolean",
+  "input": {
+   "id": "text é",
+   "folder": "text é",
+   "rebuild": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "rebuild"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MachineFacts",
+  "case": "full",
+  "input": {
+   "os": "text é",
+   "uptimeMs": 2.5,
+   "folder": "text é"
+  },
+  "output": "{\"os\":\"text é\",\"uptimeMs\":2.5,\"folder\":\"text é\"}"
+ },
+ {
+  "type": "MachineFacts",
+  "case": "minimal",
+  "input": {
+   "os": "s",
+   "uptimeMs": 3,
+   "folder": "s"
+  },
+  "output": "{\"os\":\"s\",\"uptimeMs\":3,\"folder\":\"s\"}"
+ },
+ {
+  "type": "MachineFacts",
+  "case": "missing os",
+  "input": {
+   "uptimeMs": 2.5,
+   "folder": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "os"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "MachineState",
+  "case": "full",
+  "input": "gone",
+  "output": "\"gone\""
+ },
+ {
+  "type": "MachineState",
+  "case": "minimal",
+  "input": "starting",
+  "output": "\"starting\""
+ },
+ {
+  "type": "MachineState",
+  "case": "value running",
+  "input": "running",
+  "output": "\"running\""
+ },
+ {
+  "type": "MachineState",
+  "case": "value paused",
+  "input": "paused",
+  "output": "\"paused\""
+ },
+ {
+  "type": "MachineState",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PortProbeView",
+  "case": "full",
+  "input": {
+   "status": 7,
+   "body": "text é"
+  },
+  "output": "{\"status\":7,\"body\":\"text é\"}"
+ },
+ {
+  "type": "PortProbeView",
+  "case": "minimal",
+  "input": {
+   "status": 7,
+   "body": "s"
+  },
+  "output": "{\"status\":7,\"body\":\"s\"}"
+ },
+ {
+  "type": "PortProbeView",
+  "case": "missing status",
+  "input": {
+   "body": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "status"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PortProbeView",
+  "case": "status: not an integer",
+  "input": {
+   "status": 2.5,
+   "body": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "status"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PortReachView",
+  "case": "full",
+  "input": {
+   "url": "text é",
+   "expiresAt": 2.5
+  },
+  "output": "{\"url\":\"text é\",\"expiresAt\":2.5}"
+ },
+ {
+  "type": "PortReachView",
+  "case": "minimal",
+  "input": {
+   "url": "s",
+   "expiresAt": 3
+  },
+  "output": "{\"url\":\"s\",\"expiresAt\":3}"
+ },
+ {
+  "type": "PortReachView",
+  "case": "missing url",
+  "input": {
+   "expiresAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "url"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectAddStage",
+  "case": "full",
+  "input": "failed",
+  "output": "\"failed\""
+ },
+ {
+  "type": "ProjectAddStage",
+  "case": "minimal",
+  "input": "planned",
+  "output": "\"planned\""
+ },
+ {
+  "type": "ProjectAddStage",
+  "case": "value cloning",
+  "input": "cloning",
+  "output": "\"cloning\""
+ },
+ {
+  "type": "ProjectAddStage",
+  "case": "value seeding",
+  "input": "seeding",
+  "output": "\"seeding\""
+ },
+ {
+  "type": "ProjectAddStage",
+  "case": "value installing",
+  "input": "installing",
+  "output": "\"installing\""
+ },
+ {
+  "type": "ProjectAddStage",
+  "case": "value imaging",
+  "input": "imaging",
+  "output": "\"imaging\""
+ },
+ {
+  "type": "ProjectAddStage",
+  "case": "value done",
+  "input": "done",
+  "output": "\"done\""
+ },
+ {
+  "type": "ProjectAddStage",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectBranch",
+  "case": "full",
+  "input": {
+   "branch": "text é",
+   "folder": true
+  },
+  "output": "{\"branch\":\"text é\",\"folder\":true}"
+ },
+ {
+  "type": "ProjectBranch",
+  "case": "minimal",
+  "input": {
+   "branch": "s",
+   "folder": false
+  },
+  "output": "{\"branch\":\"s\",\"folder\":false}"
+ },
+ {
+  "type": "ProjectBranch",
+  "case": "nulls",
+  "input": {
+   "branch": null,
+   "folder": false
+  },
+  "output": "{\"branch\":null,\"folder\":false}"
+ },
+ {
+  "type": "ProjectBranch",
+  "case": "missing branch, which is null or a value but never absent",
+  "input": {
+   "folder": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "branch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectBranch",
+  "case": "missing branch",
+  "input": {
+   "folder": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "branch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectBranch",
+  "case": "folder: not a boolean",
+  "input": {
+   "branch": "text é",
+   "folder": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "folder"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectCopy",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "carried": "nothing",
+   "fellBack": "text é",
+   "road": "worktree",
+   "source": "text é"
+  },
+  "output": "{\"path\":\"text é\",\"base\":\"text é\",\"branch\":\"text é\",\"carried\":\"nothing\",\"fellBack\":\"text é\",\"road\":\"worktree\",\"source\":\"text é\"}"
+ },
+ {
+  "type": "ProjectCopy",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "base": "s",
+   "branch": "s",
+   "carried": "deps-and-config",
+   "road": "clonefile",
+   "source": "s"
+  },
+  "output": "{\"path\":\"s\",\"base\":\"s\",\"branch\":\"s\",\"carried\":\"deps-and-config\",\"road\":\"clonefile\",\"source\":\"s\"}"
+ },
+ {
+  "type": "ProjectCopy",
+  "case": "nulls",
+  "input": {
+   "path": "s",
+   "base": "s",
+   "branch": "s",
+   "carried": "deps-and-config",
+   "fellBack": "s",
+   "road": "clonefile",
+   "source": "s"
+  },
+  "output": "{\"path\":\"s\",\"base\":\"s\",\"branch\":\"s\",\"carried\":\"deps-and-config\",\"fellBack\":\"s\",\"road\":\"clonefile\",\"source\":\"s\"}"
+ },
+ {
+  "type": "ProjectCopy",
+  "case": "missing path",
+  "input": {
+   "base": "text é",
+   "branch": "text é",
+   "carried": "nothing",
+   "fellBack": "text é",
+   "road": "worktree",
+   "source": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectCopy",
+  "case": "carried: not one of its values",
+  "input": {
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "carried": "not-a-value",
+   "fellBack": "text é",
+   "road": "worktree",
+   "source": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "carried"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectCopy",
+  "case": "road: not one of its values",
+  "input": {
+   "path": "text é",
+   "base": "text é",
+   "branch": "text é",
+   "carried": "nothing",
+   "fellBack": "text é",
+   "road": "not-a-value",
+   "source": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "road"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectRef",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "path": "text é",
+   "computer": "text é"
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"}"
+ },
+ {
+  "type": "ProjectRef",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "path": "s",
+   "computer": "s"
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"}"
+ },
+ {
+  "type": "ProjectRef",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "path": "text é",
+   "computer": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectSeed",
+  "case": "full",
+  "input": {
+   "project": "text é",
+   "folder": "text é",
+   "rows": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "why": "text é",
+     "picked": true
+    }
+   ],
+   "picked": {
+    "paths": [
+     "text é"
+    ],
+    "bytes": 7,
+    "missing": [
+     "text é"
+    ]
+   },
+   "saved": true
+  },
+  "output": "{\"project\":\"text é\",\"folder\":\"text é\",\"rows\":[{\"path\":\"text é\",\"dir\":true,\"bytes\":7,\"kind\":\"unknown\",\"why\":\"text é\",\"picked\":true}],\"picked\":{\"paths\":[\"text é\"],\"bytes\":7,\"missing\":[\"text é\"]},\"saved\":true}"
+ },
+ {
+  "type": "ProjectSeed",
+  "case": "minimal",
+  "input": {
+   "project": "s",
+   "folder": "s",
+   "rows": [],
+   "picked": {
+    "paths": [],
+    "bytes": 7,
+    "missing": []
+   },
+   "saved": false
+  },
+  "output": "{\"project\":\"s\",\"folder\":\"s\",\"rows\":[],\"picked\":{\"paths\":[],\"bytes\":7,\"missing\":[]},\"saved\":false}"
+ },
+ {
+  "type": "ProjectSeed",
+  "case": "missing project",
+  "input": {
+   "folder": "text é",
+   "rows": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "why": "text é",
+     "picked": true
+    }
+   ],
+   "picked": {
+    "paths": [
+     "text é"
+    ],
+    "bytes": 7,
+    "missing": [
+     "text é"
+    ]
+   },
+   "saved": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "project"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectSeed",
+  "case": "saved: not a boolean",
+  "input": {
+   "project": "text é",
+   "folder": "text é",
+   "rows": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "why": "text é",
+     "picked": true
+    }
+   ],
+   "picked": {
+    "paths": [
+     "text é"
+    ],
+    "bytes": 7,
+    "missing": [
+     "text é"
+    ]
+   },
+   "saved": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "saved"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ProjectSource",
+  "case": "full",
+  "input": {
+   "kind": "gitlab",
+   "repo": "text é"
+  },
+  "output": "{\"kind\":\"gitlab\",\"repo\":\"text é\"}"
+ },
+ {
+  "type": "ProjectSource",
+  "case": "minimal",
+  "input": {
+   "kind": "folder",
+   "path": "s"
+  },
+  "output": "{\"kind\":\"folder\",\"path\":\"s\"}"
+ },
+ {
+  "type": "ProjectSource",
+  "case": "variant 0",
+  "input": {
+   "kind": "folder",
+   "path": "text é"
+  },
+  "output": "{\"kind\":\"folder\",\"path\":\"text é\"}"
+ },
+ {
+  "type": "ProjectSource",
+  "case": "variant 1",
+  "input": {
+   "kind": "git",
+   "url": "text é"
+  },
+  "output": "{\"kind\":\"git\",\"url\":\"text é\"}"
+ },
+ {
+  "type": "ProjectSource",
+  "case": "variant 2",
+  "input": {
+   "kind": "github",
+   "repo": "text é"
+  },
+  "output": "{\"kind\":\"github\",\"repo\":\"text é\"}"
+ },
+ {
+  "type": "ProjectView",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "computer": "text é",
+   "source": {
+    "kind": "gitlab",
+    "repo": "text é"
+   },
+   "path": "text é",
+   "remote": "text é",
+   "defaultBranch": "text é",
+   "memoryKey": "text é",
+   "memoryDir": "text é",
+   "checkout": "text é",
+   "seeded": {
+    "files": 7,
+    "bytes": 7,
+    "memory": "none",
+    "memoryFiles": 7,
+    "commits": 7,
+    "at": "text é"
+   },
+   "installed": {
+    "row": "text é",
+    "command": "text é",
+    "at": "text é",
+    "seconds": 2.5
+   },
+   "image": {
+    "snapshotId": "text é",
+    "builtAt": "text é",
+    "lockfileSha": "text é"
+   },
+   "base": "text é",
+   "git": {
+    "top": "text é"
+   },
+   "createdAt": "text é"
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"computer\":\"text é\",\"source\":{\"kind\":\"gitlab\",\"repo\":\"text é\"},\"path\":\"text é\",\"remote\":\"text é\",\"defaultBranch\":\"text é\",\"memoryKey\":\"text é\",\"memoryDir\":\"text é\",\"checkout\":\"text é\",\"seeded\":{\"files\":7,\"bytes\":7,\"memory\":\"none\",\"memoryFiles\":7,\"commits\":7,\"at\":\"text é\"},\"installed\":{\"row\":\"text é\",\"command\":\"text é\",\"at\":\"text é\",\"seconds\":2.5},\"image\":{\"snapshotId\":\"text é\",\"builtAt\":\"text é\",\"lockfileSha\":\"text é\"},\"base\":\"text é\",\"git\":{\"top\":\"text é\"},\"createdAt\":\"text é\"}"
+ },
+ {
+  "type": "ProjectView",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "computer": "s",
+   "source": {
+    "kind": "folder",
+    "path": "s"
+   },
+   "path": "s",
+   "remote": "s",
+   "defaultBranch": "s",
+   "memoryKey": "s",
+   "memoryDir": "s",
+   "createdAt": "s"
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"computer\":\"s\",\"source\":{\"kind\":\"folder\",\"path\":\"s\"},\"path\":\"s\",\"remote\":\"s\",\"defaultBranch\":\"s\",\"memoryKey\":\"s\",\"memoryDir\":\"s\",\"createdAt\":\"s\"}"
+ },
+ {
+  "type": "ProjectView",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "computer": "s",
+   "source": {
+    "kind": "folder",
+    "path": "s"
+   },
+   "path": "s",
+   "remote": "s",
+   "defaultBranch": "s",
+   "memoryKey": "s",
+   "memoryDir": "s",
+   "checkout": "s",
+   "seeded": {
+    "files": 7,
+    "bytes": 7,
+    "memory": "landed",
+    "commits": 7,
+    "at": "s"
+   },
+   "installed": {
+    "row": "s",
+    "command": "s",
+    "at": "s",
+    "seconds": 3
+   },
+   "image": {
+    "snapshotId": "s",
+    "builtAt": "s"
+   },
+   "base": "s",
+   "git": {
+    "top": "s"
+   },
+   "createdAt": "s"
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"computer\":\"s\",\"source\":{\"kind\":\"folder\",\"path\":\"s\"},\"path\":\"s\",\"remote\":\"s\",\"defaultBranch\":\"s\",\"memoryKey\":\"s\",\"memoryDir\":\"s\",\"checkout\":\"s\",\"seeded\":{\"files\":7,\"bytes\":7,\"memory\":\"landed\",\"commits\":7,\"at\":\"s\"},\"installed\":{\"row\":\"s\",\"command\":\"s\",\"at\":\"s\",\"seconds\":3},\"image\":{\"snapshotId\":\"s\",\"builtAt\":\"s\"},\"base\":\"s\",\"git\":{\"top\":\"s\"},\"createdAt\":\"s\"}"
+ },
+ {
+  "type": "ProjectView",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "computer": "text é",
+   "source": {
+    "kind": "gitlab",
+    "repo": "text é"
+   },
+   "path": "text é",
+   "remote": "text é",
+   "defaultBranch": "text é",
+   "memoryKey": "text é",
+   "memoryDir": "text é",
+   "checkout": "text é",
+   "seeded": {
+    "files": 7,
+    "bytes": 7,
+    "memory": "none",
+    "memoryFiles": 7,
+    "commits": 7,
+    "at": "text é"
+   },
+   "installed": {
+    "row": "text é",
+    "command": "text é",
+    "at": "text é",
+    "seconds": 2.5
+   },
+   "image": {
+    "snapshotId": "text é",
+    "builtAt": "text é",
+    "lockfileSha": "text é"
+   },
+   "base": "text é",
+   "git": {
+    "top": "text é"
+   },
+   "createdAt": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReachState",
+  "case": "full",
+  "input": "zombie",
+  "output": "\"zombie\""
+ },
+ {
+  "type": "ReachState",
+  "case": "minimal",
+  "input": "reachable",
+  "output": "\"reachable\""
+ },
+ {
+  "type": "ReachState",
+  "case": "value no-daemon",
+  "input": "no-daemon",
+  "output": "\"no-daemon\""
+ },
+ {
+  "type": "ReachState",
+  "case": "value unreachable",
+  "input": "unreachable",
+  "output": "\"unreachable\""
+ },
+ {
+  "type": "ReachState",
+  "case": "value napping",
+  "input": "napping",
+  "output": "\"napping\""
+ },
+ {
+  "type": "ReachState",
+  "case": "value unsupported",
+  "input": "unsupported",
+  "output": "\"unsupported\""
+ },
+ {
+  "type": "ReachState",
+  "case": "value gone",
+  "input": "gone",
+  "output": "\"gone\""
+ },
+ {
+  "type": "ReachState",
+  "case": "value slow",
+  "input": "slow",
+  "output": "\"slow\""
+ },
+ {
+  "type": "ReachState",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReachStatus",
+  "case": "full",
+  "input": {
+   "state": "zombie",
+   "url": "text é",
+   "expiresAt": 2.5,
+   "offline": true
+  },
+  "output": "{\"state\":\"zombie\",\"url\":\"text é\",\"expiresAt\":2.5,\"offline\":true}"
+ },
+ {
+  "type": "ReachStatus",
+  "case": "minimal",
+  "input": {
+   "state": "reachable"
+  },
+  "output": "{\"state\":\"reachable\"}"
+ },
+ {
+  "type": "ReachStatus",
+  "case": "nulls",
+  "input": {
+   "state": "reachable",
+   "url": "s",
+   "expiresAt": 3,
+   "offline": false
+  },
+  "output": "{\"state\":\"reachable\",\"url\":\"s\",\"expiresAt\":3,\"offline\":false}"
+ },
+ {
+  "type": "ReachStatus",
+  "case": "missing state",
+  "input": {
+   "url": "text é",
+   "expiresAt": 2.5,
+   "offline": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReachStatus",
+  "case": "state: not one of its values",
+  "input": {
+   "state": "not-a-value",
+   "url": "text é",
+   "expiresAt": 2.5,
+   "offline": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReachStatus",
+  "case": "offline: not a boolean",
+  "input": {
+   "state": "zombie",
+   "url": "text é",
+   "expiresAt": 2.5,
+   "offline": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "offline"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReachView",
+  "case": "full",
+  "input": {
+   "state": "zombie",
+   "offline": true
+  },
+  "output": "{\"state\":\"zombie\",\"offline\":true}"
+ },
+ {
+  "type": "ReachView",
+  "case": "minimal",
+  "input": {
+   "state": "reachable"
+  },
+  "output": "{\"state\":\"reachable\"}"
+ },
+ {
+  "type": "ReachView",
+  "case": "nulls",
+  "input": {
+   "state": "reachable",
+   "offline": false
+  },
+  "output": "{\"state\":\"reachable\",\"offline\":false}"
+ },
+ {
+  "type": "ReachView",
+  "case": "missing state",
+  "input": {
+   "offline": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReachView",
+  "case": "state: not one of its values",
+  "input": {
+   "state": "not-a-value",
+   "offline": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReachView",
+  "case": "offline: not a boolean",
+  "input": {
+   "state": "zombie",
+   "offline": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "offline"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedChoice",
+  "case": "full",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "memory": true,
+   "commits": true,
+   "remember": true
+  },
+  "output": "{\"files\":[\"text é\"],\"memory\":true,\"commits\":true,\"remember\":true}"
+ },
+ {
+  "type": "SeedChoice",
+  "case": "minimal",
+  "input": {
+   "files": [],
+   "memory": false,
+   "commits": false
+  },
+  "output": "{\"files\":[],\"memory\":false,\"commits\":false}"
+ },
+ {
+  "type": "SeedChoice",
+  "case": "nulls",
+  "input": {
+   "files": [],
+   "memory": false,
+   "commits": false,
+   "remember": false
+  },
+  "output": "{\"files\":[],\"memory\":false,\"commits\":false,\"remember\":false}"
+ },
+ {
+  "type": "SeedChoice",
+  "case": "missing files",
+  "input": {
+   "memory": true,
+   "commits": true,
+   "remember": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "files"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedChoice",
+  "case": "memory: not a boolean",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "memory": "yes",
+   "commits": true,
+   "remember": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "memory"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedChoice",
+  "case": "commits: not a boolean",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "memory": true,
+   "commits": "yes",
+   "remember": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "commits"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedChoice",
+  "case": "remember: not a boolean",
+  "input": {
+   "files": [
+    "text é"
+   ],
+   "memory": true,
+   "commits": true,
+   "remember": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "remember"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedFile",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "dir": true,
+   "bytes": 7,
+   "kind": "unknown",
+   "row": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "ticked": true
+  },
+  "output": "{\"path\":\"text é\",\"dir\":true,\"bytes\":7,\"kind\":\"unknown\",\"row\":{\"id\":\"text é\",\"name\":\"text é\"},\"ticked\":true}"
+ },
+ {
+  "type": "SeedFile",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "dir": false,
+   "bytes": 7,
+   "kind": "config",
+   "ticked": false
+  },
+  "output": "{\"path\":\"s\",\"dir\":false,\"bytes\":7,\"kind\":\"config\",\"ticked\":false}"
+ },
+ {
+  "type": "SeedFile",
+  "case": "nulls",
+  "input": {
+   "path": "s",
+   "dir": false,
+   "bytes": 7,
+   "kind": "config",
+   "row": {
+    "id": "s",
+    "name": "s"
+   },
+   "ticked": false
+  },
+  "output": "{\"path\":\"s\",\"dir\":false,\"bytes\":7,\"kind\":\"config\",\"row\":{\"id\":\"s\",\"name\":\"s\"},\"ticked\":false}"
+ },
+ {
+  "type": "SeedFile",
+  "case": "missing path",
+  "input": {
+   "dir": true,
+   "bytes": 7,
+   "kind": "unknown",
+   "row": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "ticked": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedFile",
+  "case": "dir: not a boolean",
+  "input": {
+   "path": "text é",
+   "dir": "yes",
+   "bytes": 7,
+   "kind": "unknown",
+   "row": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "ticked": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "dir"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedFile",
+  "case": "bytes: not an integer",
+  "input": {
+   "path": "text é",
+   "dir": true,
+   "bytes": 2.5,
+   "kind": "unknown",
+   "row": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "ticked": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedFile",
+  "case": "bytes: under 0",
+  "input": {
+   "path": "text é",
+   "dir": true,
+   "bytes": -1,
+   "kind": "unknown",
+   "row": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "ticked": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SeedFile",
+  "case": "kind: not one of its values",
+  "input": {
+   "path": "text é",
+   "dir": true,
+   "bytes": 7,
+   "kind": "not-a-value",
+   "row": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "ticked": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedFile",
+  "case": "ticked: not a boolean",
+  "input": {
+   "path": "text é",
+   "dir": true,
+   "bytes": 7,
+   "kind": "unknown",
+   "row": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "ticked": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "ticked"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedKind",
+  "case": "full",
+  "input": "unknown",
+  "output": "\"unknown\""
+ },
+ {
+  "type": "SeedKind",
+  "case": "minimal",
+  "input": "config",
+  "output": "\"config\""
+ },
+ {
+  "type": "SeedKind",
+  "case": "value secret",
+  "input": "secret",
+  "output": "\"secret\""
+ },
+ {
+  "type": "SeedKind",
+  "case": "value rebuilt",
+  "input": "rebuilt",
+  "output": "\"rebuilt\""
+ },
+ {
+  "type": "SeedKind",
+  "case": "value data",
+  "input": "data",
+  "output": "\"data\""
+ },
+ {
+  "type": "SeedKind",
+  "case": "value never",
+  "input": "never",
+  "output": "\"never\""
+ },
+ {
+  "type": "SeedKind",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPickRow",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "dir": true,
+   "bytes": 7,
+   "kind": "unknown",
+   "why": "text é",
+   "picked": true
+  },
+  "output": "{\"path\":\"text é\",\"dir\":true,\"bytes\":7,\"kind\":\"unknown\",\"why\":\"text é\",\"picked\":true}"
+ },
+ {
+  "type": "SeedPickRow",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "dir": false,
+   "bytes": 7,
+   "kind": "config",
+   "why": "s",
+   "picked": false
+  },
+  "output": "{\"path\":\"s\",\"dir\":false,\"bytes\":7,\"kind\":\"config\",\"why\":\"s\",\"picked\":false}"
+ },
+ {
+  "type": "SeedPickRow",
+  "case": "missing path",
+  "input": {
+   "dir": true,
+   "bytes": 7,
+   "kind": "unknown",
+   "why": "text é",
+   "picked": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPickRow",
+  "case": "dir: not a boolean",
+  "input": {
+   "path": "text é",
+   "dir": "yes",
+   "bytes": 7,
+   "kind": "unknown",
+   "why": "text é",
+   "picked": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "dir"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPickRow",
+  "case": "bytes: not an integer",
+  "input": {
+   "path": "text é",
+   "dir": true,
+   "bytes": 2.5,
+   "kind": "unknown",
+   "why": "text é",
+   "picked": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "bytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPickRow",
+  "case": "kind: not one of its values",
+  "input": {
+   "path": "text é",
+   "dir": true,
+   "bytes": 7,
+   "kind": "not-a-value",
+   "why": "text é",
+   "picked": true
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPickRow",
+  "case": "picked: not a boolean",
+  "input": {
+   "path": "text é",
+   "dir": true,
+   "bytes": 7,
+   "kind": "unknown",
+   "why": "text é",
+   "picked": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "picked"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPlan",
+  "case": "full",
+  "input": {
+   "source": "text é",
+   "remote": "text é",
+   "branch": "text é",
+   "defaultBranch": "text é",
+   "unpushed": {
+    "commits": 7,
+    "base": "text é"
+   },
+   "uncommitted": 7,
+   "memory": {
+    "key": "text é",
+    "files": 7,
+    "bytes": 7
+   },
+   "files": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "row": {
+      "id": "text é",
+      "name": "text é"
+     },
+     "ticked": true
+    }
+   ],
+   "remembered": true,
+   "provider": true
+  },
+  "output": "{\"source\":\"text é\",\"remote\":\"text é\",\"branch\":\"text é\",\"defaultBranch\":\"text é\",\"unpushed\":{\"commits\":7,\"base\":\"text é\"},\"uncommitted\":7,\"memory\":{\"key\":\"text é\",\"files\":7,\"bytes\":7},\"files\":[{\"path\":\"text é\",\"dir\":true,\"bytes\":7,\"kind\":\"unknown\",\"row\":{\"id\":\"text é\",\"name\":\"text é\"},\"ticked\":true}],\"remembered\":true,\"provider\":true}"
+ },
+ {
+  "type": "SeedPlan",
+  "case": "minimal",
+  "input": {
+   "source": "s",
+   "remote": "s",
+   "branch": "s",
+   "defaultBranch": "s",
+   "unpushed": {
+    "commits": 7,
+    "base": "s"
+   },
+   "uncommitted": 7,
+   "memory": {
+    "key": "s",
+    "files": 7,
+    "bytes": 7
+   },
+   "files": [],
+   "remembered": false
+  },
+  "output": "{\"source\":\"s\",\"remote\":\"s\",\"branch\":\"s\",\"defaultBranch\":\"s\",\"unpushed\":{\"commits\":7,\"base\":\"s\"},\"uncommitted\":7,\"memory\":{\"key\":\"s\",\"files\":7,\"bytes\":7},\"files\":[],\"remembered\":false}"
+ },
+ {
+  "type": "SeedPlan",
+  "case": "nulls",
+  "input": {
+   "source": "s",
+   "remote": null,
+   "branch": "s",
+   "defaultBranch": null,
+   "unpushed": null,
+   "uncommitted": 7,
+   "memory": null,
+   "files": [],
+   "remembered": false,
+   "provider": false
+  },
+  "output": "{\"source\":\"s\",\"remote\":null,\"branch\":\"s\",\"defaultBranch\":null,\"unpushed\":null,\"uncommitted\":7,\"memory\":null,\"files\":[],\"remembered\":false,\"provider\":false}"
+ },
+ {
+  "type": "SeedPlan",
+  "case": "missing remote, which is null or a value but never absent",
+  "input": {
+   "source": "text é",
+   "branch": "text é",
+   "defaultBranch": "text é",
+   "unpushed": {
+    "commits": 7,
+    "base": "text é"
+   },
+   "uncommitted": 7,
+   "memory": {
+    "key": "text é",
+    "files": 7,
+    "bytes": 7
+   },
+   "files": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "row": {
+      "id": "text é",
+      "name": "text é"
+     },
+     "ticked": true
+    }
+   ],
+   "remembered": true,
+   "provider": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "remote"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPlan",
+  "case": "missing defaultBranch, which is null or a value but never absent",
+  "input": {
+   "source": "text é",
+   "remote": "text é",
+   "branch": "text é",
+   "unpushed": {
+    "commits": 7,
+    "base": "text é"
+   },
+   "uncommitted": 7,
+   "memory": {
+    "key": "text é",
+    "files": 7,
+    "bytes": 7
+   },
+   "files": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "row": {
+      "id": "text é",
+      "name": "text é"
+     },
+     "ticked": true
+    }
+   ],
+   "remembered": true,
+   "provider": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "defaultBranch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPlan",
+  "case": "missing unpushed, which is null or a value but never absent",
+  "input": {
+   "source": "text é",
+   "remote": "text é",
+   "branch": "text é",
+   "defaultBranch": "text é",
+   "uncommitted": 7,
+   "memory": {
+    "key": "text é",
+    "files": 7,
+    "bytes": 7
+   },
+   "files": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "row": {
+      "id": "text é",
+      "name": "text é"
+     },
+     "ticked": true
+    }
+   ],
+   "remembered": true,
+   "provider": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "unpushed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPlan",
+  "case": "missing memory, which is null or a value but never absent",
+  "input": {
+   "source": "text é",
+   "remote": "text é",
+   "branch": "text é",
+   "defaultBranch": "text é",
+   "unpushed": {
+    "commits": 7,
+    "base": "text é"
+   },
+   "uncommitted": 7,
+   "files": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "row": {
+      "id": "text é",
+      "name": "text é"
+     },
+     "ticked": true
+    }
+   ],
+   "remembered": true,
+   "provider": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "memory"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPlan",
+  "case": "missing source",
+  "input": {
+   "remote": "text é",
+   "branch": "text é",
+   "defaultBranch": "text é",
+   "unpushed": {
+    "commits": 7,
+    "base": "text é"
+   },
+   "uncommitted": 7,
+   "memory": {
+    "key": "text é",
+    "files": 7,
+    "bytes": 7
+   },
+   "files": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "row": {
+      "id": "text é",
+      "name": "text é"
+     },
+     "ticked": true
+    }
+   ],
+   "remembered": true,
+   "provider": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "source"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPlan",
+  "case": "uncommitted: not an integer",
+  "input": {
+   "source": "text é",
+   "remote": "text é",
+   "branch": "text é",
+   "defaultBranch": "text é",
+   "unpushed": {
+    "commits": 7,
+    "base": "text é"
+   },
+   "uncommitted": 2.5,
+   "memory": {
+    "key": "text é",
+    "files": 7,
+    "bytes": 7
+   },
+   "files": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "row": {
+      "id": "text é",
+      "name": "text é"
+     },
+     "ticked": true
+    }
+   ],
+   "remembered": true,
+   "provider": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "uncommitted"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPlan",
+  "case": "uncommitted: under 0",
+  "input": {
+   "source": "text é",
+   "remote": "text é",
+   "branch": "text é",
+   "defaultBranch": "text é",
+   "unpushed": {
+    "commits": 7,
+    "base": "text é"
+   },
+   "uncommitted": -1,
+   "memory": {
+    "key": "text é",
+    "files": 7,
+    "bytes": 7
+   },
+   "files": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "row": {
+      "id": "text é",
+      "name": "text é"
+     },
+     "ticked": true
+    }
+   ],
+   "remembered": true,
+   "provider": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "uncommitted"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SeedPlan",
+  "case": "remembered: not a boolean",
+  "input": {
+   "source": "text é",
+   "remote": "text é",
+   "branch": "text é",
+   "defaultBranch": "text é",
+   "unpushed": {
+    "commits": 7,
+    "base": "text é"
+   },
+   "uncommitted": 7,
+   "memory": {
+    "key": "text é",
+    "files": 7,
+    "bytes": 7
+   },
+   "files": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "row": {
+      "id": "text é",
+      "name": "text é"
+     },
+     "ticked": true
+    }
+   ],
+   "remembered": "yes",
+   "provider": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "remembered"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SeedPlan",
+  "case": "provider: not a boolean",
+  "input": {
+   "source": "text é",
+   "remote": "text é",
+   "branch": "text é",
+   "defaultBranch": "text é",
+   "unpushed": {
+    "commits": 7,
+    "base": "text é"
+   },
+   "uncommitted": 7,
+   "memory": {
+    "key": "text é",
+    "files": 7,
+    "bytes": 7
+   },
+   "files": [
+    {
+     "path": "text é",
+     "dir": true,
+     "bytes": 7,
+     "kind": "unknown",
+     "row": {
+      "id": "text é",
+      "name": "text é"
+     },
+     "ticked": true
+    }
+   ],
+   "remembered": true,
+   "provider": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "provider"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadScope",
+  "case": "full",
+  "input": {
+   "kind": "thread",
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "rootThreadId": "text é"
+  },
+  "output": "{\"kind\":\"thread\",\"threadId\":\"text é\",\"workspaceId\":\"text é\",\"rootThreadId\":\"text é\"}"
+ },
+ {
+  "type": "ThreadScope",
+  "case": "minimal",
+  "input": {
+   "kind": "thread",
+   "threadId": "s",
+   "workspaceId": "s",
+   "rootThreadId": "s"
+  },
+  "output": "{\"kind\":\"thread\",\"threadId\":\"s\",\"workspaceId\":\"s\",\"rootThreadId\":\"s\"}"
+ },
+ {
+  "type": "ThreadScope",
+  "case": "missing kind",
+  "input": {
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "rootThreadId": "text é"
+  },
+  "issue": {
+   "code": "invalid_literal",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceAgents",
+  "case": "full",
+  "input": {
+   "spawn": true,
+   "maxMachines": 7,
+   "maxDepth": 7
+  },
+  "output": "{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7}"
+ },
+ {
+  "type": "WorkspaceAgents",
+  "case": "minimal",
+  "input": {
+   "spawn": false,
+   "maxMachines": 7,
+   "maxDepth": 7
+  },
+  "output": "{\"spawn\":false,\"maxMachines\":7,\"maxDepth\":7}"
+ },
+ {
+  "type": "WorkspaceAgents",
+  "case": "missing spawn",
+  "input": {
+   "maxMachines": 7,
+   "maxDepth": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "spawn"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceAgents",
+  "case": "spawn: not a boolean",
+  "input": {
+   "spawn": "yes",
+   "maxMachines": 7,
+   "maxDepth": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "spawn"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceAgents",
+  "case": "maxMachines: not an integer",
+  "input": {
+   "spawn": true,
+   "maxMachines": 2.5,
+   "maxDepth": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "maxMachines"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceAgents",
+  "case": "maxMachines: under 0",
+  "input": {
+   "spawn": true,
+   "maxMachines": -1,
+   "maxDepth": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "maxMachines"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "WorkspaceAgents",
+  "case": "maxDepth: not an integer",
+  "input": {
+   "spawn": true,
+   "maxMachines": 7,
+   "maxDepth": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "maxDepth"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceAgents",
+  "case": "maxDepth: under 1",
+  "input": {
+   "spawn": true,
+   "maxMachines": 7,
+   "maxDepth": 0
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "maxDepth"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "WorkspaceListing",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "disk",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "machineState": "gone",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "reason": "text é",
+   "idleAt": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reach": {
+    "state": "zombie",
+    "offline": true
+   }
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"provider\":\"text é\",\"pauseMode\":\"disk\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"machineState\":\"gone\",\"size\":{\"cpu\":2.5,\"memMb\":2.5},\"rateUsdPerHour\":2.5,\"reason\":\"text é\",\"idleAt\":2.5,\"facts\":{\"os\":\"text é\",\"uptimeMs\":2.5,\"folder\":\"text é\"},\"reach\":{\"state\":\"zombie\",\"offline\":true}}"
+ },
+ {
+  "type": "WorkspaceListing",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "machineId": "s",
+   "phase": "running",
+   "golden": "s",
+   "createdAt": "s",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s",
+    "computer": "s"
+   },
+   "machineState": "starting",
+   "size": {
+    "cpu": 3,
+    "memMb": 3
+   },
+   "rateUsdPerHour": 3,
+   "reach": {
+    "state": "reachable"
+   }
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"machineState\":\"starting\",\"size\":{\"cpu\":3,\"memMb\":3},\"rateUsdPerHour\":3,\"reach\":{\"state\":\"reachable\"}}"
+ },
+ {
+  "type": "WorkspaceListing",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "machineId": "s",
+   "phase": "running",
+   "kind": "cloud",
+   "golden": "s",
+   "createdAt": "s",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s",
+    "computer": "s"
+   },
+   "folder": "s",
+   "home": "s",
+   "claudeSessionId": "s",
+   "gone": "s",
+   "theme": {
+    "dots": [
+     {
+      "angle": 3,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "single",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "auto"
+   },
+   "glyph": "terminal",
+   "daemonNote": "s",
+   "daemonRefusedAt": {
+    "machineId": "s",
+    "at": "s",
+    "why": "s"
+   },
+   "vaultedAt": "s",
+   "vaultRefused": "s",
+   "wakeRefused": "s",
+   "diskGone": "s",
+   "agents": {
+    "spawn": false,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "s",
+   "rootThreadId": "s",
+   "parentWorkspaceId": "s",
+   "place": "s",
+   "provider": "s",
+   "pauseMode": "memory",
+   "worktree": {
+    "path": "s",
+    "made": false
+   },
+   "from": {
+    "kind": "issue",
+    "repo": "s",
+    "number": 7,
+    "url": "s",
+    "title": "s"
+   },
+   "review": {
+    "verdict": "comment",
+    "summary": "s",
+    "comments": [],
+    "headOid": "s",
+    "threadId": "s",
+    "at": 3
+   },
+   "machineState": "starting",
+   "size": {
+    "cpu": 3,
+    "memMb": 3
+   },
+   "rateUsdPerHour": 3,
+   "reason": "s",
+   "idleAt": 3,
+   "facts": {
+    "os": "s",
+    "uptimeMs": 3,
+    "folder": "s"
+   },
+   "reach": {
+    "state": "reachable"
+   }
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"spawn\":false,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"provider\":\"s\",\"pauseMode\":\"memory\",\"worktree\":{\"path\":\"s\",\"made\":false},\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3},\"machineState\":\"starting\",\"size\":{\"cpu\":3,\"memMb\":3},\"rateUsdPerHour\":3,\"reason\":\"s\",\"idleAt\":3,\"facts\":{\"os\":\"s\",\"uptimeMs\":3,\"folder\":\"s\"},\"reach\":{\"state\":\"reachable\"}}"
+ },
+ {
+  "type": "WorkspaceListing",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "disk",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "machineState": "gone",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "reason": "text é",
+   "idleAt": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reach": {
+    "state": "zombie",
+    "offline": true
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceListing",
+  "case": "phase: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "not-a-value",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "disk",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "machineState": "gone",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "reason": "text é",
+   "idleAt": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reach": {
+    "state": "zombie",
+    "offline": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "phase"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceListing",
+  "case": "kind: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "not-a-value",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "disk",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "machineState": "gone",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "reason": "text é",
+   "idleAt": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reach": {
+    "state": "zombie",
+    "offline": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceListing",
+  "case": "glyph: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "not-a-value",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "disk",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "machineState": "gone",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "reason": "text é",
+   "idleAt": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reach": {
+    "state": "zombie",
+    "offline": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "glyph"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceListing",
+  "case": "pauseMode: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "not-a-value",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "machineState": "gone",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "reason": "text é",
+   "idleAt": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reach": {
+    "state": "zombie",
+    "offline": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "pauseMode"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceListing",
+  "case": "machineState: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "disk",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "machineState": "not-a-value",
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "reason": "text é",
+   "idleAt": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reach": {
+    "state": "zombie",
+    "offline": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "machineState"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceOrigin",
+  "case": "full",
+  "input": "paired",
+  "output": "\"paired\""
+ },
+ {
+  "type": "WorkspaceOrigin",
+  "case": "minimal",
+  "input": "here",
+  "output": "\"here\""
+ },
+ {
+  "type": "WorkspaceOrigin",
+  "case": "value relayed",
+  "input": "relayed",
+  "output": "\"relayed\""
+ },
+ {
+  "type": "WorkspaceOrigin",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceOut",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "disk",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   }
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"provider\":\"text é\",\"pauseMode\":\"disk\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true}}"
+ },
+ {
+  "type": "WorkspaceOut",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "machineId": "s",
+   "phase": "running",
+   "golden": "s",
+   "createdAt": "s",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s",
+    "computer": "s"
+   }
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"}}"
+ },
+ {
+  "type": "WorkspaceOut",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "machineId": "s",
+   "phase": "running",
+   "kind": "cloud",
+   "golden": "s",
+   "createdAt": "s",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s",
+    "computer": "s"
+   },
+   "folder": "s",
+   "home": "s",
+   "claudeSessionId": "s",
+   "gone": "s",
+   "theme": {
+    "dots": [
+     {
+      "angle": 3,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "single",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "auto"
+   },
+   "glyph": "terminal",
+   "daemonNote": "s",
+   "daemonRefusedAt": {
+    "machineId": "s",
+    "at": "s",
+    "why": "s"
+   },
+   "vaultedAt": "s",
+   "vaultRefused": "s",
+   "wakeRefused": "s",
+   "diskGone": "s",
+   "agents": {
+    "spawn": false,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "s",
+   "rootThreadId": "s",
+   "parentWorkspaceId": "s",
+   "place": "s",
+   "provider": "s",
+   "pauseMode": "memory",
+   "worktree": {
+    "path": "s",
+    "made": false
+   },
+   "from": {
+    "kind": "issue",
+    "repo": "s",
+    "number": 7,
+    "url": "s",
+    "title": "s"
+   },
+   "review": {
+    "verdict": "comment",
+    "summary": "s",
+    "comments": [],
+    "headOid": "s",
+    "threadId": "s",
+    "at": 3
+   }
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"spawn\":false,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"provider\":\"s\",\"pauseMode\":\"memory\",\"worktree\":{\"path\":\"s\",\"made\":false},\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3}}"
+ },
+ {
+  "type": "WorkspaceOut",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "disk",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceOut",
+  "case": "phase: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "not-a-value",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "disk",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "phase"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceOut",
+  "case": "kind: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "not-a-value",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "disk",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceOut",
+  "case": "glyph: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "not-a-value",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "disk",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "glyph"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceOut",
+  "case": "pauseMode: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "provider": "text é",
+   "pauseMode": "not-a-value",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "pauseMode"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspacePhase",
+  "case": "full",
+  "input": "released",
+  "output": "\"released\""
+ },
+ {
+  "type": "WorkspacePhase",
+  "case": "minimal",
+  "input": "running",
+  "output": "\"running\""
+ },
+ {
+  "type": "WorkspacePhase",
+  "case": "value pausing",
+  "input": "pausing",
+  "output": "\"pausing\""
+ },
+ {
+  "type": "WorkspacePhase",
+  "case": "value napping",
+  "input": "napping",
+  "output": "\"napping\""
+ },
+ {
+  "type": "WorkspacePhase",
+  "case": "value waking",
+  "input": "waking",
+  "output": "\"waking\""
+ },
+ {
+  "type": "WorkspacePhase",
+  "case": "value gone",
+  "input": "gone",
+  "output": "\"gone\""
+ },
+ {
+  "type": "WorkspacePhase",
+  "case": "value queued",
+  "input": "queued",
+  "output": "\"queued\""
+ },
+ {
+  "type": "WorkspacePhase",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceProject",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "dest": "text é",
+   "importedAt": "text é",
+   "size": 7
+  },
+  "output": "{\"name\":\"text é\",\"dest\":\"text é\",\"importedAt\":\"text é\",\"size\":7}"
+ },
+ {
+  "type": "WorkspaceProject",
+  "case": "minimal",
+  "input": {
+   "name": "s",
+   "dest": "s",
+   "importedAt": "s"
+  },
+  "output": "{\"name\":\"s\",\"dest\":\"s\",\"importedAt\":\"s\"}"
+ },
+ {
+  "type": "WorkspaceProject",
+  "case": "nulls",
+  "input": {
+   "name": "s",
+   "dest": "s",
+   "importedAt": "s",
+   "size": 7
+  },
+  "output": "{\"name\":\"s\",\"dest\":\"s\",\"importedAt\":\"s\",\"size\":7}"
+ },
+ {
+  "type": "WorkspaceProject",
+  "case": "missing name",
+  "input": {
+   "dest": "text é",
+   "importedAt": "text é",
+   "size": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceProject",
+  "case": "size: not an integer",
+  "input": {
+   "name": "text é",
+   "dest": "text é",
+   "importedAt": "text é",
+   "size": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "size"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceProject",
+  "case": "size: under 0",
+  "input": {
+   "name": "text é",
+   "dest": "text é",
+   "importedAt": "text é",
+   "size": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "size"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "WorkspaceStatus",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "disk",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   },
+   "machineState": "gone",
+   "reach": {
+    "state": "zombie",
+    "url": "text é",
+    "expiresAt": 2.5,
+    "offline": true
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reason": "text é",
+   "wakeAsk": {
+    "ask": 2.5,
+    "of": 2.5
+   },
+   "idleAt": 2.5,
+   "checkout": {
+    "branch": "text é",
+    "ahead": 7,
+    "behind": 7,
+    "changed": 7,
+    "editsUnread": true,
+    "countsUnknown": true,
+    "stashes": 7,
+    "head": "text é",
+    "readAt": 2.5
+   },
+   "pr": {
+    "why": "text é",
+    "readAt": 2.5
+   },
+   "tree": {
+    "leadBranch": "text é",
+    "children": [
+     {
+      "merged": {
+       "oid": "text é",
+       "at": 2.5
+      },
+      "conflicts": [],
+      "pushRefused": "text é",
+      "workspaceId": "text é",
+      "threadId": "text é",
+      "branch": "text é",
+      "pushed": true,
+      "aheadOfLead": 7,
+      "behindLead": 7
+     }
+    ],
+    "readAt": 2.5
+   }
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"queue\":{\"since\":\"text é\",\"why\":\"minute\"},\"screen\":{\"streamUrl\":\"text é\"},\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"provider\":\"text é\",\"pauseMode\":\"disk\",\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"text é\",\"name\":\"text é\",\"branch\":\"text é\",\"startSha\":\"text é\",\"public\":true},\"machineState\":\"gone\",\"reach\":{\"state\":\"zombie\",\"url\":\"text é\",\"expiresAt\":2.5,\"offline\":true},\"size\":{\"cpu\":2.5,\"memMb\":2.5},\"rateUsdPerHour\":2.5,\"facts\":{\"os\":\"text é\",\"uptimeMs\":2.5,\"folder\":\"text é\"},\"reason\":\"text é\",\"wakeAsk\":{\"ask\":2.5,\"of\":2.5},\"idleAt\":2.5,\"checkout\":{\"branch\":\"text é\",\"ahead\":7,\"behind\":7,\"changed\":7,\"editsUnread\":true,\"countsUnknown\":true,\"stashes\":7,\"head\":\"text é\",\"readAt\":2.5},\"pr\":{\"why\":\"text é\",\"readAt\":2.5},\"tree\":{\"leadBranch\":\"text é\",\"children\":[{\"merged\":{\"oid\":\"text é\",\"at\":2.5},\"conflicts\":[],\"pushRefused\":\"text é\",\"workspaceId\":\"text é\",\"threadId\":\"text é\",\"branch\":\"text é\",\"pushed\":true,\"aheadOfLead\":7,\"behindLead\":7}],\"readAt\":2.5}}"
+ },
+ {
+  "type": "WorkspaceStatus",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "machineId": "s",
+   "phase": "running",
+   "golden": "s",
+   "createdAt": "s",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s",
+    "computer": "s"
+   },
+   "machineState": "starting",
+   "reach": {
+    "state": "reachable"
+   },
+   "size": {
+    "cpu": 3,
+    "memMb": 3
+   },
+   "rateUsdPerHour": 3
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"machineState\":\"starting\",\"reach\":{\"state\":\"reachable\"},\"size\":{\"cpu\":3,\"memMb\":3},\"rateUsdPerHour\":3}"
+ },
+ {
+  "type": "WorkspaceStatus",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "machineId": "s",
+   "phase": "running",
+   "kind": "cloud",
+   "golden": "s",
+   "createdAt": "s",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s",
+    "computer": "s"
+   },
+   "folder": "s",
+   "home": "s",
+   "claudeSessionId": "s",
+   "queue": {
+    "since": "s",
+    "why": "slot"
+   },
+   "screen": {
+    "streamUrl": "s"
+   },
+   "gone": "s",
+   "theme": {
+    "dots": [
+     {
+      "angle": 3,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "single",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "auto"
+   },
+   "glyph": "terminal",
+   "daemonNote": "s",
+   "vaultedAt": "s",
+   "vaultRefused": "s",
+   "daemonRefusedAt": {
+    "machineId": "s",
+    "at": "s",
+    "why": "s"
+   },
+   "wakeRefused": "s",
+   "diskGone": "s",
+   "agents": {
+    "spawn": false,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "s",
+   "rootThreadId": "s",
+   "parentWorkspaceId": "s",
+   "place": "s",
+   "worktree": {
+    "path": "s",
+    "made": false
+   },
+   "provider": "s",
+   "pauseMode": "memory",
+   "from": {
+    "kind": "issue",
+    "repo": "s",
+    "number": 7,
+    "url": "s",
+    "title": "s"
+   },
+   "review": {
+    "verdict": "comment",
+    "summary": "s",
+    "comments": [],
+    "headOid": "s",
+    "threadId": "s",
+    "at": 3
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "s",
+    "name": "s",
+    "branch": "s"
+   },
+   "machineState": "starting",
+   "reach": {
+    "state": "reachable"
+   },
+   "size": {
+    "cpu": 3,
+    "memMb": 3
+   },
+   "rateUsdPerHour": 3,
+   "facts": {
+    "os": "s",
+    "uptimeMs": 3,
+    "folder": "s"
+   },
+   "reason": "s",
+   "wakeAsk": {
+    "ask": 3,
+    "of": 3
+   },
+   "idleAt": 3,
+   "checkout": {
+    "branch": "s",
+    "ahead": 7,
+    "behind": 7,
+    "changed": 7,
+    "readAt": 3
+   },
+   "pr": {
+    "number": 7,
+    "url": "s",
+    "state": "open",
+    "host": "s",
+    "draft": false,
+    "base": "s",
+    "branch": "s",
+    "headOid": "s",
+    "headSubject": "s",
+    "mergeable": "mergeable",
+    "mergeState": "s",
+    "review": "none",
+    "checks": [],
+    "additions": 7,
+    "deletions": 7,
+    "changedFiles": 7,
+    "commits": 7,
+    "readAt": 3
+   },
+   "tree": {
+    "leadBranch": "s",
+    "children": [],
+    "readAt": 3
+   }
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"queue\":{\"since\":\"s\",\"why\":\"slot\"},\"screen\":{\"streamUrl\":\"s\"},\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"spawn\":false,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"worktree\":{\"path\":\"s\",\"made\":false},\"provider\":\"s\",\"pauseMode\":\"memory\",\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"s\",\"name\":\"s\",\"branch\":\"s\"},\"machineState\":\"starting\",\"reach\":{\"state\":\"reachable\"},\"size\":{\"cpu\":3,\"memMb\":3},\"rateUsdPerHour\":3,\"facts\":{\"os\":\"s\",\"uptimeMs\":3,\"folder\":\"s\"},\"reason\":\"s\",\"wakeAsk\":{\"ask\":3,\"of\":3},\"idleAt\":3,\"checkout\":{\"branch\":\"s\",\"ahead\":7,\"behind\":7,\"changed\":7,\"readAt\":3},\"pr\":{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"host\":\"s\",\"draft\":false,\"base\":\"s\",\"branch\":\"s\",\"headOid\":\"s\",\"headSubject\":\"s\",\"mergeable\":\"mergeable\",\"mergeState\":\"s\",\"review\":\"none\",\"checks\":[],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"readAt\":3},\"tree\":{\"leadBranch\":\"s\",\"children\":[],\"readAt\":3}}"
+ },
+ {
+  "type": "WorkspaceStatus",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "disk",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   },
+   "machineState": "gone",
+   "reach": {
+    "state": "zombie",
+    "url": "text é",
+    "expiresAt": 2.5,
+    "offline": true
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reason": "text é",
+   "wakeAsk": {
+    "ask": 2.5,
+    "of": 2.5
+   },
+   "idleAt": 2.5,
+   "checkout": {
+    "branch": "text é",
+    "ahead": 7,
+    "behind": 7,
+    "changed": 7,
+    "editsUnread": true,
+    "countsUnknown": true,
+    "stashes": 7,
+    "head": "text é",
+    "readAt": 2.5
+   },
+   "pr": {
+    "why": "text é",
+    "readAt": 2.5
+   },
+   "tree": {
+    "leadBranch": "text é",
+    "children": [
+     {
+      "merged": {
+       "oid": "text é",
+       "at": 2.5
+      },
+      "conflicts": [],
+      "pushRefused": "text é",
+      "workspaceId": "text é",
+      "threadId": "text é",
+      "branch": "text é",
+      "pushed": true,
+      "aheadOfLead": 7,
+      "behindLead": 7
+     }
+    ],
+    "readAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceStatus",
+  "case": "phase: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "not-a-value",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "disk",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   },
+   "machineState": "gone",
+   "reach": {
+    "state": "zombie",
+    "url": "text é",
+    "expiresAt": 2.5,
+    "offline": true
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reason": "text é",
+   "wakeAsk": {
+    "ask": 2.5,
+    "of": 2.5
+   },
+   "idleAt": 2.5,
+   "checkout": {
+    "branch": "text é",
+    "ahead": 7,
+    "behind": 7,
+    "changed": 7,
+    "editsUnread": true,
+    "countsUnknown": true,
+    "stashes": 7,
+    "head": "text é",
+    "readAt": 2.5
+   },
+   "pr": {
+    "why": "text é",
+    "readAt": 2.5
+   },
+   "tree": {
+    "leadBranch": "text é",
+    "children": [
+     {
+      "merged": {
+       "oid": "text é",
+       "at": 2.5
+      },
+      "conflicts": [],
+      "pushRefused": "text é",
+      "workspaceId": "text é",
+      "threadId": "text é",
+      "branch": "text é",
+      "pushed": true,
+      "aheadOfLead": 7,
+      "behindLead": 7
+     }
+    ],
+    "readAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "phase"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceStatus",
+  "case": "kind: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "not-a-value",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "disk",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   },
+   "machineState": "gone",
+   "reach": {
+    "state": "zombie",
+    "url": "text é",
+    "expiresAt": 2.5,
+    "offline": true
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reason": "text é",
+   "wakeAsk": {
+    "ask": 2.5,
+    "of": 2.5
+   },
+   "idleAt": 2.5,
+   "checkout": {
+    "branch": "text é",
+    "ahead": 7,
+    "behind": 7,
+    "changed": 7,
+    "editsUnread": true,
+    "countsUnknown": true,
+    "stashes": 7,
+    "head": "text é",
+    "readAt": 2.5
+   },
+   "pr": {
+    "why": "text é",
+    "readAt": 2.5
+   },
+   "tree": {
+    "leadBranch": "text é",
+    "children": [
+     {
+      "merged": {
+       "oid": "text é",
+       "at": 2.5
+      },
+      "conflicts": [],
+      "pushRefused": "text é",
+      "workspaceId": "text é",
+      "threadId": "text é",
+      "branch": "text é",
+      "pushed": true,
+      "aheadOfLead": 7,
+      "behindLead": 7
+     }
+    ],
+    "readAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceStatus",
+  "case": "glyph: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "not-a-value",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "disk",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   },
+   "machineState": "gone",
+   "reach": {
+    "state": "zombie",
+    "url": "text é",
+    "expiresAt": 2.5,
+    "offline": true
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reason": "text é",
+   "wakeAsk": {
+    "ask": 2.5,
+    "of": 2.5
+   },
+   "idleAt": 2.5,
+   "checkout": {
+    "branch": "text é",
+    "ahead": 7,
+    "behind": 7,
+    "changed": 7,
+    "editsUnread": true,
+    "countsUnknown": true,
+    "stashes": 7,
+    "head": "text é",
+    "readAt": 2.5
+   },
+   "pr": {
+    "why": "text é",
+    "readAt": 2.5
+   },
+   "tree": {
+    "leadBranch": "text é",
+    "children": [
+     {
+      "merged": {
+       "oid": "text é",
+       "at": 2.5
+      },
+      "conflicts": [],
+      "pushRefused": "text é",
+      "workspaceId": "text é",
+      "threadId": "text é",
+      "branch": "text é",
+      "pushed": true,
+      "aheadOfLead": 7,
+      "behindLead": 7
+     }
+    ],
+    "readAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "glyph"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceStatus",
+  "case": "pauseMode: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "not-a-value",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   },
+   "machineState": "gone",
+   "reach": {
+    "state": "zombie",
+    "url": "text é",
+    "expiresAt": 2.5,
+    "offline": true
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reason": "text é",
+   "wakeAsk": {
+    "ask": 2.5,
+    "of": 2.5
+   },
+   "idleAt": 2.5,
+   "checkout": {
+    "branch": "text é",
+    "ahead": 7,
+    "behind": 7,
+    "changed": 7,
+    "editsUnread": true,
+    "countsUnknown": true,
+    "stashes": 7,
+    "head": "text é",
+    "readAt": 2.5
+   },
+   "pr": {
+    "why": "text é",
+    "readAt": 2.5
+   },
+   "tree": {
+    "leadBranch": "text é",
+    "children": [
+     {
+      "merged": {
+       "oid": "text é",
+       "at": 2.5
+      },
+      "conflicts": [],
+      "pushRefused": "text é",
+      "workspaceId": "text é",
+      "threadId": "text é",
+      "branch": "text é",
+      "pushed": true,
+      "aheadOfLead": 7,
+      "behindLead": 7
+     }
+    ],
+    "readAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "pauseMode"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceStatus",
+  "case": "machineState: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "disk",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   },
+   "machineState": "not-a-value",
+   "reach": {
+    "state": "zombie",
+    "url": "text é",
+    "expiresAt": 2.5,
+    "offline": true
+   },
+   "size": {
+    "cpu": 2.5,
+    "memMb": 2.5
+   },
+   "rateUsdPerHour": 2.5,
+   "facts": {
+    "os": "text é",
+    "uptimeMs": 2.5,
+    "folder": "text é"
+   },
+   "reason": "text é",
+   "wakeAsk": {
+    "ask": 2.5,
+    "of": 2.5
+   },
+   "idleAt": 2.5,
+   "checkout": {
+    "branch": "text é",
+    "ahead": 7,
+    "behind": 7,
+    "changed": 7,
+    "editsUnread": true,
+    "countsUnknown": true,
+    "stashes": 7,
+    "head": "text é",
+    "readAt": 2.5
+   },
+   "pr": {
+    "why": "text é",
+    "readAt": 2.5
+   },
+   "tree": {
+    "leadBranch": "text é",
+    "children": [
+     {
+      "merged": {
+       "oid": "text é",
+       "at": 2.5
+      },
+      "conflicts": [],
+      "pushRefused": "text é",
+      "workspaceId": "text é",
+      "threadId": "text é",
+      "branch": "text é",
+      "pushed": true,
+      "aheadOfLead": 7,
+      "behindLead": 7
+     }
+    ],
+    "readAt": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "machineState"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceTalked",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "gone": "text é"
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"gone\":\"text é\"}"
+ },
+ {
+  "type": "WorkspaceTalked",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "machineId": "s",
+   "phase": "running",
+   "golden": "s",
+   "createdAt": "s",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s",
+    "computer": "s"
+   }
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"}}"
+ },
+ {
+  "type": "WorkspaceTalked",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "machineId": "s",
+   "phase": "running",
+   "kind": "cloud",
+   "golden": "s",
+   "createdAt": "s",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s",
+    "computer": "s"
+   },
+   "gone": "s"
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"gone\":\"s\"}"
+ },
+ {
+  "type": "WorkspaceTalked",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "gone": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceTalked",
+  "case": "phase: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "not-a-value",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "gone": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "phase"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceTalked",
+  "case": "kind: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "not-a-value",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "gone": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceView",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "disk",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   }
+  },
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"queue\":{\"since\":\"text é\",\"why\":\"minute\"},\"screen\":{\"streamUrl\":\"text é\"},\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"provider\":\"text é\",\"pauseMode\":\"disk\",\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"text é\",\"name\":\"text é\",\"branch\":\"text é\",\"startSha\":\"text é\",\"public\":true}}"
+ },
+ {
+  "type": "WorkspaceView",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "machineId": "s",
+   "phase": "running",
+   "golden": "s",
+   "createdAt": "s",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s",
+    "computer": "s"
+   }
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"}}"
+ },
+ {
+  "type": "WorkspaceView",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "name": "s",
+   "machineId": "s",
+   "phase": "running",
+   "kind": "cloud",
+   "golden": "s",
+   "createdAt": "s",
+   "project": {
+    "id": "s",
+    "name": "s",
+    "path": "s",
+    "computer": "s"
+   },
+   "folder": "s",
+   "home": "s",
+   "claudeSessionId": "s",
+   "queue": {
+    "since": "s",
+    "why": "slot"
+   },
+   "screen": {
+    "streamUrl": "s"
+   },
+   "gone": "s",
+   "theme": {
+    "dots": [
+     {
+      "angle": 3,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "single",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "auto"
+   },
+   "glyph": "terminal",
+   "daemonNote": "s",
+   "vaultedAt": "s",
+   "vaultRefused": "s",
+   "daemonRefusedAt": {
+    "machineId": "s",
+    "at": "s",
+    "why": "s"
+   },
+   "wakeRefused": "s",
+   "diskGone": "s",
+   "agents": {
+    "spawn": false,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "s",
+   "rootThreadId": "s",
+   "parentWorkspaceId": "s",
+   "place": "s",
+   "worktree": {
+    "path": "s",
+    "made": false
+   },
+   "provider": "s",
+   "pauseMode": "memory",
+   "from": {
+    "kind": "issue",
+    "repo": "s",
+    "number": 7,
+    "url": "s",
+    "title": "s"
+   },
+   "review": {
+    "verdict": "comment",
+    "summary": "s",
+    "comments": [],
+    "headOid": "s",
+    "threadId": "s",
+    "at": 3
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "s",
+    "name": "s",
+    "branch": "s"
+   }
+  },
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"queue\":{\"since\":\"s\",\"why\":\"slot\"},\"screen\":{\"streamUrl\":\"s\"},\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"spawn\":false,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"worktree\":{\"path\":\"s\",\"made\":false},\"provider\":\"s\",\"pauseMode\":\"memory\",\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"s\",\"name\":\"s\",\"branch\":\"s\"}}"
+ },
+ {
+  "type": "WorkspaceView",
+  "case": "missing id",
+  "input": {
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "disk",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceView",
+  "case": "phase: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "not-a-value",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "disk",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "phase"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceView",
+  "case": "kind: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "not-a-value",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "disk",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "kind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceView",
+  "case": "glyph: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "not-a-value",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "disk",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "glyph"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorkspaceView",
+  "case": "pauseMode: not one of its values",
+  "input": {
+   "id": "text é",
+   "name": "text é",
+   "machineId": "text é",
+   "phase": "released",
+   "kind": "place",
+   "golden": "text é",
+   "createdAt": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é",
+    "path": "text é",
+    "computer": "text é"
+   },
+   "folder": "text é",
+   "home": "text é",
+   "claudeSessionId": "text é",
+   "queue": {
+    "since": "text é",
+    "why": "minute"
+   },
+   "screen": {
+    "streamUrl": "text é"
+   },
+   "gone": "text é",
+   "theme": {
+    "dots": [
+     {
+      "angle": 2.5,
+      "radius": 0.5
+     }
+    ],
+    "harmony": "analogousThree",
+    "grain": 0.5,
+    "opacity": 0.5,
+    "mode": "dark"
+   },
+   "glyph": "lamp",
+   "daemonNote": "text é",
+   "vaultedAt": "text é",
+   "vaultRefused": "text é",
+   "daemonRefusedAt": {
+    "machineId": "text é",
+    "at": "text é",
+    "why": "text é"
+   },
+   "wakeRefused": "text é",
+   "diskGone": "text é",
+   "agents": {
+    "spawn": true,
+    "maxMachines": 7,
+    "maxDepth": 7
+   },
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "parentWorkspaceId": "text é",
+   "place": "text é",
+   "worktree": {
+    "path": "text é",
+    "branch": "text é",
+    "made": true,
+    "madeFor": "text é",
+    "settled": {
+     "at": 2.5,
+     "why": "removed"
+    },
+    "kept": "text é",
+    "removeFailed": "text é",
+    "gone": true
+   },
+   "provider": "text é",
+   "pauseMode": "not-a-value",
+   "from": {
+    "kind": "review",
+    "repo": "text é",
+    "number": 7,
+    "url": "text é",
+    "title": "text é",
+    "base": "text é",
+    "head": {
+     "branch": "text é",
+     "oid": "text é",
+     "fork": {
+      "owner": "text é",
+      "pushable": true
+     }
+    }
+   },
+   "review": {
+    "note": "text é",
+    "at": 2.5,
+    "reasked": true
+   },
+   "branchOfRecord": {
+    "repoId": 7,
+    "owner": "text é",
+    "name": "text é",
+    "branch": "text é",
+    "startSha": "text é",
+    "public": true
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "pauseMode"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeAsk",
+  "case": "full",
+  "input": {
+   "from": "text é",
+   "home": "text é",
+   "project": "text é",
+   "branch": "text é",
+   "modules": [
+    {
+     "id": "text é",
+     "lockfiles": [
+      "text é"
+     ],
+     "carry": [
+      "text é"
+     ],
+     "never": [
+      "text é"
+     ],
+     "installed": "text é"
+    }
+   ],
+   "checkpoint": "text é"
+  },
+  "output": "{\"from\":\"text é\",\"home\":\"text é\",\"project\":\"text é\",\"branch\":\"text é\",\"modules\":[{\"id\":\"text é\",\"lockfiles\":[\"text é\"],\"carry\":[\"text é\"],\"never\":[\"text é\"],\"installed\":\"text é\"}],\"checkpoint\":\"text é\"}"
+ },
+ {
+  "type": "WorktreeAsk",
+  "case": "minimal",
+  "input": {
+   "from": "s",
+   "home": "s",
+   "project": "s",
+   "branch": "s",
+   "modules": []
+  },
+  "output": "{\"from\":\"s\",\"home\":\"s\",\"project\":\"s\",\"branch\":\"s\",\"modules\":[]}"
+ },
+ {
+  "type": "WorktreeAsk",
+  "case": "nulls",
+  "input": {
+   "from": "s",
+   "home": "s",
+   "project": "s",
+   "branch": "s",
+   "modules": [],
+   "checkpoint": "s"
+  },
+  "output": "{\"from\":\"s\",\"home\":\"s\",\"project\":\"s\",\"branch\":\"s\",\"modules\":[],\"checkpoint\":\"s\"}"
+ },
+ {
+  "type": "WorktreeAsk",
+  "case": "missing from",
+  "input": {
+   "home": "text é",
+   "project": "text é",
+   "branch": "text é",
+   "modules": [
+    {
+     "id": "text é",
+     "lockfiles": [
+      "text é"
+     ],
+     "carry": [
+      "text é"
+     ],
+     "never": [
+      "text é"
+     ],
+     "installed": "text é"
+    }
+   ],
+   "checkpoint": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "from"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeFolder",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "branch": "text é",
+   "made": true,
+   "madeFor": "text é",
+   "settled": {
+    "at": 2.5,
+    "why": "removed"
+   },
+   "kept": "text é",
+   "removeFailed": "text é",
+   "gone": true
+  },
+  "output": "{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true}"
+ },
+ {
+  "type": "WorktreeFolder",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "made": false
+  },
+  "output": "{\"path\":\"s\",\"made\":false}"
+ },
+ {
+  "type": "WorktreeFolder",
+  "case": "nulls",
+  "input": {
+   "path": "s",
+   "branch": "s",
+   "made": false,
+   "madeFor": "s",
+   "settled": {
+    "at": 3,
+    "why": "merged"
+   },
+   "kept": "s",
+   "removeFailed": "s",
+   "gone": true
+  },
+  "output": "{\"path\":\"s\",\"branch\":\"s\",\"made\":false,\"madeFor\":\"s\",\"settled\":{\"at\":3,\"why\":\"merged\"},\"kept\":\"s\",\"removeFailed\":\"s\",\"gone\":true}"
+ },
+ {
+  "type": "WorktreeFolder",
+  "case": "missing path",
+  "input": {
+   "branch": "text é",
+   "made": true,
+   "madeFor": "text é",
+   "settled": {
+    "at": 2.5,
+    "why": "removed"
+   },
+   "kept": "text é",
+   "removeFailed": "text é",
+   "gone": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeFolder",
+  "case": "made: not a boolean",
+  "input": {
+   "path": "text é",
+   "branch": "text é",
+   "made": "yes",
+   "madeFor": "text é",
+   "settled": {
+    "at": 2.5,
+    "why": "removed"
+   },
+   "kept": "text é",
+   "removeFailed": "text é",
+   "gone": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "made"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeMade",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "branch": "text é",
+   "made": true
+  },
+  "output": "{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true}"
+ },
+ {
+  "type": "WorktreeMade",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "branch": "s",
+   "made": false
+  },
+  "output": "{\"path\":\"s\",\"branch\":\"s\",\"made\":false}"
+ },
+ {
+  "type": "WorktreeMade",
+  "case": "missing path",
+  "input": {
+   "branch": "text é",
+   "made": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeMade",
+  "case": "made: not a boolean",
+  "input": {
+   "path": "text é",
+   "branch": "text é",
+   "made": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "made"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeRemoval",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "rescued": "text é"
+  },
+  "output": "{\"path\":\"text é\",\"rescued\":\"text é\"}"
+ },
+ {
+  "type": "WorktreeRemoval",
+  "case": "minimal",
+  "input": {
+   "path": "s"
+  },
+  "output": "{\"path\":\"s\"}"
+ },
+ {
+  "type": "WorktreeRemoval",
+  "case": "nulls",
+  "input": {
+   "path": "s",
+   "rescued": "s"
+  },
+  "output": "{\"path\":\"s\",\"rescued\":\"s\"}"
+ },
+ {
+  "type": "WorktreeRemoval",
+  "case": "missing path",
+  "input": {
+   "rescued": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeReport",
+  "case": "full",
+  "input": {
+   "path": "text é",
+   "branch": "text é",
+   "made": true,
+   "carried": [
+    "text é"
+   ],
+   "plain": [
+    "text é"
+   ],
+   "overlaid": [
+    "text é"
+   ],
+   "fresh": true,
+   "modules": [
+    {
+     "id": "text é",
+     "folder": "text é",
+     "rebuild": true
+    }
+   ],
+   "ms": 7
+  },
+  "output": "{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"carried\":[\"text é\"],\"plain\":[\"text é\"],\"overlaid\":[\"text é\"],\"fresh\":true,\"modules\":[{\"id\":\"text é\",\"folder\":\"text é\",\"rebuild\":true}],\"ms\":7}"
+ },
+ {
+  "type": "WorktreeReport",
+  "case": "minimal",
+  "input": {
+   "path": "s",
+   "branch": "s",
+   "made": false,
+   "carried": [],
+   "fresh": false,
+   "modules": [],
+   "ms": 7
+  },
+  "output": "{\"path\":\"s\",\"branch\":\"s\",\"made\":false,\"carried\":[],\"fresh\":false,\"modules\":[],\"ms\":7}"
+ },
+ {
+  "type": "WorktreeReport",
+  "case": "nulls",
+  "input": {
+   "path": "s",
+   "branch": "s",
+   "made": false,
+   "carried": [],
+   "plain": [],
+   "overlaid": [],
+   "fresh": false,
+   "modules": [],
+   "ms": 7
+  },
+  "output": "{\"path\":\"s\",\"branch\":\"s\",\"made\":false,\"carried\":[],\"plain\":[],\"overlaid\":[],\"fresh\":false,\"modules\":[],\"ms\":7}"
+ },
+ {
+  "type": "WorktreeReport",
+  "case": "missing path",
+  "input": {
+   "branch": "text é",
+   "made": true,
+   "carried": [
+    "text é"
+   ],
+   "plain": [
+    "text é"
+   ],
+   "overlaid": [
+    "text é"
+   ],
+   "fresh": true,
+   "modules": [
+    {
+     "id": "text é",
+     "folder": "text é",
+     "rebuild": true
+    }
+   ],
+   "ms": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "path"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeReport",
+  "case": "made: not a boolean",
+  "input": {
+   "path": "text é",
+   "branch": "text é",
+   "made": "yes",
+   "carried": [
+    "text é"
+   ],
+   "plain": [
+    "text é"
+   ],
+   "overlaid": [
+    "text é"
+   ],
+   "fresh": true,
+   "modules": [
+    {
+     "id": "text é",
+     "folder": "text é",
+     "rebuild": true
+    }
+   ],
+   "ms": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "made"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeReport",
+  "case": "fresh: not a boolean",
+  "input": {
+   "path": "text é",
+   "branch": "text é",
+   "made": true,
+   "carried": [
+    "text é"
+   ],
+   "plain": [
+    "text é"
+   ],
+   "overlaid": [
+    "text é"
+   ],
+   "fresh": "yes",
+   "modules": [
+    {
+     "id": "text é",
+     "folder": "text é",
+     "rebuild": true
+    }
+   ],
+   "ms": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "fresh"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeReport",
+  "case": "ms: not an integer",
+  "input": {
+   "path": "text é",
+   "branch": "text é",
+   "made": true,
+   "carried": [
+    "text é"
+   ],
+   "plain": [
+    "text é"
+   ],
+   "overlaid": [
+    "text é"
+   ],
+   "fresh": true,
+   "modules": [
+    {
+     "id": "text é",
+     "folder": "text é",
+     "rebuild": true
+    }
+   ],
+   "ms": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "ms"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeReport",
+  "case": "ms: under 0",
+  "input": {
+   "path": "text é",
+   "branch": "text é",
+   "made": true,
+   "carried": [
+    "text é"
+   ],
+   "plain": [
+    "text é"
+   ],
+   "overlaid": [
+    "text é"
+   ],
+   "fresh": true,
+   "modules": [
+    {
+     "id": "text é",
+     "folder": "text é",
+     "rebuild": true
+    }
+   ],
+   "ms": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "ms"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "WorktreeSettled",
+  "case": "full",
+  "input": {
+   "at": 2.5,
+   "why": "removed"
+  },
+  "output": "{\"at\":2.5,\"why\":\"removed\"}"
+ },
+ {
+  "type": "WorktreeSettled",
+  "case": "minimal",
+  "input": {
+   "at": 3,
+   "why": "merged"
+  },
+  "output": "{\"at\":3,\"why\":\"merged\"}"
+ },
+ {
+  "type": "WorktreeSettled",
+  "case": "missing at",
+  "input": {
+   "why": "removed"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "at"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "WorktreeSettled",
+  "case": "why: not one of its values",
+  "input": {
+   "at": 2.5,
+   "why": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "why"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

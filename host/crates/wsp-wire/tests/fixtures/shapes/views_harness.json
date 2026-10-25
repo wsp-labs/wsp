@@ -1,0 +1,3778 @@
+[
+ {
+  "type": "HarnessCatalog",
+  "case": "full",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "output": "{\"harness\":\"text é\",\"label\":\"text é\",\"source\":\"table\",\"version\":\"text é\",\"models\":[{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\",\"efforts\":[\"text é\"],\"defaultEffort\":\"text é\",\"contextWindows\":[\"text é\"],\"fast\":true,\"added\":true}],\"legacyModels\":[{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\",\"efforts\":[\"text é\"],\"defaultEffort\":\"text é\",\"contextWindows\":[\"text é\"],\"fast\":true,\"added\":true}],\"legacyListed\":true,\"hiddenModels\":[{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\",\"efforts\":[\"text é\"],\"defaultEffort\":\"text é\",\"contextWindows\":[\"text é\"],\"fast\":true,\"added\":true}],\"unshaped\":{\"models\":[{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\",\"efforts\":[],\"defaultEffort\":\"text é\",\"contextWindows\":[],\"fast\":true,\"added\":true}],\"legacyModels\":[{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\",\"efforts\":[],\"defaultEffort\":\"text é\",\"contextWindows\":[],\"fast\":true,\"added\":true}],\"efforts\":[{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\"}],\"permissionModes\":[{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\"}]},\"efforts\":[{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\"}],\"contextWindows\":[{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\"}],\"permissionModes\":[{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\"}],\"steers\":true,\"renames\":true,\"images\":true,\"mcpServers\":true,\"screenCommands\":[{\"name\":\"text é\",\"control\":\"docs\"}],\"movesAccess\":true,\"steersImages\":true,\"asides\":true,\"compacts\":\"text é\",\"terminalResume\":\"text é\",\"rewindsConversation\":true,\"rewindsByCount\":true,\"forks\":true,\"forksByCount\":true,\"isDefault\":true,\"refusal\":\"text é\",\"smallModel\":\"text é\",\"bypassMode\":\"text é\",\"readOnlyMode\":\"text é\",\"readOnlyToolsFree\":true,\"access\":{\"ask\":\"text é\"}}"
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "minimal",
+  "input": {
+   "harness": "s",
+   "label": "s",
+   "source": "harness",
+   "version": "s",
+   "models": [],
+   "efforts": [],
+   "contextWindows": [],
+   "permissionModes": [],
+   "steers": false,
+   "renames": false,
+   "images": false
+  },
+  "output": "{\"harness\":\"s\",\"label\":\"s\",\"source\":\"harness\",\"version\":\"s\",\"models\":[],\"efforts\":[],\"contextWindows\":[],\"permissionModes\":[],\"steers\":false,\"renames\":false,\"images\":false}"
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "nulls",
+  "input": {
+   "harness": "s",
+   "label": "s",
+   "source": "harness",
+   "version": null,
+   "models": [],
+   "legacyModels": [],
+   "legacyListed": false,
+   "hiddenModels": [],
+   "unshaped": {
+    "models": [],
+    "efforts": [],
+    "permissionModes": []
+   },
+   "efforts": [],
+   "contextWindows": [],
+   "permissionModes": [],
+   "steers": false,
+   "renames": false,
+   "images": false,
+   "mcpServers": false,
+   "screenCommands": [],
+   "movesAccess": false,
+   "steersImages": false,
+   "asides": false,
+   "compacts": "s",
+   "terminalResume": "s",
+   "rewindsConversation": false,
+   "rewindsByCount": false,
+   "forks": false,
+   "forksByCount": false,
+   "isDefault": false,
+   "refusal": "s",
+   "smallModel": "s",
+   "bypassMode": "s",
+   "readOnlyMode": "s",
+   "readOnlyToolsFree": false,
+   "access": {}
+  },
+  "output": "{\"harness\":\"s\",\"label\":\"s\",\"source\":\"harness\",\"version\":null,\"models\":[],\"legacyModels\":[],\"legacyListed\":false,\"hiddenModels\":[],\"unshaped\":{\"models\":[],\"efforts\":[],\"permissionModes\":[]},\"efforts\":[],\"contextWindows\":[],\"permissionModes\":[],\"steers\":false,\"renames\":false,\"images\":false,\"mcpServers\":false,\"screenCommands\":[],\"movesAccess\":false,\"steersImages\":false,\"asides\":false,\"compacts\":\"s\",\"terminalResume\":\"s\",\"rewindsConversation\":false,\"rewindsByCount\":false,\"forks\":false,\"forksByCount\":false,\"isDefault\":false,\"refusal\":\"s\",\"smallModel\":\"s\",\"bypassMode\":\"s\",\"readOnlyMode\":\"s\",\"readOnlyToolsFree\":false,\"access\":{}}"
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "missing version, which is null or a value but never absent",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "version"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "missing harness",
+  "input": {
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "harness"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "source: not one of its values",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "not-a-value",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "source"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "legacyListed: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": "yes",
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "legacyListed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "steers: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": "yes",
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "steers"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "renames: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": "yes",
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "renames"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "images: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": "yes",
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "images"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "mcpServers: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": "yes",
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "mcpServers"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "movesAccess: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": "yes",
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "movesAccess"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "steersImages: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": "yes",
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "steersImages"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "asides: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": "yes",
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "asides"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "rewindsConversation: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": "yes",
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "rewindsConversation"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "rewindsByCount: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": "yes",
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "rewindsByCount"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "forks: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": "yes",
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "forks"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "forksByCount: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": "yes",
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "forksByCount"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "isDefault: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": "yes",
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": true,
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "isDefault"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalog",
+  "case": "readOnlyToolsFree: not a boolean",
+  "input": {
+   "harness": "text é",
+   "label": "text é",
+   "source": "table",
+   "version": "text é",
+   "models": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "legacyListed": true,
+   "hiddenModels": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é",
+     "efforts": [
+      "text é"
+     ],
+     "defaultEffort": "text é",
+     "contextWindows": [
+      "text é"
+     ],
+     "fast": true,
+     "added": true
+    }
+   ],
+   "unshaped": {
+    "models": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é",
+      "efforts": [],
+      "defaultEffort": "text é",
+      "contextWindows": [],
+      "fast": true,
+      "added": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "text é",
+      "label": "text é",
+      "description": "text é",
+      "isDefault": true,
+      "short": "text é"
+     }
+    ]
+   },
+   "efforts": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "contextWindows": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "permissionModes": [
+    {
+     "value": "text é",
+     "label": "text é",
+     "description": "text é",
+     "isDefault": true,
+     "short": "text é"
+    }
+   ],
+   "steers": true,
+   "renames": true,
+   "images": true,
+   "mcpServers": true,
+   "screenCommands": [
+    {
+     "name": "text é",
+     "control": "docs"
+    }
+   ],
+   "movesAccess": true,
+   "steersImages": true,
+   "asides": true,
+   "compacts": "text é",
+   "terminalResume": "text é",
+   "rewindsConversation": true,
+   "rewindsByCount": true,
+   "forks": true,
+   "forksByCount": true,
+   "isDefault": true,
+   "refusal": "text é",
+   "smallModel": "text é",
+   "bypassMode": "text é",
+   "readOnlyMode": "text é",
+   "readOnlyToolsFree": "yes",
+   "access": {
+    "ask": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "readOnlyToolsFree"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessCatalogSource",
+  "case": "full",
+  "input": "table",
+  "output": "\"table\""
+ },
+ {
+  "type": "HarnessCatalogSource",
+  "case": "minimal",
+  "input": "harness",
+  "output": "\"harness\""
+ },
+ {
+  "type": "HarnessCatalogSource",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessModel",
+  "case": "full",
+  "input": {
+   "value": "text é",
+   "label": "text é",
+   "description": "text é",
+   "isDefault": true,
+   "short": "text é",
+   "efforts": [
+    "text é"
+   ],
+   "defaultEffort": "text é",
+   "contextWindows": [
+    "text é"
+   ],
+   "fast": true,
+   "added": true
+  },
+  "output": "{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\",\"efforts\":[\"text é\"],\"defaultEffort\":\"text é\",\"contextWindows\":[\"text é\"],\"fast\":true,\"added\":true}"
+ },
+ {
+  "type": "HarnessModel",
+  "case": "minimal",
+  "input": {
+   "value": "s",
+   "label": "s"
+  },
+  "output": "{\"value\":\"s\",\"label\":\"s\"}"
+ },
+ {
+  "type": "HarnessModel",
+  "case": "nulls",
+  "input": {
+   "value": "s",
+   "label": "s",
+   "description": "s",
+   "isDefault": false,
+   "short": "s",
+   "efforts": [],
+   "defaultEffort": "s",
+   "contextWindows": [],
+   "fast": false,
+   "added": true
+  },
+  "output": "{\"value\":\"s\",\"label\":\"s\",\"description\":\"s\",\"isDefault\":false,\"short\":\"s\",\"efforts\":[],\"defaultEffort\":\"s\",\"contextWindows\":[],\"fast\":false,\"added\":true}"
+ },
+ {
+  "type": "HarnessModel",
+  "case": "missing value",
+  "input": {
+   "label": "text é",
+   "description": "text é",
+   "isDefault": true,
+   "short": "text é",
+   "efforts": [
+    "text é"
+   ],
+   "defaultEffort": "text é",
+   "contextWindows": [
+    "text é"
+   ],
+   "fast": true,
+   "added": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "value"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessModel",
+  "case": "isDefault: not a boolean",
+  "input": {
+   "value": "text é",
+   "label": "text é",
+   "description": "text é",
+   "isDefault": "yes",
+   "short": "text é",
+   "efforts": [
+    "text é"
+   ],
+   "defaultEffort": "text é",
+   "contextWindows": [
+    "text é"
+   ],
+   "fast": true,
+   "added": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "isDefault"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessModel",
+  "case": "fast: not a boolean",
+  "input": {
+   "value": "text é",
+   "label": "text é",
+   "description": "text é",
+   "isDefault": true,
+   "short": "text é",
+   "efforts": [
+    "text é"
+   ],
+   "defaultEffort": "text é",
+   "contextWindows": [
+    "text é"
+   ],
+   "fast": "yes",
+   "added": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "fast"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessOption",
+  "case": "full",
+  "input": {
+   "value": "text é",
+   "label": "text é",
+   "description": "text é",
+   "isDefault": true,
+   "short": "text é"
+  },
+  "output": "{\"value\":\"text é\",\"label\":\"text é\",\"description\":\"text é\",\"isDefault\":true,\"short\":\"text é\"}"
+ },
+ {
+  "type": "HarnessOption",
+  "case": "minimal",
+  "input": {
+   "value": "s",
+   "label": "s"
+  },
+  "output": "{\"value\":\"s\",\"label\":\"s\"}"
+ },
+ {
+  "type": "HarnessOption",
+  "case": "nulls",
+  "input": {
+   "value": "s",
+   "label": "s",
+   "description": "s",
+   "isDefault": false,
+   "short": "s"
+  },
+  "output": "{\"value\":\"s\",\"label\":\"s\",\"description\":\"s\",\"isDefault\":false,\"short\":\"s\"}"
+ },
+ {
+  "type": "HarnessOption",
+  "case": "missing value",
+  "input": {
+   "label": "text é",
+   "description": "text é",
+   "isDefault": true,
+   "short": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "value"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "HarnessOption",
+  "case": "isDefault: not a boolean",
+  "input": {
+   "value": "text é",
+   "label": "text é",
+   "description": "text é",
+   "isDefault": "yes",
+   "short": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "isDefault"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReviewPostResult",
+  "case": "full",
+  "input": {
+   "url": "text é",
+   "number": 7,
+   "comments": 7,
+   "folded": 7
+  },
+  "output": "{\"url\":\"text é\",\"number\":7,\"comments\":7,\"folded\":7}"
+ },
+ {
+  "type": "ReviewPostResult",
+  "case": "minimal",
+  "input": {
+   "url": "s",
+   "number": 7,
+   "comments": 7,
+   "folded": 7
+  },
+  "output": "{\"url\":\"s\",\"number\":7,\"comments\":7,\"folded\":7}"
+ },
+ {
+  "type": "ReviewPostResult",
+  "case": "missing url",
+  "input": {
+   "number": 7,
+   "comments": 7,
+   "folded": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "url"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReviewPostResult",
+  "case": "number: not an integer",
+  "input": {
+   "url": "text é",
+   "number": 2.5,
+   "comments": 7,
+   "folded": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReviewPostResult",
+  "case": "number: under 0",
+  "input": {
+   "url": "text é",
+   "number": -1,
+   "comments": 7,
+   "folded": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "number"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ReviewPostResult",
+  "case": "comments: not an integer",
+  "input": {
+   "url": "text é",
+   "number": 7,
+   "comments": 2.5,
+   "folded": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "comments"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReviewPostResult",
+  "case": "comments: under 0",
+  "input": {
+   "url": "text é",
+   "number": 7,
+   "comments": -1,
+   "folded": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "comments"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ReviewPostResult",
+  "case": "folded: not an integer",
+  "input": {
+   "url": "text é",
+   "number": 7,
+   "comments": 7,
+   "folded": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "folded"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReviewPostResult",
+  "case": "folded: under 0",
+  "input": {
+   "url": "text é",
+   "number": 7,
+   "comments": 7,
+   "folded": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "folded"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ScreenCommand",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "control": "docs"
+  },
+  "output": "{\"name\":\"text é\",\"control\":\"docs\"}"
+ },
+ {
+  "type": "ScreenCommand",
+  "case": "minimal",
+  "input": {
+   "name": "s",
+   "control": "sign-in"
+  },
+  "output": "{\"name\":\"s\",\"control\":\"sign-in\"}"
+ },
+ {
+  "type": "ScreenCommand",
+  "case": "missing name",
+  "input": {
+   "control": "docs"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ScreenCommand",
+  "case": "control: not one of its values",
+  "input": {
+   "name": "text é",
+   "control": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "control"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ScreenControl",
+  "case": "full",
+  "input": "docs",
+  "output": "\"docs\""
+ },
+ {
+  "type": "ScreenControl",
+  "case": "minimal",
+  "input": "sign-in",
+  "output": "\"sign-in\""
+ },
+ {
+  "type": "ScreenControl",
+  "case": "value model",
+  "input": "model",
+  "output": "\"model\""
+ },
+ {
+  "type": "ScreenControl",
+  "case": "value access",
+  "input": "access",
+  "output": "\"access\""
+ },
+ {
+  "type": "ScreenControl",
+  "case": "value settings",
+  "input": "settings",
+  "output": "\"settings\""
+ },
+ {
+  "type": "ScreenControl",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "StartResult",
+  "case": "full",
+  "input": {
+   "workspace": {
+    "id": "text é",
+    "name": "text é",
+    "machineId": "text é",
+    "phase": "released",
+    "kind": "place",
+    "golden": "text é",
+    "createdAt": "text é",
+    "project": {
+     "id": "text é",
+     "name": "text é",
+     "path": "text é",
+     "computer": "text é"
+    },
+    "folder": "text é",
+    "home": "text é",
+    "claudeSessionId": "text é",
+    "gone": "text é",
+    "theme": {
+     "dots": [
+      {
+       "angle": 2.5,
+       "radius": 0.5
+      }
+     ],
+     "harmony": "analogousThree",
+     "grain": 0.5,
+     "opacity": 0.5,
+     "mode": "dark"
+    },
+    "glyph": "lamp",
+    "daemonNote": "text é",
+    "daemonRefusedAt": {
+     "machineId": "text é",
+     "at": "text é",
+     "why": "text é"
+    },
+    "vaultedAt": "text é",
+    "vaultRefused": "text é",
+    "wakeRefused": "text é",
+    "diskGone": "text é",
+    "agents": {
+     "spawn": true,
+     "maxMachines": 7,
+     "maxDepth": 7
+    },
+    "parentThreadId": "text é",
+    "rootThreadId": "text é",
+    "parentWorkspaceId": "text é",
+    "place": "text é",
+    "provider": "text é",
+    "pauseMode": "disk",
+    "worktree": {
+     "path": "text é",
+     "branch": "text é",
+     "made": true,
+     "madeFor": "text é",
+     "settled": {
+      "at": 2.5,
+      "why": "removed"
+     },
+     "kept": "text é",
+     "removeFailed": "text é",
+     "gone": true
+    },
+    "from": {
+     "kind": "review",
+     "repo": "text é",
+     "number": 7,
+     "url": "text é",
+     "title": "text é",
+     "base": "text é",
+     "head": {
+      "branch": "text é"
+     }
+    },
+    "review": {
+     "note": "text é",
+     "at": 2.5
+    }
+   },
+   "threadId": "text é",
+   "sessionId": "text é"
+  },
+  "output": "{\"workspace\":{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"provider\":\"text é\",\"pauseMode\":\"disk\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\"}},\"review\":{\"note\":\"text é\",\"at\":2.5}},\"threadId\":\"text é\",\"sessionId\":\"text é\"}"
+ },
+ {
+  "type": "StartResult",
+  "case": "minimal",
+  "input": {
+   "workspace": {
+    "id": "s",
+    "name": "s",
+    "machineId": "s",
+    "phase": "running",
+    "golden": "s",
+    "createdAt": "s",
+    "project": {
+     "id": "s",
+     "name": "s",
+     "path": "s",
+     "computer": "s"
+    }
+   },
+   "threadId": "s",
+   "sessionId": "s"
+  },
+  "output": "{\"workspace\":{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"}},\"threadId\":\"s\",\"sessionId\":\"s\"}"
+ },
+ {
+  "type": "StartResult",
+  "case": "missing workspace",
+  "input": {
+   "threadId": "text é",
+   "sessionId": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "workspace"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

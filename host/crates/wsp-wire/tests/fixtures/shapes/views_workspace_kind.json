@@ -1,0 +1,30 @@
+[
+ {
+  "type": "WorkspaceKind",
+  "case": "full",
+  "input": "place",
+  "output": "\"place\""
+ },
+ {
+  "type": "WorkspaceKind",
+  "case": "minimal",
+  "input": "cloud",
+  "output": "\"cloud\""
+ },
+ {
+  "type": "WorkspaceKind",
+  "case": "value local",
+  "input": "local",
+  "output": "\"local\""
+ },
+ {
+  "type": "WorkspaceKind",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ }
+]

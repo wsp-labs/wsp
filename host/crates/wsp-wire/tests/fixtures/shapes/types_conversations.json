@@ -1,0 +1,406 @@
+[
+ {
+  "type": "ConversationOrigin",
+  "case": "full",
+  "input": "script",
+  "output": "\"script\""
+ },
+ {
+  "type": "ConversationOrigin",
+  "case": "minimal",
+  "input": "terminal",
+  "output": "\"terminal\""
+ },
+ {
+  "type": "ConversationOrigin",
+  "case": "value wsp",
+  "input": "wsp",
+  "output": "\"wsp\""
+ },
+ {
+  "type": "ConversationOrigin",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ConversationRead",
+  "case": "full",
+  "input": {
+   "cwd": "text é",
+   "title": "text é",
+   "rows": [
+    {
+     "who": "note",
+     "text": "text é",
+     "at": 2.5
+    }
+   ]
+  },
+  "output": "{\"cwd\":\"text é\",\"title\":\"text é\",\"rows\":[{\"who\":\"note\",\"text\":\"text é\",\"at\":2.5}]}"
+ },
+ {
+  "type": "ConversationRead",
+  "case": "minimal",
+  "input": {
+   "title": "s",
+   "rows": []
+  },
+  "output": "{\"title\":\"s\",\"rows\":[]}"
+ },
+ {
+  "type": "ConversationRead",
+  "case": "nulls",
+  "input": {
+   "cwd": "s",
+   "title": "s",
+   "rows": []
+  },
+  "output": "{\"cwd\":\"s\",\"title\":\"s\",\"rows\":[]}"
+ },
+ {
+  "type": "ConversationRead",
+  "case": "missing title",
+  "input": {
+   "cwd": "text é",
+   "rows": [
+    {
+     "who": "note",
+     "text": "text é",
+     "at": 2.5
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "title"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ConversationsAnswer",
+  "case": "full",
+  "input": {
+   "rows": [
+    {
+     "agent": "text é",
+     "id": "text é",
+     "title": "text é",
+     "firstPrompt": "text é",
+     "branch": "text é",
+     "cwd": "text é",
+     "lastAt": 2.5,
+     "bytes": 2.5,
+     "origin": "script",
+     "live": true,
+     "thread": "text é",
+     "letsGo": "text é"
+    }
+   ],
+   "held": [
+    {
+     "agent": "text é",
+     "said": "text é",
+     "fix": "text é",
+     "why": "text é"
+    }
+   ]
+  },
+  "output": "{\"rows\":[{\"agent\":\"text é\",\"id\":\"text é\",\"title\":\"text é\",\"firstPrompt\":\"text é\",\"branch\":\"text é\",\"cwd\":\"text é\",\"lastAt\":2.5,\"bytes\":2.5,\"origin\":\"script\",\"live\":true,\"thread\":\"text é\",\"letsGo\":\"text é\"}],\"held\":[{\"agent\":\"text é\",\"said\":\"text é\",\"fix\":\"text é\",\"why\":\"text é\"}]}"
+ },
+ {
+  "type": "ConversationsAnswer",
+  "case": "minimal",
+  "input": {
+   "rows": [],
+   "held": []
+  },
+  "output": "{\"rows\":[],\"held\":[]}"
+ },
+ {
+  "type": "ConversationsAnswer",
+  "case": "missing rows",
+  "input": {
+   "held": [
+    {
+     "agent": "text é",
+     "said": "text é",
+     "fix": "text é",
+     "why": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "rows"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ConversationsHeld",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "said": "text é",
+   "fix": "text é",
+   "why": "text é"
+  },
+  "output": "{\"agent\":\"text é\",\"said\":\"text é\",\"fix\":\"text é\",\"why\":\"text é\"}"
+ },
+ {
+  "type": "ConversationsHeld",
+  "case": "minimal",
+  "input": {
+   "agent": "s",
+   "said": "s",
+   "fix": "s"
+  },
+  "output": "{\"agent\":\"s\",\"said\":\"s\",\"fix\":\"s\"}"
+ },
+ {
+  "type": "ConversationsHeld",
+  "case": "nulls",
+  "input": {
+   "agent": "s",
+   "said": "s",
+   "fix": "s",
+   "why": "s"
+  },
+  "output": "{\"agent\":\"s\",\"said\":\"s\",\"fix\":\"s\",\"why\":\"s\"}"
+ },
+ {
+  "type": "ConversationsHeld",
+  "case": "missing agent",
+  "input": {
+   "said": "text é",
+   "fix": "text é",
+   "why": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "OutsideConversation",
+  "case": "full",
+  "input": {
+   "agent": "text é",
+   "id": "text é",
+   "title": "text é",
+   "firstPrompt": "text é",
+   "branch": "text é",
+   "cwd": "text é",
+   "lastAt": 2.5,
+   "bytes": 2.5,
+   "origin": "script",
+   "live": true,
+   "thread": "text é",
+   "letsGo": "text é"
+  },
+  "output": "{\"agent\":\"text é\",\"id\":\"text é\",\"title\":\"text é\",\"firstPrompt\":\"text é\",\"branch\":\"text é\",\"cwd\":\"text é\",\"lastAt\":2.5,\"bytes\":2.5,\"origin\":\"script\",\"live\":true,\"thread\":\"text é\",\"letsGo\":\"text é\"}"
+ },
+ {
+  "type": "OutsideConversation",
+  "case": "minimal",
+  "input": {
+   "agent": "s",
+   "id": "s",
+   "title": "s",
+   "cwd": "s",
+   "lastAt": 3,
+   "origin": "terminal",
+   "live": false
+  },
+  "output": "{\"agent\":\"s\",\"id\":\"s\",\"title\":\"s\",\"cwd\":\"s\",\"lastAt\":3,\"origin\":\"terminal\",\"live\":false}"
+ },
+ {
+  "type": "OutsideConversation",
+  "case": "nulls",
+  "input": {
+   "agent": "s",
+   "id": "s",
+   "title": "s",
+   "firstPrompt": "s",
+   "branch": "s",
+   "cwd": "s",
+   "lastAt": 3,
+   "bytes": 3,
+   "origin": "terminal",
+   "live": false,
+   "thread": "s",
+   "letsGo": "s"
+  },
+  "output": "{\"agent\":\"s\",\"id\":\"s\",\"title\":\"s\",\"firstPrompt\":\"s\",\"branch\":\"s\",\"cwd\":\"s\",\"lastAt\":3,\"bytes\":3,\"origin\":\"terminal\",\"live\":false,\"thread\":\"s\",\"letsGo\":\"s\"}"
+ },
+ {
+  "type": "OutsideConversation",
+  "case": "missing agent",
+  "input": {
+   "id": "text é",
+   "title": "text é",
+   "firstPrompt": "text é",
+   "branch": "text é",
+   "cwd": "text é",
+   "lastAt": 2.5,
+   "bytes": 2.5,
+   "origin": "script",
+   "live": true,
+   "thread": "text é",
+   "letsGo": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agent"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "OutsideConversation",
+  "case": "origin: not one of its values",
+  "input": {
+   "agent": "text é",
+   "id": "text é",
+   "title": "text é",
+   "firstPrompt": "text é",
+   "branch": "text é",
+   "cwd": "text é",
+   "lastAt": 2.5,
+   "bytes": 2.5,
+   "origin": "not-a-value",
+   "live": true,
+   "thread": "text é",
+   "letsGo": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "origin"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "OutsideConversation",
+  "case": "live: not a boolean",
+  "input": {
+   "agent": "text é",
+   "id": "text é",
+   "title": "text é",
+   "firstPrompt": "text é",
+   "branch": "text é",
+   "cwd": "text é",
+   "lastAt": 2.5,
+   "bytes": 2.5,
+   "origin": "script",
+   "live": "yes",
+   "thread": "text é",
+   "letsGo": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "live"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ResumeAsk",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "copy": true
+  },
+  "output": "{\"id\":\"text é\",\"copy\":true}"
+ },
+ {
+  "type": "ResumeAsk",
+  "case": "minimal",
+  "input": {
+   "id": "s"
+  },
+  "output": "{\"id\":\"s\"}"
+ },
+ {
+  "type": "ResumeAsk",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "copy": false
+  },
+  "output": "{\"id\":\"s\",\"copy\":false}"
+ },
+ {
+  "type": "ResumeAsk",
+  "case": "missing id",
+  "input": {
+   "copy": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ResumeAsk",
+  "case": "id: shorter than 1",
+  "input": {
+   "id": "",
+   "copy": true
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ResumeAsk",
+  "case": "id: longer than 200",
+  "input": {
+   "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "copy": true
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ResumeAsk",
+  "case": "copy: not a boolean",
+  "input": {
+   "id": "text é",
+   "copy": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "copy"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

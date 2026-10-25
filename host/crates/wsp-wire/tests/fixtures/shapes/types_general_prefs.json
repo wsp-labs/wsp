@@ -1,0 +1,170 @@
+[
+ {
+  "type": "MidTurn",
+  "case": "full",
+  "input": "steer",
+  "output": "\"steer\""
+ },
+ {
+  "type": "MidTurn",
+  "case": "minimal",
+  "input": "queue",
+  "output": "\"queue\""
+ },
+ {
+  "type": "MidTurn",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "NewThreadIn",
+  "case": "full",
+  "input": "ask",
+  "output": "\"ask\""
+ },
+ {
+  "type": "NewThreadIn",
+  "case": "minimal",
+  "input": "current",
+  "output": "\"current\""
+ },
+ {
+  "type": "NewThreadIn",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "NotifyChoice",
+  "case": "full",
+  "input": "notify-sound",
+  "output": "\"notify-sound\""
+ },
+ {
+  "type": "NotifyChoice",
+  "case": "minimal",
+  "input": "off",
+  "output": "\"off\""
+ },
+ {
+  "type": "NotifyChoice",
+  "case": "value notify",
+  "input": "notify",
+  "output": "\"notify\""
+ },
+ {
+  "type": "NotifyChoice",
+  "case": "value sound",
+  "input": "sound",
+  "output": "\"sound\""
+ },
+ {
+  "type": "NotifyChoice",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "OnQuit",
+  "case": "full",
+  "input": "stop",
+  "output": "\"stop\""
+ },
+ {
+  "type": "OnQuit",
+  "case": "minimal",
+  "input": "ask",
+  "output": "\"ask\""
+ },
+ {
+  "type": "OnQuit",
+  "case": "value keep",
+  "input": "keep",
+  "output": "\"keep\""
+ },
+ {
+  "type": "OnQuit",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SendKey",
+  "case": "full",
+  "input": "mod-enter",
+  "output": "\"mod-enter\""
+ },
+ {
+  "type": "SendKey",
+  "case": "minimal",
+  "input": "enter",
+  "output": "\"enter\""
+ },
+ {
+  "type": "SendKey",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SettleAfter",
+  "case": "full",
+  "input": "never",
+  "output": "\"never\""
+ },
+ {
+  "type": "SettleAfter",
+  "case": "minimal",
+  "input": "15m",
+  "output": "\"15m\""
+ },
+ {
+  "type": "SettleAfter",
+  "case": "value 1h",
+  "input": "1h",
+  "output": "\"1h\""
+ },
+ {
+  "type": "SettleAfter",
+  "case": "value 2h",
+  "input": "2h",
+  "output": "\"2h\""
+ },
+ {
+  "type": "SettleAfter",
+  "case": "value 1d",
+  "input": "1d",
+  "output": "\"1d\""
+ },
+ {
+  "type": "SettleAfter",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ }
+]

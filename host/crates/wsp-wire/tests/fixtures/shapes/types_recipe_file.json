@@ -1,0 +1,781 @@
+[
+ {
+  "type": "GitHubSignIn",
+  "case": "full",
+  "input": "skip",
+  "output": "\"skip\""
+ },
+ {
+  "type": "GitHubSignIn",
+  "case": "minimal",
+  "input": "vault",
+  "output": "\"vault\""
+ },
+ {
+  "type": "GitHubSignIn",
+  "case": "value machine",
+  "input": "machine",
+  "output": "\"machine\""
+ },
+ {
+  "type": "GitHubSignIn",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeFile",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "agents": {
+    "k": {
+     "signin": "key"
+    }
+   },
+   "mcp": {
+    "k": {
+     "agents": [
+      "text é"
+     ]
+    }
+   },
+   "copyKeys": true,
+   "clis": {
+    "k": {
+     "via": "text é",
+     "needs": [
+      "text é"
+     ]
+    }
+   },
+   "skills": {
+    "k": {
+     "from": "text é"
+    }
+   },
+   "plugins": {
+    "k": {}
+   },
+   "folders": {
+    "k": {
+     "from": "text é",
+     "name": "text é",
+     "icon": "wrench",
+     "hue": "pink",
+     "image": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+     "keep": [
+      "text é"
+     ]
+    }
+   },
+   "configs": {
+    "git": {},
+    "shell": {},
+    "github": {
+     "signin": "skip"
+    }
+   }
+  },
+  "output": "{\"name\":\"text é\",\"agents\":{\"k\":{\"signin\":\"key\"}},\"mcp\":{\"k\":{\"agents\":[\"text é\"]}},\"copyKeys\":true,\"clis\":{\"k\":{\"via\":\"text é\",\"needs\":[\"text é\"]}},\"skills\":{\"k\":{\"from\":\"text é\"}},\"plugins\":{\"k\":{}},\"folders\":{\"k\":{\"from\":\"text é\",\"name\":\"text é\",\"icon\":\"wrench\",\"hue\":\"pink\",\"image\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"keep\":[\"text é\"]}},\"configs\":{\"git\":{},\"shell\":{},\"github\":{\"signin\":\"skip\"}}}"
+ },
+ {
+  "type": "RecipeFile",
+  "case": "minimal",
+  "input": {
+   "name": "s"
+  },
+  "output": "{\"name\":\"s\",\"agents\":{},\"mcp\":{},\"clis\":{},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}"
+ },
+ {
+  "type": "RecipeFile",
+  "case": "nulls",
+  "input": {
+   "name": "s",
+   "agents": {},
+   "mcp": {},
+   "copyKeys": true,
+   "clis": {},
+   "skills": {},
+   "plugins": {},
+   "folders": {},
+   "configs": {}
+  },
+  "output": "{\"name\":\"s\",\"agents\":{},\"mcp\":{},\"copyKeys\":true,\"clis\":{},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}"
+ },
+ {
+  "type": "RecipeFile",
+  "case": "an unknown key",
+  "input": {
+   "name": "text é",
+   "agents": {
+    "k": {
+     "signin": "key"
+    }
+   },
+   "mcp": {
+    "k": {
+     "agents": [
+      "text é"
+     ]
+    }
+   },
+   "copyKeys": true,
+   "clis": {
+    "k": {
+     "via": "text é",
+     "needs": [
+      "text é"
+     ]
+    }
+   },
+   "skills": {
+    "k": {
+     "from": "text é"
+    }
+   },
+   "plugins": {
+    "k": {}
+   },
+   "folders": {
+    "k": {
+     "from": "text é",
+     "name": "text é",
+     "icon": "wrench",
+     "hue": "pink",
+     "image": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+     "keep": [
+      "text é"
+     ]
+    }
+   },
+   "configs": {
+    "git": {},
+    "shell": {},
+    "github": {
+     "signin": "skip"
+    }
+   },
+   "unexpectedKey": 1
+  },
+  "issue": {
+   "code": "unrecognized_keys",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeFile",
+  "case": "missing name",
+  "input": {
+   "agents": {
+    "k": {
+     "signin": "key"
+    }
+   },
+   "mcp": {
+    "k": {
+     "agents": [
+      "text é"
+     ]
+    }
+   },
+   "copyKeys": true,
+   "clis": {
+    "k": {
+     "via": "text é",
+     "needs": [
+      "text é"
+     ]
+    }
+   },
+   "skills": {
+    "k": {
+     "from": "text é"
+    }
+   },
+   "plugins": {
+    "k": {}
+   },
+   "folders": {
+    "k": {
+     "from": "text é",
+     "name": "text é",
+     "icon": "wrench",
+     "hue": "pink",
+     "image": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+     "keep": [
+      "text é"
+     ]
+    }
+   },
+   "configs": {
+    "git": {},
+    "shell": {},
+    "github": {
+     "signin": "skip"
+    }
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeFile",
+  "case": "name: shorter than 1",
+  "input": {
+   "name": "",
+   "agents": {
+    "k": {
+     "signin": "key"
+    }
+   },
+   "mcp": {
+    "k": {
+     "agents": [
+      "text é"
+     ]
+    }
+   },
+   "copyKeys": true,
+   "clis": {
+    "k": {
+     "via": "text é",
+     "needs": [
+      "text é"
+     ]
+    }
+   },
+   "skills": {
+    "k": {
+     "from": "text é"
+    }
+   },
+   "plugins": {
+    "k": {}
+   },
+   "folders": {
+    "k": {
+     "from": "text é",
+     "name": "text é",
+     "icon": "wrench",
+     "hue": "pink",
+     "image": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+     "keep": [
+      "text é"
+     ]
+    }
+   },
+   "configs": {
+    "git": {},
+    "shell": {},
+    "github": {
+     "signin": "skip"
+    }
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeFile",
+  "case": "name: longer than 64",
+  "input": {
+   "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "agents": {
+    "k": {
+     "signin": "key"
+    }
+   },
+   "mcp": {
+    "k": {
+     "agents": [
+      "text é"
+     ]
+    }
+   },
+   "copyKeys": true,
+   "clis": {
+    "k": {
+     "via": "text é",
+     "needs": [
+      "text é"
+     ]
+    }
+   },
+   "skills": {
+    "k": {
+     "from": "text é"
+    }
+   },
+   "plugins": {
+    "k": {}
+   },
+   "folders": {
+    "k": {
+     "from": "text é",
+     "name": "text é",
+     "icon": "wrench",
+     "hue": "pink",
+     "image": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+     "keep": [
+      "text é"
+     ]
+    }
+   },
+   "configs": {
+    "git": {},
+    "shell": {},
+    "github": {
+     "signin": "skip"
+    }
+   }
+  },
+  "issue": {
+   "code": "too_big",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeSignIn",
+  "case": "full",
+  "input": "key",
+  "output": "\"key\""
+ },
+ {
+  "type": "RecipeSignIn",
+  "case": "minimal",
+  "input": "vault",
+  "output": "\"vault\""
+ },
+ {
+  "type": "RecipeSignIn",
+  "case": "value machine",
+  "input": "machine",
+  "output": "\"machine\""
+ },
+ {
+  "type": "RecipeSignIn",
+  "case": "value token",
+  "input": "token",
+  "output": "\"token\""
+ },
+ {
+  "type": "RecipeSignIn",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeView",
+  "case": "full",
+  "input": {
+   "name": "text é",
+   "slug": "text é",
+   "summary": "text é",
+   "machines": [
+    "text é"
+   ],
+   "savedAt": "text é",
+   "file": {
+    "name": "text é",
+    "agents": {
+     "k": {
+      "signin": "key"
+     }
+    },
+    "mcp": {
+     "k": {
+      "agents": [
+       "text é"
+      ]
+     }
+    },
+    "copyKeys": true,
+    "clis": {
+     "k": {
+      "via": "text é",
+      "needs": []
+     }
+    },
+    "skills": {
+     "k": {
+      "from": "text é"
+     }
+    },
+    "plugins": {
+     "k": {}
+    },
+    "folders": {
+     "k": {
+      "from": "text é",
+      "name": "text é",
+      "icon": "wrench",
+      "hue": "pink",
+      "image": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "keep": []
+     }
+    },
+    "configs": {
+     "git": {},
+     "shell": {},
+     "github": {
+      "signin": "skip"
+     }
+    }
+   }
+  },
+  "output": "{\"name\":\"text é\",\"slug\":\"text é\",\"summary\":\"text é\",\"machines\":[\"text é\"],\"savedAt\":\"text é\",\"file\":{\"name\":\"text é\",\"agents\":{\"k\":{\"signin\":\"key\"}},\"mcp\":{\"k\":{\"agents\":[\"text é\"]}},\"copyKeys\":true,\"clis\":{\"k\":{\"via\":\"text é\",\"needs\":[]}},\"skills\":{\"k\":{\"from\":\"text é\"}},\"plugins\":{\"k\":{}},\"folders\":{\"k\":{\"from\":\"text é\",\"name\":\"text é\",\"icon\":\"wrench\",\"hue\":\"pink\",\"image\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"keep\":[]}},\"configs\":{\"git\":{},\"shell\":{},\"github\":{\"signin\":\"skip\"}}}}"
+ },
+ {
+  "type": "RecipeView",
+  "case": "minimal",
+  "input": {
+   "name": "s",
+   "slug": "s",
+   "summary": "s",
+   "machines": [],
+   "file": {
+    "name": "s"
+   }
+  },
+  "output": "{\"name\":\"s\",\"slug\":\"s\",\"summary\":\"s\",\"machines\":[],\"file\":{\"name\":\"s\",\"agents\":{},\"mcp\":{},\"clis\":{},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}}"
+ },
+ {
+  "type": "RecipeView",
+  "case": "nulls",
+  "input": {
+   "name": "s",
+   "slug": "s",
+   "summary": "s",
+   "machines": [],
+   "savedAt": "s",
+   "file": {
+    "name": "s"
+   }
+  },
+  "output": "{\"name\":\"s\",\"slug\":\"s\",\"summary\":\"s\",\"machines\":[],\"savedAt\":\"s\",\"file\":{\"name\":\"s\",\"agents\":{},\"mcp\":{},\"clis\":{},\"skills\":{},\"plugins\":{},\"folders\":{},\"configs\":{}}}"
+ },
+ {
+  "type": "RecipeView",
+  "case": "missing name",
+  "input": {
+   "slug": "text é",
+   "summary": "text é",
+   "machines": [
+    "text é"
+   ],
+   "savedAt": "text é",
+   "file": {
+    "name": "text é",
+    "agents": {
+     "k": {
+      "signin": "key"
+     }
+    },
+    "mcp": {
+     "k": {
+      "agents": [
+       "text é"
+      ]
+     }
+    },
+    "copyKeys": true,
+    "clis": {
+     "k": {
+      "via": "text é",
+      "needs": []
+     }
+    },
+    "skills": {
+     "k": {
+      "from": "text é"
+     }
+    },
+    "plugins": {
+     "k": {}
+    },
+    "folders": {
+     "k": {
+      "from": "text é",
+      "name": "text é",
+      "icon": "wrench",
+      "hue": "pink",
+      "image": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "keep": []
+     }
+    },
+    "configs": {
+     "git": {},
+     "shell": {},
+     "github": {
+      "signin": "skip"
+     }
+    }
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "RecipeView",
+  "case": "name: shorter than 1",
+  "input": {
+   "name": "",
+   "slug": "text é",
+   "summary": "text é",
+   "machines": [
+    "text é"
+   ],
+   "savedAt": "text é",
+   "file": {
+    "name": "text é",
+    "agents": {
+     "k": {
+      "signin": "key"
+     }
+    },
+    "mcp": {
+     "k": {
+      "agents": [
+       "text é"
+      ]
+     }
+    },
+    "copyKeys": true,
+    "clis": {
+     "k": {
+      "via": "text é",
+      "needs": []
+     }
+    },
+    "skills": {
+     "k": {
+      "from": "text é"
+     }
+    },
+    "plugins": {
+     "k": {}
+    },
+    "folders": {
+     "k": {
+      "from": "text é",
+      "name": "text é",
+      "icon": "wrench",
+      "hue": "pink",
+      "image": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "keep": []
+     }
+    },
+    "configs": {
+     "git": {},
+     "shell": {},
+     "github": {
+      "signin": "skip"
+     }
+    }
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeView",
+  "case": "slug: shorter than 1",
+  "input": {
+   "name": "text é",
+   "slug": "",
+   "summary": "text é",
+   "machines": [
+    "text é"
+   ],
+   "savedAt": "text é",
+   "file": {
+    "name": "text é",
+    "agents": {
+     "k": {
+      "signin": "key"
+     }
+    },
+    "mcp": {
+     "k": {
+      "agents": [
+       "text é"
+      ]
+     }
+    },
+    "copyKeys": true,
+    "clis": {
+     "k": {
+      "via": "text é",
+      "needs": []
+     }
+    },
+    "skills": {
+     "k": {
+      "from": "text é"
+     }
+    },
+    "plugins": {
+     "k": {}
+    },
+    "folders": {
+     "k": {
+      "from": "text é",
+      "name": "text é",
+      "icon": "wrench",
+      "hue": "pink",
+      "image": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "keep": []
+     }
+    },
+    "configs": {
+     "git": {},
+     "shell": {},
+     "github": {
+      "signin": "skip"
+     }
+    }
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "slug"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "RecipeView",
+  "case": "summary: shorter than 1",
+  "input": {
+   "name": "text é",
+   "slug": "text é",
+   "summary": "",
+   "machines": [
+    "text é"
+   ],
+   "savedAt": "text é",
+   "file": {
+    "name": "text é",
+    "agents": {
+     "k": {
+      "signin": "key"
+     }
+    },
+    "mcp": {
+     "k": {
+      "agents": [
+       "text é"
+      ]
+     }
+    },
+    "copyKeys": true,
+    "clis": {
+     "k": {
+      "via": "text é",
+      "needs": []
+     }
+    },
+    "skills": {
+     "k": {
+      "from": "text é"
+     }
+    },
+    "plugins": {
+     "k": {}
+    },
+    "folders": {
+     "k": {
+      "from": "text é",
+      "name": "text é",
+      "icon": "wrench",
+      "hue": "pink",
+      "image": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "keep": []
+     }
+    },
+    "configs": {
+     "git": {},
+     "shell": {},
+     "github": {
+      "signin": "skip"
+     }
+    }
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "summary"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ServerSignIn",
+  "case": "full",
+  "input": "oauth",
+  "output": "\"oauth\""
+ },
+ {
+  "type": "ServerSignIn",
+  "case": "minimal",
+  "input": "none",
+  "output": "\"none\""
+ },
+ {
+  "type": "ServerSignIn",
+  "case": "value key",
+  "input": "key",
+  "output": "\"key\""
+ },
+ {
+  "type": "ServerSignIn",
+  "case": "value token",
+  "input": "token",
+  "output": "\"token\""
+ },
+ {
+  "type": "ServerSignIn",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ }
+]

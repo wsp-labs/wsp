@@ -1,0 +1,175 @@
+[
+ {
+  "type": "PlaceEstimate",
+  "case": "full",
+  "input": {
+   "neededBytes": 7,
+   "keptBytes": 7,
+   "freeBytes": 7,
+   "unmeasured": 7
+  },
+  "output": "{\"neededBytes\":7,\"keptBytes\":7,\"freeBytes\":7,\"unmeasured\":7}"
+ },
+ {
+  "type": "PlaceEstimate",
+  "case": "minimal",
+  "input": {
+   "neededBytes": 7,
+   "keptBytes": 7,
+   "unmeasured": 7
+  },
+  "output": "{\"neededBytes\":7,\"keptBytes\":7,\"unmeasured\":7}"
+ },
+ {
+  "type": "PlaceEstimate",
+  "case": "missing neededBytes",
+  "input": {
+   "keptBytes": 7,
+   "freeBytes": 7,
+   "unmeasured": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "neededBytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PlaceEstimate",
+  "case": "neededBytes: not an integer",
+  "input": {
+   "neededBytes": 2.5,
+   "keptBytes": 7,
+   "freeBytes": 7,
+   "unmeasured": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "neededBytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PlaceEstimate",
+  "case": "neededBytes: under 0",
+  "input": {
+   "neededBytes": -1,
+   "keptBytes": 7,
+   "freeBytes": 7,
+   "unmeasured": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "neededBytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PlaceEstimate",
+  "case": "keptBytes: not an integer",
+  "input": {
+   "neededBytes": 7,
+   "keptBytes": 2.5,
+   "freeBytes": 7,
+   "unmeasured": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "keptBytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PlaceEstimate",
+  "case": "keptBytes: under 0",
+  "input": {
+   "neededBytes": 7,
+   "keptBytes": -1,
+   "freeBytes": 7,
+   "unmeasured": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "keptBytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PlaceEstimate",
+  "case": "freeBytes: not an integer",
+  "input": {
+   "neededBytes": 7,
+   "keptBytes": 7,
+   "freeBytes": 2.5,
+   "unmeasured": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "freeBytes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PlaceEstimate",
+  "case": "freeBytes: under 0",
+  "input": {
+   "neededBytes": 7,
+   "keptBytes": 7,
+   "freeBytes": -1,
+   "unmeasured": 7
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "freeBytes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "PlaceEstimate",
+  "case": "unmeasured: not an integer",
+  "input": {
+   "neededBytes": 7,
+   "keptBytes": 7,
+   "freeBytes": 7,
+   "unmeasured": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "unmeasured"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PlaceEstimate",
+  "case": "unmeasured: under 0",
+  "input": {
+   "neededBytes": 7,
+   "keptBytes": 7,
+   "freeBytes": 7,
+   "unmeasured": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "unmeasured"
+   ],
+   "serdeLevel": false
+  }
+ }
+]
