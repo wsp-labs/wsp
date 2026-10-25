@@ -230,6 +230,7 @@ impl MachineBackend for StubBackend {
             kept: false,
             copies: true,
             own_network: true,
+            sizes_last: true,
         }
     }
     fn pricing(&self) -> Arc<dyn BackendPricing> {

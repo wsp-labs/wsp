@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Port of packages/protocol/src/quote.ts at a3b870a6e. Each TS statement stands as a comment above its stub.
+//! Port of packages/protocol/src/quote.ts at the cut (383708c78). Each TS statement stands as a comment above its stub.
 
 use crate::js::{js_collapse_whitespace, js_trim};
 

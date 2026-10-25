@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Port of packages/protocol/src/words/turn.ts at a3b870a6e: what a turn's end says (the notify line, the footer,
+//! Port of packages/protocol/src/words/turn.ts at the cut (383708c78): what a turn's end says (the notify line, the footer,
 //! a read's rows), thread titles from the opening turn and from a harness's answer, and the kept opening. Each TS
 //! statement stands as a comment above its stub. See spec/turn.md.
 
@@ -592,14 +592,17 @@ pub fn refused_turn(result: &TurnResult, refusal: Option<&RefusalRoad>) -> TurnR
 // }
 /// `new Date(at).toTimeString().slice(0, 8)` is HH:MM:SS in the zone of the computer reading it: `offset_seconds_at`
 /// answers that zone's UTC offset in seconds at the instant `at` (ms epoch), so the clock is `at + offset` as
-/// 24-hour HH:MM:SS. The caller passes the host's zone (jiff's `TimeZone::system()`, rule 8.16).
+/// 24-hour HH:MM:SS, and "Invalid " (with its space, the head of "Invalid Date") for a time no Date holds. The caller
+/// passes the host's zone (`DateZone::system()`, rule 8.16).
 pub fn fmt_clock(at: Option<f64>, offset_seconds_at: &dyn Fn(f64) -> i64) -> String {
     let Some(at) = at else {
         return String::new();
     };
-    let local_secs = ((at + offset_seconds_at(at) as f64 * 1000.0) / 1000.0).floor() as i64;
-    let day = local_secs.rem_euclid(86_400);
-    format!("{:02}:{:02}:{:02}", day / 3600, day % 3600 / 60, day % 60)
+    let Some(t) = crate::js_date::time_value(at) else {
+        return "Invalid ".to_string();
+    };
+    let clock = crate::js_date::fields(t, offset_seconds_at(at));
+    format!("{:02}:{:02}:{:02}", clock.hour, clock.minute, clock.second)
 }
 
 /// One row of a read: who spoke and when on its own line, then the text under it, so a reply of many lines reads as
@@ -932,5 +935,7 @@ fn unquote(line: &str) -> Option<&str> {
     let close = line.chars().next_back()?;
     let opens = matches!(open, '"' | '\'' | '\u{201c}' | '\u{2018}');
     let closes = matches!(close, '"' | '\'' | '\u{201d}' | '\u{2019}');
-    (opens && closes).then(|| &line[open.len_utf8()..line.len() - close.len_utf8()])
+    let inside = &line[open.len_utf8()..line.len() - close.len_utf8()];
+    // The regex's `.` stops at a line terminator.
+    (opens && closes && !inside.contains(['\n', '\r', '\u{2028}', '\u{2029}'])).then_some(inside)
 }

@@ -13,6 +13,10 @@ Codex reads a bearer header by, and picks one scope's servers out of a copy that
 
 ## Behaviour
 
+0. `json_parse::parse_json` is `JSON.parse`: the one reader of JSON text in the crate (the other crates that read
+   `~/.claude.json` call it, and `read_jsonc` is it after the comments and commas are taken out). A failure carries
+   V8's words, including the position and `(line L column C)`; `oracle/json_parse.oracle.mjs` writes 3447 texts with
+   node's answer and `tests/json_parse.rs` checks them.
 1. `read_jsonc` walks the text once (jsonc.ts:12-42): a `"` skips to the closing quote, a backslash skipping the next
    unit; `//` drops to the newline (kept) and `/*` to after `*/` (an unterminated one drops the rest); a `,` is
    remembered while only whitespace and comments follow, and dropped when a `}` or `]` comes next. The rest is
@@ -29,7 +33,11 @@ Codex reads a bearer header by, and picks one scope's servers out of a copy that
    into objects (first property of that name) and indexes into arrays; `find_member` gives a member's container and
    its index there. `comments_of` lists `//` comments (to the newline, not including it) and `/* */` comments whole.
 6. `JsRegex` matches as the JavaScript regex of its source and flags; `is_whole_match` is
-   `new RegExp(`^(?:${source})$`)` (signin.ts:180, mcp.ts:915).
+   `new RegExp(`^(?:${source})$`)` (signin.ts:180, mcp.ts:915). The `m` flag starts a line after `\r`, U+2028 and
+   U+2029 as well as `\n`; the `i` flag folds neither U+017F nor U+212A to ASCII; a pattern fancy-regex refuses
+   panics at its first use (every sign-in row's patterns are compiled by a test) and never reads as no match; a
+   pattern that opens with a lookbehind of unbounded width (the doppler code) is held as the lookbehind's body and the
+   rest, tried at each match.
 7. `bearer_of(name)` is the token for `<token>_BEARER` where the token matches `^WSP_MCP_.+_AUTHORIZATION$`; else
    nothing (mcp-bearer.ts:13). `with_bearer_variables` puts each header token's `<name>_BEARER` = `Bearer <value>`
    ahead of every value, a value of the same name keeping the bearer's place and its own value (mcp-bearer.ts:19).
@@ -49,8 +57,14 @@ Codex reads a bearer header by, and picks one scope's servers out of a copy that
 - Rule 4.26: JSON object key order is the text's; every map here is an `IndexMap` or a `preserve_order` map.
 - Rule 8.6 and 8.7: the TS `/\s/` in the comma tracker is JavaScript's whitespace (U+FEFF included).
 - Offsets in the tree are byte offsets into the same text; they never leave the crate, so UTF-16 units are not needed.
-- A JavaScript object orders integer-like keys ("1", "42") ahead of the others; serde_json does not. No config this
-  crate reads keys servers by integers in practice; the port keeps text order and this is an accepted difference.
+- A JavaScript object orders integer-like keys ("1", "42") ahead of the others, ascending. Reads keep the text's order
+  (an accepted difference: nothing lists a file's servers by it), but every write does not: `js_stringify` and
+  `js_stringify_pretty` list the array-index keys first (`plugins::js_entries`), so a server or an env key named for a
+  number is written where `JSON.stringify` writes it.
+- A lone surrogate escape (`"\ud83d"`, which `JSON.stringify` writes for a string cut inside an emoji) is read by
+  `JSON.parse`, and is read here: `json_parse::parse_json` holds it as a char in U+10F800..U+10FFFF and `js_string`
+  writes that char back as its escape, so an edit keeps it byte for byte. A file holding one of those chars itself
+  writes it as an escape too.
 
 ## Tapes
 
@@ -58,7 +72,9 @@ None directly: config text arrives through agents.read and servers.* ops, whose 
 
 ## Decisions
 
-1. Numbers that `JSON.parse` reads as infinity (`1e400`) are an error in the port: serde_json refuses them.
+1. Numbers that `JSON.parse` reads as infinity (`1e400`) read as `null`, which is what `JSON.stringify` writes for
+   infinity (the review found the first draft's error left the whole file unread). Nesting past 1000 levels is
+   refused ("Maximum call stack size exceeded") where V8's parser has no limit but memory; serde_json's 128 is gone.
 2. `JsRegex` holds `&'static str`: every regex is a catalog literal.
 
 ## After the port

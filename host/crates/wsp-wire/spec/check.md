@@ -25,18 +25,23 @@ written as JavaScript writes it. `literal!` types are kept `z.literal` keys.
    path naming every unknown key in input order; a wrong `literal!` or `wsp_frames::True`/`False` → `invalid_literal` with
    `received`, `expected`; a tagged union with an unknown or missing tag → `invalid_union_discriminator` at `[tag]` with
    `options` = every tag in declaration order; an untagged union with no member → `invalid_union`.
-2. A struct's pass reads its keys in schema order. Each key is read as the type it holds: a plain type through `read`
-   (absent → `required`), `.optional()` through `read_present` (absent is fine, `null` is refused), `.optional().nullable()`
-   through `read_double`, a required `.nullable()` as `Option<T>` marked `nullable` (absent is refused, `null` is fine).
-   The key's own rules run on the value read, before the next key is read (`rule_<field>`; the doc comment above each
-   `check` lists them as zod declares them), and the nested type's issues come back with the key in front (`under`). So the
-   first issue is the first key of the schema that fails, whatever kind of issue it is. `Vec`, `Option` and `IndexMap` read
-   each value with its index (a number) or key in front. A type with no pass and no rules keeps the trait's defaults.
-   A tagged enum's pass reads the tag first (`tag_describe` words a missing or unknown one). A member that is a type of its
-   own answers that type's issues; a member written inline reads its fields as a struct does, each key under its own name,
-   and the enum's `check()` runs its rules once every key reads clean (`rules_of`), so within an inline member a rule on an
-   earlier key answers after a type issue on a later one, the one place the order differs from zod's. No tagged enum reads a
-   member through serde's own path tracking (which an internal tag loses), a mirror enum or a payload struct.
+2. A struct's pass reads its keys in schema order, one call per key (`src/types/keys.rs`): a plain type through
+   `req_key` (absent → `required`), `.optional()` through `opt_key` (absent is fine, `null` is refused), `.optional().nullable()`
+   through `dbl_key`, a required `.nullable()` as `Option<T>` marked `nullable` (absent is refused, `null` is fine), a
+   `z.literal` key through `lit_key`. The key's own rules run on the value read, before the next key is read (`rule_<field>`
+   or a closure; the doc comment above each `check` lists them as zod declares them), and the nested type's issues come back
+   with the key in front (`under`). So the answer is zod's list of issues in zod's order, whatever kind each issue is, and
+   `parse` answers its first. This holds for an enum's inline members as it does for structs: a member written inline
+   reads each key through the same calls, with the rules of that key in its `_with` call, so no later key's issue comes
+   before an earlier key's. A number whose only fault is the integer rule leaves its bounds to run on the fraction, as
+   zod's `ZodNumber` does (`Check::dirty`): a fraction past a bound is two issues. `Vec`, `Option` and `IndexMap` read each
+   value with its index (a number) or key in front. A type with no pass and no rules keeps the trait's defaults. A tagged
+   enum's pass reads the tag first (`tag_describe` words a missing or unknown one). A member that is a type of its own
+   answers that type's issues. No tagged enum reads a member through serde's own path tracking (which an internal tag
+   loses), a mirror enum or a payload struct. `describe` words what zod calls a key: a type that gives none is worded from
+   serde itself (the default `describe` probes a string: a unit enum answers its words, a struct is an object), and a
+   unit enum or struct read from the wrong JSON type answers `invalid_type` before serde reads it, so serde's map form
+   (`{"word": null}`) and positional form (`[..]`) are never taken.
 3. Numbers: `.int()` is `JsInt`, a `JsNumber` that zod's integer check takes (`Number.isInteger` on the number JSON read):
    `5.0`, `-0`, `1e21` and every integral value past 2^63 are integers, `2.5` is not (`invalid_type`, expected `integer`,
    received `float`). A `JsInt` keeps the number JavaScript reads, so `9007199254740993` reads and writes as
@@ -53,10 +58,14 @@ written as JavaScript writes it. `literal!` types are kept `z.literal` keys.
    invalid_enum_value `received code options path message`; invalid_literal `received code expected path message`;
    unrecognized_keys `code keys path message`; invalid_union_discriminator `code options path message`. `detail` holds
    the keys other than code, path and message in that order.
-5. `JsNumber::js_string` is `String(n)`: shortest round-trip digits; fixed notation for 1e-7 < |n| < 1e21
-   (`0.000001`, `100000000000000000000`), exponent notation outside with a sign (`1e+21`, `1e-7`, `1.5e+300`), `-0` as
-   `0`. Serialize: an integral value with |n| < 2^53 through `serialize_i64` (so `to_value` is an integer); anything
-   else through `serialize_f64`. Deserialize: any JSON number; nothing else.
+5. `JsNumber::js_string` is `String(n)`: shortest round-trip digits, the even last digit where two shortest strings sit
+   the same distance from the double; fixed notation for 1e-7 < |n| < 1e21 (`0.000001`, `100000000000000000000`), exponent
+   notation outside with a sign (`1e+21`, `1e-7`, `1.5e+300`), `-0` as `0`. Serialize: an integral value with |n| < 2^53
+   through `serialize_i64` (so `to_value` is an integer); anything else as a raw JSON value holding `js_string`, which
+   serde_json's writer copies as it is (`to_string`, `to_writer`) and `to_value` reads back as the number it names. NaN and
+   the infinities write `null`, as `JSON.stringify` does. Deserialize: any JSON number; nothing else. `Kept` (a value
+   kept as sent: `z.unknown()`, a passthrough object's other keys) and `ReqId` write every number through `JsNumber`, and
+   write object keys that read as array indexes first, ascending.
 6. `literal!` writes its value and reads only it; `True`/`False` are wsp-frames'. `double_option` reads absent →
    `None`, null → `Some(None)`, a value → `Some(Some(v))` and writes each back. `nullable` makes a required
    `.nullable()` key refuse its absence. `from_json` reads the generated default's JSON (it never fails on generated
@@ -67,7 +76,11 @@ written as JavaScript writes it. `literal!` types are kept `z.literal` keys.
    `invalid_union`, `invalid_union_discriminator`) answers with its issues, since a dirty member (a refinement, an unknown
    key on a strict member) is one zod keeps; otherwise the union answers `invalid_union`. A discriminated union (a tagged
    enum) reads the tag first: a missing or unknown tag is `invalid_union_discriminator` at the tag, and a member's own
-   issues are answered at the member's own path.
+   issues are answered at the member's own path. The integer check of a number leaves its member dirty, not aborted
+   (`ZodNumber` marks the parse dirty and goes on), so a member whose only issues are an integer issue and the rules answers
+   with them. An untagged union reads its value as zod does too: `zod_union!` (`src/types/zod_union.rs`) writes
+   `Deserialize` that takes the first member whose `issues_of` is empty, where serde's own untagged read takes the first
+   member that deserializes, rules or not.
 
 ## Edge cases
 
@@ -77,11 +90,13 @@ written as JavaScript writes it. `literal!` types are kept `z.literal` keys.
 
 ## Decisions
 
-1. serde_json without `arbitrary_precision` cannot write every JavaScript number's text: integral values from 2^53 to
-   1e21 and fractions under 1e-6 or past 1e21 come out in ryu's form (`9007199254740994.0`, `1e-6`, `1e21`). Accepted
-   difference until the coordinator rules on `arbitrary_precision`; `js_string` is exact everywhere, the serialize
-   tests cover only values where both agree.
-2. A lone surrogate (rule 8.5) cannot reach a Rust `String`; nothing here handles it.
+1. serde_json without `arbitrary_precision` cannot hold every JavaScript number's text in a `Value`: a number written
+   through a `Value` (`to_value`, then `to_string`) is ryu's (`1e21` for `1e+21`, `1e-7`). Writing a `JsNumber` straight
+   (`to_string`, `to_writer`, a derived `Serialize`) is exact everywhere. The wire's frames write straight; only a caller
+   that goes through a `Value` meets the difference, and only below 1e-5 in size (`0.000005` is `5e-6`), at 2^64 and
+   past, and at -2^63 and below.
+2. A lone surrogate (rule 8.5) cannot reach a Rust `String`. The readers of JSON text (`wire/json_text.rs`) keep one as a private
+   character pair and write it back as the escape; a frame read through serde_json never holds one.
 3. `serde_json` reads with `float_roundtrip`. Its default float reader is up to one unit in the last place off for a long
    mantissa (`123456789012345680000` came back as `123456789012345670000`), and the number text JavaScript writes from it
    would differ from node's.
@@ -89,9 +104,8 @@ written as JavaScript writes it. `literal!` types are kept `z.literal` keys.
    `skip_serializing_if`, and carries `deserialize_with = "nullable"` so that an absent key is `Required` and `null` is a
    value; an `Option` that skips its `None` is `.optional()`, and refuses `null`. Inline members of a `skip_serializing_none`
    enum follow the same reading, `serialize_always` marking the nullable ones.
-5. The first issue of an inline union member is not always zod's (rule 2): the enum's rules run after the member's keys
-   read clean. A member's issues all keep their own paths; only a rule issue on an earlier key and a type issue on a later
-   one of the same member swap. Moving each enum's rules into its keys, as the structs have them, closes it.
+5. The record key `__proto__` is read and not kept, in a record and in a passthrough object, as zod's object merge drops it.
+   Collation, URLs and the other known differences are in their own units' specs.
 
 ## Rules pinned → tests (`tests/types_check.rs`)
 

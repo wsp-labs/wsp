@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Ported from packages/protocol/test/format-cases.test.ts:19-26 (bytes, durations, cost rows), format.test.ts:221-271
 //! (fmtBytes, fmtMemGb, placeFactsLine, boxRoomLines), :438-472 (durations, uptime, elapsed, cost), :1017-1106 (machine
-//! size words, machineCapRefusal) and init-job.test.ts:451-492 (the tally and the image estimate). Skipped:
+//! size words, machineCapRefusal) (init-job.test.ts:451-492, the tally and the image estimate, went with the cut). Skipped:
 //! place-state.test.ts:73 (tests placeSettingsLine, a place-state sentence; fmtSize is incidental) and
 //! workspace-state.test.ts:223 (tests servesReading in workspace-state; NOT_ON_THIS_KIND is one incidental assertion).
 
 mod support;
 
-use indexmap::IndexSet;
-
 use serde_json::{json, Value};
-use wsp_wire::types::init_job::{InitJob, InitScreen, InitScreenId};
 use wsp_wire::wire::capabilities::{MachineSizeOffer, PlaceCapacity, WorkspaceSize};
 use wsp_words::words::units::*;
 
@@ -395,108 +392,6 @@ mod machine_cap_refusal {
     }
 }
 
-mod the_words_the_clients_print_for_the_job {
-    use super::*;
-
-    const MIB: f64 = 1024.0 * 1024.0;
-
-    #[test]
-    fn every_step_s_tally_reads_the_step_s_count_and_the_running_image_estimate_against() {
-        let gib = 1024.0 * MIB;
-        let agents: InitScreen = wire(json!({
-            "id": "agents", "title": "Agents", "top": "Which agents go on the image",
-            "items": [
-                { "id": "claude", "label": "Claude Code", "size": 208.0 * MIB, "detail": [] },
-                { "id": "codex", "label": "Codex", "size": 455.0 * MIB, "detail": [] },
-                { "id": "hermes", "label": "Hermes Agent", "size": 484.0 * MIB, "detail": [] },
-            ],
-            "ticks": ["claude", "codex"], "answers": {}, "footer": [], "tally": "agents",
-        }));
-        let tools: InitScreen = wire(json!({
-            "id": "tools", "title": "Tools", "top": "Tools from your usage",
-            "items": [
-                { "id": "node", "label": "Node", "size": 300.0 * MIB, "lock": "on", "detail": [] },
-                { "id": "rust", "label": "Rust", "size": 4.0 * gib, "detail": [] },
-                { "id": "swift", "label": "Swift", "size": 3.0 * gib, "detail": [] },
-                { "id": "bun", "label": "bun", "size": null, "detail": [] },
-            ],
-            "ticks": ["rust", "bun"], "answers": {}, "footer": [], "tally": "tools",
-        }));
-        let logins: InitScreen = wire(json!({
-            "id": "logins", "title": "Sign-ins", "top": "How sign-ins reach the machine",
-            "items": [{ "id": "logins/gh", "label": "GitHub CLI login", "detail": [], "choices": [{ "value": "copy", "label": "copy" }] }],
-            "ticks": [], "answers": {}, "footer": [],
-        }));
-        let job_of = |fixed: f64, drafts: Option<Value>| -> InitJob {
-            let mut job = json!({
-                "id": "j", "road": "manual", "phase": "answering", "keys": {}, "step": 0, "stoppable": false, "rows": [], "progress": { "done": 0, "total": 0 }, "log": [],
-                "disk": { "fixed": fixed, "total": 20.0 * gib }, "screens": [agents, tools, logins],
-            });
-            if let Some(d) = drafts {
-                job["drafts"] = d;
-            }
-            wire(job)
-        };
-        let job = job_of(0.0, None);
-        let total = 20.0 * gib;
-        let set = |ids: &[&str]| -> Vec<String> { ids.iter().map(|s| s.to_string()).collect() };
-
-        // A locked row is on, a row with a picker is not counted, and a row nothing measured adds nothing.
-        assert_eq!(
-            init_tally_of(&tools, &set(&["rust", "bun"]).into_iter().collect::<IndexSet<_>>()),
-            InitTally { count: 3.0, bytes: 300.0 * MIB + 4.0 * gib }
-        );
-        assert_eq!(init_tally_of(&logins, &IndexSet::new()), InitTally { count: 0.0, bytes: 0.0 });
-        // Agents ticked to 663 MB and tools to 4.3 GB: the tools step counts its own rows and reads the whole image.
-        assert_eq!(init_image_bytes(&job, None), 663.0 * MIB + 300.0 * MIB + 4.0 * gib);
-        assert_eq!(
-            [init_tally_count(3.0, "tools"), fmt_bytes_of_total(init_image_bytes(&job, None), Some(total))],
-            ["3 tools on the image", "4.9 GB of 20 GB"]
-        );
-        // What the disk holds before any tick is under every estimate; a draft kept on a step stands over what the host
-        // last answered; the draft a client holds and the host has not echoed yet stands over both.
-        assert_eq!(init_image_bytes(&job_of(2.0 * gib, None), None), 2.0 * gib + 663.0 * MIB + 300.0 * MIB + 4.0 * gib);
-        let drafted = || job_of(0.0, Some(json!([{ "at": "tools", "ticks": ["rust", "swift"], "answers": {} }])));
-        assert_eq!(init_image_bytes(&drafted(), None), 663.0 * MIB + 300.0 * MIB + 7.0 * gib);
-        assert_eq!(init_image_bytes(&drafted(), Some(&CurrentTicks { at: "tools".to_string(), ticks: vec![] })), 663.0 * MIB + 300.0 * MIB);
-        assert_eq!(
-            init_image_bytes(&job, Some(&CurrentTicks { at: "agents".to_string(), ticks: vec!["claude".to_string()] })),
-            208.0 * MIB + 300.0 * MIB + 4.0 * gib
-        );
-        assert_eq!(
-            init_image_bytes(
-                &wire(
-                    json!({ "id": "j", "road": "manual", "phase": "answering", "keys": {}, "step": 0, "stoppable": false, "rows": [], "progress": { "done": 0, "total": 0 }, "log": [], "screens": [] })
-                ),
-                None
-            ),
-            0.0
-        );
-        // The one rule for a screen's ticks as they stand, which the screen's draft and the estimate both read. The TS
-        // spreads a Set in insertion order, which the IndexSet keeps.
-        assert_eq!(init_ticks_of(&tools, None).into_iter().collect::<Vec<_>>(), set(&["rust", "bun"]));
-        assert_eq!(
-            init_ticks_of(&tools, Some(&wire(json!({ "at": "tools", "ticks": ["swift"], "answers": {} })))).into_iter().collect::<Vec<_>>(),
-            set(&["swift"])
-        );
-        // The estimate reads in the tone its share of the disk earns, never its weight: 4.9 GB is the danger weight and a quarter of the disk.
-        assert_eq!(disk_tone(init_image_bytes(&job, None), total), SizeTone::Muted);
-        assert_eq!(size_tone(init_image_bytes(&job, None)), SizeTone::Danger);
-        // The agents screen's sizes are muted whatever they weigh; the tools and what-else screens' wear the weight table; nothing measured is muted anywhere.
-        assert_eq!(
-            [
-                init_size_tone(agents.id, Some(455.0 * MIB)),
-                init_size_tone(agents.id, Some(4.0 * gib)),
-                init_size_tone(tools.id, Some(455.0 * MIB)),
-                init_size_tone(tools.id, Some(4.0 * gib)),
-                init_size_tone(InitScreenId::Also, Some(150.0 * MIB)),
-                init_size_tone(tools.id, None),
-            ],
-            [SizeTone::Muted, SizeTone::Muted, SizeTone::Warning, SizeTone::Danger, SizeTone::Yellow, SizeTone::Muted]
-        );
-    }
-}
-
 // Cases the spec pins; every expected value is what the TS function returned under node at a3b870a6e.
 mod pinned {
     use wsp_words::words::units::*;
@@ -773,12 +668,6 @@ mod pinned {
 
     #[test]
     fn the_other_lines_read_as_the_ts_writes_them() {
-        assert_eq!(init_tally_count(3.0, "agents"), "3 agents on the image"); // initTallyCount(3, "agents")
-        assert_eq!(init_tally_count(1.0, "tools"), "1 tool on the image"); // initTallyCount(1, "tools")
-        assert_eq!(init_tally_count(4.0, "more"), "4 more on the image"); // initTallyCount(4, "more")
-        assert_eq!(init_tally_count(2.0, "class"), "2 class on the image"); // initTallyCount(2, "class")
-        assert_eq!(init_disk_line(3.0 * 1073741824.0, 2.0 * 1073741824.0), "about 3 GB of 2 GB on the image, over by 1 GB"); // initDiskLine(3*1024**3, 2*1024**3)
-        assert_eq!(init_disk_line(2.0 * 1073741824.0, 2.0 * 1073741824.0), "about 2 GB of 2 GB on the image"); // initDiskLine(2*1024**3, 2*1024**3)
         assert_eq!(fmt_px(13.5), "13.5 px"); // fmtPx(13.5)
         assert_eq!(
             present_elsewhere_line("node", "/opt/x/bin/node", "by brew", &["/opt/homebrew/bin", "/usr/local/bin"]),

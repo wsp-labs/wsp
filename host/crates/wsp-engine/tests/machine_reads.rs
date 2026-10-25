@@ -312,6 +312,7 @@ fn caps(signed_urls: bool) -> Capabilities {
         kept: false,
         copies: false,
         own_network: false,
+        sizes_last: false,
     }
 }
 

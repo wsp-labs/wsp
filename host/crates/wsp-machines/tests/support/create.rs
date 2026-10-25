@@ -171,6 +171,7 @@ impl MachineBackend for FakeBackend {
             kept: false,
             copies: false,
             own_network: false,
+            sizes_last: false,
             sizes: vec![size(1.0, 2048.0, 0.05), size(2.0, 4096.0, 0.1), size(4.0, 8192.0, 0.2)],
         }
     }

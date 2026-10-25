@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Port of packages/protocol/src/words/thread.ts:446-917 at a3b870a6e: asides, rewinds and forks, codex and
+//! Port of packages/protocol/src/words/thread.ts:446-917 at the cut (383708c78): asides, rewinds and forks, codex and
 //! catalog lines, memory and daemon lines, vault, hostname, gone and name refusals, providers and places for an
 //! image, and the lines a thread names a folder by. Each TS statement stands as a comment above its stub. See
 //! spec/thread_forks.md.
 
 use crate::js::{number_string, to_fixed, upper_first, utf16};
-use crate::place_word::{names_place, place_said};
 use crate::words::computer::thread_word;
 use crate::words::units::{charges_nothing, fmt_bytes, fmt_bytes_of, fmt_duration, fmt_rate, fmt_size, DurationStyle};
 use wsp_wire::types::js_number::JsNumber;
@@ -752,8 +751,7 @@ pub struct GoneSighting {
 // thread.ts:799
 // export const isoSeconds = (at: number): string => new Date(at).toISOString().replace(/\.\d+Z$/, "Z");
 pub fn iso_seconds(at: f64) -> String {
-    let moment = jiff::Timestamp::from_millisecond(at as i64).expect("a moment jiff holds");
-    moment.to_zoned(jiff::tz::TimeZone::UTC).strftime("%Y-%m-%dT%H:%M:%SZ").to_string()
+    crate::js_date::iso_string(at).map_or_else(|| "Invalid Date".to_string(), |iso| format!("{}Z", &iso[..iso.len() - 5]))
 }
 
 /// What a record says about a machine the provider stopped knowing: which call found it gone and the second it did,
@@ -856,7 +854,8 @@ pub const BLANK_NAME_REFUSAL: &str = "a workspace name cannot be blank";
 /// person who typed wsp new on a fresh home reads, and a variable named there is neither one of the sixteen words
 /// nor true of the other providers. wsp add with no argument prints the words it takes.
 // thread.ts:862
-pub const NO_PROVIDER_LINE: &str = "no machine provider is set up on this computer, so wsp forks no machines here; wsp add <provider> connects one, and wsp init then builds your image on it";
+pub const NO_PROVIDER_LINE: &str =
+    "no machine provider is set up on this computer, so wsp forks no machines here; wsp add <provider> connects one";
 
 /// The same refusal where no provider can be added at all: what is missing, and the one road that brings it.
 // thread.ts:865
@@ -882,25 +881,6 @@ pub fn build_place_ask_line(names: &[impl AsRef<str>]) -> String {
 // export const placeForksNothingPickLine = (place: string, names: readonly string[]): string => `${place} forks no machines; name a place that runs workspaces with --on: ${names.join(", ")}`;
 pub fn place_forks_nothing_pick_line(place: &str, names: &[impl AsRef<str>]) -> String {
     format!("{place} forks no machines; name a place that runs workspaces with --on: {}", join_names(names))
-}
-
-/// The line under wsp init's opening that names where the image is built, so the first screen says it.
-// thread.ts:880
-// export const imageBuiltOnLine = (place: string): string => `your image is built on ${place}`;
-pub fn image_built_on_line(place: &str) -> String {
-    format!("your image is built on {place}")
-}
-
-/// The line beside it when --on named a place other than the image's own: a rebuild never moves the image's home.
-// thread.ts:883
-// export const imageHomeKeptLine = (on: string | undefined, home: { id: string; name: string; kind?: string }): string | undefined =>
-//   on === undefined || namesPlace(home, on) ? undefined : `your image lives on ${placeSaid(home)}, so it is built there and not on ${on}`;
-/// A place as `namesPlace` and `placeSaid` read it.
-pub type PlaceNamed = crate::place_word::PlaceRef;
-
-pub fn image_home_kept_line(on: Option<&str>, home: &PlaceNamed) -> Option<String> {
-    on.filter(|on| !names_place(home, on))
-        .map(|on| format!("your image lives on {}, so it is built there and not on {on}", place_said(home)))
 }
 
 /// What a line that takes a thread answers a word naming no thread but a project, or with a cloud a machine: what the

@@ -4,43 +4,7 @@
 //! release that moved, a tools row outside the catalog) and init-job.test.ts:305 (credentialOnBuilderLine).
 
 use regex::Regex;
-use wsp_wire::views::golden_image::ToolPin;
 use wsp_words::words::image::*;
-
-fn change(count: f64, noun: &str, word: &str) -> GoldenChange {
-    GoldenChange { count, noun: noun.to_string(), word: word.to_string() }
-}
-
-fn pin(v: serde_json::Value) -> ToolPin {
-    serde_json::from_value(v).unwrap()
-}
-
-fn read(name: &str, tag: &str, words: Option<&str>) -> PinRead {
-    PinRead { name: name.to_string(), tag: tag.to_string(), words: words.map(str::to_string) }
-}
-
-mod golden_build_line {
-    use super::*;
-
-    #[test]
-    fn names_the_version_it_builds_and_the_one_it_builds_on_top_of_then_what_it_changes() {
-        assert_eq!(golden_build_line(2.0, 3.0, &[change(2.0, "tool", "added")]), "Builds version 3 on top of version 2: 2 tools added");
-    }
-
-    #[test]
-    fn pluralises_each_noun_on_its_own_count_and_drops_what_did_not_change() {
-        assert_eq!(
-            golden_build_line(1.0, 2.0, &[change(1.0, "tool", "added"), change(0.0, "agent", "added"), change(3.0, "row", "retired")]),
-            "Builds version 2 on top of version 1: 1 tool added, 3 rows retired"
-        );
-    }
-
-    #[test]
-    fn a_build_with_no_version_under_it_names_no_version_to_build_on_and_a_build_that_c() {
-        assert_eq!(golden_build_line(0.0, 1.0, &[change(4.0, "tool", "added")]), "Builds version 1: 4 tools added");
-        assert_eq!(golden_build_line(2.0, 3.0, &[change(0.0, "tool", "added")]), "Builds version 3 on top of version 2");
-    }
-}
 
 mod repo_state_words {
     use super::*;
@@ -238,48 +202,6 @@ mod provider_answer_line_snapshot_attempt_line_and_snapshot_failed_line {
     }
 }
 
-mod builder_stays_line_and_the_seal_s_and_the_update_s_last_lines {
-    use super::*;
-
-    #[test]
-    fn the_stays_up_sentence_is_one_rule_and_the_failed_seal_s_last_line_wraps_it() {
-        let stays = builder_stays_line("m1", 0.11, "wsp init --recipe '/tmp/r.json'");
-        assert_eq!(
-            stays,
-            "Builder m1 stays up at about $0.11/hr; wsp init --recipe '/tmp/r.json' attaches to it again, and the sweep stops it once it is six hours old."
-        );
-        assert_eq!(
-            seal_failed_builder_stays_line("m1", 0.11, "wsp init --recipe '/tmp/r.json'"),
-            format!("Seal failed; the builder is as you left it. {stays}")
-        );
-        assert_eq!(
-            seal_failed_builder_unread_line("m1", 0.11, "wsp init --recipe '/tmp/r.json'"),
-            format!("Seal failed; the provider could not be read about the builder, so nothing on it was touched. {stays}")
-        );
-        assert_eq!(
-            SEAL_FAILED_BUILDER_GONE_LINE,
-            "Seal failed and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again; the recipe is kept."
-        );
-    }
-
-    #[test]
-    fn the_update_s_last_lines_say_the_image_stands_and_whether_the_provider_still_has() {
-        assert_eq!(
-            upgrade_seal_failed_stays_line(1.0, "m1", 0.11),
-            "Image v1 is unchanged. Builder m1 is as it was, up at about $0.11/hr; run wsp init again to retry, and the sweep stops it once it is six hours old."
-        );
-        assert_eq!(
-            upgrade_seal_failed_gone_line(1.0),
-            "Image v1 is unchanged and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again to retry."
-        );
-        assert_eq!(
-            upgrade_seal_failed_unread_line(1.0, "m1"),
-            "Image v1 is unchanged. The provider could not be read about builder m1, so nothing on it was touched; run wsp init again to retry, and the sweep stops it once it is six hours old."
-        );
-        assert_eq!(SEAL_FAILED_LINE, "Seal failed and the builder is gone. Run wsp init again; the recipe is kept.");
-    }
-}
-
 mod a_pinned_release_that_moved {
     use super::*;
 
@@ -308,64 +230,8 @@ mod a_pinned_release_that_moved {
     #[test]
     fn a_pin_in_words_the_version_alone_where_a_copy_gets_it_with_the_latest_mark_where() {
         assert_eq!(INSTALLS_LATEST, "installs latest");
-        assert_eq!(pin_words(&pin(serde_json::json!({ "tag": "v2.86.0", "sha256": "b".repeat(64) }))), "v2.86.0");
-        assert_eq!(pin_words(&pin(serde_json::json!({ "tag": "3.3a-3", "latest": true }))), "3.3a-3, installs latest");
         // The record's line: the row by name, the version, the checksum where the road hashed one, the latest mark in the road's words.
-        assert_eq!(
-            sealed_pin_line("GitHub CLI", &pin(serde_json::json!({ "tag": "v2.86.0", "sha256": "b".repeat(64) })), None),
-            "GitHub CLI  v2.86.0  checksum bbbbbbbbbbbb"
-        );
-        assert_eq!(
-            sealed_pin_line("tmux", &pin(serde_json::json!({ "tag": "3.3a-3", "latest": true })), Some("by apt")),
-            "tmux  3.3a-3  installs latest by apt"
-        );
-        assert_eq!(
-            sealed_pin_line("Claude Code", &pin(serde_json::json!({ "tag": "2.1.3", "latest": true })), None),
-            "Claude Code  2.1.3  installs latest"
-        );
-        assert_eq!(sealed_pin_line("wrangler", &pin(serde_json::json!({ "tag": "4.1.0" })), None), "wrangler  4.1.0");
         // The stage's one line: the pinned rows, then once the rows that install latest with the version this build got; nothing when nothing was read.
-        assert_eq!(
-            pins_read_line(
-                &[read("wrangler", "4.1.0", None), read("GitHub CLI", "v2.86.0", None)],
-                &[read("tmux", "3.3a-3", Some("by apt")), read("Go", "1.22.1", Some("with Homebrew"))]
-            ),
-            Some(
-                "pinned: wrangler 4.1.0, GitHub CLI v2.86.0; installs latest on every place: tmux 3.3a-3 by apt, Go 1.22.1 with Homebrew"
-                    .to_string()
-            )
-        );
-        assert_eq!(
-            pins_read_line(&[], &[read("Claude Code", "2.1.3", None)]),
-            Some("installs latest on every place: Claude Code 2.1.3".to_string())
-        );
-        assert_eq!(pins_read_line(&[read("a, b", "1", None)], &[]), Some("pinned: \"a, b\" 1".to_string()));
-        assert_eq!(pins_read_line(&[], &[]), None);
-    }
-}
-
-mod a_tools_row_outside_the_catalog {
-    use super::*;
-    use wsp_words::words::computer::Platform;
-
-    #[test]
-    fn says_it_is_on_this_computer_what_the_build_does_with_it_and_when_a_file_s_tick_h() {
-        assert_eq!(installed_here_line(Platform::Darwin, None), "installed on this Mac");
-        assert_eq!(installed_here_line(Platform::Darwin, Some("0.1.0")), "installed on this Mac, 0.1.0");
-        assert_eq!(installed_here_line(Platform::Linux, Some("0.1.0")), "installed on this computer, 0.1.0");
-        assert_eq!(
-            installs_by_line("from its release", "the v0.1.0 release of github.com/Zingzy/diskbloom"),
-            "installs from its release: the v0.1.0 release of github.com/Zingzy/diskbloom"
-        );
-        assert_eq!(left_out_line("no Linux bottle known"), "left out of the build: no Linux bottle known");
-        assert_eq!(
-            not_here_line(Platform::Darwin, "zingzy/tap/diskbloom", "/tmp/given.json"),
-            "zingzy/tap/diskbloom is ticked in /tmp/given.json, but this Mac has no row that installs it; it is left out."
-        );
-        assert_eq!(
-            not_here_line(Platform::Linux, "direnv", "/tmp/given.json"),
-            "direnv is ticked in /tmp/given.json, but this computer has no row that installs it; it is left out."
-        );
     }
 }
 
@@ -387,7 +253,6 @@ mod pinned {
 
     use serde_json::json;
     use wsp_wire::views::golden_image::GoldenStage;
-    use wsp_words::words::computer::Platform;
 
     fn wire<T: serde::de::DeserializeOwned>(v: serde_json::Value) -> T {
         serde_json::from_value(v).unwrap()
@@ -412,7 +277,7 @@ mod pinned {
             json!({"name":"wsp","version":3,"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","recipeHash":"r","logins":[],"sealedAt":"2026-10-01T00:00:00.000Z","sealedFrom":"this Mac","noSecrets":false})
         ))); // copyAsksSignIns({"name":"wsp","version":3,"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","recipeHash":"r","logins":[],"sealedAt":"2026-10-01T00:00:00.000Z","sealedFrom":"this Mac","noSecrets":false})
         assert_eq!(image_held_sign_ins_line("Boat"), "Your image on Boat was sealed with sign-ins on it"); // imageHeldSignInsLine("Boat")
-        assert_eq!(image_rebuild_fix("boat"), "Rebuild it: wsp init --on boat --rebuild."); // imageRebuildFix("boat")
+        assert_eq!(image_rebuild_fix("boat"), "Seal your image again for boat."); // imageRebuildFix("boat")
         assert!(copy_is_current(
             &wire(
                 json!({"name":"wsp","version":3,"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","recipeHash":"r","logins":[],"sealedAt":"2026-10-01T00:00:00.000Z","sealedFrom":"this Mac"})
@@ -527,12 +392,6 @@ mod pinned {
             ),
             "boat  v2  current  already built from this image; nothing was built"
         ); // sealedBuiltLine({"name":"wsp","version":3,"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","recipeHash":"r","logins":[],"sealedAt":"2026-10-01T00:00:00.000Z","sealedFrom":"this Mac","noSecrets":true}, {copy:{"place":"boat","version":2,"snapshotId":"s","builtAt":"t","hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},built:false})
-        assert_eq!(
-            sealed_export_line(&wire(
-                json!({"path":"/x.wspimage","bytes":2048,"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
-            )),
-            "/x.wspimage  2 KB  opens with the passphrase you typed and nothing else"
-        ); // sealedExportLine({path:"/x.wspimage",bytes:2048,hash:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
     }
 
     #[test]
@@ -558,65 +417,11 @@ mod pinned {
     }
 
     #[test]
-    fn project_images() {
-        assert_eq!(
-            sealed_project_line(&wire(
-                json!({"snapshotId":"p1","projects":[{"name":"a","dest":"/a","importedAt":"t"},{"name":"b","dest":"/b","importedAt":"t"}],"golden":"g","workspaceId":"w","workspaceName":"ws","createdAt":"2026-10-01T00:00:00.000Z","sizeBytes":1024})
-            )),
-            "p1  project ws  a, b  1 KB  2026-10-01T00:00:00.000Z"
-        ); // sealedProjectLine({snapshotId:"p1",projects:[{name:"a"},{name:"b"}],golden:"g",workspaceId:"w",workspaceName:"ws",createdAt:"2026-10-01T00:00:00.000Z",sizeBytes:1024})
-        assert_eq!(
-            sealed_project_line(&wire(
-                json!({"snapshotId":"p1","projects":[],"golden":"g","workspaceId":"w","workspaceName":"ws","createdAt":"c"})
-            )),
-            "p1  project ws    c"
-        ); // sealedProjectLine({snapshotId:"p1",projects:[],golden:"g",workspaceId:"w",workspaceName:"ws",createdAt:"c"})
-        assert_eq!(
-            project_image_in_use_refusal("p1", &["a"]),
-            "project image p1 has a workspace standing on it: a; delete it first, and forget any whose machine is already gone"
-        ); // projectImageInUseRefusal("p1", ["a"])
-        assert_eq!(
-            project_image_in_use_refusal("p1", &["a", "b, c"]),
-            "project image p1 has workspaces standing on it: a, \"b, c\"; delete them first, and forget any whose machine is already gone"
-        ); // projectImageInUseRefusal("p1", ["a", "b, c"])
-        assert_eq!(
-            project_image_remove_notice(&wire(
-                json!({"snapshotId":"s","projects":[],"golden":"g","workspaceId":"w","workspaceName":"ws","createdAt":"2026-10-01T23:00:00.000Z"})
-            )),
-            "Its snapshot, taken from ws on 2026-10-01, is deleted at the provider, and no workspace starts from it again."
-        ); // projectImageRemoveNotice({workspaceName:"ws",createdAt:"2026-10-01T23:00:00.000Z"})
-        assert_eq!(project_image_removed_line("p1", true), "project image p1 was already gone at the provider; its record is removed"); // projectImageRemovedLine("p1", true)
-        assert_eq!(
-            project_image_removed_line("p1", false),
-            "removed project image p1: its snapshot is gone at the provider, and its record with it"
-        ); // projectImageRemovedLine("p1", false)
-        assert_eq!(project_image_still_listed_line("p1", 1500.0), "project image p1 could not be read gone within 2 s of the delete answering, so its record stays; run wsp image remove p1 again"); // projectImageStillListedLine("p1", 1500)
-        assert_eq!(project_image_refused_line("p1", &ProviderAnswer { status: 409.0, message: "busy".into(), request_id: None, at: "2026-10-25T10:00:00Z".into() }), "project image p1 was not removed: the provider answered 409 busy (no request id from the provider, at 2026-10-25T10:00:00Z); its record stays");
-        // projectImageRefusedLine("p1", {"status":409,"message":"busy","at":"2026-10-25T10:00:00Z"})
-    }
-
-    #[test]
     fn logins_forgets_and_build_lines() {
-        assert_eq!(copy_names_login("copy", "me@x"), "copy (me@x)"); // copyNamesLogin("copy", "me@x")
-        assert_eq!(logins_here_line("me", &[] as &[&str]), "signed in here as me"); // loginsHereLine("me", [])
-        assert_eq!(logins_here_line("me", &["a"] as &[&str]), "signed in here as me; a stays on this computer"); // loginsHereLine("me", ["a"])
-        assert_eq!(logins_here_line("me", &["a", "b"] as &[&str]), "signed in here as me; a, b stay on this computer"); // loginsHereLine("me", ["a","b"])
         assert_eq!(forget_notice(0.0), "Its record and 0 threads leave this computer; the computer it ran on is already gone."); // forgetNotice(0)
         assert_eq!(forget_notice(1.0), "Its record and 1 thread leave this computer; the computer it ran on is already gone."); // forgetNotice(1)
-        assert_eq!(forget_notice(2.0), "Its record and 2 threads leave this computer; the computer it ran on is already gone."); // forgetNotice(2)
-        assert_eq!(golden_build_line(0.0, 1.0, &[]), "Builds version 1"); // goldenBuildLine(0, 1, [])
-        assert_eq!(
-            golden_build_line(
-                2.0,
-                3.0,
-                &[
-                    GoldenChange { count: 0.0, noun: "tool".into(), word: "added".into() },
-                    GoldenChange { count: 1.0, noun: "tool".into(), word: "removed".into() },
-                    GoldenChange { count: 2.0, noun: "sign-in".into(), word: "added".into() }
-                ]
-            ),
-            "Builds version 3 on top of version 2: 1 tool removed, 2 sign-ins added"
-        ); // goldenBuildLine(2, 3, [{count:0,noun:"tool",word:"added"},{count:1,noun:"tool",word:"removed"},{count:2,noun:"sign-in",word:"added"}])
+        assert_eq!(forget_notice(2.0), "Its record and 2 threads leave this computer; the computer it ran on is already gone.");
+        // forgetNotice(2)
     }
 
     #[test]
@@ -625,52 +430,6 @@ mod pinned {
         assert_eq!(short_sum("short"), "short"); // shortSum("short")
         assert_eq!(version_moved_line(None, Some("1.2")), "unpinned to 1.2"); // versionMovedLine(undefined, "1.2")
         assert_eq!(version_moved_line(Some("1.1"), None), "1.1 to unpinned"); // versionMovedLine("1.1", undefined)
-        assert_eq!(pin_words(&wire(json!({"tag":"v1"}))), "v1"); // pinWords({tag:"v1"})
-        assert_eq!(pin_words(&wire(json!({"tag":"v1","latest":true}))), "v1, installs latest"); // pinWords({tag:"v1",latest:true})
-        assert_eq!(pins_read_line(&[], &[]), None); // pinsReadLine([], [])
-        assert_eq!(
-            pins_read_line(
-                &[
-                    PinRead { name: "a, b".into(), tag: "1".into(), words: None },
-                    PinRead { name: "c".into(), tag: "2".into(), words: None }
-                ],
-                &[]
-            ),
-            Some("pinned: \"a, b\" 1, c 2".to_string())
-        ); // pinsReadLine([{name:"a, b",tag:"1"},{name:"c",tag:"2"}], [])
-        assert_eq!(
-            pins_read_line(
-                &[],
-                &[
-                    PinRead { name: "bun".into(), tag: "1.3".into(), words: Some("by its installer".into()) },
-                    PinRead { name: "x".into(), tag: "9".into(), words: None }
-                ]
-            ),
-            Some("installs latest on every place: bun 1.3 by its installer, x 9".to_string())
-        ); // pinsReadLine([], [{name:"bun",tag:"1.3",words:"by its installer"},{name:"x",tag:"9"}])
-        assert_eq!(
-            pins_read_line(
-                &[PinRead { name: "a".into(), tag: "1".into(), words: None }],
-                &[PinRead { name: "b".into(), tag: "2".into(), words: None }]
-            ),
-            Some("pinned: a 1; installs latest on every place: b 2".to_string())
-        ); // pinsReadLine([{name:"a",tag:"1"}], [{name:"b",tag:"2"}])
-        assert_eq!(
-            sealed_pin_line("rg", &wire(json!({"tag":"14.1","sha256":"0123456789abcdef0123"})), None),
-            "rg  14.1  checksum 0123456789ab"
-        ); // sealedPinLine("rg", {tag:"14.1",sha256:"0123456789abcdef0123"})
-        assert_eq!(sealed_pin_line("bun", &wire(json!({"tag":"1.3","latest":true})), Some("by curl")), "bun  1.3  installs latest by curl"); // sealedPinLine("bun", {tag:"1.3",latest:true}, "by curl")
-        assert_eq!(sealed_pin_line("bun", &wire(json!({"tag":"1.3","latest":true})), None), "bun  1.3  installs latest"); // sealedPinLine("bun", {tag:"1.3",latest:true})
-        assert_eq!(installed_here_line(Platform::Darwin, None), "installed on this Mac"); // installedHereLine("darwin", undefined)
-        assert_eq!(installed_here_line(Platform::Linux, Some("1.0")), "installed on this computer, 1.0"); // installedHereLine("linux", "1.0")
-        assert_eq!(
-            add_already_here_line(Platform::Darwin, "ripgrep"),
-            "--add ripgrep: a package manager on this Mac already has ripgrep, so it is a row of its own."
-        ); // addAlreadyHereLine("darwin", "ripgrep")
-        assert_eq!(
-            not_here_line(Platform::Linux, "x", "recipe.json"),
-            "x is ticked in recipe.json, but this computer has no row that installs it; it is left out."
-        ); // notHereLine("linux", "x", "recipe.json")
         assert_eq!(behind_golden_line(2.0, 5.0), "on image v2, v5 available"); // behindGoldenLine(2, 5)
         assert_eq!(
             js(&missing_tool_row(&MissingTool { id: "rg".into(), name: None, outcome: None, note: "n".into() })),
@@ -707,17 +466,6 @@ mod pinned {
             }),
             "500 boom (request req-1)"
         ); // providerAnswerLine({"status":500,"message":"boom","requestId":"req-1","at":"x"})
-        assert_eq!(snapshot_refused_line("w", &ProviderAnswer { status: 409.0, message: "busy".into(), request_id: None, at: "2026-10-25T10:00:00Z".into() }, &DiskUse::Unknown { reason: "df failed".into() }), "w was not snapshotted: the provider answered 409 busy (no request id from the provider, at 2026-10-25T10:00:00Z); the disk could not be read (df failed)"); // snapshotRefusedLine("w", {"status":409,"message":"busy","at":"2026-10-25T10:00:00Z"}, {kind:"unknown",reason:"df failed"})
-        assert_eq!(snapshot_refused_line("w", &ProviderAnswer { status: 409.0, message: "busy".into(), request_id: None, at: "2026-10-25T10:00:00Z".into() }, &DiskUse::Use { used_bytes: 95.0, size_bytes: 100.0 }), "w was not snapshotted: its disk is 95 percent full (95 of 100 B) and the provider answered 409 busy (no request id from the provider, at 2026-10-25T10:00:00Z); free space on it or delete the workspace, then snapshot again"); // snapshotRefusedLine("w", {"status":409,"message":"busy","at":"2026-10-25T10:00:00Z"}, {kind:"use",usedBytes:95,sizeBytes:100})
-        assert_eq!(snapshot_refused_line("w", &ProviderAnswer { status: 500.0, message: "boom".into(), request_id: Some("req-1".into()), at: "x".into() }, &DiskUse::Use { used_bytes: 899.0, size_bytes: 1000.0 }), "w was not snapshotted: the provider answered 500 boom (request req-1); its disk is 89 percent full (899 of 1000 B), so the disk is not the reason"); // snapshotRefusedLine("w", {"status":500,"message":"boom","requestId":"req-1","at":"x"}, {kind:"use",usedBytes:899,sizeBytes:1000})
-        assert_eq!(snapshot_manager_line("w", "pnpm -v", "/p", "ERR_PNPM", None), "w was not snapshotted: pnpm -v fails in /p (ERR_PNPM), so every fork of it would fail the same way; make pnpm -v answer there, then snapshot again"); // snapshotManagerLine("w", "pnpm -v", "/p", "ERR_PNPM")
-        assert_eq!(snapshot_manager_line("w", "pnpm -v", "/p", "ERR", Some("at /home/u/.local/share/pnpm/.tools/pnpm/9.1.0_tmp_1234/bin/pnpm.cjs")), "w was not snapshotted: pnpm -v fails in /p (ERR), so every fork of it would fail the same way; remove /home/u/.local/share/pnpm/.tools/pnpm/9.1.0 and /home/u/.local/share/pnpm/.tools/pnpm/9.1.0_tmp_*, run pnpm -v in /p to fetch it again, then snapshot again"); // snapshotManagerLine("w", "pnpm -v", "/p", "ERR", "at /home/u/.local/share/pnpm/.tools/pnpm/9.1.0_tmp_1234/bin/pnpm.cjs")
-        assert_eq!(snapshot_manager_line("w", "pnpm -v", "/p", "ERR", Some("x '/home/u/.local/share/pnpm/.tools/pnpm/9.1.0/bin/pnpm' y")), "w was not snapshotted: pnpm -v fails in /p (ERR), so every fork of it would fail the same way; remove /home/u/.local/share/pnpm/.tools/pnpm/9.1.0 and /home/u/.local/share/pnpm/.tools/pnpm/9.1.0_tmp_*, run pnpm -v in /p to fetch it again, then snapshot again"); // snapshotManagerLine("w", "pnpm -v", "/p", "ERR", "x '/home/u/.local/share/pnpm/.tools/pnpm/9.1.0/bin/pnpm' y")
-        assert_eq!(snapshot_manager_line("w", "pnpm -v", "/p", "ERR", Some("at /s/store/v10/links/@/pnpm/11.0.0/node_modules/x")), "w was not snapshotted: pnpm -v fails in /p (ERR), so every fork of it would fail the same way; remove /s/store/v10/links/@/pnpm/11.0.0, run pnpm -v in /p to fetch it again, then snapshot again"); // snapshotManagerLine("w", "pnpm -v", "/p", "ERR", "at /s/store/v10/links/@/pnpm/11.0.0/node_modules/x")
-        assert_eq!(
-            snapshot_login_line("w", &["/a", "/b"]),
-            "w was not snapshotted: it holds sign-in files (/a, /b), which every workspace forked from the snapshot would carry"
-        ); // snapshotLoginLine("w", ["/a", "/b"])
         assert_eq!(snapshot_attempt_line(1.0, 3.0, &ProviderAnswer { status: 409.0, message: "busy".into(), request_id: None, at: "2026-10-25T10:00:00Z".into() }, &BuilderReading::State("running".into()), 30000.0), "attempt 1 of 3 answered 409 busy (no request id from the provider, at 2026-10-25T10:00:00Z); the builder reads running, next attempt in 30s"); // snapshotAttemptLine(1, 3, {"status":409,"message":"busy","at":"2026-10-25T10:00:00Z"}, "running", 30000)
         assert_eq!(snapshot_failed_line(1.0, &ProviderAnswer { status: 409.0, message: "busy".into(), request_id: None, at: "2026-10-25T10:00:00Z".into() }, &BuilderReading::State("gone".into()), None), "the snapshot failed 1 time: the provider answered 409 busy (no request id from the provider, at 2026-10-25T10:00:00Z) and no longer has the builder (404)"); // snapshotFailedLine(1, {"status":409,"message":"busy","at":"2026-10-25T10:00:00Z"}, "gone")
         assert_eq!(
@@ -777,16 +525,9 @@ mod pinned {
             ]),
             "left alone 2 machines this host did not make: m1 (no owner), m2 (owner lab)"
         ); // otherHostsMachinesLine([{id:"m1"},{id:"m2",owner:"lab"}])
-        assert_eq!(builder_stays_line("b1", 0.125, "wsp init --attach b1"), "Builder b1 stays up at about $0.13/hr; wsp init --attach b1 attaches to it again, and the sweep stops it once it is six hours old."); // builderStaysLine("b1", 0.125, "wsp init --attach b1")
-        assert_eq!(seal_failed_builder_stays_line("b1", 0.5, "a"), "Seal failed; the builder is as you left it. Builder b1 stays up at about $0.50/hr; a attaches to it again, and the sweep stops it once it is six hours old."); // sealFailedBuilderStaysLine("b1", 0.5, "a")
-        assert_eq!(seal_failed_builder_unread_line("b1", 0.5, "a"), "Seal failed; the provider could not be read about the builder, so nothing on it was touched. Builder b1 stays up at about $0.50/hr; a attaches to it again, and the sweep stops it once it is six hours old."); // sealFailedBuilderUnreadLine("b1", 0.5, "a")
         assert_eq!(
             credential_on_builder_line(&[] as &[&str]),
             "the builder holds a sign-in file at ; sign-ins never sit in an image, so nothing was sealed"
         ); // credentialOnBuilderLine([])
-        assert_eq!(upgrade_seal_failed_stays_line(3.0, "b1", 2.005), "Image v3 is unchanged. Builder b1 is as it was, up at about $2.00/hr; run wsp init again to retry, and the sweep stops it once it is six hours old."); // upgradeSealFailedStaysLine(3, "b1", 2.005)
-        assert_eq!(upgrade_seal_failed_unread_line(3.0, "b1"), "Image v3 is unchanged. The provider could not be read about builder b1, so nothing on it was touched; run wsp init again to retry, and the sweep stops it once it is six hours old."); // upgradeSealFailedUnreadLine(3, "b1")
-        assert_eq!(upgrade_seal_failed_gone_line(3.0), "Image v3 is unchanged and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again to retry.");
-        // upgradeSealFailedGoneLine(3)
     }
 }

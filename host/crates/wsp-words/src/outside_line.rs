@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What a moment says outside the app, and under which of the person's choices on General. Port of the functions of
-//! packages/protocol/src/outside-line.ts at a3b870a6e (OutsideLine and OUTSIDE_HELD are wsp_wire::types::outside_line).
+//! packages/protocol/src/outside-line.ts at the cut (383708c78) (OutsideLine and OUTSIDE_HELD are wsp_wire::types::outside_line).
 //! See spec/costs_and_alerts.md.
 
 use wsp_wire::types::general_prefs::GeneralPreferences;

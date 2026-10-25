@@ -419,21 +419,44 @@ pub struct LeadOf {
     pub workspace_id: String,
 }
 
-/// A workspace's own record: `Omit<WorkspaceView, "project">` in the view's key order, then the record's own keys in
-/// the TS interface's order. A stored record from before `kind` existed reads cloud. wiring.ts:318-402.
+/// A workspace's own record, its keys in the order the create literals write them (`machines/create.ts:63`,
+/// `sub-spawn.ts:223`): `id`, `name`, `kind`, `machineId`, `phase`, `golden`, `createdAt`, `project`, `spec`,
+/// `idleWindowMs`, `place`, `size`, `firstLife`, the tree, `parentWorkspaceId`, `base`, `branchOfRecord`; the rest follow
+/// in the TS interface's order. The TS writes a record's keys in the order of the literal that made it, so the folder
+/// record (`folders.ts:37`) and the adopted record (`status.ts:155`) differ here: accepted differences, listed in
+/// `wsp-account/spec/projects-README.md` and `account-README.md`. A stored record from before `kind` existed reads
+/// cloud. wiring.ts:318-402.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceRecord {
     pub id: String,
     pub name: String,
-    pub machine_id: String,
-    pub phase: WorkspacePhase,
     #[serde(default = "cloud_kind")]
     pub kind: WorkspaceKind,
+    pub machine_id: String,
+    pub phase: WorkspacePhase,
     pub golden: String,
     pub created_at: String,
     /// The project's id; the view joins its name, path and computer off the projects map.
     pub project: String,
+    pub spec: RecordSpec,
+    /// Absent: the runtime default. `Some(None)`: auto-nap off (the TS null), written back as null.
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "wsp_wire::types::check::double_option")]
+    pub idle_window_ms: Option<Option<JsNumber>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub place: Option<String>,
+    pub size: WorkspaceSize,
+    pub first_life: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_thread_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_thread_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_workspace_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch_of_record: Option<BranchOfRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -466,14 +489,6 @@ pub struct WorkspaceRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agents: Option<WorkspaceAgents>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent_thread_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub root_thread_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent_workspace_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub place: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worktree: Option<WorktreeFolder>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
@@ -484,19 +499,9 @@ pub struct WorkspaceRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub review: Option<ReviewDraft>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub branch_of_record: Option<BranchOfRecord>,
-    pub spec: RecordSpec,
-    /// Absent: the runtime default. `Some(None)`: auto-nap off (the TS null), written back as null.
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "wsp_wire::types::check::double_option")]
-    pub idle_window_ms: Option<Option<JsNumber>>,
-    pub size: WorkspaceSize,
-    pub first_life: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shape: Option<MachineShape>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub npm_bin: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub base: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub napped_at: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

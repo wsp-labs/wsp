@@ -7,6 +7,10 @@
 //! Every regex source below is generated from the TS by evaluating its own definitions. Each is a JavaScript regex:
 //! `\s` is JavaScript's set (wsp_words::js::is_js_whitespace), `[^]` is any character, and GUARD needs lookbehind.
 pub use crate::detect::shell_rc_strip::{strip_exports, Stripped};
+use std::sync::LazyLock;
+
+use fancy_regex::{Captures, Regex};
+use wsp_words::js::{is_js_whitespace, js_trim, JS_WS};
 
 pub const FISH_CONF_D: &str = ".config/fish/conf.d";
 pub const RC_PATHS: [&str; 11] = [
@@ -71,15 +75,121 @@ pub const HEREDOC: &str = r#"^<<-?\s*(?:"([A-Za-z_]\w*)"|'([A-Za-z_]\w*)'|\\([A-
 /// JavaScript regex source.
 pub const SOURCE: &str = r#"^([ \t]*)(source|\\?\.)[ \t]+("[^"]*"|'[^']*'|[^\s;&|<>()"'\\`]+)(?=[\s;&|<>()]|$)(.*)$"#;
 
-// shell-rc.ts:527
-// export interface SourceCommand {
-//   indent: string;
-//   word: string;
-//   /** As written, quotes included. */
-//   token: string;
-//   /** Everything after the token. */
-//   rest: string;
-// }
+/// Compiles a JavaScript regex source for fancy-regex: `\s`, `\S`, `\w`, `\d`, `\b` and `.` keep JavaScript's meaning
+/// and `[^]` is any character. A search never stops at fancy-regex's backtrack limit: node has none, so a long file
+/// is answered, not refused.
+pub(crate) fn js_re(source: &str) -> Regex {
+    unbounded(&translate(source, false)).expect("a JavaScript pattern compiles")
+}
+
+/// A fancy-regex pattern with no backtrack limit, as a JavaScript engine has none.
+pub(crate) fn unbounded(pattern: &str) -> Result<Regex, fancy_regex::Error> {
+    fancy_regex::RegexBuilder::new(pattern).backtrack_limit(usize::MAX).build()
+}
+
+/// The same translation for the `regex` crate, which runs in linear time and never errors mid-search; only for a source
+/// with no lookaround or backreference.
+pub(crate) fn js_plain(source: &str) -> regex::Regex {
+    regex::Regex::new(&translate(source, true)).expect("a JavaScript pattern compiles")
+}
+
+fn translate(source: &str, plain: bool) -> String {
+    let mut out = String::new();
+    let mut class = false;
+    let mut chars = source.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                let Some(n) = chars.next() else {
+                    out.push_str("\\\\");
+                    break;
+                };
+                match (n, class) {
+                    ('s', false) => out.push_str(&format!("[{JS_WS}]")),
+                    ('s', true) => out.push_str(JS_WS),
+                    ('S', false) => out.push_str(&format!("[^{JS_WS}]")),
+                    ('w', false) => out.push_str("[A-Za-z0-9_]"),
+                    ('w', true) => out.push_str("A-Za-z0-9_"),
+                    ('d', false) => out.push_str("[0-9]"),
+                    ('d', true) => out.push_str("0-9"),
+                    ('b', false) if plain => out.push_str("(?-u:\\b)"),
+                    ('b', false) => out.push_str("(?:(?<=[A-Za-z0-9_])(?![A-Za-z0-9_])|(?<![A-Za-z0-9_])(?=[A-Za-z0-9_]))"),
+                    _ => {
+                        out.push('\\');
+                        out.push(n);
+                    }
+                }
+            }
+            '[' if !class => {
+                if chars.peek() == Some(&'^') {
+                    chars.next();
+                    if chars.peek() == Some(&']') {
+                        chars.next();
+                        out.push_str("(?s:.)");
+                        continue;
+                    }
+                    class = true;
+                    out.push_str("[^");
+                } else {
+                    class = true;
+                    out.push('[');
+                }
+            }
+            '[' => out.push_str("\\["),
+            ']' => {
+                class = false;
+                out.push(']');
+            }
+            '.' if !class => out.push_str("[^\\n\\r\\x{2028}\\x{2029}]"),
+            '&' | '~' if class => {
+                out.push('\\');
+                out.push(c);
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// `re.test(text)`, false where the pattern cannot run.
+pub(crate) fn is_match(re: &Regex, text: &str) -> bool {
+    re.is_match(text).unwrap_or(false)
+}
+
+/// The groups of the first match of `re` at the start of `text` (`re.exec`).
+pub(crate) fn captures<'t>(re: &Regex, text: &'t str) -> Option<Captures<'t>> {
+    re.captures(text).ok().flatten()
+}
+
+/// Group `k` of a match, `""` where it did not take part.
+pub(crate) fn group(caps: &Captures<'_>, k: usize) -> String {
+    caps.get(k).map_or_else(String::new, |m| m.as_str().to_string())
+}
+
+/// The lines of `text` as `text.split(/\r?\n/)` gives them.
+pub(crate) fn split_lines(text: &str) -> Vec<&str> {
+    let parts: Vec<&str> = text.split('\n').collect();
+    let last = parts.len() - 1;
+    parts.iter().enumerate().map(|(k, l)| if k < last { l.strip_suffix('\r').unwrap_or(l) } else { l }).collect()
+}
+
+static SETTING_RE: LazyLock<Regex> = LazyLock::new(|| js_re(SETTING));
+static SECRET_END_RE: LazyLock<Regex> = LazyLock::new(|| js_re(SECRET_END));
+static PLAIN_PASS_RE: LazyLock<Regex> = LazyLock::new(|| js_re(PLAIN_PASS));
+static EXPORTED_RE: LazyLock<Regex> = LazyLock::new(|| js_re(EXPORTED));
+static FISH_SET_RE: LazyLock<Regex> = LazyLock::new(|| js_re(FISH_SET));
+static FISH_READS_RE: LazyLock<Regex> = LazyLock::new(|| js_re(FISH_READS));
+static ASSIGNED_RE: LazyLock<Regex> = LazyLock::new(|| js_re(ASSIGNED));
+static ABBR_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| js_re(ABBR_VALUE));
+static OPTION_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"^[-+]."));
+static SOURCE_RE: LazyLock<Regex> = LazyLock::new(|| js_re(SOURCE));
+static QUOTE_WRAP_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r#"^(["']).*\1$"#));
+pub(crate) static KEYWORDS_RE: LazyLock<Regex> = LazyLock::new(|| js_re(KEYWORDS));
+pub(crate) static ASSIGNS_RE: LazyLock<Regex> = LazyLock::new(|| js_re(ASSIGNS));
+pub(crate) static GUARD_RE: LazyLock<Regex> = LazyLock::new(|| js_re(GUARD));
+pub(crate) static QUOTED_RE: LazyLock<regex::Regex> = LazyLock::new(|| js_plain(QUOTED));
+pub(crate) static HEREDOC_RE: LazyLock<Regex> = LazyLock::new(|| js_re(HEREDOC));
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceCommand {
     pub indent: String,
@@ -90,248 +200,338 @@ pub struct SourceCommand {
     pub rest: String,
 }
 
-// shell-rc.ts:19
-// /** Whether a `~`-relative path is an rc file: one of RC_PATHS, or a .fish file directly in conf.d. */
-// export function isRcPath(rel: string): boolean {
-//   if ((RC_PATHS as readonly string[]).includes(rel)) return true;
-//   return rel.slice(0, rel.lastIndexOf("/")) === FISH_CONF_D && rel.endsWith(".fish");
-// }
+/// Whether a `~`-relative path is an rc file: one of RC_PATHS, or a .fish file directly in conf.d.
 pub fn is_rc_path(rel: &str) -> bool {
-    todo!()
+    if RC_PATHS.contains(&rel) {
+        return true;
+    }
+    rel.rfind('/').is_some_and(|at| &rel[..at] == FISH_CONF_D) && rel.ends_with(".fish")
 }
 
-// shell-rc.ts:25
-// /** The rc files as `~`-relative paths: RC_PATHS and the .fish files in conf.d's listing. */
-// export function rcFiles(confD: readonly string[]): string[] {
-//   return [...RC_PATHS, ...confD.filter(n => n.endsWith(".fish")).map(n => `${FISH_CONF_D}/${n}`)];
-// }
+/// The rc files as `~`-relative paths: RC_PATHS and the .fish files in conf.d's listing.
 pub fn rc_files(conf_d: &[String]) -> Vec<String> {
-    todo!()
+    let mut out: Vec<String> = RC_PATHS.iter().map(|p| p.to_string()).collect();
+    out.extend(conf_d.iter().filter(|n| n.ends_with(".fish")).map(|n| format!("{FISH_CONF_D}/{n}")));
+    out
 }
 
-// shell-rc.ts:45
-// /** A secret's word alone between underscores, any case; `KEYTIMEOUT` and `HISTKEY` are no key. A glued word, a PASS
-//  * ending, or a last `PWD`, `AUTH` or `PAT` counts only in capitals, as a program reads `PGPASSWORD`, `SSHPASS` and
-//  * `GITHUB_PAT`: in shell code `ctoken` is a word of the command line, `old_pwd` a folder and `_target_opt_pat` a pattern. */
-// export function isSecretName(name: string): boolean {
-//   const upper = name.toUpperCase();
-//   if (SETTING.test(upper)) return false;
-//   const parts = upper.split("_").filter(w => w !== "");
-//   if (parts.some(w => SECRET_WORDS.has(w))) return true;
-//   if (name !== upper) return false;
-//   const last = parts.at(-1) ?? "";
-//   return parts.some(w => SECRET_END.test(w)) || (last.endsWith("PASS") && !PLAIN_PASS.test(last)) || (parts.length > 1 && SECRET_LAST.has(last));
-// }
+/// A secret's word alone between underscores, any case; `KEYTIMEOUT` and `HISTKEY` are no key. A glued word, a PASS
+/// ending, or a last `PWD`, `AUTH` or `PAT` counts only in capitals, as a program reads `PGPASSWORD`, `SSHPASS` and
+/// `GITHUB_PAT`: in shell code `ctoken` is a word of the command line, `old_pwd` a folder and `_target_opt_pat` a pattern.
 pub fn is_secret_name(name: &str) -> bool {
-    todo!()
+    let upper = name.to_uppercase();
+    if is_match(&SETTING_RE, &upper) {
+        return false;
+    }
+    let parts: Vec<&str> = upper.split('_').filter(|w| !w.is_empty()).collect();
+    if parts.iter().any(|w| SECRET_WORDS.contains(w)) {
+        return true;
+    }
+    if name != upper {
+        return false;
+    }
+    let last = parts.last().copied().unwrap_or("");
+    parts.iter().any(|w| is_match(&SECRET_END_RE, w))
+        || (last.ends_with("PASS") && !is_match(&PLAIN_PASS_RE, last))
+        || (parts.len() > 1 && SECRET_LAST.contains(&last))
 }
 
-// shell-rc.ts:74
-// /** The simple commands of a line: split outside quotes on `;`, `&&`, `||`, `|`, `&` and braces or parentheses, comment dropped. */
-// export function simpleCommands(line: string): string[] {
-//   const out: string[] = [];
-//   let quote: "" | "'" | '"' = "";
-//   let cur = "";
-//   for (let i = 0; i < line.length; i += 1) {
-//     const c = line[i] ?? "";
-//     if (c === "\\" && quote !== "'") {
-//       cur += c + (line[i + 1] ?? "");
-//       i += 1;
-//       continue;
-//     }
-//     if (quote !== "") {
-//       cur += c;
-//       if (c === quote) quote = "";
-//       continue;
-//     }
-//     if (c === "'" || c === '"') {
-//       quote = c;
-//       cur += c;
-//       continue;
-//     }
-//     if (commentAt(line, i)) break;
-//     if (";|&{}()".includes(c)) {
-//       out.push(cur);
-//       cur = "";
-//       continue;
-//     }
-//     cur += c;
-//   }
-//   out.push(cur);
-//   return out.map(skipKeywords).filter(s => s.trim() !== "");
-// }
+/// The simple commands of a line: split outside quotes on `;`, `&&`, `||`, `|`, `&` and braces or parentheses, comment dropped.
 pub fn simple_commands(line: &str) -> Vec<String> {
-    todo!()
+    let chars: Vec<char> = line.chars().collect();
+    let mut out = Vec::new();
+    let mut quote: Option<char> = None;
+    let mut cur = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\\' && quote != Some('\'') {
+            cur.push(c);
+            if let Some(&next) = chars.get(i + 1) {
+                cur.push(next);
+            }
+            i += 2;
+            continue;
+        }
+        if let Some(q) = quote {
+            cur.push(c);
+            if c == q {
+                quote = None;
+            }
+        } else if c == '\'' || c == '"' {
+            quote = Some(c);
+            cur.push(c);
+        } else {
+            if comment_at(&chars, i) {
+                break;
+            }
+            if ";|&{}()".contains(c) {
+                out.push(std::mem::take(&mut cur));
+            } else {
+                cur.push(c);
+            }
+        }
+        i += 1;
+    }
+    out.push(cur);
+    out.iter().map(|command| skip_keywords(command)).filter(|s| !js_trim(s).is_empty()).collect()
 }
 
-// shell-rc.ts:107
-// function skipKeywords(command: string): string {
-//   let t = command;
-//   for (let m = KEYWORDS.exec(t); m !== null; m = KEYWORDS.exec(t)) t = t.slice(m[0].length);
-//   return t;
-// }
 pub(crate) fn skip_keywords(command: &str) -> String {
-    todo!()
+    let mut t = command;
+    while let Some(m) = KEYWORDS_RE.find(t).ok().flatten() {
+        t = &t[m.end()..];
+    }
+    t.to_string()
 }
 
-// shell-rc.ts:114
-// /** A simple command's words as the shell hands them over: split on blanks outside quotes, each quote taken off. */
-// function shellWords(command: string): string[] {
-//   const words: string[] = [];
-//   let cur = "";
-//   let inWord = false;
-//   let quote: "" | "'" | '"' | "$'" = "";
-//   for (let i = 0; i < command.length; i += 1) {
-//     const c = command[i]!;
-//     const next = command[i + 1] ?? "";
-//     if (quote === "'" || (quote === "$'" && c !== "\\")) {
-//       if (c === "'") quote = "";
-//       else cur += c;
-//     } else if (c === "\\") {
-//       cur += quote === '"' && !'"\\$`'.includes(next) ? c + next : next;
-//       inWord = true;
-//       i += 1;
-//     } else if (quote === '"') {
-//       if (c === '"') quote = "";
-//       else cur += c;
-//     } else if (/\s/.test(c)) {
-//       if (inWord) words.push(cur);
-//       cur = "";
-//       inWord = false;
-//     } else {
-//       inWord = true;
-//       if (c === "$" && next === "'") {
-//         quote = "$'";
-//         i += 1;
-//       } else if (c === "'" || c === '"') quote = c;
-//       else cur += c;
-//     }
-//   }
-//   if (inWord) words.push(cur);
-//   return words;
-// }
+/// A simple command's words as the shell hands them over: split on blanks outside quotes, each quote taken off.
 pub(crate) fn shell_words(command: &str) -> Vec<String> {
-    todo!()
+    let chars: Vec<char> = command.chars().collect();
+    let mut words = Vec::new();
+    let mut cur = String::new();
+    let mut in_word = false;
+    let mut quote = "";
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        let next = chars.get(i + 1).copied();
+        if quote == "'" || (quote == "$'" && c != '\\') {
+            if c == '\'' {
+                quote = "";
+            } else {
+                cur.push(c);
+            }
+        } else if c == '\\' {
+            match next {
+                Some(n) if quote == "\"" && !matches!(n, '"' | '\\' | '$' | '`') => {
+                    cur.push(c);
+                    cur.push(n);
+                }
+                Some(n) => cur.push(n),
+                None => {}
+            }
+            in_word = true;
+            i += 2;
+            continue;
+        } else if quote == "\"" {
+            if c == '"' {
+                quote = "";
+            } else {
+                cur.push(c);
+            }
+        } else if is_js_whitespace(c) {
+            if in_word {
+                words.push(std::mem::take(&mut cur));
+            }
+            cur.clear();
+            in_word = false;
+        } else {
+            in_word = true;
+            if c == '$' && next == Some('\'') {
+                quote = "$'";
+                i += 2;
+                continue;
+            } else if c == '\'' {
+                quote = "'";
+            } else if c == '"' {
+                quote = "\"";
+            } else {
+                cur.push(c);
+            }
+        }
+        i += 1;
+    }
+    if in_word {
+        words.push(cur);
+    }
+    words
 }
 
-// shell-rc.ts:153
-// /** The text an `alias` (bash, zsh, fish) or fish `abbr` would run: each `name=body`'s body, and fish's `name body...`. */
-// function aliasBodies(words: string[]): string[] {
-//   const args: string[] = [];
-//   for (let i = 1; i < words.length; i += 1) {
-//     const w = words[i]!;
-//     if (w === "--") {
-//       args.push(...words.slice(i + 1));
-//       break;
-//     }
-//     if (/^[-+]./.test(w)) {
-//       if (words[0] === "abbr" && ABBR_VALUE.test(w)) i += 1;
-//     } else args.push(w);
-//   }
-//   const bodies = args.filter(a => a.includes("=")).map(a => a.slice(a.indexOf("=") + 1));
-//   if (args.length > 1 && !args[0]!.includes("=")) bodies.push(args.slice(1).join(" "));
-//   return bodies;
-// }
+/// The text an `alias` (bash, zsh, fish) or fish `abbr` would run: each `name=body`'s body, and fish's `name body...`.
 pub(crate) fn alias_bodies(words: &[String]) -> Vec<String> {
-    todo!()
+    let mut args: Vec<String> = Vec::new();
+    let mut i = 1;
+    while i < words.len() {
+        let w = &words[i];
+        if w == "--" {
+            args.extend(words[i + 1..].iter().cloned());
+            break;
+        }
+        if is_match(&OPTION_RE, w) {
+            if words[0] == "abbr" && is_match(&ABBR_VALUE_RE, w) {
+                i += 1;
+            }
+        } else {
+            args.push(w.clone());
+        }
+        i += 1;
+    }
+    let mut bodies: Vec<String> = args.iter().filter_map(|a| a.split_once('=').map(|(_, body)| body.to_string())).collect();
+    if args.len() > 1 && !args[0].contains('=') {
+        bodies.push(args[1..].join(" "));
+    }
+    bodies
 }
 
-// shell-rc.ts:171
-// /** A simple command's words as the shell hands them over, split where its leading assignments end. */
-// function commandWords(command: string): [string[], string[]] {
-//   const words = shellWords(command);
-//   const at = words.findIndex(w => !ASSIGNED.test(w));
-//   return at < 0 ? [words, []] : [words.slice(0, at), words.slice(at)];
-// }
 /// The leading assignments, then the rest (TS returns the pair as a tuple).
 pub(crate) fn command_words(command: &str) -> (Vec<String>, Vec<String>) {
-    todo!()
+    let mut words = shell_words(command);
+    match words.iter().position(|w| !is_match(&ASSIGNED_RE, w)) {
+        None => (words, Vec::new()),
+        Some(at) => {
+            let rest = words.split_off(at);
+            (words, rest)
+        }
+    }
 }
 
-// shell-rc.ts:179
-// /** The variables a simple command assigns, each of its leading assignments among them. A quoted builtin or name is read
-//  * as the bare one, and eval's arguments, joined by blanks as eval joins them, and an alias or abbr body are shell again. */
-// function assignedIn(command: string): string[] {
-//   const [lead, run] = commandWords(command);
-//   const leading = lead.map(w => ASSIGNED.exec(w)![1]!);
-//   if (run[0] === "eval") return [...leading, ...assignedNames(run.slice(1).join(" "))];
-//   if (run[0] === "alias" || run[0] === "abbr") return [...leading, ...aliasBodies(run).flatMap(assignedNames)];
-//   const words = shellWords(command.replace(/\\?\n/g, " "));
-//   const bare = skipKeywords(words.join(" "));
-//   const fish = FISH_SET.exec(bare);
-//   if (fish?.[2] !== undefined) return FISH_READS.test(fish[1]!) ? [] : [fish[2]];
-//   const exported = EXPORTED.exec(bare);
-//   if (exported?.[1] !== undefined) {
-//     return exported[1].split(/\s+/).map(t => ASSIGNED.exec(t)?.[1]).filter((n): n is string => n !== undefined);
-//   }
-//   const names: string[] = [];
-//   for (let i = words.findIndex((_, k) => words.slice(k).join(" ") === bare); i >= 0 && i < words.length; i += 1) {
-//     const m = ASSIGNED.exec(words[i]!);
-//     if (m === null) break;
-//     names.push(m[1]!);
-//   }
-//   return names;
-// }
+/// The name a word assigns (`NAME=` or `NAME+=`), when it is an assignment.
+fn assigned_name(word: &str) -> Option<String> {
+    captures(&ASSIGNED_RE, word).map(|caps| group(&caps, 1))
+}
+
+/// A piece of shell text still to read for the names it assigns.
+enum Work {
+    Text(String),
+    Command(String),
+}
+
+/// The names under `first`, in the order the TS recursion lists them: a command's own leading names, then each text it
+/// runs again (an eval's arguments, an alias or abbr body) before the next command. The nesting is walked on a stack
+/// of the heap, not of the thread, so a line of a thousand `eval` words is answered as node answers it at 500.
+fn assigned_walk(first: Work) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut stack = vec![vec![first].into_iter()];
+    while let Some(top) = stack.last_mut() {
+        let Some(work) = top.next() else {
+            stack.pop();
+            continue;
+        };
+        match work {
+            Work::Text(text) => {
+                let commands: Vec<Work> = text.split('\n').flat_map(simple_commands).map(Work::Command).collect();
+                stack.push(commands.into_iter());
+            }
+            Work::Command(command) => {
+                let (own, again) = assigned_head(&command);
+                names.extend(own);
+                if !again.is_empty() {
+                    stack.push(again.into_iter().map(Work::Text).collect::<Vec<_>>().into_iter());
+                }
+            }
+        }
+    }
+    names
+}
+
+/// The variables a simple command assigns, each of its leading assignments among them. A quoted builtin or name is read
+/// as the bare one, and eval's arguments, joined by blanks as eval joins them, and an alias or abbr body are shell again.
 pub(crate) fn assigned_in(command: &str) -> Vec<String> {
-    todo!()
+    assigned_walk(Work::Command(command.to_string()))
 }
 
-// shell-rc.ts:201
-// function assignedNames(text: string): string[] {
-//   return text.split("\n").flatMap(line => simpleCommands(line).flatMap(assignedIn));
-// }
-pub(crate) fn assigned_names(text: &str) -> Vec<String> {
-    todo!()
+/// What one command assigns itself, and the texts it runs again.
+fn assigned_head(command: &str) -> (Vec<String>, Vec<String>) {
+    let (lead, run) = command_words(command);
+    let leading: Vec<String> = lead.iter().filter_map(|w| assigned_name(w)).collect();
+    match run.first().map(String::as_str) {
+        Some("eval") => return (leading, vec![run[1..].join(" ")]),
+        Some("alias" | "abbr") => return (leading, alias_bodies(&run)),
+        _ => {}
+    }
+    let words = shell_words(&newline_as_space(command));
+    let bare = skip_keywords(&words.join(" "));
+    if let Some(fish) = captures(&FISH_SET_RE, &bare) {
+        return (if is_match(&FISH_READS_RE, &group(&fish, 1)) { Vec::new() } else { vec![group(&fish, 2)] }, Vec::new());
+    }
+    if let Some(exported) = captures(&EXPORTED_RE, &bare) {
+        return (group(&exported, 1).split(is_js_whitespace).filter_map(assigned_name).collect(), Vec::new());
+    }
+    let mut out = Vec::new();
+    if let Some(mut i) = (0..words.len()).find(|&k| words[k..].join(" ") == bare) {
+        while let Some(name) = words.get(i).and_then(|w| assigned_name(w)) {
+            out.push(name);
+            i += 1;
+        }
+    }
+    (out, Vec::new())
 }
 
-// shell-rc.ts:238
-// /** A `#` outside quotes at the start of a word begins a comment; nothing after it is shell. After `(` or `{` it is a zsh glob flag, a brace expansion or `${#var}`, never a comment, but right after an array's `=(` bash and zsh both read one. */
-// function commentAt(line: string, i: number): boolean {
-//   return line[i] === "#" && (i === 0 || /[\s;&|]/.test(line[i - 1] ?? "") || line.slice(i - 2, i) === "=(");
-// }
+/// A `\` before a newline, or a bare newline, as a space (`command.replace(/\\?\n/g, " ")`).
+fn newline_as_space(command: &str) -> String {
+    let mut out = String::new();
+    let mut chars = command.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' && chars.peek() == Some(&'\n') {
+            chars.next();
+            out.push(' ');
+        } else if c == '\n' {
+            out.push(' ');
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
 /// `i` indexes the line's characters (`line.chars()`); every character it compares is ASCII but `\s`, which is
 /// JavaScript's set, so a `#` after a no-break space starts a comment.
 pub(crate) fn comment_at(line: &[char], i: usize) -> bool {
-    todo!()
+    if line.get(i) != Some(&'#') {
+        return false;
+    }
+    i == 0
+        || is_js_whitespace(line[i - 1])
+        || matches!(line[i - 1], ';' | '&' | '|')
+        || (i >= 2 && line[i - 2] == '=' && line[i - 1] == '(')
 }
 
-// shell-rc.ts:537
-// /** A command that reads a file: its `source` or `.` word (nvm writes `\.` to dodge an alias on the dot), the one token after it and what follows. */
-// export function sourceCommand(command: string): SourceCommand | undefined {
-//   const m = SOURCE.exec(command);
-//   return m === null ? undefined : { indent: m[1]!, word: m[2]!, token: m[3]!, rest: m[4]! };
-// }
+/// A command that reads a file: its `source` or `.` word (nvm writes `\.` to dodge an alias on the dot), the one token after it and what follows.
 pub fn source_command(command: &str) -> Option<SourceCommand> {
-    todo!()
+    let caps = captures(&SOURCE_RE, command)?;
+    Some(SourceCommand { indent: group(&caps, 1), word: group(&caps, 2), token: group(&caps, 3), rest: group(&caps, 4) })
 }
 
-// shell-rc.ts:544
-// /** The file a source token names, absolute, when the token is literal: `~/`, `$HOME/` and `${HOME}/` fold to home; a
-//  * variable elsewhere, a glob, a substitution, an escape or an empty, `.` or `..` segment is left to a running shell. */
-// export function sourcedPath(token: string, home: string): string | undefined {
-//   const raw = /^(["']).*\1$/.test(token) ? token.slice(1, -1) : token;
-//   const path = raw.replace(/^(?:~|\$HOME|\$\{HOME\})(?=\/)/, () => home);
-//   if (!path.startsWith("/") || /[$`*?[\]\\]/.test(path) || path.split("/").slice(1).some(seg => seg === "" || seg === "." || seg === "..")) return undefined;
-//   return path;
-// }
+/// The file a source token names, absolute, when the token is literal: `~/`, `$HOME/` and `${HOME}/` fold to home; a
+/// variable elsewhere, a glob, a substitution, an escape or an empty, `.` or `..` segment is left to a running shell.
 pub fn sourced_path(token: &str, home: &str) -> Option<String> {
-    todo!()
+    let raw = if is_match(&QUOTE_WRAP_RE, token) { &token[1..token.len() - 1] } else { token };
+    let path = fold_home(raw, home);
+    if !path.starts_with('/')
+        || path.chars().any(|c| "$`*?[]\\".contains(c))
+        || path.split('/').skip(1).any(|seg| matches!(seg, "" | "." | ".."))
+    {
+        return None;
+    }
+    Some(path)
 }
 
-// shell-rc.ts:552
-// /** The files an rc file reads with `source` or `.` by a literal path, anywhere on the line, in order, once each. */
-// export function sourcedPaths(text: string, home: string): string[] {
-//   const out: string[] = [];
-//   for (const line of text.split(/\r?\n/)) {
-//     // simpleCommands splits on braces, so `${HOME}` is folded before the split.
-//     for (const cmd of simpleCommands(line.replace(/\$\{HOME\}/g, "$HOME"))) {
-//       const src = sourceCommand(cmd);
-//       const p = src === undefined ? undefined : sourcedPath(src.token, home);
-//       if (p !== undefined && !out.includes(p)) out.push(p);
-//     }
-//   }
-//   return out;
-// }
+/// `raw` with a leading `~`, `$HOME` or `${HOME}` that is followed by `/` replaced by home.
+fn fold_home(raw: &str, home: &str) -> String {
+    for prefix in ["~", "$HOME", "${HOME}"] {
+        if let Some(rest) = raw.strip_prefix(prefix) {
+            if rest.starts_with('/') {
+                return format!("{home}{rest}");
+            }
+        }
+    }
+    raw.to_string()
+}
+
+/// The files an rc file reads with `source` or `.` by a literal path, anywhere on the line, in order, once each.
 pub fn sourced_paths(text: &str, home: &str) -> Vec<String> {
-    todo!()
+    let mut out: Vec<String> = Vec::new();
+    for line in split_lines(text) {
+        // simpleCommands splits on braces, so `${HOME}` is folded before the split.
+        for cmd in simple_commands(&line.replace("${HOME}", "$HOME")) {
+            let Some(src) = source_command(&cmd) else { continue };
+            if let Some(p) = sourced_path(&src.token, home) {
+                if !out.contains(&p) {
+                    out.push(p);
+                }
+            }
+        }
+    }
+    out
 }

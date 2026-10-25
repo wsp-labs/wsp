@@ -728,12 +728,6 @@ mod pinned {
         assert_eq!(spend_meter_word(3_f64, 2.999_f64), "$3.00/$3.00"); // spendMeterWord(3, 2.999)
         assert_eq!(place_spend_line(12.5, 0.0, 1.0), "$12.50 this month, $0.00/hr now across 1 workspace"); // placeSpendLine({monthUsd:12.5,rateUsdPerHour:0}, 1)
         assert_eq!(places_spend_foot(0.0, 0.0), "$0.00 this month across 0 providers"); // placesSpendFoot(0, 0)
-        assert_eq!(place_engine_line(&wire(json!({"id":"b","kind":"computer","default":false,"name":"b"}))), None); // placeEngineLine({"name":"b"})
-        assert_eq!(
-            place_engine_line(&wire(json!({"id":"b","kind":"computer","default":false,"name":"b","engine":"none"}))),
-            Some("b has no container engine; a project's docker compose runs there once you install Docker or podman on it".to_string())
-        ); // placeEngineLine({"name":"b","engine":"none"})
-        assert_eq!(place_engine_line(&wire(json!({"id":"b","kind":"computer","default":false,"name":"b","engine":"podman"}))), Some("b runs a project's own containers on podman; a workspace made with --engine gets a socket to it and sees its own containers alone".to_string())); // placeEngineLine({"name":"b","engine":"podman"})
         assert_eq!(agents_cell(&wire(json!({"id":"b","kind":"computer","default":false,"name":"x"}))), ""); // agentsCell({name:"x"})
         assert_eq!(
             agents_cell(&wire(

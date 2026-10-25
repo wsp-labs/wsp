@@ -40,7 +40,8 @@ fn bare(status: TurnStatus) -> TurnResult {
 }
 
 fn usage(input: u64, output: u64, cached: u64, cache_write: u64) -> UsageTokens {
-    UsageTokens { input, output, cached, cache_write, reasoning: 0 }
+    let n = |v: u64| wsp_wire::types::JsNumber(v as f64);
+    UsageTokens { input: n(input), output: n(output), cached: n(cached), cache_write: n(cache_write), reasoning: n(0) }
 }
 
 // T7: set_access, stop_task and interrupt number their requests off one counter per turn; on a kept process that is

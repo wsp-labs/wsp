@@ -193,11 +193,8 @@ mod pinned {
             boat_added_line(Some(&limits(false, None, None, None, None)), &medium()),
             "Boat added: a paid plan; medium 4 vCPU 8 GB at $0.018/h until you pick another size."
         ); // boatAddedLine({ trial: false }, { type: "medium", cpu: 4, memMb: 8192, rateUsdPerHour: 0.018 })
-        assert_eq!(boat_added_line(Some(&limits(false, Some(20.0), Some(3.0), Some((12.0, 60.0, 200.0)), None)), &medium()), "Boat added: $20 plan, 3 machines at once, 12 starts a minute, 60 an hour, 200 a day; medium 4 vCPU 8 GB at $0.018/h until you pick another size."); // boatAddedLine({ trial: false, planUsd: 20, machinesAtOnce: 3, starts: { minute: { limit: 12 }, hour: { limit: 60 }, day: { limit: 200 } } }, { type: "medium", cpu: 4, memMb: 8192, rateUsdPerHour: 0.018 })
-        assert_eq!(boat_forks_no_first_line(&["--size"]), "Boat forks no first machine, so --size does nothing here."); // boatForksNoFirstLine(["--size"])
-        assert_eq!(boat_forks_no_first_line(&["--size", "--name"]), "Boat forks no first machine, so --size and --name do nothing here."); // boatForksNoFirstLine(["--size", "--name"])
-        assert_eq!(boat_forks_no_first_line(&[] as &[&str]), "Boat forks no first machine, so  do nothing here.");
-        // boatForksNoFirstLine([])
+        assert_eq!(boat_added_line(Some(&limits(false, Some(20.0), Some(3.0), Some((12.0, 60.0, 200.0)), None)), &medium()), "Boat added: $20 plan, 3 machines at once, 12 starts a minute, 60 an hour, 200 a day; medium 4 vCPU 8 GB at $0.018/h until you pick another size.");
+        // boatAddedLine({ trial: false, planUsd: 20, machinesAtOnce: 3, starts: { minute: { limit: 12 }, hour: { limit: 60 }, day: { limit: 200 } } }, { type: "medium", cpu: 4, memMb: 8192, rateUsdPerHour: 0.018 })
     }
 
     #[test]

@@ -2,196 +2,260 @@
 //! What a shell line says the agent ran, as names: the first word of each command in it and the packages its install
 //! commands asked for. Heredoc bodies are cut before anything is read, quoted text is never split. Port of
 //! packages/collect/src/history/commands.ts at a3b870a6e; the spec is spec/history_commands.md.
+use std::sync::LazyLock;
 
-// history/commands.ts:6
-// const SEPARATORS = new Set(["|", "||", "&&", ";", "&", "\n"]);
-// /** Words that run the command after them, options of their own skipped. */
-// const PREFIXES = new Set(["sudo", "doas", "env", "time", "nohup", "exec", "command", "builtin", "nice", "xargs", "caffeinate", "then", "do", "else", "if", "elif", "while", "until", "!"]);
-// /** The options of a prefix that take the next word as their value. */
-// const PREFIX_OPTION_ARGS: Readonly<Record<string, readonly string[]>> = { sudo: ["-u", "-g", "-h", "-p"], doas: ["-u"], nice: ["-n"], xargs: ["-I", "-n", "-P", "-d", "-L", "-s"] };
-// /** Shell syntax and builtins that start a command but run nothing on their own. */
-// const NOT_COMMANDS = new Set(["for", "case", "function", "fi", "done", "esac", "export", "local", "declare", "typeset", "readonly", "unset", "return", "exit", "break", "continue", "shift", "set", "cd", "echo", "printf", "true", "false", "[", "[[", "test", "wait", "trap", "source", ".", "alias", "eval", "read", ":"]);
-//
-// /** A command that only asks whether a program is there or which version: `which x`, `command -v x`, or `x` with one
-//  * version flag (`--version`, `-version` as Java spells it, `-v`, `-V`) and nothing else. */
-// const LOOKUPS = new Set(["which"]);
-// const VERSION_FLAGS = new Set(["--version", "-version", "-v", "-V"]);
-// const COMMAND_LOOKUP_FLAGS = new Set(["-v", "-V"]);
-//
-// const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
-// /** A redirection on its own (`>`, `2>`, `&>`, `<`), its target the next word. */
-// const REDIRECT_ALONE = /^(?:\d*|&)[<>]{1,2}&?$/;
-// /** A redirection, its target attached or a descriptor (`>out.txt`, `2>/dev/null`, `2>&1`, `&>/dev/null`). */
-// const REDIRECT = /^(?:\d*|&)[<>]/;
+use fancy_regex::Regex;
+use wsp_words::js::{is_js_whitespace, js_trim, JS_WS};
+
 pub const SEPARATORS: [&str; 6] = ["|", "||", "&&", ";", "&", "\n"];
+const PREFIXES: [&str; 19] = [
+    "sudo",
+    "doas",
+    "env",
+    "time",
+    "nohup",
+    "exec",
+    "command",
+    "builtin",
+    "nice",
+    "xargs",
+    "caffeinate",
+    "then",
+    "do",
+    "else",
+    "if",
+    "elif",
+    "while",
+    "until",
+    "!",
+];
+const NOT_COMMANDS: [&str; 34] = [
+    "for", "case", "function", "fi", "done", "esac", "export", "local", "declare", "typeset", "readonly", "unset", "return", "exit",
+    "break", "continue", "shift", "set", "cd", "echo", "printf", "true", "false", "[", "[[", "test", "wait", "trap", "source", ".",
+    "alias", "eval", "read", ":",
+];
+const VERSION_FLAGS: [&str; 4] = ["--version", "-version", "-v", "-V"];
+const COMMAND_LOOKUP_FLAGS: [&str; 2] = ["-v", "-V"];
+const NPM_INSTALL: [&str; 3] = ["install", "i", "add"];
+
+static ASSIGNMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*=").unwrap());
+static REDIRECT_ALONE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(?:[0-9]*|&)[<>]{1,2}&?$").unwrap());
+static REDIRECT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(?:[0-9]*|&)[<>]").unwrap());
+static HEREDOC: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!("<<-?[{JS_WS}]*(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z0-9_]+))")).unwrap());
+static VERSION_SEGMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^v[0-9]+$").unwrap());
+
+fn matches(re: &Regex, text: &str) -> bool {
+    re.is_match(text).unwrap_or(false)
+}
+
+fn is_assignment(word: &str) -> bool {
+    matches(&ASSIGNMENT, word)
+}
+
+fn prefix_option_args(word: &str) -> &'static [&'static str] {
+    match word {
+        "sudo" => &["-u", "-g", "-h", "-p"],
+        "doas" => &["-u"],
+        "nice" => &["-n"],
+        "xargs" => &["-I", "-n", "-P", "-d", "-L", "-s"],
+        _ => &[],
+    }
+}
 
 /// The line with every heredoc body removed: from the line after `<<TAG` to the line that is the tag.
-// history/commands.ts:26
-// /** The line with every heredoc body removed: from the line after `<<TAG` (quoted or not, dash or not) to the tag. */
-// export function withoutHeredocs(line: string): string {
-//   const out: string[] = [];
-//   let tag: string | undefined;
-//   for (const l of line.split("\n")) {
-//     if (tag !== undefined) {
-//       if (l.trim() === tag) tag = undefined;
-//       continue;
-//     }
-//     out.push(l);
-//     const m = /<<-?\s*(?:'([^']+)'|"([^"]+)"|(\w+))/.exec(l);
-//     if (m !== null) tag = m[1] ?? m[2] ?? m[3];
-//   }
-//   return out.join("\n");
-// }
 pub fn without_heredocs(line: &str) -> String {
-    todo!()
+    let mut out: Vec<&str> = Vec::new();
+    let mut tag: Option<String> = None;
+    for l in line.split('\n') {
+        if let Some(t) = tag.take() {
+            if js_trim(l) != t {
+                tag = Some(t);
+            }
+            continue;
+        }
+        out.push(l);
+        if let Ok(Some(m)) = HEREDOC.captures(l) {
+            tag = m.get(1).or(m.get(2)).or(m.get(3)).map(|g| g.as_str().to_string());
+        }
+    }
+    out.join("\n")
+}
+
+/// The index of the brace closing the one at `open`, nested braces skipped; the last index when none closes it.
+fn closing_brace(c: &[char], open: usize) -> usize {
+    let mut depth = 0i64;
+    for (i, ch) in c.iter().enumerate().skip(open) {
+        if *ch == '{' {
+            depth += 1;
+        } else if *ch == '}' {
+            depth -= 1;
+            if depth == 0 {
+                return i;
+            }
+        }
+    }
+    c.len() - 1
+}
+
+fn flush(cur: &mut String, out: &mut Vec<String>) {
+    let text = js_trim(cur);
+    if !text.is_empty() {
+        out.push(text.to_string());
+    }
+    cur.clear();
 }
 
 /// The line cut into commands at unquoted separators, subshells and substitutions opened; each command trimmed, empty
 /// ones dropped.
-// history/commands.ts:42
-// /** The index of the brace closing the one at `open`, nested braces skipped; the last index when none closes it. */
-// function closingBrace(line: string, open: number): number {
-//   let depth = 0;
-//   for (let i = open; i < line.length; i += 1) {
-//     if (line[i] === "{") depth += 1;
-//     else if (line[i] === "}" && (depth -= 1) === 0) return i;
-//   }
-//   return line.length - 1;
-// }
-//
-// /** The line cut into commands at unquoted separators, subshells and substitutions opened, a `$(...)` inside double
-//  * quotes too since its command runs; a `${...}` stays in its word; a `#` at the start of a word ends the line. */
-// export function splitCommands(line: string): string[] {
-//   const out: string[] = [];
-//   let cur = "";
-//   let quote: string | undefined;
-//   /** The quote each open `(` or `$(` was met inside, put back when its `)` closes. */
-//   const opened: (string | undefined)[] = [];
-//   const flush = (): void => {
-//     if (cur.trim() !== "") out.push(cur.trim());
-//     cur = "";
-//   };
-//   for (let i = 0; i < line.length; i += 1) {
-//     const c = line[i]!;
-//     const two = line.slice(i, i + 2);
-//     if (quote !== undefined) {
-//       if (c === "\\" && quote === '"') {
-//         cur += c + (line[i + 1] ?? "");
-//         i += 1;
-//       } else if (quote === '"' && two === "$(") {
-//         flush();
-//         opened.push(quote);
-//         quote = undefined;
-//         i += 1;
-//       } else if (c === quote) quote = undefined;
-//       else cur += c;
-//       continue;
-//     }
-//     if (c === "'" || c === '"') {
-//       quote = c;
-//       continue;
-//     }
-//     if (c === "\\") {
-//       cur += line[i + 1] ?? "";
-//       i += 1;
-//       continue;
-//     }
-//     if (c === "#" && (i === 0 || /[\s;&|(){}]/.test(line[i - 1]!))) {
-//       flush();
-//       const end = line.indexOf("\n", i);
-//       i = end === -1 ? line.length : end - 1;
-//       continue;
-//     }
-//     if (SEPARATORS.has(two) || two === "$(") {
-//       flush();
-//       if (two === "$(") opened.push(undefined);
-//       i += 1;
-//       continue;
-//     }
-//     if (two === "${") {
-//       const end = closingBrace(line, i + 1);
-//       cur += line.slice(i, end + 1);
-//       i = end;
-//       continue;
-//     }
-//     if (c === "(" || c === ")") {
-//       flush();
-//       if (c === "(") opened.push(undefined);
-//       else if (opened.length > 0) quote = opened.pop();
-//       continue;
-//     }
-//     // An ampersand beside a redirection (`2>&1`, `&>`) is part of it, not a background job.
-//     const redirect = c === "&" && (">" === line[i - 1] || "<" === line[i - 1] || line[i + 1] === ">");
-//     if (!redirect && (SEPARATORS.has(c) || c === "`" || c === "{" || c === "}")) {
-//       flush();
-//       continue;
-//     }
-//     cur += c;
-//   }
-//   flush();
-//   return out;
-// }
 pub fn split_commands(line: &str) -> Vec<String> {
-    todo!()
+    let c: Vec<char> = line.chars().collect();
+    let n = c.len();
+    let mut out: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut quote: Option<char> = None;
+    let mut opened: Vec<Option<char>> = Vec::new();
+    let mut i = 0;
+    while i < n {
+        let ch = c[i];
+        let two: String = c[i..(i + 2).min(n)].iter().collect();
+        if let Some(q) = quote {
+            if ch == '\\' && q == '"' {
+                cur.push(ch);
+                if let Some(next) = c.get(i + 1) {
+                    cur.push(*next);
+                }
+                i += 2;
+            } else if q == '"' && two == "$(" {
+                flush(&mut cur, &mut out);
+                opened.push(quote);
+                quote = None;
+                i += 2;
+            } else {
+                if ch == q {
+                    quote = None;
+                } else {
+                    cur.push(ch);
+                }
+                i += 1;
+            }
+            continue;
+        }
+        if ch == '\'' || ch == '"' {
+            quote = Some(ch);
+            i += 1;
+            continue;
+        }
+        if ch == '\\' {
+            if let Some(next) = c.get(i + 1) {
+                cur.push(*next);
+            }
+            i += 2;
+            continue;
+        }
+        if ch == '#' && (i == 0 || is_js_whitespace(c[i - 1]) || ";&|(){}".contains(c[i - 1])) {
+            flush(&mut cur, &mut out);
+            i = c[i..].iter().position(|x| *x == '\n').map_or(n, |p| i + p);
+            continue;
+        }
+        if SEPARATORS.contains(&two.as_str()) || two == "$(" {
+            flush(&mut cur, &mut out);
+            if two == "$(" {
+                opened.push(None);
+            }
+            i += 2;
+            continue;
+        }
+        if two == "${" {
+            let end = closing_brace(&c, i + 1);
+            cur.extend(&c[i..=end]);
+            i = end + 1;
+            continue;
+        }
+        if ch == '(' || ch == ')' {
+            flush(&mut cur, &mut out);
+            if ch == '(' {
+                opened.push(None);
+            } else if let Some(q) = opened.pop() {
+                quote = q;
+            }
+            i += 1;
+            continue;
+        }
+        let prev = i.checked_sub(1).map(|p| c[p]);
+        let redirect = ch == '&' && (prev == Some('>') || prev == Some('<') || c.get(i + 1) == Some(&'>'));
+        if !redirect && matches!(ch, '|' | '&' | ';' | '\n' | '`' | '{' | '}') {
+            flush(&mut cur, &mut out);
+            i += 1;
+            continue;
+        }
+        cur.push(ch);
+        i += 1;
+    }
+    flush(&mut cur, &mut out);
+    out
 }
 
 /// The words of one command, prefixes and their options skipped, assignments and redirections skipped, the head's
 /// directory dropped; empty for shell syntax alone.
-// history/commands.ts:125
-// /** The words of one command, prefixes and their options skipped, assignments skipped; empty for shell syntax alone. */
-// export function commandWords(command: string): string[] {
-//   const words = command.split(/\s+/).filter(w => w !== "");
-//   let i = 0;
-//   while (i < words.length) {
-//     const w = words[i]!;
-//     if (ASSIGNMENT.test(w) || REDIRECT.test(w)) {
-//       i += REDIRECT_ALONE.test(w) ? 2 : 1;
-//       continue;
-//     }
-//     // `command -v x` looks x up and runs nothing, so it stays a command of its own for isVersionCheck to see.
-//     if (w === "command" && COMMAND_LOOKUP_FLAGS.has(words[i + 1] ?? "")) break;
-//     if (PREFIXES.has(w)) {
-//       const withArg = PREFIX_OPTION_ARGS[w] ?? [];
-//       i += 1;
-//       while (i < words.length && (words[i]!.startsWith("-") || (w === "env" && ASSIGNMENT.test(words[i]!)))) i += withArg.includes(words[i]!) ? 2 : 1;
-//       continue;
-//     }
-//     break;
-//   }
-//   const rest = words.slice(i);
-//   const head = rest[0];
-//   if (head === undefined || NOT_COMMANDS.has(head)) return [];
-//   return [head.slice(head.lastIndexOf("/") + 1), ...rest.slice(1)];
-// }
 pub fn command_words(command: &str) -> Vec<String> {
-    todo!()
+    let words: Vec<&str> = command.split(is_js_whitespace).filter(|w| !w.is_empty()).collect();
+    let mut i = 0;
+    while i < words.len() {
+        let w = words[i];
+        if is_assignment(w) || matches(&REDIRECT, w) {
+            i += if matches(&REDIRECT_ALONE, w) { 2 } else { 1 };
+            continue;
+        }
+        if w == "command" && words.get(i + 1).is_some_and(|a| COMMAND_LOOKUP_FLAGS.contains(a)) {
+            break;
+        }
+        if PREFIXES.contains(&w) {
+            let with_arg = prefix_option_args(w);
+            i += 1;
+            while i < words.len() && (words[i].starts_with('-') || (w == "env" && is_assignment(words[i]))) {
+                i += if with_arg.contains(&words[i]) { 2 } else { 1 };
+            }
+            continue;
+        }
+        break;
+    }
+    let rest = words.get(i..).unwrap_or(&[]);
+    let Some(head) = rest.first() else { return Vec::new() };
+    if NOT_COMMANDS.contains(head) {
+        return Vec::new();
+    }
+    let name = &head[head.rfind('/').map_or(0, |p| p + 1)..];
+    std::iter::once(name.to_string()).chain(rest[1..].iter().map(|w| w.to_string())).collect()
 }
 
-// history/commands.ts:151
-// /** Whether one command's words only ask whether a program is there or which version it is; nothing was worked with. */
-// export function isVersionCheck(words: readonly string[]): boolean {
-//   const [head, arg] = words;
-//   if (head === undefined) return false;
-//   if (LOOKUPS.has(head)) return true;
-//   if (head === "command") return COMMAND_LOOKUP_FLAGS.has(arg ?? "");
-//   return words.length === 2 && VERSION_FLAGS.has(arg!);
-// }
+/// Whether one command's words only ask whether a program is there or which version it is; nothing was worked with.
 pub fn is_version_check(words: &[String]) -> bool {
-    todo!()
+    let Some(head) = words.first() else { return false };
+    let arg = words.get(1).map(String::as_str);
+    if head == "which" {
+        return true;
+    }
+    if head == "command" {
+        return arg.is_some_and(|a| COMMAND_LOOKUP_FLAGS.contains(&a));
+    }
+    words.len() == 2 && arg.is_some_and(|a| VERSION_FLAGS.contains(&a))
 }
 
-/// The names of the programs a shell line runs, one per command, in order and with repeats.
-// history/commands.ts:160
-// /** The names of the programs a shell line runs, one per command in it, in order and with repeats; a version check
-//  * or a lookup is not a run. */
-// export function commandNames(line: string): string[] {
-//   return splitCommands(withoutHeredocs(line)).flatMap(c => {
-//     const words = commandWords(c);
-//     return isVersionCheck(words) ? [] : words.slice(0, 1);
-//   });
-// }
+/// The names of the programs a shell line runs, one per command in it, in order and with repeats; a version check
+/// or a lookup is not a run.
 pub fn command_names(line: &str) -> Vec<String> {
-    todo!()
+    split_commands(&without_heredocs(line))
+        .iter()
+        .flat_map(|c| {
+            let words = command_words(c);
+            if is_version_check(&words) {
+                Vec::new()
+            } else {
+                words.into_iter().take(1).collect()
+            }
+        })
+        .collect()
 }
 
 /// commands.ts:169.
@@ -202,78 +266,114 @@ pub struct Install {
     pub name: String,
 }
 
-/// The packages one command asks an installer for.
-// history/commands.ts:175
-// const NPM_INSTALL = new Set(["install", "i", "add"]);
-//
-// /** `@scope/name@1.2.3` to `@scope/name`, `name@latest` to `name`, `pkg==1.0` to `pkg`, `mod/path@v1` to `path`. */
-// function bareName(spec: string, via: string): string {
-//   let s = spec;
-//   if (via === "go") {
-//     s = s.slice(0, s.indexOf("@") === -1 ? s.length : s.indexOf("@"));
-//     return s.slice(s.lastIndexOf("/") + 1).replace(/^v\d+$/, "") || s;
-//   }
-//   if (via === "uv" || via === "pipx" || via === "uvx" || via === "pipx-run") return s.split(/[=<>!~[]/)[0]!;
-//   const at = s.indexOf("@", 1);
-//   return at === -1 ? s : s.slice(0, at);
-// }
-//
-// /** The words after `from` that are neither options nor redirections nor the target of a bare one. */
-// function positional(words: readonly string[], from: number): string[] {
-//   const out: string[] = [];
-//   for (let i = from; i < words.length; i += 1) {
-//     const w = words[i]!;
-//     if (REDIRECT_ALONE.test(w)) i += 1;
-//     else if (!w.startsWith("-") && !REDIRECT.test(w)) out.push(w);
-//   }
-//   return out;
-// }
-//
-// /** The packages one command asks an installer for, with the installer; one-shot runs are listed under their runner. */
-// export function installsIn(command: string): Install[] {
-//   const w = commandWords(command);
-//   const head = w[0];
-//   if (head === undefined) return [];
-//   const at = (i: number, ...names: string[]): boolean => w[i] !== undefined && names.includes(w[i]!);
-//   const list = (via: string, from: number): Install[] => positional(w, from).map(name => ({ via, name: bareName(name, via) })).filter(i => i.name !== "");
-//   switch (head) {
-//     case "brew":
-//       return at(1, "install", "reinstall") ? list("brew", 2) : [];
-//     case "npm":
-//       return at(1, ...NPM_INSTALL) && w.slice(2).some(x => x === "-g" || x === "--global") ? list("npm", 2) : [];
-//     case "pnpm":
-//       return at(1, "add", "install", "i") && w.slice(2).some(x => x === "-g" || x === "--global") ? list("pnpm", 2) : [];
-//     case "bun":
-//       return at(1, "add", "install", "i") && w.slice(2).some(x => x === "-g" || x === "--global") ? list("bun", 2) : [];
-//     case "uv":
-//       return at(1, "tool") && at(2, "install") ? list("uv", 3) : [];
-//     case "pipx":
-//       if (at(1, "install")) return list("pipx", 2);
-//       return at(1, "run") ? list("pipx-run", 2).slice(0, 1) : [];
-//     case "cargo":
-//       return at(1, "install") ? list("cargo", 2) : [];
-//     case "go":
-//       return at(1, "install") ? list("go", 2) : [];
-//     case "apt":
-//     case "apt-get":
-//       return at(1, "install") ? list("apt", 2) : [];
-//     case "npx":
-//     case "bunx":
-//     case "uvx":
-//       return list(head, 1).slice(0, 1);
-//     default:
-//       return [];
-//   }
-// }
-pub fn installs_in(command: &str) -> Vec<Install> {
-    todo!()
+/// `@scope/name@1.2.3` to `@scope/name`, `name@latest` to `name`, `pkg==1.0` to `pkg`, `mod/path@v1` to `path`.
+fn bare_name(spec: &str, via: &str) -> String {
+    if via == "go" {
+        let s = match spec.find('@') {
+            Some(at) => &spec[..at],
+            None => spec,
+        };
+        let segment = &s[s.rfind('/').map_or(0, |p| p + 1)..];
+        let segment = if matches(&VERSION_SEGMENT, segment) { "" } else { segment };
+        return if segment.is_empty() { s.to_string() } else { segment.to_string() };
+    }
+    if matches!(via, "uv" | "pipx" | "uvx" | "pipx-run") {
+        return spec.split(|c: char| "=<>!~[".contains(c)).next().unwrap_or_default().to_string();
+    }
+    let skip = spec.chars().next().map_or(0, char::len_utf8);
+    match spec[skip..].find('@') {
+        Some(at) => spec[..skip + at].to_string(),
+        None => spec.to_string(),
+    }
 }
 
-// history/commands.ts:237
-// /** Every install a shell line asks for, across its commands. */
-// export function installNames(line: string): Install[] {
-//   return splitCommands(withoutHeredocs(line)).flatMap(installsIn);
-// }
+/// The words after `from` that are neither options nor redirections nor the target of a bare one.
+fn positional(words: &[String], from: usize) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut i = from;
+    while i < words.len() {
+        let w = &words[i];
+        if matches(&REDIRECT_ALONE, w) {
+            i += 1;
+        } else if !w.starts_with('-') && !matches(&REDIRECT, w) {
+            out.push(w.clone());
+        }
+        i += 1;
+    }
+    out
+}
+
+/// The packages one command asks an installer for, with the installer; one-shot runs are listed under their runner.
+pub fn installs_in(command: &str) -> Vec<Install> {
+    let w = command_words(command);
+    let Some(head) = w.first() else { return Vec::new() };
+    let at = |i: usize, names: &[&str]| w.get(i).is_some_and(|x| names.contains(&x.as_str()));
+    let global = w.iter().skip(2).any(|x| x == "-g" || x == "--global");
+    let list = |via: &str, from: usize| -> Vec<Install> {
+        positional(&w, from)
+            .into_iter()
+            .map(|name| Install { via: via.to_string(), name: bare_name(&name, via) })
+            .filter(|i| !i.name.is_empty())
+            .collect()
+    };
+    match head.as_str() {
+        "brew" => {
+            if at(1, &["install", "reinstall"]) {
+                list("brew", 2)
+            } else {
+                Vec::new()
+            }
+        }
+        "npm" => {
+            if at(1, &NPM_INSTALL[..]) && global {
+                list("npm", 2)
+            } else {
+                Vec::new()
+            }
+        }
+        "pnpm" | "bun" => {
+            if at(1, &["add", "install", "i"]) && global {
+                list(head.as_str(), 2)
+            } else {
+                Vec::new()
+            }
+        }
+        "uv" => {
+            if at(1, &["tool"]) && at(2, &["install"]) {
+                list("uv", 3)
+            } else {
+                Vec::new()
+            }
+        }
+        "pipx" => {
+            if at(1, &["install"]) {
+                list("pipx", 2)
+            } else if at(1, &["run"]) {
+                list("pipx-run", 2).into_iter().take(1).collect()
+            } else {
+                Vec::new()
+            }
+        }
+        "cargo" | "go" => {
+            if at(1, &["install"]) {
+                list(head.as_str(), 2)
+            } else {
+                Vec::new()
+            }
+        }
+        "apt" | "apt-get" => {
+            if at(1, &["install"]) {
+                list("apt", 2)
+            } else {
+                Vec::new()
+            }
+        }
+        "npx" | "bunx" | "uvx" => list(head.as_str(), 1).into_iter().take(1).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Every install a shell line asks for, across its commands.
 pub fn install_names(line: &str) -> Vec<Install> {
-    todo!()
+    split_commands(&without_heredocs(line)).iter().flat_map(|c| installs_in(c)).collect()
 }

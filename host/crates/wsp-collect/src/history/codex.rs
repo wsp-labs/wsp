@@ -4,66 +4,84 @@
 //! spec/history_readers.md.
 use futures::future::LocalBoxFuture;
 use futures::stream::LocalBoxStream;
+use futures::{FutureExt, StreamExt};
 use serde_json::Value;
 use wsp_words::exit::HostError;
 
-use crate::history::reader::{Call, HistoryFile, HistoryReader};
+use crate::history::reader::{is_record, jsonl_files, stem, time_of, try_json, Call, CallKind, HistoryFile, HistoryReader};
 use crate::host::Host;
 
 /// The function names that carry a shell command (codex.ts:8).
 pub const SHELLS: [&str; 4] = ["exec_command", "shell", "container.exec", "local_shell"];
 
-// history/codex.ts:10
-// export function codexCall(session: string, name: string, args: unknown, folder?: string, at?: number): Call {
-//   const arg = isRecord(args) ? args : {};
-//   const where = { ...(folder !== undefined ? { folder } : {}), ...(at !== undefined ? { at } : {}) };
-//   if (SHELLS.has(name)) {
-//     const cmd = arg["cmd"] ?? arg["command"];
-//     if (typeof cmd === "string") return { session, ...where, kind: "shell", line: cmd };
-//     if (Array.isArray(cmd) && cmd.every(w => typeof w === "string")) return { session, ...where, kind: "shell", line: cmd.join(" ") };
-//   }
-//   return { session, ...where, kind: "other", name };
-// }
 pub fn codex_call(session: &str, name: &str, args: Option<&Value>, folder: Option<&str>, at: Option<f64>) -> Call {
-    todo!()
+    let arg = args.filter(|v| is_record(v));
+    if SHELLS.contains(&name) {
+        let cmd = arg.and_then(|a| a.get("cmd").filter(|v| !v.is_null()).or_else(|| a.get("command")));
+        let line = match cmd {
+            Some(Value::String(text)) => Some(text.clone()),
+            Some(Value::Array(words)) if words.iter().all(Value::is_string) => {
+                Some(words.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" "))
+            }
+            _ => None,
+        };
+        if let Some(line) = line {
+            return Call { session: session.to_string(), folder: folder.map(str::to_string), at, kind: CallKind::Shell { line } };
+        }
+    }
+    Call { session: session.to_string(), folder: folder.map(str::to_string), at, kind: CallKind::Other { name: name.to_string() } }
+}
+
+/// The calls one rollout line holds. The folder is set by the first `session_meta` line whose payload names one, and
+/// a later line never changes it.
+fn calls_of_line(session: &str, folder: &mut Option<String>, line: &str) -> Vec<Call> {
+    if folder.is_none() && line.contains("\"session_meta\"") {
+        let meta = try_json(line);
+        if let Some(cwd) =
+            meta.as_ref().and_then(|m| m.get("payload")).filter(|p| is_record(p)).and_then(|p| p.get("cwd")).and_then(Value::as_str)
+        {
+            *folder = Some(cwd.to_string());
+        }
+    }
+    if !line.contains("\"function_call\"") {
+        return Vec::new();
+    }
+    let Some(row) = try_json(line) else { return Vec::new() };
+    let Some(payload) = row.get("payload").filter(|p| is_record(p)) else { return Vec::new() };
+    if row.get("type").and_then(Value::as_str) != Some("response_item")
+        || payload.get("type").and_then(Value::as_str) != Some("function_call")
+    {
+        return Vec::new();
+    }
+    let Some(name) = payload.get("name").and_then(Value::as_str) else { return Vec::new() };
+    let args = match payload.get("arguments") {
+        Some(Value::String(text)) => try_json(text),
+        other => other.cloned(),
+    };
+    vec![codex_call(session, name, args.as_ref(), folder.as_deref(), time_of(row.get("timestamp")))]
 }
 
 pub struct CodexReader;
 
 impl HistoryReader for CodexReader {
-    // history/codex.ts:22
-    //   files: (host, root) => jsonlFiles(host, root, stem),
     fn files<'a>(&'a self, host: &'a Host, root: &'a str) -> LocalBoxFuture<'a, Vec<HistoryFile>> {
-        todo!()
+        async move { jsonl_files(host, root, &|file: &str| Some(stem(file))).await }.boxed_local()
     }
 
-    // history/codex.ts:24
-    //   async *read(host: Host, _root: string, file: string): AsyncIterable<Call> {
-    //     const session = stem(file);
-    //     // The rollout opens with a session_meta whose payload names the folder; every call after it is that folder's.
-    //     let folder: string | undefined;
-    //     for await (const line of host.fs.lines(file)) {
-    //       if (folder === undefined && line.includes('"session_meta"')) {
-    //         const meta = tryJson(line);
-    //         const payload = isRecord(meta) && isRecord(meta["payload"]) ? meta["payload"] : undefined;
-    //         if (payload !== undefined && typeof payload["cwd"] === "string") folder = payload["cwd"];
-    //       }
-    //       if (!line.includes('"function_call"')) continue;
-    //       const row = tryJson(line);
-    //       if (!isRecord(row) || row["type"] !== "response_item" || !isRecord(row["payload"])) continue;
-    //       const payload = row["payload"];
-    //       if (payload["type"] !== "function_call" || typeof payload["name"] !== "string") continue;
-    //       const args = typeof payload["arguments"] === "string" ? tryJson(payload["arguments"]) : payload["arguments"];
-    //       yield codexCall(session, payload["name"], args, folder, timeOf(row["timestamp"]));
-    //     }
-    //   },
-    fn read<'a>(&'a self, host: &'a Host, root: &'a str, file: &'a str) -> LocalBoxStream<'a, Result<Call, HostError>> {
-        todo!()
+    fn read<'a>(&'a self, host: &'a Host, _root: &'a str, file: &'a str) -> LocalBoxStream<'a, Result<Call, HostError>> {
+        let session = stem(file);
+        let mut folder: Option<String> = None;
+        host.fs
+            .lines(file, None)
+            .map(move |item| match item {
+                Ok(line) => calls_of_line(&session, &mut folder, &line).into_iter().map(Ok).collect::<Vec<_>>(),
+                Err(e) => vec![Err(HostError::new(e.to_string()))],
+            })
+            .flat_map(futures::stream::iter)
+            .boxed_local()
     }
 
-    // history/codex.ts:23
-    //   holder: (_root, file) => file,
-    fn holder(&self, root: &str, file: &str) -> String {
-        todo!()
+    fn holder(&self, _root: &str, file: &str) -> String {
+        file.to_string()
     }
 }

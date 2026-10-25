@@ -24,6 +24,7 @@ pub mod place_forward;
 pub mod plan_alerts;
 pub mod project_landing;
 pub mod project_sources;
+pub mod protocol_pending;
 pub mod reach;
 pub mod recipe_sync;
 pub mod setup_graph;

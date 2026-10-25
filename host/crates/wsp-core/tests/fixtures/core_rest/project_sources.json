@@ -1,0 +1,255 @@
+{
+ "kinds": [
+  "folder",
+  "git",
+  "github",
+  "gitlab"
+ ],
+ "unknown": {
+  "err": "no project source module for svn"
+ },
+ "defaultBranch": "main",
+ "remote": [
+  [
+   {
+    "kind": "folder",
+    "path": "/x"
+   },
+   ""
+  ],
+  [
+   {
+    "kind": "git",
+    "url": "ssh://git@host/x.git"
+   },
+   "ssh://git@host/x.git"
+  ],
+  [
+   {
+    "kind": "github",
+    "repo": "acme/web"
+   },
+   "https://github.com/acme/web.git"
+  ],
+  [
+   {
+    "kind": "gitlab",
+    "repo": "dev/thing"
+   },
+   "https://gitlab.com/dev/thing.git"
+  ]
+ ],
+ "resolve": [
+  [
+   "folder here",
+   {
+    "ok": {
+     "remote": "https://github.com/acme/web.git",
+     "defaultBranch": "trunk",
+     "name": "web"
+    }
+   }
+  ],
+  [
+   "folder here none",
+   {
+    "ok": {
+     "remote": "",
+     "defaultBranch": "main",
+     "name": "web"
+    }
+   }
+  ],
+  [
+   "folder seeding ssh",
+   {
+    "ok": {
+     "remote": "https://github.com/acme/web.git",
+     "defaultBranch": "main",
+     "name": "web",
+     "seed": {
+      "source": "/Users/dev/web",
+      "remote": "git@github.com:acme/web.git",
+      "branch": "feat",
+      "defaultBranch": "main",
+      "unpushed": null,
+      "uncommitted": 0,
+      "memory": null,
+      "files": [],
+      "remembered": false
+     }
+    }
+   }
+  ],
+  [
+   "folder seeding https",
+   {
+    "ok": {
+     "remote": "https://github.com/acme/web.git",
+     "defaultBranch": "feat",
+     "name": "web",
+     "seed": {
+      "source": "/Users/dev/web",
+      "remote": "https://github.com/acme/web.git",
+      "branch": "feat",
+      "defaultBranch": null,
+      "unpushed": null,
+      "uncommitted": 0,
+      "memory": null,
+      "files": [],
+      "remembered": false
+     }
+    }
+   }
+  ],
+  [
+   "folder seeding gitlab ssh",
+   {
+    "ok": {
+     "remote": "https://gitlab.com/dev/thing.git",
+     "defaultBranch": "main",
+     "name": "web",
+     "seed": {
+      "source": "/Users/dev/web",
+      "remote": "git@gitlab.com:dev/thing.git",
+      "branch": "feat",
+      "defaultBranch": "",
+      "unpushed": null,
+      "uncommitted": 0,
+      "memory": null,
+      "files": [],
+      "remembered": false
+     }
+    }
+   }
+  ],
+  [
+   "folder seeding other host",
+   {
+    "ok": {
+     "remote": "git@example.com:a/b.git",
+     "defaultBranch": "main",
+     "name": "web",
+     "seed": {
+      "source": "/Users/dev/web",
+      "remote": "git@example.com:a/b.git",
+      "branch": "",
+      "unpushed": null,
+      "uncommitted": 0,
+      "memory": null,
+      "files": [],
+      "remembered": false
+     }
+    }
+   }
+  ],
+  [
+   "folder seeding no remote",
+   {
+    "err": "/Users/dev/web has no origin remote, and the computer clones the repo rather than copying the folder; push it somewhere and add it again",
+    "kind": "invalid"
+   }
+  ],
+  [
+   "folder seeding http github",
+   {
+    "ok": {
+     "remote": "https://github.com/acme/web.git",
+     "defaultBranch": "main",
+     "name": "web",
+     "seed": {
+      "source": "/Users/dev/web",
+      "remote": "http://github.com/acme/web",
+      "branch": "feat",
+      "defaultBranch": "main",
+      "unpushed": null,
+      "uncommitted": 0,
+      "memory": null,
+      "files": [],
+      "remembered": false
+     }
+    }
+   }
+  ],
+  [
+   "git",
+   {
+    "remote": "https://example.com/team/thing.git",
+    "defaultBranch": "main",
+    "name": "thing"
+   }
+  ],
+  [
+   "github",
+   {
+    "remote": "https://github.com/acme/web.git",
+    "defaultBranch": "main",
+    "name": "web"
+   }
+  ],
+  [
+   "gitlab",
+   {
+    "remote": "https://gitlab.com/dev/thing.git",
+    "defaultBranch": "main",
+    "name": "thing"
+   }
+  ]
+ ],
+ "clone": [
+  [
+   "git",
+   "git clone -- https://example.com/x.git /root/x"
+  ],
+  [
+   "git branch",
+   "git clone --branch feat/x -- https://example.com/x.git '/root/a b'"
+  ],
+  [
+   "folder",
+   "git clone -- --upload-pack=evil /root/x"
+  ],
+  [
+   "github",
+   "gh repo clone acme/web /root/web"
+  ],
+  [
+   "github branch ignored",
+   "gh repo clone acme/web /root/web"
+  ],
+  [
+   "github not a repo url",
+   "gh repo clone 'weird remote' /root/web"
+  ],
+  [
+   "gitlab",
+   "glab repo clone dev/thing /root/thing"
+  ]
+ ],
+ "cli": [
+  [
+   "folder",
+   null
+  ],
+  [
+   "git",
+   null
+  ],
+  [
+   "github",
+   {
+    "bin": "gh",
+    "setupGit": "gh auth setup-git",
+    "missing": "hetzner has no gh signed in, and a github repo is cloned there through it; sign gh in on that computer's image, or give the repo's https url"
+   }
+  ],
+  [
+   "gitlab",
+   {
+    "bin": "glab",
+    "setupGit": "glab auth git-credential",
+    "missing": "hetzner has no glab signed in, and a gitlab repo is cloned there through it; sign glab in on that computer's image, or give the repo's https url"
+   }
+  ]
+ ]
+}

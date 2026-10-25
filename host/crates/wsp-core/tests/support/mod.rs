@@ -49,7 +49,7 @@ pub async fn until(what: &str, ms: u64, mut cond: impl FnMut() -> bool) {
 
 /// A plain error, built from its fields (wsp-words' constructors are not implemented yet).
 pub fn broke(message: &str) -> HostError {
-    HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, marks: vec![] }
+    HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, code: None, status: None, marks: vec![] }
 }
 
 /// A store over JSON text, so every read parses afresh (rule 2.27). Writes are counted, and a list, a put or a

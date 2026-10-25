@@ -33,9 +33,9 @@ recipe cases in `tests/views_protocol.rs`), `shell-quote.test.ts` (5 of 6 in `te
    `macbook`, `imac`, `macmini`, `macstudio`, `macpro`. `place_forgets_only`: `away == true` and a fork or a project.
 7. `thread_key_of`: thread id else id. `thread_ran`: a turn running, or one with a harness session id and no refusal.
 8. `host_from_env`: url, token and key each trimmed with JavaScript's `trim` (U+FEFF and U+00A0 included,
-   `crate::text::js_trim`); None without a url or a token after trimming; no key where it is empty. `turn_token_of`:
+   `crate::types::check::js_trim`); None without a url or a token after trimming; no key where it is empty. `turn_token_of`:
    untrimmed, None for missing or empty. `is_session_event(t)`: `t` is one of `SESSION_EVENT_TYPES`. `copied_from_of`:
-   the event's `copied_from` where its type has the key. `wsp_package_in(d)` is `<d>/wsp`, `wsp_bin_in(d)`
+   the event's `copied_from`, for every type but `session.slate`, which has no such key (23 of 24). `wsp_package_in(d)` is `<d>/wsp`, `wsp_bin_in(d)`
    `<d>/wsp/dist/bin.js` (no slash folding: `/a/` gives `/a//wsp`).
 9. `sub_spawning`: begun, no `ready_at`, no `failed`. `sub_all_pushed`: no `read_failed` (an empty one is a failure),
    nothing unpushed, nothing changed. `sub_turn_gone(released, started)`: released, and a start unknown or strictly

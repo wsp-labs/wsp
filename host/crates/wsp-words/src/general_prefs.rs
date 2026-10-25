@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! How a notify choice is said outside the app. Port of the one function of packages/protocol/src/general-prefs.ts at
-//! a3b870a6e that wsp_wire::types::general_prefs leaves to this crate. See spec/costs_and_alerts.md.
+//! the cut (383708c78) that wsp_wire::types::general_prefs leaves to this crate. See spec/costs_and_alerts.md.
 
 use wsp_wire::types::general_prefs::NotifyChoice;
 

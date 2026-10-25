@@ -12,7 +12,7 @@ use crate::views::harness::HarnessOption;
 
 /// The id a request carries and its reply echoes: a string or a number as the client sent it, a fraction kept a
 /// fraction (rule 4.13). zod's `reqId`, `z.union([z.string(), z.number()])`.
-pub use wsp_frames::RequestId as ReqId;
+pub use crate::types::req_id::ReqId;
 
 /// What picking one option on a permission prompt does to the tool call in front of it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -139,8 +139,12 @@ pub fn is_watch_name(name: &str) -> bool {
 /// Whether a cgroup path is one /proc/[pid]/cgroup could name: at most 512 UTF-16 units, absolute, every name after the
 /// leading slash non-empty and neither `.` nor `..`. The root alone, `/`, is refused (its one name is empty).
 pub fn is_cgroup_path(path: &str) -> bool {
-    crate::types::check::utf16_len(path) <= CGROUP_PATH_MAX
-        && path.strip_prefix('/').is_some_and(|rest| rest.split('/').all(|name| !name.is_empty() && name != "." && name != ".."))
+    crate::types::check::utf16_len(path) <= CGROUP_PATH_MAX && cgroup_shape(path)
+}
+
+/// The refine alone, with no length: zod's `.max(512)` and its refine each answer on their own.
+pub fn cgroup_shape(path: &str) -> bool {
+    path.strip_prefix('/').is_some_and(|rest| rest.split('/').all(|name| !name.is_empty() && name != "." && name != ".."))
 }
 
 // helpers.ts:92
@@ -175,12 +179,14 @@ pub fn is_base64_of(text: &str, bytes: u64) -> bool {
     if body.is_empty() || !body.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/') {
         return false;
     }
-    text.len() % 4 == 0 && (text.len() as i64 / 4) * 3 - pad as i64 == bytes as i64
+    text.len().is_multiple_of(4) && (text.len() as i64 / 4) * 3 - pad as i64 == bytes as i64
 }
 
 /// Rule 4.26: a parsed or built JSON object writes its keys as JavaScript does, so keys that read as array indexes
 /// (`"0"`, `"2"`, `"10"`: a canonical non-negative integer below 2^32 - 1, no leading zero, no sign) move first in
 /// ascending numeric order and every other key keeps its place. Applied to this map alone, not to the maps inside it.
+type Entries = Vec<(String, Value)>;
+
 pub fn js_key_order(map: &mut IndexMap<String, Value>) {
     let is_index = |k: &str| {
         !k.is_empty()
@@ -188,7 +194,7 @@ pub fn js_key_order(map: &mut IndexMap<String, Value>) {
             && (k == "0" || !k.starts_with('0'))
             && k.parse::<u64>().is_ok_and(|n| n <= 4294967294)
     };
-    let (mut indexed, rest): (Vec<(String, Value)>, Vec<(String, Value)>) = std::mem::take(map).into_iter().partition(|(k, _)| is_index(k));
+    let (mut indexed, rest): (Entries, Entries) = std::mem::take(map).into_iter().partition(|(k, _)| is_index(k));
     indexed.sort_by_key(|(k, _)| k.parse::<u64>().unwrap_or(0));
     map.extend(indexed);
     map.extend(rest);
@@ -196,12 +202,9 @@ pub fn js_key_order(map: &mut IndexMap<String, Value>) {
 
 /// zod `.catch(undefined)` on an optional field: a value that does not read as T reads as absent rather than failing
 /// the frame. Absent and null read as absent too.
-pub fn or_none<'de, D: Deserializer<'de>, T: DeserializeOwned>(d: D) -> Result<Option<T>, D::Error> {
+pub fn or_none<'de, D: Deserializer<'de>, T: DeserializeOwned + Check>(d: D) -> Result<Option<T>, D::Error> {
     let value = Value::deserialize(d)?;
-    if value.is_null() {
-        return Ok(None);
-    }
-    Ok(T::deserialize(value).ok())
+    Ok(crate::types::check::read::<T>(&value).ok())
 }
 
 /// zod's z.literal on a string: any other word is `invalid_literal`, at the path of the caller's key.
@@ -213,7 +216,7 @@ pub fn literal_word(got: &str, expected: &str) -> Result<(), SchemaError> {
     detail.insert("received".to_string(), Value::from(got));
     detail.insert("expected".to_string(), Value::from(expected));
     let message = format!("Invalid literal value, expected \"{expected}\"");
-    Err(SchemaError { code: "invalid_literal".into(), path: Vec::new(), message, detail })
+    Err(SchemaError { code: "invalid_literal".into(), path: Vec::new(), message, detail: Box::new(detail) })
 }
 
 /// No refinement of its own.
@@ -226,13 +229,12 @@ impl Check for PermissionOption {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("label") { None => out.push(crate::types::check::missing::<Self>("label")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("label"))), } } }
-        match obj.get("effect") { None => out.push(crate::types::check::missing::<Self>("effect")), Some(v) => { match crate::types::check::read::<PermissionEffect>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("effect"))), } } }
-        if let Some(v) = obj.get("mode") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mode"))), } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "label", &mut out);
+        crate::types::keys::req_key::<PermissionEffect>(obj, "effect", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "mode", &mut out);
         Some(out)
     }
-
 }
 
 /// No refinement of its own; checks each option.
@@ -246,16 +248,15 @@ impl Check for PermissionPrompt {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("askId") { None => out.push(crate::types::check::missing::<Self>("askId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("askId"))), } } }
-        match obj.get("toolName") { None => out.push(crate::types::check::missing::<Self>("toolName")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("toolName"))), } } }
-        if let Some(v) = obj.get("toolUseId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("toolUseId"))), } }
-        if let Some(v) = obj.get("parentToolUseId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("parentToolUseId"))), } }
-        match obj.get("input") { None => out.push(crate::types::check::missing::<Self>("input")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("input"))), } } }
-        if let Some(v) = obj.get("detail") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("detail"))), } }
-        match obj.get("options") { None => out.push(crate::types::check::missing::<Self>("options")), Some(v) => { match crate::types::check::read::<Vec<PermissionOption>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("options"))), } } }
+        crate::types::keys::req_key::<String>(obj, "askId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "toolName", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "toolUseId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "parentToolUseId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "input", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "detail", &mut out);
+        crate::types::keys::req_key::<Vec<PermissionOption>>(obj, "options", &mut out);
         Some(out)
     }
-
 }
 
 /// No refinement of its own.
@@ -268,16 +269,15 @@ impl Check for PortCloseDetail {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("pid") { match crate::types::check::read_present::<crate::types::JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } }
-        if let Some(v) = obj.get("process") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("process"))), } }
-        if let Some(v) = obj.get("command") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("command"))), } }
-        if let Some(v) = obj.get("exited") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("exited"))), } }
-        if let Some(v) = obj.get("left") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("left"))), } }
-        if let Some(v) = obj.get("at") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } }
-        if let Some(v) = obj.get("watch") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("watch"))), } }
+        crate::types::keys::opt_key::<crate::types::JsNumber>(obj, "pid", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "process", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "command", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "exited", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "left", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "at", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "watch", &mut out);
         Some(out)
     }
-
 }
 
 // A word list zod reads with z.enum: serde refuses any other word, so nothing is left to check.

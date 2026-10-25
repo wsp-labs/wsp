@@ -4,6 +4,16 @@
 //! the file still parses. Port of packages/collect/src/detect/shell-rc.ts:205-523 at a3b870a6e; the spec is
 //! spec/shell_rc_strip.md. The regex sources it reads (QUOTED, HEREDOC, ASSIGNS, GUARD, KEYWORDS) are in shell_rc.
 
+use std::sync::LazyLock;
+
+use fancy_regex::Regex;
+use wsp_words::js::{is_js_whitespace, js_trim, js_trim_start};
+
+use crate::detect::shell_rc::{
+    assigned_in, captures, command_words, comment_at, group, is_match, is_secret_name, js_re, simple_commands, split_lines, ASSIGNS_RE,
+    GUARD_RE, HEREDOC_RE, KEYWORDS_RE, QUOTED_RE,
+};
+
 /// What `strip_exports` hands back (TS `{ names, carried }`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Stripped {
@@ -13,18 +23,6 @@ pub struct Stripped {
     pub carried: String,
 }
 
-// shell-rc.ts:217
-// /** What is still open at the end of a line: a quote, a backtick, `$(`, `${` and array groups, `((` arithmetic, a heredoc waiting for its word, or a trailing backslash. */
-// interface Open {
-//   quote: "" | "'" | '"' | "`" | "$'";
-//   /** The open `$(`, `${`, array `=(` and bare `(` groups, innermost last, each with the quote it opened inside: a
-//    * `$(` reads its text unquoted and gives that quote back at its `)`, and a `)` or `}` closes only the group on top. */
-//   groups: { close: ")" | "}"; quote: "" | '"' }[];
-//   /** Depth of `((` and `$((`; while open, `<<` is a shift and never a heredoc. */
-//   arith: number;
-//   heredoc?: string;
-//   continues: boolean;
-// }
 /// What is still open at the end of a line.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Open {
@@ -45,312 +43,510 @@ pub struct OpenGroup {
     pub quote: &'static str,
 }
 
-// Private helpers the port keeps (names in snake case):
-// shell-rc.ts:211
-// /** Whether a line leaves open the quoted argument of an `eval`, `alias` or `abbr`, whose text is shell: the lines up to
-//  * the quote's close are read as one command. A single-quoted string ending in `\'` is fish's escaped quote, which this
-//  * reading takes for a close, so such a line is read alone. */
-// function opensShell(line: string, arith: number): boolean {
-//   if ((line.match(QUOTED) ?? []).some(t => /^'[^']*\\'$/.test(t)) || !["'", '"', "$'"].includes(scanLine(line, { ...CLOSED, arith }).quote)) return false;
-//   return ["eval", "alias", "abbr"].includes(commandWords(simpleCommands(line).at(-1) ?? "")[1][0] ?? "");
-// }
-// shell-rc.ts:228
-// const CLOSED: Open = { quote: "", groups: [], arith: 0, continues: false };
-// shell-rc.ts:230
-// function isOpen(o: Open): boolean {
-//   return o.quote !== "" || o.groups.length > 0 || o.heredoc !== undefined || o.continues;
-// }
-// shell-rc.ts:336
-// /** What a kept line may carry forward: a heredoc it opens and the depth of an arithmetic block it left open, and nothing else, since a comment's stray quote must never hide what follows. An open `((` only stops `<<` from being read as a heredoc until its `))`, which over-cuts a heredoc body and never leaks. */
-// function carried(line: string, arith: number): Pick<Open, "heredoc" | "arith"> {
-//   const o = scanLine(line, { ...CLOSED, arith });
-//   return { heredoc: o.heredoc, arith: o.arith };
-// }
-// shell-rc.ts:342
-// /** How far a command's leading blanks and keywords run. */
-// function leadOf(segment: string): number {
-//   let at = /^(?:\s|\\\n)*/.exec(segment)![0].length;
-//   for (let m = KEYWORDS.exec(segment.slice(at)); m !== null; m = KEYWORDS.exec(segment.slice(at))) at += m[0].length;
-//   return at;
-// }
-// shell-rc.ts:352
-// /** The top-level simple commands and comments of closed shell text, keywords skipped, as [start, end) offsets. They split
-//  * on `;`, `|`, a newline, an `&` that is no redirect's, a bare `{` or `}`, and a `(` or `)` opening a subshell or closing a
-//  * case pattern; quotes, substitutions, `[[ ]]` and a `(` inside a command (an array, a fish substitution, `f()`) hold together.
-//  * With `lists`, `&&`, `||` and `|` do not split, so each span is a whole and-or list. */
-// function commandSpans(text: string, lists = false): [number, number][] {
-//   const spans: [number, number][] = [];
-//   const stack: string[] = [];
-//   let start = 0;
-//   const end = (i: number): void => {
-//     const s = start + leadOf(text.slice(start, i));
-//     const e = start + text.slice(start, i).replace(/(?:\s|\\\n)*$/, "").length;
-//     if (e > s) spans.push([s, e]);
-//   };
-//   for (let i = 0; i < text.length; i += 1) {
-//     const c = text[i]!;
-//     const top = stack.at(-1);
-//     if (c === "\\" && top !== "'") i += 1;
-//     else if (top === "'" || top === "$'" || top === "`") {
-//       if (c === (top === "`" ? "`" : "'")) stack.pop();
-//     } else if (c === "$" && (text[i + 1] === "(" || text[i + 1] === "{")) {
-//       stack.push(text[i + 1]!);
-//       i += 1;
-//     } else if (c === "`" || (top !== '"' && (c === "'" || c === '"'))) stack.push(c);
-//     else if (top === '"') {
-//       if (c === '"') stack.pop();
-//     } else if (c === "$" && text[i + 1] === "'") {
-//       stack.push("$'");
-//       i += 1;
-//     } else if (top !== undefined) {
-//       if (top === "(" && commentAt(text, i)) while (i + 1 < text.length && text[i + 1] !== "\n") i += 1;
-//       else if (c === "(") stack.push(c);
-//       else if ((c === ")" && top === "(") || (c === "}" && top === "{")) stack.pop();
-//       else if (top === "[[" && text.startsWith("]]", i)) {
-//         stack.pop();
-//         i += 1;
-//       }
-//     } else if (commentAt(text, i)) {
-//       end(i);
-//       const from = i;
-//       while (i + 1 < text.length && text[i + 1] !== "\n") i += 1;
-//       spans.push([from, i + 1]);
-//       start = i + 1;
-//     } else if (/^\[\[\s/.test(text.slice(i, i + 3)) && leadOf(text.slice(start, i)) === i - start) {
-//       stack.push("[[");
-//       i += 1;
-//     } else if (c === "(" && leadOf(text.slice(start, i)) < i - start) stack.push(c);
-//     else if (
-//       ";\n()".includes(c) ||
-//       (c === "|" && text[i - 1] !== ">" && !lists) ||
-//       (c === "&" && !/[<>]/.test(text[i - 1] ?? "") && text[i + 1] !== ">" && !(lists && /[&|]/.test(`${text[i - 1] ?? ""}${text[i + 1] ?? ""}`))) ||
-//       ((c === "{" || c === "}") && /^\s?$/.test(text[i + 1] ?? "") && /^[\s;&]?$/.test(text[i - 1] ?? ""))
-//     ) {
-//       end(i);
-//       start = i + 1;
-//     }
-//   }
-//   end(text.length);
-//   return spans;
-// }
+static ESCAPED_SINGLE_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"^'[^']*\\'$"));
+static LEAD_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"^(?:\s|\\\n)*"));
+static TRAIL_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"(?:\s|\\\n)*$"));
+static BRACE_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"^\s*\{"));
+static AMP_PIPE_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"^\s*[&|]"));
+static HEAD_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"^(?:for|select|case)\s"));
 
-// shell-rc.ts:243
-// /** Carries the shell's quoting state across a line. Inside a heredoc only the terminator word matters. */
-// function scanLine(line: string, start: Open): Open {
-//   const o: Open = { ...start, groups: [...start.groups], continues: false };
-//   if (o.heredoc !== undefined) {
-//     if (line.trim() === o.heredoc) delete o.heredoc;
-//     return o;
-//   }
-//   for (let i = 0; i < line.length; i += 1) {
-//     const c = line[i];
-//     const top = o.groups.at(-1);
-//     o.continues = false;
-//     if (c === "\\" && o.quote !== "'") {
-//       if (i === line.length - 1) o.continues = true;
-//       i += 1;
-//       continue;
-//     }
-//     if (o.quote === "$'") {
-//       if (c === "'") o.quote = "";
-//       continue;
-//     }
-//     if (o.quote === "'" || o.quote === "`") {
-//       if (c === o.quote) o.quote = "";
-//       continue;
-//     }
-//     if (o.quote === "" && commentAt(line, i)) break;
-//     if (o.quote === "" && c === "$" && line[i + 1] === "'") {
-//       o.quote = "$'";
-//       i += 1;
-//       continue;
-//     }
-//     if (o.quote === "" && (c === "'" || c === "`")) {
-//       o.quote = c;
-//       continue;
-//     }
-//     if (c === '"') {
-//       o.quote = o.quote === '"' ? "" : '"';
-//       continue;
-//     }
-//     if (o.quote === "" && c === "$" && line[i + 1] === "(" && line[i + 2] === "(") {
-//       o.arith += 1;
-//       i += 2;
-//       continue;
-//     }
-//     if (c === "$" && line[i + 1] === "(") {
-//       o.groups.push({ close: ")", quote: o.quote === '"' ? '"' : "" });
-//       o.quote = "";
-//       i += 1;
-//       continue;
-//     }
-//     if (c === "$" && line[i + 1] === "{") {
-//       o.groups.push({ close: "}", quote: "" });
-//       i += 1;
-//       continue;
-//     }
-//     if (o.quote === "" && c === "(" && line[i + 1] === "(") {
-//       o.arith += 1;
-//       i += 1;
-//       continue;
-//     }
-//     if (o.quote === "" && c === ")" && line[i + 1] === ")" && o.arith > 0) {
-//       o.arith -= 1;
-//       i += 1;
-//       continue;
-//     }
-//     if (o.quote === "" && c === "(" && (top?.close === ")" || line[i - 1] === "=")) {
-//       o.groups.push({ close: ")", quote: "" });
-//       continue;
-//     }
-//     if (o.quote === "" && c === ")" && top?.close === ")") {
-//       o.groups.pop();
-//       o.quote = top.quote;
-//       continue;
-//     }
-//     if (c === "}" && top?.close === "}") {
-//       o.groups.pop();
-//       continue;
-//     }
-//     if (c === "<" && line[i + 1] === "<" && line[i + 2] === "<") {
-//       i += 2;
-//       continue;
-//     }
-//     if (o.quote === "" && o.arith === 0 && c === "<") {
-//       const m = HEREDOC.exec(line.slice(i));
-//       const word = m?.[1] ?? m?.[2] ?? m?.[3] ?? m?.[4];
-//       if (word !== undefined) {
-//         o.heredoc = word;
-//         break;
-//       }
-//     }
-//   }
-//   return o;
-// }
-/// Carries the shell's quoting state across one line.
-pub fn scan_line(line: &str, start: &Open) -> Open {
-    todo!()
+/// A `Passing` carries what a kept line leaves open: a heredoc, the arithmetic depth, and the value a cut heredoc body
+/// left open.
+#[derive(Debug, Clone, Default)]
+struct Passing {
+    heredoc: Option<String>,
+    arith: u32,
+    value: Option<Open>,
 }
 
-// shell-rc.ts:418
-// /** The arithmetic depth is one stream over the file: a cut line reads it and writes it back like a kept line does. A
-//  * line `secretIn` finds a secret in goes too, a heredoc's included, and a heredoc's line that assigns a secret goes with
-//  * what it leaves open, up to the heredoc's word. An `eval`, `alias` or `abbr` whose quote runs over lines is one
-//  * command. `names` holds only variables, each one a cut line assigns a secret to, since init asks the person for each;
-//  * `held` gets what `secretIn` names for a cut line that assigns none. In a `script`, each cut command stands as `true`,
-//  * a cut comment goes, and the rest of its line stays, so a block it opened, closed or was the only line of still
-//  * parses. What a cut command that does more than assign decided never runs: an `if`, `elif` or `while` condition
-//  * holding one stands as false and an `until` condition as true, and a list where one leads into `&&`, `||` or `|`
-//  * stands as one `true`. A cut that cannot split (a heredoc, the head of a for, select or case) stands as one `true` at
-//  * its indent, or as nothing when it is a comment or holds a case arm's `;;`, `;&` or `;|`. */
-// export function stripExports(text: string, secretIn?: (line: string) => string | undefined, held: string[] = [], script = false): { names: string[]; carried: string } {
-//   const names: string[] = [];
-//   const kept: string[] = [];
-//   const eol = text.includes("\r\n") ? "\r\n" : "\n";
-//   const holds = (command: string): boolean => assignedIn(command).some(isSecretName) || secretIn?.(command) !== undefined;
-//   const leave = (lines: string[], whole: boolean): void => {
-//     if (!script) return;
-//     const cut = lines.join("\n");
-//     let rest = "";
-//     let at = 0;
-//     const spans = (whole ? commandSpans(cut) : []).filter(([s, e]) => holds(cut.slice(s, e)));
-//     const lists = commandSpans(cut, true);
-//     const stands = (s: number, e: number): [number, number, string] => {
-//       if (cut[s] === "#") return [s, e, ""];
-//       if (ASSIGNS.test(cut.slice(s, e))) return [s, e, "true"];
-//       const [ls, le] = lists.find(([a, b]) => a <= s && e <= b) ?? [s, e];
-//       const guard = GUARD.exec(cut.slice(0, ls));
-//       if (guard !== null) {
-//         const until = guard[1] === "until";
-//         // zsh's `if [[ ]] { }` reads its condition only up to a closing `]]`.
-//         const word = /^\s*\{/.test(cut.slice(le)) ? `[[ ${until ? "-z" : "-n"} '' ]]` : until ? "true" : "false";
-//         return [guard.index + guard[0].length, le, word];
-//       }
-//       return /^\s*[&|]/.test(cut.slice(e, le)) ? [ls, le, "true"] : [s, e, "true"];
-//     };
-//     const ranges = spans.some(([s]) => /^(?:for|select|case)\s/.test(cut.slice(s))) ? [] : spans.map(([s, e]) => stands(s, e));
-//     for (const [s, e, word] of ranges.sort(([a, b], [c, d]) => a - c || d - b)) {
-//       if (s < at) continue;
-//       rest += word === "" ? cut.slice(at, s).replace(/[ \t]+$/, "") : `${cut.slice(at, s)}${word}`;
-//       at = e;
-//     }
-//     rest += cut.slice(at);
-//     const first = lines[0]!;
-//     if (rest !== cut && rest.trim() !== "" && !rest.split("\n").some(l => secretIn?.(l) !== undefined || simpleCommands(l).some(holds))) kept.push(...rest.split("\n"));
-//     else if (!first.trimStart().startsWith("#") && !/;;|;&|;\|/.test(first)) kept.push(`${/^[ \t]*/.exec(first)?.[0] ?? ""}true`);
-//   };
-//   let cutting: { open: Open; lines: string[]; whole: boolean } | undefined;
-//   /** With a heredoc open, `value` is what a cut body line left open: the body lines up to its close go with it. */
-//   let passing: Pick<Open, "heredoc" | "arith"> & { value?: Open } = { arith: 0 };
-//   let joining: { open: Open; lines: string[] } | undefined;
-//   const take = (line: string): void => {
-//     const found = secretIn?.(line);
-//     const hits = simpleCommands(line).flatMap(c => assignedIn(c).filter(n => isSecretName(n) || (found !== undefined && secretIn?.(c) !== undefined)));
-//     if (hits.length === 0 && found === undefined) {
-//       kept.push(...line.split("\n"));
-//       passing = carried(line, passing.arith);
-//       return;
-//     }
-//     for (const h of hits) if (!names.includes(h)) names.push(h);
-//     if (hits.length === 0 && found !== undefined && !held.includes(found)) held.push(found);
-//     const o = scanLine(line, { ...CLOSED, arith: passing.arith });
-//     if (isOpen(o)) cutting = { open: o, lines: line.split("\n"), whole: o.heredoc === undefined };
-//     else {
-//       leave(line.split("\n"), true);
-//       passing = { arith: o.arith };
-//     }
-//   };
-//   for (const line of text.split(/\r?\n/)) {
-//     if (cutting !== undefined) {
-//       const o = scanLine(line, cutting.open);
-//       cutting.lines.push(line);
-//       if (isOpen(o)) cutting = { ...cutting, open: o, whole: cutting.whole && o.heredoc === undefined };
-//       else {
-//         leave(cutting.lines, cutting.whole);
-//         cutting = undefined;
-//         passing = { arith: o.arith };
-//       }
-//       continue;
-//     }
-//     if (joining !== undefined) {
-//       const o = scanLine(line, joining.open);
-//       joining.lines.push(line);
-//       if (o.quote !== "" || o.groups.length > 0 || o.continues) joining.open = o;
-//       else {
-//         take(joining.lines.join("\n"));
-//         joining = undefined;
-//       }
-//       continue;
-//     }
-//     if (passing.heredoc !== undefined) {
-//       if (line.trim() === passing.heredoc) {
-//         kept.push(line);
-//         passing = { arith: passing.arith };
-//       } else if (passing.value !== undefined) {
-//         const o = scanLine(line, passing.value);
-//         passing.value = isOpen(o) ? o : undefined;
-//       } else {
-//         const found = secretIn?.(line);
-//         const named = simpleCommands(line).flatMap(assignedIn).filter(isSecretName);
-//         for (const n of named) if (!names.includes(n)) names.push(n);
-//         if (named.length === 0 && found !== undefined && !held.includes(found)) held.push(found);
-//         if (named.length === 0 && found === undefined) kept.push(line);
-//         // In an unquoted heredoc a body line ending in a backslash joins the next: a blank one stands for the cut line.
-//         else if (/(?:^|[^\\])(?:\\\\)*\\$/.test(kept.at(-1) ?? "")) kept.push("");
-//         const o = scanLine(line, CLOSED);
-//         if (named.length > 0 && isOpen(o) && o.heredoc === undefined) passing.value = o;
-//       }
-//       continue;
-//     }
-//     if (opensShell(line, passing.arith)) joining = { open: scanLine(line, { ...CLOSED, arith: passing.arith }), lines: [line] };
-//     else take(line);
-//   }
-//   if (joining !== undefined) take(joining.lines.join("\n"));
-//   if (cutting !== undefined) leave(cutting.lines, false);
-//   return { names, carried: kept.join(eol) };
-// }
+/// A cut that is still open: its lines so far and whether it is one whole command.
+struct Cutting {
+    open: Open,
+    lines: Vec<String>,
+    whole: bool,
+}
+
+/// A join that is still open: its lines so far.
+struct Joining {
+    open: Open,
+    lines: Vec<String>,
+}
+
+/// A rule of the caller's that names the secret a line holds.
+pub type SecretIn<'a> = &'a dyn Fn(&str) -> Option<String>;
+
+/// The state `strip_exports` carries from line to line.
+struct Strip<'a> {
+    secret_in: Option<SecretIn<'a>>,
+    held: &'a mut Vec<String>,
+    script: bool,
+    names: Vec<String>,
+    kept: Vec<String>,
+    cutting: Option<Cutting>,
+    passing: Passing,
+    joining: Option<Joining>,
+}
+
+/// Carries the shell's quoting state across one line.
+pub fn scan_line(line: &str, start: &Open) -> Open {
+    let mut o = Open { continues: false, ..start.clone() };
+    if let Some(word) = o.heredoc.clone() {
+        if js_trim(line) == word {
+            o.heredoc = None;
+        }
+        return o;
+    }
+    let chars: Vec<char> = line.chars().collect();
+    let starts: Vec<usize> = line.char_indices().map(|(at, _)| at).collect();
+    let n = chars.len();
+    let mut skip = 0;
+    for i in 0..n {
+        if skip > 0 {
+            skip -= 1;
+            continue;
+        }
+        let c = chars[i];
+        let next = chars.get(i + 1).copied();
+        let top = o.groups.last().copied();
+        o.continues = false;
+        if c == '\\' && o.quote != "'" {
+            if i == n - 1 {
+                o.continues = true;
+            }
+            skip = 1;
+            continue;
+        }
+        if o.quote == "$'" {
+            if c == '\'' {
+                o.quote = "";
+            }
+            continue;
+        }
+        if o.quote == "'" || o.quote == "`" {
+            if (c == '\'' && o.quote == "'") || (c == '`' && o.quote == "`") {
+                o.quote = "";
+            }
+            continue;
+        }
+        if o.quote.is_empty() && comment_at(&chars, i) {
+            break;
+        }
+        if o.quote.is_empty() && c == '$' && next == Some('\'') {
+            o.quote = "$'";
+            skip = 1;
+            continue;
+        }
+        if o.quote.is_empty() && (c == '\'' || c == '`') {
+            o.quote = if c == '\'' { "'" } else { "`" };
+            continue;
+        }
+        if c == '"' {
+            o.quote = if o.quote == "\"" { "" } else { "\"" };
+            continue;
+        }
+        if o.quote.is_empty() && c == '$' && next == Some('(') && chars.get(i + 2) == Some(&'(') {
+            o.arith += 1;
+            skip = 2;
+            continue;
+        }
+        if c == '$' && next == Some('(') {
+            o.groups.push(OpenGroup { close: ')', quote: if o.quote == "\"" { "\"" } else { "" } });
+            o.quote = "";
+            skip = 1;
+            continue;
+        }
+        if c == '$' && next == Some('{') {
+            o.groups.push(OpenGroup { close: '}', quote: "" });
+            skip = 1;
+            continue;
+        }
+        if o.quote.is_empty() && c == '(' && next == Some('(') {
+            o.arith += 1;
+            skip = 1;
+            continue;
+        }
+        if o.quote.is_empty() && c == ')' && next == Some(')') && o.arith > 0 {
+            o.arith -= 1;
+            skip = 1;
+            continue;
+        }
+        if o.quote.is_empty() && c == '(' && (top.is_some_and(|g| g.close == ')') || (i > 0 && chars[i - 1] == '=')) {
+            o.groups.push(OpenGroup { close: ')', quote: "" });
+            continue;
+        }
+        if o.quote.is_empty() && c == ')' {
+            if let Some(g) = top.filter(|g| g.close == ')') {
+                o.groups.pop();
+                o.quote = g.quote;
+                continue;
+            }
+        }
+        if c == '}' && top.is_some_and(|g| g.close == '}') {
+            o.groups.pop();
+            continue;
+        }
+        if c == '<' && next == Some('<') && chars.get(i + 2) == Some(&'<') {
+            skip = 2;
+            continue;
+        }
+        if o.quote.is_empty() && o.arith == 0 && c == '<' {
+            if let Some(caps) = captures(&HEREDOC_RE, &line[starts[i]..]) {
+                if let Some(word) = (1..=4).find_map(|k| caps.get(k)) {
+                    o.heredoc = Some(word.as_str().to_string());
+                    break;
+                }
+            }
+        }
+    }
+    o
+}
+
+/// What is still open at the end of a line: a quote, a group, a heredoc or a continuation.
+fn is_open(o: &Open) -> bool {
+    !o.quote.is_empty() || !o.groups.is_empty() || o.heredoc.is_some() || o.continues
+}
+
+/// Nothing open, at the given arithmetic depth.
+fn closed(arith: u32) -> Open {
+    Open { arith, ..Open::default() }
+}
+
+/// What a kept line may carry forward: a heredoc it opens and the depth of an arithmetic block it left open.
+fn carried(line: &str, arith: u32) -> Passing {
+    let o = scan_line(line, &closed(arith));
+    Passing { heredoc: o.heredoc, arith: o.arith, value: None }
+}
+
+/// The characters `text[start..end]`, as a string.
+fn sub(text: &[char], start: usize, end: usize) -> String {
+    text[start..end].iter().collect()
+}
+
+/// The chars of a command's leading blanks and keywords, counted from the start of `segment`.
+fn lead_of(segment: &[char]) -> usize {
+    let text: String = segment.iter().collect();
+    let mut at = LEAD_RE.find(&text).ok().flatten().map_or(0, |m| m.end());
+    while let Some(m) = KEYWORDS_RE.find(&text[at..]).ok().flatten() {
+        at += m.end();
+    }
+    text[..at].chars().count()
+}
+
+/// Pushes the span `[start + leading blanks, end without trailing blanks)` of `text[start..i]`, when it is not empty.
+fn push_span(text: &[char], spans: &mut Vec<(usize, usize)>, start: usize, i: usize) {
+    let segment: &[char] = if start <= i { &text[start..i] } else { &[] };
+    let s = start + lead_of(segment);
+    let raw: String = segment.iter().collect();
+    let trimmed = match TRAIL_RE.find(&raw).ok().flatten() {
+        Some(m) => raw[..m.start()].chars().count(),
+        None => raw.chars().count(),
+    };
+    let e = start + trimmed;
+    if e > s {
+        spans.push((s, e));
+    }
+}
+
+/// The top-level simple commands and comments of closed shell text, keywords skipped, as [start, end) offsets. They split
+/// on `;`, `|`, a newline, an `&` that is no redirect's, a bare `{` or `}`, and a `(` or `)` opening a subshell or closing a
+/// case pattern; quotes, substitutions, `[[ ]]` and a `(` inside a command (an array, a fish substitution, `f()`) hold together.
+/// With `lists`, `&&`, `||` and `|` do not split, so each span is a whole and-or list.
+fn command_spans(text: &[char], lists: bool) -> Vec<(usize, usize)> {
+    let mut spans = Vec::new();
+    let mut stack: Vec<String> = Vec::new();
+    let mut start = 0;
+    let mut i = 0;
+    while i < text.len() {
+        let c = text[i];
+        let prev = i.checked_sub(1).map(|p| text[p]);
+        let next = text.get(i + 1).copied();
+        let top_owned = stack.last().cloned();
+        let top = top_owned.as_deref();
+        if c == '\\' && top != Some("'") {
+            i += 1;
+        } else if matches!(top, Some("'") | Some("$'") | Some("`")) {
+            let closer = if top == Some("`") { '`' } else { '\'' };
+            if c == closer {
+                stack.pop();
+            }
+        } else if c == '$' && matches!(next, Some('(') | Some('{')) {
+            stack.push(next.unwrap_or('(').to_string());
+            i += 1;
+        } else if c == '`' || (top != Some("\"") && (c == '\'' || c == '"')) {
+            stack.push(c.to_string());
+        } else if top == Some("\"") {
+            if c == '"' {
+                stack.pop();
+            }
+        } else if c == '$' && next == Some('\'') {
+            stack.push("$'".to_string());
+            i += 1;
+        } else if let Some(top) = top {
+            if top == "(" && comment_at(text, i) {
+                while i + 1 < text.len() && text[i + 1] != '\n' {
+                    i += 1;
+                }
+            } else if c == '(' {
+                stack.push("(".to_string());
+            } else if (c == ')' && top == "(") || (c == '}' && top == "{") {
+                stack.pop();
+            } else if top == "[[" && text.get(i) == Some(&']') && text.get(i + 1) == Some(&']') {
+                stack.pop();
+                i += 1;
+            }
+        } else if comment_at(text, i) {
+            push_span(text, &mut spans, start, i);
+            let from = i;
+            while i + 1 < text.len() && text[i + 1] != '\n' {
+                i += 1;
+            }
+            spans.push((from, i + 1));
+            start = i + 1;
+        } else if c == '['
+            && next == Some('[')
+            && text.get(i + 2).is_some_and(|&x| is_js_whitespace(x))
+            && lead_of(&text[start..i]) == i - start
+        {
+            stack.push("[[".to_string());
+            i += 1;
+        } else if c == '(' && lead_of(&text[start..i]) < i - start {
+            stack.push("(".to_string());
+        } else if ";\n()".contains(c)
+            || (c == '|' && prev != Some('>') && !lists)
+            || (c == '&'
+                && !matches!(prev, Some('<') | Some('>'))
+                && next != Some('>')
+                && !(lists && (matches!(prev, Some('&') | Some('|')) || matches!(next, Some('&') | Some('|')))))
+            || ((c == '{' || c == '}')
+                && next.is_none_or(is_js_whitespace)
+                && prev.is_none_or(|p| is_js_whitespace(p) || p == ';' || p == '&'))
+        {
+            push_span(text, &mut spans, start, i);
+            start = i + 1;
+        }
+        i += 1;
+    }
+    push_span(text, &mut spans, start, text.len());
+    spans
+}
+
+/// Whether a line leaves open the quoted argument of an `eval`, `alias` or `abbr`, whose text is shell.
+fn opens_shell(line: &str, arith: u32) -> bool {
+    let escaped = QUOTED_RE.find_iter(line).any(|m| is_match(&ESCAPED_SINGLE_RE, m.as_str()));
+    if escaped || !matches!(scan_line(line, &closed(arith)).quote, "'" | "\"" | "$'") {
+        return false;
+    }
+    let commands = simple_commands(line);
+    let (_, run) = command_words(commands.last().map_or("", String::as_str));
+    matches!(run.first().map(String::as_str), Some("eval" | "alias" | "abbr"))
+}
+
+/// Whether a line ends in an odd run of backslashes, so the next line joins it.
+fn ends_with_odd_backslashes(line: &str) -> bool {
+    line.chars().rev().take_while(|&c| c == '\\').count() % 2 == 1
+}
+
+/// The span to stand in for a cut command, as `(start, end, word)`: `""` is nothing, a comment or a case arm's `;;`.
+fn stands(cut: &[char], lists: &[(usize, usize)], s: usize, e: usize) -> (usize, usize, String) {
+    if cut.get(s) == Some(&'#') {
+        return (s, e, String::new());
+    }
+    if is_match(&ASSIGNS_RE, &sub(cut, s, e)) {
+        return (s, e, "true".to_string());
+    }
+    let (ls, le) = lists.iter().copied().find(|&(a, b)| a <= s && e <= b).unwrap_or((s, e));
+    let prefix = sub(cut, 0, ls);
+    if let Some(guard) = captures(&GUARD_RE, &prefix) {
+        let until = group(&guard, 1) == "until";
+        let word = if is_match(&BRACE_RE, &sub(cut, le, cut.len())) {
+            format!("[[ {} '' ]]", if until { "-z" } else { "-n" })
+        } else if until {
+            "true".to_string()
+        } else {
+            "false".to_string()
+        };
+        let keyword_end = guard.get(0).map_or(0, |m| prefix[..m.end()].chars().count());
+        return (keyword_end, le, word);
+    }
+    if is_match(&AMP_PIPE_RE, &sub(cut, e, le)) {
+        (ls, le, "true".to_string())
+    } else {
+        (s, e, "true".to_string())
+    }
+}
+
+impl Strip<'_> {
+    /// What `secret_in` names in a line, if it names anything.
+    fn found(&self, line: &str) -> Option<String> {
+        self.secret_in.and_then(|f| f(line))
+    }
+
+    /// Whether a command holds a secret: one of its assigned names is secret-named, or `secret_in` names it.
+    fn holds(&self, command: &str) -> bool {
+        assigned_in(command).iter().any(|n| is_secret_name(n)) || self.found(command).is_some()
+    }
+
+    /// Cuts a command's text in place of its spans, as a script; see `leave` in the TS.
+    fn leave(&mut self, lines: Vec<String>, whole: bool) {
+        if !self.script {
+            return;
+        }
+        let cut_text = lines.join("\n");
+        let cut: Vec<char> = cut_text.chars().collect();
+        let all: Vec<(usize, usize)> = if whole { command_spans(&cut, false) } else { Vec::new() };
+        let spans: Vec<(usize, usize)> = all.into_iter().filter(|&(s, e)| self.holds(&sub(&cut, s, e))).collect();
+        let lists = command_spans(&cut, true);
+        let mut ranges: Vec<(usize, usize, String)> = if spans.iter().any(|&(s, _)| is_match(&HEAD_RE, &sub(&cut, s, cut.len()))) {
+            Vec::new()
+        } else {
+            spans.iter().map(|&(s, e)| stands(&cut, &lists, s, e)).collect()
+        };
+        ranges.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+        let mut rest = String::new();
+        let mut at = 0;
+        for (s, e, word) in ranges {
+            if s < at {
+                continue;
+            }
+            if word.is_empty() {
+                rest += sub(&cut, at, s).trim_end_matches(&[' ', '\t'][..]);
+            } else {
+                rest += &sub(&cut, at, s);
+                rest += &word;
+            }
+            at = e;
+        }
+        rest += &sub(&cut, at, cut.len());
+        let first = &lines[0];
+        if rest != cut_text
+            && !js_trim(&rest).is_empty()
+            && !rest.split('\n').any(|l| self.found(l).is_some() || simple_commands(l).iter().any(|c| self.holds(c)))
+        {
+            self.kept.extend(rest.split('\n').map(String::from));
+        } else if !js_trim_start(first).starts_with('#') && !first.contains(";;") && !first.contains(";&") && !first.contains(";|") {
+            let indent = &first[..first.len() - first.trim_start_matches([' ', '\t']).len()];
+            self.kept.push(format!("{indent}true"));
+        }
+    }
+
+    /// Looks at one line that is not inside an open cut, join or heredoc (`take` in the TS).
+    fn take(&mut self, line: &str) {
+        let found = self.found(line);
+        let mut hits = Vec::new();
+        for command in simple_commands(line) {
+            for name in assigned_in(&command) {
+                if is_secret_name(&name) || (found.is_some() && self.found(&command).is_some()) {
+                    hits.push(name);
+                }
+            }
+        }
+        if hits.is_empty() && found.is_none() {
+            self.kept.extend(line.split('\n').map(String::from));
+            self.passing = carried(line, self.passing.arith);
+            return;
+        }
+        let no_hits = hits.is_empty();
+        for h in hits {
+            if !self.names.contains(&h) {
+                self.names.push(h);
+            }
+        }
+        if let Some(f) = found {
+            if no_hits && !self.held.contains(&f) {
+                self.held.push(f);
+            }
+        }
+        let o = scan_line(line, &closed(self.passing.arith));
+        if is_open(&o) {
+            self.cutting = Some(Cutting { whole: o.heredoc.is_none(), open: o, lines: line.split('\n').map(String::from).collect() });
+        } else {
+            self.leave(line.split('\n').map(String::from).collect(), true);
+            self.passing = Passing { heredoc: None, arith: o.arith, value: None };
+        }
+    }
+
+    /// Takes one line of the file, in the order the states of the TS main loop are tried.
+    fn line(&mut self, line: &str) {
+        if let Some(mut cutting) = self.cutting.take() {
+            let o = scan_line(line, &cutting.open);
+            cutting.lines.push(line.to_string());
+            if is_open(&o) {
+                cutting.whole = cutting.whole && o.heredoc.is_none();
+                cutting.open = o;
+                self.cutting = Some(cutting);
+            } else {
+                self.leave(cutting.lines, cutting.whole);
+                self.passing = Passing { heredoc: None, arith: o.arith, value: None };
+            }
+            return;
+        }
+        if let Some(mut joining) = self.joining.take() {
+            let o = scan_line(line, &joining.open);
+            joining.lines.push(line.to_string());
+            if !o.quote.is_empty() || !o.groups.is_empty() || o.continues {
+                joining.open = o;
+                self.joining = Some(joining);
+            } else {
+                self.take(&joining.lines.join("\n"));
+            }
+            return;
+        }
+        if let Some(word) = self.passing.heredoc.clone() {
+            if js_trim(line) == word {
+                self.kept.push(line.to_string());
+                self.passing = Passing { heredoc: None, arith: self.passing.arith, value: None };
+            } else if let Some(value) = self.passing.value.take() {
+                let o = scan_line(line, &value);
+                self.passing.value = if is_open(&o) { Some(o) } else { None };
+            } else {
+                let found = self.found(line);
+                let named: Vec<String> = simple_commands(line).iter().flat_map(|c| assigned_in(c)).filter(|n| is_secret_name(n)).collect();
+                for n in &named {
+                    if !self.names.contains(n) {
+                        self.names.push(n.clone());
+                    }
+                }
+                if named.is_empty() {
+                    if let Some(f) = &found {
+                        if !self.held.contains(f) {
+                            self.held.push(f.clone());
+                        }
+                    }
+                }
+                if named.is_empty() && found.is_none() {
+                    self.kept.push(line.to_string());
+                } else if self.kept.last().is_some_and(|k| ends_with_odd_backslashes(k)) {
+                    self.kept.push(String::new());
+                }
+                let o = scan_line(line, &Open::default());
+                if !named.is_empty() && is_open(&o) && o.heredoc.is_none() {
+                    self.passing.value = Some(o);
+                }
+            }
+            return;
+        }
+        if opens_shell(line, self.passing.arith) {
+            self.joining = Some(Joining { open: scan_line(line, &closed(self.passing.arith)), lines: vec![line.to_string()] });
+        } else {
+            self.take(line);
+        }
+    }
+}
+
 /// `secret_in` names a secret a line holds by a rule of the caller's; `held` collects what it names for a cut line
 /// that assigns none (TS defaults: none, a fresh list, `script` false).
-pub fn strip_exports(text: &str, secret_in: Option<&dyn Fn(&str) -> Option<String>>, held: &mut Vec<String>, script: bool) -> Stripped {
-    todo!()
+pub fn strip_exports(text: &str, secret_in: Option<SecretIn<'_>>, held: &mut Vec<String>, script: bool) -> Stripped {
+    let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut strip =
+        Strip { secret_in, held, script, names: Vec::new(), kept: Vec::new(), cutting: None, passing: Passing::default(), joining: None };
+    for line in split_lines(text) {
+        strip.line(line);
+    }
+    if let Some(joining) = strip.joining.take() {
+        strip.take(&joining.lines.join("\n"));
+    }
+    if let Some(cutting) = strip.cutting.take() {
+        strip.leave(cutting.lines, false);
+    }
+    Stripped { names: strip.names, carried: strip.kept.join(eol) }
 }

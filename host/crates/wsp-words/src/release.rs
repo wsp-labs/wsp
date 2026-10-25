@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The newest release as the host last read it off GitHub, and the words a row says about an update. Port of the functions of packages/protocol/src/release.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::release. See spec/release.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::release. See spec/release.md.
 
 use std::cmp::Ordering;
 

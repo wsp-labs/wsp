@@ -287,7 +287,7 @@ mod event_replay_wire_fields {
     // protocol.test.ts:669
     #[test]
     fn every_event_may_carry_seq_a_positive_integer_that_survives_a_json_round_trip_his() {
-        let events = vec![
+        let events = [
             json!({ "type": "workspace.napped", "workspaceId": "ws_1", "seq": 1 }),
             json!({ "type": "workspace.status", "status": { "id": "ws_1", "name": "x", "machineId": "m1", "phase": "running", "golden": "g", "createdAt": "t", "project": { "id": "pr_1a2b3c4d", "name": "x", "path": "/root/x", "computer": "here" }, "machineState": "running", "reach": { "state": "unsupported" }, "size": { "cpu": 2, "memMb": 4096 }, "rateUsdPerHour": 0.1 }, "seq": 2 }),
             json!({ "type": "session.delta", "workspaceId": "ws_1", "sessionId": "s1", "kind": "text", "text": "hi", "seq": 3 }),
