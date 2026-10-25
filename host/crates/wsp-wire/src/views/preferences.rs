@@ -613,6 +613,9 @@ impl Check for Preferences {
         self.sidebar_mode.check().map_err(|e| e.under("sidebarMode"))?;
         self.terminal_size.check().map_err(|e| e.under("terminalSize"))?;
         self.project_look.check().map_err(|e| e.under("projectLook"))?;
+        for (k, hash) in &self.project_icon {
+            crate::types::check::regex_check(crate::types::check::hex_64(hash)).map_err(|e| e.under(k.as_str()).under("projectIcon"))?;
+        }
         self.computer_look.check().map_err(|e| e.under("computerLook"))?;
         for (k, item) in &self.keybindings {
             crate::types::check::text_at_least(item, 1).map_err(|e| e.under(k.as_str()).under("keybindings"))?;
@@ -1365,49 +1368,97 @@ impl Check for PreferencesChangedEvent {
 
 use std::collections::HashMap;
 
+use crate::types::env::{CLOUD_ENV, LABS_ENV};
+use crate::types::general_prefs::{general_defaults, patched_general, GeneralPatch, GeneralPreferences};
+use crate::types::thread_defaults::patched_fields;
+
 // views/preferences.ts:65 at a3b870a6e
 // export const editorOpensHereLine = (name: string): string => `These files are on ${name}, so they open here.`;
 pub fn editor_opens_here_line(name: &str) -> String {
-    todo!()
+    format!("These files are on {name}, so they open here.")
 }
 
 // views/preferences.ts:68 at a3b870a6e
 // export const sshIncludeLine = (name: string): string => `${name} opens in your editor over ssh, which needs one line at the top of ~/.ssh/config.`;
 pub fn ssh_include_line(name: &str) -> String {
-    todo!()
+    format!("{name} opens in your editor over ssh, which needs one line at the top of ~/.ssh/config.")
 }
 
 // views/preferences.ts:70 at a3b870a6e
 // export const sshCopyHereLine = (name: string): string => `${name} is a copy on this computer, so its folder opens here with no ssh.`;
 pub fn ssh_copy_here_line(name: &str) -> String {
-    todo!()
+    format!("{name} is a copy on this computer, so its folder opens here with no ssh.")
 }
 
 // views/preferences.ts:74 at a3b870a6e
 // export const sshBehindLine = (name: string): string => `${name}'s computer runs an older wsp; it updates when its running turn ends, then Open works.`;
 pub fn ssh_behind_line(name: &str) -> String {
-    todo!()
+    format!("{name}'s computer runs an older wsp; it updates when its running turn ends, then Open works.")
 }
 
 // views/preferences.ts:174 at a3b870a6e
 // export const labsFromEnv = (env: Record<string, string | undefined>): boolean => env[LABS_ENV] === "1";
 /// `WSP_LABS` (crate::types::env::LABS_ENV) set to exactly "1"; nothing else counts.
 pub fn labs_from_env(env: &HashMap<String, String>) -> bool {
-    todo!()
+    env.get(LABS_ENV).is_some_and(|v| v == "1")
 }
 
 // views/preferences.ts:177 at a3b870a6e
 // export const cloudFromEnv = (env: Readonly<Record<string, string | undefined>>): boolean => env[CLOUD_ENV] === "1";
 /// crate::types::env::CLOUD_ENV set to exactly "1"; nothing else counts.
 pub fn cloud_from_env(env: &HashMap<String, String>) -> bool {
-    todo!()
+    env.get(CLOUD_ENV).is_some_and(|v| v == "1")
 }
 
 // views/preferences.ts:206 at a3b870a6e
 // export const DEFAULT_PREFERENCES: Preferences = { theme: "system", ...THEME_PICK_DEFAULTS, sidebarMode: "list", terminalSize: "app", terminalZoom: {}, access: {}, projectLook: {}, projectIcon: {}, computerLook: {}, serverIcons: true, agentVersions: true, usageLogs: true, productUsage: true, keepAwake: true, transparency: true, projectOrder: [], keybindings: {}, appFont: "", codeFont: "", agentDefaults: {}, projectDefaults: {}, ...GENERAL_DEFAULTS, labs: false };
 /// The record before anything is set; spec/preferences.md lists every value.
 pub fn default_preferences() -> Preferences {
-    todo!()
+    let general = general_defaults();
+    Preferences {
+        theme: ThemePreference::System,
+        light_theme: default_preferences_light_theme(),
+        dark_theme: default_preferences_dark_theme(),
+        sidebar_mode: SidebarMode::List,
+        terminal_size: TerminalSizeSource::App,
+        terminal_zoom: IndexMap::new(),
+        access: IndexMap::new(),
+        project_look: IndexMap::new(),
+        project_icon: IndexMap::new(),
+        computer_look: IndexMap::new(),
+        server_icons: true,
+        agent_versions: true,
+        usage_logs: true,
+        product_usage: true,
+        keep_awake: true,
+        transparency: true,
+        project_order: Vec::new(),
+        keybindings: IndexMap::new(),
+        app_font: String::new(),
+        code_font: String::new(),
+        agent_defaults: IndexMap::new(),
+        project_defaults: IndexMap::new(),
+        send_with: general.send_with,
+        mid_turn: general.mid_turn,
+        notify_needs: general.notify_needs,
+        notify_done: general.notify_done,
+        plan_alerts: general.plan_alerts,
+        settle_after: general.settle_after,
+        ask_delete: general.ask_delete,
+        on_quit: general.on_quit,
+        new_thread_in: general.new_thread_in,
+        labs: false,
+        sidebar_width: None,
+        target: None,
+        editor: None,
+        update_dismissed: None,
+        cloud_card_dismissed: None,
+        text_size: None,
+        code_size: None,
+        default_agent: None,
+        recipe_look: None,
+        threads_shut: None,
+    }
 }
 
 // views/preferences.ts:209 at a3b870a6e
@@ -1421,7 +1472,63 @@ pub fn default_preferences() -> Preferences {
 /// as `PreferencesStored` reads as the defaults whole. The stored `projectIcon` is kept as it was (`{}` when absent),
 /// and the stored `labs` is dropped: labs is always the default's.
 pub fn preferences_from(stored: Option<&serde_json::Value>) -> Preferences {
-    todo!()
+    let stored = match stored {
+        None | Some(serde_json::Value::Null) => serde_json::Value::Object(serde_json::Map::new()),
+        Some(value) => value.clone(),
+    };
+    let Ok(parsed) = crate::types::check::parse::<PreferencesStored>(&stored) else {
+        return default_preferences();
+    };
+    let project_icon = parsed.project_icon.clone().unwrap_or_default();
+    let serde_json::Value::Object(mut fields) = serde_json::to_value(&parsed).unwrap_or(serde_json::Value::Null) else {
+        return default_preferences();
+    };
+    fields.shift_remove("projectIcon");
+    fields.shift_remove("labs");
+    let Ok(patch) = serde_json::from_value::<PreferencesPatch>(serde_json::Value::Object(fields)) else {
+        return default_preferences();
+    };
+    Preferences {
+        project_icon,
+        ..apply_preferences_patch(&default_preferences(), &patch)
+    }
+}
+
+/// `perWorkspace`: a null entry takes its key away, a value sets it; a key set again after it was taken away goes last.
+fn per_key<V: Clone>(kept: &IndexMap<String, V>, moved: Option<&IndexMap<String, Option<V>>>) -> IndexMap<String, V> {
+    let mut next = kept.clone();
+    for (id, value) in moved.into_iter().flatten() {
+        match value {
+            Some(value) => {
+                next.insert(id.clone(), value.clone());
+            }
+            None => {
+                next.shift_remove(id);
+            }
+        }
+    }
+    next
+}
+
+/// `fieldsById`: a null entry takes its id away, a field patch merges through `patched_fields`, and an id left with no
+/// field goes with it.
+fn fields_by_id<T, P>(kept: &IndexMap<String, T>, moved: Option<&IndexMap<String, Option<P>>>) -> IndexMap<String, T>
+where
+    T: Clone + Serialize + serde::de::DeserializeOwned,
+    P: Serialize,
+{
+    let mut next = kept.clone();
+    for (id, value) in moved.into_iter().flatten() {
+        match value.as_ref().and_then(|patch| patched_fields(next.get(id), patch)) {
+            Some(merged) => {
+                next.insert(id.clone(), merged);
+            }
+            None => {
+                next.shift_remove(id);
+            }
+        }
+    }
+    next
 }
 
 // views/preferences.ts:218 at a3b870a6e
@@ -1493,12 +1600,87 @@ pub fn preferences_from(stored: Option<&serde_json::Value>) -> Preferences {
 /// The record with the patch's fields over it: the one merge rule the host and a painting client share.
 /// spec/preferences.md gives the rule field by field.
 pub fn apply_preferences_patch(current: &Preferences, patch: &PreferencesPatch) -> Preferences {
-    todo!()
+    let general = patched_general(
+        &GeneralPreferences {
+            send_with: current.send_with.clone(),
+            mid_turn: current.mid_turn.clone(),
+            notify_needs: current.notify_needs.clone(),
+            notify_done: current.notify_done.clone(),
+            plan_alerts: current.plan_alerts,
+            settle_after: current.settle_after.clone(),
+            ask_delete: current.ask_delete,
+            on_quit: current.on_quit.clone(),
+            new_thread_in: current.new_thread_in.clone(),
+        },
+        &GeneralPatch {
+            send_with: patch.send_with.clone(),
+            mid_turn: patch.mid_turn.clone(),
+            notify_needs: patch.notify_needs.clone(),
+            notify_done: patch.notify_done.clone(),
+            plan_alerts: patch.plan_alerts,
+            settle_after: patch.settle_after.clone(),
+            ask_delete: patch.ask_delete,
+            on_quit: patch.on_quit.clone(),
+            new_thread_in: patch.new_thread_in.clone(),
+        },
+    );
+    let recipe_look = match &patch.recipe_look {
+        None => current.recipe_look.clone(),
+        Some(moved) => Some(per_key(&current.recipe_look.clone().unwrap_or_default(), Some(moved))),
+    };
+    let threads_shut = match &patch.threads_shut {
+        None => current.threads_shut.clone(),
+        Some(moved) => Some(per_key(&current.threads_shut.clone().unwrap_or_default(), Some(moved))),
+    };
+    Preferences {
+        theme: patch.theme.clone().unwrap_or_else(|| current.theme.clone()),
+        light_theme: patch.light_theme.clone().unwrap_or_else(|| current.light_theme.clone()),
+        dark_theme: patch.dark_theme.clone().unwrap_or_else(|| current.dark_theme.clone()),
+        sidebar_mode: patch.sidebar_mode.clone().unwrap_or_else(|| current.sidebar_mode.clone()),
+        terminal_size: patch.terminal_size.clone().unwrap_or_else(|| current.terminal_size.clone()),
+        terminal_zoom: per_key(&current.terminal_zoom, patch.terminal_zoom.as_ref()),
+        access: per_key(&current.access, patch.access.as_ref()),
+        project_look: per_key(&current.project_look, patch.project_look.as_ref()),
+        project_icon: current.project_icon.clone(),
+        computer_look: per_key(&current.computer_look, patch.computer_look.as_ref()),
+        server_icons: patch.server_icons.unwrap_or(current.server_icons),
+        agent_versions: patch.agent_versions.unwrap_or(current.agent_versions),
+        usage_logs: patch.usage_logs.unwrap_or(current.usage_logs),
+        product_usage: patch.product_usage.unwrap_or(current.product_usage),
+        keep_awake: patch.keep_awake.unwrap_or(current.keep_awake),
+        transparency: patch.transparency.unwrap_or(current.transparency),
+        project_order: patch.project_order.clone().unwrap_or_else(|| current.project_order.clone()),
+        keybindings: per_key(&current.keybindings, patch.keybindings.as_ref()),
+        app_font: patch.app_font.clone().unwrap_or_else(|| current.app_font.clone()),
+        code_font: patch.code_font.clone().unwrap_or_else(|| current.code_font.clone()),
+        agent_defaults: fields_by_id(&current.agent_defaults, patch.agent_defaults.as_ref()),
+        project_defaults: fields_by_id(&current.project_defaults, patch.project_defaults.as_ref()),
+        send_with: general.send_with,
+        mid_turn: general.mid_turn,
+        notify_needs: general.notify_needs,
+        notify_done: general.notify_done,
+        plan_alerts: general.plan_alerts,
+        settle_after: general.settle_after,
+        ask_delete: general.ask_delete,
+        on_quit: general.on_quit,
+        new_thread_in: general.new_thread_in,
+        labs: current.labs,
+        sidebar_width: patch.sidebar_width.unwrap_or(current.sidebar_width),
+        target: patch.target.clone().unwrap_or_else(|| current.target.clone()),
+        editor: patch.editor.clone().or_else(|| current.editor.clone()),
+        update_dismissed: patch.update_dismissed.clone().or_else(|| current.update_dismissed.clone()),
+        cloud_card_dismissed: patch.cloud_card_dismissed.or(current.cloud_card_dismissed),
+        text_size: patch.text_size.unwrap_or(current.text_size),
+        code_size: patch.code_size.unwrap_or(current.code_size),
+        default_agent: patch.default_agent.clone().unwrap_or_else(|| current.default_agent.clone()),
+        recipe_look,
+        threads_shut,
+    }
 }
 
 // views/preferences.ts:285 at a3b870a6e
 // export const serverIconsLeftLine = (folder: string, reason: string): string =>
 //   `Server icons are off, but ${folder} could not be deleted: ${reason}. Delete it by hand.`;
 pub fn server_icons_left_line(folder: &str, reason: &str) -> String {
-    todo!()
+    format!("Server icons are off, but {folder} could not be deleted: {reason}. Delete it by hand.")
 }

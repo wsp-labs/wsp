@@ -15,21 +15,31 @@ pub trait PickOption {
 
 impl PickOption for HarnessOption {
     fn value(&self) -> &str {
-        todo!()
+        &self.value
     }
     fn is_default(&self) -> Option<bool> {
-        todo!()
+        self.is_default
     }
 }
 
 impl PickOption for HarnessModel {
     fn value(&self) -> &str {
-        todo!()
+        &self.value
     }
     fn is_default(&self) -> Option<bool> {
-        todo!()
+        self.is_default
     }
 }
+
+/// `narrowed`: the catalog's options a subset names, in the catalog's order; the whole list where no subset is named.
+fn narrowed(all: &[HarnessOption], subset: Option<&[String]>) -> Vec<HarnessOption> {
+    match subset {
+        None => all.to_vec(),
+        Some(names) => all.iter().filter(|o| names.contains(&o.value)).cloned().collect(),
+    }
+}
+
+const ONE_M: &str = "[1m]";
 
 // harness-picks.ts:9 at a3b870a6e
 // export function markedDefault<T extends HarnessOption>(options: ReadonlyArray<T>): T | undefined {
@@ -37,7 +47,7 @@ impl PickOption for HarnessModel {
 // }
 /// The first option whose `is_default` is `Some(true)`.
 pub fn marked_default<T: PickOption>(options: &[T]) -> Option<&T> {
-    todo!()
+    options.iter().find(|o| o.is_default() == Some(true))
 }
 
 // harness-picks.ts:22 at a3b870a6e
@@ -51,7 +61,17 @@ pub fn marked_default<T: PickOption>(options: &[T]) -> Option<&T> {
 /// the model names `default_effort`, every option's `is_default` is cleared and the one whose value is that effort
 /// gets `Some(true)`.
 pub fn efforts_for(catalog: &HarnessCatalog, model: Option<&HarnessModel>) -> Vec<HarnessOption> {
-    todo!()
+    let options = narrowed(&catalog.efforts, model.and_then(|m| m.efforts.as_deref()));
+    let Some(own) = model.and_then(|m| m.default_effort.as_deref()) else {
+        return options;
+    };
+    options
+        .into_iter()
+        .map(|o| HarnessOption {
+            is_default: (o.value == own).then_some(true),
+            ..o
+        })
+        .collect()
 }
 
 // harness-picks.ts:30 at a3b870a6e
@@ -59,7 +79,9 @@ pub fn efforts_for(catalog: &HarnessCatalog, model: Option<&HarnessModel>) -> Ve
 //   return [...catalog.models, ...(catalog.legacyModels ?? []), ...(catalog.hiddenModels ?? [])];
 // }
 pub fn every_model(catalog: &HarnessCatalog) -> Vec<HarnessModel> {
-    todo!()
+    let legacy = catalog.legacy_models.iter().flatten();
+    let hidden = catalog.hidden_models.iter().flatten();
+    catalog.models.iter().chain(legacy).chain(hidden).cloned().collect()
 }
 
 // harness-picks.ts:35 at a3b870a6e
@@ -70,7 +92,19 @@ pub fn every_model(catalog: &HarnessCatalog) -> Vec<HarnessModel> {
 /// None for no value; the first model of `every_model` with that value; else a model of that value whose label is
 /// the value and nothing else set.
 pub fn model_of(catalog: &HarnessCatalog, value: Option<&str>) -> Option<HarnessModel> {
-    todo!()
+    let value = value?;
+    Some(every_model(catalog).into_iter().find(|m| m.value == value).unwrap_or_else(|| HarnessModel {
+        value: value.to_string(),
+        label: value.to_string(),
+        description: None,
+        is_default: None,
+        short: None,
+        efforts: None,
+        default_effort: None,
+        context_windows: None,
+        fast: None,
+        added: None,
+    }))
 }
 
 // harness-picks.ts:41 at a3b870a6e
@@ -78,7 +112,7 @@ pub fn model_of(catalog: &HarnessCatalog, value: Option<&str>) -> Option<Harness
 //   return model === null ? [] : narrowed(catalog.contextWindows, model.contextWindows);
 // }
 pub fn context_windows_for(catalog: &HarnessCatalog, model: Option<&HarnessModel>) -> Vec<HarnessOption> {
-    todo!()
+    model.map_or_else(Vec::new, |m| narrowed(&catalog.context_windows, m.context_windows.as_deref()))
 }
 
 // harness-picks.ts:53 at a3b870a6e
@@ -86,7 +120,7 @@ pub fn context_windows_for(catalog: &HarnessCatalog, model: Option<&HarnessModel
 //   return value !== undefined && options.some(o => o.value === value) ? value : undefined;
 // }
 pub fn listed_pick<T: PickOption>(options: &[T], value: Option<&str>) -> Option<String> {
-    todo!()
+    value.filter(|v| options.iter().any(|o| o.value() == *v)).map(String::from)
 }
 
 // harness-picks.ts:58 at a3b870a6e
@@ -112,7 +146,28 @@ pub struct RanPicks {
 // }
 /// The model with a trailing `[1m]` taken off, and the window: the one given, else `1m` where that suffix was there.
 pub fn model_picks(model: &str, context_window: Option<&str>) -> RanPicks {
-    todo!()
+    let window = context_window.map(String::from).or_else(|| model.ends_with(ONE_M).then(|| "1m".to_string()));
+    RanPicks {
+        model: Some(model.strip_suffix(ONE_M).unwrap_or(model).to_string()),
+        context_window: window,
+        ..RanPicks::default()
+    }
+}
+
+/// `Object.assign(picks, named)`: each key the reader names overwrites the one held, and the rest stay.
+fn assign_picks(into: &mut RanPicks, from: RanPicks) {
+    if from.model.is_some() {
+        into.model = from.model;
+    }
+    if from.context_window.is_some() {
+        into.context_window = from.context_window;
+    }
+    if from.effort.is_some() {
+        into.effort = from.effort;
+    }
+    if from.permission_mode.is_some() {
+        into.permission_mode = from.permission_mode;
+    }
 }
 
 // harness-picks.ts:80 at a3b870a6e
@@ -130,7 +185,19 @@ pub fn model_picks(model: &str, context_window: Option<&str>) -> RanPicks {
 //   return picks;
 // }
 pub fn recorded_picks(rows: &[SessionView]) -> RanPicks {
-    todo!()
+    type Reader = fn(&SessionView) -> Option<RanPicks>;
+    let readers: [Reader; 3] = [
+        |row| row.model.as_deref().map(|m| model_picks(m, row.context_window.as_deref())),
+        |row| row.effort.as_ref().map(|effort| RanPicks { effort: Some(effort.clone()), ..RanPicks::default() }),
+        |row| row.permission_mode.as_ref().map(|mode| RanPicks { permission_mode: Some(mode.clone()), ..RanPicks::default() }),
+    ];
+    let mut picks = RanPicks::default();
+    for read in readers {
+        if let Some(named) = rows.iter().rev().find_map(read) {
+            assign_picks(&mut picks, named);
+        }
+    }
+    picks
 }
 
 /// What `kept_picks` answers: RanPicks less the access, keys in the order it writes them.
@@ -163,5 +230,28 @@ pub struct KeptPicks {
 // }
 /// `named` is read for its model, effort and context window only.
 pub fn kept_picks(catalog: Option<&HarnessCatalog>, ran: &RanPicks, named: &KeptPicks) -> KeptPicks {
-    todo!()
+    let Some(catalog) = catalog else {
+        return KeptPicks {
+            model: named.model.clone().or_else(|| ran.model.clone()),
+            effort: named.effort.clone().or_else(|| ran.effort.clone()),
+            context_window: named.context_window.clone().or_else(|| ran.context_window.clone()),
+        };
+    };
+    let takes = |model: Option<&HarnessModel>| {
+        let effort_ok = named.effort.is_none() || catalog.efforts.is_empty() || listed_pick(&efforts_for(catalog, model), named.effort.as_deref()).is_some();
+        let window_ok = named.context_window.is_none() || listed_pick(&context_windows_for(catalog, model), named.context_window.as_deref()).is_some();
+        effort_ok && window_ok
+    };
+    let own = model_of(catalog, listed_pick(&every_model(catalog), ran.model.as_deref()).as_deref());
+    let chosen = if named.model.is_some() {
+        model_of(catalog, named.model.as_deref())
+    } else {
+        own.filter(|m| takes(Some(m)))
+    };
+    let model = chosen.as_ref();
+    KeptPicks {
+        model: model.map(|m| m.value.clone()),
+        effort: named.effort.clone().or_else(|| listed_pick(&efforts_for(catalog, model), ran.effort.as_deref())),
+        context_window: named.context_window.clone().or_else(|| listed_pick(&context_windows_for(catalog, model), ran.context_window.as_deref())),
+    }
 }
