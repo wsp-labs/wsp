@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use indexmap::IndexMap;
-use wsp_core::clock::Clock;
+use wsp_core::types::pending::Clock;
 use wsp_wire::wire::limits::PortForward;
 use wsp_words::exit::HostError;
 

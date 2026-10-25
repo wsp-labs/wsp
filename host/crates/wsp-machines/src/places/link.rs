@@ -10,7 +10,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
-use wsp_core::reach::DaemonReach;
+use wsp_core::types::pending::DaemonReach;
 use wsp_engine::machine::MachineBackend;
 use wsp_engine::provision::ProvisionStage;
 use wsp_store::keys::Seal;

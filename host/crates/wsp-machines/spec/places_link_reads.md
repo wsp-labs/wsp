@@ -41,7 +41,7 @@ row that did not land.
   the provider's backend.
 - `joined(place)`: kept. `folder_computer(place)` (:402): none without a record or `HOME`; one `PlaceFolderMachine`
   per place while `HOME` and `PATH` stand (keyed `"{home}\0{path or empty}"`), built afresh when either moves, `path`
-  passed only where non-empty; `{ machine, home, shape, tools: report.wspDoor == true }`.
+  passed only where non-empty; `{ machine, home, cpu, mem_mb (the report's shape), tools: report.wspDoor == true }`.
 
 ## `forking_backend(place)` (:415)
 
@@ -98,3 +98,9 @@ row that did not land.
 | forward: tunnel frames per connection; refused open drops; away destroys | `a_forward_carries_each_connection_as_a_tunnel`, `a_refused_tunnel_drops_its_connection`, `a_connection_while_away_is_destroyed` | place-forward:45, :77 |
 | place_for: two by one word; here; providers; unknown | `place_for_names_the_place_a_word_means` | places:278, :188 |
 | default_place and the marks | `the_default_place_follows_the_mark`, `mark_default_if_none_marks_only_once` | places-facts:213, copy-on-press |
+| sign_ins_at, vault_at, joined read the kept record | `the_sign_in_and_vault_reads_take_the_kept_record` | |
+| offer_of and backend_of: facts, then the provider | `offer_and_backend_follow_the_facts_then_the_provider` | |
+| gh_there answers nothing without a road, record or home | `gh_there_answers_nothing_where_it_has_no_road_record_or_home` | |
+| a failed tunnel write destroys its connection | `a_failed_write_destroys_its_connection` | |
+| a pane forward opens under its own key and carries tunnels | `a_pane_forward_opens_under_its_own_key_and_carries_tunnels` | |
+| mark_used: the place, else the wired provider, else here | `mark_used_marks_the_place_else_the_wired_provider_else_here` | |

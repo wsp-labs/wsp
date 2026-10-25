@@ -8,9 +8,9 @@ use std::sync::Arc;
 
 use futures::future::{LocalBoxFuture, Shared};
 use indexmap::IndexMap;
-use wsp_core::clock::Clock;
-use wsp_core::devices::DeviceDoor;
-use wsp_store::store::Store;
+use wsp_core::types::pending::Clock;
+use wsp_core::types::pending::DeviceDoor;
+use wsp_core::types::pending::Store;
 use wsp_engine::machine::MachineBackend;
 use wsp_wire::types::agents_report::AgentSignInState;
 use wsp_words::exit::HostError;
@@ -28,7 +28,7 @@ pub type PlaceWatcher = Rc<dyn Fn(&PlaceEvent)>;
 pub struct PlaceDoorContext {
     pub opts: PlaceDoorOptions,
     pub store: Rc<dyn Store>,
-    pub devices: Rc<DeviceDoor>,
+    pub devices: Rc<dyn DeviceDoor>,
     pub wiring: Rc<PlaceWiring>,
     pub recording: Rc<dyn PlaceRecording>,
     /// The one clock: `opts.clock`, else the real one. The TS `now` and `schedule` options are this.
@@ -76,7 +76,8 @@ impl PlaceDoorContext {
         todo!()
     }
 
-    /// The door, once every area is built. Panics before [`PlaceDoorContext::set_door`].
+    /// The door, once every area is built. Before [`PlaceDoorContext::set_door`] it panics with "the place door is read
+    /// before it is built".
     pub fn door(&self) -> Rc<dyn PlaceDoor> {
         todo!()
     }
