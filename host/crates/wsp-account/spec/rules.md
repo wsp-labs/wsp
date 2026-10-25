@@ -149,3 +149,58 @@ is not held is empty (caller `tLost`), and its `spawnGuard` refuses every act wi
 - `ofThreadsRepository` throws for a project id not held; `refusalFor` reaches it for a record whose project is not
   held. The fixture's records all name held projects; the throw is pinned by `r7_of_threads_repository_matrix` only
   through `projectHeld`'s fake. Kept as the TS does.
+
+## Tests (`tests/rules.rs`, 41)
+
+| Rule | Tests |
+|---|---|
+| R1 | `r1_remember_project_moves_the_map_then_the_store` |
+| R2 | `r2_remember_target_writes_nothing_when_it_already_names_it`, `r2_remember_target_sets_workspace_alone` |
+| R3, R4 | `r3_r4_refuse_cannot_matrix`, `r3_no_machines_line_outranks_the_provider_line`, `r4_refuse_pauseless_matrix`, `r4_pauses_and_holds_slot_matrix` |
+| R5 | `r5_drives_matrix` |
+| R6, R14 | `r14_refusal_for_matrix` (289 rows), `r14_project_rule_before_computer_rule_before_tree_rule`, `r14_no_record_is_nobodys_to_refuse` |
+| R7 | `r7_of_threads_repository_matrix` |
+| R8 | `r8_project_reached_matrix` |
+| R9 | `r9_opens_in_matrix` |
+| R10, R11 | `r11_elsewhere_refusal_matrix` |
+| R12 | `r12_acts_on_matrix`, `r12_away_for_matrix`, `r12_lead_acts_on_matrix` |
+| R13 | `r13_talks_to_its_tree_matrix` |
+| R15 | `r15_refuse_relayed_matrix` (17 callers x 31 asks) |
+| R16 | `r16_refuse_named_matrix`, `r16_a_thread_reads_absence_for_an_unknown_id` |
+| R17 | `r17_listed_for_matrix`, `r17_a_creating_record_is_never_listed` |
+| R18 | `r18_refuse_recording_matrix` |
+| R19 | `r19_parent_of_table`, `r19_root_of_table` |
+| R20, R21 | `r20_agents_of_table`, `r21_caps_held_at_names_the_workspace_or_the_computer` |
+| R22 | `r22_a_parent_loop_is_bounded` |
+| R23 | `r23_spawn_guard_matrix` (17 callers x 11 acts, landing after each), `r23_landing_slot_taken_in_the_same_step_and_freed_once`, `r23_a_sub_thread_starts_nothing`, `r23_send_bring_back_delete_sub_pass_at_the_depth_cap`, `r23_a_creating_record_counts_against_the_cap` |
+| R24 | `r24_a_root_with_no_caps_fails_as_the_ts_does` |
+| R25 | `r25_agents_reach_table` |
+| R26 | `r26_tree_of`, `r26_place_of_thread_table`, `r26_act_refusal_table` |
+| Invariant 3 | `invariant_3_the_rules_read_the_stamped_scope_alone` |
+
+TS cases the test map lists as strong for rules (74, all over a whole host) and where their rule decision is pinned:
+
+| TS case | Test |
+|---|---|
+| spawn-guard:359 (own repository only) | `r7_of_threads_repository_matrix`, `r14_project_rule_before_computer_rule_before_tree_rule` |
+| spawn-guard:458 (past the machine cap) | `r23_a_creating_record_counts_against_the_cap` |
+| spawn-guard:473 (a child spawns, its child may not) | `r23_spawn_guard_matrix` rows t4, t6, tcc |
+| spawn-guard:514 (the person's acts refused by name) | `r23_spawn_guard_matrix` rows merge, delete; `r26_act_refusal_table` |
+| spawn-guard:523, 1246 (own workspace and the root's forks) | `r14_refusal_for_matrix`, `r17_listed_for_matrix` |
+| spawn-guard:565 (an unheld id reads as outside) | `r16_refuse_named_matrix`, `r16_a_thread_reads_absence_for_an_unknown_id` |
+| spawn-guard:1163 (two forks in one tick) | `r23_landing_slot_taken_in_the_same_step_and_freed_once` |
+| spawn-guard:1182 (a booting fork counts once) | `r23_a_creating_record_counts_against_the_cap` |
+| local-workspace:900, machine-gates:50-91 (capability sentences) | `r3_r4_refuse_cannot_matrix`, `r3_no_machines_line_outranks_the_provider_line` |
+| local-workspace:911, 999, 1006, serve-daemon:274 (the relayed rule) | `r5_drives_matrix`, `r14_refusal_for_matrix` rows relayed and tRelayed, `r17_listed_for_matrix` |
+| local-workspace:1436, 1450 (this computer holds no slot) | `r4_pauses_and_holds_slot_matrix` |
+| pause:61 (nap and wake need a pause mode) | `r4_refuse_pauseless_matrix` |
+| box-lead:37-486, box-folder:187 (a thread on a joined computer) | `r8_project_reached_matrix`, `r11_elsewhere_refusal_matrix`, `r12_*`, `r13_*`, `r15_refuse_relayed_matrix` rows t3, t4, t7 |
+| box-lead:436 (a deleted lead) | `r23_spawn_guard_matrix` rows tOrphan |
+| sub-queue:375, sub-spawn:237 (released machines free a place; a sub-thread starts nothing) | `r23_spawn_guard_matrix` (wRel, wGone, t5), `r23_a_sub_thread_starts_nothing` |
+| projects:473 (the target is the workspace alone) | `r2_remember_target_sets_workspace_alone` |
+
+Not ported here: spawn-guard:170, 225, 781, 1038, 1130, 1209, 1309, 1351, 1382, 1438, 1471, 1507, folder-threads:927,
+1024, local-workspace:1019, 1038, 1263, 1292, pull-request:973, tree:467, fork-start-events:89, replaces:136,
+start-review:339, projects:432, and the host's guest-spawn and verbs-threads cases. Each asserts what a door (serve's
+stamping, the create, the sessions and notify doors, the forwards, the merge) does with the rule's answer; the rule's
+own answer for their inputs is a row above, and the door's effect belongs to that door's area tests.

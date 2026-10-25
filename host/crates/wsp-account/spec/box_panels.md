@@ -78,3 +78,24 @@ Nothing: placements, holders and asks are memory.
 
 - B6's close from a watch that never held the port is heard (`!held.delete(watch)` then `held.size === 0`): the pane is
   told of a close it never heard open. Pinned; after-port ticket 2.
+
+## Tests (`tests/box_panels.rs`, 15)
+
+| Rule | Tests |
+|---|---|
+| B1 | `b1_proc_watch_scope_table` |
+| B2 | `b2_named_watch_refusal_table`, `b3_a_daemon_behind_is_refused_before_anything_is_sent` |
+| B3 | `b3_ports_three_threads` |
+| B4 | `b4_ports_twenty_threads_place_and_shrink` |
+| B5 | `b5_ports_merged_once`, `b5_one_share_refused_answers_its_refusal` |
+| B6 | `b6_port_holders_table` |
+| B7, B9 | `b7_procs_two_panes`, `b7_procs_whole_and_refused`, `b7_link_replaced_says_nothing` |
+| B8 | `b8_readings_hold_refuse_release` |
+| B10 | `b10_terminal_and_pass_through` |
+| B11 | `b11_close_and_delete` |
+
+TS cases (`test/box-panels.test.ts`): the map lists 19 strong; the ones this file decides are the ports watch over a
+folder's threads and its cgroups, the named watches past 16, the daemon behind `NAMED_WATCH_DAEMON_VERSION`, the
+process watch shared on one link and taken back, the readings hold and `sys.unwatch`, and the terminal's folder and
+environment, each a session above. The cases about forwards, cgroup ends, a turn's launch order and the stop are
+other areas' (places' `pane_ports`, machines' kinds and thread ends) and stay with them.
