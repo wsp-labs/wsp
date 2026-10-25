@@ -1,0 +1,446 @@
+[
+  {
+    "name": "vitest 2.1.9, one test failed, one passed, one skipped",
+    "file": "vitest.txt",
+    "summary": {
+      "failed": 1,
+      "passed": 1,
+      "skipped": 1,
+      "matters": [
+        "FAIL |node|  src/checkout.test.ts > checkout > rounds a refund",
+        "AssertionError: expected 0.30000000000000004 to be 0.3 // Object.is equality"
+      ],
+      "last": "Duration  336ms (transform 15ms, setup 20ms, collect 6ms, tests 9ms, environment 0ms, prepare 59ms)"
+    },
+    "counts": [
+      "1 failed",
+      "1 passed",
+      "1 skipped"
+    ]
+  },
+  {
+    "name": "the same through the terminal's colours",
+    "file": "vitest-color.txt",
+    "summary": {
+      "failed": 1,
+      "passed": 1,
+      "skipped": 1,
+      "matters": [
+        "FAIL |node|  src/checkout.test.ts > checkout > rounds a refund",
+        "AssertionError: expected 0.30000000000000004 to be 0.3 // Object.is equality"
+      ],
+      "last": "Duration  336ms (transform 14ms, setup 19ms, collect 6ms, tests 9ms, environment 0ms, prepare 58ms)"
+    },
+    "counts": [
+      "1 failed",
+      "1 passed",
+      "1 skipped"
+    ]
+  },
+  {
+    "name": "cargo 1.97.1, one test failed, one passed, one ignored",
+    "file": "cargo.txt",
+    "summary": {
+      "passed": 1,
+      "failed": 1,
+      "skipped": 1,
+      "matters": [
+        "test tests::rounds_refund ... FAILED",
+        "thread 'tests::rounds_refund' (2383223) panicked at src/lib.rs:6:34:",
+        "error: test failed, to rerun pass `--lib`"
+      ],
+      "last": "error: test failed, to rerun pass `--lib`"
+    },
+    "counts": [
+      "1 failed",
+      "1 passed",
+      "1 skipped"
+    ]
+  },
+  {
+    "name": "cargo over two crates sums their test result lines",
+    "lines": [
+      "running 2 tests",
+      "test tests::adds ... ok",
+      "test tests::rounds ... FAILED",
+      "test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+      "",
+      "running 4 tests",
+      "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+    ],
+    "summary": {
+      "passed": 5,
+      "failed": 1,
+      "skipped": 2,
+      "matters": [
+        "test tests::rounds ... FAILED"
+      ],
+      "last": "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+    },
+    "counts": [
+      "1 failed",
+      "5 passed",
+      "2 skipped"
+    ]
+  },
+  {
+    "name": "no runner's tally: the last line leads",
+    "lines": [
+      "building acme",
+      "wrote dist/acme.js",
+      ""
+    ],
+    "summary": {
+      "matters": [],
+      "last": "wrote dist/acme.js"
+    },
+    "counts": []
+  },
+  {
+    "name": "nothing printed",
+    "lines": [],
+    "summary": {
+      "matters": []
+    },
+    "counts": []
+  },
+  {
+    "name": "blank lines only",
+    "lines": [
+      "",
+      "   ",
+      ""
+    ],
+    "summary": {
+      "matters": []
+    },
+    "counts": []
+  },
+  {
+    "name": "one long line, cut to one line's worth",
+    "lines": [
+      "[{\"number\":0,\"title\":\"Pull request 0\",\"state\":\"open\"},{\"number\":1,\"title\":\"Pull request 1\",\"state\":\"open\"},{\"number\":2,\"title\":\"Pull request 2\",\"state\":\"open\"},{\"number\":3,\"title\":\"Pull request 3\",\"state\":\"open\"}]"
+    ],
+    "summary": {
+      "matters": [],
+      "last": "[{\"number\":0,\"title\":\"Pull request 0\",\"state\":\"open\"},{\"number\":1,\"title\":\"Pull request 1\",\"state\":\"open\"},{\"number\":2,\"title\":\"Pull request 2\",\"state\":\"open\"}…"
+    },
+    "counts": []
+  },
+  {
+    "name": "a long failure line, cut the same way",
+    "lines": [
+      "AssertionError: expected the invoice for acme to carry the line items the order named, in the order named, with each one's tax and discount applied before rounding to the cent",
+      "Tests  1 failed (1)"
+    ],
+    "summary": {
+      "failed": 1,
+      "matters": [
+        "AssertionError: expected the invoice for acme to carry the line items the order named, in the order named, with each one's tax and discount applied before roun…"
+      ],
+      "last": "Tests  1 failed (1)"
+    },
+    "counts": [
+      "1 failed"
+    ]
+  },
+  {
+    "name": "an exception's class line names a failure",
+    "lines": [
+      "TypeError: Cannot read properties of undefined (reading 'total')",
+      "    at checkout (src/checkout.ts:12:9)",
+      "Error: connect ECONNREFUSED 127.0.0.1:5432",
+      "java.lang.IllegalStateException: closed",
+      "done"
+    ],
+    "summary": {
+      "matters": [
+        "TypeError: Cannot read properties of undefined (reading 'total')",
+        "Error: connect ECONNREFUSED 127.0.0.1:5432",
+        "java.lang.IllegalStateException: closed"
+      ],
+      "last": "done"
+    },
+    "counts": []
+  },
+  {
+    "name": "jest",
+    "lines": [
+      " FAIL  src/cart.test.js",
+      "  ● cart › adds an item",
+      "    expect(received).toBe(expected)",
+      "Test Suites: 1 failed, 2 passed, 3 total",
+      "Tests:       1 failed, 11 passed, 12 total",
+      "Snapshots:   0 total",
+      "Time:        1.2 s"
+    ],
+    "summary": {
+      "failed": 1,
+      "passed": 11,
+      "matters": [
+        "FAIL  src/cart.test.js"
+      ],
+      "last": "Time:        1.2 s"
+    },
+    "counts": [
+      "1 failed",
+      "11 passed"
+    ]
+  },
+  {
+    "name": "pytest",
+    "lines": [
+      "tests/test_cart.py .F.s",
+      "FAILED tests/test_cart.py::test_total - assert 3 == 4",
+      "=========== 1 failed, 2 passed, 1 skipped in 0.12s ==========="
+    ],
+    "summary": {
+      "failed": 1,
+      "passed": 2,
+      "skipped": 1,
+      "matters": [
+        "FAILED tests/test_cart.py::test_total - assert 3 == 4"
+      ],
+      "last": "=========== 1 failed, 2 passed, 1 skipped in 0.12s ==========="
+    },
+    "counts": [
+      "1 failed",
+      "2 passed",
+      "1 skipped"
+    ]
+  },
+  {
+    "name": "mocha",
+    "lines": [
+      "  cart",
+      "    ✔ adds an item",
+      "    1) rounds the total",
+      "  1 passing (8ms)",
+      "  1 failing",
+      "",
+      "  1) cart",
+      "       rounds the total:",
+      "     AssertionError [ERR_ASSERTION]: 3 == 4"
+    ],
+    "summary": {
+      "passed": 1,
+      "failed": 1,
+      "matters": [
+        "1) rounds the total",
+        "1) cart",
+        "AssertionError [ERR_ASSERTION]: 3 == 4"
+      ],
+      "last": "AssertionError [ERR_ASSERTION]: 3 == 4"
+    },
+    "counts": [
+      "1 failed",
+      "1 passed"
+    ]
+  },
+  {
+    "name": "go test",
+    "lines": [
+      "--- FAIL: TestTotal (0.00s)",
+      "    cart_test.go:9: got 3, want 4",
+      "FAIL",
+      "FAIL\tacme/cart\t0.002s",
+      "ok  \tacme/pay\t0.004s"
+    ],
+    "summary": {
+      "matters": [
+        "--- FAIL: TestTotal (0.00s)",
+        "FAIL",
+        "FAIL\tacme/cart\t0.002s"
+      ],
+      "last": "ok  \tacme/pay\t0.004s"
+    },
+    "counts": []
+  },
+  {
+    "name": "go test -v, a subtest failing under its test, and a FAIL named mid-line",
+    "lines": [
+      "=== RUN   TestTotal",
+      "=== RUN   TestTotal/rounds",
+      "    --- FAIL: TestTotal/rounds (0.00s)",
+      "--- FAIL: TestTotal (0.00s)",
+      "acme/cart: --- FAIL: TestSlow (10.00s)",
+      "FAIL"
+    ],
+    "summary": {
+      "matters": [
+        "--- FAIL: TestTotal/rounds (0.00s)",
+        "--- FAIL: TestTotal (0.00s)",
+        "acme/cart: --- FAIL: TestSlow (10.00s)",
+        "FAIL"
+      ],
+      "last": "FAIL"
+    },
+    "counts": []
+  },
+  {
+    "name": "tsc",
+    "lines": [
+      "src/cart.ts(4,7): error TS2322: Type 'string' is not assignable to type 'number'.",
+      "Found 1 error in src/cart.ts:4"
+    ],
+    "summary": {
+      "failed": 1,
+      "matters": [],
+      "last": "Found 1 error in src/cart.ts:4"
+    },
+    "counts": [
+      "1 failed"
+    ]
+  },
+  {
+    "name": "npm",
+    "lines": [
+      "npm ERR! code ELIFECYCLE",
+      "npm ERR! errno 1",
+      "npm ERR! acme@1.0.0 test: `vitest run`"
+    ],
+    "summary": {
+      "matters": [
+        "npm ERR! code ELIFECYCLE",
+        "npm ERR! errno 1",
+        "npm ERR! acme@1.0.0 test: `vitest run`"
+      ],
+      "last": "npm ERR! acme@1.0.0 test: `vitest run`"
+    },
+    "counts": []
+  },
+  {
+    "name": "a Python traceback",
+    "lines": [
+      "Traceback (most recent call last):",
+      "  File \"cart.py\", line 3, in <module>",
+      "ValueError: bad total"
+    ],
+    "summary": {
+      "matters": [
+        "Traceback (most recent call last):",
+        "ValueError: bad total"
+      ],
+      "last": "ValueError: bad total"
+    },
+    "counts": []
+  },
+  {
+    "name": "a vitest mark with no FAIL line is kept",
+    "lines": [
+      " × cart > adds an item 4ms",
+      "   → expected 3 to be 4",
+      "      Tests  1 failed (1)"
+    ],
+    "summary": {
+      "failed": 1,
+      "matters": [
+        "× cart > adds an item 4ms"
+      ],
+      "last": "Tests  1 failed (1)"
+    },
+    "counts": [
+      "1 failed"
+    ]
+  },
+  {
+    "name": "thousands grouped",
+    "lines": [
+      "      Tests  2 failed | 2,701 passed | 19 skipped (2,722)"
+    ],
+    "summary": {
+      "failed": 2,
+      "passed": 2701,
+      "skipped": 19,
+      "matters": [],
+      "last": "Tests  2 failed | 2,701 passed | 19 skipped (2,722)"
+    },
+    "counts": [
+      "2 failed",
+      "2,701 passed",
+      "19 skipped"
+    ]
+  },
+  {
+    "name": "a failure printed twice is said once",
+    "lines": [
+      "error: could not compile `acme`",
+      "error: could not compile `acme`",
+      "warning: build failed"
+    ],
+    "summary": {
+      "matters": [
+        "error: could not compile `acme`"
+      ],
+      "last": "warning: build failed"
+    },
+    "counts": []
+  },
+  {
+    "name": "past five failure lines, the first five",
+    "lines": [
+      "--- FAIL: TestA (0.00s)",
+      "--- FAIL: TestB (0.00s)",
+      "--- FAIL: TestC (0.00s)",
+      "--- FAIL: TestD (0.00s)",
+      "--- FAIL: TestE (0.00s)",
+      "--- FAIL: TestF (0.00s)",
+      "FAIL"
+    ],
+    "summary": {
+      "matters": [
+        "--- FAIL: TestA (0.00s)",
+        "--- FAIL: TestB (0.00s)",
+        "--- FAIL: TestC (0.00s)",
+        "--- FAIL: TestD (0.00s)",
+        "--- FAIL: TestE (0.00s)"
+      ],
+      "last": "FAIL"
+    },
+    "counts": []
+  },
+  {
+    "name": "digits that are not ASCII count nothing",
+    "lines": [
+      "٣ passed"
+    ],
+    "summary": {
+      "matters": [],
+      "last": "٣ passed"
+    },
+    "counts": []
+  },
+  {
+    "name": "a word running on from FAIL is still a failure line, as JavaScript reads it",
+    "lines": [
+      "FAILé to start",
+      "ok"
+    ],
+    "summary": {
+      "matters": [
+        "FAILé to start"
+      ],
+      "last": "ok"
+    },
+    "counts": []
+  },
+  {
+    "name": "a line ending in a carriage return",
+    "lines": [
+      "test tests::rounds ... FAILED\r",
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\r"
+    ],
+    "summary": {
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "matters": [
+        "test tests::rounds ... FAILED"
+      ],
+      "last": "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+    },
+    "counts": [
+      "1 failed"
+    ]
+  }
+]

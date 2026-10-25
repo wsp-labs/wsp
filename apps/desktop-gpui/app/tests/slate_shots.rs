@@ -3,8 +3,7 @@
 //! alone, at the panel body's 539 px and the window's scale of 2. Each state writes one of the
 //! `parity/wave-2/data/*.slate` files onto a fresh thread. `SLATE_PNG=<folder>` writes `<theme>/<state>.png` there;
 //! `SLATE_STATES=a,b` picks states, the press-driven ones in `fixture::PRESSED` among them; `SLATE_FILES=<path>,...`
-//! draws more slate files, each named by its file; a state named `-pairs` draws
-//! three stat tiles two a row in a narrow row. Without libtest's harness, as `pixels.rs` explains.
+//! draws more slate files, each named by its file. Without libtest's harness, as `pixels.rs` explains.
 
 #[path = "../../host-client/tests/common/mod.rs"]
 mod common;
@@ -15,7 +14,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use desktop_gpui::screens::slate::pieces::numbers::ThreeAsPairs;
 use desktop_gpui::screens::slate::{consent, Load, Raise, SlateScreen};
 use desktop_gpui::screens::{Host, Opened, Screen};
 use desktop_gpui::ui::{self, ActivePalette, Side, Still, UiAssets};
@@ -53,7 +51,7 @@ impl Render for Panel {
     }
 }
 
-fn shoot(theme: &str, host: &Host, thread: &str, acts: &[Act], pairs: bool) -> image::RgbaImage {
+fn shoot(theme: &str, host: &Host, thread: &str, acts: &[Act]) -> image::RgbaImage {
     let mut cx = HeadlessAppContext::with_platform(
         gpui_kit::platform::current_platform(true).text_system(),
         Arc::new(UiAssets),
@@ -64,7 +62,6 @@ fn shoot(theme: &str, host: &Host, thread: &str, acts: &[Act], pairs: bool) -> i
         ui::init(Side::Light, cx);
         cx.set_global(Still(true));
         ui::theme::set_theme(theme, cx);
-        cx.set_global(ThreeAsPairs(pairs));
     });
     let opened = Opened { thread_id: Some(thread.to_owned()), workspace_id: None, tab: Some("slate".into()), arg: None };
     let mut made = None;
@@ -218,7 +215,7 @@ fn main() {
     for state in picked.chain(&files) {
         let thread = fixture::staged(&host, &folder, state);
         for theme in ["paper", "graphite"] {
-            let image = shoot(theme, &handle, &thread, &[], state.name.ends_with("-pairs"));
+            let image = shoot(theme, &handle, &thread, &[]);
             assert_eq!(
                 (image.width(), image.height()),
                 (2 * width() as u32, 2 * height() as u32),
@@ -242,7 +239,7 @@ fn main() {
         }
         for theme in ["paper", "graphite"] {
             let thread = fixture::staged(&host, &folder, &fixture::State { name: pressed.name, file: Some(pressed.file) });
-            let image = shoot(theme, &handle, &thread, pressed.acts, false);
+            let image = shoot(theme, &handle, &thread, pressed.acts);
             if let Some(out) = &out {
                 std::fs::create_dir_all(out.join(theme)).unwrap();
                 image.save(out.join(theme).join(format!("{}.png", pressed.name))).unwrap();
