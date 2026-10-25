@@ -15,8 +15,8 @@ use serde_json::{json, Map, Value};
 
 use wsp_engine::errors::EngineError;
 use wsp_engine::machine::{
-    BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineLife, MachineListRow, MachineSpec, MachineState,
-    RunOptions, SnapshotOptions, Waiting,
+    BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineLife, MachineListRow, MachineOffers, MachineSpec,
+    MachineState, RunOptions, SnapshotOptions, Waiting,
 };
 use wsp_core::clock::Cancel;
 use wsp_core::types::internal::{ImportLanded, ImportReport};
@@ -429,6 +429,220 @@ impl CloneRig {
     pub fn clone_targets(&self) -> Vec<String> {
         self.calls().into_iter().filter(|c| c.argv.get(1).map(|w| w == "clone").unwrap_or(false) || c.argv[0] == "gh").map(|c| c.argv.last().unwrap().clone()).collect()
     }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Reading a kind module's answers off an entry. The module's futures own what they read, so each helper makes the
+// call in one statement, which ends the borrow of the entry before anything is awaited.
+
+/// The record an entry holds, as it stands now.
+pub fn held_record(e: &Entry) -> WorkspaceRecord {
+    e.borrow().record.borrow().clone()
+}
+
+/// Puts the worktree the TS test wrote as JSON on an entry's record.
+pub fn set_worktree(e: &Entry, tree: Value) {
+    let tree: WorktreeFolder = serde_json::from_value(tree).expect("the worktree reads as the TS writes it");
+    e.borrow().record.borrow_mut().worktree = Some(tree);
+}
+
+/// The wire word of a stage or any other enum that serializes as one string.
+pub fn word_of<T: serde::Serialize>(word: &T) -> String {
+    serde_json::to_value(word).unwrap().as_str().expect("a word").to_string()
+}
+
+pub async fn dropped_of(m: &dyn KindModule, e: &Entry) -> Result<(), HostError> {
+    let asked = m.dropped(&e.borrow());
+    asked.await
+}
+
+pub async fn roots_of(m: &dyn KindModule, e: &Entry, dests: &[String]) -> Result<(), HostError> {
+    let asked = m.roots(&e.borrow(), dests);
+    asked.await
+}
+
+pub async fn daemon_road_of(m: &dyn KindModule, e: &Entry) -> Result<DaemonReachView, HostError> {
+    let asked = m.daemon_road(&e.borrow());
+    asked.await
+}
+
+pub async fn daemon_version_of(m: &dyn KindModule, e: &Entry) -> Result<Option<u32>, HostError> {
+    let asked = m.daemon_version(&e.borrow());
+    asked.await
+}
+
+pub async fn import_of(m: &dyn KindModule, e: &Entry, o: ProjectImportOptions, report: ImportReport) -> Result<ImportLanded, HostError> {
+    let asked = m.import(&e.borrow(), o, report);
+    asked.await
+}
+
+pub async fn land_project_of(m: &dyn KindModule, e: &Entry, project: ProjectView, report: StageReport) -> Result<(), HostError> {
+    let asked = m.land_project(&e.borrow(), project, report);
+    asked.await
+}
+
+/// The port a place forwards; a module that answers no route fails here.
+pub async fn port_reach_of(m: &dyn KindModule, e: &Entry, port: u16, standing: bool) -> Result<PortRoute, HostError> {
+    let asked = m.port_reach(&e.borrow(), port, standing).expect("a place forwards the port");
+    asked.await
+}
+
+/// The deploy a recipe wired, or `None` where the kind has none.
+pub fn deploy_of(m: &dyn KindModule, e: &Entry) -> Option<Local<'static, Option<String>>> {
+    m.deploy_daemon(&e.borrow())
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The import options a test hands a kind: the bundler is the one the TS test's `plan` was read from.
+
+/// A folder on this computer as the bundler measures it: its plan is read, and nothing else is asked of it.
+pub struct FakeBundler {
+    pub plans: Mutex<u32>,
+}
+
+impl FakeBundler {
+    pub fn new() -> Rc<FakeBundler> {
+        Rc::new(FakeBundler { plans: Mutex::new(0) })
+    }
+    pub fn plans(&self) -> u32 {
+        *self.plans.lock().unwrap()
+    }
+}
+
+#[async_trait(?Send)]
+impl ProjectBundler for FakeBundler {
+    async fn plan(&self) -> Result<ProjectPlan, HostError> {
+        *self.plans.lock().unwrap() += 1;
+        Ok(ProjectPlan {
+            source: "/home/z/src".to_string(),
+            repo: true,
+            files: 12.0.into(),
+            bytes: 3456.0.into(),
+            secrets: Vec::new(),
+            values: None,
+            excluded: Vec::new(),
+            skipped: Vec::new(),
+            agents: Vec::new(),
+        })
+    }
+    async fn pack(&self, _carry: &[String], _rewrite: &[String], _provider: bool) -> Result<PackedProject, HostError> {
+        Err(host_error("the fake bundler packs nothing", None))
+    }
+    async fn pack_state(&self, _req: StateRequest) -> Result<PackedState, HostError> {
+        Err(host_error("the fake bundler packs no state", None))
+    }
+}
+
+/// Import options for a workspace's dest, the bundler kept to read back how often its plan was asked.
+pub fn import_options(workspace_id: &str, dest: &str) -> (ProjectImportOptions, Rc<FakeBundler>) {
+    let bundler = FakeBundler::new();
+    let o = ProjectImportOptions {
+        workspace_id: workspace_id.to_string(),
+        source: "/home/z/src".to_string(),
+        dest: dest.to_string(),
+        replace: None,
+        carry: None,
+        rewrite: None,
+        agents: None,
+        bundler: bundler.clone(),
+    };
+    (o, bundler)
+}
+
+/// The options as words, for keeping them on a call: the bundler is a handle and has none.
+pub fn import_words(o: &ProjectImportOptions) -> String {
+    json!({ "workspaceId": o.workspace_id, "source": o.source, "dest": o.dest, "replace": o.replace, "carry": o.carry, "rewrite": o.rewrite, "agents": o.agents }).to_string()
+}
+
+/// The import stages a call reported, as `(stage, line)`.
+pub fn import_report() -> (Rc<RefCell<Vec<(String, String)>>>, ImportReport) {
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let keep = seen.clone();
+    let report: ImportReport = Rc::new(move |stage: ProjectImportStage, line: &str, _: Option<(u64, u64)>| keep.borrow_mut().push((word_of(&stage), line.to_string())));
+    (seen, report)
+}
+
+/// A number as a result carries it.
+pub fn js(n: f64) -> JsNumber {
+    JsNumber(n)
+}
+
+pub fn js_int(n: f64) -> JsInt {
+    JsInt(JsNumber(n))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// A machine whose preview route answers, for the road `Workspace::daemon_reach` reads: the url the removed FakeRoad
+// handed back. Every other call goes to the fake machine inside, so its log and its offers are the test's own.
+
+pub struct PreviewMachine(pub Arc<FakeMachine>);
+
+#[async_trait(?Send)]
+impl Machine for PreviewMachine {
+    fn id(&self) -> &str {
+        self.0.id()
+    }
+    fn kind(&self) -> MachineKind {
+        self.0.kind()
+    }
+    fn offers(&self) -> MachineOffers {
+        self.0.offers()
+    }
+    async fn exec(&self, cmd: &str, opts: ExecOptions) -> Result<ExecResult, EngineError> {
+        self.0.exec(cmd, opts).await
+    }
+    async fn run(&self, script: &str, opts: RunOptions) -> Result<ExecResult, EngineError> {
+        self.0.run(script, opts).await
+    }
+    async fn snapshot(&self, name: &str, life: MachineLife, opts: SnapshotOptions) -> Result<String, EngineError> {
+        self.0.snapshot(name, life, opts).await
+    }
+    async fn pause(&self, wait_ms: Option<u64>) -> Result<(), EngineError> {
+        self.0.pause(wait_ms).await
+    }
+    async fn resume(&self, signal: Option<&wsp_engine::cancel::Cancel>) -> Result<(), EngineError> {
+        self.0.resume(signal).await
+    }
+    async fn kill(&self) -> Result<(), EngineError> {
+        self.0.kill().await
+    }
+    async fn state(&self) -> Result<MachineState, EngineError> {
+        self.0.state().await
+    }
+    async fn download_url(&self, path: &str) -> Result<String, EngineError> {
+        self.0.download_url(path).await
+    }
+    async fn upload_url(&self, path: &str) -> Result<String, EngineError> {
+        self.0.upload_url(path).await
+    }
+    async fn preview_url(&self, _port: u16) -> Result<PreviewReach, EngineError> {
+        Ok(PreviewReach { url: "http://127.0.0.1:1/".to_string(), token: "preview".to_string(), expires_at: 9_999_999_999_999.0.into() })
+    }
+    async fn daemon_answers(&self, timeout_ms: Option<u64>) -> Result<bool, EngineError> {
+        self.0.daemon_answers(timeout_ms).await
+    }
+    async fn start_daemon(&self) -> Result<ExecResult, EngineError> {
+        self.0.start_daemon().await
+    }
+    async fn daemon_exits(&self) -> Result<Option<String>, EngineError> {
+        self.0.daemon_exits().await
+    }
+    async fn put_bytes(&self, path: &str, bytes: &[u8], timeout_ms: Option<u64>) -> Result<Option<wsp_engine::machine::BytesLanded>, EngineError> {
+        self.0.put_bytes(path, bytes, timeout_ms).await
+    }
+    async fn read_bytes(&self, path: &str, size: Option<u64>, timeout_ms: Option<u64>) -> Result<Vec<u8>, EngineError> {
+        self.0.read_bytes(path, size, timeout_ms).await
+    }
+}
+
+/// `put_live` on a machine whose preview route answers: the fake machine is still the one the backend holds.
+pub fn put_live_preview(host: &FakeHost, record: Value, machine: Arc<FakeMachine>) -> Entry {
+    let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
+    let id = record.id.clone();
+    host.backend.add(machine.clone());
+    let entry = live_entry(Rc::new(RefCell::new(record)), Arc::new(PreviewMachine(machine)));
+    host.live.borrow_mut().insert(id, entry.clone());
+    entry
 }
 
 // ---------------------------------------------------------------------------------------------------------------

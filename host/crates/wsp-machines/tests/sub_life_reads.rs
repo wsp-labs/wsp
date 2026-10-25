@@ -7,21 +7,27 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use machines_b_support::*;
 use wsp_engine::machine::MachineBackend;
-use wsp_core::clock::Cancel;
-use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
-use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
-use wsp_machines::machines::area_error::{AreaError, AreaResult};
-use wsp_machines::machines::machines::Entry;
+use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_machines::machines::sub_life::*;
 use wsp_words::exit::HostError;
 
 fn fixture() -> Value {
     let at = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/machines_b/sub_life_reads.json");
     serde_json::from_str(&std::fs::read_to_string(at).unwrap()).unwrap()
+}
+
+/// The fixture's records are the TS tests' short ones; the real record also requires `golden` and `firstLife`.
+fn record_of_fixture(mut v: Value) -> WorkspaceRecord {
+    for (key, default) in [("golden", json!("snap_g")), ("firstLife", json!(true))] {
+        if v.get(key).is_none() {
+            v[key] = default;
+        }
+    }
+    serde_json::from_value(v).expect("the fixture's record reads as a real record")
 }
 
 const AT: &str = "2026-10-14T12:00:00.000Z";
@@ -165,7 +171,7 @@ fn pack_and_land_commands_are_byte_for_byte_the_ts_lines() {
 #[test]
 fn rows_read_as_the_ts_rows() {
     for r in fixture()["rows"].as_array().unwrap() {
-        let record: WorkspaceRecord = serde_json::from_value(r["record"].clone()).unwrap();
+        let record = record_of_fixture(r["record"].clone());
         let got = sub_row_of(&record);
         match got {
             None => assert!(r["row"].is_null(), "no row for {}, the TS has {}", r["record"], r["row"]),
@@ -215,7 +221,7 @@ fn disk_keep_reads_as_the_ts_reads() {
         for (key, v) in k["record"].as_object().unwrap() {
             record[key] = v.clone();
         }
-        let record: WorkspaceRecord = serde_json::from_value(record).unwrap();
+        let record = record_of_fixture(record);
         let ctx = match &k["diskKeptMs"] {
             Value::String(s) if s == "throws" => Keeps(None),
             Value::String(s) if s == "nolife" => Keeps(Some(Arc::new(NoLife))),
