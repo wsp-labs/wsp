@@ -425,6 +425,12 @@ impl Shell {
         &self.thread_view
     }
 
+    /// Whether the sidebar's slide in or out is still running, for a test that waits out its last frame.
+    #[doc(hidden)]
+    pub fn sidebar_sliding(&self) -> bool {
+        self.sidebar_moved.is_some_and(|moved| moved.elapsed() < SIDEBAR_SLIDE)
+    }
+
     /// How much of the sidebar's width is on screen, 0 to 1, asking for the next frame while it slides.
     fn sidebar_shown(&mut self, window: &mut Window) -> f32 {
         let at = self.sidebar_moved.map_or(1., |moved| (moved.elapsed().as_secs_f32() / SIDEBAR_SLIDE.as_secs_f32()).min(1.));

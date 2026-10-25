@@ -1163,6 +1163,12 @@ impl Link {
     pub fn release_for_test(&mut self, cx: &mut Context<Self>) {
         self.park(cx);
     }
+
+    /// Whether a heartbeat's ping is out unanswered, for a test that lets each come back before the next beat.
+    #[doc(hidden)]
+    pub fn awaiting_pong(&self) -> bool {
+        self.awaiting_pong
+    }
 }
 
 #[cfg(test)]
