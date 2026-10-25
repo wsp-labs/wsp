@@ -13,7 +13,11 @@ use machines_b_support::reach_ctx::*;
 use machines_b_support::*;
 use wsp_engine::disk_sync::{disk_use_of, DISK_USE_CMD};
 use wsp_engine::machine::RootDisk;
-use wsp_machines::machines::core_types::*;
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::reach::{ForMachine, ReachArea, ReachCtx, DISK_CLOSE_WAIT_MS, DISK_READ_MS};
 use wsp_wire::views::workspace::ReachState;
 use wsp_wire::wire::capabilities::PauseMode;
@@ -31,7 +35,7 @@ const DISK_160_GB_KB: f64 = 146_730_014.0;
 struct W {
     host: Rc<FakeHost>,
     area: Rc<ReachArea>,
-    entry: Live,
+    entry: Entry,
     machine: Arc<FakeMachine>,
 }
 

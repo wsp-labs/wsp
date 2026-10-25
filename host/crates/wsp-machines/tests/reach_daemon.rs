@@ -14,7 +14,11 @@ use tokio_util::sync::CancellationToken;
 use machines_b_support::reach_ctx::*;
 use machines_b_support::*;
 use wsp_engine::machine::MachineOffers;
-use wsp_machines::machines::core_types::*;
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::reach::daemon::{LOOK_EXITS_EVERY_MS, START_DAEMON_AFTER_MS};
 use wsp_machines::machines::reach::ReachArea;
 use wsp_wire::wire::daemon::DETACHED_HEAD;
@@ -28,7 +32,7 @@ const CHECKOUT_TTL_MS: f64 = 10_000.0;
 struct W {
     host: Rc<FakeHost>,
     area: Rc<ReachArea>,
-    entry: Live,
+    entry: Entry,
     machine: Arc<FakeMachine>,
 }
 
@@ -413,7 +417,7 @@ fn running(offers: MachineOffers) -> W {
     world_in("running", offers)
 }
 
-fn fact(entry: &Live) -> Value {
+fn fact(entry: &Entry) -> Value {
     serde_json::to_value(entry.checkout.borrow().clone()).unwrap()
 }
 
@@ -421,7 +425,7 @@ fn asked(w: &W) -> usize {
     w.host.calls_of("with_daemon").len()
 }
 
-fn set_phase(entry: &Live, phase: &str) {
+fn set_phase(entry: &Entry, phase: &str) {
     entry.record.borrow_mut().phase = serde_json::from_value(json!(phase)).unwrap();
 }
 
@@ -584,7 +588,7 @@ fn read_checkout_joins_a_read_in_flight() {
 struct T {
     host: Rc<FakeHost>,
     area: Rc<ReachArea>,
-    lead: Live,
+    lead: Entry,
 }
 
 fn lead_record(base: Option<&str>) -> Value {
@@ -606,7 +610,7 @@ fn tree_world(lead_base: Option<&str>) -> T {
     T { host, area, lead }
 }
 
-fn put_kid(host: &FakeHost, id: &str, project: &str, extra: Value) -> Live {
+fn put_kid(host: &FakeHost, id: &str, project: &str, extra: Value) -> Entry {
     let mut r = plain_record(id, id, "running", &format!("m_{id}"));
     r["parentWorkspaceId"] = json!("ws_lead");
     r["project"] = json!(project);
@@ -632,7 +636,7 @@ fn compared(t: &T) -> Vec<String> {
     got
 }
 
-fn tree_of(lead: &Live) -> Value {
+fn tree_of(lead: &Entry) -> Value {
     serde_json::to_value(lead.tree.borrow().clone()).unwrap()
 }
 

@@ -13,8 +13,14 @@ use serde_json::{json, Value};
 use tokio::sync::{oneshot, watch, Semaphore};
 
 use wsp_engine::machine::{ExecOptions, Machine, MachineBackend};
-use wsp_machines::machines::core_types::*;
-use wsp_machines::machines::reach::{DaemonLink, ReachArea, ReachCtx};
+use wsp_core::clock::Cancel;
+use wsp_core::reach::{DaemonReach, ReachError, ReachStats};
+use wsp_wire::wire::daemon_events::DaemonEvent;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
+use wsp_machines::machines::reach::{ReachArea, ReachCtx};
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::{ProjectView, WorkspacePhase};
 use wsp_wire::wire::capabilities::PauseMode;
@@ -142,7 +148,7 @@ impl FakeLink {
 }
 
 #[async_trait(?Send)]
-impl DaemonLink for FakeLink {
+impl DaemonReach for FakeLink {
     async fn ready(&self) -> AreaResult<()> {
         let err = self.plan.ready_error.borrow().clone();
         if let Some(m) = err {
@@ -283,10 +289,10 @@ pub fn js_text(v: &Value) -> String {
 
 #[async_trait(?Send)]
 impl ReachCtx for FakeHost {
-    fn live(&self, id: &str) -> Option<Live> {
+    fn live(&self, id: &str) -> Option<Entry> {
         self.live.borrow().get(id).cloned()
     }
-    fn live_all(&self) -> Vec<Live> {
+    fn live_all(&self) -> Vec<Entry> {
         self.live.borrow().values().cloned().collect()
     }
     fn session_entries(&self) -> Vec<SessionEntry> {
@@ -313,15 +319,15 @@ impl ReachCtx for FakeHost {
     fn provider_of(&self, _record: &WorkspaceRecord) -> Option<String> {
         knobs().provider.borrow().clone()
     }
-    fn row_reason(&self, entry: &Live) -> Option<String> {
+    fn row_reason(&self, entry: &Entry) -> Option<String> {
         let area = knobs().area.borrow().upgrade()?;
         let said = entry.wake_said.borrow().clone();
         said.or_else(|| area.nap_refused_reason(entry)).or_else(|| area.stop_refused_reason(entry)).or_else(|| area.disk_reason(entry))
     }
-    fn unreached_of(&self, entry: &Live) -> Option<String> {
+    fn unreached_of(&self, entry: &Entry) -> Option<String> {
         knobs().unreached.borrow().get(&entry.id()).cloned()
     }
-    fn kind_has_daemon(&self, _entry: &Live) -> bool {
+    fn kind_has_daemon(&self, _entry: &Entry) -> bool {
         knobs().has_daemon.get()
     }
     fn view(&self, record: &WorkspaceRecord) -> Value {
@@ -340,7 +346,7 @@ impl ReachCtx for FakeHost {
     fn idle_at(&self, workspace_id: &str) -> Option<f64> {
         knobs().idle_at.borrow().get(workspace_id).copied()
     }
-    fn daemon_answers_ms(&self, _entry: &Live) -> AreaResult<f64> {
+    fn daemon_answers_ms(&self, _entry: &Entry) -> AreaResult<f64> {
         Ok(knobs().daemon_answers_ms.get().unwrap_or(self.backend.lifecycle.daemon_answers_ms))
     }
     fn daemon_hello_timeout_ms(&self) -> f64 {
@@ -353,7 +359,7 @@ impl ReachCtx for FakeHost {
         }
         Ok(knobs().token.borrow().clone())
     }
-    fn connect_daemon(&self, preview_url: &str, token: &str, on_event: Rc<dyn Fn(&Value)>, heartbeat_ms: Option<f64>) -> Rc<dyn DaemonLink> {
+    fn connect_daemon(&self, preview_url: &str, token: &str, on_event: Rc<dyn Fn(DaemonEvent)>, heartbeat_ms: Option<i64>) -> Rc<dyn DaemonReach> {
         self.call("connect_daemon", &[preview_url, token]);
         let plan = plan();
         plan.dials.borrow_mut().push(Dial { preview_url: preview_url.to_string(), token: token.to_string(), heartbeat_ms });
@@ -378,7 +384,7 @@ impl ReachCtx for FakeHost {
         let v = knobs().projects.borrow().get(id).cloned().unwrap_or_else(|| panic!("the test set no project {id}"));
         serde_json::from_value(v).expect("a project view")
     }
-    async fn with_daemon(&self, entry: &Live, frame: Value) -> AreaResult<Value> {
+    async fn with_daemon(&self, entry: &Entry, frame: Value) -> AreaResult<Value> {
         let id = entry.id();
         self.call("with_daemon", &[&id, &js_text(&frame)]);
         let gate = knobs().status_gate.borrow().clone();
@@ -404,7 +410,7 @@ impl ReachCtx for FakeHost {
     fn checkout_of(&self, _record: &WorkspaceRecord) -> String {
         CWD.to_string()
     }
-    fn served_by_its_computer(&self, _entry: &Live) -> bool {
+    fn served_by_its_computer(&self, _entry: &Entry) -> bool {
         knobs().served.get()
     }
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()> {

@@ -8,7 +8,11 @@ use futures::future::LocalBoxFuture;
 use serde_json::{json, Value};
 
 use wsp_engine::machine::MachineBackend;
-use wsp_machines::machines::core_types::*;
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_life::{BackendFor, SessionFile, SubLifeCtx};
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::ReachState;
@@ -29,10 +33,10 @@ pub fn claude_session_file(id: &str) -> SessionFile {
 
 #[async_trait(?Send)]
 impl SubLifeCtx for FakeHost {
-    fn live(&self, id: &str) -> Option<Live> {
+    fn live(&self, id: &str) -> Option<Entry> {
         self.live.borrow().get(id).cloned()
     }
-    fn live_all(&self) -> Vec<Live> {
+    fn live_all(&self) -> Vec<Entry> {
         self.live.borrow().values().cloned().collect()
     }
     fn thread_records(&self) -> Vec<(String, String)> {
@@ -59,7 +63,7 @@ impl SubLifeCtx for FakeHost {
     fn delete_after_ms(&self, place_id: Option<&str>) -> Option<f64> {
         place_id.and_then(|p| self.settings_delete_after.borrow().get(p).copied())
     }
-    fn session_file(&self, _entry: &Live, harness: &str, session_id: &str) -> Option<SessionFile> {
+    fn session_file(&self, _entry: &Entry, harness: &str, session_id: &str) -> Option<SessionFile> {
         (harness == "claude").then(|| claude_session_file(session_id))
     }
     async fn read_transcript(&self, workspace_id: &str, thread_id: &str, limit: usize, bytes: usize) -> AreaResult<Vec<Value>> {
@@ -103,7 +107,7 @@ impl SubLifeCtx for FakeHost {
     fn end_sessions(&self, workspace_id: &str, reason: &str) {
         self.call("end_sessions", &[workspace_id, reason]);
     }
-    fn attach_dead(&self, entry: &Live, machine_id: &str) -> Live {
+    fn attach_dead(&self, entry: &Entry, machine_id: &str) -> Entry {
         self.call("attach_dead", &[&entry.id(), machine_id]);
         self.reattach(entry, FakeMachine::new(machine_id))
     }
@@ -113,21 +117,21 @@ impl SubLifeCtx for FakeHost {
     fn idle_forget(&self, workspace_id: &str) {
         self.call("idle_forget", &[workspace_id]);
     }
-    async fn emit_status(&self, entry: &Live, reach: ReachState) -> AreaResult<()> {
+    async fn emit_status(&self, entry: &Entry, reach: ReachState) -> AreaResult<()> {
         self.call("emit_status", &[&entry.id(), &serde_json::to_value(reach).unwrap().as_str().unwrap_or("").to_string()]);
         Ok(())
     }
     fn emit(&self, event: Value) {
         self.emit_now(event);
     }
-    async fn unfork(&self, entry: &Live) -> AreaResult<()> {
+    async fn unfork(&self, entry: &Entry) -> AreaResult<()> {
         self.call("unfork", &[&entry.id(), entry.machine.id()]);
         if let Some(Err(e)) = self.next("unfork") {
             return Err(e);
         }
         entry.machine.kill().await.map_err(AreaError::Engine)
     }
-    async fn cut_off(&self, entry: &Live) {
+    async fn cut_off(&self, entry: &Entry) {
         self.call("cut_off", &[&entry.id()]);
     }
     fn broker_lift(&self, workspace_id: &str) {

@@ -9,7 +9,11 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 
 use machines_b_support::*;
-use wsp_machines::machines::core_types::*;
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_life::*;
 use wsp_wire::views::workspace::Caller;
 
@@ -21,7 +25,7 @@ const THREAD: &str = "t_kid";
 struct Held {
     host: Rc<FakeHost>,
     area: Rc<SubLifeArea>,
-    entry: Live,
+    entry: Entry,
     machine: Arc<FakeMachine>,
 }
 

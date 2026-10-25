@@ -18,7 +18,13 @@ use wsp_engine::machine::{
     BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineLife, MachineListRow, MachineSpec, MachineState,
     RunOptions, SnapshotOptions, Waiting,
 };
-use wsp_machines::machines::core_types::*;
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{ImportLanded, ImportReport};
+use wsp_core::types::wiring::ProjectImportOptions;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::kinds::{BrokerSaid, FolderComputer, KindsArea, KindsCtx};
 use wsp_wire::types::shell_quote::shell_line;
 use wsp_wire::views::golden_image::MachineKind;
@@ -74,7 +80,7 @@ fn not_here<T>() -> Result<T, EngineError> {
     Err(engine_error("the local shell does this no way"))
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for LocalShell {
     fn id(&self) -> &str {
         "local"
@@ -108,7 +114,7 @@ impl Machine for LocalShell {
     async fn pause(&self, _wait_ms: Option<u64>) -> Result<(), EngineError> {
         not_here()
     }
-    async fn resume(&self, _signal: Option<tokio_util::sync::CancellationToken>) -> Result<(), EngineError> {
+    async fn resume(&self, _signal: Option<&wsp_engine::cancel::Cancel>) -> Result<(), EngineError> {
         not_here()
     }
     async fn kill(&self) -> Result<(), EngineError> {
@@ -134,7 +140,7 @@ pub struct PlainBackend {
     pub names: bool,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for PlainBackend {
     fn capabilities(&self) -> Capabilities {
         let mut caps = boat_capabilities();
@@ -466,11 +472,11 @@ impl KindsCtx for FakeHost {
             None => self.project_held(&record.project).path,
         }
     }
-    fn computer_of(&self, entry: &Live) -> String {
+    fn computer_of(&self, entry: &Entry) -> String {
         let place = entry.record.borrow().place.clone();
         self.place_name(&place.unwrap_or_else(|| self.wired_place()))
     }
-    fn served_by_its_computer(&self, entry: &Live) -> bool {
+    fn served_by_its_computer(&self, entry: &Entry) -> bool {
         world(|w| w.served.contains(&entry.id()))
     }
     fn has_place_door(&self) -> bool {
@@ -582,7 +588,7 @@ impl KindsCtx for FakeHost {
         }
         env
     }
-    async fn land_on_record(&self, entry: &Live, project: &ProjectView, lines: Option<Vec<String>>) -> AreaResult<()> {
+    async fn land_on_record(&self, entry: &Entry, project: &ProjectView, lines: Option<Vec<String>>) -> AreaResult<()> {
         self.call("land_on_record", &[&entry.id(), &project.id, &serde_json::to_string(&lines).unwrap()]);
         if let Some(Err(e)) = self.next("land_on_record") {
             return Err(e);
@@ -633,11 +639,10 @@ impl KindsCtx for FakeHost {
     fn machine_exec_opts(&self) -> Option<Map<String, Value>> {
         world(|w| w.machine_exec.clone())
     }
-    async fn copy_import(&self, entry: &Live, o: Value, _report: Rc<dyn Fn(&str, &str)>) -> AreaResult<Value> {
-        self.call("copy_import", &[&entry.id(), &serde_json::to_string(&o).unwrap()]);
-        Ok(json!({ "copied": entry.id() }))
+    async fn copy_import(&self, entry: &Entry, o: ProjectImportOptions, _report: ImportReport) -> AreaResult<ImportLanded> {
+        todo!()
     }
-    async fn hello_version(&self, entry: &Live) -> Option<f64> {
+    async fn hello_version(&self, entry: &Entry) -> Option<f64> {
         self.call("hello_version", &[&entry.id()]);
         world(|w| w.hello)
     }

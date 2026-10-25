@@ -7,7 +7,11 @@ use serde_json::{json, Value};
 
 use machines_b_support::spawn_ctx::*;
 use machines_b_support::*;
-use wsp_machines::machines::core_types::AreaError;
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_spawn::*;
 use wsp_wire::types::sub_thread::SUB_SEED_MAX_BYTES;
 use wsp_words::exit::{HostError, Kind};

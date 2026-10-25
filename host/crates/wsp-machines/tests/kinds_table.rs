@@ -13,7 +13,11 @@ use serde_json::{json, Value};
 use machines_b_support::kinds_ctx::*;
 use machines_b_support::*;
 use wsp_engine::machine::MachineBackend;
-use wsp_machines::machines::core_types::{KindModule, Live, WorkspaceRecord};
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::kinds::KindsArea;
 use wsp_wire::types::projects::REGISTERING_LINE;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
@@ -34,17 +38,17 @@ fn guest_wsp() -> Value {
     json!({ "command": "wsp", "args": ["mcp"] })
 }
 
-fn cloud_entry(host: &FakeHost, machine: Arc<FakeMachine>) -> Live {
+fn cloud_entry(host: &FakeHost, machine: Arc<FakeMachine>) -> Entry {
     hold(&project("pr_1", "/root/spoo-landing", json!({})));
     host.put_live(sub_record("ws_c", "running"), machine)
 }
 
-fn place_entry(host: &FakeHost, place: &str) -> Live {
+fn place_entry(host: &FakeHost, place: &str) -> Entry {
     hold(&project("pr_p", "/home/srv/lab", json!({ "computer": place })));
     host.put_live(record_of("ws_p", json!({ "kind": "place", "place": place, "project": "pr_p", "name": "lab" }), &["sub"]), FakeMachine::new("srv-machine"))
 }
 
-fn local_entry(host: &FakeHost, extra: Value) -> Live {
+fn local_entry(host: &FakeHost, extra: Value) -> Entry {
     let mut e = json!({ "kind": "local", "project": "pr_l" });
     for (k, v) in extra.as_object().unwrap() {
         e[k] = v.clone();

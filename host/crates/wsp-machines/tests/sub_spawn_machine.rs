@@ -15,7 +15,11 @@ use machines_b_support::spawn_ctx::*;
 use machines_b_support::*;
 use wsp_engine::box_backend::BOX_WORK_DIR;
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
-use wsp_machines::machines::core_types::*;
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_life::sub_session_land_command;
 use wsp_machines::machines::sub_spawn::machine::{fault_of, Resumed};
 use wsp_machines::machines::sub_spawn::*;
@@ -106,25 +110,25 @@ fn failed_resume(r: Result<Resumed, HostError>) -> HostError {
     r.err().expect("the send went ahead")
 }
 
-fn resume(f: &Fixture, entry: &Live, harness: &str, prompt: &str) -> tokio::task::JoinHandle<Result<Resumed, HostError>> {
+fn resume(f: &Fixture, entry: &Entry, harness: &str, prompt: &str) -> tokio::task::JoinHandle<Result<Resumed, HostError>> {
     let (area, entry, harness, prompt) = (f.area.clone(), entry.clone(), harness.to_string(), prompt.to_string());
     tokio::task::spawn_local(async move { area.resume_sub(&entry, SUB_THREAD, &harness, Some(&prompt)).await })
 }
 
-async fn send(f: &Fixture, entry: &Live, prompt: &str) -> Result<Resumed, HostError> {
+async fn send(f: &Fixture, entry: &Entry, prompt: &str) -> Result<Resumed, HostError> {
     f.area.resume_sub(entry, SUB_THREAD, "claude", Some(prompt)).await
 }
 
-fn record_of(entry: &Live) -> Rec {
+fn record_of(entry: &Entry) -> Rec {
     entry.record.clone()
 }
 
-fn sub_json(entry: &Live) -> Value {
+fn sub_json(entry: &Entry) -> Value {
     serde_json::to_value(entry.record.borrow().sub.as_ref().unwrap()).unwrap()
 }
 
 /// A released sub-thread whose first start failed: it ran nothing, holds no session, and keeps its opening message.
-fn first_start_failed() -> (Fixture, Live) {
+fn first_start_failed() -> (Fixture, Entry) {
     let f = lead_on_this_computer();
     {
         let world = w();

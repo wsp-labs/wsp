@@ -16,7 +16,11 @@ use serde_json::{json, Map, Value};
 use wsp_engine::box_backend::BoxLimits;
 use wsp_engine::errors::EngineError;
 use wsp_engine::machine::{Machine, MachineBackend, MachineSpec};
-use wsp_machines::machines::core_types::*;
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_life::SessionFile;
 use wsp_machines::machines::sub_spawn::{ImageRecord, Packed, ProviderRow, SubSpawnArea, SubSpawnCtx};
 use wsp_wire::views::golden_image::GoldenManifest;
@@ -222,7 +226,7 @@ pub fn project_json(name: &str, computer: &str, path: &str, remote: &str) -> Val
 pub struct Fixture {
     pub host: Rc<FakeHost>,
     pub area: Rc<SubSpawnArea>,
-    pub lead: Live,
+    pub lead: Entry,
 }
 
 pub fn lead_on_this_computer() -> Fixture {
@@ -265,10 +269,10 @@ pub fn lead_caller() -> Caller {
 
 impl FakeHost {
     /// An entry for a lead, on a machine of its own that the cloud's backend knows nothing of.
-    pub fn put_lead(&self, record: Value, machine: Arc<FakeMachine>) -> Live {
+    pub fn put_lead(&self, record: Value, machine: Arc<FakeMachine>) -> Entry {
         let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
         let id = record.id.clone();
-        let entry = LiveWorkspace::new(Rc::new(RefCell::new(record)), machine, Rc::new(FakeRoad { url: "http://127.0.0.1:1/".to_string() }));
+        let entry = live_entry(Rc::new(RefCell::new(record)), machine);
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
@@ -277,15 +281,15 @@ impl FakeHost {
         let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
         let id = record.id.clone();
         let cell = Rc::new(RefCell::new(record));
-        let entry = LiveWorkspace::new(cell.clone(), FakeMachine::new(""), Rc::new(FakeRoad { url: String::new() }));
+        let entry = live_entry(cell.clone(), FakeMachine::new(""));
         self.live.borrow_mut().insert(id, entry);
         cell
     }
     /// A released record and the dead stand-in its entry is.
-    pub fn put_dead(&self, record: Value) -> Live {
+    pub fn put_dead(&self, record: Value) -> Entry {
         let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
         let id = record.id.clone();
-        let entry = LiveWorkspace::new(Rc::new(RefCell::new(record)), FakeMachine::new(""), Rc::new(FakeRoad { url: String::new() }));
+        let entry = live_entry(Rc::new(RefCell::new(record)), FakeMachine::new(""));
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
@@ -429,14 +433,14 @@ fn seal(head: u32, logins: &[(String, String)]) -> Value {
 
 #[async_trait(?Send)]
 impl SubSpawnCtx for FakeHost {
-    fn live(&self, id: &str) -> Option<Live> {
+    fn live(&self, id: &str) -> Option<Entry> {
         self.live.borrow().get(id).cloned()
     }
     fn remove_live(&self, id: &str) {
         self.call("remove_live", &[id]);
         self.live.borrow_mut().shift_remove(id);
     }
-    fn is_absent_machine(&self, entry: &Live) -> bool {
+    fn is_absent_machine(&self, entry: &Entry) -> bool {
         entry.machine.id().is_empty()
     }
     fn thread_records(&self) -> Vec<(String, String)> {
@@ -495,11 +499,11 @@ impl SubSpawnCtx for FakeHost {
         self.call("project_held", &[id]);
         serde_json::from_value(w().borrow().project.clone()).expect("the project reads as the TS writes it")
     }
-    async fn copy_blocked(&self, lead: &Live) -> AreaResult<()> {
+    async fn copy_blocked(&self, lead: &Entry) -> AreaResult<()> {
         self.call("copy_blocked", &[&lead.id()]);
         Ok(())
     }
-    async fn daemon_frame(&self, entry: &Live, frame: Value) -> AreaResult<Value> {
+    async fn daemon_frame(&self, entry: &Entry, frame: Value) -> AreaResult<Value> {
         self.call("daemon_frame", &[&entry.id(), &frame.to_string()]);
         let (git, error, ms) = {
             let world = w();
@@ -597,7 +601,7 @@ impl SubSpawnCtx for FakeHost {
         }
         Ok(())
     }
-    async fn default_agent_of(&self, lead: &Live) -> AreaResult<String> {
+    async fn default_agent_of(&self, lead: &Entry) -> AreaResult<String> {
         self.call("default_agent_of", &[&lead.id()]);
         Ok("claude".to_string())
     }
@@ -628,7 +632,7 @@ impl SubSpawnCtx for FakeHost {
         self.call("enqueue", &[&id, if wait.is_some() { "wait" } else { "none" }]);
         w().borrow_mut().enqueued.push(js_of(&*record.borrow()));
         self.persist_now(&record.borrow());
-        let entry = LiveWorkspace::new(record.clone(), FakeMachine::new(""), Rc::new(FakeRoad { url: String::new() }));
+        let entry = live_entry(record.clone(), FakeMachine::new(""));
         self.live.borrow_mut().insert(id, entry);
         Ok(())
     }
@@ -697,25 +701,25 @@ impl SubSpawnCtx for FakeHost {
         on_machine(m as Arc<dyn Machine>);
         Ok(())
     }
-    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Live {
+    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry {
         let id = record.borrow().id.clone();
         self.call("attach", &[&id, machine.id()]);
-        let entry = LiveWorkspace::new(record.clone(), machine, Rc::new(FakeRoad { url: "http://127.0.0.1:1/".to_string() }));
+        let entry = live_entry(record.clone(), machine);
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
-    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Live {
+    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Entry {
         let id = record.borrow().id.clone();
         self.call("attach_dead", &[&id]);
-        let entry = LiveWorkspace::new(record.clone(), FakeMachine::new(""), Rc::new(FakeRoad { url: String::new() }));
+        let entry = live_entry(record.clone(), FakeMachine::new(""));
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
-    async fn ping_daemon(&self, entry: &Live) -> Option<String> {
+    async fn ping_daemon(&self, entry: &Entry) -> Option<String> {
         self.call("ping_daemon", &[&entry.id()]);
         w().borrow().ping_fault.clone()
     }
-    fn sync_daemon(&self, entry: &Live) {
+    fn sync_daemon(&self, entry: &Entry) {
         self.call("sync_daemon", &[&entry.id()]);
     }
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()> {
@@ -726,11 +730,11 @@ impl SubSpawnCtx for FakeHost {
         self.persist_now(record);
         Ok(())
     }
-    async fn emit_status_reachable(&self, entry: &Live) -> AreaResult<()> {
+    async fn emit_status_reachable(&self, entry: &Entry) -> AreaResult<()> {
         self.call("emit_status", &[&entry.id(), "reachable"]);
         Ok(())
     }
-    async fn unfork(&self, entry: &Live) -> AreaResult<()> {
+    async fn unfork(&self, entry: &Entry) -> AreaResult<()> {
         self.call("unfork", &[&entry.id(), entry.machine.id()]);
         if let Some(Err(e)) = self.next("unfork") {
             return Err(e);
@@ -751,7 +755,7 @@ impl SubSpawnCtx for FakeHost {
         }
         w().borrow_mut().rows_sent_done += 1;
     }
-    fn session_file(&self, _entry: &Live, agent: &str, session_id: &str) -> Option<SessionFile> {
+    fn session_file(&self, _entry: &Entry, agent: &str, session_id: &str) -> Option<SessionFile> {
         match agent {
             "claude" => Some(super::life_ctx::claude_session_file(session_id)),
             "codex" => Some(codex_session_file(session_id)),
@@ -858,7 +862,7 @@ pub fn released_record(id: &str) -> Value {
 pub const SESSION_BYTES: &[u8] = b"gzipped claude session";
 
 /// A released sub-thread on a host holding its kept session: the entry, the area, and the thread it answers.
-pub fn released_sub() -> (Fixture, Live) {
+pub fn released_sub() -> (Fixture, Entry) {
     let f = lead_on_this_computer();
     f.host.pick(&["CLAUDE.local.md"]);
     f.host.thread_records.borrow_mut().push((SUB_THREAD.to_string(), SUB_WS.to_string()));

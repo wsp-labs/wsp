@@ -9,7 +9,11 @@ use futures::future::LocalBoxFuture;
 use serde_json::{json, Value};
 
 use wsp_engine::box_backend::BoxLimits;
-use wsp_machines::machines::core_types::*;
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_queue::{StartedTurn, SubQueueCtx};
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::Caller;
@@ -19,10 +23,10 @@ use super::*;
 
 #[async_trait(?Send)]
 impl SubQueueCtx for FakeHost {
-    fn live(&self, id: &str) -> Option<Live> {
+    fn live(&self, id: &str) -> Option<Entry> {
         self.live.borrow().get(id).cloned()
     }
-    fn live_all(&self) -> Vec<Live> {
+    fn live_all(&self) -> Vec<Entry> {
         self.live.borrow().values().cloned().collect()
     }
     fn session(&self, turn_id: &str) -> Option<SessionEntry> {
@@ -80,17 +84,17 @@ impl SubQueueCtx for FakeHost {
         self.recorded.borrow_mut().push(event.clone());
         self.emit_now(event);
     }
-    fn attach_absent(&self, record: &Rc<RefCell<WorkspaceRecord>>, said: &str) -> Live {
+    fn attach_absent(&self, record: &Rc<RefCell<WorkspaceRecord>>, said: &str) -> Entry {
         let id = record.borrow().id.clone();
         self.call("attach_absent", &[&id, said]);
-        let entry = LiveWorkspace::new(record.clone(), FakeMachine::new(""), Rc::new(FakeRoad { url: String::new() }));
+        let entry = live_entry(record.clone(), FakeMachine::new(""));
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
-    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Live {
+    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Entry {
         let id = record.borrow().id.clone();
         self.call("attach_dead", &[&id]);
-        let entry = LiveWorkspace::new(record.clone(), FakeMachine::new(""), Rc::new(FakeRoad { url: String::new() }));
+        let entry = live_entry(record.clone(), FakeMachine::new(""));
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
@@ -156,7 +160,7 @@ impl SubQueueCtx for FakeHost {
             r.machine_id = m.id.clone();
             r.phase = serde_json::from_value(json!("running")).unwrap();
         }
-        let entry = LiveWorkspace::new(record.clone(), m, Rc::new(FakeRoad { url: String::new() }));
+        let entry = live_entry(record.clone(), m);
         self.live.borrow_mut().insert(id, entry);
         Ok(())
     }
@@ -168,10 +172,10 @@ impl SubQueueCtx for FakeHost {
         }
         Ok(StartedTurn { id: as_["turnId"].as_str().unwrap_or("").to_string(), workspace_id: workspace_id.to_string(), turn_id: as_["turnId"].as_str().unwrap_or("").to_string() })
     }
-    async fn cut_off(&self, entry: &Live) {
+    async fn cut_off(&self, entry: &Entry) {
         self.call("cut_off", &[&entry.id()]);
     }
-    async fn unfork(&self, entry: &Live) -> AreaResult<()> {
+    async fn unfork(&self, entry: &Entry) -> AreaResult<()> {
         self.call("unfork", &[&entry.id(), entry.machine.id()]);
         entry.machine.kill().await.map_err(AreaError::Engine)
     }

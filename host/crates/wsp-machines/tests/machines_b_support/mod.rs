@@ -18,12 +18,17 @@ use serde_json::{json, Value};
 use tokio::sync::Semaphore;
 
 use wsp_engine::box_backend::BoxLimits;
+use wsp_engine::lifecycle::{Workspace, WorkspaceHooks, WorkspaceInitial};
 use wsp_engine::errors::EngineError;
 use wsp_engine::machine::{
     BackendPricing, Capabilities, ExecOptions, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend, MachineKind, MachineLife,
     MachineListRow, MachineOffers, MachineSpec, MachineState, RunOptions, Size, SnapshotOptions, SnapshotStoragePricing, Waiting, BackendOffers, RootDisk,
 };
-use wsp_machines::machines::core_types::*;
+use wsp_core::clock::Cancel;
+use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
+use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_machines::machines::machines::Entry;
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::DaemonReachView;
 use wsp_words::exit::HostError;
@@ -219,7 +224,7 @@ pub fn engine_error(message: &str) -> EngineError {
     EngineError::Other { message: message.to_string(), code: None }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for FakeMachine {
     fn id(&self) -> &str {
         &self.id
@@ -245,7 +250,7 @@ impl Machine for FakeMachine {
         *self.paused.lock().unwrap() = true;
         Ok(())
     }
-    async fn resume(&self, _signal: Option<tokio_util::sync::CancellationToken>) -> Result<(), EngineError> {
+    async fn resume(&self, _signal: Option<&wsp_engine::cancel::Cancel>) -> Result<(), EngineError> {
         *self.paused.lock().unwrap() = false;
         Ok(())
     }
@@ -333,7 +338,7 @@ pub struct FakeLifecycle {
     pub backstops: Mutex<Vec<(String, i64, bool)>>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Lifecycle for FakeLifecycle {
     fn budgets(&self) -> LifecycleBudgets {
         LifecycleBudgets { wake_attempts: 1.into(), daemon_answers_ms: self.daemon_answers_ms.into(), resume_asks: None }
@@ -400,7 +405,7 @@ pub fn boat_capabilities() -> Capabilities {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for FakeBackend {
     fn capabilities(&self) -> Capabilities {
         self.capabilities.lock().unwrap().clone()
@@ -476,17 +481,64 @@ pub fn caller_words(c: Option<&wsp_wire::views::workspace::Caller>) -> String {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// The road a workspace's daemon is reached by.
+// A live entry on the real wsp-core and engine types, with nothing in flight.
 
-pub struct FakeRoad {
-    pub url: String,
+/// The engine's `Workspace` has no constructor yet (`Workspace::new` is `todo!()`), so a test that builds an entry
+/// stops there until the engine's lifecycle lands.
+pub fn live_entry(record: Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry {
+    let hooks = WorkspaceHooks {
+        golden_snapshot: String::new(),
+        wake_attempts: 1,
+        resurrect: None,
+        vault_export: None,
+        vault_import: None,
+        stash_vault: None,
+        restore_vault: None,
+        wake_check: None,
+        move_hook: None,
+        retire: None,
+    };
+    let ws = Rc::new(Workspace::new(machine.clone(), hooks, WorkspaceInitial::default()));
+    live_entry_on(record, machine, ws)
 }
 
-#[async_trait(?Send)]
-impl WorkspaceRoad for FakeRoad {
-    async fn daemon_reach(&self) -> Result<DaemonReachView, HostError> {
-        serde_json::from_value(json!({ "url": self.url, "expiresAt": 9_999_999_999_999u64 })).map_err(|e| HostError::new(e.to_string()))
-    }
+/// An entry for a record on a machine, sharing the workspace another entry made (`attach` on a held workspace).
+pub fn live_entry_on(record: Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>, ws: Rc<Workspace>) -> Entry {
+    Rc::new(RefCell::new(LiveWorkspace {
+        record,
+        opens_thread: None,
+        of_record_held: false,
+        ws,
+        machine,
+        generation: 0,
+        waking: None,
+        unchecked: false,
+        napping: None,
+        adopting: None,
+        deleting: None,
+        late_read: None,
+        wake_stop: None,
+        resize_to: None,
+        nap_wait_ms: None,
+        wake_said: None,
+        delete_said: None,
+        wake_ask: None,
+        creating: false,
+        checkout: None,
+        checkout_reading: None,
+        tree: None,
+        tree_reading: None,
+        pr: None,
+        pr_reading: None,
+        pr_poll: None,
+        pr_poll_ms: None,
+        pr_none_at: None,
+    }))
+}
+
+/// The id of the record an entry holds.
+pub fn entry_id(e: &Entry) -> String {
+    e.borrow().record.borrow().id.clone()
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -498,7 +550,7 @@ pub type Call = (String, Vec<String>);
 
 pub struct FakeHost {
     pub clock: Rc<FakeClock>,
-    pub live: RefCell<IndexMap<String, Live>>,
+    pub live: RefCell<IndexMap<String, Entry>>,
     /// Stored documents by collection, then key, as JSON (the TS store).
     pub store: RefCell<IndexMap<String, IndexMap<String, Value>>>,
     pub blobs: RefCell<IndexMap<(String, String), Vec<u8>>>,
@@ -565,18 +617,22 @@ impl FakeHost {
     }
 
     /// A live entry for a record read off the TS JSON, on a machine of the fake backend.
-    pub fn put_live(&self, record: Value, machine: Arc<FakeMachine>) -> Live {
+    pub fn put_live(&self, record: Value, machine: Arc<FakeMachine>) -> Entry {
         let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
         let id = record.id.clone();
         self.backend.add(machine.clone());
-        let entry = LiveWorkspace::new(Rc::new(RefCell::new(record)), machine, Rc::new(FakeRoad { url: "http://127.0.0.1:1/".to_string() }));
+        let entry = live_entry(Rc::new(RefCell::new(record)), machine);
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
     /// A new entry for the same record on another machine, as `attach` makes one.
-    pub fn reattach(&self, entry: &Live, machine: Arc<dyn Machine>) -> Live {
-        let next = LiveWorkspace::new(entry.record.clone(), machine, entry.ws.clone());
-        self.live.borrow_mut().insert(entry.id(), next.clone());
+    pub fn reattach(&self, entry: &Entry, machine: Arc<dyn Machine>) -> Entry {
+        let (record, ws) = {
+            let held = entry.borrow();
+            (held.record.clone(), held.ws.clone())
+        };
+        let next = live_entry_on(record, machine, ws);
+        self.live.borrow_mut().insert(entry_id(entry), next.clone());
         next
     }
     /// The record as last persisted, as JSON.
