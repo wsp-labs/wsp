@@ -1168,7 +1168,8 @@ where
             Err(Short::Refused(refused)) => {
                 let refused = *refused;
                 let lock = serving(&start.state);
-                if refused.kind.as_deref() == Some(wsp_mcp::NOT_ANSWERING) {
+                // A dial that met no socket, a page in its place included, is a host starting or closing for a restart.
+                if matches!(refused.kind.as_deref(), Some(wsp_mcp::NOT_ANSWERING | "unreachable")) {
                     match lock {
                         Some(lock) if !until_answers(start, &lock, &mut moved, until).await => return Err(waited(refused)),
                         _ => continue,
