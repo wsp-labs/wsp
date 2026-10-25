@@ -761,12 +761,12 @@ impl TurnsCtx for FakeHost {
         }
         ()
     }
-    fn hold_kept(&self, thread_id: &str, hold: KeptHold) -> bool {
+    fn hold_kept(&self, thread_id: &str, hold: KeptHold) -> Option<KeptHold> {
         self.hooks.log("hold_kept", vec![thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, KeptHold) -> bool>("TurnsCtx::hold_kept") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(&str, KeptHold) -> Option<KeptHold>>("TurnsCtx::hold_kept") {
             return hook(thread_id, hold);
         }
-        false
+        Some(hold)
     }
     async fn revoke_device(&self, device_id: &str) -> Result<(), HostError> {
         self.hooks.log("revoke_device", vec![device_id.to_string()]);
@@ -1159,6 +1159,20 @@ impl SessionsCtx for FakeHost {
         }
         None
     }
+    fn acts_on(&self, record: &WorkspaceRecord, origin: Option<&Caller>) -> bool {
+        self.hooks.log("acts_on", vec![]);
+        if let Some(hook) = self.hooks.get::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool>("SessionsCtx::acts_on") {
+            return hook(record, origin);
+        }
+        true
+    }
+    fn project_computer_name(&self, project: &str) -> String {
+        self.hooks.log("project_computer_name", vec![project.to_string()]);
+        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> String>("SessionsCtx::project_computer_name") {
+            return hook(project);
+        }
+        project.to_string()
+    }
     async fn worktree_gone(&self, entry: &Entry, why: &str, starting: bool) -> Result<(), HostError> {
         self.hooks.log("worktree_gone", vec![why.to_string(), starting.to_string()]);
         if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::worktree_gone") {
@@ -1305,6 +1319,13 @@ impl SessionsCtx for FakeHost {
             return hook(workspace_id);
         }
         ()
+    }
+    fn kept_warm(&self, thread_id: &str) -> bool {
+        self.hooks.log("kept_warm", vec![thread_id.to_string()]);
+        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> bool>("SessionsCtx::kept_warm") {
+            return hook(thread_id);
+        }
+        true
     }
     async fn fork_start(&self, opts: ForkOptions, start: StartFn, origin: Option<&Caller>) -> Result<Rc<dyn SessionHandle>, HostError> {
         self.hooks.log("fork_start", vec![]);

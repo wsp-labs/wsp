@@ -211,6 +211,10 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn of_threads_repository(&self, origin: Option<&Caller>, project: &str) -> bool;
     fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &str, name: &str) -> Option<HostError>;
     fn away_for(&self, record: &WorkspaceRecord, origin: Option<&Caller>, act: &str, workspace_id: &str) -> Option<HostError>;
+    /// `ctx.actsOn(record, origin)`: whether the caller acts on that workspace's computer.
+    fn acts_on(&self, record: &WorkspaceRecord, origin: Option<&Caller>) -> bool;
+    /// `ctx.placeName(ctx.projectHeld(project).computer)`.
+    fn project_computer_name(&self, project: &str) -> String;
     async fn worktree_gone(&self, entry: &Entry, why: &str, starting: bool) -> Result<(), HostError>;
     fn computer_of(&self, entry: &Entry) -> String;
     fn refuse_sub_send(&self, entry: &Entry) -> Result<(), HostError>;
@@ -233,6 +237,8 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     /// forks.ts `forkTurnOf(plan, byCount)`.
     fn fork_turn_of(&self, plan: &ForkPlan, by_count: bool) -> Option<Value>;
     fn sub_done(&self, workspace_id: &str);
+    /// `ctx.keptAgents.get(threadId)?.warm !== undefined`.
+    fn kept_warm(&self, thread_id: &str) -> bool;
     /// forks.ts `forkStart(ctx, start, o, origin)`.
     async fn fork_start(&self, opts: ForkOptions, start: StartFn, origin: Option<&Caller>) -> Result<Rc<dyn SessionHandle>, HostError>;
 

@@ -123,7 +123,7 @@
         self.turn_groups.clone()
 //@end
 //@ TurnsCtx::hold_kept
-        false
+        Some(hold)
 //@end
 //@ TurnsCtx::open_thread
         Ok(self.thread_events(thread_id))
@@ -247,4 +247,13 @@
 //@end
 //@ SessionsCtx::git_restore
         Ok(Map::new())
+//@end
+//@ SessionsCtx::acts_on
+        true
+//@end
+//@ SessionsCtx::project_computer_name
+        project.to_string()
+//@end
+//@ SessionsCtx::kept_warm
+        true
 //@end
