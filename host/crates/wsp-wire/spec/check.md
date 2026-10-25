@@ -95,7 +95,8 @@ written as JavaScript writes it. `literal!` types are kept `z.literal` keys.
    (`to_string`, `to_writer`, a derived `Serialize`) is exact everywhere. The wire's frames write straight; only a caller
    that goes through a `Value` meets the difference, and only below 1e-5 in size (`0.000005` is `5e-6`), at 2^64 and
    past, and at -2^63 and below.
-2. A lone surrogate (rule 8.5) cannot reach a Rust `String`; nothing here handles it.
+2. A lone surrogate (rule 8.5) cannot reach a Rust `String`. The readers of JSON text (`wire/json_text.rs`) keep one as a private
+   character pair and write it back as the escape; a frame read through serde_json never holds one.
 3. `serde_json` reads with `float_roundtrip`. Its default float reader is up to one unit in the last place off for a long
    mantissa (`123456789012345680000` came back as `123456789012345670000`), and the number text JavaScript writes from it
    would differ from node's.
