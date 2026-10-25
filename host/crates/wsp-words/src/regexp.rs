@@ -5,6 +5,12 @@
 // regexp.ts:4
 // export const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 pub fn escape_reg_exp(s: &str) -> String {
-    todo!()
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if ".*+?^${}()|[]\\".contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
 }
-
