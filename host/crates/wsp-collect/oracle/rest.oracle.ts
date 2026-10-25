@@ -160,7 +160,7 @@ it("tally", () => {
 it("history cache file", async () => {
   const line = (o: unknown): string => JSON.stringify(o);
   const claudeLine = (sessionId: string, at: string | undefined, command: string) =>
-    line({ type: "assistant", cwd: "/Users/dev/proj", sessionId, ...(at !== undefined ? { timestamp: at } : {}), message: { role: "assistant", content: [{ type: "tool_use", id: "toolu_1", name: "Bash", input: { command } }] } });
+    line({ type: "assistant", cwd: "/Users/dev/proj", sessionId, ...(at !== undefined ? { timestamp: at } : {}), message: { role: "assistant", content: [{ type: "tool_use", id: "tool-01", name: "Bash", input: { command } }] } });
   const files = {
     "~/.claude/projects/-Users-dev-proj/s1.jsonl": [claudeLine("s1", "2026-09-06T10:01:00.000Z", "gh pr view && brew install jq"), claudeLine("s1", undefined, "gh pr list")].join("\n"),
     "~/.claude/projects/-Users-dev-proj/s2.jsonl": claudeLine("s2", undefined, "pnpm test"),

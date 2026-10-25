@@ -17,6 +17,6 @@ fn tilde_turns_a_path_under_home_into_its_tilde_form_and_leaves_any_other_alone(
     assert_eq!(tilde("/Users/dev", "/Users/dev"), "~");
     assert_eq!(tilde("/Users/dev", "/Users/dev/.ssh/config"), "~/.ssh/config");
     // A sibling that shares the prefix is not under home.
-    assert_eq!(tilde("/Users/dev", "/Users/devops/x"), "/Users/devops/x");
+    assert_eq!(tilde("/srv/dev", "/srv/devops/x"), "/srv/devops/x");
     assert_eq!(tilde("/Users/dev", "/tmp/x"), "/tmp/x");
 }
