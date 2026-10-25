@@ -2,9 +2,12 @@
 //! The host's pool of pipes to each brokered machine's daemon: extra websockets the daemon parks until a process on
 //! the machine connects to one of its doors, each then carrying that one connection's bytes. Port of
 //! packages/runtime/src/pipe.ts:1-392 at 65f6b89c7. Spec: spec/pipe_pool.md.
-use std::sync::Arc;
+//!
+//! Host state on the owner thread (rule 3.1): `Rc`, `RefCell` and `spawn_local`, and no borrow held across an
+//! `.await` or a call out (rule 3.3).
+use std::rc::Rc;
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use tokio::io::{AsyncRead, AsyncWrite};
 pub use wsp_wire::wire::daemon::{PipeDoor, PipeOpen};
 
@@ -94,7 +97,7 @@ pub type PipeDuplex = Box<dyn PipeIo>;
 // TS pipe.ts:61-62
 // /** Where each taken pipe goes: the workspace whose link it was dialled on, never anything the machine said. */
 // export type PipeHandler = (workspaceId: string, open: PipeOpen, duplex: Duplex) => void;
-pub type PipeHandler = Arc<dyn Fn(&str, PipeOpen, PipeDuplex) -> Result<(), String> + Send + Sync>;
+pub type PipeHandler = Rc<dyn Fn(&str, PipeOpen, PipeDuplex) -> Result<(), String>>;
 
 // TS pipe.ts:64-69
 // export interface PipeReach {
@@ -134,24 +137,24 @@ pub struct PipeReach {
 #[derive(Clone)]
 pub struct PipePoolOptions {
     /// The link's own reach, read at each dial; `Ok(None)` while the guest holds no daemon token; `Err` fails the dial.
-    pub reach: Arc<dyn Fn(&str) -> BoxFuture<'static, Result<Option<PipeReach>, String>> + Send + Sync>,
+    pub reach: Rc<dyn Fn(&str) -> LocalBoxFuture<'static, Result<Option<PipeReach>, String>>>,
     /// The daemon's version, `Ok(None)` when it does not answer; an `Err` reads as `None`.
-    pub version: Arc<dyn Fn(&str) -> BoxFuture<'static, Result<Option<i64>, String>> + Send + Sync>,
+    pub version: Rc<dyn Fn(&str) -> LocalBoxFuture<'static, Result<Option<i64>, String>>>,
     /// Read at each take.
-    pub handler: Arc<dyn Fn() -> Option<PipeHandler> + Send + Sync>,
+    pub handler: Rc<dyn Fn() -> Option<PipeHandler>>,
     /// The switch: nothing is dialled while it reads false.
-    pub ready: Arc<dyn Fn() -> bool + Send + Sync>,
+    pub ready: Rc<dyn Fn() -> bool>,
     /// The daemon refused the token: the next reach writes the host's token on the machine again.
-    pub rewrite: Arc<dyn Fn(&str) + Send + Sync>,
-    /// The runtime's clock when `None`.
-    pub clock: Option<Arc<dyn Clock>>,
+    pub rewrite: Rc<dyn Fn(&str)>,
+    /// `real_clock()` when `None`.
+    pub clock: Option<Rc<dyn Clock>>,
     /// `link_backoff_ms` with a real random draw when `None`.
-    pub backoff_ms: Option<Arc<dyn Fn(u32) -> u64 + Send + Sync>>,
+    pub backoff_ms: Option<Rc<dyn Fn(u32) -> u64>>,
     pub idle_max_ms: Option<u64>,
     pub behind_again_ms: Option<u64>,
     pub dial_rate: Option<usize>,
-    /// A warning line on stderr when `None` (the TS `console.warn`).
-    pub log: Option<Arc<dyn Fn(&str) + Send + Sync>>,
+    /// `crate::console::warn` when `None`.
+    pub log: Option<Rc<dyn Fn(&str)>>,
 }
 
 // TS pipe.ts:91-99
@@ -165,7 +168,7 @@ pub struct PipePoolOptions {
 //   close(): void;
 // }
 pub struct PipePool {
-    state: std::sync::Mutex<()>,
+    state: std::cell::RefCell<()>,
 }
 
 impl PipePool {
@@ -434,7 +437,8 @@ impl PipePool {
 //     },
 //   };
 // }
-pub fn pipe_pool(o: PipePoolOptions) -> Arc<PipePool> {
+/// Spawns its dials with `spawn_local`: call it inside a `LocalSet`.
+pub fn pipe_pool(o: PipePoolOptions) -> Rc<PipePool> {
     todo!()
 }
 

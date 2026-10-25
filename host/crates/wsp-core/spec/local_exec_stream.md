@@ -45,7 +45,7 @@ the host spec are this unit.
    missing answers `Gone`; `release_held`, append `line\n` to `base.in` (any error answers `Gone`); touch; `Written`.
 8. `close_input()`: once, with input, unsettled; `release_held` then append the end marker line, at once when nothing
    is parked, else after every parked line; errors swallowed.
-9. `write_after(line, after)`: queues behind the last parked line; parks by creating `base.late.key` (12 hex) and
+9. `write_after(line, after)`: queues behind the line parked when it is called; parks by creating `base.late.key` (12 hex) and
    `base.late` (`line\n`) exclusive at 0600; `after` resolving runs `release_late(base)`, a refusal deletes both;
    errors swallowed; the queue moves on.
 10. `rest()`: resting, then end the leftovers: `leftovers(group_rows(leader), leader, pump_of(base))` each TERM by
@@ -64,6 +64,9 @@ the host spec are this unit.
 - The environment is the turn's alone: a host variable never reaches the turn.
 
 ## Behaviour nobody wrote down
+- The spawned `bash` is reaped when it exits, as node's child handling reaps every child it spawned (a dropped
+  `tokio::process::Child` is reaped by tokio's orphan queue; a dropped `std::process::Child` is not). A leader nobody
+  reaped is a zombie that `kill(pid, 0)` reads as alive, so the dead-leader rule would never fire.
 - Invariant 1: a restarted host re-opens a run by handle and reads its log from byte 0
   (`a_factory_that_never_launched_a_run_attaches_to_it_by_handle_and_reads_its_whol`); the wall counts from the
   row's `started_at` (`a_turn_re_opened_after_a_restart_is_cut_at_its_first_start_plus_the_wall_not`).
@@ -71,6 +74,7 @@ the host spec are this unit.
 - No file under `runs/` holds the turn's environment (`a_turn_and_an_exec_launched_with_a_key...`).
 
 ## Decisions
+0. Names and keys are drawn through the `Ids` seam (`ids`, `OsIds` by default): `hex(ids.bytes(6))`.
 1. As machine_exec_factory decision 1: `try_launch` answers the refusal (and a failed mkdir or exclusive create) as
    `Err`; `launch` turns it into a failed stream.
 2. Decision 2 of machine_exec_stream (NaN exit settles `None`).

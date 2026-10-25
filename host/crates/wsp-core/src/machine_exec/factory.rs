@@ -11,6 +11,7 @@ use wsp_engine::errors::{EngineError, RetryClock};
 use wsp_engine::Machine;
 
 use super::rules::{ReadingSet, TurnWaiting};
+use crate::ids::Ids;
 
 /// The clock both limits read; ms epoch.
 pub type NowFn = Arc<dyn Fn() -> i64 + Send + Sync>;
@@ -78,6 +79,8 @@ pub struct MachineExecOptions {
     /// A launch whose posts got no answer asks after its run until the turn is stopped, not for one link window.
     pub asks_until_stopped: bool,
     pub killed_why: Option<KilledWhy>,
+    /// Where a run's name, sentinels and late-line keys are drawn from (rule 3.16); `OsIds` when `None`.
+    pub ids: Option<Arc<dyn Ids + Send + Sync>>,
 }
 
 /// A launch's posts as the reader that follows them asks after them (machine-exec.ts:89-93).
@@ -112,6 +115,7 @@ pub struct Core {
     pub asks_until_stopped: bool,
     pub killed_why: Option<KilledWhy>,
     pub waiting: TurnWaiting,
+    pub ids: Arc<dyn Ids + Send + Sync>,
 }
 
 impl Core {

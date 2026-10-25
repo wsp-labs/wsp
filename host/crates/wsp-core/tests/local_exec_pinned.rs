@@ -183,10 +183,9 @@ own_group_test!(a_reap_with_no_readable_pid_signals_nothing_and_deletes_the_file
     std::fs::create_dir(&runs).unwrap();
     // A group of this test's own, standing for the run's; its pid written with a word after it, which Number() reads
     // as NaN.
-    use std::os::unix::process::CommandExt;
-    let group = std::process::Command::new("sleep").arg("300").process_group(0).spawn().unwrap();
-    let pid = group.id() as i32;
-    support::strays::record(pid);
+    let mut sleep = std::process::Command::new("sleep");
+    sleep.arg("300");
+    let pid = support::strays::spawn_reaped(sleep);
     for (id, pid_text) in [("aaaaaaaaaaaa", format!("{pid}x\n")), ("bbbbbbbbbbbb", "0\n".to_string()), ("cccccccccccc", "-5\n".to_string()), ("dddddddddddd", String::new())] {
         let base = runs.join(id).to_string_lossy().into_owned();
         std::fs::create_dir(format!("{base}.d")).unwrap();
@@ -226,11 +225,9 @@ fn hand_made(runs: &str, id: &str, pid: Option<i32>, log: &str, extra: &[(&str, 
 }
 
 fn sleeper() -> i32 {
-    use std::os::unix::process::CommandExt;
-    let child = std::process::Command::new("sleep").arg("300").process_group(0).spawn().unwrap();
-    let pid = child.id() as i32;
-    support::strays::record(pid);
-    pid
+    let mut sleep = std::process::Command::new("sleep");
+    sleep.arg("300");
+    support::strays::spawn_reaped(sleep)
 }
 
 async fn attach(runs: &str, run: &str, input: bool, from: Option<u64>) -> Attached {

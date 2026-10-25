@@ -2,21 +2,23 @@
 //! The pool as the runtime runs it: a brokered workspace's pipes stand while it runs, by the bus's workspace events,
 //! and `cut_off`, which revokes a machine at the broker before its delete. Port of packages/runtime/src/pipe.ts:394-466
 //! at 65f6b89c7. Spec: spec/pipe_area.md.
-use std::sync::Arc;
+//!
+//! Host state on the owner thread (rule 3.1), as the pool.
+use std::rc::Rc;
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use wsp_wire::wire::events_union::EventUnion;
 
 use super::pool::PipeHandler;
 use crate::clock::Clock;
 
 /// The broker the host wired, as the pool reads it (`ctx.opts.broker`).
-pub trait PipeBroker: Send + Sync {
+pub trait PipeBroker {
     fn ready(&self) -> bool;
     /// The broker's pipe handler, `None` where it serves no pipes.
     fn pipe(&self) -> Option<PipeHandler>;
     /// `None` where the broker has no revoke (the TS `revoke?`); `Err` is its failure's words.
-    fn revoke(&self, workspace_id: &str) -> Option<BoxFuture<'static, Result<(), String>>>;
+    fn revoke(&self, workspace_id: &str) -> Option<LocalBoxFuture<'static, Result<(), String>>>;
 }
 
 /// One live workspace as the area reads it.
@@ -29,30 +31,30 @@ pub struct PipeLive {
 }
 
 /// What `pipe_area` and `cut_off` read off the runtime's context, method for method.
-pub trait PipeAreaContext: Send + Sync {
-    fn broker(&self) -> Option<Arc<dyn PipeBroker>>;
+pub trait PipeAreaContext {
+    fn broker(&self) -> Option<Rc<dyn PipeBroker>>;
     /// `ctx.live.get(id)`.
     fn live(&self, workspace_id: &str) -> Option<PipeLive>;
     /// `ctx.live.keys()`, in insertion order.
     fn live_ids(&self) -> Vec<String>;
     /// `entry.ws.daemonReach()`'s url; `Err` is its failure.
-    fn daemon_reach_url(&self, workspace_id: &str) -> BoxFuture<'static, Result<String, String>>;
+    fn daemon_reach_url(&self, workspace_id: &str) -> LocalBoxFuture<'static, Result<String, String>>;
     /// `ctx.daemonTokenOf(entry.machine)`.
-    fn daemon_token_of(&self, workspace_id: &str) -> BoxFuture<'static, Result<Option<String>, String>>;
+    fn daemon_token_of(&self, workspace_id: &str) -> LocalBoxFuture<'static, Result<Option<String>, String>>;
     /// `ctx.moduleOf(kind).daemonVersion(entry)`.
-    fn daemon_version(&self, workspace_id: &str) -> BoxFuture<'static, Result<Option<i64>, String>>;
+    fn daemon_version(&self, workspace_id: &str) -> LocalBoxFuture<'static, Result<Option<i64>, String>>;
     /// `ctx.daemonTokens.delete(machineId)`.
     fn forget_daemon_token(&self, machine_id: &str);
-    fn clock(&self) -> Arc<dyn Clock>;
+    fn clock(&self) -> Rc<dyn Clock>;
     /// `ctx.bus.on("*", listener)`; answers the detach.
-    fn on_any(&self, listener: Arc<dyn Fn(&EventUnion) + Send + Sync>) -> Box<dyn FnOnce() + Send>;
+    fn on_any(&self, listener: Rc<dyn Fn(&EventUnion)>) -> Box<dyn FnOnce()>;
     /// `ctx.ready()`.
-    fn ready(&self) -> BoxFuture<'static, Result<(), String>>;
+    fn ready(&self) -> LocalBoxFuture<'static, Result<(), String>>;
 }
 
 /// The running area; `close` detaches from the bus, then closes the pool.
 pub struct PipeArea {
-    state: std::sync::Mutex<()>,
+    state: std::cell::RefCell<()>,
 }
 
 impl PipeArea {
@@ -131,18 +133,18 @@ impl PipeArea {
 //     },
 //   };
 // }
-pub fn pipe_area(ctx: Arc<dyn PipeAreaContext>, brokered: Arc<dyn Fn(&str) -> bool + Send + Sync>) -> Option<Arc<PipeArea>> {
+pub fn pipe_area(ctx: Rc<dyn PipeAreaContext>, brokered: Rc<dyn Fn(&str) -> bool>) -> Option<Rc<PipeArea>> {
     todo!()
 }
 
-/// Cuts a machine off at the broker before its provider deletes it; a broker that fails says so and the delete goes on.
-/// `log` is where the warning goes (stderr in the wiring).
+/// Cuts a machine off at the broker before its provider deletes it; a broker that fails says so through
+/// `crate::console::warn` and the delete goes on.
 // TS pipe.ts:394-398
 // /** Cuts a machine off at the host's broker before its provider is asked to delete it, so no call from it lands in
 //  * between, nor after a delete the provider refuses. A broker that fails says so, and the delete goes on. */
 // export async function cutOff(ctx: Pick<RuntimeContext, "opts">, entry: LiveWorkspace): Promise<void> {
 //   await ctx.opts.broker?.revoke?.(entry.record.id).catch((e: unknown) => console.warn(`${entry.record.name} was not cut off from your computer before its delete: ${e instanceof Error ? e.message : String(e)}`));
 // }
-pub async fn cut_off(ctx: &dyn PipeAreaContext, workspace_id: &str, name: &str, log: &(dyn Fn(&str) + Send + Sync)) {
+pub async fn cut_off(ctx: &dyn PipeAreaContext, workspace_id: &str, name: &str) {
     todo!()
 }
