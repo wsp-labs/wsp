@@ -133,30 +133,30 @@ cannot update … while it is already being updated
 ```rust
 // ❌ Panic: updating entity_a from inside entity_a's own update
 entity_a.update(cx, |state, cx| {
-    entity_a.update(cx, |_, _| {}); // PANIC — same lock
+    entity_a.update(cx, |_, _| {}); // PANIC, same lock
 });
 ```
 
 **Different entity → generally safe, but indirect cycles still panic.**  
-Each entity has its own lock, so updating `entity_b` from within `entity_a`'s update normally succeeds. However, if `entity_b`'s callback reaches back into `entity_a` — directly or through a chain — GPUI will attempt to re-acquire `entity_a`'s lock and panic.
+Each entity has its own lock, so updating `entity_b` from within `entity_a`'s update normally succeeds. However, if `entity_b`'s callback reaches back into `entity_a`, directly or through a chain, GPUI will attempt to re-acquire `entity_a`'s lock and panic.
 
 ```rust
 // ✅ Usually fine: different entities, no cycle
 entity_a.update(cx, |_, cx| {
-    entity_b.update(cx, |_, _| {}); // OK — different lock
+    entity_b.update(cx, |_, _| {}); // OK, different lock
 });
 
 // ❌ Panic: indirect cycle back to entity_a
 entity_a.update(cx, |_, cx| {
     entity_b.update(cx, |_, cx| {
-        entity_a.update(cx, |_, _| {}); // PANIC — entity_a is still locked
+        entity_a.update(cx, |_, _| {}); // PANIC, entity_a is still locked
     });
 });
 ```
 
 When in doubt, flatten the call sequence rather than nesting: finish the outer update, then update the second entity from outside.
 
-**`defer_in` does not bypass the lock.** `cx.defer_in(window, callback)` schedules `callback` to run on the current entity — meaning GPUI re-acquires the entity's lock to execute it. The re-entrancy rules apply equally inside the deferred callback:
+**`defer_in` does not bypass the lock.** `cx.defer_in(window, callback)` schedules `callback` to run on the current entity, meaning GPUI re-acquires the entity's lock to execute it. The re-entrancy rules apply equally inside the deferred callback:
 
 ```rust
 // ❌ Panic: defer_in re-locks entity_a; calling entity_a.update inside re-enters
@@ -165,7 +165,7 @@ impl SomeDelegate for MyAdapter {
         cx.defer_in(window, |list_state, window, cx| {
             // list_state is locked for this callback!
             parent.update(cx, |this, cx| {
-                this.list.update(cx, |_, _| {}); // PANIC — list is already locked above
+                this.list.update(cx, |_, _| {}); // PANIC, list is already locked above
             });
         });
     }
@@ -175,10 +175,10 @@ impl SomeDelegate for MyAdapter {
 impl SomeDelegate for MyAdapter {
     fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<ListState<Self>>) {
         cx.defer_in(window, |list_state, window, cx| {
-            // Access list data directly — no entity lock needed
+            // Access list data directly, no entity lock needed
             list_state.delegate_mut().some_hook();
 
-            // Update the *parent* entity — different lock, safe
+            // Update the *parent* entity, different lock, safe
             parent.update(cx, |this, cx| { /* … */ });
 
             // Sync list state directly after parent update
@@ -191,12 +191,12 @@ impl SomeDelegate for MyAdapter {
 **Snapshot pattern for render callbacks.** `render_item` (and any other rendering hook) runs inside the entity's render pass. It must never call `entity.read(cx)` or `entity.update(cx, …)` on any external entity. Instead, keep a plain `snapshot` field updated eagerly from *outside* render after every mutation:
 
 ```rust
-// ❌ Panic in render_item — ListState is already locked
+// ❌ Panic in render_item, ListState is already locked
 fn render_item(&mut self, ix: IndexPath, window: &mut Window, cx: &mut Context<ListState<Self>>) -> … {
     let checked = parent_entity.read(cx).selection.contains(&ix); // PANIC
 }
 
-// ✅ Read from a plain snapshot field — no entity access
+// ✅ Read from a plain snapshot field, no entity access
 fn render_item(&mut self, ix: IndexPath, window: &mut Window, cx: &mut Context<ListState<Self>>) -> … {
     let checked = self.selection_snapshot.iter().any(|(sel_ix, _)| sel_ix == &ix);
 }
@@ -212,7 +212,7 @@ fn render_item(&mut self, ix: IndexPath, window: &mut Window, cx: &mut Context<L
 
 ## Reference Documentation
 
-- **API**: See [entity-api.md](entity-api.md) — entity types, methods, lifecycle, error handling
-- **Patterns**: See [entity-patterns.md](entity-patterns.md) — model-view, cross-entity communication, observer
-- **Best Practices**: See [entity-best-practices.md](entity-best-practices.md) — pitfalls, memory, performance, async
-- **Advanced**: See [entity-advanced.md](entity-advanced.md) — collections, registry, debounce, state machines
+- **API**: See [entity-api.md](entity-api.md), entity types, methods, lifecycle, error handling
+- **Patterns**: See [entity-patterns.md](entity-patterns.md), model-view, cross-entity communication, observer
+- **Best Practices**: See [entity-best-practices.md](entity-best-practices.md), pitfalls, memory, performance, async
+- **Advanced**: See [entity-advanced.md](entity-advanced.md), collections, registry, debounce, state machines

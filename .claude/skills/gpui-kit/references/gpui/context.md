@@ -152,7 +152,7 @@ App (Global)
                  └─ AsyncWindowContext (Async + Window)
 ```
 
-## cx.listener — Binding Callbacks to Self
+## cx.listener, Binding Callbacks to Self
 
 `cx.listener` creates a callback that borrows `&mut self` (the current entity). Use it for `on_click`, `on_action`, and other element event handlers:
 
@@ -180,7 +180,7 @@ impl MyView {
 
 `cx.listener(Self::method)` is equivalent to creating a closure that calls `self.method(...)`.
 
-## subscribe_in — Subscribe with Window Access
+## subscribe_in, Subscribe with Window Access
 
 Use `subscribe_in` (instead of `subscribe`) when the callback needs `&mut Window`:
 
@@ -198,8 +198,8 @@ let _subscription = cx.subscribe_in(&input, window, |this, state, event, window,
 ```
 
 `subscribe` vs `subscribe_in`:
-- `subscribe(&entity, |this, source, event, cx|)` — no window access
-- `subscribe_in(&entity, window, |this, source, event, window, cx|)` — has window access
+- `subscribe(&entity, |this, source, event, cx|)`, no window access
+- `subscribe_in(&entity, window, |this, source, event, window, cx|)`, has window access
 
 ## observe_window_activation
 
@@ -221,7 +221,7 @@ React when a global value changes:
 
 ```rust
 cx.observe_global::<Theme>(|cx| {
-    // Theme changed — react
+    // Theme changed, react
     cx.notify();
 });
 ```
@@ -240,7 +240,7 @@ cx.defer(|cx| {
 cx.defer_in(window, |this, window, cx| {
     // Can access window here
     // CAUTION: never call entity.update(cx) on *this same entity* inside defer_in
-    // — it re-enters the lock and panics. Use the &mut self reference directly.
+    //, it re-enters the lock and panics. Use the &mut self reference directly.
     this.some_method(window, cx);
 });
 ```

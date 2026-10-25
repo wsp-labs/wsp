@@ -114,7 +114,7 @@ changes.
 
 ```rust
 pub fn init(cx: &mut App) {
-    // 1. Bindings first — the menu items copy their shortcuts from these.
+    // 1. Bindings first, the menu items copy their shortcuts from these.
     cx.bind_keys([
         KeyBinding::new("cmd-n", NewChat, None),
         KeyBinding::new("cmd-,", OpenSettings, None),
@@ -136,7 +136,7 @@ pub fn init(cx: &mut App) {
 
 Call `cx.set_menus` again after anything that changes bindings or labels: a
 user keymap file loaded later, a locale switch that renames the items. `Undo`,
-`Redo`, `Cut`, `Copy`, `Paste` need no `on_action` of your own — give the item
+`Redo`, `Cut`, `Copy`, `Paste` need no `on_action` of your own, give the item
 an `OsAction` and the platform forwards it to the focused text control.
 
 ## Action Naming

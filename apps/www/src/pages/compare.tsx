@@ -2,11 +2,13 @@
 import { ArrowLeft, ArrowRight, Check, Minus } from "lucide-react";
 import type { ReactNode } from "react";
 import { Lockup } from "@/components/brand";
+import { CopyCommand } from "@/components/copy-command";
 import { Install } from "@/components/download";
-import { Section } from "@/components/section";
-import { aheadOf, KINDS, READ, ROWS, sources, VENDORS_BRING, WSP, type Cell, type Tool } from "@/compare";
-import { REPO } from "@/links";
-import { ToolIcon } from "@/logos";
+import { Head, Section } from "@/components/section";
+import { KINDS, READ, ROWS, saidOf, sources, STEPS, strongerOf, TOOLS, VENDORS_BRING, WSP, type Cell, type Said, type Tool } from "@/compare";
+import { INSTALL, REPO } from "@/links";
+import { ToolIcon, WspIcon } from "@/logos";
+import { ToolCards } from "@/sections/compares";
 import { cn } from "@/lib/utils";
 
 const shown = (url: string): string => url.replace(/^https:\/\/(www\.)?/, "").replace(/\/blob\/[0-9a-f]{40}\//, "/");
@@ -51,8 +53,9 @@ function Table({ tool }: { tool: Tool }) {
         <tbody className="max-sm:block">
           {ROWS.map(r => (
             <tr key={r.key} className="border-t border-rule align-top max-sm:grid max-sm:grid-cols-2">
-              <th scope="row" className="px-4 py-4 text-left font-normal text-muted-foreground max-sm:col-span-2 max-sm:pb-0 max-sm:text-[13px] max-sm:text-faint sm:px-5">
-                {r.label}
+              <th scope="row" className="px-4 py-4 text-left font-normal max-sm:col-span-2 max-sm:pb-0 sm:px-5">
+                <span className="block text-muted-foreground max-sm:text-[14px]">{r.label}</span>
+                <span className="mt-1 block text-[13px] leading-snug text-faint">{r.about}</span>
               </th>
               <Answer cell={tool.cells[r.key]} us={false} />
               <Answer cell={WSP[r.key]} us />
@@ -64,12 +67,33 @@ function Table({ tool }: { tool: Tool }) {
   );
 }
 
-function Header({ eyebrow, title, children }: { eyebrow: ReactNode; title: string; children: ReactNode }) {
+/** One side's points, each one sentence with its pages as the hover title; a point from AHEAD carries wsp's own line. */
+function Points({ title, items }: { title: string; items: { said: Said; wsp?: Said }[] }) {
   return (
-    <header className="mx-auto max-w-[1200px] px-4 pt-32 pb-12 sm:px-6 sm:pt-40 sm:pb-16">
+    <div className="border-t border-rule pt-6">
+      <h3 className="text-[17px] font-medium tracking-[-0.01em] text-foreground">{title}</h3>
+      <ul className="mt-4 flex flex-col gap-3">
+        {items.map(({ said, wsp }) => (
+          <li key={said[0]} title={[...said.slice(1), ...(wsp?.slice(1) ?? [])].map(shown).join("\n")} className="flex gap-3 text-[15px] leading-relaxed text-muted-foreground">
+            <span aria-hidden className="mt-[11px] size-1 shrink-0 rounded-full bg-faint" />
+            <span>
+              {said[0]}
+              {wsp !== undefined && <span className="text-faint">{` ${wsp[0]}`}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function Header({ eyebrow, icons, title, children }: { eyebrow: ReactNode; icons?: ReactNode; title: string; children: ReactNode }) {
+  return (
+    <header className={cn("mx-auto max-w-[1200px] px-4 pt-32 pb-12 sm:px-6 sm:pt-40 sm:pb-16", icons !== undefined && "text-center")}>
       <div className="font-mono text-[13px] text-faint">{eyebrow}</div>
-      <h1 className="display mt-4 text-[40px] sm:text-[64px]">{title}</h1>
-      <p className="lede mt-6 max-w-[640px] text-[17px] sm:text-[18px]">{children}</p>
+      {icons !== undefined && <div className="mt-10 flex items-center justify-center gap-5">{icons}</div>}
+      <h1 className={cn("display text-[40px] sm:text-[64px]", icons === undefined ? "mt-4" : "mt-8")}>{title}</h1>
+      <p className={cn("lede mt-6 max-w-[640px] text-[17px] sm:text-[18px]", icons !== undefined && "mx-auto")}>{children}</p>
     </header>
   );
 }
@@ -127,7 +151,6 @@ export function Compare() {
 }
 
 export function ToolPage({ tool }: { tool: Tool }) {
-  const ahead = aheadOf(tool);
   return (
     <main>
       <Header
@@ -135,6 +158,13 @@ export function ToolPage({ tool }: { tool: Tool }) {
           <a href="/compare" className="inline-flex items-center gap-1.5 transition-colors duration-150 hover:text-foreground">
             <ArrowLeft className="size-3.5" /> Compare
           </a>
+        }
+        icons={
+          <>
+            <WspIcon className="size-16 rounded-[16px] sm:size-20 sm:rounded-[20px]" />
+            <span className="font-mono text-[14px] text-faint">vs</span>
+            <ToolIcon slug={tool.slug} className="size-16 rounded-[16px] sm:size-20 sm:rounded-[20px]" />
+          </>
         }
         title={`wsp vs ${tool.name}`}
       >
@@ -145,30 +175,49 @@ export function ToolPage({ tool }: { tool: Tool }) {
         <Table tool={tool} />
       </div>
 
-      <Section>
-        <h2 className="heading text-[32px] sm:text-[44px]">Which to pick.</h2>
+      <Section id="strengths">
+        <h2 className="heading text-[32px] sm:text-[44px]">Where each is stronger.</h2>
         <div className="mt-12 grid gap-x-16 gap-y-10 md:grid-cols-2">
-          <div className="border-t border-rule pt-6">
-            <h3 className="text-[17px] font-medium tracking-[-0.01em] text-foreground">What {tool.name} does well</h3>
-            <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{tool.well}</p>
-          </div>
-          <div className="border-t border-rule pt-6">
-            <h3 className="text-[17px] font-medium tracking-[-0.01em] text-foreground">When wsp fits better</h3>
-            <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{tool.fit}</p>
-          </div>
+          <Points title={`Where ${tool.name} is stronger`} items={strongerOf(tool)} />
+          <Points title="Where wsp is stronger" items={tool.weaker.map(p => ({ said: saidOf(tool, p) }))} />
         </div>
       </Section>
 
-      <Section id="ahead" className="pt-0 sm:pt-0">
-        <h2 className="heading text-[32px] sm:text-[44px]">What wsp does not do yet.</h2>
-        <dl className="mt-12 grid gap-x-16 gap-y-10 md:grid-cols-2">
-          {ahead.map(({ title, said, wsp }) => (
-            <div key={title} className="border-t border-rule pt-6">
-              <dt className="text-[17px] font-medium tracking-[-0.01em] text-foreground">{title}</dt>
-              <dd className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{`${said[0]} ${wsp}`}</dd>
-            </div>
+      <Section id="pick" className="pt-0 sm:pt-0">
+        <h2 className="heading text-[32px] sm:text-[44px]">Which to pick.</h2>
+        <div className="mt-12 grid gap-x-16 gap-y-10 md:grid-cols-2">
+          <Points title={`Pick ${tool.name} if`} items={tool.pickThem.map(p => ({ said: saidOf(tool, p) }))} />
+          <Points title="Pick wsp if" items={tool.pickWsp.map(p => ({ said: saidOf(tool, p) }))} />
+        </div>
+      </Section>
+
+      <Section id="steps" className="pt-0 sm:pt-0">
+        <h2 className="heading text-[32px] sm:text-[44px]">Switch in three steps.</h2>
+        <ol className="mt-12 grid gap-4 lg:grid-cols-[1.3fr_1fr_1fr]">
+          {STEPS.map((step, i) => (
+            <li key={step.title} title={step.said.slice(1).map(shown).join("\n")} className="flex min-w-0 flex-col rounded-[14px] border border-border p-6">
+              <span className="font-mono text-[13px] text-faint">{i + 1}</span>
+              <h3 className="mt-3 text-[17px] font-medium tracking-[-0.01em] text-foreground">{step.title}</h3>
+              <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+                {step.said[0].split("`").map((part, j) =>
+                  j % 2 === 1 ? (
+                    <code key={part} className="font-mono text-[13.5px] text-foreground">
+                      {part}
+                    </code>
+                  ) : (
+                    part
+                  ),
+                )}
+              </p>
+              {i === 0 && <CopyCommand command={INSTALL} shown="curl -fsSL usewsp.com/install | sh" className="mt-5 self-start" />}
+            </li>
           ))}
-        </dl>
+        </ol>
+      </Section>
+
+      <Section id="others" className="pt-0 sm:pt-0">
+        <Head title="wsp vs others." />
+        <ToolCards tools={TOOLS.filter(t => t.slug !== tool.slug)} className="lg:grid-cols-3" />
       </Section>
 
       <Section id="sources" className="pt-0 sm:pt-0">

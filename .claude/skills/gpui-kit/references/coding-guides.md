@@ -134,8 +134,8 @@ current frame. Keep that distinction explicit.
   resolved geometry is genuinely required.
 
 Never retain `&mut Window`, `&mut App`, or `&mut Context<_>` beyond the call in
-which it is provided. Retain typed handles—`Entity`, `WeakEntity`,
-`FocusHandle`, scroll handles, or domain IDs—instead.
+which it is provided. Retain typed handles, `Entity`, `WeakEntity`,
+`FocusHandle`, scroll handles, or domain IDs, instead.
 
 ## Choose the right unit
 
@@ -293,7 +293,7 @@ impl Render for ProjectView {
 
 Extract a render helper when it names a meaningful region and reduces the
 amount of state a reader must hold at once. Extract a new component when the
-region has its own reusable contract or retained lifecycle—not merely because
+region has its own reusable contract or retained lifecycle, not merely because
 a builder chain is long.
 
 Use GPUI Component's fluent traits consistently (`Sizable`, `Disableable`,
@@ -331,7 +331,7 @@ Conversely, Base must not choose brand colors, typography, density, final
 icons, component variants, or application composition. Expose presentation
 through `Styled`, typed semantic-state styles, explicit parts, child slots, and
 item renderers. Do not inspect arbitrary descendants to discover titles,
-descriptions, or close buttons—make semantic parts explicit.
+descriptions, or close buttons, make semantic parts explicit.
 
 ## Theme and styling
 
@@ -394,8 +394,8 @@ The theme keeps the same colors twice (`colors` as solid colors, `tokens` as
 renderable backgrounds that may carry a gradient) and the Base layer holds a
 projection for its scrollbars and resize handles; `update` brings all three
 back in step after the closure and refreshes every window. An edit through
-`Theme::global_mut(cx)` updates only the field you touched — a sidebar can then
-paint its text from the new colors and its background from the old tokens —
+`Theme::global_mut(cx)` updates only the field you touched, a sidebar can then
+paint its text from the new colors and its background from the old tokens , 
 so it owns the rest: derive `tokens` from `colors`, call `Theme::sync_base(cx)`,
 refresh the windows. `Theme::change(...)` performs the projection as part of a
 complete theme change.
@@ -421,8 +421,8 @@ Theme::update(cx, |theme| theme.font_size = px(18.));
 ```
 
 The base font itself is a pixel value because it anchors the scale. Descendant
-application UI should normally use relative helpers—`text_sm()`, `gap_2()`,
-`px_3()`, `h_8()`, `size_4()`—so type, whitespace, controls, and icons respond
+application UI should normally use relative helpers, `text_sm()`, `gap_2()`,
+`px_3()`, `h_8()`, `size_4()`, so type, whitespace, controls, and icons respond
 together. A custom component that combines rem-based text with fixed-pixel
 padding or icon geometry must document why that part should not zoom.
 
@@ -459,7 +459,7 @@ dismissal; the feature owner still owns whether the command is allowed and
 what it does.
 
 Preserve semantic roles in the element choice. Use `Button` for commands even
-when the desired treatment is quiet—select `outline`, `ghost`, or an icon
+when the desired treatment is quiet, select `outline`, `ghost`, or an icon
 presentation instead of replacing it with `Link`. GPUI Kit applications
 reserve `Link` for targets opened by a browser or mail client, such as a URL,
 web document, or email address. Use the relevant navigation component for an
@@ -491,14 +491,14 @@ A tracked handle is a Tab stop only when it says so: build it with
 own `tab_index`/`tab_stop` settings do not apply to a handle passed to
 `track_focus`. A stateless component may create that handle in `render`
 through `window.use_keyed_state(id, cx, |_, cx| cx.focus_handle().tab_stop(true))`;
-the keyed state survives re-renders, so the Tab order is stable — this is
+the keyed state survives re-renders, so the Tab order is stable, this is
 what `Button` does.
 
 Attach a `key_context` and its `on_action` handlers to the same focused region.
 Bindings are contextual: a registered Action without the intended focus path
 is not a working keyboard interaction. Composite widgets should implement the
-complete navigation model—arrow movement, Home/End or page movement where
-appropriate, confirmation, cancellation, and Tab behavior—rather than a few
+complete navigation model, arrow movement, Home/End or page movement where
+appropriate, confirmation, cancellation, and Tab behavior, rather than a few
 isolated shortcuts.
 
 Modal surfaces must trap focus and restore the previous valid focus target on
@@ -508,7 +508,7 @@ surface.
 
 ## Async work and side effects
 
-Start async work from an event, lifecycle hook, or named method—not as an
+Start async work from an event, lifecycle hook, or named method, not as an
 unconditional side effect of `render`. Capture weak entities when work should
 not keep a closed view alive. When the task completes, update state through the
 GPUI context, handle the case where the entity or window no longer exists, and
@@ -530,8 +530,8 @@ or identity and reject stale work rather than applying it to new state.
 default, `stretch`. This matches Zed's `h_flex`, and it is what a row of
 controls wants, so a row of icon and label says nothing. It is not what a row
 of full-height columns wants: a column placed in a bare `h_flex` does not fill
-the row's height, so a column taller than the row is centred and its top —
-commonly a header — is clipped off the top of the window, with nothing near the
+the row's height, so a column taller than the row is centred and its top , 
+commonly a header, is clipped off the top of the window, with nothing near the
 column to say why. A row whose children are columns says `items_stretch()`:
 
 ```rust
@@ -570,7 +570,7 @@ the structural owner.
 `h_flex()` and `v_flex()` are not mirror images: `h_flex()` centers its
 children on the cross axis, `v_flex()` leaves them stretching. A column placed
 in a row therefore takes its content's height, not the row's, and a column
-taller than the row is centered — its header is pushed off the top edge and
+taller than the row is centered, its header is pushed off the top edge and
 clipped. Give a full-height column `h_full()`, or give the row `items_start()`
 or `items_stretch()`, whenever the child owns a header, a footer, or a scroll
 region that must resolve against the row's height.
@@ -732,7 +732,7 @@ shortening a field shortens its builder with it and the pair stays matched.
 Shorten only where the enclosing name really does disambiguate. When a short
 form is also the established term for a *different* quantity elsewhere in the
 ecosystem, say which one you mean in the doc comment rather than lengthening the
-identifier — the doc is read at the call, and it can explain what a longer name
+identifier, the doc is read at the call, and it can explain what a longer name
 could only hint at.
 
 ### Use precise domain words
@@ -744,8 +744,8 @@ could only hint at.
   transient presentation requests; **expand/collapse** describes structure.
 - **disabled** prevents interaction; **readonly** permits navigation and
   selection but prevents editing; **loading** prevents duplicate work while an
-  operation is pending. Spell the state `readonly` — one word, as the
-  `readonly(bool)` builder and `is_readonly()` reader do — in identifiers,
+  operation is pending. Spell the state `readonly`, one word, as the
+  `readonly(bool)` builder and `is_readonly()` reader do, in identifiers,
   interface labels, and documentation alike; never `read-only` or `read only`.
 - **index** is a current positional coordinate; **id** is stable identity;
   `IndexPath` represents hierarchical position. Do not persist or key

@@ -35,7 +35,10 @@ try {
   const svg = await page.evaluate(
     async ([source, theme]) => {
       window.mermaid.initialize({ startOnLoad: false, theme: "base", themeVariables: theme, flowchart: { curve: "basis" } });
-      return (await window.mermaid.render("diagram", source)).svg;
+      const { svg } = await window.mermaid.render("diagram", source);
+      // Mermaid writes HTML (`<br>`), which an <img> reading the file as XML refuses.
+      const parsed = new DOMParser().parseFromString(svg, "text/html").querySelector("svg");
+      return new XMLSerializer().serializeToString(parsed);
     },
     [readFileSync(resolve(from), "utf8"), THEME],
   );
