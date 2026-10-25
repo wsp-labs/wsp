@@ -617,6 +617,299 @@
    "any": [
     "( c ) >/dev/null 2>&1"
    ]
+  },
+  {
+   "name": "below, step asks nothing",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "below": {
+     "node": "20.0.0",
+     "asks": "1.0.0"
+    },
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "if node --version 2>/dev/null | awk -F. -v a=20 -v b=0 'NR==1{sub(/^v/,\"\",$1); ok=($1+0>a||($1+0==a&&$2+0>=b))} END{exit !ok}'; then [ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]; else [ \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1.0.0' ]; fi"
+   ],
+   "any": [
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "agent below with asks",
+   "step": {
+    "id": "agents/claude",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "claude",
+    "asks": "2.1.0",
+    "below": {
+     "node": "22.1.0",
+     "asks": "1.0.0"
+    },
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'claude' >/dev/null 2>&1",
+    "if node --version 2>/dev/null | awk -F. -v a=22 -v b=1 'NR==1{sub(/^v/,\"\",$1); ok=($1+0>a||($1+0==a&&$2+0>=b))} END{exit !ok}'; then printf '%s\\n' '2.1.0' \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" | sort -V -C; else printf '%s\\n' '1.0.0' \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" | sort -V -C; fi"
+   ],
+   "any": [
+    "command -v 'claude' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "agent below no asks",
+   "step": {
+    "id": "agents/claude",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "claude",
+    "asks": "2.1.0",
+    "below": {
+     "node": "22.1.0"
+    },
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'claude' >/dev/null 2>&1",
+    "if node --version 2>/dev/null | awk -F. -v a=22 -v b=1 'NR==1{sub(/^v/,\"\",$1); ok=($1+0>a||($1+0==a&&$2+0>=b))} END{exit !ok}'; then printf '%s\\n' '2.1.0' \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" | sort -V -C; else [ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]; fi"
+   ],
+   "any": [
+    "command -v 'claude' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "agents/node is an agent row",
+   "step": {
+    "id": "agents/node",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "node",
+    "asks": "22.0.0",
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'node' >/dev/null 2>&1",
+    "printf '%s\\n' '22.0.0' \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" | sort -V -C"
+   ],
+   "any": [
+    "command -v 'node' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "agents/codex/bubblewrap is an agent row",
+   "step": {
+    "id": "agents/codex/bubblewrap",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "bwrap",
+    "asks": "1.0.0",
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'bwrap' >/dev/null 2>&1",
+    "printf '%s\\n' '1.0.0' \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" | sort -V -C"
+   ],
+   "any": [
+    "command -v 'bwrap' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "agents/mcp/claude/x is not",
+   "step": {
+    "id": "agents/mcp/claude/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1.0.0",
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1.0.0' ]"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "empty check",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "check": ""
+   },
+   "asked": [
+    "(  ) >/dev/null 2>&1"
+   ],
+   "any": [
+    "(  ) >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "empty bin",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": ""
+   },
+   "asked": [
+    "command -v '' >/dev/null 2>&1"
+   ],
+   "any": [
+    "command -v '' >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "empty asks",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "",
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '' ]"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "asks with a quote",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1'2",
+    "pin": {
+     "read": "x -v",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1'\\''2' ]"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ -n \"$( ( x -v ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
+  },
+  {
+   "name": "asks, pin without read",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1.0.0",
+    "pin": {
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "asks, no pin",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1.0.0"
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1"
+   ]
+  },
+  {
+   "name": "pin read with a newline",
+   "step": {
+    "id": "tools/x",
+    "label": "x",
+    "manager": "apt",
+    "cmd": "true",
+    "bin": "x",
+    "asks": "1",
+    "pin": {
+     "read": "a\nb",
+     "fixed": true,
+     "words": "w"
+    }
+   },
+   "asked": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ \"$( ( a\nb ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" = '1' ]"
+   ],
+   "any": [
+    "command -v 'x' >/dev/null 2>&1",
+    "[ -n \"$( ( a\nb ) 2>/dev/null | head -n 1 | tr -d '[:space:]' )\" ]"
+   ]
   }
  ],
  "presentByWhatWaits": {

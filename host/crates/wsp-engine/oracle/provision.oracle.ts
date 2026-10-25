@@ -197,6 +197,21 @@ it("provision plan reads", () => {
     ["below", step({ bin: "x", asks: "1.2.3", below: { node: "20.0.0", asks: "1.0.0" }, pin: { read: "x -v", fixed: true, words: "w" } })],
     ["below no asks", step({ bin: "x", asks: "1.2.3", below: { node: "20.0.0" }, pin: { read: "x -v", fixed: true, words: "w" } })],
     ["pin read but check", step({ check: "c", pin: { read: "x -v", fixed: true, words: "w" } })],
+    // Added by the spec strengthening (provision_plan.md R-rules): below with no asks of the step's own, the agent
+    // form on both sides of below, below without asks on an agent row, agent-ness by id prefix, empty strings.
+    ["below, step asks nothing", step({ below: { node: "20.0.0", asks: "1.0.0" }, pin: { read: "x -v", fixed: true, words: "w" } })],
+    ["agent below with asks", step({ id: "agents/claude", bin: "claude", asks: "2.1.0", below: { node: "22.1.0", asks: "1.0.0" }, pin: { read: "x -v", fixed: true, words: "w" } })],
+    ["agent below no asks", step({ id: "agents/claude", bin: "claude", asks: "2.1.0", below: { node: "22.1.0" }, pin: { read: "x -v", fixed: true, words: "w" } })],
+    ["agents/node is an agent row", step({ id: "agents/node", bin: "node", asks: "22.0.0", pin: { read: "x -v", fixed: true, words: "w" } })],
+    ["agents/codex/bubblewrap is an agent row", step({ id: "agents/codex/bubblewrap", bin: "bwrap", asks: "1.0.0", pin: { read: "x -v", fixed: true, words: "w" } })],
+    ["agents/mcp/claude/x is not", step({ id: "agents/mcp/claude/x", bin: "x", asks: "1.0.0", pin: { read: "x -v", fixed: true, words: "w" } })],
+    ["empty check", step({ check: "" })],
+    ["empty bin", step({ bin: "" })],
+    ["empty asks", step({ bin: "x", asks: "", pin: { read: "x -v", fixed: true, words: "w" } })],
+    ["asks with a quote", step({ bin: "x", asks: "1'2", pin: { read: "x -v", fixed: true, words: "w" } })],
+    ["asks, pin without read", step({ bin: "x", asks: "1.0.0", pin: { fixed: true, words: "w" } })],
+    ["asks, no pin", step({ bin: "x", asks: "1.0.0" })],
+    ["pin read with a newline", step({ bin: "x", asks: "1", pin: { read: "a\nb", fixed: true, words: "w" } })],
   ];
   fixture["presenceTests"] = cases.map(([name, s]) => ({ name, step: s, asked: presenceTests(s), any: presenceTests(s, "any") }));
   const steps = [step({ id: "apt-index", label: "apt index" }), step({ id: "tools/a", bin: "a", after: "apt-index" }), step({ id: "tools/b", bin: "b", after: "apt-index" }), step({ id: "lonely", label: "lonely" }), step({ id: "tools/c", after: "lonely2", bin: "c" })];
