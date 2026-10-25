@@ -18,6 +18,7 @@ vi.mock("node:crypto", async importOriginal => {
 const E = "../../../../packages/engine/src";
 const ssh = await import(`${E}/ssh-backend.ts`);
 const ex = await import(`${E}/exec-detached.ts`);
+const link = await import(`${E}/link-backend.ts`);
 
 const out = fileURLToPath(new URL("../tests/fixtures/scenes/", import.meta.url));
 const tick = (): Promise<void> => new Promise(r => setTimeout(r, 5));
@@ -106,8 +107,72 @@ it("roads scenes", async () => {
     await run("a_poll_that_rejects_is_no_answer_and_is_asked_again", [{ reject: "502 bad gateway" }, poll("3", "x", "", false)]),
     await run("a_utf8_char_split_across_polls_reaches_the_listener_whole", [poll("", Buffer.from([0xc3]), "", true), poll("0", Buffer.from([0xa9, 0x0a]), "", false)]),
   ];
+  // The link's frames: every call a scene makes on a link machine and backend, recorded as sent, with the answers.
+  const FACTS = {
+    offer: "docker",
+    capabilities: { liveCloneForks: false, replacesMachine: true, previewUrls: true, signedUrls: false, callbackRelay: true, diskSnapshots: true, images: true, snapshotsAnyLife: false, snapshotListing: true, templates: true, kept: false, copies: true, ownNetwork: true, sizes: [{ cpu: 2, memMb: 4096, rateUsdPerHour: 0.5 }] },
+    pricing: { defaultSize: { cpu: 2, memMb: 4096 }, snapshotStorage: { freeGb: 0, usdPerGbMonth: 0, billedFrom: "" } },
+  };
+  const linkScene = async (name: string, previewUrl: string, act: (b: any, m: any) => Promise<unknown>): Promise<Record<string, unknown>> => {
+    const sent: unknown[] = [];
+    const forwarded: number[] = [];
+    const l = {
+      request: async (op: string, params: Record<string, unknown> = {}, opts: Record<string, unknown> = {}) => {
+        sent.push({ op, params, opts });
+        if (op === "machine.backend") return FACTS;
+        if (op === "machine.get") return { machine: { id: "c1", kind: "sandbox", roads: { previewUrl: true, daemonAnswers: true, putBytes: true, describe: true, facts: true, metrics: true } } };
+        if (op === "machine.list") return { machines: [] };
+        if (op === "machine.exec") return { result: { exitCode: 0, stdout: "", stderr: "" } };
+        if (op === "machine.state") return { state: "running" };
+        if (op === "machine.downloadUrl" || op === "machine.uploadUrl") return { url: "https://u" };
+        if (op === "machine.describe") return { shape: { cpu: 2 } };
+        if (op === "machine.previewUrl") return { reach: { url: previewUrl, token: "", expiresAt: 0 } };
+        if (op === "git.refused") throw Object.assign(new Error(""), { code: 5 });
+        if (op === "git.coded") throw Object.assign(new Error("no remote"), { code: "no-remote" });
+        if (op === "git.ok") return { ok: false, x: 1 };
+        return {};
+      },
+      forward: async (port: number) => (forwarded.push(port), { localPort: 51000 + forwarded.length }),
+    };
+    const backend = await link.LinkBackend.open(l as never);
+    const machine = await backend.get("c1");
+    sent.length = 0;
+    let answer: unknown = null;
+    let err: string | null = null;
+    try {
+      answer = (await act(backend, machine)) ?? null;
+    } catch (e) {
+      err = (e as Error).message;
+    }
+    return { name, previewUrl, sent, forwarded, answer, err };
+  };
+  const links = [
+    await linkScene("frames_of_the_roads_no_other_test_sends", "", async (b, m) => {
+      await m.pause();
+      await m.kill();
+      const state = await m.state();
+      const down = await m.downloadUrl("/a b");
+      const up = await m.uploadUrl("/x");
+      const shape = await m.describe();
+      await m.metrics();
+      await b.get("c1");
+      await b.list();
+      await b.list({});
+      return { state, down, up, shape };
+    }),
+    await linkScene("an_empty_stdin_is_sent_empty", "", async (_b, m) => m.exec("cat", { stdin: new Uint8Array() })),
+    await linkScene("a_daemon_frame_keeps_its_own_machine_id_place_and_its_replys_ok", "", async (_b, m) => [
+      await m.daemonFrame({ op: "git.ok", machineId: "other", a: 1 }),
+      await m.daemonFrame({ a: 2, op: "git.refused" }),
+      await m.daemonFrame({ op: "git.coded" }),
+    ]),
+    await linkScene("a_route_on_the_schemes_own_port_names_no_port", "http://127.0.0.1:80/", async (_b, m) => m.previewUrl(3000)),
+    await linkScene("a_route_on_a_scheme_with_no_default_keeps_its_port", "foo://h:80", async (_b, m) => m.previewUrl(3000)),
+    await linkScene("a_route_on_an_ipv6_loopback_reads_its_port", "http://[::1]:8080/x", async (_b, m) => m.previewUrl(3000)),
+    await linkScene("a_route_the_url_reader_refuses_is_invalid_url", "http://h:99999", async (_b, m) => m.previewUrl(3000)),
+  ];
   mkdirSync(out, { recursive: true });
   // A string past 1,000 units is written as its length and its two ends, which tests/roads_scenes.rs reads the same way.
   const short = (_k: string, v: unknown): unknown => (typeof v === "string" && v.length > 1000 ? { len: v.length, head: v.slice(0, 20), tail: v.slice(-20) } : v);
-  writeFileSync(join(out, "roads.json"), `${JSON.stringify({ forwards, runs }, short, 1)}\n`);
+  writeFileSync(join(out, "roads.json"), `${JSON.stringify({ forwards, runs, links }, short, 1)}\n`);
 });
