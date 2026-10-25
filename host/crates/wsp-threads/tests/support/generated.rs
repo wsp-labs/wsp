@@ -77,7 +77,7 @@ impl LaunchCtx for FakeHost {
         if let Some(hook) = self.hooks.get::<dyn Fn(&str, Option<Caller>) -> LocalBoxFuture<'static, Result<Entry, HostError>>>("LaunchCtx::entry_of") {
             return hook(workspace_id, origin).await;
         }
-        self.live(workspace_id).ok_or_else(|| HostError { message: format!("no workspace {workspace_id}"), fix: None, kind: Some(Kind::NotFound), errors: None, warnings: None, left: None, marks: Vec::new() })
+        self.live(workspace_id).ok_or_else(|| HostError::with_kind(format!("no workspace {workspace_id}"), Kind::NotFound))
     }
     fn keeps_agents(&self, entry: &Entry) -> bool {
         self.hooks.log("keeps_agents", vec![]);
@@ -936,7 +936,7 @@ impl SessionsCtx for FakeHost {
         if let Some(hook) = self.hooks.get::<dyn Fn(&str, Option<&Caller>, bool, bool) -> LocalBoxFuture<'static, Result<Entry, HostError>>>("SessionsCtx::entry_of_with") {
             return hook(workspace_id, origin, being_made, now).await;
         }
-        self.live(workspace_id).ok_or_else(|| HostError { message: format!("no workspace {workspace_id}"), fix: None, kind: Some(Kind::NotFound), errors: None, warnings: None, left: None, marks: Vec::new() })
+        self.live(workspace_id).ok_or_else(|| HostError::with_kind(format!("no workspace {workspace_id}"), Kind::NotFound))
     }
     fn record(&self, event: SessionEvent) {
         if let Some(hook) = self.hooks.get::<dyn Fn(SessionEvent) -> ()>("SessionsCtx::record") {

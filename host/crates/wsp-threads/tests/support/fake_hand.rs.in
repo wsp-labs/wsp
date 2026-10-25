@@ -15,7 +15,7 @@
         self.ids.clone()
 //@end
 //@ LaunchCtx::entry_of
-        self.live(workspace_id).ok_or_else(|| HostError { message: format!("no workspace {workspace_id}"), fix: None, kind: Some(Kind::NotFound), errors: None, warnings: None, left: None, marks: Vec::new() })
+        self.live(workspace_id).ok_or_else(|| HostError::with_kind(format!("no workspace {workspace_id}"), Kind::NotFound))
 //@end
 //@ LaunchCtx::closing
         self.closing.get()
@@ -159,7 +159,7 @@
         Ok(self.live(workspace_id))
 //@end
 //@ SessionsCtx::entry_of_with
-        self.live(workspace_id).ok_or_else(|| HostError { message: format!("no workspace {workspace_id}"), fix: None, kind: Some(Kind::NotFound), errors: None, warnings: None, left: None, marks: Vec::new() })
+        self.live(workspace_id).ok_or_else(|| HostError::with_kind(format!("no workspace {workspace_id}"), Kind::NotFound))
 //@end
 //@ SessionsCtx::record
         self.recorded.borrow_mut().push(event)

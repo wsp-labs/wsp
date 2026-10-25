@@ -106,7 +106,11 @@ fn held_answer() -> Value {
 }
 
 fn refused(message: &str, fix: &str, kind: Kind) -> HostError {
-    HostError { message: message.into(), fix: Some(fix.into()), kind: Some(kind), errors: None, warnings: None, left: None, marks: vec![] }
+    {
+        let mut e = HostError::with_kind(message, kind);
+        e.fix = Some(fix.into());
+        e
+    }
 }
 
 // A1, A3: thread-cap.test.ts:134 (a start that asks to hear of its hold and is never held is answered once its turn starts)
@@ -298,7 +302,7 @@ struct Workspaces {
 
 impl Workspaces {
     fn new() -> Self {
-        let unset = || HostError { message: "not set by the test".into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] };
+        let unset = || HostError::new("not set by the test");
         Workspaces { calls: RefCell::default(), asks: RefCell::default(), folder: RefCell::new(Err(unset())), setup: RefCell::new(Err(unset())) }
     }
     fn calls(&self) -> Vec<String> {
