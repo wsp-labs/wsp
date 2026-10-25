@@ -27,7 +27,12 @@ impl Shell {
     pub(super) fn apply(&mut self, preferences: &Preferences, window: &mut Window, cx: &mut Context<Self>) {
         let value = serde_json::to_value(preferences).unwrap_or_default();
         crate::screens::thread_view::markdown::set_sizes(&value, cx);
-        self.sidebar_width = value.get("sidebarWidth").and_then(|w| w.as_f64()).map_or(frame::SIDEBAR_DEFAULT, |w| px(w as f32));
+        // Only a record that says another width moves the rail: one that changed another key leaves a drag in hand alone.
+        let said = value.get("sidebarWidth").and_then(|w| w.as_f64()).map_or(frame::SIDEBAR_DEFAULT, |w| px(w as f32));
+        if self.width_read != Some(said) {
+            self.width_read = Some(said);
+            self.sidebar_width = said;
+        }
         self.rebind(&keys::overrides_of(value.get("keybindings")), cx);
         screens::terminal::read_preferences(&value, cx);
         // Electron's nativeTheme.themeSource: the lights, the window's edge and macOS's material take the pick.
