@@ -11,6 +11,7 @@ use wsp_words::js::{js_trim, JS_WS};
 use wsp_words::regexp::escape_reg_exp;
 
 use crate::detect::common::{entry, exists, EntrySpec, RowOptions};
+use crate::detect::shell_rc::unbounded;
 use crate::detect::tools::argv;
 use crate::ghostty_config::{parse_ghostty_directives, read_ghostty_config, GHOSTTY_BUILT_IN_FONT};
 use crate::host::{expand, Host, Platform, RunOptions};
@@ -23,41 +24,40 @@ const LINE_START: &str = r"(?:^|(?<=[\n\r\x{2028}\x{2029}]))";
 const LINE_END: &str = r"(?:$|(?=[\n\r\x{2028}\x{2029}]))";
 
 static ITERM_DEFAULT_GUID: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(r"<key>Default Bookmark Guid</key>[{JS_WS}]*<string>([^<]*)</string>")).expect("ITERM_DEFAULT_GUID compiles")
+    unbounded(&format!(r"<key>Default Bookmark Guid</key>[{JS_WS}]*<string>([^<]*)</string>")).expect("ITERM_DEFAULT_GUID compiles")
 });
-static ITERM_NORMAL_FONT: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(r"<key>Normal Font</key>[{JS_WS}]*<string>([^<]*)</string>")).expect("ITERM_NORMAL_FONT compiles")
-});
-static ITERM_SIZE: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r"[{JS_WS}]+[0-9.]+$")).expect("ITERM_SIZE compiles"));
-static WEZ_BLOCK_COMMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"--\[\[[\s\S]*?\]\]").expect("WEZ_BLOCK_COMMENT compiles"));
-static WEZ_LINE_COMMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r"--[^{TERM}]*")).expect("WEZ_LINE_COMMENT compiles"));
+static ITERM_NORMAL_FONT: LazyLock<Regex> =
+    LazyLock::new(|| unbounded(&format!(r"<key>Normal Font</key>[{JS_WS}]*<string>([^<]*)</string>")).expect("ITERM_NORMAL_FONT compiles"));
+static ITERM_SIZE: LazyLock<Regex> = LazyLock::new(|| unbounded(&format!(r"[{JS_WS}]+[0-9.]+$")).expect("ITERM_SIZE compiles"));
+static WEZ_BLOCK_COMMENT: LazyLock<Regex> = LazyLock::new(|| unbounded(r"--\[\[[\s\S]*?\]\]").expect("WEZ_BLOCK_COMMENT compiles"));
+static WEZ_LINE_COMMENT: LazyLock<Regex> = LazyLock::new(|| unbounded(&format!(r"--[^{TERM}]*")).expect("WEZ_LINE_COMMENT compiles"));
 static WEZ_FONT: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(
+    unbounded(&format!(
         r#"(?<![A-Za-z0-9_])font(?:_with_fallback)?[{JS_WS}]*\(?[{JS_WS}]*\{{?[{JS_WS}]*(?:\{{[{JS_WS}]*)?(?:family[{JS_WS}]*=[{JS_WS}]*)?(["'])([^"']+)\1"#
     ))
     .expect("WEZ_FONT compiles")
 });
 static KITTY_LINE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(r"{LINE_START}[{JS_WS}]*font_family[{JS_WS}]+([^{TERM}]+?)[{JS_WS}]*{LINE_END}")).expect("KITTY_LINE compiles")
+    unbounded(&format!(r"{LINE_START}[{JS_WS}]*font_family[{JS_WS}]+([^{TERM}]+?)[{JS_WS}]*{LINE_END}")).expect("KITTY_LINE compiles")
 });
 static KITTY_KEYED: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(r#"(?<![A-Za-z0-9_])family[{JS_WS}]*=[{JS_WS}]*(?:"([^"]*)"|([^{JS_WS}]+))"#)).expect("KITTY_KEYED compiles")
+    unbounded(&format!(r#"(?<![A-Za-z0-9_])family[{JS_WS}]*=[{JS_WS}]*(?:"([^"]*)"|([^{JS_WS}]+))"#)).expect("KITTY_KEYED compiles")
 });
 static ALACRITTY_TOML_TABLE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(r#"\[font\.normal\][^\[]*?{LINE_START}[{JS_WS}]*family[{JS_WS}]*=[{JS_WS}]*"([^"]+)""#))
+    unbounded(&format!(r#"\[font\.normal\][^\[]*?{LINE_START}[{JS_WS}]*family[{JS_WS}]*=[{JS_WS}]*"([^"]+)""#))
         .expect("ALACRITTY_TOML_TABLE compiles")
 });
 static ALACRITTY_TOML_INLINE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(
+    unbounded(&format!(
         r#"{LINE_START}[{JS_WS}]*normal[{JS_WS}]*=[{JS_WS}]*\{{[^}}]*(?<![A-Za-z0-9_])family[{JS_WS}]*=[{JS_WS}]*"([^"]+)""#
     ))
     .expect("ALACRITTY_TOML_INLINE compiles")
 });
 static ALACRITTY_TOML_DOTTED: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(r#"{LINE_START}[{JS_WS}]*normal\.family[{JS_WS}]*=[{JS_WS}]*"([^"]+)""#)).expect("ALACRITTY_TOML_DOTTED compiles")
+    unbounded(&format!(r#"{LINE_START}[{JS_WS}]*normal\.family[{JS_WS}]*=[{JS_WS}]*"([^"]+)""#)).expect("ALACRITTY_TOML_DOTTED compiles")
 });
 static ALACRITTY_YAML: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(
+    unbounded(&format!(
         r"{LINE_START}[{JS_WS}]*normal:[{JS_WS}]*\n(?:[{JS_WS}]+(?!family:)[A-Za-z0-9_]+:[^{TERM}]*\n)*[{JS_WS}]+family:[{JS_WS}]*([^{TERM}]+?)[{JS_WS}]*{LINE_END}"
     ))
     .expect("ALACRITTY_YAML compiles")
@@ -101,7 +101,7 @@ pub fn ghostty_font(text: &str) -> Option<String> {
 /// A bookmark's keys are written in sorted order, so its Guid precedes its Normal Font and the next Guid ends it.
 pub fn iterm_font(xml: &str) -> Option<String> {
     let at = group1(&ITERM_DEFAULT_GUID, xml).and_then(|guid| {
-        let pattern = Regex::new(&format!(r"<key>Guid</key>[{JS_WS}]*<string>{}</string>", escape_reg_exp(&guid))).ok()?;
+        let pattern = unbounded(&format!(r"<key>Guid</key>[{JS_WS}]*<string>{}</string>", escape_reg_exp(&guid))).ok()?;
         pattern.find(xml).ok().flatten().map(|m| m.start())
     });
     let bookmark = match at {

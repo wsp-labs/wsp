@@ -2,6 +2,8 @@
 //! Every agent's plugins on a computer, off the shelf each catalog agent names, read under the folder its store
 //! variable names for a thread there, else under the home. Port of packages/collect/src/detect/plugins.ts at
 //! a3b870a6e; the spec is spec/plugins.md.
+use std::cell::RefCell;
+
 use futures::future::join_all;
 use indexmap::{IndexMap, IndexSet};
 use wsp_catalog::catalog::{catalog_agents, harness_line, AgentEntry};
@@ -12,7 +14,7 @@ use wsp_words::exit::HostError;
 use wsp_words::js::js_trim_end;
 
 use crate::detect::tools::argv;
-use crate::host::{tilde, Host, RunOptions};
+use crate::host::{tilde, Host, RunOptions, SpawnRefusal};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AgentPlugins {
@@ -57,6 +59,31 @@ pub const PEEK: &str = concat!(
 pub struct HostPluginIo<'a> {
     pub host: &'a Host,
     pub agent: String,
+    /// The first command the host refused to start, which the TS read would have thrown on: node's `spawn` rejects a NUL
+    /// in an argument, and the path a plugin file names can carry one as a JSON escape.
+    refused: RefCell<Option<SpawnRefusal>>,
+}
+
+impl HostPluginIo<'_> {
+    /// `sh`, `bash` and the like through the host; a refusal is kept and the run reads as unanswered, and nothing after it
+    /// is started.
+    async fn exec(&self, cmd: &str, line: &str, opts: RunOptions) -> Option<String> {
+        if self.refused.borrow().is_some() {
+            return None;
+        }
+        match self.host.exec.try_run(cmd, &argv(&["-c", line]), opts).await {
+            Ok(said) => said,
+            Err(refusal) => {
+                self.refused.borrow_mut().get_or_insert(refusal);
+                None
+            }
+        }
+    }
+
+    /// The refusal the read stopped at, if any.
+    pub fn refusal(&self) -> Option<SpawnRefusal> {
+        self.refused.borrow().clone()
+    }
 }
 
 /// What `peekOn` reads back (plugins.ts:249): text and lists by `join_path` of their path, roots looked at.
@@ -142,14 +169,14 @@ impl PluginIo for HostPluginIo<'_> {
     async fn peek(&self, groups: &[PeekGroup]) -> Option<Box<dyn Peeked>> {
         let line = peek_line(groups);
         let opts = RunOptions { timeout_ms: Some(30_000), ..RunOptions::default() };
-        let said = self.host.exec.run("sh", &argv(&["-c", &line]), opts).await;
+        let said = self.exec("sh", &line, opts).await;
         peek_records(said.as_deref()).map(|p| Box::new(p) as Box<dyn Peeked>)
     }
     /// `bash -c <harness_line(agent, line, stores)>` with a 30 s timeout.
     async fn run(&self, line: &str) -> Option<String> {
         let wrapped = harness_line(&self.agent, line, self.host.stores.as_ref(), None);
         let opts = RunOptions { timeout_ms: Some(30_000), ..RunOptions::default() };
-        self.host.exec.run("bash", &argv(&["-c", &wrapped]), opts).await
+        self.exec("bash", &wrapped, opts).await
     }
     /// The TS object has no `edit`: a collect read never writes.
     fn can_edit(&self) -> bool {
@@ -162,7 +189,7 @@ impl PluginIo for HostPluginIo<'_> {
 
 /// The module's view of the computer, for one agent: its files, and its lines run pointed at its store.
 pub fn plugin_io<'a>(host: &'a Host, agent: &str) -> HostPluginIo<'a> {
-    HostPluginIo { host, agent: agent.to_string() }
+    HostPluginIo { host, agent: agent.to_string(), refused: RefCell::new(None) }
 }
 
 /// The row's keys: `agent`, then the found plugin's own in its order less `skills`, with `project`, `path` and `setIn`
@@ -197,7 +224,17 @@ pub async fn detect_plugins(host: &Host, agents: Option<&[&AgentEntry]>, project
         projects.iter().map(|p| PluginProject { id: p.id.clone(), name: p.name.clone(), path: p.path.clone() }).collect();
     let projects = &projects;
     let reads: Vec<AgentPlugins> = join_all(shelves.into_iter().map(|(a, shelf)| async move {
-        let found = shelf.read(&plugin_io(host, &a.id), projects).await;
+        let io = plugin_io(host, &a.id);
+        let mut found = shelf.read(&io, projects).await;
+        // The TS read throws where node refuses a command, and `detectPlugins` turns the throw into one refusal line.
+        if let Some(refusal) = io.refusal() {
+            found = PluginsFound {
+                plugins: Vec::new(),
+                refused: vec![format!("plugins: {}'s plugins were not read: {}", a.name, refusal.message)],
+                version: None,
+                file: None,
+            };
+        }
         AgentPlugins { agent: a.id.clone(), shelf, found }
     }))
     .await;

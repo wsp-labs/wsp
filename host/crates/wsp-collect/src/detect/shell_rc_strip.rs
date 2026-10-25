@@ -97,6 +97,7 @@ pub fn scan_line(line: &str, start: &Open) -> Open {
         return o;
     }
     let chars: Vec<char> = line.chars().collect();
+    let starts: Vec<usize> = line.char_indices().map(|(at, _)| at).collect();
     let n = chars.len();
     let mut skip = 0;
     for i in 0..n {
@@ -189,8 +190,7 @@ pub fn scan_line(line: &str, start: &Open) -> Open {
             continue;
         }
         if o.quote.is_empty() && o.arith == 0 && c == '<' {
-            let rest: String = chars[i..].iter().collect();
-            if let Some(caps) = captures(&HEREDOC_RE, &rest) {
+            if let Some(caps) = captures(&HEREDOC_RE, &line[starts[i]..]) {
                 if let Some(word) = (1..=4).find_map(|k| caps.get(k)) {
                     o.heredoc = Some(word.as_str().to_string());
                     break;
@@ -332,7 +332,7 @@ fn command_spans(text: &[char], lists: bool) -> Vec<(usize, usize)> {
 
 /// Whether a line leaves open the quoted argument of an `eval`, `alias` or `abbr`, whose text is shell.
 fn opens_shell(line: &str, arith: u32) -> bool {
-    let escaped = QUOTED_RE.find_iter(line).flatten().any(|m| is_match(&ESCAPED_SINGLE_RE, m.as_str()));
+    let escaped = QUOTED_RE.find_iter(line).any(|m| is_match(&ESCAPED_SINGLE_RE, m.as_str()));
     if escaped || !matches!(scan_line(line, &closed(arith)).quote, "'" | "\"" | "$'") {
         return false;
     }

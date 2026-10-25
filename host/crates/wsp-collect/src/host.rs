@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 use futures::future::LocalBoxFuture;
 use futures::stream::LocalBoxStream;
+use futures::FutureExt;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -61,11 +62,41 @@ pub struct RunOptions {
     pub signal: Option<tokio_util::sync::CancellationToken>,
 }
 
+/// What node's `spawn` throws for a command, an argument or an environment value it cannot take: a `TypeError` with
+/// the code `ERR_INVALID_ARG_VALUE`, which rejects the TS promise.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpawnRefusal {
+    pub message: String,
+}
+
+impl SpawnRefusal {
+    pub const CODE: &'static str = "ERR_INVALID_ARG_VALUE";
+}
+
+impl std::fmt::Display for SpawnRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for SpawnRefusal {}
+
 /// host.ts:37.
 pub trait HostExec {
     fn which<'a>(&'a self, bin: &'a str) -> LocalBoxFuture<'a, bool>;
-    /// stdout when the command exits 0, otherwise `None`. Every child reads end of file on stdin.
+    /// stdout when the command exits 0, otherwise `None`. Every child reads end of file on stdin. A command the host
+    /// refuses to start reads as `None` here; `try_run` says why.
     fn run<'a>(&'a self, cmd: &'a str, args: &'a [String], opts: RunOptions) -> LocalBoxFuture<'a, Option<String>>;
+    /// `run`, with the refusal where node's `spawn` throws, as the TS promise rejects. A host that never refuses answers
+    /// as `run` does.
+    fn try_run<'a>(
+        &'a self,
+        cmd: &'a str,
+        args: &'a [String],
+        opts: RunOptions,
+    ) -> LocalBoxFuture<'a, Result<Option<String>, SpawnRefusal>> {
+        async move { Ok(self.run(cmd, args, opts).await) }.boxed_local()
+    }
 }
 
 /// host.ts:43. Fields in the TS key order.

@@ -8,7 +8,7 @@ use std::sync::LazyLock;
 use fancy_regex::Regex;
 use wsp_words::js::{is_js_whitespace, js_trim};
 
-use crate::detect::shell_rc::{captures, group, is_match, js_re, split_lines};
+use crate::detect::shell_rc::{captures, group, is_match, js_plain, js_re, split_lines};
 use crate::history::commands::{command_words, is_version_check, split_commands, without_heredocs};
 
 pub const GUARD_BEGIN: &str = "# >>> wsp guard: commands this machine does not have >>>";
@@ -130,18 +130,60 @@ pub struct Dropped {
     pub dropped: Vec<String>,
 }
 
-/// The `^` of FUNCTION_HEAD under its `m` flag: a line start, which JavaScript takes after any line terminator.
-const LINE_START: &str = r"(?<![^\n\r\x{2028}\x{2029}])";
 static WORD_RE: LazyLock<Regex> = LazyLock::new(|| js_re(WORD));
-static FUNCTION_HEAD_RE: LazyLock<Regex> = LazyLock::new(|| js_re(&FUNCTION_HEAD.replace('^', LINE_START)));
+/// FUNCTION_HEAD with its `^` the start of the text it is given: `function_heads` hands it one line start at a time.
+static FUNCTION_HEAD_RE: LazyLock<regex::Regex> = LazyLock::new(|| js_plain(FUNCTION_HEAD));
 static ALIAS_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"^([\w.+-]+)=(.*)$"));
 static PLUGINS_OPEN_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"^\s*plugins\+?=\("));
 static COMMENT_AT_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"(^|\s)#"));
-static WS_RUN_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r"\s+"));
+static WS_RUN_RE: LazyLock<regex::Regex> = LazyLock::new(|| js_plain(r"\s+"));
 
 /// `text.split(/\s+/)`: the empty pieces at either end stay, as JavaScript keeps them.
 fn split_ws(text: &str) -> Vec<String> {
-    WS_RUN_RE.split(text).flatten().map(String::from).collect()
+    WS_RUN_RE.split(text).map(String::from).collect()
+}
+
+/// A line terminator in JavaScript's sense: where a `^` under the `m` flag can match next.
+fn is_line_end(c: char) -> bool {
+    matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}')
+}
+
+/// The first line start at or after `from`: the text's start, or the position after a line terminator.
+fn line_start_from(text: &str, from: usize) -> Option<usize> {
+    if from == 0 || text[..from].chars().next_back().is_some_and(is_line_end) {
+        return Some(from);
+    }
+    let (at, c) = text[from..].char_indices().find(|&(_, c)| is_line_end(c))?;
+    Some(from + at + c.len_utf8())
+}
+
+/// The names `text.matchAll(FUNCTION_HEAD)` captures, in order. The pattern is tried at one line start after another, as
+/// `^` under `m` allows, and a search resumes where the last match ended. A start that fails cannot be followed by one
+/// inside its own run of blanks, which would only reach the same place and fail there, so a long run of blank lines
+/// costs one pass.
+fn function_heads(text: &str) -> Vec<&str> {
+    let mut names = Vec::new();
+    let mut next = line_start_from(text, 0);
+    while let Some(at) = next {
+        let rest = &text[at..];
+        match FUNCTION_HEAD_RE.captures(rest) {
+            Some(caps) => {
+                if let Some(name) = caps.get(1).or(caps.get(2)) {
+                    names.push(name.as_str());
+                }
+                next = line_start_from(text, at + caps.get(0).map_or(0, |whole| whole.end()));
+            }
+            None => {
+                let blanks = rest.char_indices().find(|&(_, c)| !is_js_whitespace(c)).map_or(rest.len(), |(i, _)| i);
+                let past = at + blanks;
+                next = match text[past..].chars().next() {
+                    Some(c) => line_start_from(text, past + c.len_utf8()),
+                    None => None,
+                };
+            }
+        }
+    }
+    names
 }
 
 /// `text.split(/(\s+|[()])/).filter(p => p !== "")`: blank runs, single brackets and the runs between them, in order.
@@ -267,10 +309,8 @@ pub fn called_commands(text: &str, syntax: Syntax) -> Vec<String> {
             }
         }
     };
-    for caps in FUNCTION_HEAD_RE.captures_iter(text).flatten() {
-        if let Some(name) = caps.get(1).or(caps.get(2)) {
-            own.insert(name.as_str().to_string());
-        }
+    for name in function_heads(text) {
+        own.insert(name.to_string());
     }
     for cmd in split_commands(&without_heredocs(&without_array_literals(text))) {
         let words = split_ws(&cmd);

@@ -60,7 +60,7 @@ fn transport_line(server: &McpServer, home: &str) -> String {
 
 /// A secret the definition carries under a name that says key is a key; any other is a token.
 fn key_or_token(names: &[String]) -> ServerSignIn {
-    if names.iter().any(|n| n.to_lowercase().contains("key")) {
+    if names.iter().any(|n| n.to_ascii_lowercase().contains("key")) {
         ServerSignIn::Key
     } else {
         ServerSignIn::Token

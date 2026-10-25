@@ -32,9 +32,21 @@ pub fn claude_call(session: &str, name: &str, input: Option<&Value>, folder: Opt
     Call { session: session.to_string(), folder: folder.map(str::to_string), at, kind }
 }
 
-/// The part of a walked file's path under the projects root.
-fn under_root<'s>(file: &'s str, root: &str) -> &'s str {
-    file.get(root.len() + 1..).unwrap_or("")
+/// The part of a walked file's path under the projects root: `file.slice(root.length + 1)`, which counts UTF-16 units of
+/// the root and cuts the file there. A cut inside a surrogate pair leaves the lone half, which reads as U+FFFD.
+fn under_root(file: &str, root: &str) -> String {
+    let skip = root.encode_utf16().count() + 1;
+    let mut units = 0;
+    for (at, c) in file.char_indices() {
+        if units >= skip {
+            return file[at..].to_string();
+        }
+        units += c.len_utf16();
+        if units > skip {
+            return format!("\u{fffd}{}", &file[at + c.len_utf8()..]);
+        }
+    }
+    String::new()
 }
 
 /// The calls one transcript line holds: only an assistant line's tool_use blocks.
@@ -63,11 +75,11 @@ pub struct ClaudeReader;
 
 impl HistoryReader for ClaudeReader {
     fn files<'a>(&'a self, host: &'a Host, root: &'a str) -> LocalBoxFuture<'a, Vec<HistoryFile>> {
-        async move { jsonl_files(host, root, &|file: &str| claude_session(under_root(file, root))).await }.boxed_local()
+        async move { jsonl_files(host, root, &|file: &str| claude_session(&under_root(file, root))).await }.boxed_local()
     }
 
     fn read<'a>(&'a self, host: &'a Host, root: &'a str, file: &'a str) -> LocalBoxStream<'a, Result<Call, HostError>> {
-        let Some(session) = claude_session(under_root(file, root)) else {
+        let Some(session) = claude_session(&under_root(file, root)) else {
             return futures::stream::empty().boxed_local();
         };
         host.fs

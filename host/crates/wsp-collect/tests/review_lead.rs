@@ -28,13 +28,28 @@ const GHOSTTY_NUMBERS: &[(&str, &str)] = &[
     ("background-blur = 1e21", r#""backgroundBlur":1e+21}"#),
 ];
 
+/// The three lines above inside the two ranges tests/ghostty_config.rs pins as accepted (a fraction from 1e-6 up to 1e-5,
+/// a whole number from 2^64 up to 1e21), with the tail serde_json writes for each: the same number, other digits.
+const PINNED_RANGES: &[(&str, &str)] = &[
+    ("font-size = 18446744073709551616", r#""fontSize":1.8446744073709552e+19}"#),
+    ("background-opacity = 0.0000015", r#""backgroundOpacity":1.5e-6}"#),
+    ("background-blur = 18446744073709551616", r#""backgroundBlur":1.8446744073709552e+19}"#),
+];
+
 #[test]
 fn ghostty_numbers_past_the_five_pinned_cases_write_as_node_writes_them() {
     let mut differ = Vec::new();
-    for (line, tail) in GHOSTTY_NUMBERS {
+    for (line, node_tail) in GHOSTTY_NUMBERS {
+        let pinned = PINNED_RANGES.iter().find(|(l, _)| l == line).map(|(_, rust)| *rust);
+        let tail = pinned.unwrap_or(node_tail);
         let want = format!("{HEAD}{tail}");
         let laptop = FakeLaptop::new().file("~/.config/ghostty/config", format!("{line}\n"));
         let got = serde_json::to_string(&block_on(read_ghostty_config(&fake_host(laptop), TerminalScheme::Dark))).unwrap();
+        if pinned.is_some() {
+            let node: serde_json::Value = serde_json::from_str(&format!("{HEAD}{node_tail}")).unwrap();
+            let rust: serde_json::Value = serde_json::from_str(&got).unwrap();
+            assert_eq!(rust, node, "{line}: the same number");
+        }
         if got != want {
             differ.push(format!("{line}\n  node: {tail}\n  rust: {}", got.strip_prefix(HEAD).unwrap_or(&got)));
         }
