@@ -669,7 +669,7 @@ impl FakeHost {
             "startedAt": started_at, "claudeSessionId": claude_session_id,
         }))
         .unwrap();
-        self.sessions.borrow_mut().insert(turn_id.to_string(), SessionEntry { view, turn_id: turn_id.to_string(), launch: None, queued: false, notify: None, notify_by: None, notify_road: None });
+        self.sessions.borrow_mut().insert(turn_id.to_string(), queue_ctx::session_entry(view, turn_id.to_string()));
     }
     pub fn spawn_local(&self, f: LocalBoxFuture<'static, ()>) {
         tokio::task::spawn_local(f);
