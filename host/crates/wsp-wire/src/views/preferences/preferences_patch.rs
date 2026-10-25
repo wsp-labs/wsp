@@ -657,7 +657,7 @@ impl ThreadFacts {
 #[serde(rename_all = "camelCase")]
 pub struct ThreadHead {
     pub facts: ThreadFacts,
-    pub events: Vec<SessionEvent>,
+    pub events: crate::views::session_events_more::HeadEvents,
     pub pos: JsInt,
     pub total: JsInt,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -680,7 +680,7 @@ impl Check for ThreadHead {
         };
         let mut out = Vec::new();
         crate::types::keys::req_key::<ThreadFacts>(obj, "facts", &mut out);
-        crate::types::keys::req_key::<Vec<SessionEvent>>(obj, "events", &mut out);
+        crate::types::keys::req_key::<crate::views::session_events_more::HeadEvents>(obj, "events", &mut out);
         crate::types::keys::req_key_with::<JsInt>(obj, "pos", &mut out, Self::rule_pos);
         crate::types::keys::req_key_with::<JsInt>(obj, "total", &mut out, Self::rule_total);
         crate::types::keys::opt_key::<True>(obj, "trimmed", &mut out);
@@ -692,7 +692,7 @@ impl Check for ThreadHead {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
                 "facts" => <ThreadFacts as Check>::describe(rest),
-                "events" => <Vec<SessionEvent> as Check>::describe(rest),
+                "events" => <crate::views::session_events_more::HeadEvents as Check>::describe(rest),
                 "pos" => <i64 as Check>::describe(rest),
                 "total" => <i64 as Check>::describe(rest),
                 "trimmed" => None,

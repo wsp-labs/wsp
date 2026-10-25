@@ -47,17 +47,39 @@ pub struct InitSetup {
     #[serde(deserialize_with = "crate::types::check::nullable")]
     pub job: Option<InitJob>,
 }
-/// A box builds its sizes `{ name, cpu, memMb, rateUsdPerHour }` (engine/src/box-backend.ts:546), so `name` is written first;
-/// no other backend has one.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MachineSizeOffer {
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub name: Option<String>,
     pub cpu: JsNumber,
     pub mem_mb: JsNumber,
     pub rate_usd_per_hour: JsNumber,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub name: Option<String>,
 }
+
+/// A box builds its sizes `{ name, cpu, memMb, rateUsdPerHour }` (engine/src/box-backend.ts:546), `name` first, and sends them
+/// as built; no other backend has a name.
+struct BuiltSizes<'a>(&'a [MachineSizeOffer]);
+
+impl Serialize for BuiltSizes<'_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        struct Built<'a>(&'a MachineSizeOffer);
+        impl Serialize for Built<'_> {
+            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                let mut map = s.serialize_map(None)?;
+                if let Some(name) = &self.0.name {
+                    map.serialize_entry("name", name)?;
+                }
+                map.serialize_entry("cpu", &self.0.cpu)?;
+                map.serialize_entry("memMb", &self.0.mem_mb)?;
+                map.serialize_entry("rateUsdPerHour", &self.0.rate_usd_per_hour)?;
+                map.end()
+            }
+        }
+        s.collect_seq(self.0.iter().map(Built))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PauseMode {
     #[serde(rename = "memory")]
@@ -110,13 +132,13 @@ impl Serialize for Capabilities {
         map.serialize_entry("snapshotListing", &self.snapshot_listing)?;
         map.serialize_entry("templates", &self.templates)?;
         if !self.sizes_last {
-            map.serialize_entry("sizes", &self.sizes)?;
+            map.serialize_entry("sizes", &BuiltSizes(&self.sizes))?;
         }
         map.serialize_entry("kept", &self.kept)?;
         map.serialize_entry("copies", &self.copies)?;
         map.serialize_entry("ownNetwork", &self.own_network)?;
         if self.sizes_last {
-            map.serialize_entry("sizes", &self.sizes)?;
+            map.serialize_entry("sizes", &BuiltSizes(&self.sizes))?;
         }
         map.end()
     }
