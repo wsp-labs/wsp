@@ -16,7 +16,7 @@ Source: `packages/runtime/src/slates.ts` (1,566), `slate-runs.ts` (987), `lazy-s
 | runs_road | slate-runs.ts:244-361, 491-497 | `src/slate_runs/road.rs` | `runs_road.md` | `tests/runs_road.rs`, 18 |
 | runs_table | slate-runs.ts:613-983 | `src/slate_runs/table.rs` | `runs_table.md` | `tests/runs_table.rs`, 46 |
 | slates_model | slates.ts:81-292, 686-758 | `src/slates/model.rs` | `slates_model.md` | `tests/slates_model.rs`, 28 |
-| slates_access | slates.ts:294-555, 1095-1116, 1281-1288, 1450-1480, 1495-1563 | `src/slates/access.rs` | `slates_access.md` | `tests/slates_access.rs`, 21 |
+| slates_access | slates.ts:294-555, 1095-1116, 1281-1288, 1450-1480, 1495-1563 | `src/slates/access.rs` | `slates_access.md` | `tests/slates_access.rs`, 22 |
 | slates_reads | slates.ts:556-685, 1233-1279, 1482-1488 | `src/slates/reads.rs` | `slates_reads.md` | `tests/slates_reads.rs`, 24 |
 | slates_batch | slates.ts:760-1015 | `src/slates/batch.rs` | `slates_batch.md` | `tests/slates_batch.rs`, 13 |
 | slates_writes | slates.ts:1017-1231 | `src/slates/writes.rs` | `slates_writes.md` | `tests/slates_writes.rs`, 27 |
@@ -101,4 +101,4 @@ slate (a start into a missing folder, the model a press's turn starts on) stay w
 
 ## Red proof
 
-`cargo test --no-fail-fast` at the interface commit: 362 tests, 0 passed, 362 failed, every one on `not yet implemented` in this crate's `src/` (119 stop first at `create_slates`). The slate area's tests then need `wsp-slate`'s parser, batch and sketch (`pending::slate`), so they stay red until that crate is ported, whatever this crate does.
+`cargo test --no-fail-fast` at the interface commit: 362 tests, 0 passed, 362 failed, every one on `not yet implemented` in this crate's `src/` (119 stop first at `create_slates`); the 363rd, slates.test.ts:1080, was added after and run alone: red on `todo!()`. The slate area's tests then need `wsp-slate`'s parser, batch and sketch (`pending::slate`), so they stay red until that crate is ported, whatever this crate does.

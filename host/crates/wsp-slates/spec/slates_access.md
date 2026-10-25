@@ -87,7 +87,7 @@ and pushes, and the thread's lifecycle: a turn's snapshot, a rewind, a forget, a
 
 ## Tests
 
-22 tests name this unit. Rule or TS case, then the test.
+23 tests name this unit. Rule or TS case, then the test.
 
 | Pins | Test |
 |---|---|
@@ -110,6 +110,7 @@ and pushes, and the thread's lifecycle: a turn's snapshot, a rewind, a forget, a
 | slates_access Behaviour 18: a document naming pr.checks watches the pull request | `slates_access::targets::restart::turns::windows::a_slate_that_binds_the_pull_request_s_checks_watches_it` |
 | slates_access Behaviour 15: shown sets shownOnce once | `slates_access::targets::restart::turns::windows::shown_marks_the_slate_seen_once` |
 | slates_access Behaviour 13: slates.test.ts:1136 (deleting a thread deletes its slate, folder and runs) | `slates_access::targets::restart::turns::windows::forget::deleting_a_thread_deletes_its_slate_its_folder_and_its_runs_a_running_one_killed` |
+| slates_access Behaviour 12, 13, slates_batch Behaviour 1: slates.test.ts:1080 (a slate's files, a rewind, a delete) | `slates_access::targets::restart::turns::windows::forget::a_slate_s_files_are_written_before_a_run_a_rewind_runs_that_turn_s_code_and_the_folder_goes` |
 | slates_access Behaviour 13: forget drops the write budget too: the next write is a first | `slates_access::targets::restart::turns::windows::forget::a_forgotten_thread_s_write_budget_starts_again` |
 | slates_access Behaviour 16, 17: settled answers with nothing queued, and close twice is harmless to the caller | `slates_access::settled_answers_at_once_with_nothing_queued` |
 | slates_batch Behaviour 5-10: slates.test.ts:104-187 (the restart half is slates_access') | `slates_batch::runs_the_setup_chain_without_the_agent_and_keeps_the_secret_from_it` |

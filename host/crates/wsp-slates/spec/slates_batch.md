@@ -84,10 +84,11 @@ approval covers.
 
 ## Tests
 
-13 tests name this unit. Rule or TS case, then the test.
+14 tests name this unit. Rule or TS case, then the test.
 
 | Pins | Test |
 |---|---|
+| slates_access Behaviour 12, 13, slates_batch Behaviour 1: slates.test.ts:1080 (a slate's files, a rewind, a delete) | `slates_access::targets::restart::turns::windows::forget::a_slate_s_files_are_written_before_a_run_a_rewind_runs_that_turn_s_code_and_the_folder_goes` |
 | slates_batch Behaviour 5-10: slates.test.ts:104-187 (the restart half is slates_access') | `slates_batch::runs_the_setup_chain_without_the_agent_and_keeps_the_secret_from_it` |
 | slates_batch Behaviour 5, 6, 8: slates.test.ts:749 (a run that starts again keeps its last result) | `slates_batch::a_run_that_starts_again_keeps_its_last_result_marked_refreshing_across_a_restart` |
 | slates_batch Behaviour 5, rule R1: slates.test.ts:1194 (the agent's own starts meet the start budget) | `slates_batch::the_agent_s_own_starts_meet_the_start_budget_however_many_calls_carry_them` |
