@@ -626,7 +626,7 @@ mod pinned {
 
     #[test]
     fn terminal_config_and_look_words() {
-        assert_eq!(hex_color(&TerminalRgb { r: 0, g: 15, b: 255 }), "#000fff"); // hexColor({r:0,g:15,b:255})
+        assert_eq!(hex_color(&TerminalRgb { r: wsp_wire::types::js_number::JsInt::from(0_i64), g: wsp_wire::types::js_number::JsInt::from(15_i64), b: wsp_wire::types::js_number::JsInt::from(255_i64) }), "#000fff"); // hexColor({r:0,g:15,b:255})
         assert_eq!(look_word(""), ""); // lookWord("")
         assert_eq!(look_word("rocket"), "Rocket"); // lookWord("rocket")
         assert_eq!(look_word("\u{e9}t\u{e9}"), "\u{c9}t\u{e9}"); // lookWord("été")
