@@ -1,0 +1,25 @@
+<slate title="Stat rows, short labels">
+  <column>
+    <section title="Two tiles">
+      <stats id="two">
+        <stat label="Passed" value={182} max={200} window="this run" tone="good" />
+        <stat label="Spent" value={4.82} format="usd" window="this thread" trend={[1.2, 1.9, 2.4, 3.1, 3.6, 4.82]} />
+      </stats>
+    </section>
+    <section title="Three tiles">
+      <stats id="three">
+        <stat label="Passed" value={182} max={200} window="this run" tone="good" />
+        <stat label="Spent" value={4.82} format="usd" window="this thread" trend={[1.2, 1.9, 2.4, 3.1, 3.6, 4.82]} />
+        <stat label="Failed" value={3} max={200} window="this run" tone="bad" />
+      </stats>
+    </section>
+    <section title="Four tiles">
+      <stats id="four">
+        <stat label="Passed" value={182} max={200} window="this run" tone="good" />
+        <stat label="Spent" value={4.82} format="usd" window="this thread" trend={[1.2, 1.9, 2.4, 3.1, 3.6, 4.82]} />
+        <stat label="Failed" value={3} max={200} window="this run" tone="bad" />
+        <stat label="Took" value={418} format="duration" window="wall clock" />
+      </stats>
+    </section>
+  </column>
+</slate>

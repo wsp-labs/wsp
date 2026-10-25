@@ -1,0 +1,25 @@
+<slate title="Stat rows, long labels">
+  <column>
+    <section title="Two tiles">
+      <stats id="two">
+        <stat label="Checkout requests served from cache" value={8412} max={9650} window="of all checkout requests in the last 24 hours" tone="good" />
+        <stat label="Agent spend on review and fixes" value={38.4} format="usd" window="across every thread on this project this week" trend={[4, 9, 15, 22, 30, 38.4]} />
+      </stats>
+    </section>
+    <section title="Three tiles">
+      <stats id="three">
+        <stat label="Checkout requests served from cache" value={8412} max={9650} window="of all checkout requests in the last 24 hours" tone="good" />
+        <stat label="Agent spend on review and fixes" value={38.4} format="usd" window="across every thread on this project this week" trend={[4, 9, 15, 22, 30, 38.4]} />
+        <stat label="Builds that finished under ten minutes" value={41} max={57} window="of the builds on main since Monday" tone="warning" />
+      </stats>
+    </section>
+    <section title="Four tiles">
+      <stats id="four">
+        <stat label="Checkout requests served from cache" value={8412} max={9650} window="of all checkout requests in the last 24 hours" tone="good" />
+        <stat label="Agent spend on review and fixes" value={38.4} format="usd" window="across every thread on this project this week" trend={[4, 9, 15, 22, 30, 38.4]} />
+        <stat label="Builds that finished under ten minutes" value={41} max={57} window="of the builds on main since Monday" tone="warning" />
+        <stat label="Flaky tests quarantined" value={6} format="integer" window="waiting on an owner to look at them" />
+      </stats>
+    </section>
+  </column>
+</slate>
