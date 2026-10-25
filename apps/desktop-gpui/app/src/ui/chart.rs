@@ -761,6 +761,7 @@ impl Chart {
             crosshair: p.foreground.opacity(0.3),
         };
         let plot = div()
+            .debug_selector(|| "chart-plot".into())
             .relative()
             .h(self.height)
             .when(self.small, |el| el.mr(px(END_DOT / 2.)))
@@ -783,8 +784,8 @@ impl Chart {
             .line_height(TICK_ROW)
             .whitespace_nowrap()
             .text_color(p.muted_foreground)
-            .children(self.ticks.into_iter().map(|tick| {
-                let word = div().flex_none().child(tick.word);
+            .children(self.ticks.into_iter().enumerate().map(|(i, tick)| {
+                let word = div().debug_selector(move || format!("chart-tick-{i}")).flex_none().child(tick.word);
                 if tick.at <= 0. {
                     div().absolute().top_0().left_0().child(word)
                 } else if tick.at >= 1. {
@@ -794,7 +795,9 @@ impl Chart {
                 }
             }));
 
+        // Laid out as the root of its cached box when tweened, where an unsized row shrinks to the gutter.
         h_flex()
+            .w_full()
             .items_start()
             .gap(if self.small { px(8.) } else { GAP })
             .child(gutter)
