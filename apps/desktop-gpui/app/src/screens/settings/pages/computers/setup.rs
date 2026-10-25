@@ -724,11 +724,15 @@ fn line(row: &StepLine, toggle: Option<bool>, any_toggle: bool, window: &mut Win
                         .text_color(if quiet { p.muted_foreground } else { p.foreground })
                         .child(row.name.clone()),
                 )
-                .children(
-                    row.note
-                        .clone()
-                        .map(|note| div().text_size(text::NOTE.0).line_height(text::NOTE.1).text_color(p.muted_foreground).child(note)),
-                ),
+                .children(row.note.clone().map(|note| {
+                    let selector = format!("step-note:{}", row.id);
+                    div()
+                        .debug_selector(move || selector.clone())
+                        .text_size(text::NOTE.0)
+                        .line_height(text::NOTE.1)
+                        .text_color(p.muted_foreground)
+                        .child(note)
+                })),
         )
         .child(
             h_flex()
@@ -1193,10 +1197,16 @@ pub fn list(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) -> 
         });
         let row_id = row.id.clone();
         items.push(CardItem::placed(move |corners| {
-            corners.apply(v_flex().id(SharedString::from(format!("step-row-{row_id}")))).child(head).children(body).into_any_element()
+            let selector = format!("step-row:{row_id}");
+            corners
+                .apply(v_flex().id(SharedString::from(format!("step-row-{row_id}"))).debug_selector(move || selector.clone()))
+                .child(head)
+                .children(body)
+                .into_any_element()
         }));
     }
-    crate::ui::Card::new(SharedString::from(format!("setup-{id}"))).items(items).into_any_element()
+    // A card's `under` stands in a row, where a child is as wide as its words: the list takes the column's width.
+    div().flex_1().min_w_0().child(crate::ui::Card::new(SharedString::from(format!("setup-{id}"))).items(items)).into_any_element()
 }
 
 #[cfg(test)]
