@@ -13,9 +13,10 @@ use crate::mcp_refs::{
     arg_strings, codex_headers, known_hits, known_stands, oauth_secret_keys, readable, shape_refusal, still_stands, unread_line,
 };
 use crate::mcp_toml::{
-    codex_owners, read_codex, toml_header, toml_inline, toml_open_array, toml_string, toml_strings, toml_value, uncomment_toml,
+    codex_owners, toml_header, toml_inline, toml_open_array, toml_string, toml_strings, toml_value, try_read_codex, uncomment_toml,
     unquote_key, TomlValue,
 };
+use crate::smol_toml::parse_toml;
 use wsp_words::exit::HostError;
 use wsp_words::js::js_trim;
 
@@ -42,7 +43,7 @@ pub fn refer_codex_lines(text: &str, only: Option<&str>) -> String {
 
 fn refer_lines(text: &str, only: Option<&str>) -> Result<String, HostError> {
     let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
-    for s in read_codex(text) {
+    for s in try_read_codex(text)? {
         if only.is_some_and(|o| s.name != o) {
             continue;
         }
@@ -119,7 +120,7 @@ fn edit_server(
         let table_at = (0..n)
             .find(|&i| mine(i) && subs[i].as_deref() == Some("env_http_headers") && js_trim(&uncomment_toml(refs[i])).starts_with('['));
         if let Some(inline) = inline {
-            let mut merged: IndexMap<String, String> = match toml_value(&rhs(refs[inline])) {
+            let mut merged: IndexMap<String, String> = match toml_value(&rhs(refs[inline]))? {
                 Some(TomlValue::Table(t)) => t,
                 _ => IndexMap::new(),
             };
@@ -152,7 +153,7 @@ fn edit_server(
                 end += 1;
                 value.push_str(js_trim(&uncomment_toml(refs[end])));
             }
-            let had = toml_strings(&value);
+            let had = toml_strings(&value)?;
             let mut all = had.clone();
             all.extend(env_names.iter().filter(|k| !had.contains(k)).cloned());
             let listed: Vec<String> = all.iter().map(|k| toml_string(k)).collect();
@@ -180,10 +181,8 @@ fn edit_server(
 
 /// `CODEX_TOML.refer` (mcp.ts:1661). Errors "the file is not valid TOML (<first line of the parser's message>)".
 pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside: &IndexSet<String>) -> Result<McpReferred, HostError> {
-    let tree: toml::Table = text.parse().map_err(|e: toml::de::Error| {
-        let first = e.to_string().lines().next().unwrap_or_default().to_string();
-        HostError::new(format!("the file is not valid TOML ({first})"))
-    })?;
+    let tree =
+        parse_toml(text).map_err(|e| HostError::new(format!("the file is not valid TOML ({})", e.lines().next().unwrap_or_default())))?;
     let Some(table_value) = tree.get("mcp_servers") else {
         return Ok(McpReferred { text: text.to_string(), servers: Vec::new(), entries: Vec::new() });
     };
@@ -317,7 +316,7 @@ pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside
         Ok(lined) if same_tree(&lined, &want) => lined,
         _ => toml::to_string(&want).map_err(|e| HostError::new(e.to_string()))?,
     };
-    let written: toml::Table = out.parse().map_err(|e: toml::de::Error| HostError::new(e.to_string()))?;
+    let written = parse_toml(&out).map_err(HostError::new)?;
     let entries = match written.get("mcp_servers").and_then(|v| v.as_table()) {
         Some(t) => t.values().map(to_json).collect::<Result<Vec<Value>, HostError>>()?,
         None => Vec::new(),
@@ -355,7 +354,7 @@ fn json_map(t: &toml::Table) -> Result<serde_json::Map<String, Value>, HostError
 
 /// Whether the text parses to the tree wanted, compared as `jsonCanonical` compares (mcp.ts:1685).
 fn same_tree(lined: &str, want: &toml::Table) -> bool {
-    let Ok(parsed) = lined.parse::<toml::Table>() else {
+    let Ok(parsed) = parse_toml(lined) else {
         return false;
     };
     match (to_json(&toml::Value::Table(parsed)), to_json(&toml::Value::Table(want.clone()))) {

@@ -59,6 +59,8 @@ live; and the one sh line that writes an agent's config file on any computer by 
 
 - Rule 4.26: `claude_launch_servers` and `codex_launch_config` keep started-server order; IndexMaps throughout.
 - Nothing here survives a restart; the write's temp files are swept by age, not by state.
+- `disabledMcpServers` is joined through a set (`[...new Set([...existing, ...names])]`), so a name the file lists
+  twice is written once; `launch_misses` and the names sort by UTF-16 units; `checkout_of` trims as JavaScript trims.
 
 ## Tapes
 

@@ -499,8 +499,7 @@ fn recorded<'a>(
 
 /// The capture groups of a JavaScript pattern against `s`, group 0 first; nothing where it does not match.
 fn groups<'a>(source: &'static str, flags: &'static str, s: &'a str) -> Option<Vec<Option<&'a str>>> {
-    let re = compiled(source, flags)?;
-    let caps = re.captures(s).ok()??;
+    let caps = compiled(source, flags).re.captures(s).ok()??;
     Some((0..caps.len()).map(|i| caps.get(i).map(|m| m.as_str())).collect())
 }
 

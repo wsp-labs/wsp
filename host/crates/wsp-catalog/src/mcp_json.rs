@@ -3,7 +3,7 @@
 //! `mcp.excluded`) and OpenCode's `mcp`. Port of packages/catalog/src/mcp.ts:470-1255 less the reference writer, at
 //! a3b870a6e; the spec is spec/mcp_json.md. Every function takes one of the three JSON formats and panics on Codex's.
 use std::collections::HashSet;
-use std::sync::OnceLock;
+use std::sync::{LazyLock, OnceLock};
 
 use indexmap::{IndexMap, IndexSet};
 use regex::Regex;
@@ -23,6 +23,34 @@ use wsp_words::js::js_trim;
 const CLAUDE_REF: &str = r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-[^}]*)?\}";
 const GEMINI_REF: &str = r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)(?::-[^}]*)?\}|([A-Za-z_][A-Za-z0-9_]*))";
 const OPENCODE_REF: &str = r"\{env:([A-Za-z_][A-Za-z0-9_]*)\}";
+
+/// The members every JavaScript object inherits, which `servers[name]` finds where the file holds no such key.
+const INHERITED: [&str; 12] = [
+    "constructor",
+    "__defineGetter__",
+    "__defineSetter__",
+    "hasOwnProperty",
+    "__lookupGetter__",
+    "__lookupSetter__",
+    "isPrototypeOf",
+    "propertyIsEnumerable",
+    "toString",
+    "valueOf",
+    "__proto__",
+    "toLocaleString",
+];
+static INHERITED_FUNCTION: Value = Value::Null;
+static INHERITED_PROTOTYPE: LazyLock<Value> = LazyLock::new(|| Value::Object(Map::new()));
+
+/// `table[name]` on a plain JavaScript object: the file's own key, else a member `Object.prototype` gives every
+/// object (`null` for a function, `{}` for `__proto__`), so a server named `constructor` is held as the TS holds it.
+fn held_at<'a>(table: &'a Map<String, Value>, name: &str) -> Option<&'a Value> {
+    table.get(name).or_else(|| match INHERITED.iter().find(|&&member| member == name) {
+        Some(&"__proto__") => Some(&INHERITED_PROTOTYPE),
+        Some(_) => Some(&INHERITED_FUNCTION),
+        None => None,
+    })
+}
 
 const NOT_JSON: &str = "the file is not valid JSON; add the server by hand";
 const NOT_OBJECT: &str = "the file is not a JSON object; add the server by hand";
@@ -498,8 +526,8 @@ pub fn edit(format: McpFormat, lib: RewriteString<'_>, scope: &McpEditScope, tex
     let mut results = Vec::new();
     let mut edits: Vec<JsonEdit> = Vec::new();
     for name in &scope.keep {
-        let Some(def) = servers.get(name) else {
-            match moved.get(name) {
+        let Some(def) = held_at(&servers, name) else {
+            match held_at(&moved, name) {
                 Some(there) => {
                     results.push(McpEditResult { name: name.clone(), outcome: EditOutcome::Written, command: json_command_of(there) })
                 }
@@ -555,8 +583,8 @@ pub fn entry_of(format: McpFormat, text: &str, name: &str, project: Option<&str>
     let Ok(Value::Object(root)) = read_jsonc(text) else {
         return None;
     };
-    let def = scope_of(&root, project)?.get(servers_key(format)).and_then(json_object)?.get(name)?;
-    Some(json_canonical(def))
+    let def = scope_of(&root, project)?.get(servers_key(format)).and_then(json_object)?;
+    Some(json_canonical(held_at(def, name)?))
 }
 
 /// wsp's servers merged into the agent's own file (mcp.ts:773).
@@ -584,13 +612,13 @@ pub fn merge(
     let mut results = Vec::new();
     let mut edits: Vec<JsonEdit> = Vec::new();
     for name in &scope.keep {
-        let Some(def) = arrived.get(name) else {
+        let Some(def) = held_at(&arrived, name) else {
             results.push(McpMergeResult { name: name.clone(), outcome: MergeOutcome::Missing, command: None });
             continue;
         };
         let next = walk_strings(lib, def, false);
         let command = json_command_of(&next);
-        let here = standing.get(name);
+        let here = held_at(&standing, name);
         let outcome = if here.is_some_and(|h| json_canonical(h) == json_canonical(&next)) {
             MergeOutcome::Same
         } else if here.is_some() && !replace.contains(name.as_str()) {
@@ -606,7 +634,7 @@ pub fn merge(
         results.push(McpMergeResult { name: name.clone(), outcome, command });
     }
     for name in &scope.drop {
-        if standing.get(name).is_none() || !replace.contains(name.as_str()) {
+        if held_at(&standing, name).is_none() || !replace.contains(name.as_str()) {
             results.push(McpMergeResult { name: name.clone(), outcome: MergeOutcome::Left, command: None });
             continue;
         }
@@ -670,7 +698,7 @@ fn enable_switch(format: McpFormat, text: &str, name: &str, on: bool, project: O
     let mut root = Value::Object(json_root(Some(text))?);
     let root_map = root.as_object().ok_or_else(|| HostError::new(NOT_OBJECT))?;
     let held = scope_of(root_map, project).and_then(|s| s.get(key_name)).and_then(json_object);
-    if held.and_then(|t| t.get(name)).and_then(json_object).is_none() {
+    if held.and_then(|t| held_at(t, name)).and_then(json_object).is_none() {
         return Err(HostError::new(format!("the file names no server called {name}")));
     }
     let at = match project {

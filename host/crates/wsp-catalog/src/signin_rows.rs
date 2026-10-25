@@ -473,6 +473,7 @@ pub static NEVER_IN_IMAGE: LazyLock<Vec<String>> = LazyLock::new(|| {
     paths
 });
 
+/// Where a machine exports the secrets it is given by name: login shells read profile.d, fish reads its conf.d instead.
 pub const SECRETS_FILE_SH: &str = "/etc/profile.d/wsp-secrets.sh";
 pub const SECRETS_FILE_FISH: &str = "/etc/fish/conf.d/wsp-secrets.fish";
 
