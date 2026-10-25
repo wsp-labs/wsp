@@ -129,7 +129,10 @@ fn a_uuid_written_in_capitals_is_compared() {
 fn a_workspace_id_of_another_length_is_compared() {
     // sub-spawn.ts mints ws_ and eight hex digits; a port's format!("ws_{:x}", u64) writes sixteen.
     let made = |id: &str| json!({ "id": 2, "ok": true, "workspace": { "id": id } });
-    assert!(!alike(made("ws_1f2e3d4c"), made("ws_1f2e3d4c5b6a7980"), &Facts::default()), "a ws_ id of sixteen digits reads like one of eight");
+    assert!(
+        !alike(made("ws_1f2e3d4c"), made("ws_1f2e3d4c5b6a7980"), &Facts::default()),
+        "a ws_ id of sixteen digits reads like one of eight"
+    );
 }
 
 #[test]
@@ -139,11 +142,20 @@ fn a_pairing_code_without_its_dash_is_compared() {
 }
 
 #[test]
-fn an_expiry_half_a_minute_long_is_compared() {
-    // pair.issue: a code stands PAIR_CODE_TTL_MS, ten minutes; a port's 630 s reads <time+10m> as well.
+fn an_expiry_half_a_minute_long_reads_to_the_minute() {
+    // pair.issue: a code stands PAIR_CODE_TTL_MS, ten minutes. Times are read to the minute by the coordinator's ruling
+    // (parity/README.md): a TTL off by under a minute reads alike, one off by a minute does not.
     let at = started().started.expect("started");
     let issued = |expires: i64| json!({ "id": 2, "ok": true, "expiresAt": expires });
-    assert!(!alike(issued(at + 600_000), issued(at + 630_000), &started()), "a code that stands 10 m 30 s reads like one of 10 m");
+    assert!(alike(issued(at + 600_000), issued(at + 630_000), &started()), "times are read to the minute");
+    assert!(!alike(issued(at + 600_000), issued(at + 660_000), &started()), "a code that stands 11 m reads like one of 10 m");
+}
+
+#[test]
+fn a_day_two_back_reads_otherwise_than_one_back() {
+    // A usage bucket at midnight two days before the replay reads <day-2>, a distance, never an id to number again.
+    let bucket = |day: &str| json!({ "id": 2, "ok": true, "since": format!("2026-10-{day}T00:00:00.000Z") });
+    assert!(!alike(bucket("23"), bucket("22"), &started()), "two days back reads like one day back");
 }
 
 #[test]
@@ -152,7 +164,48 @@ fn events_in_another_order_are_compared() {
     // the last row it is sent, so a port that sends them the other way round leaves the thread running.
     let row = |status: &str| json!({ "type": "session.row", "id": "0a93b975-1c2d-4e5f-8a9b-0c1d2e3f4a5b", "row": { "status": status }, "seq": 13 });
     let reply = json!({ "id": 2, "ok": true });
-    let ts = canonical(&[reply.clone()], &[row("running"), row("completed")], &Facts::default());
+    let ts = canonical(std::slice::from_ref(&reply), &[row("running"), row("completed")], &Facts::default());
     let port = canonical(&[reply], &[row("completed"), row("running")], &Facts::default());
     assert_ne!(ts, port, "a session left running reads like one that completed");
+}
+
+fn turn(kind: &str, thread: &str) -> Value {
+    json!({ "type": kind, "workspaceId": "ws_1f2e3d4c", "threadId": thread, "turnId": "1a93b975-1c2d-4e5f-8a9b-0c1d2e3f4a5b" })
+}
+
+#[test]
+fn a_turn_s_events_in_reverse_are_compared() {
+    // hand/sessions-start-turn: the transcript's events and the thread's head come in emit order on the socket.
+    let thread = "2a93b975-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
+    let ts: Vec<Value> =
+        ["session.start", "session.delta", "session.done", "session.end", "thread.head"].iter().map(|k| turn(k, thread)).collect();
+    let reversed: Vec<Value> = ts.iter().rev().cloned().collect();
+    assert_ne!(
+        canonical(&[], &ts, &Facts::default()),
+        canonical(&[], &reversed, &Facts::default()),
+        "a turn's end before its text reads alike"
+    );
+}
+
+#[test]
+fn two_threads_interleaved_read_alike() {
+    // Two turns run at once on their own processes: the TS host cannot order one thread's events against the other's.
+    let (a, b) = ("2a93b975-1c2d-4e5f-8a9b-0c1d2e3f4a5b", "3a93b975-1c2d-4e5f-8a9b-0c1d2e3f4a5b");
+    let one = [turn("session.start", a), turn("session.start", b), turn("session.end", a), turn("session.end", b)];
+    let other = [turn("session.start", b), turn("session.start", a), turn("session.end", b), turn("session.end", a)];
+    assert_eq!(canonical(&[], &one, &Facts::default()), canonical(&[], &other, &Facts::default()));
+}
+
+#[test]
+fn a_row_pushed_among_a_thread_s_events_reads_alike_and_rows_keep_their_order() {
+    // session.row pushes wait on a microtask and an await (RT/machines/boot.ts), so a row lands anywhere among its
+    // thread's other events; the rows themselves go out on one chain, in order.
+    let thread = "2a93b975-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
+    let row = |status: &str| json!({ "type": "session.row", "workspaceId": "ws_1f2e3d4c", "threadId": thread, "id": thread, "row": { "status": status } });
+    let ts = [turn("session.start", thread), row("running"), turn("session.end", thread), row("completed")];
+    let later = [turn("session.start", thread), turn("session.end", thread), row("running"), row("completed")];
+    let swapped = [turn("session.start", thread), row("completed"), turn("session.end", thread), row("running")];
+    let read = |events: &[Value]| canonical(&[], events, &Facts::default());
+    assert_eq!(read(&ts), read(&later), "a row pushed after the turn's end reads otherwise");
+    assert_ne!(read(&ts), read(&swapped), "rows pushed in reverse read alike");
 }
