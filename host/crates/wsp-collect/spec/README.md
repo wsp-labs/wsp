@@ -42,3 +42,14 @@ Rules every unit follows, so no spec repeats them:
   `Host`. No cache, file or timer is written by any unit in this half.
 - **Concurrency.** `Promise.all` is `futures::future::join_all` (or `join!`) on one thread: all are started before any
   is awaited, and results keep the input order whatever finishes first.
+
+## Wave 2: the TS's own answers as fixtures
+
+Each unit's `## Wave 2 rules` section names cases in `tests/fixtures/oracle/w2/<unit>.json`, written by
+`oracle/w2-<unit>.oracle.ts` from the TS modules themselves (run them as `oracle/rest.oracle.ts` says, with the file
+name in place of `rest`). A case is `{name, args, out}` for a pure function, or `{name, laptop, args, out | error,
+calls}` for a detector over the fake computer; `tests/common/oracle.rs` rebuilds the laptop as `oracle/w2-host.ts`
+built it. A text line starting with `\u0000fail:` in a laptop file makes `lines` fail there, in both fakes. The
+expected values are the TS's: where a spec line and a fixture disagree, the fixture is right, and the spec line is the
+bug. Each unit's tests replay its fixture in a `w2_oracle` module; the history store's worker traces and the live
+host's process cases are written by hand from measured TS runs.

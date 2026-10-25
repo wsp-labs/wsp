@@ -23,7 +23,23 @@ The agents rung's agent rows (each catalog agent found on the computer, with the
 
 ## Decisions
 
-1. Ruled by the coordinator on #2446: a throw from `hook_files` fails the whole agents rung with the TS's words. Interface change: `hook_scripts` and `detect_agents` return `Result<_, HostError>`, and so do `run_detector` and the `Detector` type. No input found at `a3b870a6e` makes the TS `hookFiles` throw (a settings file that is not JSON, an unterminated quote and an empty command all answer `[]`), so the `Err` road has no test of its own; the not-JSON case is pinned as no `Err`.
+1. Ruled by the coordinator on #2446: a throw from `hook_files` fails the whole agents rung with the TS's words. Interface change: `hook_scripts` and `detect_agents` return `Result<_, HostError>`, and so do `run_detector` and the `Detector` type. The TS `hookFiles` throws `the file could not be changed in place, which keeps its comments; change it by hand` for a settings file whose repeated key sits on a path a hook edit takes (a repeated `hooks` key with `~/` commands in both blocks, a repeated event key, a repeated `command` key); the agents rung and `collect` fail with those words (`w2_oracle::detect_agents_answers_fails_and_reads_as_the_ts_did`). Text that is not JSON, a BOM, JSONC and a repeated key elsewhere (`model`) answer `[]` and the row stands.
+
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/detect_agents.json` (`oracle/w2-detect_agents.oracle.ts`, every value printed by the TS),
+replayed by `tests/detect_agents.rs` `w2_oracle::*`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rule 3: the first agent whose `hook_files` fails ends the rung with that error; no later agent is asked.
+- C2. Rules 2 and 3: `hook_scripts` runs for every agent with a `hooks` entry before `presence_of`, so Claude Code's settings file and Codex's config are read (and logged) on a computer that has neither agent.
+- C3. Rule 5 (sources): the test is `rewritten || !path.startsWith("~/") || !present(path.slice(2))`, so a source of the home folder itself (path `~`) is wrapped; once one line is wrapped, every line is joined with `\r\n` when the text holds any `\r\n`, so mixed endings become CRLF throughout.
+- C4. Rule 4 (sources): the SOURCE and TAIL regexes end in `.*`/`(.*)$` with JavaScript's `.`, so a line holding `\r`, U+2028 or U+2029 after the token is not a source line.
+
+- W1. The agent table and row ids (`agents`, `agent_row_id`).
+- W2. 52 computers through `detect_agents` with every read, the four repeated-key throws and their counter-cases; the same through `run_detector` and `collect` (`on_rung` stops before agents) (`detect_agents`, `run_detector`, `collect`).
+- W3. Bare sources, guarded text with the paths `present` was asked about, and the rows `shell_sources` writes (`bare_sources`, `guard_sources`, `shell_sources`).
 
 ## Rules pinned
 

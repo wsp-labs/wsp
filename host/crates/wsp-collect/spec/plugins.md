@@ -31,8 +31,8 @@ plugin into the report's `PluginRow` with home paths `~`-relative, and gathers e
 5. `plugin_row(home, agent, p)` (plugins.ts:267-276): `agent`, then the found plugin's fields less `skills`, with
    `project.path`, `path` and `set_in` passed through `tilde(home, _)`; every other field as found.
 6. A shelf read that fails (plugins.ts:285): that agent's `found` is `{plugins: [], refused: ["plugins: <agent name>'s
-   plugins were not read: <message>"]}`, `<agent name>` the catalog `name` (`Claude Code`), `<message>` the error's
-   message; the other agents' reads and rows stand, and the agent keeps its place in `agents`, `plugins` and
+   plugins were not read: <message>"]}`, `<agent name>` the catalog `name` (`Claude Code`, never the id), `<message>` the
+   error's message as is (an empty message leaves `: ` at the end, a newline stays); the other agents' reads and rows stand, and the agent keeps its place in `agents`, `plugins` and
    `refused`. Ruled by the coordinator on #2446 ("return a `Result` where the TS fails or throws"). This needs
    wsp-catalog's `PluginShelf::read` to return `Result<PluginsFound, HostError>`: an ask on wave 1's catalog, not
    this crate. Until it does, no input reaches this rule and it has no test here; the catalog change brings one.
@@ -54,6 +54,21 @@ plugin into the report's `PluginRow` with home paths `~`-relative, and gathers e
 
 ## After the port
 - A peeked file holding the record separator is silently cut short.
+
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/plugins.json` (`oracle/w2-plugins.oracle.ts`, every value printed by the TS),
+replayed by `tests/detect_plugins.rs` `w2_oracle::*`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rule 4: a later `d` record for the same path replaces the earlier, as an `f` record does.
+- C2. Rule 2: a store or seed of `""` is not unset.
+- C3. The line references in rules 1 to 6 point past the 120-line file: the functions are `PEEK` at plugins.ts:30-50, `peekOn` 54-76, `pluginIo` 79-90, `pluginRow` 93-102, `detectPlugins` 105-120.
+- C4. A Claude read whose peek gets no whole answer refuses with `plugins: Claude Code's plugin files could not be read`.
+
+- W1. The peek line for every group shape (`peek_line`) and its records read back by path (`peek_records`).
+- W2. `detect_plugins` per agent and store, rows, refusals and every run (`detect_plugins`). `plugin_row` and `plugin_io` cases are recorded but wait on wsp-catalog (a `FoundPlugin` read from JSON, the `PluginIo` calls).
 
 ## Tests
 | Rule | Test |

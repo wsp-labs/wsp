@@ -52,6 +52,19 @@ plugins out of oh-my-zsh's `plugins=( )` lists. All three are pure over text.
 - `without_array_literals`'s comment test differs from shell_rc's `comment_at` (it accepts `(` before `#` and not
   `=(`), so the two readers can disagree on a line like `x=(a #b)`.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/commands.json` (`oracle/w2-commands.oracle.ts`, every value printed by the TS),
+replayed by `tests/detect_commands.rs` `w2_oracle::*`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rule 7: words after the closing `)` on a list line are still offered to `drop` (`plugins=(git) eza` loses `eza`); the whitespace before a trailing comment goes with a dropped word (`plugins=(eza # c )` becomes `plugins=(# c )`).
+- C2. Rule 2: own names come from every FUNCTION_HEAD match over the whole text, heredoc bodies included, at a line start only (an indented head counts, one after `;` or `then` does not).
+- C3. Any word of a command that ends in `/<head>` makes it no call.
+
+- W1. `called_commands` over 124 texts and every RC_BUILTIN member (`called_commands`, `called_commands_rc_builtin`); `drop_plugins` and the names offered to `drop` (`drop_plugins`, `drop_plugins_calls`); `guard_commands` (`guard_commands`).
+
 ## Tests
 | Rule | Test |
 |---|---|

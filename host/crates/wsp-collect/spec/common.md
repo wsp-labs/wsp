@@ -35,6 +35,17 @@ with no path, dropping absent rows, and the first line of a command's output.
 - `entry` writes `arch`, which the zod schema strips on parse (manifest.ts has no `arch`): a detector's `arch` never
   reaches the recipe.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/common.json` (`oracle/w2-common.oracle.ts`, every value printed by the TS),
+replayed by `tests/detect_common.rs` `w2_oracle::*`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rules 1 and 2 lean on `expand` (small rule 2): `~/` expands to `<home>/`, which a stat does not find as the home folder; `~user/x` is not expanded.
+
+- W1. `found`, `exists`, `row` with every call, `entry`, `item`, `present`, `first_line` (each key of the fixture).
+
 ## Tests
 | Rule | Test |
 |---|---|

@@ -19,6 +19,20 @@ Four of the ladder's detectors: whether a catalog entry is on the computer, the 
 - An empty laptop gives no rows in all three detectors.
 - A SHELL that `/etc/shells` does not list leaves every row without `login`.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/detect_small.json` (`oracle/w2-detect_small.oracle.ts`, every value printed by the TS),
+replayed by `tests/detect_identity.rs` `w2_oracle::*`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rules 3 and 4: `login_shell` can answer `""` (`host.shell` of `""` with no `/etc/shells`, or a blank line in it), and then every row gets `login: ""`; an empty text is an answer, not none.
+- C2. Rule 3: the RC_FILES names and every row's label are the TS's (`zprofile`, `zlogin` and `zsh_aliases` included); the fixture pins each label.
+- C3. Rule 2 (go): the version regex is unanchored and leftmost: `go1.24-abc123` gives `1.24`, `go1.22rc1` gives `1.22`.
+- C4. Rule 5: a `.pub` name that also holds `known_hosts` (`known_hosts.pub`) lands in both the public keys row and the known hosts row.
+
+- W1. `presence_of` (`presence_of`), the toolchain rows (`detect_toolchains`), the shell rows and `login_shell` (`detect_shell`, `login_shell`), the identity rows (`detect_identity`), each with every call in order.
+
 ## Rules pinned
 
 | Rule | Test |

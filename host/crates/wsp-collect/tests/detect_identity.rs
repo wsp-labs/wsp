@@ -165,3 +165,54 @@ mod identity {
         assert_eq!(reads, Vec::<String>::new());
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/detect_small.json (oracle/w2-detect_small.oracle.ts): spec detect_small's
+/// wave-2 rules, for presence, toolchains, shell and identity.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, strs, w2};
+    use wsp_collect::detect::presence::presence_of;
+    use wsp_collect::detect::shell::{detect_shell, login_shell};
+    use wsp_collect::detect::toolchains::detect_toolchains;
+
+    fn rows(r: &[ManifestEntry]) -> Value {
+        Value::Array(r.iter().map(|r| serde_json::to_value(r).unwrap()).collect())
+    }
+
+    #[test]
+    fn presence_answers_and_reads_what_the_ts_did() {
+        for case in cases(&w2("detect_small"), "presence_of") {
+            let h = host(&case["laptop"]);
+            let got = block_on(presence_of(&h, &strs(&case["args"][0]), case["args"][1].as_str().unwrap()))
+                .map(|p| json!({ "paths": p.paths, "bytes": p.bytes, "bin": p.bin }))
+                .unwrap_or(Value::Null);
+            assert_eq!(got, case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn toolchains_shell_and_identity_write_the_rows_the_ts_wrote() {
+        let f = w2("detect_small");
+        for case in cases(&f, "detect_toolchains") {
+            let h = host(&case["laptop"]);
+            assert_eq!(rows(&block_on(detect_toolchains(&h))), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+        for case in cases(&f, "detect_shell") {
+            let h = host(&case["laptop"]);
+            assert_eq!(rows(&block_on(detect_shell(&h))), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+        for case in cases(&f, "login_shell") {
+            let h = host(&case["laptop"]);
+            assert_eq!(json!(block_on(login_shell(&h))), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+        for case in cases(&f, "detect_identity") {
+            let h = host(&case["laptop"]);
+            assert_eq!(rows(&block_on(detect_identity(&h))), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+}

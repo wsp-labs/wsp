@@ -72,6 +72,23 @@ folders), then reads every skill under them with one `sh` run of a find-and-awk 
 - Real TS link checks finish in any order, so the order of a project's dirs among several projects is the order the
   checks returned; the Rust port fixes it to project order.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/skills.json` (`oracle/w2-skills.oracle.ts`, every value printed by the TS),
+replayed by `tests/detect_skills.rs` `w2_oracle::*` (cases with a `tree` on a real folder).
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rule 8: `head` is the fifth piece only; pieces after it are dropped, so a front matter line holding U+001F is cut there; a record of exactly four pieces is skipped.
+- C2. Rule 12: the KEY regex needs whitespace or the line end after the colon, and its `.` stops at `\r`: `name:pdf` and any `\r`-ended line are not keys.
+- C3. Rule 13: the quoted forms are prefix matches: `name: "a" b` is `a`, `name: 'a'b'` is `a`.
+- C4. Rule 14: SKILL_HEAD_BYTES counts UTF-16 units only in `skill_md_frontmatter`; the scan's awk cap counts bytes (the `---` line and each newline included), and its stdout is decoded with replacement, so 3000 `é` read through `detect_skills` keeps 2039 `é` and a U+FFFD.
+- C5. A root with a trailing slash reads nothing on a real filesystem; a project at the home folder can mark user roots skipped; the link check runs even with no dirs.
+
+- W1. Front matter over 51 texts and the SKILL.md head over 14 (`skill_frontmatter`, `skill_md_frontmatter`; the lone-surrogate case is not compared).
+- W2. Roots for agents and projects, the link-check line and its answers (`skill_roots`, plugin roots not recorded).
+- W3. Skills read from canned answers and from real trees: links, categories, odd front matter, `.off`, the byte cap (`detect_skills`).
+
 ## Tests
 | Rule | Test |
 |---|---|

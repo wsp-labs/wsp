@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of the two packages/collect/test/mcp.test.ts cases that read only linuxFit and mcpRemoteHash.
+mod common;
+
 use indexmap::IndexMap;
 use md5::{Digest, Md5};
 use wsp_catalog::mcp::{McpServer, McpServerScope, McpTransport};
@@ -269,5 +271,86 @@ mod pins {
         assert_eq!(home_paths(&server, "/h"), vec!["~/a", "~/b", "~/cwd", "~/env"]);
         let http = McpServer { transport: McpTransport::Http { url: U.into(), headers: IndexMap::new() }, ..server };
         assert_eq!(home_paths(&http, "/h"), Vec::<String>::new());
+    }
+}
+
+/// Every case of tests/fixtures/oracle/w2/mcp_args.json (oracle/w2-mcp_args.oracle.ts): spec mcp_args's wave-2 rules.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, strs, w2};
+    use serde_json::{json, Value};
+    use wsp_collect::detect::mcp_args::{hides_value, home_paths, mcp_remote_of, plain_arg, read_args, secret_named, stdio_line, ArgKind};
+
+    fn server(v: &Value) -> McpServer {
+        serde_json::from_value(v.clone()).unwrap()
+    }
+
+    fn s(v: &Value) -> &str {
+        v.as_str().unwrap()
+    }
+
+    #[test]
+    fn every_argument_rule_answers_what_the_ts_answered() {
+        let f = w2("mcp_args");
+        for case in cases(&f, "linux_fit") {
+            let got = match linux_fit(&server(&case["args"][0]), case["args"].get(1).and_then(Value::as_str).unwrap_or("/Users/dev")) {
+                LinuxFit::Ok { needs } => json!({ "ok": true, "needs": needs }),
+                LinuxFit::No { reason } => json!({ "ok": false, "reason": reason }),
+            };
+            assert_eq!(got, case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "mcp_remote_of") {
+            let got = mcp_remote_of(&strs(&case["args"][0]))
+                .map(|r| json!({ "url": r.url, "headers": r.headers, "hash": r.hash, "clientCredentials": r.client_credentials, "v1": r.v1 }))
+                .unwrap_or(Value::Null);
+            assert_eq!(got, case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "mcp_remote_hash") {
+            assert_eq!(json!(mcp_remote_hash(&strs(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "secret_named") {
+            assert_eq!(json!(secret_named(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "hides_value") {
+            assert_eq!(json!(hides_value(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "plain_arg") {
+            assert_eq!(json!(plain_arg(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "read_args") {
+            let a = &case["args"];
+            let got: Vec<Value> = read_args(s(&a[0]), &strs(&a[1]), s(&a[2]))
+                .iter()
+                .map(|r| {
+                    let mut o = serde_json::Map::new();
+                    if let Some(v) = &r.show {
+                        o.insert("show".into(), json!(v));
+                    }
+                    if let Some(v) = &r.secret {
+                        o.insert("secret".into(), json!(v));
+                    }
+                    if let Some(v) = &r.key {
+                        o.insert("key".into(), json!(v));
+                    }
+                    if let Some(k) = r.kind {
+                        let word = match k {
+                            ArgKind::Flag => "flag",
+                            ArgKind::Assign => "assign",
+                            ArgKind::Positional => "positional",
+                        };
+                        o.insert("kind".into(), json!(word));
+                    }
+                    Value::Object(o)
+                })
+                .collect();
+            assert_eq!(Value::Array(got), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "stdio_line") {
+            let a = &case["args"];
+            assert_eq!(json!(stdio_line(s(&a[0]), &strs(&a[1]), s(&a[2]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "home_paths") {
+            assert_eq!(json!(home_paths(&server(&case["args"][0]), s(&case["args"][1]))), case["out"], "{}", case["name"]);
+        }
     }
 }

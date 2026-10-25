@@ -33,6 +33,21 @@ Says whether a file looks like a credential: its name, its mode, the key names i
 
 1. The regexes have no look-around, so `regex` (in the crate) takes them as written, with `(?i)` where the TS uses `/i`; `\w` and `\b` are ASCII in JS, so use `(?-u:\w)` and `(?-u:\b)` or explicit classes.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/credential_signals.json` (`oracle/w2-credential_signals.oracle.ts`, every value printed by the TS),
+replayed by `tests/credential_signals.rs` `w2_oracle::*`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Decision 1: JavaScript `/i` without `u` folds ASCII only, so a non-ASCII letter never matches an ASCII one (the Kelvin sign and the long s match nothing); Rust's `(?i)` folds Unicode, so it must not be used for these patterns: lower-case ASCII by hand or list both cases.
+- C2. JSON: `JSON.parse` accepts text serde_json refuses (a number out of range such as `1e999`, a lone surrogate escape `"\ud800"`, deep nesting), and such text takes the JSON road in the TS; the port must parse those as the TS does (a number out of range is `Infinity`, still a value) so it takes the same road.
+- C3. Rule 2: the skipped-suffix test is case-sensitive while the source-extension test uses the lower-cased extension: `token.EXAMPLE` is a name signal, `SECRET.TS` is not.
+- C4. Rule 8: `.env.local` has the extension `local`, so it is never read and signals `name` only.
+
+- W1. Name, mode, keys, pem and url rules over every edge the findings name (`name_signal`, `mode_signal`, `top_level_keys`, `keys_signal`, `key_name_signal`, `pem_signal`, `url_signal`, `bare_urls`).
+- W2. `file_signals` reads the file at most once and only when a read can change the answer: the signals and the read count (`file_signals`).
+
 ## Rules pinned
 
 | Rule | Test |

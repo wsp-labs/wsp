@@ -171,12 +171,12 @@
    "out": "~/x/"
   },
   {
-   "name": "home \"/Users/dev\", path \"/Users/DEV/x\"",
+   "name": "home \"/Users/dev\", path \"/USERS/dev/x\"",
    "args": [
     "/Users/dev",
-    "/Users/DEV/x"
+    "/USERS/dev/x"
    ],
-   "out": "/Users/DEV/x"
+   "out": "/USERS/dev/x"
   },
   {
    "name": "home \"/Users/dev\", path \"/a/Users/dev/x\"",

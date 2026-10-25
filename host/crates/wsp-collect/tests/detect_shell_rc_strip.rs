@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Cutting secrets out of a carried rc file. Port of the cases of packages/collect/test/shell-rc.test.ts that call
 //! stripExports. Every shell text is written with the same escapes as the TS string it came from.
+mod common;
+
 use wsp_collect::detect::shell_rc::{is_secret_name, strip_exports, Stripped};
 
 fn strip(text: &str) -> Stripped {
@@ -667,5 +669,79 @@ mod pins {
         let script = strip_exports("export A_TOKEN=x\n", None, &mut held, true);
         assert_eq!((script.names, script.carried), (vec!["A_TOKEN".to_string()], "true\n".to_string()));
         assert!(held.is_empty());
+    }
+}
+
+/// Every case of tests/fixtures/oracle/w2/shell_rc.json and shell_rc_strip.json (oracle/w2-shell_rc*.oracle.ts):
+/// specs shell_rc's and shell_rc_strip's wave-2 rules. A `secret_in` is recorded as data: it answers `name` (the line
+/// itself for `$line`) for a line holding `contains`, else nothing.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, strs, w2};
+    use serde_json::{json, Value};
+    use std::cell::RefCell;
+    use wsp_collect::detect::shell_rc::{is_rc_path, is_secret_name, rc_files, simple_commands, source_command, sourced_path, sourced_paths};
+    use wsp_collect::detect::shell_rc_strip::strip_exports;
+
+    fn s(v: &Value) -> &str {
+        v.as_str().unwrap()
+    }
+
+    /// Runs `strip_exports` as the case says and answers its result and every line `secret_in` was handed.
+    fn strip(case: &Value) -> (Value, Vec<String>) {
+        let a = &case["args"];
+        let seen = RefCell::new(Vec::new());
+        let rule = a[1].clone();
+        let secret_in = |line: &str| -> Option<String> {
+            seen.borrow_mut().push(line.to_string());
+            let holds = line.contains(rule["contains"].as_str().unwrap());
+            holds.then(|| if rule["name"] == "$line" { line.to_string() } else { rule["name"].as_str().unwrap().to_string() })
+        };
+        let mut held = strs(&a[2]);
+        let r = strip_exports(s(&a[0]), (!rule.is_null()).then_some(&secret_in as &dyn Fn(&str) -> Option<String>), &mut held, a[3].as_bool().unwrap());
+        (json!({ "names": r.names, "carried": r.carried, "held": held }), seen.into_inner())
+    }
+
+    #[test]
+    fn the_rc_rules_answer_what_the_ts_answered() {
+        let f = w2("shell_rc");
+        for case in cases(&f, "is_rc_path") {
+            assert_eq!(json!(is_rc_path(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "rc_files") {
+            assert_eq!(json!(rc_files(&strs(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "is_secret_name") {
+            assert_eq!(json!(is_secret_name(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "simple_commands") {
+            assert_eq!(json!(simple_commands(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "source_command") {
+            let got = source_command(s(&case["args"][0]))
+                .map(|c| json!({ "indent": c.indent, "word": c.word, "token": c.token, "rest": c.rest }))
+                .unwrap_or(Value::Null);
+            assert_eq!(got, case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "sourced_path") {
+            assert_eq!(json!(sourced_path(s(&case["args"][0]), s(&case["args"][1]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "sourced_paths") {
+            assert_eq!(json!(sourced_paths(s(&case["args"][0]), s(&case["args"][1]))), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "strip_exports_assigned") {
+            assert_eq!(strip(case).0, case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn strip_exports_carries_cuts_and_asks_what_the_ts_did() {
+        let f = w2("shell_rc_strip");
+        for case in cases(&f, "strip_exports") {
+            assert_eq!(strip(case).0, case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "strip_exports_calls") {
+            assert_eq!(json!(strip(case).1), case["out"], "{}", case["name"]);
+        }
     }
 }

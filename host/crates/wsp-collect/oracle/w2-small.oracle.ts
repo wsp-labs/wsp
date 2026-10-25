@@ -15,7 +15,7 @@ it("small fixtures", () => {
   const w = (name: string, text: string) => ({ name, args: [text], out: withIgnoreUnknown(text) });
   write("small", {
     expand: [...["~", "~/", "~/x", "~/~/x", "~x", "~/../x", "x/~", "", "/", " ~", "~\\", "~//x", "~/ "].map(p => e(H, p)), e("/Users/dev/", "~/x"), e("", "~/x"), e("", "~"), e("/", "~/x")],
-    tilde: [...["/Users/dev", "/Users/dev/", "/Users/dev//x", "/Users/dev/x/", "/Users/DEV/x", "/a/Users/dev/x", "Users/dev/x", "", "~", "/Users/dev/~/x", "/Users/dev/.", "/Users/dev/.."].map(p => t(H, p)),
+    tilde: [...["/Users/dev", "/Users/dev/", "/Users/dev//x", "/Users/dev/x/", "/USERS/dev/x", "/a/Users/dev/x", "Users/dev/x", "", "~", "/Users/dev/~/x", "/Users/dev/.", "/Users/dev/.."].map(p => t(H, p)),
       t("", ""), t("", "/x"), t("/", "/x"), t("/", "/"), t("/Users/dev/", "/Users/dev/x"), t("/Users/dev/", "/Users/dev/"), t("/Users/dev/", "/Users/dev")],
     with_ignore_unknown: [
       w("the prelude alone", PRE), w("the prelude then text", `${PRE}Host x\n`), w("the prelude twice", PRE + PRE),

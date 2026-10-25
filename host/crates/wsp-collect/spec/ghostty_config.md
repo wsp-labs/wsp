@@ -30,6 +30,23 @@ Reads the person's Ghostty config the way Ghostty does and answers the keys the 
 1. Key order: ruled by the coordinator on #2446. The answer keeps the TS key order as an ordered map (rule 8a), not wsp-wire's `TerminalConfig` struct, whose field order is fixed. Interface change: `read_ghostty_config` returns `serde_json::Map<String, Value>`.
 2. The theme folder is the XDG one only; Application Support's themes folder is not searched, as the TS.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/ghostty_config.json` (`oracle/w2-ghostty_config.oracle.ts`, every value printed by the TS),
+replayed by `tests/ghostty_config.rs` `w2_oracle::*` (the config compared as JSON text).
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rule 3: the include path is unquoted again in both cases (`unquote(optional ? value.slice(1) : value)`), so `config-file = ""b""` loads `b`.
+- C2. Rule 6 (palette): N is read by `Number()`: an empty N is 0 (`palette = =#112233` sets slot 0); `1.0`, `1e1`, `+3`, `08`, `-0` are integers; U+00A0 around N is trimmed.
+- C3. Rule 6 (blur): the word is lower-cased first (`TRUE`, `MACOS-GLASS-CLEAR` work), and the integer test is on the `Number()` value (`0x10`, `1e1`, `20.0` accepted).
+- C4. Rule 7: JavaScript `Number()` takes a sign only on decimal text (`-0x10` and `+0x10` are refused), accepts `.5`, `5.`, `012`, `+12`, `1E1`, `0X1F`, `0B11`, `0O7`, and refuses `1_000`, `12px`, `1 2`, `1,5` and non-ASCII digits.
+- C5. Rule 8b: number text is `JSON.stringify`'s: at or above 1e21 or below 1e-6 an exponent with a sign (`1e+21`, `1e-7`), a value above 2^53 rounded first, `-0` written `0`. A blur past `i64` is still a number.
+- C6. Rule 1: it is the trimmed value after `=` that must start and end with `"`, and the regex's `.` stops at `\r`, U+2028 and U+2029, so a value holding one is not unquoted.
+
+- W1. Directives, themes and config paths (`parse_ghostty_directives`, `theme_for`, `ghostty_config_paths`).
+- W2. 219 whole configs, the answer as JSON text with its key order and number text, and every read in order: the tables for font size, padding, opacity, blur, palette, cursor and colour keys (`read_ghostty_config`).
+
 ## Rules pinned
 
 | Rule | Test |

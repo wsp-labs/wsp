@@ -227,3 +227,103 @@ mod a_malformed_hooks_file {
         assert_eq!(claude.bytes, 4);
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/detect_agents.json (oracle/w2-detect_agents.oracle.ts): spec
+/// detect_agents's wave-2 rules. A settings file whose repeated key sits on a hook-edit path makes the catalog's
+/// `hookFiles` throw in the TS; the agents rung and `collect` fail with its words (coordinator's ruling on #2446).
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, strs, w2};
+    use std::cell::RefCell;
+    use wsp_collect::collect::{collect, run_detector, CollectOptions};
+    use wsp_collect::detect::agents::agent_row_id;
+    use wsp_collect::detect::sources::{bare_sources, guard_sources, shell_sources};
+    use wsp_collect::manifest::Rung;
+
+    fn rung(word: &str) -> Rung {
+        *wsp_collect::manifest::RUNGS.iter().find(|r| r.as_str() == word).unwrap()
+    }
+
+    #[test]
+    fn the_agent_table_and_row_ids_are_the_ts_s() {
+        let f = w2("detect_agents");
+        let got: Vec<Value> = agents()
+            .iter()
+            .map(|a| {
+                let mut o = serde_json::Map::new();
+                o.insert("id".into(), json!(a.id));
+                o.insert("label".into(), json!(a.label));
+                o.insert("bin".into(), json!(a.bin));
+                o.insert("config".into(), json!(a.config));
+                if let Some(v) = &a.volatile {
+                    o.insert("volatile".into(), json!(v));
+                }
+                if let Some(h) = a.hooks {
+                    o.insert("hooks_file".into(), json!(h.file()));
+                }
+                Value::Object(o)
+            })
+            .collect();
+        assert_eq!(Value::Array(got), cases(&f, "agents")[0]["out"]);
+        for case in cases(&f, "agent_row_id") {
+            assert_eq!(json!(agent_row_id(case["args"][0].as_str().unwrap())), case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn detect_agents_answers_fails_and_reads_as_the_ts_did() {
+        let f = w2("detect_agents");
+        for case in cases(&f, "detect_agents") {
+            let h = host(&case["laptop"]);
+            match block_on(detect_agents(&h)) {
+                Ok(rows) => assert_eq!(values(&rows), case["out"].as_array().cloned().unwrap_or_default(), "{}", case["name"]),
+                Err(e) => assert_eq!(json!(e.message), case["error"], "{}", case["name"]),
+            }
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+        for case in cases(&f, "run_detector") {
+            let h = host(&case["laptop"]);
+            match block_on(run_detector(rung(case["args"][0].as_str().unwrap()), &h, &[])) {
+                Ok(rows) => assert_eq!(json!(values(&rows)), case["out"], "{}", case["name"]),
+                Err(e) => assert_eq!(json!(e.message), case["error"], "{}", case["name"]),
+            }
+        }
+        for case in cases(&f, "collect") {
+            let h = host(&case["laptop"]);
+            let seen = RefCell::new(Vec::new());
+            let on_rung = |r: Rung, n: usize| seen.borrow_mut().push(json!([r.as_str(), n]));
+            match block_on(collect(&h, CollectOptions { on_rung: Some(&on_rung) })) {
+                Ok(m) => assert_eq!(serde_json::to_value(&m).unwrap(), case["out"], "{}", case["name"]),
+                Err(e) => assert_eq!(json!(e.message), case["error"], "{}", case["name"]),
+            }
+            assert_eq!(Value::Array(seen.into_inner()), case["on_rung"], "on_rung of {}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn sources_are_found_guarded_and_recorded_as_the_ts_did() {
+        let f = w2("detect_agents");
+        for case in cases(&f, "bare_sources") {
+            let a = &case["args"];
+            assert_eq!(json!(bare_sources(a[0].as_str().unwrap(), a[1].as_str().unwrap())), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "guard_sources") {
+            let a = &case["args"];
+            let present = strs(&a[2]);
+            let asked = RefCell::new(Vec::new());
+            let is_present = |rel: &str| {
+                asked.borrow_mut().push(rel.to_string());
+                present.iter().any(|p| p == rel)
+            };
+            let text = guard_sources(a[0].as_str().unwrap(), a[1].as_str().unwrap(), &is_present);
+            assert_eq!(json!({ "text": text, "asked": asked.into_inner() }), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "shell_sources") {
+            let h = host(&case["laptop"]);
+            let mut rows: Vec<ManifestEntry> = serde_json::from_value(case["args"][0].clone()).unwrap();
+            block_on(shell_sources(&h, &mut rows));
+            assert_eq!(json!(values(&rows)), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+}

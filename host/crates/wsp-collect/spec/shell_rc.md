@@ -59,6 +59,21 @@ read the way bash, zsh and fish read them; and the files a line sources by a lit
 ## After the port
 - `sourced_paths` folds `${HOME}` before splitting, but `$HOME` inside double quotes in a `[[ ]]` test is followed too.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/shell_rc.json` (`oracle/w2-shell_rc.oracle.ts`, every value printed by the TS),
+replayed by `tests/detect_shell_rc_strip.rs` `w2_oracle::the_rc_rules_answer_what_the_ts_answered`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rule 5: at the end of the command a backslash inside double quotes is dropped (`"abc\` gives `abc`); outside quotes a lone trailing `\` gives an empty word.
+- C2. Rule 10: `rest` is `(.*)$` with JavaScript's `.`, so a command holding `\r`, `\n`, U+2028 or U+2029 after the token does not match at all.
+- C3. Rule 11: the character check runs after home is substituted, so a home holding `$`, a backtick, `*`, `?`, `[`, `]` or `\`, ending in `/` or equal to `/` refuses every `~/x` token; the quote unwrap `^(["']).*\1$` uses `.` too, so a quoted token holding a newline is not unwrapped.
+- C4. Rule 3: only `'` and `"` are tracked; `$'...'`, backticks and `$(...)` are not.
+
+- W1. `is_rc_path`, `rc_files`, `is_secret_name`, `simple_commands`, `source_command`, `sourced_path`, `sourced_paths` over every edge (each key of the fixture).
+- W2. One command per line through `strip_exports`, recording the names cut, reaches the private word and alias helpers (`strip_exports_assigned`).
+
 ## Tests
 | Rule | Test |
 |---|---|

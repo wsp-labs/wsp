@@ -76,6 +76,21 @@ cut command stands as `true` (or as a false condition) so every block the file o
 - A `for`, `select` or `case` head holding a secret makes the whole cut one `true`, which can break a loop body that
   spanned the same lines.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/shell_rc_strip.json` (`oracle/w2-shell_rc_strip.oracle.ts`, every value printed by the TS),
+replayed by `tests/detect_shell_rc_strip.rs` `w2_oracle::strip_exports_carries_cuts_and_asks_what_the_ts_did`.
+
+Corrections to the rules above, found against the TS (each overrides the rule it names):
+
+- C1. Rule 1: the line ending is `\r\n` when the text holds any `\r\n`, and every line is joined with it, so `"a\nb\r\nc"` comes back `"a\r\nb\r\nc"` even with nothing cut.
+- C2. Rule 2: `holds` takes a command's text and hands that text, not the whole line, to `secret_in`; `take` uses its own rule (rule 4).
+- C3. Rule 8: the empty stand-in applies only to body lines dropped in the final branch (assigning or held-only), never to lines dropped while a value is open; the predecessor is the last kept line, which can be a heredoc opener, and after a stand-in the next dropped line sees `""` and pushes nothing.
+- C4. Rule 4: `names` can hold a variable whose name is not secret.
+- C5. Kept as the TS does, though it looks wrong: `X=1 export Y_TOKEN=2` leaves the secret in; `export A_TOKEN="x\u2028y"` leaves it in; an open cut at the end of the file eats the final newline.
+
+- W1. 252 texts through `strip_exports` with each `secret_in` shape, the held list in and out, and `script` both ways (`strip_exports`); the lines `secret_in` was handed (`strip_exports_calls`).
+
 ## Tests
 | Rule | Test |
 |---|---|

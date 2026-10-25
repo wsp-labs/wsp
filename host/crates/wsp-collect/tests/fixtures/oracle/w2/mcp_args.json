@@ -238,7 +238,7 @@
      "scope": "user",
      "transport": {
       "kind": "stdio",
-      "command": "/Users/devops/Library/x",
+      "command": "/Users/developer/Library/x",
       "args": [],
       "env": {}
      },
@@ -248,7 +248,7 @@
    ],
    "out": {
     "ok": true,
-    "needs": "needs /Users/devops/Library/x on the machine"
+    "needs": "needs /Users/developer/Library/x on the machine"
    }
   },
   {
