@@ -16,7 +16,10 @@ use wsp_words::js::{js_trim, to_number};
 
 use super::import_roads::{withheld, WITHHELD_NOTE};
 use super::tools_disk::{inline_s, reason_of};
-use super::{AsideRow, DropName, EditedName, EditedOutcome, McpAgentPlan, McpPlan, McpScope, McpToolRow, ProjectMove, RecipeEntry, ScopeFile, ScopeOutcome, ScopeRead};
+use super::{
+    AsideRow, DropName, EditedName, EditedOutcome, McpAgentPlan, McpPlan, McpScope, McpToolRow, ProjectMove, RecipeEntry, ScopeFile,
+    ScopeOutcome, ScopeRead,
+};
 use crate::exec_detached::INLINE_EXEC_MS;
 use crate::land_bytes::{land_bytes, LandBytesOptions};
 use crate::machine::{ExecOptions, ExecResult, Machine};
@@ -176,7 +179,11 @@ pub fn mcp_plan_for(rows: &[RecipeEntry], opts: &McpPlanOptions) -> Option<McpPl
         if !ticked.contains(format!("agents/{agent}").as_str()) {
             let aside = own
                 .iter()
-                .map(|o| AsideRow { id: o.row.id.clone(), name: o.name.clone(), reason: format!("{} is not ticked, so its config did not travel", source.label) })
+                .map(|o| AsideRow {
+                    id: o.row.id.clone(),
+                    name: o.name.clone(),
+                    reason: format!("{} is not ticked, so its config did not travel", source.label),
+                })
                 .collect();
             agents.push(McpAgentPlan { id: agent.clone(), label: source.label.clone(), scopes: Vec::new(), aside });
             continue;
@@ -198,7 +205,11 @@ pub fn mcp_plan_for(rows: &[RecipeEntry], opts: &McpPlanOptions) -> Option<McpPl
                     .filter(|o| !is_ticked(o) || withheld(o.row))
                     .map(|o| DropName {
                         name: o.name.clone(),
-                        reason: if is_ticked(o) { WITHHELD_NOTE.to_string() } else { o.row.reason.clone().unwrap_or_else(|| "unticked".to_string()) },
+                        reason: if is_ticked(o) {
+                            WITHHELD_NOTE.to_string()
+                        } else {
+                            o.row.reason.clone().unwrap_or_else(|| "unticked".to_string())
+                        },
                         keys: None,
                     })
                     .collect(),
@@ -245,7 +256,7 @@ pub fn refused(message: &str) -> ExecResult {
 
 /// golden-mcp.ts:172 `readReason`: `reason_of` with stdout blanked; `None` is `READ_MS / 1000` seconds.
 pub fn read_reason(res: &ExecResult, timeout_s: Option<f64>) -> String {
-    let blank = ExecResult { exit_code: res.exit_code.clone(), stdout: String::new(), stderr: res.stderr.clone() };
+    let blank = ExecResult { exit_code: res.exit_code, stdout: String::new(), stderr: res.stderr.clone() };
     reason_of(&blank, timeout_s.unwrap_or(READ_MS as f64 / 1000.0))
 }
 
@@ -302,7 +313,10 @@ pub fn read_configs_cmd(scopes: &[ReadAsk]) -> String {
             r#"      r=$(realpath "$f" 2>/dev/null) && [ -n "$b" ] && {} || {{ printf '{MCP_READ_MARK} %s %s -plain\n' "$i" "$n"; return 0; }}"#,
             under_base(r#"[ -f "$r" ]"#, "false")
         ),
-        format!(r#"      if [ "$(head -c {} < "$r" | wc -c | tr -d ' ')" -gt {cap} ]; then printf '{MCP_READ_MARK} %s %s -cap\n' "$i" "$n"; return 0; fi"#, cap + 1),
+        format!(
+            r#"      if [ "$(head -c {} < "$r" | wc -c | tr -d ' ')" -gt {cap} ]; then printf '{MCP_READ_MARK} %s %s -cap\n' "$i" "$n"; return 0; fi"#,
+            cap + 1
+        ),
         format!(r#"      printf '{MCP_READ_MARK} %s %s ' "$i" "$n"; head -c {cap} < "$r" | base64 | tr -d '\n'; printf '\n'; return 0"#),
         "    fi".to_string(),
         "    n=$((n+1))".to_string(),
@@ -357,7 +371,8 @@ pub fn parse_configs(stdout: &str, scopes: &[ReadAsk]) -> Option<Vec<Option<Scop
             continue;
         }
         answered = true;
-        let at = js_index(words[1], scopes.len()).and_then(|i| js_index(words[2], scopes[i].files.len()).map(|j| (i, scopes[i].files[j].clone())));
+        let at = js_index(words[1], scopes.len())
+            .and_then(|i| js_index(words[2], scopes[i].files.len()).map(|j| (i, scopes[i].files[j].clone())));
         let Some((i, path)) = at else { continue };
         let word = words.get(3).copied().unwrap_or("");
         out[i] = Some(match word {
@@ -461,7 +476,9 @@ pub fn edit_scopes(plan: &McpPlan, agents: &[McpAgentPlan], read: &[Option<Scope
             at += 1;
             let outcome = match file {
                 None => ScopeOutcome::default(),
-                Some(ScopeRead::Unread { path, unread }) => ScopeOutcome { file: Some(path.clone()), unread: Some(unread.clone()), ..Default::default() },
+                Some(ScopeRead::Unread { path, unread }) => {
+                    ScopeOutcome { file: Some(path.clone()), unread: Some(unread.clone()), ..Default::default() }
+                }
                 Some(ScopeRead::File(f)) => {
                     let edit_scope = McpEditScope {
                         keep: scope.keep.clone(),
@@ -606,13 +623,7 @@ fn is_binary_row(id: &str) -> bool {
 
 fn encode_component(text: &str) -> String {
     text.bytes()
-        .map(|b| {
-            if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) {
-                (b as char).to_string()
-            } else {
-                format!("%{b:02X}")
-            }
-        })
+        .map(|b| if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
         .collect()
 }
 

@@ -10,8 +10,8 @@ use async_trait::async_trait;
 use futures::future::LocalBoxFuture;
 use serde::de::DeserializeOwned;
 
-pub use wsp_wire::views::workspace_more::{CopyAsk, CopyReport, CopyRoad, WorktreeAsk, WorktreeRemoval, WorktreeReport};
 use wsp_wire::views::workspace_more::Carried;
+pub use wsp_wire::views::workspace_more::{CopyAsk, CopyReport, CopyRoad, WorktreeAsk, WorktreeRemoval, WorktreeReport};
 pub use wsp_wire::wire::machine_link::ExecResult;
 
 use wsp_wire::types::check::{parse, Check};
@@ -127,7 +127,7 @@ pub fn refusal_line(binary: &str, res: &ExecResult) -> String {
         }
         return copy_verb_failed_line(res.exit_code.as_f64());
     }
-    said.split('\n').last().unwrap_or("").to_string()
+    said.split('\n').next_back().unwrap_or("").to_string()
 }
 
 fn refusal(binary: &str, res: &ExecResult) -> EngineError {
@@ -190,7 +190,8 @@ impl Copier for VerbCopier {
         self.done(argv(&["copy", "remove", "--from", from, "--to", to, "--road", road_word(road)]), COPY_TIMEOUT_MS).await
     }
     async fn worktree(&self, ask: &WorktreeAsk) -> Result<WorktreeReport> {
-        let mut words = argv(&["copy", "worktree", "--from", &ask.from, "--home", &ask.home, "--project", &ask.project, "--branch", &ask.branch]);
+        let mut words =
+            argv(&["copy", "worktree", "--from", &ask.from, "--home", &ask.home, "--project", &ask.project, "--branch", &ask.branch]);
         for module in &ask.modules {
             words.push("--module".into());
             words.push(serde_json::to_string(module).unwrap_or_default());

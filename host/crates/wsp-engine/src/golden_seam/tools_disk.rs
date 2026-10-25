@@ -109,11 +109,7 @@ async fn df_read(machine: &dyn Machine, columns: &[DfColumn], prefix: Option<&st
     let kb: Vec<f64> = printed.split(is_js_whitespace).filter(|p| !p.is_empty()).map(to_number).collect();
     let size = columns.iter().position(|c| *c == DfColumn::Size);
     let answered = res.exit_code.get() == 0 && !printed.is_empty();
-    if answered
-        && kb.len() == columns.len()
-        && kb.iter().all(|n| n.is_finite() && *n >= 0.0)
-        && size.is_none_or(|i| kb[i] > 0.0)
-    {
+    if answered && kb.len() == columns.len() && kb.iter().all(|n| n.is_finite() && *n >= 0.0) && size.is_none_or(|i| kb[i] > 0.0) {
         return Ok(DfRead::Bytes(kb.iter().map(|n| n * 1024.0).collect()));
     }
     Ok(DfRead::Reason(if answered { format!("df answered {}", cut_units(printed, 160)) } else { df_failed(&res) }))
@@ -236,7 +232,7 @@ pub fn reason_of(res: &ExecResult, timeout_s: f64) -> String {
 /// golden-tools.ts:105 `roadOf`: the last line starting `WSP_ROAD release|go <from>`, with the sha256, tag and arch
 /// that follow it where they match.
 pub fn road_of(stdout: &str) -> Option<ToolRoad> {
-    stdout.split(['\n', '\r', '\u{2028}', '\u{2029}']).filter_map(road_line).last()
+    stdout.split(['\n', '\r', '\u{2028}', '\u{2029}']).filter_map(road_line).next_back()
 }
 
 fn road_line(line: &str) -> Option<ToolRoad> {

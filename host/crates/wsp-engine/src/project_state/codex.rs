@@ -88,7 +88,10 @@ impl ProjectStateResolver for CodexResolver {
     }
     async fn move_state(&self, home: &str, from: &str, to: &str) -> Result<Vec<MovedState>> {
         let index = join_posix(&[home, INDEX]);
-        let update = RowUpdate { sql: format!("update threads set cwd = {} where {}", moved_column("cwd"), under_path("cwd")), params: path_params(from, to) };
+        let update = RowUpdate {
+            sql: format!("update threads set cwd = {} where {}", moved_column("cwd"), under_path("cwd")),
+            params: path_params(from, to),
+        };
         let Some((recorded, threads)) = select_then_update(&index, &indexed_rollouts_sql(), &from_param(from), &update)? else {
             return Ok(vec![]);
         };
@@ -117,7 +120,11 @@ impl ProjectStateResolver for CodexResolver {
         Ok(moved)
     }
     async fn sessions(&self, home: &str, path: &str) -> Result<u64> {
-        count_rows(&join_posix(&[home, INDEX]), &format!("select count(*) as n from threads where {}", under_path("cwd")), &from_param(path))
+        count_rows(
+            &join_posix(&[home, INDEX]),
+            &format!("select count(*) as n from threads where {}", under_path("cwd")),
+            &from_param(path),
+        )
     }
     async fn entries(&self, home: &str, path: &str) -> Result<Vec<String>> {
         let recorded: Vec<String> = select_rows(&join_posix(&[home, INDEX]), &indexed_rollouts_sql(), &from_param(path))?
@@ -137,7 +144,11 @@ impl ProjectStateResolver for CodexResolver {
             "for (rollout,) in indexed:".into(),
             format!("    cut = rollout.rfind({}) if isinstance(rollout, str) else -1", py_data(&json!(SESSIONS))),
             "    if cut >= 0:".into(),
-            format!("        say(os.path.join({}, rollout[cut + {}:]))", py_data(&json!(join_posix(&[home, SESSIONS_DIR]))), SESSIONS.len()),
+            format!(
+                "        say(os.path.join({}, rollout[cut + {}:]))",
+                py_data(&json!(join_posix(&[home, SESSIONS_DIR]))),
+                SESSIONS.len()
+            ),
         ])
     }
     fn shared(&self) -> Option<SharedStore> {

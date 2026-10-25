@@ -99,7 +99,10 @@ pub async fn exec_read(
     }
     report(opts, DownloadProgress { bytes: 0, total: bytes });
     let read = machine
-        .exec(&format!("base64 < {}", shell_quote(path)), ExecOptions { timeout_ms: Some(opts.timeout_ms.unwrap_or(120_000)), ..Default::default() })
+        .exec(
+            &format!("base64 < {}", shell_quote(path)),
+            ExecOptions { timeout_ms: Some(opts.timeout_ms.unwrap_or(120_000)), ..Default::default() },
+        )
         .await?;
     if read.exit_code.get() != 0 {
         return Err(plain(format!("vault export read failed (exit {}): {}", read.exit_code.get(), last_units(&read.stderr, 500))));
@@ -156,7 +159,10 @@ pub fn excluding_archive_script(cwd: &str, targets: &[String], rule: &CacheRule,
         format!("cd {}", shell_quote(cwd)),
         format!("find {where_} -mindepth 1 -path '*/.git' -prune -o {cache} -prune -print > {}", shell_quote(&list)),
         format!("printf '%s\\0' {} > {}", targets.iter().map(|t| shell_quote(t)).collect::<Vec<_>>().join(" "), shell_quote(&keep)),
-        format!("find {where_} -mindepth 1 \\( -path '*/.git' -o -path '*/.git/*' \\) -print0 -o {cache} -prune -o -print0 >> {}", shell_quote(&keep)),
+        format!(
+            "find {where_} -mindepth 1 \\( -path '*/.git' -o -path '*/.git/*' \\) -print0 -o {cache} -prune -o -print0 >> {}",
+            shell_quote(&keep)
+        ),
         format!("tar czf {}{} --no-recursion --null -T {}", shell_quote(out), leave_flags(cwd, leave), shell_quote(&keep)),
         format!("sed 's|^\\./||' {}", shell_quote(&list)),
         format!("rm -f {} {}", shell_quote(&list), shell_quote(&keep)),
@@ -238,7 +244,13 @@ pub fn leave_flags(root: &str, leave: &[String]) -> String {
 pub fn group_archive_script(groups: &[ArchiveGroup], out: &str, leave: &[String]) -> String {
     let members = groups
         .iter()
-        .map(|g| format!("-C {} {}", shell_quote(&g.root), g.paths.iter().map(|p| shell_quote(&tar_path(&g.root, p))).collect::<Vec<_>>().join(" ")))
+        .map(|g| {
+            format!(
+                "-C {} {}",
+                shell_quote(&g.root),
+                g.paths.iter().map(|p| shell_quote(&tar_path(&g.root, p))).collect::<Vec<_>>().join(" ")
+            )
+        })
         .collect::<Vec<_>>()
         .join(" ");
     format!("tar czf {}{} {members}", shell_quote(out), leave_flags("/", leave))
@@ -247,7 +259,9 @@ pub fn group_archive_script(groups: &[ArchiveGroup], out: &str, leave: &[String]
 /// vault.ts:200 `guestFileSize`: `wc -c < <path>` inline, read as JS `Number(stdout.trim())`: an empty stdout is 0,
 /// `0x10` is 16. A non-zero exit or a non-finite number fails.
 pub async fn guest_file_size(machine: &dyn Machine, path: &str) -> Result<u64> {
-    let size = machine.exec(&format!("wc -c < {}", shell_quote(path)), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }).await?;
+    let size = machine
+        .exec(&format!("wc -c < {}", shell_quote(path)), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() })
+        .await?;
     let bytes = to_number(js_trim(&size.stdout));
     if size.exit_code.get() != 0 || !bytes.is_finite() {
         return Err(plain(format!("the archive's size on the machine is unknown: {}", last_units(&size.stderr, 200))));
@@ -340,7 +354,12 @@ pub async fn export_paths_into(machine: &dyn Machine, groups: &[ArchiveGroup], i
 /// vault.ts:270 `destExists`: `EngineError::Exists` whose message is `<dest> already exists on this computer with
 /// <plural(files, "file")>; export with replace to overwrite it`.
 pub fn dest_exists(dest: &str, files: u64) -> EngineError {
-    EngineError::Exists { message: format!("{dest} already exists on this computer with {}; export with replace to overwrite it", plural(files as f64, "file")) }
+    EngineError::Exists {
+        message: format!(
+            "{dest} already exists on this computer with {}; export with replace to overwrite it",
+            plural(files as f64, "file")
+        ),
+    }
 }
 
 /// vault.ts:275 `exportFolder`'s answer.
@@ -354,7 +373,10 @@ pub struct FolderExport {
 /// vault.ts:275 `exportFolder`.
 pub async fn export_folder(machine: &dyn Machine, dir: &str, rule: &CacheRule, into: &Path, opts: &VaultOptions) -> Result<FolderExport> {
     let probe = machine
-        .exec(&format!("test -d {} && echo yes || echo no", shell_quote(dir)), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() })
+        .exec(
+            &format!("test -d {} && echo yes || echo no", shell_quote(dir)),
+            ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() },
+        )
         .await?;
     if probe.exit_code.get() != 0 || js_trim(&probe.stdout) != "yes" {
         return Err(plain(format!("{dir} is not a folder on the machine")));
@@ -362,10 +384,17 @@ pub async fn export_folder(machine: &dyn Machine, dir: &str, rule: &CacheRule, i
     let tmp = format!("{}.tgz", guest_tmp_path("wsp-out", None));
     let outcome = async {
         let packed = machine
-            .run(&folder_export_script(dir, rule, &tmp), RunOptions { deadline_ms: opts.timeout_ms.unwrap_or(600_000), ..Default::default() })
+            .run(
+                &folder_export_script(dir, rule, &tmp),
+                RunOptions { deadline_ms: opts.timeout_ms.unwrap_or(600_000), ..Default::default() },
+            )
             .await?;
         if packed.exit_code.get() != 0 {
-            return Err(plain(format!("packing {dir} on the machine failed (exit {}): {}", packed.exit_code.get(), last_units(&packed.stderr, 500))));
+            return Err(plain(format!(
+                "packing {dir} on the machine failed (exit {}): {}",
+                packed.exit_code.get(),
+                last_units(&packed.stderr, 500)
+            )));
         }
         let mut excluded: Vec<String> = packed.stdout.split('\n').filter(|l| !l.is_empty()).map(str::to_string).collect();
         excluded.sort_by(|a, b| utf16::cmp(a, b));

@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use indexmap::IndexMap;
-use wsp_catalog::catalog::{below_line, base_entry_for, catalog_tool_for, ToolEntry};
+use wsp_catalog::catalog::{base_entry_for, below_line, catalog_tool_for, ToolEntry};
 use wsp_catalog::road_modules::{
     as_linuxbrew, brew_has_check, install_homes, road_module, road_module_named, APT_INDEX, APT_UPDATE, BREW, BREW_PREFIX, BREW_REAL,
     BREW_REPO, BREW_SHIM_PRESENT, HOMEBREW_COMMIT, HOMEBREW_STEP, HOMEBREW_TAG, LINUXBREW_HOME, LINUXBREW_SHIM,
@@ -376,8 +376,7 @@ impl Plan<'_> {
                     ..Default::default()
                 });
             }
-            let formulae: Vec<String> =
-                self.brew.formulae.iter().chain(&self.manager_formulae).chain(&catalog_formulae).cloned().collect();
+            let formulae: Vec<String> = self.brew.formulae.iter().chain(&self.manager_formulae).chain(&catalog_formulae).cloned().collect();
             if formulae.len() > 1 {
                 self.installs.push(ToolInstall {
                     id: "tools/brew-shared".to_string(),
@@ -466,9 +465,8 @@ impl Plan<'_> {
         let own = format!("{MANAGER_STEP}{name}");
         let entry: Option<&'static ToolEntry> = catalog_tool_for(name);
         let formula = manager_formula(manager);
-        let from_catalog = entry.and_then(|entry| {
-            self.catalog.iter().find(|(e, _)| catalog_tool_of(e).is_some_and(|t| t.id == entry.id)).cloned()
-        });
+        let from_catalog =
+            entry.and_then(|entry| self.catalog.iter().find(|(e, _)| catalog_tool_of(e).is_some_and(|t| t.id == entry.id)).cloned());
         let mac_formula = [formula.as_deref(), Some(name)].into_iter().flatten().find(|f| self.brew.formulae.iter().any(|x| x == f));
         let (path, prefix) = (self.path, self.prefix);
         if let Some(f) = mac_formula {

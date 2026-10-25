@@ -429,12 +429,8 @@ pub async fn install_base_with(machine: &dyn Machine, stage: ToolStage, opts: In
     let on_image = machine.exec(&base_versions_cmd(&path), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }).await?;
     let carried: BTreeSet<String> = carried_by_image(&parse_versions(&on_image.stdout)).into_iter().collect();
     let installs = base_installs(&carried, &path, opts.prefix.as_deref(), &opts.left);
-    let loop_opts = InstallToolsOptions {
-        keep_caches: opts.keep_caches,
-        path: Some(path.clone()),
-        prefix: opts.prefix.clone(),
-        ..Default::default()
-    };
+    let loop_opts =
+        InstallToolsOptions { keep_caches: opts.keep_caches, path: Some(path.clone()), prefix: opts.prefix.clone(), ..Default::default() };
     let tools = install_tools_at(machine, &installs, stage, GoldenStage::DeployingDaemon, loop_opts).await?.tools;
     let ran: IndexMap<String, ToolResult> = tools.iter().map(|t| (t.id.clone(), t.clone())).collect();
     let floor: BTreeSet<String> = base_floor().iter().map(|e| step_id(&e.id)).collect();

@@ -240,9 +240,11 @@ impl Machine for LocalMachine {
         let os = self
             .os
             .get_or_init(|| async {
-                read_os_name(move |cmd: String| async move { self.exec(&cmd, ExecOptions { timeout_ms: Some(5_000), ..Default::default() }).await })
-                    .await
-                    .unwrap_or_else(kernel_words)
+                read_os_name(move |cmd: String| async move {
+                    self.exec(&cmd, ExecOptions { timeout_ms: Some(5_000), ..Default::default() }).await
+                })
+                .await
+                .unwrap_or_else(kernel_words)
             })
             .await;
         Ok(MachineFacts {

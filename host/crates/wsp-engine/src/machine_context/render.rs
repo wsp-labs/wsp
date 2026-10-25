@@ -57,7 +57,8 @@ pub struct ContextInput {
 
 const CD_FACT: &str = "- Every agent session starts in the thread's folder; terminal panes open in the home folder.";
 const CD_HOWTO: &str = "- Work in a folder: cd <dir> && <cmd> on one line, or absolute paths.";
-const ALIASES_NOT_READ_SHARED: &str = "- Aliases: not read here. This computer's home is shared with every workspace on it, so wsp opens no login shell on it.";
+const ALIASES_NOT_READ_SHARED: &str =
+    "- Aliases: not read here. This computer's home is shared with every workspace on it, so wsp opens no login shell on it.";
 
 /// machine-context.ts:39 `turnFact`.
 fn turn_fact(agent: Option<ContextAgent>) -> String {
@@ -105,13 +106,15 @@ fn containers_line(probe: &ContextProbe) -> Option<String> {
 
 fn disk_line(probe: &ContextProbe, short: bool) -> String {
     let floor = fmt_bytes(TOOLS_DISK_FLOOR as f64);
-    let tail = if short { format!("wsp keeps {floor} free.") } else { format!("wsp keeps {floor} free and skips tool installs that would go under it.") };
+    let tail = if short {
+        format!("wsp keeps {floor} free.")
+    } else {
+        format!("wsp keeps {floor} free and skips tool installs that would go under it.")
+    };
     match &probe.disk {
-        Some(d) => format!(
-            "- Disk: {} root disk, {} free when this file was written. {tail}",
-            fmt_bytes(d.size_bytes),
-            fmt_bytes(d.free_bytes)
-        ),
+        Some(d) => {
+            format!("- Disk: {} root disk, {} free when this file was written. {tail}", fmt_bytes(d.size_bytes), fmt_bytes(d.free_bytes))
+        }
         None => format!("- Disk: size unknown when this file was written. {tail}"),
     }
 }
@@ -139,7 +142,9 @@ pub fn render_machine_context(input: &ContextInput) -> String {
         machine.push(format!("- Login shells get their PATH from /etc/profile.d/wsp-golden.sh: {}", on_npm_bin(npm_bin, TOOLS_PATH)));
     }
     machine.extend(containers_line(probe));
-    machine.push(format!("- wsp-daemon listens on 0.0.0.0:{DAEMON_PORT} with its own token. Do not stop it and do not bind port {DAEMON_PORT}."));
+    machine.push(format!(
+        "- wsp-daemon listens on 0.0.0.0:{DAEMON_PORT} with its own token. Do not stop it and do not bind port {DAEMON_PORT}."
+    ));
     machine.push("- wsp on this machine's PATH drives the person's host as this thread; wsp --help agent lists its verbs.".to_string());
     machine.push(turn_fact(input.agent));
     machine.push(format!("- {ANOTHER_AGENT_WORDS}."));
@@ -160,21 +165,26 @@ pub fn render_machine_context(input: &ContextInput) -> String {
         None => "- This machine is a golden builder, not a workspace yet.".to_string(),
     });
     workspace.push(match &input.golden {
-        Some(g) => format!(
-            "- Golden: v{}, sealed {}, setup {}.",
-            g.version,
-            utf16::cut(&g.created_at, 10),
-            utf16::cut(&g.setup_sha, 12)
-        ),
+        Some(g) => format!("- Golden: v{}, sealed {}, setup {}.", g.version, utf16::cut(&g.created_at, 10), utf16::cut(&g.setup_sha, 12)),
         None if input.workspace.is_some() => "- Golden: version not recorded.".to_string(),
         None => "- Golden: not sealed yet.".to_string(),
     });
     workspace.push(disk_line(probe, false));
     let secrets = if probe.secrets.is_empty() { "none".to_string() } else { probe.secrets.join(", ") };
-    workspace.push(format!("- Secrets set in {SECRETS_FILE_SH}: {secrets}. Use them by name ($NAME); a missing one is asked for through wsp, not typed here."));
-    let tools = if facts.tools.is_empty() { "none".to_string() } else { missing_list(facts.tools.iter().map(|m| (m.label.as_str(), m.note.as_str()))) };
+    workspace.push(format!(
+        "- Secrets set in {SECRETS_FILE_SH}: {secrets}. Use them by name ($NAME); a missing one is asked for through wsp, not typed here."
+    ));
+    let tools = if facts.tools.is_empty() {
+        "none".to_string()
+    } else {
+        missing_list(facts.tools.iter().map(|m| (m.label.as_str(), m.note.as_str())))
+    };
     workspace.push(format!("- Tools that did not install: {tools}."));
-    let agents = if facts.agents.is_empty() { "none".to_string() } else { missing_list(facts.agents.iter().map(|m| (m.label.as_str(), m.note.as_str()))) };
+    let agents = if facts.agents.is_empty() {
+        "none".to_string()
+    } else {
+        missing_list(facts.agents.iter().map(|m| (m.label.as_str(), m.note.as_str())))
+    };
     workspace.push(format!("- Agents that did not install: {agents}."));
     let files = if facts.files.is_empty() {
         "none".to_string()
@@ -199,7 +209,8 @@ pub fn render_machine_context(input: &ContextInput) -> String {
     let mut howto: Vec<String> = Vec::new();
     let tmux_hint = if tmux { ", or tmux new -d -s <name> '<cmd>'" } else { "" };
     howto.push(format!("- Keep a server alive: setsid nohup <cmd> > /tmp/<name>.log 2>&1 < /dev/null &{tmux_hint}. Read the log file, not the tool output. Bind 0.0.0.0 if the person should open it."));
-    let shim_hint = if shim { " For a page that is not a local server, run wsp-open <url>; it appears in the app for them to open." } else { "" };
+    let shim_hint =
+        if shim { " For a page that is not a local server, run wsp-open <url>; it appears in the app for them to open." } else { "" };
     howto.push(format!("- Hand the person a URL: print it as http://localhost:<port>; wsp forwards the port and the link opens on their computer.{shim_hint}"));
     if shim {
         howto.push("- Ask for a sign-in: run the tool's own login command (gh auth login, gcloud auth login). It opens through $BROWSER, the person signs in on their computer, and the callback comes back here. Do not paste tokens into the terminal and do not ask for a password.".to_string());
@@ -373,7 +384,11 @@ pub async fn apply_machine_context(machine: &dyn Machine, opts: ApplyContextOpti
     let mut files = vec![
         GuestFile { path: context_path(Some(&roots)), mode: MODE, content: render_short_context(&input) },
         GuestFile { path: skill_path(Some(&roots)), mode: MODE, content: render_skill(&render_machine_context(&input)) },
-        GuestFile { path: facts_path(&roots), mode: MODE, content: format!("{}\n", serde_json::to_string_pretty(&facts).unwrap_or_default()) },
+        GuestFile {
+            path: facts_path(&roots),
+            mode: MODE,
+            content: format!("{}\n", serde_json::to_string_pretty(&facts).unwrap_or_default()),
+        },
     ];
     let mut context: Vec<ContextResult> = Vec::new();
     for agent in context_agents() {
@@ -381,13 +396,8 @@ pub async fn apply_machine_context(machine: &dyn Machine, opts: ApplyContextOpti
             continue;
         }
         let for_agent = ContextInput { agent: Some(agent), ..input.clone() };
-        let out = agent_files(
-            agent,
-            &render_short_context(&for_agent),
-            &render_skill(&render_machine_context(&for_agent)),
-            &probe,
-            Some(&roots),
-        );
+        let out =
+            agent_files(agent, &render_short_context(&for_agent), &render_skill(&render_machine_context(&for_agent)), &probe, Some(&roots));
         files.extend(out.files.iter().cloned());
         context.push(ContextResult { agent: agent.id.clone(), outcome: out.outcome, path: out.path, note: out.note, skill: out.skill });
     }

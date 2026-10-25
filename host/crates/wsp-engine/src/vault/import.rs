@@ -66,7 +66,8 @@ pub async fn put_part(fetch: &dyn Fetch, url: &str, bytes: &[u8], part: u32, par
     let at = if parts == 1 { String::new() } else { format!(" on part {part} of {parts}") };
     let mut attempt: u32 = 1;
     loop {
-        let req = FetchRequest { method: "PUT".to_string(), url: url.to_string(), headers: Vec::new(), body: Some(bytes.to_vec()), abort: None };
+        let req =
+            FetchRequest { method: "PUT".to_string(), url: url.to_string(), headers: Vec::new(), body: Some(bytes.to_vec()), abort: None };
         let res = match fetch.fetch(req).await {
             Ok(res) => res,
             Err(e) => {
@@ -232,7 +233,9 @@ pub async fn import_into(machine: &dyn Machine, tar: &[u8], dest_dir: &str, opts
     }
     .await;
     if let Err(e) = uploaded {
-        let _ = machine.exec(&format!("rm -f {}", quoted_join(&part_paths)), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }).await;
+        let _ = machine
+            .exec(&format!("rm -f {}", quoted_join(&part_paths)), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() })
+            .await;
         return Err(e);
     }
     let digest = hex::encode(Sha256::digest(tar));
@@ -260,7 +263,9 @@ pub async fn import_into(machine: &dyn Machine, tar: &[u8], dest_dir: &str, opts
     let untar = machine.run(&script, RunOptions { deadline_ms: opts.timeout_ms.unwrap_or(120_000), ..Default::default() }).await?;
     if untar.exit_code.get() == HASH_MISMATCH_EXIT {
         let noun = if parts == 1 { "part" } else { "parts" };
-        return Err(plain(format!("vault import: the uploaded archive ({len} bytes in {parts} {noun}) did not match its hash on the machine")));
+        return Err(plain(format!(
+            "vault import: the uploaded archive ({len} bytes in {parts} {noun}) did not match its hash on the machine"
+        )));
     }
     if untar.exit_code.get() != 0 {
         return Err(plain(format!("vault import untar failed (exit {}): {}", untar.exit_code.get(), last_units(&untar.stderr, 500))));
@@ -326,7 +331,12 @@ pub async fn land_bundle(machine: &dyn Machine, tar: &[u8], dest: &str, opts: &L
     if !dest.starts_with('/') || target.is_empty() {
         return Err(plain(format!("destination must be an absolute path below /, got {dest}")));
     }
-    let probe = machine.exec(&format!("test -e {} && echo yes || echo no", shell_quote(target)), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }).await?;
+    let probe = machine
+        .exec(
+            &format!("test -e {} && echo yes || echo no", shell_quote(target)),
+            ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() },
+        )
+        .await?;
     if probe.exit_code.get() != 0 {
         return Err(plain(format!("could not look at {target} on the machine: {}", last_units(&probe.stderr, 200))));
     }
@@ -346,7 +356,9 @@ pub async fn land_bundle(machine: &dyn Machine, tar: &[u8], dest: &str, opts: &L
     let imported = match import_into(machine, tar, &staging, &import).await {
         Ok(imported) => imported,
         Err(e) => {
-            let _ = machine.exec(&format!("rm -rf {}", shell_quote(&staging)), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }).await;
+            let _ = machine
+                .exec(&format!("rm -rf {}", shell_quote(&staging)), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() })
+                .await;
             return Err(e);
         }
     };

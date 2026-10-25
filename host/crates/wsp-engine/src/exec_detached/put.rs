@@ -3,10 +3,10 @@
 //!
 //! The constants every guest road shares, many short reads in as few execs as fit, and the one way bytes go onto a
 //! guest through exec.
-use indexmap::IndexMap;
-use wsp_wire::types::shell_quote::shell_quote;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use indexmap::IndexMap;
+use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::wire::limits::EXEC_BODY_MAX;
 use wsp_words::js::js_trim;
 

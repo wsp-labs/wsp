@@ -192,7 +192,15 @@ pub fn agent_installs_for_rows(entries: &[RecipeEntry], agents: &[AgentEntry], n
         if runs_on_node {
             on_node.insert(e.id.clone());
         }
-        installs.push(AgentInstall { id: e.id.clone(), name: i.name, install: i.install, smoke: i.smoke, road: i.road, node: i.node, pin: i.pin });
+        installs.push(AgentInstall {
+            id: e.id.clone(),
+            name: i.name,
+            install: i.install,
+            smoke: i.smoke,
+            road: i.road,
+            node: i.node,
+            pin: i.pin,
+        });
     }
     installs.retain(|a| match a.node {
         Some(floor) if node_major_for(floor, now_ms).is_none() => {
@@ -238,11 +246,7 @@ fn catalog_node_major() -> u32 {
 
 /// golden-import.ts:1452 `pinnedInstaller`.
 fn pinned_installer(a: &AgentEntry, row: &RecipeEntry) -> AgentInstaller {
-    let at = row
-        .pin
-        .as_ref()
-        .filter(|pin| pin.latest.is_none())
-        .and_then(|pin| road_module(&a.install_road).at(&a.install_road, &pin.tag));
+    let at = row.pin.as_ref().filter(|pin| pin.latest.is_none()).and_then(|pin| road_module(&a.install_road).at(&a.install_road, &pin.tag));
     match at {
         Some(install_road) => agent_installer(&AgentEntry { install_road, ..a.clone() }),
         None => agent_installer(a),

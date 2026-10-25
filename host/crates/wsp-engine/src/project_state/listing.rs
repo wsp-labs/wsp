@@ -81,10 +81,8 @@ pub fn list_script(agent: &str, home: &str, path: &str, roots: &[String], steps:
     lines.push("for p in OUT:".into());
     lines.push("    print(p)".into());
     lines.push("for u in UNREAD:".into());
-    lines.push(format!(
-        "    print({} + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))",
-        py_data(&json!(UNREAD_MARK))
-    ));
+    lines
+        .push(format!("    print({} + base64.b64encode(json.dumps(u).encode(\"utf-8\")).decode(\"ascii\"))", py_data(&json!(UNREAD_MARK))));
     lines.join("\n")
 }
 

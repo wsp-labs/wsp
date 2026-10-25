@@ -16,8 +16,8 @@ use wsp_words::words::units::fmt_bytes;
 
 use super::import_roads::{brew_housekeeping as brew_housekeeping_cmds, path_line};
 use super::tools_disk::{
-    closing, free_bytes, free_note, guard_deadline_ms, guarded_road, inline_s, missing_commands, reason_of, road_limit_s,
-    road_of, sweep_caches, FreeDisk, MissingCommands, ALREADY_ON_MACHINE,
+    closing, free_bytes, free_note, guard_deadline_ms, guarded_road, inline_s, missing_commands, reason_of, road_limit_s, road_of,
+    sweep_caches, FreeDisk, MissingCommands, ALREADY_ON_MACHINE,
 };
 use super::{GoldenStage, InstallToolsOptions, OnTool, ToolInstall, ToolResult, ToolStage, TOOLS_DISK_FLOOR, TOOLS_PATH};
 use crate::errors::{EngineError, Result};
@@ -110,7 +110,8 @@ fn summarize(tools: &[ToolResult], housekeeping: Option<&str>) -> String {
     parts.push(format!("{} installed{named}", installed.len()));
     let failed = of("failed");
     if !failed.is_empty() {
-        let list: Vec<String> = failed.iter().map(|t| format!("{} ({})", listed_name(&t.label), t.note.as_deref().unwrap_or("undefined"))).collect();
+        let list: Vec<String> =
+            failed.iter().map(|t| format!("{} ({})", listed_name(&t.label), t.note.as_deref().unwrap_or("undefined"))).collect();
         parts.push(format!("{} failed: {}", failed.len(), list.join(", ")));
     }
     let skipped = of("skipped");
@@ -409,7 +410,11 @@ async fn verify_checks(lp: &Loop<'_>, tools: &[ToolInstall], out: &mut [ToolResu
         .enumerate()
         .filter(|(_, r)| r.outcome == "installed")
         .filter_map(|(i, r)| {
-            tools.iter().find(|t| t.id == r.id).and_then(|t| t.check.clone()).map(|check| CheckRow { idx: i, label: r.label.clone(), check })
+            tools.iter().find(|t| t.id == r.id).and_then(|t| t.check.clone()).map(|check| CheckRow {
+                idx: i,
+                label: r.label.clone(),
+                check,
+            })
         })
         .collect();
     if checked.is_empty() {
@@ -464,7 +469,14 @@ async fn landed(rows: &mut Vec<ToolResult>, on_tool: Option<&OnTool>, result: To
     }
 }
 
-async fn cleanup(lp: &Loop<'_>, keep_caches: bool, path: &str, prefix: Option<&str>, installed: &HashSet<String>, why: &str) -> Result<FreeDisk> {
+async fn cleanup(
+    lp: &Loop<'_>,
+    keep_caches: bool,
+    path: &str,
+    prefix: Option<&str>,
+    installed: &HashSet<String>,
+    why: &str,
+) -> Result<FreeDisk> {
     lp.stage(&format!("{why}; cleaning up before skipping"));
     let brew = if installed.contains("tools/homebrew") { brew_housekeeping(lp, path, prefix).await? } else { None };
     let swept = sweep(lp.machine, keep_caches, path).await?;
@@ -566,7 +578,8 @@ pub async fn install_tools_at(
             }
         }
         if let Some((have, need)) = too_big(&free, tool.bytes, keep) {
-            let why = format!("{} needs about {} with {} free above a {} floor", tool.label, fmt_bytes(need), fmt_bytes(have), fmt_bytes(keep));
+            let why =
+                format!("{} needs about {} with {} free above a {} floor", tool.label, fmt_bytes(need), fmt_bytes(have), fmt_bytes(keep));
             let after = if cleaned_at_floor {
                 None
             } else {
