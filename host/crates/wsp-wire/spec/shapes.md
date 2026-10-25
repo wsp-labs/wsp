@@ -48,7 +48,7 @@ The views the host sends and the records it keeps, as serde types. The implement
    which its `Deserialize` does (a custom `deserialize_with` the implementer adds in start.rs's hand-written part).
 8. Shapes named by `views/` but owned by the wire writer come from `crate::wire` (`PortForward` from `wire::limits`,
    `MachineSizeOffer` from `wire::capabilities`, `PermissionOption` and `PermissionEffect` from `wire::helpers`, `RelayPort`
-   from wsp_frames); the slate shapes (`SessionSlateEvent`, `SlateCause`, `SlateBy`) from `crate::types::slate_wire`.
+   from `wire::limits`); the slate shapes (`SessionSlateEvent`, `SlateCause`, `SlateBy`) from `crate::types::slate_wire`.
 
 ## Edge cases
 
