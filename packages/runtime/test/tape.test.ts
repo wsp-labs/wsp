@@ -76,10 +76,15 @@ describe("the tap", () => {
       JSON.stringify({ in: { id: 3, op: "agents.key", agent: "claude", key: "<redacted>" } }),
       JSON.stringify({ out: { id: 3, ok: false, error: "the key <redacted> was refused" } }),
     ]);
-    // A host token that is the text of the mark itself.
+    // A stand-in host token that is a word, or the text of the mark itself, is marked where it is the token alone.
     const apart = join(dir, "named");
-    tapeOf({ [TAPE_DIR_ENV]: apart }, "ws", "host-token")!.in({ id: 1, op: "auth", token: "host-token" });
-    expect(readFileSync(join(apart, readdirSync(apart)[0]!), "utf8").trimEnd().split("\n")[1]).toBe(JSON.stringify({ in: { id: 1, op: "auth", token: "<host-token>" } }));
+    const named = tapeOf({ [TAPE_DIR_ENV]: apart }, "ws", "host-token")!;
+    named.in({ id: 1, op: "auth", token: "host-token" });
+    named.out({ id: 1, ok: true, said: "the host-token input" });
+    expect(readFileSync(join(apart, readdirSync(apart)[0]!), "utf8").trimEnd().split("\n").slice(1)).toEqual([
+      JSON.stringify({ in: { id: 1, op: "auth", token: "<host-token>" } }),
+      JSON.stringify({ out: { id: 1, ok: true, said: "the host-token input" } }),
+    ]);
   });
 
   it("writes nothing when no folder is named", () => {

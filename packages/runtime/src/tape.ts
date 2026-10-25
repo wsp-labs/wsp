@@ -11,6 +11,8 @@ export const TAPE_SOURCE_ENV = "WSP_TAPE_SOURCE";
  * is `<redacted>` and stays that on a replay, so a frame that carried a wrong token is refused there too. */
 export const HOST_TOKEN_MARK = "<host-token>";
 const SECRET_MARK = "<redacted>";
+/** The shortest host token marked wherever it appears; a host mints 32 hex characters. */
+const MINTED_TOKEN_MIN = 16;
 
 /** The ways into a host a tape records: its websocket, the tool server on stdio, and the command line's words. */
 export type TapeDoor = "ws" | "mcp" | "cli";
@@ -37,9 +39,10 @@ export function tapeOf(env: Readonly<Record<string, string | undefined>>, door: 
   }
   const path = join(dir, `${door}-${process.pid}-${++opened}.tape`);
   const secrets = new Set<string>();
-  // Around the marks already written, since a host token can be the text of a mark ("host-token" is one).
+  // Around the marks already written, since a host token can be the text of a mark ("host-token" is one). In free
+  // text only a token as long as a minted one: a case's stand-in token is a word ("secret") that prose holds too.
   const marked = (text: string): string =>
-    hostToken === undefined || hostToken.trim().length < 4
+    hostToken === undefined || hostToken.trim().length < MINTED_TOKEN_MIN
       ? text
       : text
           .split(HOST_TOKEN_MARK)
