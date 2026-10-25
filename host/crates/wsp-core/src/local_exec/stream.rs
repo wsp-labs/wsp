@@ -12,6 +12,7 @@ use futures::stream::BoxStream;
 use wsp_adapters::port::{Attached, AttachRunOptions, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, Settle, SharedFuture, WriteOutcome};
 
 use super::reap::TreeWorkReader;
+use crate::ids::Ids;
 use crate::machine_exec::{NowFn, ReadingSet, TurnWaiting};
 
 /// How often the log is read and the limits are read against the clock.
@@ -52,12 +53,14 @@ pub struct LocalExecOptions {
     /// `tree_work()`, one per open, when `None`.
     pub read_work: Option<TreeWorkReader>,
     pub reading: Option<Arc<ReadingSet>>,
+    /// Where a run's name and late-line keys are drawn from (rule 3.16); `OsIds` when `None`.
+    pub ids: Option<Arc<dyn Ids + Send + Sync>>,
 }
 
 impl LocalExecOptions {
     /// Every option at its default but the two folders.
     pub fn new(root: impl Into<String>, run_dir: impl Into<String>) -> Self {
-        Self { root: root.into(), run_dir: run_dir.into(), idle_ms: None, deadline_ms: None, now: None, poll_ms: None, read_work: None, reading: None }
+        Self { root: root.into(), run_dir: run_dir.into(), idle_ms: None, deadline_ms: None, now: None, poll_ms: None, read_work: None, reading: None, ids: None }
     }
 }
 

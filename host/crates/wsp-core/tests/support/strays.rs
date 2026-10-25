@@ -22,6 +22,20 @@ pub async fn grandchild(file: &str) -> i32 {
     pid
 }
 
+/// Starts `cmd` as the leader of a group of its own and reaps it on a thread when it exits, as node reaps the
+/// children it spawns: an exited child nobody waits on stays a zombie, which `kill(pid, 0)` still reads as there.
+/// Recorded for the sweep.
+pub fn spawn_reaped(mut cmd: std::process::Command) -> i32 {
+    use std::os::unix::process::CommandExt;
+    let mut child = cmd.process_group(0).stdin(std::process::Stdio::null()).spawn().expect("the child");
+    let pid = child.id() as i32;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    record(pid);
+    pid
+}
+
 /// Records a pid this test started itself, for the sweep.
 pub fn record(pid: i32) {
     STRAYS.lock().unwrap().push((pid, group_of(pid)));

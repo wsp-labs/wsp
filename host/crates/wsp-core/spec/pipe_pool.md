@@ -67,7 +67,12 @@ that is behind, refusing its token, or unreachable.
 
 ## Decisions
 1. The byte stream is `PipeDuplex`: `AsyncRead + AsyncWrite + Send + Unpin`, over the socket's binary frames.
-2. Timers go through the runtime's `Clock` trait (rule 3.15); `unref` is dropped.
+2. Host state on the owner thread (rule 3.1): the options are `Rc` closures and `LocalBoxFuture`s, the pool is
+   `Rc<PipePool>` with a `RefCell` inside, dials are `spawn_local`ed (call it inside a `LocalSet`), and no borrow is
+   held across an `.await` or a call out (a handler, `rewrite`, `log`). Timers are core-b's `Clock` (rule 3.15).
+3. The default log is `crate::console::warn` (the TS `console.warn`).
+4. A url `daemon_ws_url` refuses (the TS `new URL` throws inside the reach's `then`, an unhandled rejection) leaves
+   the dial to its 15 s timer, as in the TS.
 
 ## After the port
 - `fill` logs the 64-in-use line once per crossing, but `take` clears the note only on a close below 64.

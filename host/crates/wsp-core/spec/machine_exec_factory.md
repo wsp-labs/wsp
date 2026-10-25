@@ -76,7 +76,9 @@ connecting host did not name. Every guest step is shell text; the shell builders
 1. The TS factory throws synchronously on a refused secret; the Rust trait's `launch` cannot fail. `try_launch`
    answers `Err(ExecFailure)` with the sentence and sends nothing; `launch` calls it and on `Err` answers a stream
    whose `lines` yields that one `Err`, whose `exited` is `None`, with no exec.
-2. `now` and `sleep` mirror the TS options one for one (`Arc<dyn Fn() -> i64>`, `Arc<dyn Fn(u64) -> BoxFuture>`);
+2. A run's name, the sentinels, the reap mark and a late line's key are drawn through the `Ids` seam (rule 3.16,
+   `ids`, `OsIds` by default): `hex(ids.bytes(6))`.
+3. `now` and `sleep` mirror the TS options one for one (`Arc<dyn Fn() -> i64>`, `Arc<dyn Fn(u64) -> BoxFuture>`);
    the factory builds the engine's `RetryClock` from them for `until_reached`, with the real random draw.
 
 ## After the port
@@ -96,4 +98,4 @@ Ported from machine-exec.test.ts (lines in brackets): 1-3,8 `launches_detached_s
 `a_seeded_prompt_over_the_cap_goes_up_in_pieces_ahead_of_the_launch_every_exec` [296]; 7,8 the eleven launch-retry
 cases [821-1082]; 9 the twelve attach cases [1146-1306] and [1328]; 10 the three sweep cases [1530-1590]; 4 the two
 secret cases [1968, 1986] and the two key cases [1356 x2, 1398]; 7 `a_launch_posted_twice_under_one_base_as_a_retried_exec_does_starts_the_script` [1310].
-Pinned beyond the TS: `the_shell_builders_are_the_ts_text_byte_for_byte` (rule 3, against text node printed).
+Pinned beyond the TS (tests/machine_exec_shell.rs): `the_shell_text_is_the_ts_text_byte_for_byte` and `the_shell_builders_are_the_ts_text` (rules 3, 5, 6, 9, 10 against the text node printed, tests/fixtures/machine_exec_shell.json), `a_handle_is_minted_only_in_the_run_folder_with_12_lowercase_hex` (rule 2).

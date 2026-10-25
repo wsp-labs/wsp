@@ -31,6 +31,9 @@ and are dialled again on a new machine. `cut_off` asks the broker to revoke a ma
    workspace id rather than handed the record, since the record type is the wiring's; the wiring's predicate reads
    the live record of that id.
 
+## Decisions, continued
+2. Single-threaded as the pool (`Rc`, `LocalBoxFuture`); `cut_off` warns through `crate::console::warn`.
+
 ## Rules against tests
 1 `dials_nothing_on_a_host_that_wired_no_broker`; 2, 3 `keeps_4_pipes_to_each_running_brokered_workspace_none_to_a_joined_computer_s`;
 4 `closes_a_workspace_s_pipes_as_it_naps_dials_4_again_as_it_wakes_and_none_after`,

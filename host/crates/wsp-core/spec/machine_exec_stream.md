@@ -52,7 +52,8 @@ channel's writes, closes and held lines. The run belongs to the machine: a reade
    the first reap read is the end every later read stops at; reads repeat while a chunk came and offset < end; when
    nothing came back, or offset < end, one more exec `rm -rf 'b'.*; true` removes the files; the tail no newline
    ended is yielded last. An exec failure reads as nothing came back.
-10. `write(line)`: no input fails `this stream has no input channel`; settled fails `the stream has ended`; else wait
+10. `write(line)` takes its place when called, not when its future first runs (the TS async body runs to its first
+    `await` at the call): the line parked before it is read at the call (machine-exec.ts:663). No input fails `this stream has no input channel`; settled fails `the stream has ended`; else wait
     for the opening (its failure is the write's), then for the line parked before this call (only that one), then
     append: through the one-at-a-time chain, `put_files(machine, [base.in += line\n], before: [`{ [ -e 'b'.exit ] || [
     ! -d 'b.d' ]; } && { echo WSP_GONE; exit 0; }`, release_held(b)], after: ["echo WSP_OK"])`. `WSP_GONE` answers

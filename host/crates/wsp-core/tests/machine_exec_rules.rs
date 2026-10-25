@@ -187,11 +187,12 @@ own_group_test!(a_child_that_burned_cpu_and_was_reaped_stays_in_its_run_s_readin
     if !std::path::Path::new("/proc/1/stat").exists() {
         return;
     }
-    use std::os::unix::process::CommandExt;
-    let group = Command::new("sh").args(["-c", "timeout 0.5 sh -c 'while :; do :; done'; exec sleep 30"]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).process_group(0).spawn().unwrap();
+    let mut sh = Command::new("sh");
+    sh.args(["-c", "timeout 0.5 sh -c 'while :; do :; done'; exec sleep 30"]).stdout(std::process::Stdio::null());
+    let group = support::strays::spawn_reaped(sh);
     support::sleep_ms(900).await;
-    let read = read_live(group.id());
-    support::strays::kill_group(group.id() as i32);
+    let read = read_live(group as u32);
+    support::strays::kill_group(group);
     assert!(read >= 20, "read {read}");
 });
 
