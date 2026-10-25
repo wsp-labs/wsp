@@ -359,6 +359,12 @@ pub struct Recorded {
 /// Every tape replayed against the TS host and its answers written as the golden, the TS tree's hash beside them;
 /// goldens of tapes that are gone are taken out.
 pub fn record(root: &Path, host: &dyn Host, opts: &Options, ops: &[String]) -> Result<Recorded, String> {
+    // Asked before the replays rather than after them: a run of every tape takes minutes.
+    let probe = root.join(golden::GOLDENS_DIR).join(".writable");
+    std::fs::create_dir_all(root.join(golden::GOLDENS_DIR))
+        .and_then(|_| std::fs::write(&probe, b""))
+        .and_then(|_| std::fs::remove_file(&probe))
+        .map_err(|e| format!("{} cannot be written: {e}", golden::GOLDENS_DIR))?;
     let tapes = selected(root, opts)?;
     let replays = replay_all(host, &tapes, opts);
     let mut written = 0;
