@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The tap the parity harness records the host's wire with: every frame in and out of a socket, one JSON line each,
 // with no secret on any line.
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -152,6 +152,97 @@ describe("the tap", () => {
     mcp.in({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "servers_add", arguments: { name: "gl", env: { GITLAB_TOKEN: glpat } } } });
     const text = readdirSync(dir).map(f => readFileSync(join(dir, f), "utf8")).join("");
     expect(secrets.filter(s => text.includes(s))).toEqual([]);
+  });
+
+  it("blanks the password in an address's login and a login shaped like a key, and leaves who signs in", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    const [password, key] = ["pw-in-a-login-7", "Zq9eK2vLpR7sTb4WnY8x0123"];
+    tapeOf({ [TAPE_DIR_ENV]: dir }, "cli")!.in({ argv: ["projects", "add", `https://deploy:${password}@git.example/repo.git`, `https://${key}@host.example/x`, "ssh://git@github.com/acme/app.git", "https://dev@host.example/y"] });
+    const text = readFileSync(join(dir, readdirSync(dir)[0]!), "utf8");
+    expect([password, key].filter(s => text.includes(s))).toEqual([]);
+    for (const kept of ["https://deploy:<redacted-", "ssh://git@github.com/acme/app.git", "https://dev@host.example/y"]) expect(text).toContain(kept);
+  });
+
+  it("blanks the host's own ticket and every secret a query or a fragment names", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    const secrets = ["ticket-value-1", "api-key-value-2", "password-value-3", "client-secret-4", "amz-signature-5", "sas-signature-6", "fragment-token-7"];
+    const [ticket, apiKey, password, client, amz, sig, fragment] = secrets;
+    const said = [
+      `https://host.example/connect?ticket=${ticket}`,
+      `https://api.example/v1?api_key=${apiKey}&user=dev`,
+      `https://db.example/?password=${password}`,
+      `https://auth.example/token?client_id=wsp&client_secret=${client}`,
+      `https://bucket.s3.example/o?X-Amz-Date=20261025&X-Amz-Signature=${amz}`,
+      `https://store.example/b?sv=2024&sig=${sig}`,
+      `https://app.example/cb#access_token=${fragment}&state=x`,
+    ].join(" ");
+    tapeOf({ [TAPE_DIR_ENV]: dir }, "mcp")!.out({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: said }] } });
+    const text = readFileSync(join(dir, readdirSync(dir)[0]!), "utf8");
+    expect(secrets.filter(s => text.includes(s))).toEqual([]);
+    for (const kept of ["user=dev", "client_id=wsp", "X-Amz-Date=20261025", "sv=2024", "state=x"]) expect(text).toContain(kept);
+  });
+
+  it("blanks every value of an environment or a headers record and a secret-named field at any depth in a frame", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    const secrets = ["env-value-in-a-pty", "env-value-in-a-tool", "header-value-nested", "nested-api-key", "nested-client-secret", "nested-password"];
+    const [ptyEnv, toolEnv, header, apiKey, client, password] = secrets;
+    const ws = tapeOf({ [TAPE_DIR_ENV]: dir }, "ws", HOST_TOKEN)!;
+    ws.in({ id: 7, op: "daemon.send", channel: "c1", frame: { id: 1, op: "pty.create", cols: 80, env: { PLAIN_NAME: ptyEnv } } });
+    const mcp = tapeOf({ [TAPE_DIR_ENV]: dir }, "mcp")!;
+    mcp.in({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "servers_add", arguments: { name: "x", env: { PLAIN: toolEnv }, remote: { headers: { "X-Plain": header } } } } });
+    mcp.in({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { arguments: { config: { apiKey, client_secret: client, login: { password } } } } });
+    const text = readdirSync(dir).map(f => readFileSync(join(dir, f), "utf8")).join("");
+    expect(secrets.filter(s => text.includes(s))).toEqual([]);
+    for (const kept of ["PLAIN_NAME", "X-Plain", "\"cols\":80"]) expect(text).toContain(kept);
+  });
+
+  it("withholds whatever is typed into a terminal, however deep the frame that carries it", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    const typed = "hunter2-at-a-sudo-prompt";
+    const ws = tapeOf({ [TAPE_DIR_ENV]: dir }, "ws", HOST_TOKEN)!;
+    ws.in({ id: 8, op: "daemon.send", channel: "c1", frame: { op: "pty.write", ptyId: "p1", data: `${typed}\r` } });
+    ws.in({ id: 9, op: "daemon.send", channel: "c1", frame: { wrapped: { op: "pty.write", ptyId: "p1", data: typed } } });
+    const lines = readFileSync(join(dir, readdirSync(dir)[0]!), "utf8").trimEnd().split("\n").slice(1);
+    expect(lines.join("\n")).not.toContain(typed);
+    expect(JSON.parse(lines[0]!)).toEqual({ in: { id: 8, op: "daemon.send", channel: "c1", frame: { op: "pty.write", ptyId: "p1", data: "<withheld: typed>" } } });
+    expect(JSON.parse(lines[1]!).in.frame.wrapped.data).toBe("<withheld: typed>");
+  });
+
+  it("marks a thread's host token off the environment on the command line, and blanks every secret-named value the environment holds", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    const [token, turn, key] = ["fedcba9876543210fedcba9876543210", "turn-of-the-thread-1", "plain-words-for-a-key"];
+    const env = { [TAPE_DIR_ENV]: dir, WSP_HOST_TOKEN: token, WSP_TURN: turn, ACME_API_KEY: key, SHORT_KEY: "true" };
+    tapeOf(env, "cli")!.in({ argv: ["exec", "t", "--", "echo", token] });
+    tapeOf(env, "mcp")!.out({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: `turn ${turn} read ${key} and ${token}` }], said: "true" } });
+    const text = readdirSync(dir).map(f => readFileSync(join(dir, f), "utf8")).join("");
+    expect([token, turn, key].filter(s => text.includes(s))).toEqual([]);
+    expect(text).toContain(JSON.stringify({ in: { argv: ["exec", "t", "--", "echo", "<host-token>"] } }));
+    expect(text).toContain("and <host-token>");
+    expect(text).toContain("\"said\":\"true\"");
+  });
+
+  it("blanks the token shapes the host's cuts know: GitLab's, Google's, a JWT and a private key through its END line", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    // Each built at run time, so a scanner reading the source takes none of them for a live token.
+    const glpat = ["glpat", "Zq9fK2vLpR7sTb4WnY8x"].join("-");
+    const google = "AIzaSyZq9fK2vLpR7sTb4WnY8x0123456789ab";
+    const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ3c3AifQ.c2lnbmF0dXJlLWhlcmU";
+    const body = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC";
+    const pem = `-----BEGIN RSA PRIVATE KEY-----\n${body}\n-----END RSA PRIVATE KEY-----`;
+    tapeOf({ [TAPE_DIR_ENV]: dir }, "mcp")!.out({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: `${glpat} ${google} ${jwt}\n${pem}\nafter the key` }] } });
+    const text = readFileSync(join(dir, readdirSync(dir)[0]!), "utf8");
+    expect([glpat, google, jwt, body, "PRIVATE KEY"].filter(s => text.includes(s))).toEqual([]);
+    expect(text).toContain("after the key");
+  });
+
+  it("leaves a range of numbers that reads like a join code, blanks a real code, and writes its tape for the owner alone", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    tapeOf({ [TAPE_DIR_ENV]: dir }, "ws")!.out({ id: 2, ok: true, said: "from 2025-2026 on ports 3000-3999, code K7QX-M2PA, join 1234-5678.SHA256:abc" });
+    const file = join(dir, readdirSync(dir)[0]!);
+    const text = readFileSync(file, "utf8");
+    for (const kept of ["2025-2026", "3000-3999"]) expect(text).toContain(kept);
+    for (const code of ["K7QX-M2PA", "1234-5678"]) expect(text).not.toContain(code);
+    expect(statSync(file).mode & 0o777).toBe(0o600);
   });
 
   it("writes nothing when no folder is named", () => {

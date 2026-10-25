@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { requestSecrets, SCANNED_SECRETS, SECRET_REQUEST_FIELDS } from "@wsp/protocol";
+import { blankTokens, HOST_TOKEN_ENV, KEYLIKE_SEGMENT, requestSecrets, SCANNED_SECRETS, SECRET_REQUEST_FIELDS, TURN_TOKEN_ENV } from "@wsp/protocol";
 
 /** The folder every door of this process writes its tapes into; unset, nothing is written. */
 export const TAPE_DIR_ENV = "WSP_TAPE_DIR";
@@ -16,22 +16,37 @@ export const HOST_TOKEN_MARK = "<host-token>";
 const MINTED_TOKEN_MIN = 16;
 /** The shortest secret also blanked in free text: a shorter one is a case's stand-in, which prose holds as a word. */
 const FREE_TEXT_MIN = 4;
-/** Fields whose value is a secret wherever in a frame they sit: a paired device's bearer nests in place.prove's
- * answer as `device.deviceToken`. */
-const DEEP_SECRET_FIELDS = new Set(["token", "turnToken", "ticket", "deviceToken", "passphrase", "sudoPassword"]);
+/** The shortest value of a secret-named variable in this process's environment blanked wherever it appears: a
+ * shorter one is a switch or a port, and blanking it would rewrite the same text in every frame. */
+const ENV_SECRET_MIN = 8;
+/** Fields whose value is a secret wherever in a frame they sit, by their name with case, `_` and `-` dropped: a paired
+ * device's bearer nests in place.prove's answer as `device.deviceToken`. A bare `key` nested is a row's id ("claude"). */
+const DEEP_SECRET_FIELDS = new Set([
+  "token", "turntoken", "ticket", "devicetoken", "accesstoken", "refreshtoken", "idtoken", "passphrase", "password", "passwd", "sudopassword",
+  "secret", "clientsecret", "apikey", "privatekey", "secretkey", "accesskey", "authorization", "cookie",
+]);
+/** Records whose every value is a secret wherever in a frame they sit: an environment and a server's headers. */
+const SECRET_RECORDS = new Set(["env", "envs", "headers"]);
+/** What a terminal is typed, which no shape can read a password at a sudo prompt out of. */
+const TYPED_MARK = "<withheld: typed>";
+/** A variable's name that reads as a secret's, here and in NAME=value text. */
+const SECRET_NAME = "[A-Z][A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|API_KEY|_KEY)";
 /** A command line's flags whose next word is a secret, as `wsp join <url> --code <code>` takes one. */
 const SECRET_FLAG = /^--(?:code|token|key|password|passphrase|secret)$/;
 /** Text that carries a secret whatever field holds it: a flag's value in a command written out, a pairing or join code
- * with the fingerprint after it (standing alone, so never two groups of a uuid), a bearer in a URL's query, NAME=value for a secret's name, a Bearer header, and the
- * prefixes providers mint keys with. The second group, where there is one, is the secret. */
+ * with the fingerprint after it (standing alone, so never two groups of a uuid, and with a letter or the fingerprint,
+ * so never a range of years), a secret in a URL's query or fragment, NAME=value for a secret's name and a Bearer
+ * header. The second group, where there is one, is the secret. */
 const SECRET_SHAPES: readonly RegExp[] = [
   /(--(?:code|token|key|password|passphrase|secret)(?:=|\s+))([^\s"'\\]+)/g,
-  /()(?<![0-9A-Za-z-])[0-9A-Z]{4}-[0-9A-Z]{4}(?:\.SHA256:[A-Za-z0-9+/=]+)?(?![0-9A-Za-z-])/g,
-  /([?&](?:[a-z_]*token|key|secret|code|sig|auth)=)([^&\s"'\\]+)/gi,
-  /\b([A-Z][A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|API_KEY|_KEY)=)([^\s"'\\]+)/g,
+  /()(?<![0-9A-Za-z-])(?![0-9]{4}-[0-9]{4}(?!\.SHA256:))[0-9A-Z]{4}-[0-9A-Z]{4}(?:\.SHA256:[A-Za-z0-9+/=]+)?(?![0-9A-Za-z-])/g,
+  /([?&#](?:[a-z_-]*(?:token|key|secret|password|passwd|signature|credential|auth)|sig|code|ticket)=)([^&#\s"'\\]+)/gi,
+  new RegExp(String.raw`\b(${SECRET_NAME}=)([^\s"'\\]+)`, "g"),
   /(\bBearer\s+)([^\s"'\\]+)/g,
-  /()\b(?:sk-ant-|sk-|ghp_|gho_|ghu_|ghs_|github_pat_|xox[abpr]-|AKIA)[A-Za-z0-9_-]{8,}/g,
 ];
+/** An address's login: a password after its user name, or the whole of it where it is shaped like a key; `git@` and
+ * `dev@` are who signs in, never how. */
+const LOGIN = /([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^\s/?#@"'\\]+)@/g;
 
 /** The ways into a host a tape records: its websocket, the tool server on stdio, and the command line's words. */
 export type TapeDoor = "ws" | "mcp" | "cli";
@@ -47,8 +62,9 @@ let opened = 0;
 /** A tape for one connection through `door`, or none when the environment names no folder. Every secret a frame in
  * either direction carries is blanked on that line and every line after it, since a token sent in a request comes back
  * in the answers that echo it; a secret field is blanked whatever its length, which `redacted()` leaves alone under
- * four characters. */
-export function tapeOf(env: Readonly<Record<string, string | undefined>>, door: TapeDoor, hostToken?: string): Tape | undefined {
+ * four characters. With no host token given, the thread's own off the environment is the one marked, and every
+ * secret-named value of the environment is blanked wherever a frame carries it. */
+export function tapeOf(env: Readonly<Record<string, string | undefined>>, door: TapeDoor, given?: string): Tape | undefined {
   const dir = env[TAPE_DIR_ENV];
   if (dir === undefined || dir === "") return undefined;
   try {
@@ -57,6 +73,9 @@ export function tapeOf(env: Readonly<Record<string, string | undefined>>, door: 
     return undefined;
   }
   const path = join(dir, `${door}-${process.pid}-${++opened}.tape`);
+  const hostToken = given ?? (env[HOST_TOKEN_ENV] || undefined);
+  const named = new RegExp(`^${SECRET_NAME}$`);
+  const held = Object.entries(env).flatMap(([n, v]) => (v !== undefined && v !== hostToken && v.trim().length >= ENV_SECRET_MIN && (n === TURN_TOKEN_ENV || named.test(n)) ? [v] : []));
   const secrets = new Map<string, string>();
   const mark = (v: string): string => {
     if (v === hostToken) return HOST_TOKEN_MARK;
@@ -75,19 +94,21 @@ export function tapeOf(env: Readonly<Record<string, string | undefined>>, door: 
           .join(HOST_TOKEN_MARK);
   // Every secret seen so far, blanked wherever it appears again: a token sent in a request comes back in the answers
   // that echo it. Longest first, so one secret holding another is blanked whole.
-  const scrubbed = (text: string): string =>
-    [...secrets]
+  const scrubbed = (text: string): string => {
+    for (const v of held) if (!secrets.has(v) && text.includes(JSON.stringify(v).slice(1, -1))) mark(v);
+    return [...secrets]
       .filter(([v]) => v.trim().length >= FREE_TEXT_MIN)
       .sort(([a], [b]) => b.length - a.length)
       .reduce((t, [v, m]) => t.split(JSON.stringify(v).slice(1, -1)).join(m), text);
+  };
   // A tape is a witness: a frame it cannot write, one nested past what JSON.stringify walks or a full disk, costs
   // the tape that line and never changes what the host answers.
   const write = (line: Record<string, unknown>): void => {
     try {
-      appendFileSync(path, `${scrubbed(marked(JSON.stringify(line)))}\n`);
+      appendFileSync(path, `${scrubbed(marked(JSON.stringify(line)))}\n`, { mode: 0o600 });
     } catch (e) {
       try {
-        appendFileSync(path, `${JSON.stringify({ [Object.keys(line)[0]!]: `<not written: ${e instanceof Error ? e.name : "error"}>` })}\n`);
+        appendFileSync(path, `${JSON.stringify({ [Object.keys(line)[0]!]: `<not written: ${e instanceof Error ? e.name : "error"}>` })}\n`, { mode: 0o600 });
       } catch {
         // The disk took neither line; the host goes on answering.
       }
@@ -113,27 +134,43 @@ export function tapeOf(env: Readonly<Record<string, string | undefined>>, door: 
 const DEPTH_MAX = 64;
 
 /** The frame with every secret marked: a secret field's value one level into a record as `requestSecrets` reads it,
- * the fields that are a secret anywhere, a flag's next word, and every secret-shaped run of text. */
+ * the fields and records that are a secret anywhere, what a terminal is typed, a flag's next word, and every
+ * secret-shaped run of text. */
 function blanked(frame: unknown, mark: (v: string) => string, depth: number): unknown {
   if (depth > DEPTH_MAX) return frame;
   if (typeof frame === "string") return shaped(frame, mark);
   if (Array.isArray(frame)) {
     return frame.map((v, i) => (typeof v === "string" && i > 0 && typeof frame[i - 1] === "string" && SECRET_FLAG.test(frame[i - 1] as string) ? mark(v) : blanked(v, mark, depth + 1)));
   }
-  if (typeof frame !== "object" || frame === null) return frame;
+  if (!isRecord(frame)) return frame;
+  const typed = frame["op"] === "pty.write";
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(frame as Record<string, unknown>)) {
+  for (const [k, v] of Object.entries(frame)) {
     const field = depth === 0 && SECRET_REQUEST_FIELDS.includes(k);
-    if (typeof v === "string" && (field || DEEP_SECRET_FIELDS.has(k))) out[k] = mark(v);
-    else if (field && typeof v === "object" && v !== null && !Array.isArray(v)) out[k] = Object.fromEntries(Object.entries(v).map(([n, x]) => [n, typeof x === "string" ? mark(x) : x]));
+    if (typed && k === "data") out[k] = TYPED_MARK;
+    else if (typeof v === "string" && (field || DEEP_SECRET_FIELDS.has(k.replace(/[-_]/g, "").toLowerCase()))) out[k] = mark(v);
+    else if ((field || SECRET_RECORDS.has(k)) && isRecord(v)) out[k] = secretRecord(v, mark);
     else out[k] = blanked(v, mark, depth + 1);
   }
   return out;
 }
 
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** A secret record with every string in it marked, and a record of records (`envs`, an environment each) as deep as it goes. */
+function secretRecord(v: Record<string, unknown>, mark: (v: string) => string): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(v).map(([n, x]) => [n, typeof x === "string" ? mark(x) : isRecord(x) ? secretRecord(x, mark) : x]));
+}
+
 /** A run of text with each secret-shaped piece of it marked. */
 function shaped(text: string, mark: (v: string) => string): string {
-  return SECRET_SHAPES.reduce((t, shape) => t.replace(shape, (whole: string, before: string, secret?: string) => (typeof secret === "string" ? `${before}${mark(secret)}` : mark(whole))), text);
+  const logins = text.replace(LOGIN, (whole: string, scheme: string, login: string) => {
+    const colon = login.indexOf(":");
+    if (colon === -1) return KEYLIKE_SEGMENT.test(login) ? `${scheme}${mark(login)}@` : whole;
+    return colon === login.length - 1 ? whole : `${scheme}${login.slice(0, colon + 1)}${mark(login.slice(colon + 1))}@`;
+  });
+  const shapes = SECRET_SHAPES.reduce((t, shape) => t.replace(shape, (whole: string, before: string, secret?: string) => (typeof secret === "string" ? `${before}${mark(secret)}` : mark(whole))), logins);
+  return blankTokens(shapes, mark);
 }
 
 function parseOr(text: string): unknown {
