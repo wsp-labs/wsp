@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // A question the person answers with one press: the question as a setting's title, the answers as keycaps, the
 // agent's pick named under them with its reason, the other answers' notes under that, quieter. A press writes the answer to the piece's $value and raises change,
-// which sends it; once answered, the answer stands in the row with a check and a quiet Change.
+// which sends it; once answered, the answer stands in the row with a check and a quiet Change. A held decision says
+// why under itself, as a held button does.
 import { useRef } from "react";
 import { Check } from "lucide-react";
 import type { SlateJson } from "@wsp/protocol/slate";
@@ -54,7 +55,7 @@ export const decision: PieceView = {
           <>
             <span role="group" aria-label={str(props["label"])} className="flex min-w-0 flex-wrap gap-2">
               {answers.map((answer, at) => (
-                <Button key={at} data-slate-answer={at} data-slate-mine={answer === mine ? "" : undefined} variant="outline" disabled={busy || held !== undefined || path === undefined} title={held} onClick={() => choose(answer.value)} className={cn(answer === mine && "border-foreground/30")}>
+                <Button key={at} data-slate-answer={at} data-slate-mine={answer === mine ? "" : undefined} variant="outline" disabled={busy || held !== undefined || path === undefined} onClick={() => choose(answer.value)} className={cn(answer === mine && "border-foreground/30")}>
                   {answer.label}
                 </Button>
               ))}
@@ -78,6 +79,7 @@ export const decision: PieceView = {
             </Button>
           </span>
         )}
+        {held === undefined ? null : <span data-slate-held-why className={NOTE}>{held}</span>}
         <Outcome said={said} refused={refused} />
       </div>
     );

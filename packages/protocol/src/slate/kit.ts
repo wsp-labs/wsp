@@ -122,7 +122,7 @@ export interface SlatePieceModule {
   collapsed?(view: SlateSketchView): boolean;
   /** The rules only this piece is held to, beyond its props' types. */
   check?(piece: SlatePieceCheck): void;
-  /** How the person takes it in at a glance: as words to read, or by eye (#2439). */
+  /** How the person takes it in at a glance: as words to read, or by eye. */
   reads?: "words" | "eye";
   /** Draws a tick on every row, done or not, so a list the person does not tick with every row done is warned. */
   ticks?: true;

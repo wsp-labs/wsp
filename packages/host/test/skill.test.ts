@@ -487,4 +487,9 @@ describe("what a slate is for", () => {
     for (const [where, text] of Object.entries(places)) expect(text, where).toContain(SLATE_PURPOSE);
     expect(slateCatalog().startsWith(SLATE_PURPOSE)).toBe(true);
   });
+
+  it("says never to poll in chat where every agent reads it, not in Claude's brief alone", () => {
+    const write = SLATE_VERBS.filter(hasTool).find(v => v.name === "slate write")!;
+    for (const [where, text] of Object.entries({ "the catalog's index": slateCatalog(), "slate write's description": write.tool.description })) expect(text, where).toMatch(/never poll in chat/i);
+  });
 });

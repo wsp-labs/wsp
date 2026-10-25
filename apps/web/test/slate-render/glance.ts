@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The pieces #2468 adds or changes, each in a slate the size an agent writes: stat rows of two, three and four tiles
+// The new and changed slate pieces, each in a slate the size an agent writes: stat rows of two, three and four tiles
 // with long labels and windows, a decision, a progress, a summary-first output, a facts line, choices and a table.
 import type { SlateJson } from "@wsp/protocol/slate";
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The pieces #2468 adds or changes, measured in Chromium at the panel's 400 and 640 px in graphite and paper: a stat
+// The new and changed slate pieces, measured in Chromium at the panel's 400 and 640 px in graphite and paper: a stat
 // row's labels and windows on one line and cut with their whole words on hover, its figures on one baseline, each ring
 // beside its figure, and under 480 px two or four tiles two a row and three one a line; a facts line one fact a line
 // under 480 px; a decision, a progress, a summary-first output, choices and a table drawn inside the panel. Each case
@@ -151,7 +151,7 @@ describe.skipIf(renderSkipped !== undefined)("the glance pieces in Chromium", ()
         log: document.querySelector("[role=log]") !== null,
         fold: document.querySelector("[data-slate-fold]")?.textContent ?? null,
         options: document.querySelectorAll("[data-slate-piece=choices] button").length,
-        // The header is the card's first row, inside its border (#2439).
+        // The header is the card's first row, inside its border.
         head: document.querySelector("[data-slate-head]")?.parentElement?.className.includes("bg-card") === true,
       }));
       if (doc === "glance-decision") {
