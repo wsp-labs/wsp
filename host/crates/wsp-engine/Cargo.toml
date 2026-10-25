@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-engine"
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The roads that build, fork and run machines: the backends, the errors they answer, and the lifecycle the runtime drives"
+
+[dependencies]
+async-trait = "0.1"
+base64 = "0.22"
+flate2 = "1"
+futures = "0.3"
+hex = "0.4"
+indexmap = { version = "2", features = ["serde"] }
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["process", "time", "io-util", "fs", "rt", "rt-multi-thread", "macros", "sync"] }
+tokio-util = "0.7"
+url = "2"
+wsp-catalog = { path = "../wsp-catalog" }
+wsp-wire = { path = "../wsp-wire" }
+wsp-words = { path = "../wsp-words" }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "test-util"] }
