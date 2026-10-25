@@ -151,19 +151,21 @@ describe("every route, as raw HTML", () => {
     }
   });
 
-  it("serves /blog with no draft in it, kept out of search until a post is published, and a well-formed feed", () => {
+  it("serves /blog with its published posts and no draft, in search and in a well-formed feed", () => {
     const blog = built("blog/index.html");
     expect(blog).toContain("<title>Blog: wsp</title>");
-    expect(blog).toContain('content="noindex"');
+    expect(blog).not.toContain('content="noindex"');
+    expect(blog).toContain('href="/blog/mcp-freeze"');
     expect(blog).not.toContain("A sample post");
     expect(() => built("blog/sample/index.html")).toThrow();
-    expect(built("sitemap.xml")).not.toContain("/blog");
+    expect(built("sitemap.xml")).toContain("<loc>https://usewsp.com/blog/mcp-freeze</loc>");
     expect(built("index.html")).toContain('type="application/rss+xml"');
     const feed = built("blog/rss.xml");
     expect(feed).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?>\n<rss version="2.0"/);
     expect(feed).toContain("<link>https://usewsp.com/blog</link>");
     expect(feed).toContain('<atom:link href="https://usewsp.com/blog/rss.xml" rel="self" type="application/rss+xml" />');
-    expect(feed).not.toContain("<item>");
+    expect(feed).toContain("<link>https://usewsp.com/blog/mcp-freeze</link>");
+    expect(feed).not.toContain("A sample post");
     expect(new DOMParser().parseFromString(feed, "application/xml").querySelector("parsererror")).toBeNull();
   });
 
