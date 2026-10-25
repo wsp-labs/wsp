@@ -49,8 +49,8 @@ headless run, compared byte for byte, sqlite by rows), the merge run tests in `t
   order. entries: every file under each slug's `tmp` and `history` dirs, all sorted.
 - A13. shared: the registry filtered to keys under PATH (the oracle's filter lines). listing: each string slug of the
   copy, its tmp and history dirs said.
-- A14. merge: `[old, target, slug]` for every registry key under `from`; none is `None`. The script (oracle-pinned
-  shape): creates HOME, reads or starts the machine's registry, fails `slug <s> already belongs to <other> in <REG>`
+- A14. merge: `[old, target, slug]` for every registry key under `from`; none is `None`. The script (its whole text
+  pinned since by `the_gemini_merge_script_is_the_ts_text`): creates HOME, reads or starts the machine's registry, fails `slug <s> already belongs to <other> in <REG>`
   before any write, keeps a slug the machine already maps to the target (`kept`, with a note where it is another slug),
   adds the rest (`merged`), rewrites a landed `.project_root` whose stripped text is the old path, writes the registry
   only where something was added.
@@ -71,6 +71,25 @@ headless run, compared byte for byte, sqlite by rows), the merge run tests in `t
 A home without the module's files is `[]`, 0 sessions, no entries, no merge. Nothing is kept in memory; the moves
 write in place, so what survives a restart is the moved files.
 
+## Pinned since (M-rules, values from the TS's run, tests/fixtures/oracle/strengthen_pstate.json)
+
+- M6. gemini writes the whole registry back as `JSON.stringify(registry, null, 2) + "\n"`: compact input comes out
+  pretty, `1.0` is `1`, nested index keys reorder, an empty `{}` stays compact, other top-level keys keep their place.
+- M7. The registry is written first, then the markers (states outer, folders inner), with no rollback: a marker with a
+  second hard link fails with the hard-link sentence while the registry and the markers before it are rewritten and
+  the later ones are not reached.
+- M8. A registry with no `projects` fails the move `Cannot convert undefined or null to object` (while counts read it
+  as 0); a non-string slug fails with node's `The "path" argument must be of type string. Received type number (5)`;
+  a target held by `null` counts as taken (`<target> already exists in <file>`); an unsafe slug (`../x`) is skipped
+  before the check; `projects: []` is `Nothing`. JSON parse failures carry V8's words, which the port cannot match:
+  those messages are not compared.
+- M9. The gemini merge script is the TS's text byte for byte (KEYS carries every key under `from`, an unsafe slug
+  included); a slug registered twice is counted twice (sessions 2, bytes 22 for one 8-byte marker and one 3-byte chat).
+- M10. `rollout_under` checks containment against the home, not `<home>/sessions`: `sessions/../state_5.sqlite` is
+  `<home>/state_5.sqlite`, a path ending `/sessions/` is `<home>/sessions`. Codex's move is index first, rollouts
+  after: a failing rollout leaves the index moved. hermes's merge fails `no such table: messages` when the source
+  lacks it. A marker's trailing-space test is JS `trimEnd` (strips U+FEFF, keeps U+0085); not pinned.
+
 ## Rules and their tests
 
 Files: `project_state_agents.rs` (agents), `project_state_core.rs` (core), `project_state_scripts.rs` (scripts),
@@ -78,6 +97,11 @@ Files: `project_state_agents.rs` (agents), `project_state_core.rs` (core), `proj
 
 | Rule | Tests |
 |---|---|
+| M6 | project_state_more.rs: `gemini_writes_the_whole_registry_back_as_js_stringify_does` |
+| M7 | project_state_more.rs: `a_gemini_marker_that_cannot_be_written_leaves_the_registry_moved` |
+| M8 | project_state_more.rs: `gemini_registry_shapes_answer_as_the_ts_does` |
+| M9 | project_state_more.rs: `the_gemini_merge_script_is_the_ts_text`, `a_slug_registered_twice_is_counted_twice` |
+| M10 | project_state_more.rs: `rollouts_index_keys_listing_lines_and_an_empty_note` |
 | A1 to A3 | agents: the four `claude_` tests; core `a_claude_code_directory_holding_memory_alone_is_zero_sessions` |
 | A4 | agents: the two `pi_` tests; hard `pi_keys_match_the_ts_oracle` |
 | A5 to A9 | agents: the four `codex_` tests; scripts: the three `codex_` merge tests and `codex_the_copy_of_the_index_holds_the_projects_threads_alone_and_the_store_on_the_machine_is_not_touched` |

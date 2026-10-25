@@ -270,3 +270,101 @@ it("child exec: a signal death, the drain's quiet restarted by stderr, an exit w
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, "strengthen_child.json"), `${JSON.stringify(child, null, 2)}\n`);
 }, 60_000);
+
+// ---- project state: half-done moves, the gemini registry, line rewrites (strengthen_pstate.json)
+import { linkSync, mkdtempSync, readdirSync, lstatSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { countProjectState, filesUnder, moveProjectState } from "../../../../packages/engine/src/project-state/index.js";
+import { geminiResolver } from "../../../../packages/engine/src/project-state/gemini.js";
+import { rewriteCwd } from "../../../../packages/engine/src/project-state/resolver.js";
+
+it("project state", async () => {
+  const ps: Record<string, unknown> = {};
+  const homeOf = (): string => mkdtempSync(join(tmpdir(), "wsp-ps-"));
+  const put = (root: string, rel: string, text: string | Buffer): void => {
+    mkdirSync(join(root, rel, ".."), { recursive: true });
+    writeFileSync(join(root, rel), text);
+  };
+  const tree = (root: string): Record<string, string> => {
+    const out: Record<string, string> = {};
+    const walk = (rel: string): void => {
+      for (const name of readdirSync(join(root, rel)).sort()) {
+        const r = rel === "" ? name : `${rel}/${name}`;
+        const st = lstatSync(join(root, r));
+        if (st.isDirectory()) walk(r);
+        else out[r] = st.isSymbolicLink() ? "<link>" : readFileSync(join(root, r), "utf8");
+      }
+    };
+    walk("");
+    return out;
+  };
+  const scrub = (h: string, v: unknown): unknown => JSON.parse(JSON.stringify(v).split(h).join("{home}"));
+  const move = async (h: string, agent: string) => scrub(h, await moveProjectState({ from: "/root/p", to: "/new/p", homes: { [agent]: h } }, [{ id: agent }]));
+
+  let h = homeOf();
+  put(h, "projects/-root-p/S1.jsonl", '{"cwd":"/root/p"}\n');
+  put(h, "projects/-root-p-sub/S2.jsonl", '{"cwd":"/root/p/sub"}\n');
+  put(h, "projects/-new-p-sub/S9.jsonl", '{"cwd":"/new/p/sub"}\n');
+  ps.claudeHalfMoved = { report: await move(h, "claude"), tree: tree(h) };
+
+  h = homeOf();
+  put(h, "projects.json", '{"zz":1,"projects":{"/other":"o","/root/p":"s","/root/p/sub":"s2"},"a":{"10":1,"9":[1.0,{}]},"n":1.0}');
+  ps.geminiRegistry = { report: await move(h, "gemini"), tree: tree(h) };
+
+  h = homeOf();
+  put(h, "projects.json", '{"projects":{"/root/p":"s","/root/p/sub":"s2"}}\n');
+  put(h, "tmp/s/.project_root", "/root/p");
+  put(h, "tmp/s2/.project_root", "/root/p/sub");
+  linkSync(join(h, "tmp/s2/.project_root"), join(h, "second-name"));
+  put(h, "history/s/.project_root", "/root/p");
+  ps.geminiMarkerLinked = { report: await move(h, "gemini"), tree: tree(h) };
+
+  const registries = ['{"version":1}', '{"projects":{"/root/p":5}}', '{"projects":{"/root/p":"s","/new/p":null}}', '{"projects":{"/root/p":"../x","/new/p":"y"}}', '{"projects":{"/root/p":"../x","/root/p/q":"ok"}}', '{"projects":[]}'];
+  ps.geminiRegistries = [];
+  for (const text of registries) {
+    h = homeOf();
+    put(h, "projects.json", text);
+    (ps.geminiRegistries as unknown[]).push({ registry: text, report: await move(h, "gemini"), after: readFileSync(join(h, "projects.json"), "utf8") });
+  }
+
+  h = homeOf();
+  put(h, "projects.json", '{"projects":{"/root/p":"s","/root/p/sub":"s2","/other":"o"}}');
+  ps.geminiMerge = scrub(h, await geminiResolver.merge!(h, "/root/p", "/new/p", "/g/.gemini"));
+
+  h = homeOf();
+  put(h, "projects.json", '{"projects":{"/root/p":"s","/root/p/sub":"s"}}');
+  put(h, "tmp/s/chats/c1.jsonl", "{}\n");
+  put(h, "tmp/s/.project_root", "/root/p\n");
+  ps.geminiDuplicateSlugs = scrub(h, await countProjectState("/root/p", { gemini: h }, [{ id: "gemini", name: "Gemini" }]));
+
+  const lines: [string, string | Buffer][] = [
+    ["invalid utf8", Buffer.concat([Buffer.from('{"cwd":"/old"}\nraw '), Buffer.from([0xff, 0xfe]), Buffer.from(" tail\n")])],
+    ["big integers", '{"cwd":"/old","id":9007199254740993,"u":12345678901234567890,"neg":-9007199254740993}\n'],
+    ["overflow", '{"cwd":"/old","x":1e400}\n'],
+    ["lone surrogate", '{"cwd":"/old","t":"\\ud83d","u":"\\ude00x\\ud83d\\ud83d"}\n'],
+    ["number spelling", '{"cwd":"/old","z":-0,"e":1E2,"f":1.50,"g":0.0000001,"h":1e21}\n'],
+    ["duplicate keys", '{"a":1,"cwd":"/x","cwd":"/old","b":2}\n'],
+    ["index keys", '{"b":1,"01":2,"-1":3,"4294967295":4,"4294967294":5,"0":6,"1.5":7,"cwd":"/old","1e3":8,"10":9,"m":{"b":1,"10":2,"9":3},"arr":[{"2":1,"1":2}]}\n'],
+    ["crlf and spaces", '{"cwd":"/old"}\r\n{"cwd":"/keep"}\r\n  {"cwd":"/old/x"}  \n'],
+    ["bom", '﻿{"cwd":"/old"}\n'],
+  ];
+  ps.rewriteCwd = [];
+  for (const [name, text] of lines) {
+    h = homeOf();
+    put(h, "f.jsonl", text);
+    const n = await rewriteCwd(join(h, "f.jsonl"), "/old", "/new");
+    (ps.rewriteCwd as unknown[]).push({ name, input: Buffer.from(text).toString("base64"), n, output: readFileSync(join(h, "f.jsonl")).toString("base64") });
+  }
+
+  h = homeOf();
+  put(h, "real/a.jsonl", "a\n");
+  put(h, "real/sub/b.jsonl", "b\n");
+  mkdirSync(join(h, "t"));
+  symlinkSync("../real", join(h, "t/linkdir"));
+  put(h, "t/x.jsonl", "x\n");
+  for (const f of ["S1.jsonl", "S1/a.jsonl", "S1-b.jsonl", "S1_c.jsonl", "S10.jsonl"]) put(h, `u/${f}`, "{}\n");
+  ps.filesUnder = { linked: scrub(h, filesUnder(join(h, "t"), "")), sorted: scrub(h, filesUnder(join(h, "u"), ".jsonl")) };
+
+  mkdirSync(OUT, { recursive: true });
+  writeFileSync(join(OUT, "strengthen_pstate.json"), `${JSON.stringify(ps, null, 2)}\n`);
+}, 60_000);

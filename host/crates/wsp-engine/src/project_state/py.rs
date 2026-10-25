@@ -4,8 +4,10 @@
 //! The lines every python3 script a module hands the machine opens with.
 use serde_json::Value;
 
-/// py.ts:8. `data(<JSON string of the standard base64 of the UTF-8 of JSON.stringify(value)>)`: the JSON is
-/// `wsp_catalog::jsonc::js_stringify`'s (JS key order and number spelling), the base64 padded.
+/// py.ts:8. `data(<JSON string of the standard base64 of the UTF-8 of JSON.stringify(value)>)`, the base64 padded. The
+/// JSON is JS's: number spelling as `js_stringify` writes it, and every object's canonical array-index keys (`0` to
+/// `4294967294`, no sign, no leading zero) first in ascending order, the rest in place. `js_stringify` keeps text order
+/// (wsp-catalog spec/jsonc.md), so the reorder is this port's to do (spec/project_state_scripts.md M10).
 pub fn py_data(value: &Value) -> String {
     todo!()
 }

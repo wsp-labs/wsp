@@ -41,7 +41,10 @@ Source: `packages/engine/src/project-state/resolver.ts` (267) and the runtime ha
 - F11. Reads the file as UTF-8 text split on `\n`; each line (the last one too, even with no newline after it, and an
   empty last part is not a line) that parses as a JSON object and that `edit` answers true for is written back as its
   `JSON.stringify` (JS key order: integer-like keys first ascending, then insertion order; numbers in JS spelling);
-  every other line, and every `\n`, byte for byte. A truncated last line passes through untouched.
+  every other line, and every `\n`, as decoded: the file is decoded as UTF-8 *lossily* (node's stream with
+  `encoding: "utf8"`), so an invalid byte is U+FFFD on every line of a rewritten file, edited or not (M2). A truncated
+  last line passes through untouched. "Integer-like" means a canonical array index only (`0` to `4294967294`, no
+  sign, no leading zero): `01`, `-1`, `4294967295`, `1.5` stay in place.
 - F12. Writes to `<file>.wsp-move`. With no line rewritten, the temp file is removed and the original is not touched
   (mtime kept); answers 0. Else the temp file takes the original's mode and is renamed over it; answers the count.
 - F13. Any failure (the file missing, an edit failing, a write failing) leaves no `<file>.wsp-move` and the original as
@@ -69,6 +72,30 @@ Source: `packages/engine/src/project-state/resolver.ts` (267) and the runtime ha
 - An empty file has no lines (0 rewritten, untouched). A home without the parent is nothing. Nothing is held between
   calls; what survives a restart is only what was written to disk.
 
+## Pinned since (M-rules, values from the TS's run, tests/fixtures/oracle/strengthen_pstate.json)
+
+- M2. A rewritten line is `JSON.parse` then `JSON.stringify`, so the port needs a JS-faithful reader and writer, not
+  serde's defaults: integers past 2^53 round to the f64 (`9007199254740993` is `...992`, `12345678901234567890` is
+  `12345678901234567000`); `1e400` is `null` and the line still counts; a lone surrogate escape (`"\ud83d"`) parses and
+  is written back as that escape; `-0` is `0`, `1E2` is `100`, `1.50` is `1.5`, `0.0000001` is `1e-7`, `1e21` is
+  `1e+21`; a duplicate key keeps its first place and its last value; index keys move first, nested objects too; a
+  rewritten line loses its `\r` and its outer spaces, an untouched line keeps its own; a line opening with a BOM is
+  not JSON (n is 0, the file untouched).
+- M3. `files_under` follows a linked folder (Node's recursive `readdirSync` does), spelling paths through the link, and
+  sorts whole paths by UTF-16 unit. On a regular file it fails `ENOTDIR: not a directory, scandir '<file>'`.
+- M4. A dangling link among a keyed parent's candidates fails the whole call, `ENOENT: no such file or directory, stat
+  '<path>'` (an unguarded `statSync`); a plain file there is skipped. Two paths with one key collide with `<moved>
+  already exists`, nothing renamed. A keyed folder that is a link is renamed as the link, the rewrite going through it.
+- M5. `rewrite_cwd` on a link to a file replaces the link with a regular file and leaves the target as it was (the
+  write is by rename); on a folder it fails `EISDIR: illegal operation on a directory, read` and leaves no temp file; a
+  stale `<file>.wsp-move` is overwritten and gone after. Node's io errors are rendered as node renders them,
+  `<CODE>: <text>, <syscall> '<path>'`.
+- Q (sqlite): opened with no busy timeout (node:sqlite's 0, rusqlite's default is 5 s): a lock fails at once as
+  `database is locked`. An integer past 2^53 is the error `Value is too large to be represented as a JavaScript
+  number: <n>` (node:sqlite without big ints). `shared_tables` keeps a table with no rows as `rows: []` and is `None`
+  only when every table is empty; a table missing from the source fails `no such table: <t>`. `select_then_update`
+  reads a NULL `rollout_path` as the string `"null"` (`String(...)`), which then counts as skipped.
+
 ## Rules and their tests
 
 Files: `project_state_files.rs` (files), `project_state_agents.rs` (agents), `project_state_core.rs` (core),
@@ -76,6 +103,9 @@ Files: `project_state_files.rs` (files), `project_state_agents.rs` (agents), `pr
 
 | Rule | Tests |
 |---|---|
+| M2 | project_state_more.rs: `a_rewritten_line_is_js_parse_then_js_stringify` |
+| M3 | project_state_more.rs: `files_under_follows_a_linked_folder_and_sorts_whole_paths` |
+| Q busy timeout, 2^53 | project_state_more.rs: `sqlite_never_waits_on_a_lock_and_refuses_an_integer_past_2_53` |
 | F1, F2 | files `a_path_is_under_the_project_at_the_root_or_inside_never_a_sibling_trailing_slash_is_not_part_of_key`, `keys_on_the_real_path_a_symlinked_destination_resolves_before_the_dashed_key_is_built`; hard `resolve_project_path_resolves_dots_and_links` |
 | F3, F4 | files `a_name_an_archive_carried_stays_inside_the_home_and_a_name_starting_with_two_dots_is_a_folder`; hard `paths_match_the_ts_oracle` |
 | F6, F7, F9 | agents `claude_renames_dashed_directories_rewrites_cwd_on_every_line_and_leaves_sibling_alone`, `claude_moves_a_directory_with_no_transcript_only_when_its_key_is_the_projects_own`, `pi_renames_double_dashed_directories_of_root_and_sub_folder_and_rewrites_header_cwd`; core `counts_every_agents_sessions_at_the_path_or_under_it_never_a_sibling_another_project_or_a_subagent`, `names_the_files_holding_the_projects_state_alone_never_a_shared_index_or_another_projects` |

@@ -13,7 +13,10 @@ Source: `packages/engine/src/project-state/index.ts` (162) at `a4033dc34`. Rust:
 - P3. `move_project_state(mv, agents)`: `from` and `to` resolved first (F1). For each agent in order: `from == to` is
   `Nothing` (checked before anything else, a module or not); no module is `TranscriptOnly` (its home never opened);
   a home not in the map or not on disk is `Nothing`; else the module's `move_state(home, from, to)`: an empty answer is
-  `Nothing`, a non-empty one `Moved`, a failure `Failed(message)` and the walk goes on with that home as it was.
+  `Nothing`, a non-empty one `Moved`, a failure `Failed(message)` and the walk goes on. The home is *not* put back: only the sqlite moves are transactional;
+  claude and pi keep the folders renamed before the failing one (renamed and rewritten), codex keeps its committed
+  index (and a second move then answers `Nothing`, so it does not resume), gemini keeps its rewritten registry and the
+  markers written before the failing one (M1, M7). No partial `Moved` list is reported, only the failure.
   `None` agents is the catalog's ids.
 - P4. `agent_homes(home_dir, vars)`: every catalog agent in catalog order (claude, codex, gemini, opencode, pi, hermes,
   crush, qwen, goose, amp, cursor today); the value of its `state_home_env` variable where set and non-empty (an empty
@@ -37,6 +40,14 @@ Source: `packages/engine/src/project-state/index.ts` (162) at `a4033dc34`. Rust:
 Null and empty: no homes is no rows and no listing; an empty `ids` is the empty listing (not every agent). Ordering is
 the catalog's, never the map's. Nothing survives a restart beyond what the modules wrote on disk.
 
+## Pinned since (M-rules, values from the TS's run, tests/fixtures/oracle/strengthen_pstate.json)
+
+- M1. A claude move whose second keyed folder collides fails with exactly `<parent>/<dashed target> already exists`,
+  having already renamed and rewritten the first; the colliding folder and the old second folder are left as they are.
+- `state_listing` hands its `path` to the scripts as given (never resolved, never normalised: python does
+  `os.path.normpath` on the machine); `agent_homes` keeps an env value verbatim (`/opt//claude/`) and joins `home_dir`
+  with node's `path.join` (`""` gives `.claude`).
+
 ## Rules and their tests
 
 Files: `project_state_core.rs` (core), `project_state_files.rs` (files), `project_state_scripts.rs` (scripts),
@@ -44,6 +55,7 @@ Files: `project_state_core.rs` (core), `project_state_files.rs` (files), `projec
 
 | Rule | Tests |
 |---|---|
+| M1 | project_state_more.rs: `a_failed_claude_move_leaves_what_it_already_moved` |
 | P1 | files `registers_each_module_under_its_own_catalog_agent_naming_only_measured_rows_of_that_entry`; hard `the_registry_matches_the_ts_modules` |
 | P2 | hard `project_state_key_is_claudes_alone` |
 | P3 | files `walks_every_catalog_agent_two_present_move_the_four_absent_report_nothing`, `reports_a_catalog_agent_without_a_module_as_transcript_only_and_never_touches_its_home`, `keys_on_the_real_path_a_symlinked_destination_resolves_before_the_dashed_key_is_built`, `does_nothing_when_the_machine_mirrors_the_old_path`, `reports_one_agents_failure_and_still_moves_the_others` |

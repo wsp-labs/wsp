@@ -66,12 +66,21 @@ with the TS's in the oracle; the run tests then check what it does.
 
 Scripts are built fresh on every call; nothing is kept.
 
+## Pinned since (M-rules)
+
+- M10 (here). `py_data` moves only canonical array-index keys (`{"b":1,"01":2,"-1":3,"4294967295":4,"4294967294":5,
+  "0":6}` is `{"0":6,"4294967294":5,"b":1,"01":2,"-1":3,"4294967295":4}`); `js_stringify` keeps text order, so py_data
+  reorders. `parse_state_listing` splits on `\n` alone (a `\r` stays on the path) and `!unread` without its space is
+  a path. `parse_merge_output` keeps an empty `note` as `Some("")`. Only the gemini module's merge text was pinned
+  before by `hasMerge`; it is now pinned whole (agents M9); the other modules' merge data rides their run tests.
+
 ## Rules and their tests
 
 Files: `project_state_scripts.rs` (scripts), `project_state_hard.rs` (hard).
 
 | Rule | Tests |
 |---|---|
+| M10 | project_state_more.rs: `rollouts_index_keys_listing_lines_and_an_empty_note` |
 | Y1, Y2 | hard `py_data_writes_the_ts_text_for_every_oracle_value`; scripts `every_listing_and_the_merge_open_with_the_one_preamble_so_the_under_rule_is_defined_once` |
 | Y4 to Y6 | hard `list_and_filter_steps_match_the_ts_byte_for_byte`, `store_copy_joins_as_node_posix_join`; scripts `each_module_names_the_paths_under_its_home_it_reads_and_the_store_it_keeps_is_one_of_them`, `brings_down_the_projects_own_entries_and_a_filtered_copy_of_each_shared_store_never_another_projects`, `a_second_trip_through_the_same_scratch_root_writes_the_copy_again_rather_than_into_the_one_there`, `names_nothing_for_a_path_no_agent_ran_in_a_store_not_made_and_a_home_that_is_not_there`, `a_source_with_a_trailing_slash_or_a_dot_segment_as_the_wire_carries_it_names_the_same_paths` |
 | Y7 | hard `parse_state_listing_matches_the_ts`; scripts `a_store_on_the_machine_it_cannot_read_brings_nothing_from_that_home_and_names_the_store_and_why` |
