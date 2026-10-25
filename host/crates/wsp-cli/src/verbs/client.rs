@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! `packages/host/src/verbs/client.ts` at 65f6b89c7: the socket to the host, the verb table's types, and the
 //! helpers every verb module shares. Spec: `spec/client-dial.md` (lines 1-452), `spec/client-rows.md` (453-735),
-//! `spec/client-table.md` (736-1102).
+//! `spec/client-table.md` (736-1102). The socket's functions live in the `socket` module and are re-exported here.
+
+mod rows;
+mod socket;
+
+pub use rows::*;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -9,21 +14,30 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use indexmap::IndexMap;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use wsp_store::keys::PlaceKeyPair;
-use wsp_wire::types::recipe_file::RecipeView;
-use wsp_wire::types::usage::{AccountRow, UsageRange, UsageSplit, UsedAnswer};
-use wsp_wire::views::place::{PendingComputer, PlaceSetAlso};
-use wsp_wire::views::place_more::{PlaceSettingWord, PlaceSettingsAsk, PlaceSpend, PlaceView};
+use wsp_wire::types::thread_defaults::AccessChoice;
+use wsp_wire::views::place_kind::PlaceKind;
+use wsp_wire::views::place_more::PlaceView;
 use wsp_wire::views::session::ThreadView;
-use wsp_words::exit::HostError;
+use wsp_wire::wire::machine_link::no_such_place_refusal;
+use wsp_words::agents_report::without_control_chars;
+use wsp_words::exit::{json_line, usage_refusal, verb_failure, HostError};
+use wsp_words::place_name::table_name;
+use wsp_words::place_word::{names_place, PlaceRef};
+use wsp_words::semver::compare_versions;
+use wsp_words::words::thread::{say_once, validator_refusal};
 
+pub use socket::{dial_host, host_address, host_again, host_back, stopped_under, until_settled, PushedFrames, SocketClient};
+
+use crate::daemon_fix::release_update_line;
 use crate::host_lock::HostStarter;
 use crate::hosts::{HostAim, HostPick};
 use crate::signin_relay::RelayTerminal;
-use crate::watch::{Redraw, WatchSignals};
+use crate::watch::WatchSignals;
 
 /// A future a verb's run or a tool's call hands back; boxed so the verb table can hold plain fn pointers.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -116,14 +130,12 @@ pub struct DialOpts {
 
 /// `noHostServingLine` (client.ts:149).
 pub fn no_host_serving_line(state_path: &str) -> String {
-    let _ = state_path;
-    todo!("client.ts:149")
+    format!("no wsp host is serving {state_path}; start one with wsp up --state {state_path}")
 }
 
 /// `hostTokenMissingLine` (client.ts:152).
 pub fn host_token_missing_line(path: &str) -> String {
-    let _ = path;
-    todo!("client.ts:152")
+    format!("the host's token file is missing: {path}")
 }
 
 /// Where a dial goes and what it presents (`hostAddress`, client.ts:158-167).
@@ -133,359 +145,11 @@ pub struct HostAddress {
     pub token: String,
 }
 
-/// `hostAddress(statePath, pick)` (client.ts:158-167). A url aim: its ws url and its token or "". An alias: the
-/// record's url and device token. Here: the lock's dial address and the token beside the state; no lock is a plain
-/// error `no_host_serving_line` (provider), no token an auth refusal `host_token_missing_line(token path)`.
-pub fn host_address(state_path: &str, pick: &HostPick, aim: Option<&HostAim>) -> Result<HostAddress, HostError> {
-    let _ = (state_path, pick, aim);
-    todo!("client.ts:158-167")
-}
-
-/// `dialHost(statePath, opts)` (client.ts:172-198): one socket, with the one re-admission a host on the account may
-/// need. An alias record with an empty device token and a `host_key` dials admitting this computer's key at once;
-/// a token the host refused (kind auth, on the token's frame) dials once more admitting, unless this dial already
-/// admitted. A dial that proved the key rewrites `hosts/<alias>.json` with the answered device id and token, the
-/// rest of the record as it was.
-pub async fn dial_host(state_path: &str, opts: DialOpts) -> Result<Arc<dyn HostClient>, HostError> {
-    let _ = (state_path, opts);
-    todo!("client.ts:172-198")
-}
-
-/// The concrete socket `dial_host` answers with (client.ts:207-389). Fields are the implementer's.
-pub struct SocketClient {
-    _private: (),
-}
-
-/// `stoppedUnder(client)` (client.ts:393-395): whether the socket is gone with close code 4001. Never waits.
-pub fn stopped_under(client: &dyn HostClient) -> bool {
-    let _ = client;
-    todo!("client.ts:393-395")
-}
-
 /// `HOST_RESTARTING_LINE` (client.ts:398).
 pub const HOST_RESTARTING_LINE: &str = "the host is restarting; waiting for it to come back";
 
 /// What `host_again` is handed: one dial with what is left of the window as its deadline.
 pub type DialWithin<'a> = &'a (dyn Fn(u64) -> BoxFuture<'a, Result<Arc<dyn HostClient>, HostError>> + Send + Sync);
-
-/// `hostAgain(dial, windowMs)` (client.ts:404-414): dial with `max(1, left)` as each try's deadline; on failure,
-/// if the window has passed, the last failure stands; else sleep `min(POLL_MS, max(0, left))` and try again.
-pub async fn host_again(dial: DialWithin<'_>, window_ms: u64) -> Result<Arc<dyn HostClient>, HostError> {
-    let _ = (dial, window_ms);
-    todo!("client.ts:404-414")
-}
-
-/// `hostBack(deps, withinMs)` (client.ts:418-420): `host_again` over `deps.client(Some(Again { within_ms }))`,
-/// within `within_ms`, else `deps.host_wait_ms`, else `SERVICE_WAIT_MS`.
-pub async fn host_back(deps: &VerbDeps, within_ms: Option<u64>) -> Result<Arc<dyn HostClient>, HostError> {
-    let _ = (deps, within_ms);
-    todo!("client.ts:418-420")
-}
-
-/// `untilSettled(client, work)` (client.ts:423-430): the work's answer, or a plain error `close_words()` when the
-/// socket goes first.
-pub async fn until_settled<T: Send>(client: &dyn HostClient, work: BoxFuture<'_, Result<T, HostError>>) -> Result<T, HostError> {
-    let _ = (client, work);
-    todo!("client.ts:423-430")
-}
-
-/// `pushedFrames(client)` (client.ts:435-451): frames held from the moment it is made, replayed into `follow`'s sink
-/// in arrival order, then passed straight through; `stop` removes the sink and drops whatever is still held.
-pub struct PushedFrames {
-    _private: (),
-}
-
-impl PushedFrames {
-    pub fn new(client: &dyn HostClient) -> PushedFrames {
-        let _ = client;
-        todo!("client.ts:435-438")
-    }
-
-    /// Replays every held frame that `pick` takes into `on`, then sends each later one there too. A `stop` from
-    /// inside `on` drops the held frames not yet replayed.
-    pub fn follow(&self, pick: Arc<dyn Fn(&Frame) -> bool + Send + Sync>, on: FrameSink) {
-        let _ = (pick, on);
-        todo!("client.ts:440-445")
-    }
-
-    pub fn stop(&self) {
-        todo!("client.ts:446-449")
-    }
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Output and the rows the listings print (client.ts:453-735). Spec: spec/client-rows.md.
-// ---------------------------------------------------------------------------------------------------------------
-
-/// `CliIO` (`packages/host/src/cli/io.ts:9-38`): the terminal a line runs at. A method the TS marks optional has a
-/// default here that behaves as absent.
-#[async_trait]
-pub trait CliIo: Send + Sync {
-    fn log(&self, line: &str);
-    fn error(&self, line: &str);
-    /// Raw text on stderr, no newline added. Absent: nothing.
-    fn stream(&self, text: &str) {
-        let _ = text;
-    }
-    /// Where a list that refreshes in place redraws; None off a terminal.
-    fn redraw(&self) -> Option<Arc<dyn Redraw>> {
-        None
-    }
-    /// The text muted for the stream's colours; None leaves it plain.
-    fn muted(&self, text: &str) -> Option<String> {
-        let _ = text;
-        None
-    }
-    /// This process's own stdin and stdout as bytes, taken once; None on a line carried from a machine.
-    fn bytes(&self) -> Option<IoBytes> {
-        None
-    }
-    /// A yes-or-no question; answers "yes" or "no".
-    async fn ask(&self, question: &str) -> Result<String, HostError>;
-    fn is_tty(&self) -> bool {
-        false
-    }
-    fn same_screen(&self) -> bool {
-        false
-    }
-    async fn ask_secret(&self, question: &str, variable: Option<&str>) -> Result<String, HostError>;
-    /// Whether `answer_key` is offered (only at a terminal).
-    fn answers_keys(&self) -> bool {
-        false
-    }
-    /// One of `accept`, or None when `until` settles first.
-    async fn answer_key(&self, accept: &[String], until: BoxFuture<'_, ()>) -> Option<String> {
-        let _ = (accept, until);
-        None
-    }
-}
-
-/// `bytes` of `CliIO`: stdin and stdout as raw streams.
-pub struct IoBytes {
-    pub input: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
-    pub output: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
-}
-
-/// `Out` and `formatter(io, json)` (client.ts:455-470): with `json` every `emit` is `json_line(value)` through
-/// `io.log` and nothing else prints; without it `emit` logs its line when there is one and `stream` writes to
-/// `io.stream`. `Out::quiet()` is io.ts's `QUIET`: both do nothing.
-#[derive(Clone)]
-pub struct Out {
-    io: Option<Arc<dyn CliIo>>,
-    json: bool,
-}
-
-impl Out {
-    /// `formatter(io, json)` (client.ts:460).
-    pub fn formatter(io: Arc<dyn CliIo>, json: bool) -> Out {
-        Out { io: Some(io), json }
-    }
-
-    /// `QUIET` (io.ts:226).
-    pub fn quiet() -> Out {
-        Out { io: None, json: false }
-    }
-
-    pub fn emit(&self, value: &Value, line: Option<&str>) {
-        let _ = (value, line, &self.io, self.json);
-        todo!("client.ts:462-465")
-    }
-
-    pub fn stream(&self, text: &str) {
-        let _ = text;
-        todo!("client.ts:466-468")
-    }
-}
-
-/// `c1Escaped(out)` (client.ts:474-479): a writer that passes every chunk through `escape_c1`, decoding UTF-8 across
-/// chunk boundaries so a character split over two writes is escaped whole.
-pub struct C1Escaped<W> {
-    pub inner: W,
-    pending: Vec<u8>,
-}
-
-impl<W: std::io::Write> C1Escaped<W> {
-    pub fn new(inner: W) -> C1Escaped<W> {
-        C1Escaped { inner, pending: Vec::new() }
-    }
-}
-
-impl<W: std::io::Write> std::io::Write for C1Escaped<W> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let _ = (buf, &self.pending);
-        todo!("client.ts:476")
-    }
-
-    /// Writes out what the decoder still holds, as `flush` of the Transform does (client.ts:476).
-    fn flush(&mut self) -> std::io::Result<()> {
-        todo!("client.ts:476")
-    }
-}
-
-/// `placeLines(places)` (client.ts:483-504).
-pub fn place_lines(places: &[PlaceView]) -> Vec<String> {
-    let _ = places;
-    todo!("client.ts:483-504")
-}
-
-/// This computer's platform word (`hostPlatform`, client.ts:508): "darwin" on macOS, else "linux".
-pub fn host_platform() -> &'static str {
-    todo!("client.ts:508")
-}
-
-/// `STARTS_AT` (client.ts:516): the column index of STARTS, dropped where no row reads its starts.
-pub const STARTS_AT: usize = 11;
-
-/// `computerLines(places, platform, spend, pending)` (client.ts:518-554).
-pub fn computer_lines(places: &[PlaceView], platform: &str, spend: &[PlaceSpend], pending: &[PendingComputer]) -> Vec<String> {
-    let _ = (places, platform, spend, pending);
-    todo!("client.ts:518-554")
-}
-
-/// `followLine(computer)` (client.ts:557-560).
-pub fn follow_line(name: &str, recipe: Option<&str>) -> String {
-    let _ = (name, recipe);
-    todo!("client.ts:557-560")
-}
-
-/// `recipeLines(recipes)` (client.ts:563-566).
-pub fn recipe_lines(recipes: &[RecipeView]) -> Vec<String> {
-    let _ = recipes;
-    todo!("client.ts:563-566")
-}
-
-/// `recipeShownLines(recipe, hash)` (client.ts:579-590).
-pub fn recipe_shown_lines(recipe: &RecipeView, hash: &str) -> Vec<String> {
-    let _ = (recipe, hash);
-    todo!("client.ts:569-590")
-}
-
-/// `recipeSavedLine` (client.ts:593).
-pub fn recipe_saved_line(recipe: &RecipeView) -> String {
-    let _ = recipe;
-    todo!("client.ts:593")
-}
-
-/// `recipeRemovedLine` (client.ts:596-597).
-pub fn recipe_removed_line(recipe: &RecipeView) -> String {
-    let _ = recipe;
-    todo!("client.ts:596-597")
-}
-
-/// `oneOf(name, words, value, on)` (client.ts:600-604): None for None; a word of the set as given; anything else
-/// a usage refusal `<flag> takes one of a, b, and got "x".` with the fix `Name one of those.`
-pub fn one_of(name: &str, words: &[&str], value: Option<&str>, on: Option<&str>) -> Result<Option<String>, HostError> {
-    let _ = (name, words, value, on);
-    todo!("client.ts:600-604")
-}
-
-/// What `readUsage` answers (client.ts:608-611): the two reads as the host wrote them.
-#[derive(Clone, Debug, PartialEq)]
-pub struct UsageRead {
-    pub accounts: Value,
-    pub used: Value,
-}
-
-/// `readUsage(client, range, by)` (client.ts:608-611): `usage.accounts {fresh: true}` and `usage.used` sent
-/// together, before either answers.
-pub async fn read_usage(client: &dyn HostClient, range: UsageRange, by: UsageSplit) -> Result<UsageRead, HostError> {
-    let _ = (client, range, by);
-    todo!("client.ts:608-611")
-}
-
-/// `accountNamed(rows, word)` (client.ts:614-622).
-pub fn account_named<'a>(rows: &'a [AccountRow], word: &str) -> Result<&'a AccountRow, HostError> {
-    let _ = (rows, word);
-    todo!("client.ts:614-622")
-}
-
-/// `usageTableLines(read, now)` (client.ts:625-650). `now` is epoch milliseconds.
-pub fn usage_table_lines(accounts: &[AccountRow], used: &UsedAnswer, now: f64) -> Vec<String> {
-    let _ = (accounts, used, now);
-    todo!("client.ts:625-650")
-}
-
-/// What `readComputers` answers (client.ts:653-656).
-#[derive(Clone, Debug, PartialEq)]
-pub struct ComputersRead {
-    pub computers: Vec<PlaceView>,
-    pub spend: Vec<PlaceSpend>,
-    pub pending: Vec<PendingComputer>,
-}
-
-/// `readComputers(client)` (client.ts:653-656): `places.list` and `cost.spend` sent together; `pending` empty where
-/// the listing carries none.
-pub async fn read_computers(client: &dyn HostClient) -> Result<ComputersRead, HostError> {
-    let _ = client;
-    todo!("client.ts:653-656")
-}
-
-/// `SETTING_RESETS` (client.ts:659): `PlaceSettingWord.options` in its order.
-pub fn setting_resets() -> Vec<&'static str> {
-    todo!("client.ts:659")
-}
-
-/// What a computer is named by on `set_computer`: a word to look up, or the row already read.
-pub enum ComputerRef<'a> {
-    Word(&'a str),
-    Row(&'a PlaceView),
-}
-
-/// `setComputer(client, ref, set, reset, also)` (client.ts:664-669): one `places.set` with `placeId`, then the
-/// settings' keys, then `reset` only when non-empty, then the `also` fields that are given.
-pub async fn set_computer(
-    client: &dyn HostClient,
-    computer: ComputerRef<'_>,
-    set: &PlaceSettingsAsk,
-    reset: &[PlaceSettingWord],
-    also: &PlaceSetAlso,
-) -> Result<(PlaceView, String), HostError> {
-    let _ = (client, computer, set, reset, also);
-    todo!("client.ts:664-669")
-}
-
-/// `computerSetLines(computer, was, also, settled)` (client.ts:673-680).
-pub fn computer_set_lines(computer: &PlaceView, was: &str, also: &PlaceSetAlso, settled: bool) -> Vec<String> {
-    let _ = (computer, was, also, settled);
-    todo!("client.ts:673-680")
-}
-
-/// `flagFor(flagName, on)` (client.ts:683-685).
-pub fn flag_for(flag_name: &str, on: Option<&str>) -> String {
-    let _ = (flag_name, on);
-    todo!("client.ts:683-685")
-}
-
-/// `napAsked(word, on)` (client.ts:688-693): "off" is 0; whole minutes 1 to `NAP_AFTER_MAX_MS / 60000`.
-pub fn nap_asked(word: &str, on: &str) -> Result<u64, HostError> {
-    let _ = (word, on);
-    todo!("client.ts:688-693")
-}
-
-/// `turnLimitAsked(word, on)` (client.ts:696-701): "off" is 0; whole hours 1 to `TURN_LIMIT_MAX_MS / 3600000`.
-pub fn turn_limit_asked(word: &str, on: &str) -> Result<u64, HostError> {
-    let _ = (word, on);
-    todo!("client.ts:696-701")
-}
-
-/// `deleteAfterAsked(word, on)` (client.ts:704-708): whole minutes 0 to `DELETE_AFTER_MAX_MS / 60000`.
-pub fn delete_after_asked(word: &str, on: &str) -> Result<u64, HostError> {
-    let _ = (word, on);
-    todo!("client.ts:704-708")
-}
-
-/// `dollarsAsked(word, on)` (client.ts:711-715): JS `Number(word)`, finite and not below zero, a blank word refused.
-pub fn dollars_asked(word: &str, on: &str) -> Result<f64, HostError> {
-    let _ = (word, on);
-    todo!("client.ts:711-715")
-}
-
-/// `table(rows)` (client.ts:731-734): columns padded to their widest cell in UTF-16 units, two spaces apart, the
-/// last cell of each row never padded, every line's end trimmed of white space as `trimEnd` does.
-pub fn table(rows: &[Vec<String>]) -> Vec<String> {
-    let _ = rows;
-    todo!("client.ts:731-734")
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // The verb table's types and the shared helpers (client.ts:736-1102). Spec: spec/client-table.md.
@@ -577,8 +241,7 @@ impl std::ops::Deref for VerbContext {
 
 /// `usageIs(ctx)` (client.ts:798): `usage: <ctx.usage>`.
 pub fn usage_is(ctx: &VerbContext) -> String {
-    let _ = ctx;
-    todo!("client.ts:798")
+    format!("usage: {}", ctx.usage)
 }
 
 /// `CallToolResult` of the MCP SDK as the TS tools build it: keys `content`, `structuredContent`, `isError`.
@@ -695,8 +358,20 @@ impl FlagTable {
 
 /// `optionalValues(argv, table)` (client.ts:838-851).
 pub fn optional_values(argv: &[String], table: &FlagTable) -> Vec<String> {
-    let _ = (argv, table);
-    todo!("client.ts:838-851")
+    let cut = argv.iter().position(|w| w == "--").unwrap_or(argv.len());
+    let words = &argv[..cut];
+    let has = |name: &str| words.iter().any(|w| w == &format!("--{name}") || w.starts_with(&format!("--{name}=")));
+    let mut bare = std::collections::HashSet::new();
+    for (name, row) in &table.0 {
+        let Some(value_with) = row.value_with else { continue };
+        let alone = !has(value_with);
+        for (at, word) in words.iter().enumerate() {
+            if word == &format!("--{name}") && (alone || words.get(at + 1).is_none_or(|next| next.starts_with('-'))) {
+                bare.insert(at);
+            }
+        }
+    }
+    argv.iter().enumerate().map(|(at, word)| if bare.contains(&at) { format!("{word}=") } else { word.clone() }).collect()
 }
 
 /// A verb's run: the parsed line to an exit code.
@@ -771,72 +446,124 @@ pub enum LineVerb<'a> {
 
 impl Verb {
     pub fn name(&self) -> &'static str {
-        todo!("the entry's name")
+        match self {
+            Verb::Cli(verb) => verb.name,
+            Verb::ToolOnly(verb) => verb.name,
+            Verb::CliOnly(verb) => verb.name,
+            Verb::CommandTool(verb) => verb.name,
+        }
     }
 
     /// The line form of a `Cli` or `CliOnly` entry; None for the other two.
     pub fn line(&self) -> Option<LineVerb<'_>> {
-        todo!("\"run\" in v")
+        match self {
+            Verb::Cli(verb) => Some(LineVerb::Cli(verb)),
+            Verb::CliOnly(verb) => Some(LineVerb::CliOnly(verb)),
+            Verb::ToolOnly(_) | Verb::CommandTool(_) => None,
+        }
     }
 
     /// `cloud === true` on a `Cli` or `CliOnly` entry.
     pub fn is_cloud(&self) -> bool {
-        todo!("verbs.ts:376")
+        match self {
+            Verb::Cli(verb) => verb.cloud,
+            Verb::CliOnly(verb) => verb.cloud,
+            Verb::ToolOnly(_) | Verb::CommandTool(_) => false,
+        }
     }
 }
 
 impl<'a> LineVerb<'a> {
     pub fn name(&self) -> &'static str {
-        todo!()
+        match *self {
+            LineVerb::Cli(verb) => verb.name,
+            LineVerb::CliOnly(verb) => verb.name,
+        }
     }
     pub fn usage(&self) -> &'a str {
-        todo!()
+        match *self {
+            LineVerb::Cli(verb) => verb.usage.as_str(),
+            LineVerb::CliOnly(verb) => verb.usage.as_str(),
+        }
     }
     pub fn about(&self) -> &'a str {
-        todo!()
+        match *self {
+            LineVerb::Cli(verb) => verb.about.as_str(),
+            LineVerb::CliOnly(verb) => verb.about.as_str(),
+        }
     }
     pub fn page(&self) -> Page {
-        todo!()
+        match *self {
+            LineVerb::Cli(verb) => verb.page,
+            LineVerb::CliOnly(verb) => verb.page,
+        }
     }
     pub fn options(&self) -> &'a FlagTable {
-        todo!()
+        match *self {
+            LineVerb::Cli(verb) => &verb.options,
+            LineVerb::CliOnly(verb) => &verb.options,
+        }
     }
     pub fn run(&self) -> RunFn {
-        todo!()
+        match *self {
+            LineVerb::Cli(verb) => verb.run,
+            LineVerb::CliOnly(verb) => verb.run,
+        }
     }
     pub fn starts_no_host(&self) -> Option<&'static str> {
-        todo!()
+        match *self {
+            LineVerb::Cli(verb) => verb.starts_no_host,
+            LineVerb::CliOnly(verb) => verb.starts_no_host,
+        }
     }
     pub fn any_release(&self) -> Option<&'static str> {
-        todo!()
+        match *self {
+            LineVerb::Cli(verb) => verb.any_release,
+            LineVerb::CliOnly(verb) => verb.any_release,
+        }
     }
     /// Only a `CliOnly` entry carries one.
     pub fn host_side(&self) -> Option<&'static str> {
-        todo!()
+        match *self {
+            LineVerb::Cli(_) => None,
+            LineVerb::CliOnly(verb) => verb.host_side,
+        }
     }
 }
 
 /// `readsHere(verb)` (client.ts:904-906).
 pub fn reads_here(verb: &Verb) -> Option<&'static str> {
-    let _ = verb;
-    todo!("client.ts:904-906")
+    match verb {
+        Verb::Cli(verb) => verb.reads_here,
+        Verb::ToolOnly(verb) => verb.reads_here,
+        Verb::CliOnly(verb) => verb.reads_here,
+        Verb::CommandTool(_) => None,
+    }
 }
 
 /// `hasTool(verb)` (client.ts:909-911): the tool of a `Cli`, `ToolOnly` or `CommandTool` entry.
 pub fn has_tool(verb: &Verb) -> Option<&Tool> {
-    let _ = verb;
-    todo!("client.ts:909-911")
+    match verb {
+        Verb::Cli(verb) => Some(&verb.tool),
+        Verb::ToolOnly(verb) => Some(&verb.tool),
+        Verb::CommandTool(verb) => Some(&verb.tool),
+        Verb::CliOnly(_) => None,
+    }
 }
 
 /// `toolName(words)` (client.ts:914-916): every space to `_`.
 pub fn tool_name(words: &str) -> String {
-    let _ = words;
-    todo!("client.ts:914-916")
+    words.replace(' ', "_")
 }
 
 /// `COMMON` (client.ts:919-924): host, state (strings), json, help (booleans, help also `-h`), in that order.
 pub fn common() -> FlagTable {
-    todo!("client.ts:919-924")
+    FlagTable(vec![
+        ("host", FlagRow::STRING),
+        ("state", FlagRow::STRING),
+        ("json", FlagRow::BOOLEAN),
+        ("help", FlagRow { kind: FlagKind::Boolean, multiple: false, short: Some('h'), value_with: None }),
+    ])
 }
 
 /// What `takeCommon` splits a line into (client.ts:933).
@@ -848,8 +575,46 @@ pub struct TakenCommon {
 
 /// `takeCommon(argv)` (client.ts:933-959).
 pub fn take_common(argv: &[String]) -> TakenCommon {
-    let _ = argv;
-    todo!("client.ts:933-959")
+    let table = common();
+    let mut taken = TakenCommon { common: Vec::new(), rest: Vec::new() };
+    let mut at = 0;
+    while at < argv.len() {
+        let word = &argv[at];
+        if word == "--" {
+            taken.rest.extend_from_slice(&argv[at..]);
+            break;
+        }
+        let name = match word.strip_prefix("--") {
+            Some(long) => Some(long.split('=').next().unwrap_or_default().to_owned()),
+            None => word.strip_prefix('-').and_then(|letters| {
+                table
+                    .0
+                    .iter()
+                    .find(|(_, row)| row.short.map(|c| c.to_string()).as_deref() == Some(letters))
+                    .map(|(name, _)| (*name).to_owned())
+            }),
+        };
+        let Some(row) = name.as_deref().and_then(|name| table.get(name)).cloned() else {
+            taken.rest.push(word.clone());
+            at += 1;
+            continue;
+        };
+        let takes_value = row.kind == FlagKind::String && !word.contains('=');
+        let value = if takes_value { argv.get(at + 1).cloned() } else { None };
+        // A flag needing a value and given none by the end of the line stays where it was typed.
+        if takes_value && value.is_none() {
+            taken.rest.push(word.clone());
+            at += 1;
+            continue;
+        }
+        taken.common.push(word.clone());
+        if let Some(value) = value {
+            taken.common.push(value);
+            at += 1;
+        }
+        at += 1;
+    }
+    taken
 }
 
 /// `PICK_FLAGS` (client.ts:962).
@@ -859,30 +624,33 @@ pub const SEND_FLAGS: [&str; 2] = ["model", "effort"];
 
 /// `PICK_OPTIONS` (client.ts:968): each pick flag a string.
 pub fn pick_options() -> FlagTable {
-    todo!("client.ts:968")
+    FlagTable(PICK_FLAGS.iter().map(|name| (*name, FlagRow::STRING)).collect())
 }
 
 /// `SEND_OPTIONS` (client.ts:969).
 pub fn send_options() -> FlagTable {
-    todo!("client.ts:969")
+    FlagTable(SEND_FLAGS.iter().map(|name| (*name, FlagRow::STRING)).collect())
 }
 
 /// `flag(flags, name)` (client.ts:971): the value only where it is a string.
 pub fn flag<'a>(flags: &'a Flags, name: &str) -> Option<&'a str> {
-    let _ = (flags, name);
-    todo!("client.ts:971")
+    match flags.get(name) {
+        Some(FlagValue::Str(text)) => Some(text.as_str()),
+        _ => None,
+    }
 }
 
 /// `flagList(flags, name)` (client.ts:972): the value only where it is a list, else empty.
 pub fn flag_list(flags: &Flags, name: &str) -> Vec<String> {
-    let _ = (flags, name);
-    todo!("client.ts:972")
+    match flags.get(name) {
+        Some(FlagValue::List(items)) => items.clone(),
+        _ => Vec::new(),
+    }
 }
 
 /// `flags[name] === true`.
 pub fn flag_set(flags: &Flags, name: &str) -> bool {
-    let _ = (flags, name);
-    todo!("flags[name] === true")
+    matches!(flags.get(name), Some(FlagValue::Bool(true)))
 }
 
 /// `PLACES_FIX` (client.ts:974).
@@ -890,64 +658,74 @@ pub const PLACES_FIX: &str = "Run wsp computers.";
 
 /// `placeNamed(client, word)` (client.ts:978-983): one `places.list`, the first row `names_place` takes.
 pub async fn place_named(client: &dyn HostClient, word: &str) -> Result<PlaceView, HostError> {
-    let _ = (client, word);
-    todo!("client.ts:978-983")
+    let places: Vec<PlaceView> = reply_field(&client.request("places.list", Frame::new()).await?, "places.list", "places")?;
+    if let Some(found) = places.iter().find(|p| names_place(&place_ref(p), word)) {
+        return Ok(found.clone());
+    }
+    let names: Vec<String> = places.iter().map(|p| table_name(&place_ref(p))).collect();
+    Err(usage_refusal(&no_such_place_refusal(word, &names), PLACES_FIX))
 }
 
 /// `absolutePath(named, path)` (client.ts:987-990): refused unless it opens with `/`.
 pub fn absolute_path(named: &str, path: &str) -> Result<String, HostError> {
-    let _ = (named, path);
-    todo!("client.ts:987-990")
+    if !path.starts_with('/') {
+        let said = format!("{named}, absolute, and got {}.", json_string(path));
+        return Err(usage_refusal(&said, "Give a path that opens with /, since whoever reads it works in a folder this line cannot see."));
+    }
+    Ok(path.to_owned())
 }
 
 /// `absoluteFolder(cwd)` (client.ts:994-996).
 pub fn absolute_folder(cwd: Option<&str>) -> Result<Option<String>, HostError> {
-    let _ = cwd;
-    todo!("client.ts:994-996")
+    cwd.map(|cwd| absolute_path("--cwd is a path on the machine", cwd)).transpose()
 }
 
 /// `accessWordOf(given)` (client.ts:1000-1004): one of ask, auto-edit, full, plan.
-pub fn access_word_of(given: &str) -> Result<wsp_wire::types::thread_defaults::AccessChoice, HostError> {
-    let _ = given;
-    todo!("client.ts:1000-1004")
+pub fn access_word_of(given: &str) -> Result<AccessChoice, HostError> {
+    match given {
+        "ask" => Ok(AccessChoice::Ask),
+        "auto-edit" => Ok(AccessChoice::AutoEdit),
+        "full" => Ok(AccessChoice::Full),
+        "plan" => Ok(AccessChoice::Plan),
+        _ => Err(usage_refusal(
+            &format!("--access takes ask, auto-edit, full or plan, and got {given}."),
+            "Name one of those; which of its own modes each one is, is the agent's row's to say.",
+        )),
+    }
 }
 
 /// `under(path, folder)` (client.ts:1007).
 pub fn under(path: &str, folder: &str) -> bool {
-    let _ = (path, folder);
-    todo!("client.ts:1007")
+    let inside = if folder.ends_with('/') { folder.to_owned() } else { format!("{folder}/") };
+    path == folder || path.starts_with(&inside)
 }
 
 /// `RELEASE_WORDS` (client.ts:1011-1020).
 pub mod release_words {
+    use wsp_wire::types::release::UP_RESTART_LINE;
+
     pub fn said(mine: &str, host: &str, theirs: &str) -> String {
-        let _ = (mine, host, theirs);
-        todo!("client.ts:1012")
+        format!("this line runs wsp {mine} and {host} runs wsp {theirs}:")
     }
     pub fn host_here(state: &str) -> String {
-        let _ = state;
-        todo!("client.ts:1013")
+        format!("the host serving {state}")
     }
     pub fn host_at(r#where: &str) -> String {
-        let _ = r#where;
-        todo!("client.ts:1014")
+        format!("the host at {where}")
     }
     pub const RESTART: &str = "restart that host with wsp restart.";
     pub fn reopen_app(mine: &str) -> String {
-        let _ = mine;
-        todo!("client.ts:1016")
+        format!("quit and reopen the app that holds it once the app is on wsp {mine}.")
     }
     /// `UP_RESTART_LINE`.
     pub fn restart_up() -> &'static str {
-        todo!("client.ts:1017")
+        UP_RESTART_LINE
     }
     pub fn update_there(mine: &str) -> String {
-        let _ = mine;
-        todo!("client.ts:1018")
+        format!("update wsp to {mine} on that computer and restart its host there.")
     }
     pub fn update_here(line: &str, theirs: &str) -> String {
-        let _ = (line, theirs);
-        todo!("client.ts:1019")
+        format!("{line} on this computer brings this line to {theirs}.")
     }
 }
 
@@ -961,27 +739,40 @@ pub enum ReleaseHost {
 /// `releaseHereFix(mine, road)` (client.ts:1029-1032): "app" reopens the app, "up" is `UP_RESTART_LINE`, anything
 /// else (None included) restarts.
 pub fn release_here_fix(mine: &str, road: Option<&str>) -> String {
-    let _ = (mine, road);
-    todo!("client.ts:1029-1032")
+    match road {
+        Some("app") => release_words::reopen_app(mine),
+        Some("up") => release_words::restart_up().to_owned(),
+        _ => release_words::RESTART.to_owned(),
+    }
 }
 
 /// `releaseRefusal(mine, theirs, host, road)` (client.ts:1035-1041). `argv` is this process's, read by
 /// `release_update_line` when this line is the older end.
 pub fn release_refusal(mine: &str, theirs: &str, host: &ReleaseHost, road: Option<&str>, argv: &[String]) -> HostError {
-    let _ = (mine, theirs, host, road, argv);
-    todo!("client.ts:1035-1041")
+    let host_words = match host {
+        ReleaseHost::State(state) => release_words::host_here(state),
+        ReleaseHost::Where { r#where, .. } => release_words::host_at(r#where),
+    };
+    let said = release_words::said(mine, &host_words, theirs);
+    if compare_versions(mine, theirs) == std::cmp::Ordering::Less {
+        let fix = release_words::update_here(&release_update_line(argv, None, theirs), theirs);
+        return usage_refusal(&said, &fix);
+    }
+    let fix = match host {
+        ReleaseHost::State(_) | ReleaseHost::Where { here: true, .. } => release_here_fix(mine, road),
+        ReleaseHost::Where { here: false, .. } => release_words::update_there(mine),
+    };
+    usage_refusal(&said, &fix)
 }
 
 /// `otherVersion(op)` (client.ts:1044).
 pub fn other_version(op: &str) -> String {
-    let _ = op;
-    todo!("client.ts:1044")
+    format!("the host answered {op} in a shape this wsp does not read; it runs another version of wsp, restart it with wsp restart")
 }
 
 /// `threadIdOf(t)` (client.ts:1047): `threadId` where set, else `id`.
 pub fn thread_id_of(thread: &ThreadView) -> String {
-    let _ = thread;
-    todo!("client.ts:1047")
+    thread.thread_id.clone().unwrap_or_else(|| thread.id.clone())
 }
 
 /// `THREAD_PREFIX_WORD` (client.ts:1053).
@@ -992,56 +783,115 @@ pub type OpenedFn<'a> = &'a (dyn Fn(&str, Option<&str>) -> String + Send + Sync)
 
 /// `openedThreadLine(threadId, opened, folder)` (client.ts:1056).
 pub fn opened_thread_line(thread_id: &str, opened: Option<OpenedFn<'_>>, folder: Option<&str>) -> String {
-    let _ = (thread_id, opened, folder);
-    todo!("client.ts:1056")
+    match opened {
+        None => format!("thread {thread_id}"),
+        Some(opened) => opened(thread_id, folder),
+    }
 }
 
 /// `openedThreadSaid(threadId, opened, folder)` (client.ts:1060): the line, two spaces, `THREAD_PREFIX_WORD`.
 pub fn opened_thread_said(thread_id: &str, opened: Option<OpenedFn<'_>>, folder: Option<&str>) -> String {
-    let _ = (thread_id, opened, folder);
-    todo!("client.ts:1060")
+    format!("{}  {THREAD_PREFIX_WORD}", opened_thread_line(thread_id, opened, folder))
 }
 
 /// `printable(s)` (client.ts:1063): drops U+0000-U+0008, U+000B-U+001F and U+007F-U+009F; keeps tab and newline.
 pub fn printable(s: &str) -> String {
-    let _ = s;
-    todo!("client.ts:1063")
+    s.chars().filter(|c| !matches!(*c as u32, 0x00..=0x08 | 0x0b..=0x1f | 0x7f..=0x9f)).collect()
 }
 
 /// `cell(s)` (client.ts:1066): newline and tab to a space, then `without_control_chars`.
 pub fn cell(s: &str) -> String {
-    let _ = s;
-    todo!("client.ts:1066")
+    without_control_chars(&s.replace(|c: char| c == '\n' || c == '\t', " "))
 }
 
 /// `pick(o)` (client.ts:1069-1071): the given fields in order, the absent ones dropped. A `Some(Value::Null)` is
 /// kept: only `undefined` is left out.
 pub fn pick(fields: Vec<(&str, Option<Value>)>) -> Frame {
-    let _ = fields;
-    todo!("client.ts:1069-1071")
+    fields.into_iter().filter_map(|(key, value)| value.map(|value| (key.to_owned(), value))).collect()
 }
 
 /// `failed(io, json, e, prefix)` (client.ts:1076-1080): one line on stderr, `json_line(verb_failure(e))` under
 /// --json, else `say_once(prefix, message)`; answers the class's exit code.
 pub fn failed(io: &dyn CliIo, json: bool, e: &HostError, prefix: &str) -> i32 {
-    let _ = (io, json, e, prefix);
-    todo!("client.ts:1076-1080")
+    let failure = verb_failure(e);
+    let line = if json {
+        json_line(&serde_json::to_value(&failure).expect("a failure writes as JSON"), None)
+    } else {
+        say_once(prefix, &failure.error)
+    };
+    io.error(&line);
+    failure.exit as i32
 }
 
 /// `toolFailure(e, usage)` (client.ts:1085-1088).
 pub fn tool_failure(e: &HostError, usage: Option<&str>) -> CallToolResult {
-    let _ = (e, usage);
-    todo!("client.ts:1085-1088")
+    let refused = usage.and_then(|usage| host_schema_refusal(e, usage));
+    let failure = verb_failure(refused.as_ref().unwrap_or(e));
+    CallToolResult {
+        content: vec![TextContent { kind: "text".to_owned(), text: failure.error.clone() }],
+        structured_content: Some(serde_json::to_value(&failure).expect("a failure writes as JSON")),
+        is_error: Some(true),
+    }
 }
 
 /// `jsonAsked(argv)` (client.ts:1091-1094): `--json` among the words before the first `--`.
 pub fn json_asked(argv: &[String]) -> bool {
-    let _ = argv;
-    todo!("client.ts:1091-1094")
+    let cut = argv.iter().position(|w| w == "--").unwrap_or(argv.len());
+    argv[..cut].iter().any(|w| w == "--json")
 }
 
 /// `hostSchemaRefusal(e, usage)` (client.ts:1099-1102).
 pub fn host_schema_refusal(e: &HostError, usage: &str) -> Option<HostError> {
-    let _ = (e, usage);
-    todo!("client.ts:1099-1102")
+    let said = validator_refusal(&e.message)?;
+    Some(usage_refusal(&said, &format!("usage: {usage}")))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Helpers private to this file.
+// ---------------------------------------------------------------------------------------------------------------
+
+/// `cell.padEnd(width)` where `width` is None for the JS `undefined` a column past the widths gives: no padding.
+fn json_string(text: &str) -> String {
+    serde_json::to_string(text).expect("a string writes as JSON")
+}
+
+/// A usage word from the table of `USAGE_WORDS` by its key.
+fn is_provider(p: &PlaceView) -> bool {
+    matches!(p.kind, PlaceKind::Provider)
+}
+
+fn place_ref(p: &PlaceView) -> PlaceRef {
+    PlaceRef { id: p.id.clone(), name: p.name.clone(), kind: Some(kind_word(p).to_owned()) }
+}
+
+/// The THREADS and MACHINES cells: what the row's cap counts against the cap, under the column named for what it counts.
+/// The SPEND cell: what the row spent today against its spend per day, empty where its kind has no spend limit or
+/// no spend was read, since a figure is never guessed.
+/// A reply's field read into the type a verb takes; a field the reply lacks or shapes otherwise is the other-version
+/// refusal the host's answer earns.
+fn reply_field<T: DeserializeOwned>(frame: &Frame, op: &str, key: &str) -> Result<T, HostError> {
+    frame.get(key).cloned().and_then(|value| serde_json::from_value(value).ok()).ok_or_else(|| HostError::new(other_version(op)))
+}
+
+/// A reply's field where the host may leave it out: None where absent or null.
+fn optional_field<T: DeserializeOwned>(frame: &Frame, op: &str, key: &str) -> Result<Option<T>, HostError> {
+    match frame.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => serde_json::from_value(value.clone()).map(Some).map_err(|_| HostError::new(other_version(op))),
+    }
+}
+
+fn frame_of_value(value: Value) -> Frame {
+    match value {
+        Value::Object(frame) => frame,
+        _ => Frame::new(),
+    }
+}
+
+fn kind_word(p: &PlaceView) -> &'static str {
+    if is_provider(p) {
+        "provider"
+    } else {
+        "computer"
+    }
 }
