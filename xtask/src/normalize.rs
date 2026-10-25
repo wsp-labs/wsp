@@ -183,6 +183,10 @@ impl Normalizer {
             }
         }
         let p = patterns();
+        // A key is decided whole before any rule for text cuts into it: base64 can end in what reads as `/12s`.
+        if p.hex.is_match(&out) || (p.opaque.is_match(&out) && keyish(&out)) {
+            return self.id(&out, "id");
+        }
         out = p.time.replace_all(&out, "<time>").into_owned();
         out = p.loopback.replace_all(&out, "$1:<port>").into_owned();
         out = p.node_pid.replace_all(&out, "(node:<pid>)").into_owned();
@@ -203,9 +207,6 @@ impl Normalizer {
         if p.reading.is_match(&out) {
             out = p.reading.replace_all(&out, "<reading>").into_owned();
             out = p.padding.replace_all(&out, "  ").into_owned();
-        }
-        if p.hex.is_match(&out) || (p.opaque.is_match(&out) && keyish(&out)) {
-            return self.id(&out, "id");
         }
         for (re, kind) in [(&p.uuid, Some("uuid")), (&p.prefixed, None), (&p.fingerprint, Some("id")), (&p.join_code, Some("id"))] {
             let found: Vec<String> = re.find_iter(&out).map(|m| m.as_str().to_string()).collect();
