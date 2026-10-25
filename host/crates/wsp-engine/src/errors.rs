@@ -4,12 +4,9 @@
 //! The TS throws plain `WspError` objects, a dozen `Error` subclasses and whatever fetch rejects with, and its readers
 //! tell them apart by `kind`, `status`, `name`, `code` and `instanceof`. Here every one is a variant of
 //! [`EngineError`], and the readers are methods on it.
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tokio_util::sync::CancellationToken;
 use wsp_words::words::thread::{exec_failed_line, guest_unusable_line, machine_unreached_line, nap_refused_line, stop_refused_line};
 
 pub use wsp_words::words::units::StartWindow;
@@ -167,15 +164,7 @@ pub fn classify(status: u16, code: Option<&str>, error: Option<&str>, request_id
         502..=504 => ErrorKind::Transient,
         _ => ErrorKind::Unknown,
     };
-    WspError {
-        kind,
-        status,
-        code: code.map(str::to_string),
-        message,
-        request_id: request_id.map(str::to_string),
-        window: None,
-        said: None,
-    }
+    WspError { kind, status, code: code.map(str::to_string), message, request_id: request_id.map(str::to_string), window: None, said: None }
 }
 
 impl EngineError {
@@ -192,13 +181,7 @@ impl EngineError {
     }
     /// errors.ts:142 `new MachineUnreachableError(machineId, said, status, line)`.
     pub fn machine_unreachable(machine_id: &str, said: &str, status: u16, line: &str) -> Self {
-        EngineError::MachineUnreachable {
-            machine_id: machine_id.into(),
-            said: said.into(),
-            status,
-            line: line.into(),
-            exec_failed: false,
-        }
+        EngineError::MachineUnreachable { machine_id: machine_id.into(), said: said.into(), status, line: line.into(), exec_failed: false }
     }
     /// errors.ts:157 `new ExecFailedError(machineId, said, status)`: the line is `exec_failed_line(said)`.
     pub fn exec_failed(machine_id: &str, said: &str, status: u16) -> Self {
@@ -401,34 +384,7 @@ pub fn abort(cap_ms: Option<f64>, signal: Option<&Cancel>) -> Option<Abort> {
     if cap_ms.is_none() && signal.is_none() {
         return None;
     }
-    let token = CancellationToken::new();
-    let timed_out = Arc::new(AtomicBool::new(false));
-    if let Some(ms) = cap_ms {
-        let (token, timed_out) = (token.clone(), timed_out.clone());
-        let wait = Duration::from_millis(fetch_cap_ms(ms));
-        tokio::spawn(async move {
-            tokio::select! {
-                _ = tokio::time::sleep(wait) => {
-                    timed_out.store(true, std::sync::atomic::Ordering::SeqCst);
-                    token.cancel();
-                }
-                _ = token.cancelled() => {}
-            }
-        });
-    }
-    if let Some(caller) = signal {
-        if caller.is_cancelled() {
-            token.cancel();
-        }
-        let (token, caller) = (token.clone(), caller.clone());
-        tokio::spawn(async move {
-            tokio::select! {
-                _ = caller.cancelled() => token.cancel(),
-                _ = token.cancelled() => {}
-            }
-        });
-    }
-    Some(Abort { token, timed_out, caller: signal.cloned() })
+    Some(Abort::new(cap_ms.map(|ms| Duration::from_millis(fetch_cap_ms(ms))), signal))
 }
 
 /// errors.ts:271.
@@ -537,10 +493,5 @@ pub fn failure_words(e: &EngineError) -> String {
 /// name "AbortError", message "This operation was aborted", no string code. Every road that ends on a caller's
 /// cancel answers this.
 pub fn aborted() -> EngineError {
-    EngineError::Road(RoadError {
-        name: "AbortError".into(),
-        message: crate::cancel::DEFAULT_REASON.into(),
-        code: None,
-        cause: None,
-    })
+    EngineError::Road(RoadError { name: "AbortError".into(), message: crate::cancel::DEFAULT_REASON.into(), code: None, cause: None })
 }

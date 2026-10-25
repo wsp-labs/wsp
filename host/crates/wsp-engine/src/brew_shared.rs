@@ -32,12 +32,8 @@ pub fn brew_shared_deps(formulae: &[String]) -> String {
     let mut lines = vec!["set -uo pipefail".to_string()];
     lines.extend(shared_deps_lines(formulae));
     lines.extend(
-        [
-            r#"if [ -z "$shared" ]; then echo "no shared dependencies"; exit 0; fi"#,
-            r#"echo "shared: $(echo $shared)""#,
-            r#"err=$(mktemp)"#,
-        ]
-        .map(str::to_string),
+        [r#"if [ -z "$shared" ]; then echo "no shared dependencies"; exit 0; fi"#, r#"echo "shared: $(echo $shared)""#, r#"err=$(mktemp)"#]
+            .map(str::to_string),
     );
     lines.push(format!(r#"{brew} install $shared 2>"$err"; rc=$?"#));
     lines.push(r#"cat "$err" >&2"#.to_string());

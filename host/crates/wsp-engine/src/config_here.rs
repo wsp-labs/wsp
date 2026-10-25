@@ -10,7 +10,7 @@ use wsp_words::js::js_trim;
 
 use crate::errors::{EngineError, Result};
 use crate::machine::ExecResult;
-use crate::spawn_fed::{spawn_sync_fed, FedOptions};
+use crate::spawn_fed::{spawn_sync_fed_checked, FedOptions};
 
 /// config-here.ts:8. The write's whole budget.
 pub const WRITE_MS: u64 = 60_000;
@@ -22,7 +22,7 @@ pub const WRITE_MS: u64 = 60_000;
 pub fn config_landed(res: &ExecResult, file: &str, shown: Option<&dyn Fn(&str) -> String>) -> Result<()> {
     let shown_path = |p: &str| shown.map_or_else(|| p.to_string(), |f| f(p));
     let code = res.exit_code.get();
-    if let Some(said) = config_refusal(code as i32, &res.stdout, file, &shown_path) {
+    if let Some(said) = config_refusal(i32::try_from(code).unwrap_or(i32::MIN), &res.stdout, file, &shown_path) {
         return Err(EngineError::Other { message: said, code: Some("usage".into()) });
     }
     if code == 0 {
@@ -31,10 +31,7 @@ pub fn config_landed(res: &ExecResult, file: &str, shown: Option<&dyn Fn(&str) -
     let text = if res.stderr.is_empty() { &res.stdout } else { &res.stderr };
     let first = js_trim(text).split('\n').next().unwrap_or("");
     let first = if first.is_empty() { format!("exit {code}") } else { first.to_string() };
-    Err(EngineError::Other {
-        message: format!("{} stands as it was: the write did not finish ({first}).", shown_path(file)),
-        code: None,
-    })
+    Err(EngineError::Other { message: format!("{} stands as it was: the write did not finish ({first}).", shown_path(file)), code: None })
 }
 
 /// config-here.ts:21. Runs `/bin/sh -c <config_write_line({file, base, bytes: len, sum})>` with the text's UTF-8 bytes
@@ -48,10 +45,12 @@ pub fn write_config_here(file: &str, base: &str, sum: Option<&str>, text: &str, 
         bytes: text.len() as u64,
         from: None,
     });
-    let mut vars: IndexMap<String, String> = std::env::vars().collect();
+    let mut vars: IndexMap<String, String> =
+        std::env::vars_os().map(|(k, v)| (k.to_string_lossy().into_owned(), v.to_string_lossy().into_owned())).collect();
     vars.insert("PATH".into(), "/usr/bin:/bin".into());
     let opts = FedOptions { timeout: Some(std::time::Duration::from_millis(WRITE_MS)), env: Some(vars), ..Default::default() };
-    let ran = spawn_sync_fed("/bin/sh", &["-c".to_string(), line], text.as_bytes(), &opts);
+    let ran = spawn_sync_fed_checked("/bin/sh", &["-c".to_string(), line], text.as_bytes(), &opts)
+        .map_err(|thrown| EngineError::Other { message: thrown.message, code: Some(thrown.code) })?;
     let stderr = if ran.stderr.is_empty() { ran.error.unwrap_or_default() } else { String::from_utf8_lossy(&ran.stderr).into_owned() };
     let res = ExecResult {
         exit_code: JsInt::from(i64::from(ran.status.unwrap_or(1))),

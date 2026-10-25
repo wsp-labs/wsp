@@ -42,10 +42,7 @@ pub async fn land_bytes(machine: &dyn Machine, path: &str, bytes: &[u8], opts: L
     let req = FetchRequest { method: "PUT".into(), url, headers: Vec::new(), body: Some(bytes.to_vec()), abort: None };
     let put = fetch.fetch(req).await.map_err(EngineError::Road)?;
     if !put.ok() {
-        return Err(EngineError::Other {
-            message: format!("{path} did not land on {}: HTTP {}", machine.id(), put.status),
-            code: None,
-        });
+        return Err(EngineError::Other { message: format!("{path} did not land on {}: HTTP {}", machine.id(), put.status), code: None });
     }
     Ok(None)
 }
