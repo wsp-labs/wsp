@@ -76,6 +76,10 @@ describe("the tap", () => {
       JSON.stringify({ in: { id: 3, op: "agents.key", agent: "claude", key: "<redacted>" } }),
       JSON.stringify({ out: { id: 3, ok: false, error: "the key <redacted> was refused" } }),
     ]);
+    // A host token that is the text of the mark itself.
+    const apart = join(dir, "named");
+    tapeOf({ [TAPE_DIR_ENV]: apart }, "ws", "host-token")!.in({ id: 1, op: "auth", token: "host-token" });
+    expect(readFileSync(join(apart, readdirSync(apart)[0]!), "utf8").trimEnd().split("\n")[1]).toBe(JSON.stringify({ in: { id: 1, op: "auth", token: "<host-token>" } }));
   });
 
   it("writes nothing when no folder is named", () => {
