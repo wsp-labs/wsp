@@ -1,0 +1,206 @@
+{
+  "claudeHalfMoved": {
+    "report": [
+      {
+        "agent": "claude",
+        "outcome": "failed",
+        "error": "{home}/projects/-new-p-sub already exists"
+      }
+    ],
+    "tree": {
+      "projects/-new-p/S1.jsonl": "{\"cwd\":\"/new/p\"}\n",
+      "projects/-new-p-sub/S9.jsonl": "{\"cwd\":\"/new/p/sub\"}\n",
+      "projects/-root-p-sub/S2.jsonl": "{\"cwd\":\"/root/p/sub\"}\n"
+    }
+  },
+  "geminiRegistry": {
+    "report": [
+      {
+        "agent": "gemini",
+        "outcome": "moved",
+        "moved": [
+          {
+            "state": "project registry",
+            "files": [
+              "{home}/projects.json"
+            ],
+            "changed": 2
+          }
+        ]
+      }
+    ],
+    "tree": {
+      "projects.json": "{\n  \"zz\": 1,\n  \"projects\": {\n    \"/other\": \"o\",\n    \"/new/p\": \"s\",\n    \"/new/p/sub\": \"s2\"\n  },\n  \"a\": {\n    \"9\": [\n      1,\n      {}\n    ],\n    \"10\": 1\n  },\n  \"n\": 1\n}\n"
+    }
+  },
+  "geminiMarkerLinked": {
+    "report": [
+      {
+        "agent": "gemini",
+        "outcome": "failed",
+        "error": "{home}/tmp/s2/.project_root has another hard link, which a write by rename would split from it, so nothing was written. See the link count with ls -li {home}/tmp/s2/.project_root and find the other name with find / -xdev -samefile {home}/tmp/s2/.project_root, since a hard link stays on its own volume; remove that name or give {home}/tmp/s2/.project_root a copy of its own, then run the command again."
+      }
+    ],
+    "tree": {
+      "history/s/.project_root": "/root/p",
+      "projects.json": "{\n  \"projects\": {\n    \"/new/p\": \"s\",\n    \"/new/p/sub\": \"s2\"\n  }\n}\n",
+      "second-name": "/root/p/sub",
+      "tmp/s/.project_root": "/new/p",
+      "tmp/s2/.project_root": "/root/p/sub"
+    }
+  },
+  "geminiRegistries": [
+    {
+      "registry": "{\"version\":1}",
+      "report": [
+        {
+          "agent": "gemini",
+          "outcome": "failed",
+          "error": "Cannot convert undefined or null to object"
+        }
+      ],
+      "after": "{\"version\":1}"
+    },
+    {
+      "registry": "{\"projects\":{\"/root/p\":5}}",
+      "report": [
+        {
+          "agent": "gemini",
+          "outcome": "failed",
+          "error": "The \"path\" argument must be of type string. Received type number (5)"
+        }
+      ],
+      "after": "{\"projects\":{\"/root/p\":5}}"
+    },
+    {
+      "registry": "{\"projects\":{\"/root/p\":\"s\",\"/new/p\":null}}",
+      "report": [
+        {
+          "agent": "gemini",
+          "outcome": "failed",
+          "error": "/new/p already exists in {home}/projects.json"
+        }
+      ],
+      "after": "{\"projects\":{\"/root/p\":\"s\",\"/new/p\":null}}"
+    },
+    {
+      "registry": "{\"projects\":{\"/root/p\":\"../x\",\"/new/p\":\"y\"}}",
+      "report": [
+        {
+          "agent": "gemini",
+          "outcome": "nothing"
+        }
+      ],
+      "after": "{\"projects\":{\"/root/p\":\"../x\",\"/new/p\":\"y\"}}"
+    },
+    {
+      "registry": "{\"projects\":{\"/root/p\":\"../x\",\"/root/p/q\":\"ok\"}}",
+      "report": [
+        {
+          "agent": "gemini",
+          "outcome": "moved",
+          "moved": [
+            {
+              "state": "project registry",
+              "files": [
+                "{home}/projects.json"
+              ],
+              "changed": 1
+            }
+          ]
+        }
+      ],
+      "after": "{\n  \"projects\": {\n    \"/root/p\": \"../x\",\n    \"/new/p/q\": \"ok\"\n  }\n}\n"
+    },
+    {
+      "registry": "{\"projects\":[]}",
+      "report": [
+        {
+          "agent": "gemini",
+          "outcome": "nothing"
+        }
+      ],
+      "after": "{\"projects\":[]}"
+    }
+  ],
+  "geminiMerge": "import base64, json, os, re, shutil, sqlite3, sys, urllib.parse\ndef data(b):\n    return json.loads(base64.b64decode(b))\ndef under(p, root):\n    return p == root or p.startswith(root + \"/\")\ndef q(name):\n    return '\"' + name.replace('\"', '\"\"') + '\"'\ndef moved(p):\n    return TO + p[len(FROM):] if under(p, FROM) else None\ndef out(o):\n    print(json.dumps(o))\n    sys.exit(0)\ndef fail(why):\n    print(why, file=sys.stderr)\n    sys.exit(1)\ndef write(path, text):\n    tmp = path + \".wsp-merge\"\n    with open(tmp, \"w\", encoding=\"utf-8\", errors=\"surrogateescape\", newline=\"\") as f:\n        f.write(text)\n    if os.path.exists(path):\n        shutil.copymode(path, tmp)\n    os.replace(tmp, path)\nFROM = data(\"Ii9yb290L3Ai\")\nTO = data(\"Ii9uZXcvcCI=\")\nmerged = 0\nkept = 0\nnotes = []\nHOME = data(\"Ii9nLy5nZW1pbmki\")\nREG = data(\"Ii9nLy5nZW1pbmkvcHJvamVjdHMuanNvbiI=\")\nKEYS = data(\"W1siL3Jvb3QvcCIsIi9uZXcvcCIsInMiXSxbIi9yb290L3Avc3ViIiwiL25ldy9wL3N1YiIsInMyIl1d\")\nDIRS = data(\"WyJ0bXAiLCJoaXN0b3J5Il0=\")\nos.makedirs(HOME, exist_ok=True)\nif os.path.exists(REG):\n    with open(REG, encoding=\"utf-8\") as h:\n        reg = json.load(h)\nelse:\n    reg = {\"projects\": {}}\nprojects = reg.setdefault(\"projects\", {})\nfor old, key, slug in KEYS:\n    for other, s in projects.items():\n        if s == slug and other != key:\n            fail(\"slug \" + slug + \" already belongs to \" + other + \" in \" + REG)\nchanged = False\nfor old, key, slug in KEYS:\n    held = projects.get(key)\n    if held == slug:\n        kept += 1\n    elif held is not None:\n        kept += 1\n        notes.append(\"the machine already lists \" + key + \" as \" + str(held) + \", so that slug stays and the carried chats under tmp/\" + slug + \" are not listed there\")\n    else:\n        projects[key] = slug\n        merged += 1\n        changed = True\n    for d in DIRS:\n        marker = os.path.join(HOME, d, slug, \".project_root\")\n        if not os.path.exists(marker):\n            continue\n        with open(marker, encoding=\"utf-8\", newline=\"\") as h:\n            text = h.read()\n        if text.rstrip() == old:\n            write(marker, key + text[len(text.rstrip()):])\nif changed:\n    write(REG, json.dumps(reg, indent=2, ensure_ascii=False) + \"\\n\")\nout({\"merged\": merged, \"kept\": kept, **({\"note\": \"; \".join(notes)} if notes else {})})",
+  "geminiDuplicateSlugs": [
+    {
+      "agent": "gemini",
+      "name": "Gemini",
+      "sessions": 2,
+      "bytes": 22,
+      "carry": "transcript-only"
+    }
+  ],
+  "rewriteCwd": [
+    {
+      "name": "invalid utf8",
+      "input": "eyJjd2QiOiIvb2xkIn0KcmF3IP/+IHRhaWwK",
+      "n": 1,
+      "output": "eyJjd2QiOiIvbmV3In0KcmF3IO+/ve+/vSB0YWlsCg=="
+    },
+    {
+      "name": "big integers",
+      "input": "eyJjd2QiOiIvb2xkIiwiaWQiOjkwMDcxOTkyNTQ3NDA5OTMsInUiOjEyMzQ1Njc4OTAxMjM0NTY3ODkwLCJuZWciOi05MDA3MTk5MjU0NzQwOTkzfQo=",
+      "n": 1,
+      "output": "eyJjd2QiOiIvbmV3IiwiaWQiOjkwMDcxOTkyNTQ3NDA5OTIsInUiOjEyMzQ1Njc4OTAxMjM0NTY3MDAwLCJuZWciOi05MDA3MTk5MjU0NzQwOTkyfQo="
+    },
+    {
+      "name": "overflow",
+      "input": "eyJjd2QiOiIvb2xkIiwieCI6MWU0MDB9Cg==",
+      "n": 1,
+      "output": "eyJjd2QiOiIvbmV3IiwieCI6bnVsbH0K"
+    },
+    {
+      "name": "lone surrogate",
+      "input": "eyJjd2QiOiIvb2xkIiwidCI6Ilx1ZDgzZCIsInUiOiJcdWRlMDB4XHVkODNkXHVkODNkIn0K",
+      "n": 1,
+      "output": "eyJjd2QiOiIvbmV3IiwidCI6Ilx1ZDgzZCIsInUiOiJcdWRlMDB4XHVkODNkXHVkODNkIn0K"
+    },
+    {
+      "name": "number spelling",
+      "input": "eyJjd2QiOiIvb2xkIiwieiI6LTAsImUiOjFFMiwiZiI6MS41MCwiZyI6MC4wMDAwMDAxLCJoIjoxZTIxfQo=",
+      "n": 1,
+      "output": "eyJjd2QiOiIvbmV3IiwieiI6MCwiZSI6MTAwLCJmIjoxLjUsImciOjFlLTcsImgiOjFlKzIxfQo="
+    },
+    {
+      "name": "duplicate keys",
+      "input": "eyJhIjoxLCJjd2QiOiIveCIsImN3ZCI6Ii9vbGQiLCJiIjoyfQo=",
+      "n": 1,
+      "output": "eyJhIjoxLCJjd2QiOiIvbmV3IiwiYiI6Mn0K"
+    },
+    {
+      "name": "index keys",
+      "input": "eyJiIjoxLCIwMSI6MiwiLTEiOjMsIjQyOTQ5NjcyOTUiOjQsIjQyOTQ5NjcyOTQiOjUsIjAiOjYsIjEuNSI6NywiY3dkIjoiL29sZCIsIjFlMyI6OCwiMTAiOjksIm0iOnsiYiI6MSwiMTAiOjIsIjkiOjN9LCJhcnIiOlt7IjIiOjEsIjEiOjJ9XX0K",
+      "n": 1,
+      "output": "eyIwIjo2LCIxMCI6OSwiNDI5NDk2NzI5NCI6NSwiYiI6MSwiMDEiOjIsIi0xIjozLCI0Mjk0OTY3Mjk1Ijo0LCIxLjUiOjcsImN3ZCI6Ii9uZXciLCIxZTMiOjgsIm0iOnsiOSI6MywiMTAiOjIsImIiOjF9LCJhcnIiOlt7IjEiOjIsIjIiOjF9XX0K"
+    },
+    {
+      "name": "crlf and spaces",
+      "input": "eyJjd2QiOiIvb2xkIn0NCnsiY3dkIjoiL2tlZXAifQ0KICB7ImN3ZCI6Ii9vbGQveCJ9ICAK",
+      "n": 2,
+      "output": "eyJjd2QiOiIvbmV3In0KeyJjd2QiOiIva2VlcCJ9DQp7ImN3ZCI6Ii9uZXcveCJ9Cg=="
+    },
+    {
+      "name": "bom",
+      "input": "77u/eyJjd2QiOiIvb2xkIn0K",
+      "n": 0,
+      "output": "77u/eyJjd2QiOiIvb2xkIn0K"
+    }
+  ],
+  "filesUnder": {
+    "linked": [
+      "{home}/t/linkdir/a.jsonl",
+      "{home}/t/linkdir/sub/b.jsonl",
+      "{home}/t/x.jsonl"
+    ],
+    "sorted": [
+      "{home}/u/S1-b.jsonl",
+      "{home}/u/S1.jsonl",
+      "{home}/u/S1/a.jsonl",
+      "{home}/u/S10.jsonl",
+      "{home}/u/S1_c.jsonl"
+    ]
+  }
+}
