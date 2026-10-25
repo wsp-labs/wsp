@@ -11,8 +11,10 @@ use serde::{Deserialize, Serialize};
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 use wsp_wire::wire::devices::{DeviceVia, DeviceView};
 
+use wsp_words::exit::HostError;
+
 use crate::ids::Ids;
-use crate::store::{Store, StoreError};
+use crate::types::pending::Store;
 
 // /** One document per paired computer, keyed by its id. */
 // const DEVICES = "devices";
@@ -159,18 +161,10 @@ pub struct PairedDevice {
 }
 
 /// What `issue` answers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IssuedCode {
     pub code: String,
     pub expires_at: i64,
-}
-
-/// `issue`'s argument.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct IssueAt {
-    pub now: i64,
-    pub ttl_ms: i64,
-    pub here: bool,
 }
 
 /// `mint`'s optional fourth argument.
@@ -222,18 +216,19 @@ pub struct MintMore {
 // }
 #[async_trait(?Send)]
 pub trait DeviceDoor {
-    async fn issue(&self, at: IssueAt) -> Result<IssuedCode, StoreError>;
-    async fn redeem(&self, code: &str, name: &str, now: i64) -> Result<Option<PairedDevice>, StoreError>;
-    async fn spend(&self, code: &str, now: i64) -> Result<bool, StoreError>;
-    async fn admit(&self, name: &str, now: i64) -> Result<PairedDevice, StoreError>;
-    async fn admit_account(&self, name: &str, via: DeviceVia, now: i64) -> Result<PairedDevice, StoreError>;
-    async fn refuses(&self, fingerprint: &str) -> Result<bool, StoreError>;
-    async fn mint(&self, name: &str, scope: ThreadScope, now: i64, more: MintMore) -> Result<PairedDevice, StoreError>;
-    async fn revoke_asides(&self) -> Result<(), StoreError>;
-    async fn r#match(&self, token: &str) -> Result<Option<HeldDevice>, StoreError>;
-    async fn seen(&self, id: &str, now: i64) -> Result<Option<HeldDevice>, StoreError>;
-    async fn list(&self) -> Result<Vec<DeviceView>, StoreError>;
-    async fn revoke(&self, id: &str) -> Result<bool, StoreError>;
+    /// `issue({ now, ttlMs, here })`.
+    async fn issue(&self, now: i64, ttl_ms: u64, here: bool) -> Result<IssuedCode, HostError>;
+    async fn redeem(&self, code: &str, name: &str, now: i64) -> Result<Option<PairedDevice>, HostError>;
+    async fn spend(&self, code: &str, now: i64) -> Result<bool, HostError>;
+    async fn admit(&self, name: &str, now: i64) -> Result<PairedDevice, HostError>;
+    async fn admit_account(&self, name: &str, via: DeviceVia, now: i64) -> Result<PairedDevice, HostError>;
+    async fn refuses(&self, fingerprint: &str) -> Result<bool, HostError>;
+    async fn mint(&self, name: &str, scope: ThreadScope, now: i64, more: MintMore) -> Result<PairedDevice, HostError>;
+    async fn revoke_asides(&self) -> Result<(), HostError>;
+    async fn r#match(&self, token: &str) -> Result<Option<HeldDevice>, HostError>;
+    async fn seen(&self, id: &str, now: i64) -> Result<Option<HeldDevice>, HostError>;
+    async fn list(&self) -> Result<Vec<DeviceView>, HostError>;
+    async fn revoke(&self, id: &str) -> Result<bool, HostError>;
 }
 
 // /** The one refusal for a runtime served without a store to keep devices in, so the ops answer plainly rather than

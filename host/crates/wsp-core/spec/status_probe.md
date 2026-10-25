@@ -39,9 +39,10 @@ The pure half of the status tracker: what a runtime phase means as a provider st
 ## Tests
 | Rule | Test (`tests/status_probe.rs`) |
 |---|---|
+| 5 | `missed_marks_offline_only_a_request_that_never_left_this_computer` |
 | 2, 3 | `machine_state_of_maps_every_phase`, `phase_leaving_gone_reads_running_and_paused_only` |
 | 4 | `provider_said_quotes_the_status_and_the_providers_own_words` |
 | 5, 6 | `maps_a_prompt_502_to_no_daemon_a_late_answer_to_slow_silence_to_unreachable_and_any_other_answer_to_reachable`, `a_426_is_the_daemons_own_answer`, `the_probe_tells_this_computers_road_from_the_machines_silence` |
 | 7, 8 | `a_guest_that_takes_longer_than_the_prompt_reads_slow_and_one_inside_it_reads_reachable`, `the_callers_bound_is_the_whole_ask`, `a_guest_that_says_its_port_is_dead_reads_no_daemon`, `bounded_leaves_the_work_running_past_its_bound` |
-| 9 | `facts_backoff_doubles_from_one_poll_to_five_minutes` |
+| 1, 9 | `facts_backoff_doubles_from_one_poll_to_five_minutes` |
 | 10 | `cost_moved_lets_a_figure_through_once_and_forgets_a_deleted_workspace`, `cost_moved_lets_every_other_event_through`, `cost_moved_formats_figures_as_javascript_does` |

@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use support::{run_local, MemStore, SeqIds};
 use wsp_core::devices::{
-    make_devices, safe_equal, thread_of, token_digest, DeviceDoor, HeldDevice, IssueAt, MintMore, DEVICES, NO_DEVICE_DOOR, PAIRINGS, REVOKED,
+    make_devices, safe_equal, thread_of, token_digest, DeviceDoor, HeldDevice, MintMore, DEVICES, NO_DEVICE_DOOR, PAIRINGS, REVOKED,
 };
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 use wsp_wire::wire::devices::{DeviceVia, PAIR_CODE_ALPHABET};
@@ -20,10 +20,6 @@ fn door() -> (Rc<MemStore>, Rc<SeqIds>, Rc<dyn DeviceDoor>) {
     let ids = SeqIds::new();
     let door = make_devices(store.clone(), ids.clone());
     (store, ids, door)
-}
-
-fn issue(now: i64, ttl_ms: i64) -> IssueAt {
-    IssueAt { now, ttl_ms, here: false }
 }
 
 /// The code the `n`th draw of eight bytes makes.
@@ -52,7 +48,7 @@ fn via(fingerprint: &str) -> DeviceVia {
 fn a_revoke_that_lands_while_a_last_seen_write_is_in_flight_stays_revoked() {
     run_local(async {
         let (store, _, door) = door();
-        let code = door.issue(issue(1_000, 60_000)).await.unwrap().code;
+        let code = door.issue(1_000, 60_000, false).await.unwrap().code;
         let paired = door.redeem(&code, "laptop", 1_000).await.unwrap().unwrap();
         // A paired client redialing with backoff while somebody at the host revokes it: both roads read the record,
         // and without one writer the later write puts the revoked device back.
@@ -68,7 +64,7 @@ fn a_revoke_that_lands_while_a_last_seen_write_is_in_flight_stays_revoked() {
 fn holds_in_the_other_order_too_and_a_seen_after_a_revoke_writes_nothing_back() {
     run_local(async {
         let (store, _, door) = door();
-        let code = door.issue(issue(1_000, 60_000)).await.unwrap().code;
+        let code = door.issue(1_000, 60_000, false).await.unwrap().code;
         let paired = door.redeem(&code, "laptop", 1_000).await.unwrap().unwrap();
         let puts = store.puts.get();
         let (revoked, moved) = futures::join!(door.revoke(&paired.device_id), door.seen(&paired.device_id, 2_000));
@@ -83,7 +79,7 @@ fn holds_in_the_other_order_too_and_a_seen_after_a_revoke_writes_nothing_back() 
 fn two_sockets_spending_one_code_get_one_device_between_them() {
     run_local(async {
         let (_, _, door) = door();
-        let code = door.issue(issue(1_000, 60_000)).await.unwrap().code;
+        let code = door.issue(1_000, 60_000, false).await.unwrap().code;
         let (one, two) = futures::join!(door.redeem(&code, "one", 1_000), door.redeem(&code, "two", 1_000));
         let (one, two) = (one.unwrap(), two.unwrap());
         assert!(one.is_some(), "the first redeem in the chain spends the code");
@@ -98,11 +94,11 @@ fn two_sockets_spending_one_code_get_one_device_between_them() {
 fn issue_mints_eight_symbols_of_the_alphabet_and_stores_the_code_with_its_expiry() {
     run_local(async {
         let (store, _, door) = door();
-        let issued = door.issue(issue(1_000, 600_000)).await.unwrap();
+        let issued = door.issue(1_000, 600_000, false).await.unwrap();
         assert_eq!(issued.code, code_of(1));
         assert_eq!(issued.expires_at, 601_000);
         assert_eq!(store.text(PAIRINGS, &issued.code).unwrap(), format!(r#"{{"code":"{}","expiresAt":601000}}"#, issued.code));
-        let here = door.issue(IssueAt { now: 1_000, ttl_ms: 600_000, here: true }).await.unwrap();
+        let here = door.issue(1_000, 600_000, true).await.unwrap();
         assert_eq!(store.text(PAIRINGS, &here.code).unwrap(), format!(r#"{{"code":"{}","expiresAt":601000,"here":true}}"#, here.code));
     });
 }
@@ -111,12 +107,12 @@ fn issue_mints_eight_symbols_of_the_alphabet_and_stores_the_code_with_its_expiry
 fn clears_codes_that_ran_out_when_the_next_one_is_minted() {
     run_local(async {
         let (store, _, door) = door();
-        let stale = door.issue(issue(1_000, 600_000)).await.unwrap().code;
-        let live = door.issue(issue(1_000, 3_600_000)).await.unwrap().code;
+        let stale = door.issue(1_000, 600_000, false).await.unwrap().code;
+        let live = door.issue(1_000, 3_600_000, false).await.unwrap().code;
         // Exactly at its expiry a code is still held; one past it, the next mint clears it.
-        door.issue(issue(601_000, 600_000)).await.unwrap();
+        door.issue(601_000, 600_000, false).await.unwrap();
         assert!(store.text(PAIRINGS, &stale).is_some());
-        let fresh = door.issue(issue(601_001, 600_000)).await.unwrap().code;
+        let fresh = door.issue(601_001, 600_000, false).await.unwrap().code;
         assert_eq!(store.text(PAIRINGS, &stale), None);
         assert!(store.text(PAIRINGS, &live).is_some());
         assert!(store.text(PAIRINGS, &fresh).is_some());
@@ -127,9 +123,9 @@ fn clears_codes_that_ran_out_when_the_next_one_is_minted() {
 fn a_code_redeemed_at_its_expiry_spends_and_one_past_it_is_refused_and_forgotten() {
     run_local(async {
         let (store, _, door) = door();
-        let on_time = door.issue(issue(1_000, 60_000)).await.unwrap().code;
+        let on_time = door.issue(1_000, 60_000, false).await.unwrap().code;
         assert!(door.redeem(&on_time, "laptop", 61_000).await.unwrap().is_some());
-        let late = door.issue(issue(1_000, 60_000)).await.unwrap().code;
+        let late = door.issue(1_000, 60_000, false).await.unwrap().code;
         assert_eq!(door.redeem(&late, "laptop", 61_001).await.unwrap(), None);
         assert_eq!(store.text(PAIRINGS, &late), None, "a guess never gets two tries");
         assert_eq!(door.redeem(&late, "laptop", 1_000).await.unwrap(), None, "a later clock does not let it in");
@@ -141,7 +137,7 @@ fn a_code_redeemed_at_its_expiry_spends_and_one_past_it_is_refused_and_forgotten
 fn spend_answers_true_once_and_false_after() {
     run_local(async {
         let (store, _, door) = door();
-        let code = door.issue(issue(1_000, 60_000)).await.unwrap().code;
+        let code = door.issue(1_000, 60_000, false).await.unwrap().code;
         assert!(door.spend(&code, 2_000).await.unwrap());
         assert!(!door.spend(&code, 2_000).await.unwrap());
         assert_eq!(door.redeem(&code, "x", 2_000).await.unwrap(), None, "one code store: spent for both roads");
@@ -163,7 +159,7 @@ fn a_malformed_pairing_row_is_no_code_and_stays_where_it_is() {
 fn keeps_only_the_tokens_hash_never_the_token() {
     run_local(async {
         let (store, _, door) = door();
-        let code = door.issue(issue(1_000, 60_000)).await.unwrap().code;
+        let code = door.issue(1_000, 60_000, false).await.unwrap().code;
         let paired = door.redeem(&code, "laptop", 1_000).await.unwrap().unwrap();
         // Draws: the code, then the token, then the id.
         assert_eq!(paired.device_token, token_of(2));
@@ -209,7 +205,7 @@ fn a_device_row_without_a_token_hash_is_no_device() {
 fn a_device_record_keeps_its_keys_in_the_written_order() {
     run_local(async {
         let (store, _, door) = door();
-        let code = door.issue(IssueAt { now: 1_000, ttl_ms: 60_000, here: true }).await.unwrap().code;
+        let code = door.issue(1_000, 60_000, true).await.unwrap().code;
         let paired = door.redeem(&code, " laptop ", 1_000).await.unwrap().unwrap();
         let hash = token_digest(&paired.device_token);
         assert_eq!(
@@ -257,7 +253,7 @@ fn a_blank_name_reads_a_paired_computer() {
 fn a_code_issued_here_admits_a_device_read_as_here() {
     run_local(async {
         let (_, _, door) = door();
-        let code = door.issue(IssueAt { now: 1_000, ttl_ms: 60_000, here: true }).await.unwrap().code;
+        let code = door.issue(1_000, 60_000, true).await.unwrap().code;
         let paired = door.redeem(&code, "browser", 1_000).await.unwrap().unwrap();
         let listed: Value = serde_json::to_value(&door.list().await.unwrap()[0]).unwrap();
         assert_eq!(listed["here"], json!(true));
@@ -356,5 +352,25 @@ fn a_failed_write_rejects_its_caller_and_the_chain_goes_on() {
         store.fail_put.set(false);
         let kept = door.admit("kept", 2_000).await.unwrap();
         assert_eq!(door.list().await.unwrap().into_iter().map(|d| d.id).collect::<Vec<_>>(), vec![kept.device_id]);
+    });
+}
+
+#[test]
+fn invariant_3_a_requests_origin_is_read_off_the_token_it_presents() {
+    run_local(async {
+        let (_, _, door) = door();
+        let here = door.mint("turn here", scope("t1"), 1_000, MintMore { road: Some(WorkspaceOrigin::Here), aside: false }).await.unwrap();
+        let relayed = door.mint("turn on a machine", scope("t2"), 1_000, MintMore { road: Some(WorkspaceOrigin::Relayed), aside: false }).await.unwrap();
+        let laptop = door.admit("laptop", 1_000).await.unwrap();
+        // The road comes from the record the token names, so a token minted for a machine reads relayed whatever the
+        // request that carries it says about itself.
+        let read = |token: String| {
+            let door = door.clone();
+            async move { door.r#match(&token).await.unwrap().and_then(|held| thread_of(&held)).map(|t| (t.by.thread_id, t.road)) }
+        };
+        assert_eq!(read(here.device_token).await, Some(("t1".to_string(), WorkspaceOrigin::Here)));
+        assert_eq!(read(relayed.device_token).await, Some(("t2".to_string(), WorkspaceOrigin::Relayed)));
+        assert_eq!(read(laptop.device_token).await, None, "a person's computer holds no thread scope");
+        assert_eq!(read("forged".to_string()).await, None);
     });
 }

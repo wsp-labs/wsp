@@ -33,6 +33,7 @@ The host's held link to one daemon: dial with the token as the first frame, then
 ## Decisions
 1. A taken socket is `TakenSocket`, built from any `WebSocketStream` over a boxed stream; Node's `resume()` of a paused socket (:235) has no Rust counterpart, since nothing reads the stream before the reach does.
 2. A refused request rejects with `ReachError { message, kind, status, code }`; link failures (`daemon unreachable`, `connection lost`, `client closed`) are `ReachError` with only a message.
+3. `DaemonReach` is a trait (01's seam table, rule 1.3); `connect_daemon` answers `Rc<dyn DaemonReach>`.
 
 ## After the port
 - A ritual step the daemon refuses with `ok: false` while the socket stays open ends the ritual silently: no heartbeat, no redial, status stays `connecting` and `ready` never settles (:193-196).
@@ -46,7 +47,7 @@ The host's held link to one daemon: dial with the token as the first frame, then
 | 6, 9 | `survives_a_cut_socket_reconnects_resubscribes_and_rescans_the_inbox` |
 | 3 | `reports_connecting_then_live_on_first_connect`, `cycles_connecting_live_across_a_cut_socket_without_duplicate_emissions` |
 | 8 | `rejects_ready_and_reports_reauth_needed_on_a_bad_token`, `dials_again_when_the_daemons_auth_deadline_passed_while_this_hosts_loop_stood_still_and_goes_live`, `surfaces_a_post_establishment_4401_as_reauth_needed_and_stops_retrying` |
-| 11 | `reports_dead_once_the_client_closes`, `close_fails_every_pending_request_with_client_closed` |
+| 11, 12 | `reports_dead_once_the_client_closes`, `close_fails_every_pending_request_with_client_closed`, `a_close_before_the_first_connect_rejects_ready` |
 | 9 | `keeps_retrying_while_the_daemon_is_unreachable_and_connects_once_it_is_back` |
 | 10 | `takes_a_socket_somebody_else_opened_without_an_auth_frame_of_its_own_and_is_dead_when_that_socket_goes` |
 | 4 | `stamps_its_own_id_and_op_over_any_the_callers_params_carry` |

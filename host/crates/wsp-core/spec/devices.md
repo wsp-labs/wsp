@@ -33,6 +33,7 @@ Pairing codes and the device tokens they mint, kept in the store so a restart do
 - A revoke landing while a `seen` is queued: the device stays revoked and `seen` answers `None` (both orders).
 
 ## Behaviour nobody wrote down
+- Runtime invariant 3 (packages/runtime/AGENTS.md: a request's origin is stamped off its token): `match` and `thread_of` are the half of it this file holds; the road is the record's, never the request's.
 - Rule 3.9, chain kind, one chain for the whole host, caller gets its own result (03 table: devices).
 - Rule 2.15: `d_` with 16 hex, device tokens 24 bytes base64url.
 - Rule 3.16: every random byte comes from the `Ids` seam, so a seeded replay mints the same codes, ids and tokens.
@@ -41,6 +42,8 @@ Pairing codes and the device tokens they mint, kept in the store so a restart do
 ## Decisions
 1. The door is a trait `DeviceDoor` (one implementation, `make_devices`), since `serve` holds it as an option and its tests hand in none (`NO_DEVICE_DOOR`).
 2. A `devices` row that passes the guard but does not deserialize as a record (a missing `createdAt`) is skipped as a guard failure; the TS would carry it with `undefined` fields.
+3. Times are whole milliseconds (`i64`): a stored `expiresAt` must write `61000`, as `JSON.stringify` does, never `61000.0`.
+4. Errors are `HostError`, what the shared `Store` (`types::pending::Store`) fails with; the method shapes are the ones the core-types stand-in published (`issue(now, ttl_ms, here)`), so the slices that built on it keep building.
 
 ## After the port
 - `list` sorting a record with no `createdAt` throws in the TS (`localeCompare` of `undefined`); the port skips it (Decision 2).
@@ -61,3 +64,7 @@ Pairing codes and the device tokens they mint, kept in the store so a restart do
 | 13, 17 | `revoking_an_account_device_remembers_its_key_and_refuses_it_after` |
 | 16 | `list_orders_devices_by_when_they_were_made` |
 | 2 | `safe_equal_is_false_for_different_lengths_and_true_for_equal_bytes` |
+| 5 | `a_failed_write_rejects_its_caller_and_the_chain_goes_on` |
+| 3, 9 | `a_malformed_pairing_row_is_no_code_and_stays_where_it_is`, `a_device_row_without_a_token_hash_is_no_device` |
+| 15 | `a_seen_moves_only_the_last_seen_and_keeps_the_key_order` |
+| 14, 18, invariant 3 | `invariant_3_a_requests_origin_is_read_off_the_token_it_presents` |

@@ -30,6 +30,7 @@ One dial of one daemon for one client of the host: dial, send the auth frame fir
 1. `on_event` takes `serde_json::Value`, since the TS hands on whatever parsed.
 2. Errors are one enum `ChannelError` with `kind()`; the TS classes map one to one: `Unanswered`, `Door`, `Token`, `Refused` (the plain error of Behaviour 4).
 3. tokio-tungstenite folds a non-101 answer into `Error::Http(response)`; the implementer must still read the door's body up to the cap (Behaviour 6), not only what the handshake buffered.
+4. `DaemonChannel` is a trait (01's seam table, rule 1.3), so tests and the runtime's wrappers (`heldToOwner`, `killGuarded`) stand in for it; `open_daemon_channel` answers `Rc<dyn DaemonChannel>`.
 
 ## After the port
 - A refused auth reply (Behaviour 4) leaves the socket open: nothing closes it, and the channel's caller never gets a handle to close it.
