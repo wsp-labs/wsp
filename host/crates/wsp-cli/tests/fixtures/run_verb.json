@@ -1,0 +1,523 @@
+[
+ {
+  "argv": [
+   "threads",
+   "--nope"
+  ],
+  "verb": "threads",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "Unknown option '--nope'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--nope\". usage: wsp threads [<project>] [--tree] [--watch]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "threads",
+   "--nope",
+   "--json"
+  ],
+  "verb": "threads",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "{\"error\":\"Unknown option '--nope'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \\\"--nope\\\". usage: wsp threads [<project>] [--tree] [--watch]\",\"class\":\"usage\",\"exit\":3}"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "run",
+   "--ssh",
+   "x",
+   "hi"
+  ],
+  "verb": "run",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "--ssh belongs to wsp computers set; wsp run does not read it. usage: wsp run [<project>] [--on boat [--size <cpu>x<memGb>] [--from <ref>]] [--beside <thread>] [--fork <thread> [--at <n>]] [--branch <branch>] [--cwd <path>] [--agent <id>] [--model, --effort, --access <word>] [--fast] [--notify <thread|me>] [--title <title>] [--replaces <thread>] [--file <path>] [--resume <id> [--copy]] [--detach] \"<message>\""
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "run",
+   "--recipe",
+   "x"
+  ],
+  "verb": "run",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "--recipe belongs to wsp computers set; wsp run does not read it. usage: wsp run [<project>] [--on boat [--size <cpu>x<memGb>] [--from <ref>]] [--beside <thread>] [--fork <thread> [--at <n>]] [--branch <branch>] [--cwd <path>] [--agent <id>] [--model, --effort, --access <word>] [--fast] [--notify <thread|me>] [--title <title>] [--replaces <thread>] [--file <path>] [--resume <id> [--copy]] [--detach] \"<message>\""
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "exec",
+   "t",
+   "--cwd",
+   "packages",
+   "--",
+   "ls"
+  ],
+  "verb": "exec",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "--cwd is a path on the machine, absolute, and got \"packages\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see. usage: wsp exec <thread> [--cwd <dir>] -- <command...>"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "exec",
+   "t",
+   "--cwd",
+   "packages",
+   "--json",
+   "--",
+   "ls"
+  ],
+  "verb": "exec",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "{\"error\":\"--cwd is a path on the machine, absolute, and got \\\"packages\\\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see. usage: wsp exec <thread> [--cwd <dir>] -- <command...>\",\"class\":\"usage\",\"exit\":3}"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "exec",
+   "--cwd",
+   "/root",
+   "--",
+   "ls"
+  ],
+  "verb": "exec",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp exec takes a thread, then -- and the command. usage: wsp exec <thread> [--cwd <dir>] -- <command...>"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "threads",
+   "--host"
+  ],
+  "verb": "threads",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "Option '--host <value>' argument missing. usage: wsp threads [<project>] [--tree] [--watch]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "read",
+   "--last=1",
+   "x"
+  ],
+  "verb": "thread read",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "Option '--last' does not take an argument. usage: wsp thread read <thread> [--last]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "exec",
+   "--help"
+  ],
+  "verb": "exec",
+  "code": 0,
+  "lines": [
+   "usage: wsp exec <thread> [--cwd <dir>] -- <command...>\n  runs the command where the thread works, each word as given, in --cwd or the\n  thread's own folder\n\n  --cwd      the folder to run the command in, absolute; the folder the thread\n             works in without it\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "errors": [],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "exec",
+   "-h"
+  ],
+  "verb": "exec",
+  "code": 0,
+  "lines": [
+   "usage: wsp exec <thread> [--cwd <dir>] -- <command...>\n  runs the command where the thread works, each word as given, in --cwd or the\n  thread's own folder\n\n  --cwd      the folder to run the command in, absolute; the folder the thread\n             works in without it\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "errors": [],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "read",
+   "x",
+   "--help",
+   "--nope"
+  ],
+  "verb": "thread read",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "Unknown option '--nope'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--nope\". usage: wsp thread read <thread> [--last]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "run"
+  ],
+  "verb": "run",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp run: the message is empty; say what the thread is to do. Put the message in quotes: wsp run <project> \"say hi\"."
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "run",
+   "a",
+   "b",
+   "c"
+  ],
+  "verb": "run",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp run takes a project and a message; c reads as a third word. usage: wsp run [<project>] [--on boat [--size <cpu>x<memGb>] [--from <ref>]] [--beside <thread>] [--fork <thread> [--at <n>]] [--branch <branch>] [--cwd <path>] [--agent <id>] [--model, --effort, --access <word>] [--fast] [--notify <thread|me>] [--title <title>] [--replaces <thread>] [--file <path>] [--resume <id> [--copy]] [--detach] \"<message>\""
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "read"
+  ],
+  "verb": "thread read",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp thread read takes one thread. usage: wsp thread read <thread> [--last]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "read",
+   "a",
+   "b"
+  ],
+  "verb": "thread read",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp thread read takes one thread. usage: wsp thread read <thread> [--last]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "worktree",
+   "x"
+  ],
+  "verb": "worktree",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp worktree takes a project and a branch. usage: wsp worktree <project> <branch>"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "settle"
+  ],
+  "verb": "thread settle",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp thread settle takes one thread or more. usage: wsp thread settle <thread>... [--finished] [--processes stop|keep]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "restore"
+  ],
+  "verb": "thread restore",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp thread restore takes one thread or more. usage: wsp thread restore <thread>..."
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "restart",
+   "x"
+  ],
+  "verb": "restart",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp restart takes no arguments. usage: wsp restart"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "stop"
+  ],
+  "verb": "stop",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp stop takes one thread. usage: wsp stop <thread> [--subagent <id>]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "send",
+   "t"
+  ],
+  "verb": "send",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp send takes a thread and one message. usage: wsp send <thread> [--model, --effort <value>] [--fast] [--file <path>] [--detach] \"<message>\""
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "setup",
+   "x"
+  ],
+  "verb": "setup",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp setup takes no positional arguments. usage: wsp setup"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "terminal",
+   "config",
+   "x"
+  ],
+  "verb": "terminal config",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp terminal config takes no positional arguments. usage: wsp terminal config [--scheme light|dark]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "terminal",
+   "config",
+   "--scheme",
+   "blue"
+  ],
+  "verb": "terminal config",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp terminal config: --scheme takes one of light, dark, and got \"blue\". Name one of those."
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "folders",
+   "a",
+   "b"
+  ],
+  "verb": "folders",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp folders takes one folder on this computer at most. usage: wsp folders [<folder>] [--hidden] [--repos] [--on <computer>]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "allow"
+  ],
+  "verb": "thread allow",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp thread allow takes one thread. usage: wsp thread allow <thread>"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "deny",
+   "a",
+   "b"
+  ],
+  "verb": "thread deny",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp thread deny takes one thread. usage: wsp thread deny <thread> [--reason \"<words>\"]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "exec",
+   "t"
+  ],
+  "verb": "exec",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp exec takes a thread, then -- and the command. usage: wsp exec <thread> [--cwd <dir>] -- <command...>"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "rename",
+   "t"
+  ],
+  "verb": "thread rename",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp thread rename takes a thread and one name. usage: wsp thread rename <thread> \"<title>\""
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "forget"
+  ],
+  "verb": "thread forget",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp thread forget takes one thread. usage: wsp thread forget <thread> [--yes]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "head"
+  ],
+  "verb": "thread head",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp thread head takes one thread. usage: wsp thread head <thread>"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "worktree",
+   "remove",
+   "p"
+  ],
+  "verb": "worktree remove",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp worktree remove takes a project and a branch. usage: wsp worktree remove <project> <branch> [--force] [--yes]"
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "thread",
+   "settle",
+   "t",
+   "--processes",
+   "maybe"
+  ],
+  "verb": "thread settle",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp thread settle: --processes takes one of stop, keep, and got \"maybe\". Name one of those."
+  ],
+  "dialled": 0
+ },
+ {
+  "argv": [
+   "run",
+   "--size",
+   "2x4",
+   "hi"
+  ],
+  "verb": "run",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp run: dialled"
+  ],
+  "dialled": 1
+ },
+ {
+  "argv": [
+   "run",
+   "--from",
+   "main",
+   "hi"
+  ],
+  "verb": "run",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp run: dialled"
+  ],
+  "dialled": 1
+ },
+ {
+  "argv": [
+   "run",
+   "--at",
+   "2",
+   "hi"
+  ],
+  "verb": "run",
+  "code": 3,
+  "lines": [],
+  "errors": [
+   "wsp run: dialled"
+  ],
+  "dialled": 1
+ }
+]
