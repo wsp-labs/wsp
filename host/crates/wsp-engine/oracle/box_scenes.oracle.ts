@@ -218,6 +218,11 @@ it("box scenes", async () => {
 
   // backstops (:1019).
   const bs = (b: InstanceType<typeof box.BoxBackend>, m: InstanceType<typeof box.BoxMachine>, until: number, exact = false) => b.backstop(m, until, exact ? { exact: true } : {}).then(() => "ok", (e: Error) => `threw: ${e.message}`);
+  await add("backstop_after_an_hour_reads_the_kept_limits_of_any_age", { [`PATCH ${P()}`]: [OK()] }, {}, async (b, m) => {
+    await b.limits();
+    (b as unknown as { clock: { at: number } }).clock.at += 3_600_000;
+    return [await bs(b, m, 99_000_000), json(b.lastTimer(ID)), b.capabilities.sizes.length];
+  });
   await add("backstop_whose_limits_read_fails_backs_off", { "GET /limits": [ERR(400, "bad", "limits down"), LIMITS("trial")], [`PATCH ${P()}`]: [OK()] }, {}, async (b, m) => [await bs(b, m, 2_000_000), await bs(b, m, 2_000_000), json(b.lastTimer(ID))]);
   await add("backstop_in_the_past_asks_one_second", { "GET /limits": [LIMITS("paid")], [`PATCH ${P()}`]: [OK()] }, {}, async (b, m) => [await bs(b, m, 0), json(b.lastTimer(ID))]);
   await add("backstop_exact_ignores_the_backoff", { "GET /limits": [LIMITS("paid")], [`PATCH ${P()}`]: [ERR(400, "bad", "no"), OK()] }, {}, async (b, m) => [await bs(b, m, 2_000_000), await bs(b, m, 2_000_000), await bs(b, m, 2_000_000, true), json(b.lastTimer(ID))]);

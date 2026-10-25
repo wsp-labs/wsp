@@ -7276,6 +7276,69 @@
   "elapsed": 0
  },
  {
+  "name": "backstop_after_an_hour_reads_the_kept_limits_of_any_age",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "PATCH /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": [
+   "ok",
+   {
+    "until": 11800000,
+    "spanMs": 7200000
+   },
+   2
+  ],
+  "err": null,
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "PATCH",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":7200}"
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 3600000
+ },
+ {
   "name": "backstop_whose_limits_read_fails_backs_off",
   "routes": {
    "GET /limits": [

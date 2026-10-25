@@ -52,3 +52,11 @@ The seam every backend sits behind, and the backend of a host with no provider k
 | nothing bills | `machine::nothing_bills_on_it_and_it_names_no_size_to_bill_for`, `machine_hard::no_provider_offers_nothing_optional` |
 | copies flags | `machine::copies_flags_box_copies_and_its_copy_has_its_own_network`, `machine::copies_flags_no_provider_copies_nothing_and_has_no_network_of_its_own` |
 | a default optional method answers not on this road | `machine_hard::a_machine_without_an_optional_method_answers_not_on_this_road` |
+
+## Pins (wave 2)
+
+Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, section `machine`), held by
+`tests/machine_pins.rs`.
+
+- N-1 `NoProviderBackend::new(line)` takes the default line only for `None`: `Some("")` is kept, and every road
+  refuses with no words (`an_empty_line_is_kept_and_refuses_with_no_words`).

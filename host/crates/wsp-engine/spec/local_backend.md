@@ -64,3 +64,15 @@ Oracle: `tests/fixtures/roads/local_backend.json`.
 | bytes 0600, parents made | `puts_bytes_on_this_computer_by_its_own_road` |
 | construction touches nothing; get makes the folder | `building_the_backend_makes_no_folder_and_get_makes_it` |
 | memory readings | `is_memavailable_over_memtotal_on_linux`, `meminfo_and_pressure_match_the_ts` |
+
+## Pins (wave 2)
+
+Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, section `local_backend`), held by
+`tests/local_backend_pins.rs`.
+
+- L-1 `memory_of_pressure` reads the trimmed level with JS `Number` and needs an integer in 0..=100: `0b11` is 3,
+  `0o7` is 7, `+5`, `5.` and `.5e1` are 5, `0x1f` is 31, ` 7 ` is 7, `-0` is 0; `Infinity` and `1_0` are `None`
+  (`the_pressure_reading_takes_every_js_number_form`).
+- L-2 `memory_of_meminfo` is `^KEY:\s*(\d+)\s*kB` under JS `m`: the white space may cross a newline (`MemTotal:\n2048
+  kB` reads), `^` also follows a `\r`, `KB` is no match, and the first match counts
+  (`meminfo_is_read_with_javascript_line_rules`).

@@ -256,3 +256,13 @@ async fn backstop_backoff_doubles_from_the_failure_read_at_entry() {
     s.same_road();
     s.same_out(json!(got));
 }
+
+#[tokio::test]
+async fn backstop_after_an_hour_reads_the_kept_limits_of_any_age() {
+    let s = scene("backstop_after_an_hour_reads_the_kept_limits_of_any_age");
+    s.on.backend.limits().await.unwrap();
+    s.on.clock.advance(3_600_000);
+    let got = json!([backstop(&s, 99_000_000, false).await, timer_json(s.on.backend.last_timer(ID)), s.on.backend.capabilities().sizes.len()]);
+    s.same_road();
+    s.same_out(got);
+}

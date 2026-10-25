@@ -101,3 +101,15 @@ failed, or building for any other word; `error` only on a failed one that has on
 | read caps | `box_request::reads_at_most_the_measured_default_by_default`, `box_request::ends_each_of_boxs_reads_of_a_machine_the_fleet_and_the_snapshots_at_the_reads_cap`, `box_request::leaves_a_write_uncapped_where_its_own_road_gives_it_none` |
 | ttl seconds | `box_request_hard::the_seconds_to_a_stop_are_rounded_up_at_least_one_and_capped_on_the_trial` |
 | settle and while_restoring | `box_request_hard::settle_reads_until_done_then_fails_naming_the_state_after_its_budget_in_whole_seconds`, `box_request::cancelled_reads_as_gone_and_ends_a_creates_wait_on_the_first_read_with_boats_reason`, `box_machine_exec::a_box_that_reads_ready_but_refuses_commands_while_its_disk_streams_in_*` |
+
+## Pins (wave 2)
+
+- B-R1 `fail(w)` keeps an empty message empty (`box_request_oracle::fail_keeps_every_field_and_an_empty_message_stays_empty`).
+- B-R2 `request_limit_wait_ms` falls through to the details only for a null or absent top value
+  (`box_request_oracle::the_request_limit_waits_the_seconds_boat_names_never_past_its_minute`).
+- B-R3 `stop_refusal_of` skips only an empty `error`: an error of white space alone is the words, and an empty status,
+  attempt or completion is written as it is, so `its latest snapshot  at , and the last that completed was none`
+  (`box_request_pins::stop_refusal_writes_empty_strings_as_they_are`, from `units.json`).
+- B-R4 `ttl_cap` and the capabilities read the kept limits of any age, never asking again because 10 s passed; only
+  `limits()`, `before_start` and `place_limits` hold the 10 s window
+  (`box_fleet_scenes::backstop_after_an_hour_reads_the_kept_limits_of_any_age`).

@@ -76,3 +76,19 @@ Boat's classes, prices, budgets, the account's limits, the state table and the n
 | names: rank, locale order, encoding, the 120 cap | `box_plan::a_machines_labels_ride_in_the_box_name_shortened_and_read_back_whole`, `box_plan::a_name_past_the_apis_cap_keeps_the_pairs_in_rank_order_up_to_the_first_that_does_not_fit`, `box_plan_oracle::box_name_ranks_wsps_keys_then_the_rest_by_locale_order_and_stops_at_the_first_pair_that_does_not_fit`, `box_plan_oracle::box_labels_reads_back_only_names_wsp_made_with_their_keys_in_order`, `box_plan_oracle::a_name_and_its_labels_round_trip_through_the_encoding` |
 | snapshot names, UTF-16 units, hash | `box_plan::a_snapshot_name_is_lowered_onto_the_providers_pattern_and_a_long_one_ends_in_a_hash`, `box_plan_oracle::a_snapshot_name_is_lowered_cleaned_and_a_long_one_ends_in_the_hash_of_the_whole`, `box_plan_oracle::a_character_outside_utf16s_basic_plane_is_two_dashes` |
 | uuid | `box_plan_oracle::a_uuid_is_a_history_id_in_any_case` |
+
+## Pins (wave 2)
+
+Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, section `box_plan`), held by
+`tests/box_plan_pins.rs`.
+
+- B-P1 `box_labels` decodes each `%XX` as one UTF-16 unit of that value (`String.fromCharCode(parseInt(hex, 16))`),
+  never as UTF-8: `%c3%a9` is `Ã©`, two units; a `%` without two hex digits after it stays
+  (`labels_decode_each_escape_as_one_latin_1_unit`).
+- B-P2 The plan's dollars are the tier whose `key` equals the plan's key, compared with `===`, so with no
+  `sandboxPlanKey` a tier with no `key` matches: `{ sandboxPlanTiers: [{ dollars: 100 }] }` is `planUsd` 100 and
+  sells every class (`a_keyless_tier_matches_a_keyless_plan`).
+- B-P3 A NaN cpu or memory fits no class (`>=` with NaN is false), so it is the last class, xlarge
+  (`a_nan_size_is_the_largest_class`).
+- Not ported: `STATE_MAP["constructor"]` is the `Object` function in the TS, so `state_of("constructor")` is neither
+  running nor gone there; here every word missing from the table reads running. An accepted difference.

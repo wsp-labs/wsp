@@ -92,3 +92,23 @@ Nothing here keeps state; nothing survives a restart except what ssh itself writ
 | host name | `is_the_hostname_the_config_gives_an_alias`, `is_no_address_where_a_jump_carries_the_dial` |
 | client words and refusal line | `a_machine_that_does_not_answer_the_dial_is_refused_with_the_clients_own_words`, `client_words_match_the_ts`, `refusal_lines_match_the_ts` |
 | dial runs as the login | `sshDial` in ssh_sudo.rs `as_the_login_itself_for_the_reads_that_ask_about_the_login` |
+
+## Pins (wave 2)
+
+Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, section `ssh_keys`), held by
+`tests/ssh_keys_pins.rs`.
+
+- K-1 `known_host_target` reads `port` with JS `Number` and checks only that it is an integer other than 22: `""` and
+  `0` are `[h]:0`, `-1` and `99999` are kept, `1e3` is 1000, `0x16` is 22 and `22.0` is 22 (bare host), `0x8ae` is
+  2222, `Infinity` is not an integer (bare host), ` 2222 ` is 2222
+  (`the_known_host_target_reads_the_port_with_js_number`).
+- K-2 A `~/` file is `path.join(home, rest)`, which normalizes: `/home/x/` and `~/.ssh/k` is `/home/x/.ssh/k`,
+  `~/a//b` is `/home/x/a/b`, `~/../etc/k` is `/home/etc/k`, `~/./k` is `/home/x/k`, `~/` is `/home/x`; the list is
+  split on single spaces first (`a_tilde_is_joined_and_normalized_as_path_join_does`). The spec's `{home}/{rest}`
+  above was short of this.
+- K-3 `ssh_refusal_line`: the last 300 units of `client_words(stderr)` with no trim after the cut, so a leading `\n`
+  can stay; with nothing kept, `{user}@{host} refused the login over ssh (exit {code})` with the code as given, 124
+  and -1 included (`the_refusal_line_keeps_its_last_300_units_untrimmed`).
+- K-4 `client_words` matches with JavaScript's rules: `.` does not match `\r` (nor U+2028, U+2029), `$` is the end
+  of the line's text, `\d` is ASCII. A bind line ending in `\r` is kept, the known-hosts note with a `\r` inside it is
+  kept, and `debug١:` is kept (`client_words_matches_with_javascript_regex_rules`).

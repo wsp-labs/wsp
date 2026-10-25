@@ -82,3 +82,12 @@ Oracle: `tests/fixtures/roads/fake_backend.json` (the records file byte for byte
 | capabilities, rates | `capabilities_and_rates_match_the_ts` |
 | a move on a machine no longer recorded writes nothing | `a_machine_no_longer_recorded_is_left_alone` |
 | facts, describe, seen | `facts_describe_and_seen_match_the_ts` |
+
+## Pins (wave 2)
+
+Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, section `fake_backend`), held by
+`tests/fake_backend_pins.rs`.
+
+- F-1 The rate is `Number((cpu x 0.02 + memMb / 1024 x 0.01).toFixed(4))`: `toFixed` rounds the exact binary value
+  half up at the fourth decimal, so 0.03125 is 0.0313 and 0.09375 is 0.0938 (`wsp_words::js::to_fixed`; Rust's
+  `{:.4}` gives 0.0312) (`rates_round_their_ties_as_to_fixed_does`).
