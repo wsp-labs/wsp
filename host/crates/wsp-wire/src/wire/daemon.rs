@@ -12,11 +12,11 @@ use super::limits::{is_http_url, EXEC_BODY_MAX, GUEST_ARGV_MAX, GUEST_CWD_MAX, G
 use crate::types::check::{hex_64, items_at_most, num_above, num_at_least, num_at_most, refine, regex_check, text_at_least, text_at_most};
 use crate::types::pull_request::{MergeMethod, ReactionContent};
 use crate::types::{Check, JsNumber, SchemaError};
-pub use wsp_frames::{
-    CgroupMemory, FsEntry, FsEntryType, FsFilesReply, FsHashReply, FsImageReply, FsListReply, FsSearchReply, FsWriteReply,
-    GitBranchesReply, GitCheckpointDropReply, GitCheckpointReply, GitCommitReply, GitDiffFile, GitDiscardReply, GitLocalBranch,
-    GitPrListReply, GitRestoreReply, GitWorktree, GitWorktreesReply, HostItem, HostItemKind, HttpBearer, HttpPostReply, KillMode, PipeDoor,
-    PipeOpen, ProcKind, ProcListReply, ProcOwnedBy, ProcSignal, SshStartReply, UsageStore,
+pub use super::daemon_replies::{
+    CgroupMemory, FsEntry, FsEntryType, FsFilesReply, FsHashReply, FsImageReply, FsListReply, FsSearchReply, FsWriteReply, GitBranchesReply,
+    GitCheckpointDropReply, GitCheckpointReply, GitCommitReply, GitDiffFile, GitDiscardReply, GitLocalBranch, GitPrListReply,
+    GitRestoreReply, GitWorktree, GitWorktreesReply, HostItem, HostItemKind, HttpBearer, HttpPostReply, KillMode, PipeDoor, PipeOpen,
+    ProcKind, ProcListReply, ProcOwnedBy, ProcSignal, SshStartReply, UsageStore,
 };
 use wsp_frames::{False, True};
 
@@ -196,7 +196,7 @@ pub struct ProcEntry {
     pub energy_mw: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub pgid: Option<JsInt>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::wire::helpers::or_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "owner_or_none")]
     pub owner: Option<ProcOwner>,
     /// zod `ProcKind.catch("other").optional()`: absent stays absent; any other value that is no kind reads as other.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "proc_kind_or_other")]
@@ -955,7 +955,7 @@ impl Check for ProcOwner {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
-                "by" => None,
+                "by" => <ProcOwnedBy as Check>::describe(rest),
                 "thread" => <Option<String> as Check>::describe(rest),
                 "workspace" => <Option<String> as Check>::describe(rest),
                 "warm" => <Option<bool> as Check>::describe(rest),
@@ -1177,7 +1177,7 @@ impl Check for ProcScopePid {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
                 "pid" => <i64 as Check>::describe(rest),
-                "kind" => None,
+                "kind" => <ProcKind as Check>::describe(rest),
                 _ => None,
             },
         }
@@ -2730,7 +2730,7 @@ impl Check for GuestCliMessage1 {
 //   return open.success ? open.data : undefined;
 // }
 pub fn pipe_open_of(text: &str) -> Option<PipeOpen> {
-    let value: Value = serde_json::from_str(text).ok()?;
+    let value = crate::wire::json_text::parse_json(text)?;
     crate::types::check::parse::<PipeOpen>(&value).ok()
 }
 // daemon.ts:411
@@ -2796,6 +2796,12 @@ impl ProcRow for wsp_frames::ProcEntry {
 pub fn proc_kind_or_other<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<ProcKind>, D::Error> {
     let word = Value::deserialize(d)?;
     Ok(Some(serde_json::from_value(word).unwrap_or(ProcKind::Other)))
+}
+
+/// ProcEntry.owner as zod reads it: `.optional().catch(undefined)`, so anything that is not a whole owner object reads as absent.
+pub fn owner_or_none<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<ProcOwner>, D::Error> {
+    let value = Value::deserialize(d)?;
+    Ok(if value.is_object() { ProcOwner::deserialize(value).ok() } else { None })
 }
 
 /// Reads one daemon request as zod's discriminated union on `op` reads it, so a refusal's first issue is zod's: a value
@@ -2901,138 +2907,6 @@ pub const DAEMON_REQUEST_OPS: &[&str] = &[
 /// neither is one invalid_union issue at the root.
 pub fn parse_daemon_response(frame: &Value) -> Result<crate::wire::machine_link::DaemonResponse, SchemaError> {
     crate::types::check::parse(frame)
-}
-
-// The shapes wsp-frames holds read every bound while deserializing, so each Check has nothing left to refuse.
-impl Check for CgroupMemory {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for FsEntry {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for FsFilesReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for FsHashReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for FsImageReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for FsListReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for FsSearchReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for FsWriteReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for GitBranchesReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for GitCheckpointDropReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for GitCheckpointReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for GitCommitReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for GitDiffFile {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for GitDiscardReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for GitLocalBranch {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for GitPrListReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for GitRestoreReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for GitWorktree {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for GitWorktreesReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for HostItem {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for HttpBearer {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for HttpPostReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for PipeOpen {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for ProcListReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for SshStartReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-}
-impl Check for UsageStore {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
 }
 
 // A word list zod reads with z.enum: serde refuses any other word, so nothing is left to check.

@@ -1,5 +1,5 @@
 # daemon
-Source: packages/protocol/src/wire/daemon.ts (972 lines) at a3b870a6e, less the process rows (proc_frames). About 700 of its lines are the 85-op `DaemonRequest` union and the reply shapes; the Rust re-exports the 33 shapes the TS holds equal to wsp-frames' generated types. Tests: protocol.test.ts (9 cases), broker-contract.test.ts (2), callback-relay.test.ts (2), pty-mode.test.ts (2), daemon-ws.test.ts (1); 4 more here; and tests/contract_fixtures.rs (4) reads every daemon contract fixture. Rust: `src/wire/daemon.rs`; tests `tests/daemon.rs` (20), `tests/contract_fixtures.rs` (4).
+Source: packages/protocol/src/wire/daemon.ts (972 lines) at a3b870a6e, less the process rows (proc_frames). About 700 of its lines are the 85-op `DaemonRequest` union and the reply shapes; the Rust holds the 33 reply shapes and words as local types in `src/wire/daemon_replies.rs`, with zod's numbers and checks. Tests: protocol.test.ts (9 cases), broker-contract.test.ts (2), callback-relay.test.ts (2), pty-mode.test.ts (2), daemon-ws.test.ts (1); 4 more here; and tests/contract_fixtures.rs (4) reads every daemon contract fixture. Rust: `src/wire/daemon.rs`; tests `tests/daemon.rs` (20), `tests/contract_fixtures.rs` (4).
 
 ## What it does
 What the host sends a daemon and how it reads the daemon's answers: the auth frame, the 85 ops of a daemon socket (ptys, ports, files, git, processes, tunnels, stdio, http, guests, the place's leave and update), their caps, and the reply shapes. The host writes these frames more than it reads them; it reads them where a page's frame passes through (`daemon.send`) and in tests, and it reads every reply.
@@ -13,7 +13,7 @@ What the host sends a daemon and how it reads the daemon's answers: the auth fra
 6. `FsReadReply` (`content`, `size`, `truncated`), `PtyListEntry` (`reply`, `thread` optional), `ProcInspectReply.cwd` nullable, `ProcKillReply` all three lists optional.
 7. `GuestCliMessage` is an untagged union: `{stream: out|err, text}` or `{exit: integer}`; `GuestOpenReply.session`.
 8. `DaemonExecReply` needs `exitCode` (integer), `stdout`, `stderr`, `truncated`. The constants `EXEC_OUTPUT_MAX` 2097152, `EXEC_TIMEOUT_DEFAULT_MS` 20000, `EXEC_TIMEOUT_MAX_MS` 600000, `EXEC_DEADLINE_EXIT` 124, `DETACHED_HEAD` `(detached)`, `PROC_KINDS` (11 words, agent first, other last) are copied.
-9. Every reply shape re-exported from wsp_frames (FsListReply, FsHashReply, GitCommitReply and the rest on the `pub use` line) reads every bound while deserializing; its Check is `Ok(())`.
+9. Every reply shape on the `pub use` line (FsListReply, FsHashReply, GitCommitReply and the rest) is a local type of `daemon_replies.rs`: `JsNumber` for `z.number()`, `JsInt` for `.int()`, `null` refused on an optional key, and zod's rules (SshStartReply's port and one-line host key, HttpBearer, UsageStore, FsSearchReply's line) in its Check.
 10. `parse_daemon_response` is proc_frames 8.
 
 ## Edge cases
@@ -30,7 +30,7 @@ What the host sends a daemon and how it reads the daemon's answers: the auth fra
 `daemon.open`/`daemon.send` tapes carry daemon frames through the host (chapter 04); the contract fixtures (daemon/fixtures/contract/frames, 216 files, 108 names) are the accept and reject cases, run in tests/contract_fixtures.rs. Held out: none counted here.
 
 ## Decisions
-1. The 33 shapes the TS holds `Same` as wsp-frames' generated types are re-exported, not ported (`protocol/src/generated` is not ported).
+1. The 33 shapes the TS holds `Same` as wsp-frames' generated types are ported as local types (ruling 6397505922: a wsp-frames type does not match zod's numbers, nulls or issues); `protocol/src/generated` is not ported.
 2. `DaemonRequest` is the wire's own enum, generated from the zod union, not wsp_frames' `DaemonRequest`: the daemon's type is its writer's and differs in leniency (the host must read and refuse exactly as zod does).
 3. `DAEMON_REQUEST_OPS` is a const list copied from the union, in order, so the discriminator issue can name them without walking the enum.
 
