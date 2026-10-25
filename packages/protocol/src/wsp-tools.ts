@@ -37,7 +37,7 @@ export function launchHasSlate(servers: Readonly<Record<string, Pick<McpServerSp
 export const SLATE_SCRIPT_WORDS = 'A run\'s script goes in a <file name="x.py">, run as python3 "$SLATE_DIR/x.py", never in the project.';
 
 /** What a slate is for, said the same in the catalog's index, the server's instructions, the slate tools' descriptions
- * and the skill (#2439): agents wrote slates that restated the chat, and replies that restated the slate. */
+ * and the skill: agents wrote slates that restated the chat, and replies that restated the slate. */
 export const SLATE_PURPOSE = "The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it.";
 
 /** The slate's rules where a small model weighs them, at the end of the system prompt, for a thread whose launch
@@ -55,6 +55,7 @@ export const SLATE_BRIEF = [
   "A token or key the person keeps in a file stays there: the run's command reads it from the file. Never read that file or put its value in a tool call.",
   "A one-off answer, a comparison or an explanation stays in chat.",
   SLATE_PURPOSE,
+  "It is read at a glance: figures, counts with their exceptions and decisions, never a second copy of the chat.",
 ].join("\n");
 
 /** How long an agent that holds its own limit on a tool call lets a wsp call run, which Codex reads as the server
