@@ -40,6 +40,15 @@ through `SolariBackend::request` (spec/solari_call.md R1 to R7); paths are `/san
 - P4. A read that fails is `gone` where the failure is missing (404), else no read (`None`), never retried; a read that
   hangs is cut at `state_read_ms`. `wait_ms` is not read.
 
+- P5. Only `running` earns the second send. After a capped or network failure, a read of `starting`, of any word
+  `state_of` maps to `gone` (`archived`, `releasing`, `gone`), or a 404 (missing, so `gone`) ends the pause at once:
+  one send, one read, `MoveUnanswered` whose words name that state (`reads the machine starting`, `reads the machine
+  gone`). A state read is never retried: a read that fails on the network is one GET, `None`.
+- P6. `state_of` maps a word the table does not know to `running`, never `gone` (a machine read as gone would bill with
+  nobody watching), so an unknown word on the first read earns the second send.
+- P7. The warn line is exactly `<id>: <words>`, once per failed pause, sent before the error returns; a pause that
+  lands or is refused with the provider's own words (409 `Not pausable`, any other refusal) warns nothing.
+
 ## resume (solari-backend.ts:467)
 
 - W1. One `POST /resume` with `{}`, cap `resume_cap_ms`, the caller's signal. A 2xx is done.
@@ -48,6 +57,10 @@ through `SolariBackend::request` (spec/solari_call.md R1 to R7); paths are `/san
 - W3. Capped or network: one read under `state_read_ms` (as P4). `running` or `starting` is done. Else warn
   `<id>: <RESUME_UNANSWERED>, which still reads <state or "nothing">` and fail `ResumeUnanswered { message:
   RESUME_UNANSWERED, cause: the failure }`. Nothing is sent twice.
+
+- W4. The warn line is exactly `<id>: <RESUME_UNANSWERED>, which still reads <state>` with the state as read
+  (`paused`, `gone` for a 404) or `nothing` where the read failed, once per failed resume; `running` and `starting`
+  warn nothing.
 
 ## The other roads
 
@@ -87,6 +100,7 @@ Files: `solari_machine.rs` (machine), `solari_call.rs` (call), `solari_hard.rs` 
 | P4 | machine `a_provider_that_cannot_be_read_after_the_call_ends_the_move_at_once_with_that_in_the_words`, `a_read_that_hangs_is_given_up_on_within_its_own_bound` |
 | W1 to W3 | machine `a_resume_whose_call_never_answers_but_landed_goes_through_one_call_one_read`, `a_resume_cut_off_at_its_cap_with_the_machine_still_paused_ends_unanswered_nothing_sent_twice`, `a_resume_the_network_dropped_is_read_like_a_capped_one_and_starting_is_a_resume_that_landed`, `the_callers_own_signal_ends_the_call_so_a_resume_nobody_waits_on_is_not_left_running`, `a_provider_that_answers_nothing_inside_the_cap_ends_the_resume_there` |
 | caps into fetch | machine `a_resume_carries_its_cap_a_pause_half_its_budget_and_a_read_the_reads_cap_into_the_fetch`, `the_cap_a_fetch_is_given_is_a_whole_number_of_milliseconds_inside_the_timers_range` |
+| P5 to P7, W4 (values from the TS's run, tests/fixtures/oracle/strengthen_solari.json) | solari_machine_hard.rs: `a_pause_read_as_anything_but_running_or_paused_ends_at_once_with_one_warn_line`, `an_unknown_state_word_reads_running_and_earns_the_second_send`, `a_pause_that_lands_or_is_refused_warns_nothing`, `a_resume_left_unsettled_warns_once_with_what_the_machine_still_reads` |
 | M1 | call `reads_the_metrics_route_for_the_hosts_answer_and_a_404_there_is_the_machine_missing`, `reads_the_providers_size_and_creation_time_off_the_machine_route` |
 | M2 | call `mints_via_the_ports_route_and_derives_expires_at_from_the_token` |
 | M3 | hard `download_and_upload_urls_encode_the_path_as_encode_uri_component` |
