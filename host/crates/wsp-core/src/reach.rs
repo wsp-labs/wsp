@@ -6,6 +6,7 @@
 //! during a gap are gone for good.
 use std::rc::Rc;
 
+use async_trait::async_trait;
 use futures::stream::LocalBoxStream;
 use futures::sink::Sink;
 use serde_json::{Map, Value};
@@ -116,9 +117,7 @@ pub fn daemon_ws_url(preview_url: &str) -> Result<String, ReachError> {
 // const DEFAULT_HEARTBEAT_MS = 10_000;
 pub const DEFAULT_HEARTBEAT_MS: i64 = 10_000;
 
-/// The reach's state; the implementer fills it.
-struct ReachInner {}
-
+// reach.ts:39
 // export interface DaemonReach {
 //   /** Resolves after the first successful connect + subscribe + rescan; rejects on 4401. */
 //   readonly ready: Promise<void>;
@@ -127,31 +126,17 @@ struct ReachInner {}
 //   stats(): ReachStats;
 //   close(): void;
 // }
-/// One held link. Clones share it.
-#[derive(Clone)]
-pub struct DaemonReach {
-    inner: Rc<ReachInner>,
-}
-
-impl DaemonReach {
+/// One held link; tests fake it (seam table, rule 1.3).
+#[async_trait(?Send)]
+pub trait DaemonReach {
     /// Resolves after the first connect, auth, subscribe and rescan; rejects on 4401, on close, on a taken socket's end.
-    pub async fn ready(&self) -> Result<(), ReachError> {
-        todo!()
-    }
+    async fn ready(&self) -> Result<(), ReachError>;
     /// `{...params, id, op}`; the reply when `ok === true`, else the daemon's refusal.
-    pub async fn request(&self, op: &str, params: Frame) -> Result<Frame, ReachError> {
-        todo!()
-    }
+    async fn request(&self, op: &str, params: Frame) -> Result<Frame, ReachError>;
     /// `None` until the first status is set.
-    pub fn status(&self) -> Option<DaemonLinkStatus> {
-        todo!()
-    }
-    pub fn stats(&self) -> ReachStats {
-        todo!()
-    }
-    pub fn close(&self) {
-        todo!()
-    }
+    fn status(&self) -> Option<DaemonLinkStatus>;
+    fn stats(&self) -> ReachStats;
+    fn close(&self);
 }
 
 // export function connectDaemon(opts: ReachOptions): DaemonReach {
@@ -358,6 +343,6 @@ impl DaemonReach {
 //   };
 // }
 /// Starts the link on the owner thread's `LocalSet`; refuses synchronously a reach with no road.
-pub fn connect_daemon(opts: ReachOptions) -> Result<DaemonReach, ReachError> {
+pub fn connect_daemon(opts: ReachOptions) -> Result<Rc<dyn DaemonReach>, ReachError> {
     todo!()
 }

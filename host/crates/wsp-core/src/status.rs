@@ -7,7 +7,9 @@
 //! refresh: every GET /sandboxes/:id resets the provider's idle timer, so a poller that asked per tick kept every
 //! workspace awake and billing forever.
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
+
+use async_trait::async_trait;
 
 use futures::future::{LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
@@ -26,7 +28,7 @@ use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_wire::wire::events_union::EventUnion;
 
 use crate::clock::{Cancel, Clock};
-use crate::store::Store;
+use crate::types::pending::Store;
 
 mod meter;
 mod poll;
@@ -555,12 +557,57 @@ struct TrackerState {
 //   const clock = o.clock ?? realClock;
 /// One per runtime. Built by `StatusTracker::new`, which registers its bus listeners and starts the load.
 pub struct StatusTracker {
+    /// The tracker's own handle, for the listeners and timers it registers (`Rc::new_cyclic`).
+    me: Weak<StatusTracker>,
     options: StatusTrackerOptions,
     state: RefCell<TrackerState>,
     /// The load of the stored series; ticks, history and spend wait on it.
     loading: RefCell<Option<Shared<LocalBoxFuture<'static, ()>>>>,
     /// The tail of the document writes (one chain, failures swallowed).
     writes: RefCell<Option<Shared<LocalBoxFuture<'static, ()>>>>,
+}
+
+// status.ts:154
+// export interface StatusApi {
+//   list(opts?: StatusListOptions): Promise<WorkspaceStatus[]>;
+//   watch(opts?: StatusWatchOptions): () => void;
+//   watched(): boolean;
+//   poll(ids: readonly string[]): Promise<void>;
+//   history(workspaceId: string): Promise<WorkspaceCostEvent[]>;
+//   spend(places: readonly PlaceView[], at?: number): Promise<PlaceSpend[]>;
+// }
+/// What the runtime and its callers hold of the tracker. A failure is its message.
+#[async_trait(?Send)]
+pub trait StatusApi {
+    async fn list(&self, opts: StatusListOptions) -> Result<Vec<WorkspaceStatus>, String>;
+    /// Refcounted: while one watcher holds it, the poller and the cost ticker run. The answer is the release.
+    fn watch(&self, opts: StatusWatchOptions) -> Rc<dyn Fn()>;
+    fn watched(&self) -> bool;
+    async fn poll(&self, ids: &[String]);
+    async fn history(&self, workspace_id: &str) -> Vec<WorkspaceCostEvent>;
+    async fn spend(&self, places: &[PlaceView], at: Option<i64>) -> Result<Vec<PlaceSpend>, String>;
+}
+
+#[async_trait(?Send)]
+impl StatusApi for StatusTracker {
+    async fn list(&self, opts: StatusListOptions) -> Result<Vec<WorkspaceStatus>, String> {
+        StatusTracker::list(self, opts).await
+    }
+    fn watch(&self, opts: StatusWatchOptions) -> Rc<dyn Fn()> {
+        StatusTracker::watch(self, opts)
+    }
+    fn watched(&self) -> bool {
+        StatusTracker::watched(self)
+    }
+    async fn poll(&self, ids: &[String]) {
+        StatusTracker::poll(self, ids).await
+    }
+    async fn history(&self, workspace_id: &str) -> Vec<WorkspaceCostEvent> {
+        StatusTracker::history(self, workspace_id).await
+    }
+    async fn spend(&self, places: &[PlaceView], at: Option<i64>) -> Result<Vec<PlaceSpend>, String> {
+        StatusTracker::spend(self, places, at).await
+    }
 }
 
 impl StatusTracker {

@@ -43,6 +43,7 @@ Builds a `WorkspaceStatus` row per record: the runtime's phase plus one reach pr
 ## Decisions
 1. Row equality compares the serialized struct, whose key order is fixed; the TS compared `JSON.stringify` text, whose order followed each builder's spread.
 2. The extra record fields the runtime puts on a record (`checkout`, `pr`, `tree`, `wake_ask`) are explicit `StatusRecord` fields.
+3. `StatusApi` is a trait the tracker implements (the runtime holds `Rc<dyn OriginStatusApi>`); the tracker keeps a `Weak` of itself for the listeners and timers it registers.
 
 ## After the port
 - A zombie verdict's reason is dropped from the row when the record also carries `unreached` (Behaviour 8).

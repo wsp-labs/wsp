@@ -6,6 +6,7 @@
 //! a machine warm and re-dial it, which is a different concern.
 use std::rc::Rc;
 
+use async_trait::async_trait;
 use serde_json::{Map, Value};
 
 use crate::clock::Clock;
@@ -130,38 +131,25 @@ pub const CONNECT_TIMEOUT_MS: i64 = 15_000;
 // const DOOR_BODY_CAP = 512;
 pub const DOOR_BODY_CAP: usize = 512;
 
-/// The channel's state; the implementer fills it.
-struct ChannelInner {}
-
+// daemon-channel.ts:21
 // export interface DaemonChannel {
 //   send(frame: DaemonFrame): Promise<DaemonResponse>;
 //   close(): void;
 //   /** Settles once, when the daemon socket ends for any reason, close() included. */
 //   readonly closed: Promise<{ code: number; reason: string }>;
 // }
-/// One open channel. Clones share it.
-#[derive(Clone)]
-pub struct DaemonChannel {
-    inner: Rc<ChannelInner>,
-}
-
-impl DaemonChannel {
+/// One open channel; tests fake it (seam table, rule 1.3).
+#[async_trait(?Send)]
+pub trait DaemonChannel {
     /// The frame with `id` set (the caller's keys, then `id`); the daemon's reply as it wrote it, `ok: false`
     /// included. A socket that is not open fails `daemon unreachable`; one that closes under the frame `connection lost`.
-    pub async fn send(&self, frame: Frame) -> Result<Frame, ChannelError> {
-        todo!()
-    }
+    async fn send(&self, frame: Frame) -> Result<Frame, ChannelError>;
     /// Closes with 1000.
-    pub fn close(&self) {
-        todo!()
-    }
+    fn close(&self);
     /// Settles once, when the daemon socket ends for any reason, close() included; every await reads the same end.
-    pub async fn closed(&self) -> ChannelEnd {
-        todo!()
-    }
+    async fn closed(&self) -> ChannelEnd;
 }
 
-// /** Dials once, sends the auth frame first, resolves on its reply. */
 // export function openDaemonChannel(o: DaemonChannelOptions): Promise<DaemonChannel> {
 //   const timeoutMs = o.connectTimeoutMs ?? CONNECT_TIMEOUT_MS;
 //   return new Promise((resolve, reject) => {
@@ -262,6 +250,6 @@ impl DaemonChannel {
 //   });
 // }
 /// Dials once, sends the auth frame first, resolves on its reply. Runs on the owner thread's `LocalSet`.
-pub async fn open_daemon_channel(o: DaemonChannelOptions) -> Result<DaemonChannel, ChannelError> {
+pub async fn open_daemon_channel(o: DaemonChannelOptions) -> Result<Rc<dyn DaemonChannel>, ChannelError> {
     todo!()
 }

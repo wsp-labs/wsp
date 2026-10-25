@@ -277,13 +277,13 @@ impl Clock for HandClock {
     fn now(&self) -> i64 {
         *self.now.borrow()
     }
-    fn schedule(&self, run: Box<dyn FnOnce()>, ms: u64) -> Box<dyn FnOnce()> {
+    fn schedule(&self, run: Box<dyn FnOnce()>, ms: i64) -> wsp_core::clock::Cancel {
         self.log.borrow_mut().push(format!("schedule {ms}"));
-        let at = *self.now.borrow() + ms as i64;
+        let at = *self.now.borrow() + ms;
         let slot = self.timers.borrow().len();
         self.timers.borrow_mut().push((at, Some(run)));
         let (timers, log) = (self.timers.clone(), self.log.clone());
-        Box::new(move || {
+        Rc::new(move || {
             log.borrow_mut().push("cancel".into());
             timers.borrow_mut()[slot].1 = None;
         })

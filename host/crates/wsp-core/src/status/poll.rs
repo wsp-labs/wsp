@@ -315,7 +315,7 @@ use super::{StatusListOptions, StatusTracker, StatusWatchOptions};
 impl StatusTracker {
 //   const list: StatusApi["list"] = async opts => statusesOf(await o.records(), opts);
     /// Rows for every record; `reconcile` defaults to always, `reader` to app.
-    pub async fn list(self: &Rc<Self>, opts: StatusListOptions) -> Result<Vec<WorkspaceStatus>, String> {
+    pub async fn list(&self, opts: StatusListOptions) -> Result<Vec<WorkspaceStatus>, String> {
         todo!()
     }
 
@@ -343,7 +343,7 @@ impl StatusTracker {
 //     };
 //   };
     /// Refcounted: while one watcher holds it, the poller and the cost ticker run. The answer is the release.
-    pub fn watch(self: &Rc<Self>, opts: StatusWatchOptions) -> Rc<dyn Fn()> {
+    pub fn watch(&self, opts: StatusWatchOptions) -> Rc<dyn Fn()> {
         todo!()
     }
 
@@ -356,7 +356,7 @@ impl StatusTracker {
 //     if (watchers > 0 && ids.length > 0) await pollTick(new Set(ids)).catch((e: unknown) => console.warn("status poll tick failed", e));
 //   };
     /// Polls these workspaces now, between ticks, and pushes each row that moved, while a watcher holds the poll.
-    pub async fn poll(self: &Rc<Self>, ids: &[String]) {
+    pub async fn poll(&self, ids: &[String]) {
         todo!()
     }
 }

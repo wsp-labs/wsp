@@ -5,6 +5,7 @@
 
 pub mod fake_daemon;
 pub mod net;
+pub mod status;
 
 use std::cell::{Cell, RefCell};
 use std::future::Future;
@@ -14,7 +15,9 @@ use async_trait::async_trait;
 use indexmap::IndexMap;
 use serde_json::Value;
 use wsp_core::ids::Ids;
-use wsp_core::store::{BlobMark, Store, StoreError};
+use wsp_core::types::pending::{BlobMark, Store};
+use wsp_wire::types::js_number::JsNumber;
+use wsp_words::exit::HostError;
 
 /// Runs a test body on one thread with a `LocalSet`, as the host runs (rule 3.1).
 pub fn run_local<F: Future<Output = ()>>(body: F) {
@@ -36,6 +39,11 @@ pub async fn until(what: &str, ms: u64, mut cond: impl FnMut() -> bool) {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
+}
+
+/// A plain error, built from its fields (wsp-words' constructors are not implemented yet).
+pub fn broke(message: &str) -> HostError {
+    HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }
 }
 
 /// A store over JSON text, so every read parses afresh (rule 2.27). Writes are counted, and a list, a put or a
@@ -69,30 +77,30 @@ impl MemStore {
 
 #[async_trait(?Send)]
 impl Store for MemStore {
-    async fn get(&self, collection: &str, id: &str) -> Result<Option<Value>, StoreError> {
+    async fn get(&self, collection: &str, id: &str) -> Result<Option<Value>, HostError> {
         Ok(self.text(collection, id).map(|t| serde_json::from_str(&t).unwrap()))
     }
-    async fn put(&self, collection: &str, id: &str, value: &Value) -> Result<(), StoreError> {
+    async fn put(&self, collection: &str, id: &str, value: Value) -> Result<(), HostError> {
         if self.fail_put.get() {
-            return Err(StoreError("the disk is full".into()));
+            return Err(broke("the disk is full"));
         }
         self.puts.set(self.puts.get() + 1);
         self.data.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), value.to_string());
         Ok(())
     }
-    async fn list(&self, collection: &str) -> Result<Vec<Value>, StoreError> {
+    async fn list(&self, collection: &str) -> Result<Vec<Value>, HostError> {
         if self.fail_list.get() {
-            return Err(StoreError("the store is gone".into()));
+            return Err(broke("the store is gone"));
         }
         let data = self.data.borrow();
         Ok(data.get(collection).map(|c| c.values().map(|t| serde_json::from_str(t).unwrap()).collect()).unwrap_or_default())
     }
-    async fn keys(&self, collection: &str) -> Result<Vec<String>, StoreError> {
+    async fn keys(&self, collection: &str) -> Result<Vec<String>, HostError> {
         Ok(self.ids(collection))
     }
-    async fn delete(&self, collection: &str, id: &str) -> Result<(), StoreError> {
+    async fn delete(&self, collection: &str, id: &str) -> Result<(), HostError> {
         if self.fail_delete.get() {
-            return Err(StoreError("the disk is read-only".into()));
+            return Err(broke("the disk is read-only"));
         }
         self.deletes.set(self.deletes.get() + 1);
         if let Some(c) = self.data.borrow_mut().get_mut(collection) {
@@ -100,21 +108,21 @@ impl Store for MemStore {
         }
         Ok(())
     }
-    async fn get_blob(&self, collection: &str, id: &str) -> Result<Option<Vec<u8>>, StoreError> {
+    async fn get_blob(&self, collection: &str, id: &str) -> Result<Option<Vec<u8>>, HostError> {
         Ok(self.blobs.borrow().get(collection).and_then(|c| c.get(id)).map(|(b, _)| b.clone()))
     }
-    async fn put_blob(&self, collection: &str, id: &str, bytes: &[u8]) -> Result<(), StoreError> {
-        self.blobs.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), (bytes.to_vec(), 0.0));
+    async fn put_blob(&self, collection: &str, id: &str, bytes: Vec<u8>) -> Result<(), HostError> {
+        self.blobs.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), (bytes, 0.0));
         Ok(())
     }
-    async fn delete_blob(&self, collection: &str, id: &str) -> Result<(), StoreError> {
+    async fn delete_blob(&self, collection: &str, id: &str) -> Result<(), HostError> {
         if let Some(c) = self.blobs.borrow_mut().get_mut(collection) {
             c.shift_remove(id);
         }
         Ok(())
     }
-    async fn stat_blob(&self, collection: &str, id: &str) -> Result<Option<BlobMark>, StoreError> {
-        Ok(self.blobs.borrow().get(collection).and_then(|c| c.get(id)).map(|(b, at)| BlobMark { bytes: b.len() as u64, at: *at }))
+    async fn stat_blob(&self, collection: &str, id: &str) -> Result<Option<BlobMark>, HostError> {
+        Ok(self.blobs.borrow().get(collection).and_then(|c| c.get(id)).map(|(b, at)| BlobMark { bytes: JsNumber(b.len() as f64), at: JsNumber(*at) }))
     }
 }
 

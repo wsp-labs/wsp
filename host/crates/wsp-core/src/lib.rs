@@ -29,7 +29,6 @@ pub mod recipe_sync;
 pub mod setup_graph;
 pub mod sign_in_socket;
 pub mod status;
-pub mod store;
 pub mod sys_socket;
 pub mod tunnel;
 pub mod types;
