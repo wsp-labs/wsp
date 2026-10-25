@@ -105,12 +105,13 @@ pub fn sign_place_bytes(private_key_pem: &str, bytes: &[u8]) -> Result<String, K
     Ok(STANDARD.encode(key.sign(bytes).to_bytes()))
 }
 
-/// The DER of a PKCS#8 PEM, read line by line as OpenSSL reads it: each marker must stand alone on its line, a blank
-/// line in the body is refused, and ASCII whitespace inside the body is dropped. Text after END is never read.
+/// The DER of a PKCS#8 PEM, read line by line as node reads it: each marker must stand alone on its line, trailing
+/// ASCII whitespace on a line (a CR of CRLF included) is ignored, a body line that is blank is refused, and ASCII
+/// whitespace inside the body is dropped. Text after END is never read.
 fn pkcs8_der_of(pem: &str) -> Result<Vec<u8>, KeyError> {
     const BEGIN: &str = "-----BEGIN PRIVATE KEY-----";
     const END: &str = "-----END PRIVATE KEY-----";
-    let mut lines = pem.split('\n');
+    let mut lines = pem.split('\n').map(|line| line.trim_end_matches(|c: char| c.is_ascii_whitespace()));
     if !lines.any(|line| line == BEGIN) {
         return Err(KeyError("no PKCS#8 PEM begins in this text".to_string()));
     }
