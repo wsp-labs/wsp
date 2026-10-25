@@ -4,6 +4,7 @@ mod common;
 
 use common::fake_host::*;
 use wsp_collect::seed::{seed_menu, SeedOptions};
+use wsp_wire::types::js_number::JsInt;
 use wsp_wire::views::workspace::{SeedFileRow, SeedKind, SeedPlan, SeedPlanMemory, SeedPlanUnpushed};
 use wsp_words::project_path::claude_project_key;
 
@@ -90,7 +91,7 @@ mod the_seed_menu_for_a_folder_on_this_computer {
     fn shows_every_path_git_ignores_sized_once_with_the_ticks_the_catalog_s_rows_decide() {
         let host = fake_host(laptop(&[], &[]));
         let plan = menu(&host, CLAUDE);
-        let row = |path: &str, kind: SeedKind, bytes: i64, ticked: bool| (path.to_string(), kind, bytes, ticked);
+        let row = |path: &str, kind: SeedKind, bytes: i64, ticked: bool| (path.to_string(), kind, JsInt::from(bytes), ticked);
         assert_eq!(
             plan.files.iter().map(|f| (f.path.clone(), f.kind, f.bytes, f.ticked)).collect::<Vec<_>>(),
             vec![
@@ -125,7 +126,7 @@ mod the_seed_menu_for_a_folder_on_this_computer {
         assert_eq!(plan.branch, "refactor/dashboard-polish");
         assert_eq!(plan.default_branch.as_deref(), Some("main"));
         assert_eq!(plan.unpushed, None);
-        assert_eq!(plan.uncommitted, 4);
+        assert_eq!(plan.uncommitted, 4.into());
         assert!(!plan.remembered);
     }
 
@@ -137,7 +138,7 @@ mod the_seed_menu_for_a_folder_on_this_computer {
             (git(&["rev-list", "--count", "aa11bb22cc33..HEAD"]), "3"),
         ];
         let plan = menu(&fake_host(laptop(&over, &[])), CLAUDE);
-        assert_eq!(plan.unpushed, Some(SeedPlanUnpushed { commits: 3, base: "aa11bb22cc33".to_string() }));
+        assert_eq!(plan.unpushed, Some(SeedPlanUnpushed { commits: 3.into(), base: "aa11bb22cc33".to_string() }));
     }
 
     #[test]
@@ -155,7 +156,7 @@ mod the_seed_menu_for_a_folder_on_this_computer {
         let files =
             [(format!("{CLAUDE}/projects/{key}/memory/MEMORY.md"), 2000), (format!("{CLAUDE}/projects/{key}/memory/one.md"), 26_000)];
         let plan = menu(&fake_host(laptop(&[], &files)), CLAUDE);
-        assert_eq!(plan.memory, Some(SeedPlanMemory { key, files: 2, bytes: 28_000 }));
+        assert_eq!(plan.memory, Some(SeedPlanMemory { key, files: 2.into(), bytes: 28_000.into() }));
     }
 
     #[test]
@@ -166,7 +167,7 @@ mod the_seed_menu_for_a_folder_on_this_computer {
         assert_eq!(menu(&fake_host(laptop(&[], &files)), CLAUDE).memory, None);
         assert_eq!(
             menu(&fake_host(laptop(&[], &files)), "/Users/dev/.claude-other").memory,
-            Some(SeedPlanMemory { key, files: 1, bytes: 2000 })
+            Some(SeedPlanMemory { key, files: 1.into(), bytes: 2000.into() })
         );
     }
 

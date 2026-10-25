@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! A lead thread's tree of sub-threads as a row reads it: what each branch holds against the lead's, and the prompt that merges one in. Port of the functions of packages/protocol/src/tree.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::tree. See spec/tree.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::tree. See spec/tree.md.
 
 use wsp_wire::types::tree::MergeInResult;
 

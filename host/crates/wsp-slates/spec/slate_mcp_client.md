@@ -1,0 +1,69 @@
+# slate_mcp_client
+Source: packages/runtime/src/slate-mcp.ts:1-556 (the types, the refusals of a write from away, the approval key, the secret mark, the two clients and the schema folding) at 65f6b89c7. TS tests: `test/slate-mcp.test.ts:119-133` (foldSchema), `:206-254` (caps), `:520-537` (codeKey); the clients are driven by every other case of that file. Rust: `src/slate_mcp.rs` (module list and re-exports) and `src/slate_mcp/client.rs`; tests `tests/slate_mcp_client.rs`. Fixtures: the TS stub servers, copied verbatim to `tests/fixtures/` and run with `node`.
+
+## What it does
+Talks MCP (JSON-RPC 2.0, protocol `2025-06-18`) to one server of the thread's agent, over a command's stdio or over streamable HTTP, with every message bounded in size and every parsed answer bounded in depth and width before anything walks it. Also: what a write from a thread off this computer is refused for, the approval key of a tool run, and the folding of a tool's input schema to lines for `slate_catalog`.
+
+## Behaviour
+1. `host_away(away, run)` (`:27`): `None` without `away`, else `slate_host_away("$" + run, computer, host)`.
+2. `refused_away(before, doc, away, missing_on)` (`:33-49`), async:
+   - nothing when `away` is `None` or `doc` is `None`;
+   - K711 `slate_host_away("$name", ...)` for each cmd run with `on = "host"`, in `doc.runs` order;
+   - with `away.machine` set: when any tool or resource run exists, add one K712 `slate_machine_on_box(names of every tool and resource run, machine, computer)` and stop; `missing_on` is never called;
+   - else `asked` = the distinct servers of tool and resource runs not named by any tool or resource run of `before`, in first-seen order. When `asked` is empty or `missing_on` is `None`, stop. Else call `missing_on(asked)` once and add K710 `slate_server_not_set_up(server, computer, agent, thread)` for each missing server, then K714 with each `off` line as its message.
+   Exact words, printed by the TS: `$a runs on="host", which is laptop with the sign-ins there, and this thread runs on spoo: drop on="host" and it runs on spoo`; K712 `$t, $r call an MCP server, and this thread runs on m1, a machine wsp made on spoo, whose server would start on spoo outside it: a slate's tool run goes only to a thread in a folder on spoo or on a cloud machine, so start the thread in the project's folder on spoo`; K710 `new is not set up on spoo: add it to Claude Code's MCP config there with wsp servers add new t1 --agent claude --command "<its command line>" (or --url <its address>), then write the run again`.
+3. `code_key(decl, args)` (`:200-204`): `mcp:<server>#` + the first 32 hex of sha256 of `stable_json([kind, server, tool or uri, args for a tool else null, then or null, files entries sorted])`. The files entries are `[name, text]` pairs sorted as JavaScript's default `sort()` sorts arrays: by the string `name + "," + text`, compared by UTF-16 code unit. `description`, `every`, `once`, `confirm` and the declaration's `args` expressions never enter the key. Pinned hashes: `mcp:cf#996f1355ae8f176e493b83d3f838d67d` (tool cf.execute with the test's sent args), `mcp:cf#5b4053a011e2b3022238ae93d02bed6c` (resource cf://a), `mcp:cf#77d7a8ffb7e8bb661ae4b3039a09da2c` (the tool with `then: "sh x.sh"`, files `{x.sh: a, a.sh: b}`).
+4. `slate_secret_mark(name)` (`:208`) is `\u0000wsp-secret:<name>\u0000`; `MARKED` matches `\u0000wsp-secret:([A-Za-z_][A-Za-z0-9_-]*)\u0000`.
+5. Constants (`:211-225`): PROTOCOL_VERSION `2025-06-18`, CONNECT_MS 20,000, CALL_MS 60,000, IDLE_MS 300,000, SWEEP_MS 30,000, ERR_KEPT 4,000 characters, DESCRIBE_MS 10,000, MESSAGE_MAX_BYTES = EXEC_OUTPUT_MAX = 2,097,152, TOO_BIG `the server sent a message over 2 MB` (`fmt_bytes`), DEPTH_MAX 64, ITEMS_MAX 100,000.
+6. `shape_refusal(value)` (`:228-241`), iterative (a stack, never recursion): an array or object at depth >= 64 answers `the server's answer is nested over 64 deep`; every container's children count toward one running total, and past 100,000 it answers `the server's answer holds over 100000 entries`. Order matters only for which refusal wins: the walk pops the last pushed first (depth first from the end), counting a container's children when it is popped.
+7. `parsed_text(text)` (`:244-251`): the JSON in a text when it parses and `shape_refusal` passes, else `None`. A text nested too deep for the parser to hold is `None`, never a crash.
+8. **The stdio client** (`:334-411`). `open` (the spec's road, else `spawn_here`) is called once at creation with three callbacks.
+   - Requests take ids 1, 2, 3, ... per client. `request(method, params, ms)` answers `(id, answer)`; on a closed client the answer fails `the server's connection is closed`; else it is waited on with a deadline of `ms` (a miss fails `the server did not answer <method> within <round(ms/1000)> s` and forgets the id) and the line `{"jsonrpc":"2.0","id":<id>,"method":<m>,"params":<p>}\n` is written.
+   - `notify(method, params?)` writes `{"jsonrpc":"2.0","method":<m>}` with `params` only when given. Nothing is written once closed.
+   - Output is buffered as bytes and split on `\n`. A line whose length before its newline is over 2 MiB closes the client with TOO_BIG; after splitting, a remainder over 2 MiB with no newline does the same. Each line is UTF-8 decoded and trimmed; blank lines and lines that do not parse are skipped.
+   - A message with a string `method` is the server's own request: one with an `id` is answered, `ping` with `{"jsonrpc":"2.0","id":<id>,"result":{}}`, anything else with `{"jsonrpc":"2.0","id":<id>,"error":{"code":-32601,"message":"not offered"}}`; a notification is ignored.
+   - A message whose `id` is not a number, or names no waiting request, is skipped. Else: an `error` fails it as `the server answered with error <code or ?>[: <message when a string>]`; a result `shape_refusal` refuses fails it with that refusal; else it answers the result (absent result answers `null`).
+   - **A line too deep for the parser (the flood fixture's 100,000-deep answer) must fail its waiting request with the depth refusal**, as the TS parses it and refuses it; skipping it would leave the call waiting 60 s. The Rust parser runs with no recursion limit (serde_json `unbounded_depth` with a stack guard, or an iterative pre-check of the line) so the same words come out.
+   - stderr is kept as its last 4,000 characters (`said()`).
+   - `exit(why)`, a TOO_BIG cut and `close()` all `finish`: once only, every waiting request fails with `why` (`the connection was closed` for `close()`), the waits are cleared, the pipe is killed, `on_close` runs.
+   - `pid` is the pipe's, when it has one.
+9. `spawn_here` (`:312-332`): the transport's command and args, cwd the transport's `cwd` else the spec's, environment the spec's `env` overlaid by the transport's `env` (and nothing else: the host's environment is not inherited), its own process group, all three pipes. A stdin write error is ignored. A start failure says `<command> could not be started: <message>`; an exit says `the server exited` + ` with <code>` or ` on <signal>`. Kill sends SIGKILL to the whole group and ignores every error (rule 6.36).
+10. **The http client** (`:426-477`). The road is `spec.post(fetch_here)` when `post` is set, else `fetch_here`. Each message is one POST with headers: the transport's headers, then `Content-Type: application/json`, `Accept: application/json, text/event-stream`, `MCP-Protocol-Version: 2025-06-18`, and `Mcp-Session-Id: <session>` once one is held (later keys override earlier ones of the same name). An answer's `sessionId` replaces the held one.
+    - `request`: fails `the server's connection is closed` when closed; 401 or 403 fails `its address wants a sign-in (<status>); sign in where the agent keeps it`; any other status outside 200-299 fails `its address answered <method> with <status>`. A content type containing `event-stream` is read as its `data:` lines (each after `data:`, trimmed), else the body is one message. The first message that parses with `id` equal to the request's answers it (error and shape as rule 8); none fails `its answer to <method> could not be read`.
+    - `notify` posts with CONNECT_MS and drops any failure. `close` once: closes the road, runs `on_close`. `said()` is empty.
+11. `fetch_here` (`:414-422`): POST with no redirect followed (a redirect is an error), aborted after `ms`; a body over 2 MiB, declared by content-length or counted as it arrives, fails TOO_BIG and stops the read; a non-2xx answer's body is never read (`body: ""`). `content-type` and `mcp-session-id` are carried when present.
+12. **The schema** (`:491-556`):
+    - `sentence(text, max = 160)`: `None` unless a string; whitespace runs to one space, trimmed; empty is `None`; cut at the first `.`, `!` or `?` followed by whitespace and then an uppercase letter or `(`, or by the end; longer than `max` becomes its first `max - 1` characters and `…`. (`e.g. this. Not cut` gives `e.g. this.`.)
+    - `deref(p, root)`: a `$ref` starting `#/` is followed (segments split on `/`, `~1` to `/`, `~0` to `~`) at most 8 times, the target merged under the referring schema's other keys; an `allOf` of exactly one object is taken the same way. A loop stops after 8 steps and reads as untyped (`a: any`).
+    - `type_of`: an `enum` is its values as JSON joined by ` | `; a `const` its JSON; a string `type`, or an array of types (strings only) joined by ` | `; `array` gives `<items type>[]` when `items` is an object, else `array`; else `oneOf` then `anyOf` mapped and joined by ` | `; else `any`.
+    - `fold_schema(schema)`: one line per property in order, `  <prefix><name>: <type>` + `, required` + `, default <JSON>` + `, min <v>`, `, max <v>`, `, max length <v>`, `, format <v>` (in that order, each when present) + `. <sentence>` when described. Properties whose schema is not an object are skipped. Nested objects recurse with `<name>.` and objects inside arrays with `<name>[].`, while depth < 2 (three levels in all). A non-object schema or one without object `properties` folds to nothing.
+    - `hints_of(tool, structured)`: `returns data` when the tool has an `outputSchema` or a call of it returned structured content, else `text only`; then `read-only`, `destructive`, `idempotent`, `reaches outside` for each annotation that is exactly `true`.
+    - ASKS_LINE: never `This thread's agent runs every tool without asking, and so do its slate's runs.`; every `This thread's agent asks before every tool, so the person allows each run's code once, on the slate: new arguments, a new then or a new tool ask again.`; unless-read-only `This thread's agent asks before a tool not marked read-only, so the person allows each such run's code once, on the slate: new arguments, a new then or a new tool ask again.`
+
+## Edge cases
+- A 3 MiB text answer over HTTP and a 3 MiB line with no newline over stdio both fail with `over 2 MB` (`slate-mcp.test.ts:248-249`).
+- Deep JSON inside a tool's text is kept as text: record `done`, `text: true`, no `json` (`:245-247`).
+- A server request (`ping`) between our request and its answer is answered and does not disturb the waiting request.
+- An answer to an id that already timed out is skipped.
+
+## Decisions
+1. `McpPipeOpen`, `McpPost` and the client are traits and boxed closures on one thread (`Rc`), rule 3.1; `McpServerSpec` holds `Rc<dyn ...>` roads so a spec can be cloned into a connection.
+2. Request deadlines go through `wsp_core::clock::Clock::schedule` (rule 3.15); a test against a real server uses the real clock.
+3. The answer of `request` is a `LocalBoxFuture<'static, Result<Value, String>>`: failures are the TS error messages, which become a run's `why`.
+4. Errors that carry an RPC error keep `code` and `message` (`RpcFailed`), since the message above is built from them.
+
+## After the port
+- `codeKey` sorts files with JavaScript's string sort of `[name, text]` pairs (rule 3), so two names where one is a prefix of the other and the next character sorts below `,` (`a` and `a+`) order by the joined string, not by name. Kept and pinned.
+- The http client keeps no per-connection request deadline of its own beyond the road's abort; a road that ignores `ms` waits for ever.
+
+## Tests (`tests/slate_mcp_client.rs`)
+| Rule | Test |
+|---|---|
+| 1, 2 | `host_away_says_both_computers`, `refused_away_refuses_host_runs_from_away`, `refused_away_on_a_machine_refuses_every_tool_run_once_and_asks_nothing`, `refused_away_asks_only_servers_the_slate_before_did_not_name`, `refused_away_with_no_away_or_no_doc_refuses_nothing` |
+| 3 | `code_key_keys_what_is_sent` (TS :520-537), `code_key_matches_the_ts_hashes`, `code_key_sorts_files_as_javascript_sorts_pairs` |
+| 4 | `secret_mark_is_nul_framed` |
+| 6, 7 | `shape_refusal_refuses_past_64_deep_and_100000_entries`, `parsed_text_keeps_deep_json_as_text` |
+| 8 | `stdio_client_answers_by_id_and_skips_noise`, `stdio_client_answers_a_server_ping_and_refuses_other_server_requests`, `stdio_client_fails_waiting_requests_once_on_exit_and_kills_the_pipe`, `stdio_client_times_out_a_request_and_forgets_its_id`, `stdio_client_fails_a_too_deep_answer_with_the_depth_words` (flood fixture), `stdio_client_cuts_an_endless_line_past_2_mb`, `stdio_client_keeps_the_last_4000_characters_of_stderr` |
+| 9 | `spawn_here_runs_in_its_own_group_with_only_the_spec_environment` |
+| 10, 11 | `http_client_sends_the_headers_and_keeps_the_session`, `http_client_reads_an_event_stream_answer`, `http_client_refuses_a_sign_in_status_and_a_failed_status`, `http_client_cuts_a_body_over_2_mb`, `fetch_here_follows_no_redirect` |
+| 12 | `fold_schema_folds_one_line_per_property` (TS :119-133), `fold_schema_stops_three_deep_and_reads_types`, `fold_schema_cuts_descriptions_to_a_sentence`, `fold_schema_survives_a_ref_loop`, `fold_schema_of_nothing_is_empty`, `hints_say_returns_data_or_text_only_and_each_true_annotation` |

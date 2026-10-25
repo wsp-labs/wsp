@@ -65,9 +65,10 @@ pub fn refer(
             unread: None,
         };
 
+        let plan = oauth_plan(&ctx, def)?;
         put_entries(&ctx, &mut w, "headers", &dict(def.get("headers")), &whole, true, &|k| minted_header(name, k))?;
         put_entries(&ctx, &mut w, env_key(format), &dict(def.get(env_key(format))), &whole, false, &|k| k.to_string())?;
-        oauth_entries(&ctx, &mut w, def, &bare)?;
+        oauth_entries(&ctx, &mut w, def, &bare, &plan)?;
         argument_entries(&ctx, &mut w, def)?;
         weighed.push(w);
     }
@@ -339,30 +340,41 @@ fn put_entries(
     Ok(())
 }
 
-/// OAuth: the table must be absent, false or an object; each secret the agent reads is written by its variable
-/// (mcp.ts:1008).
-fn oauth_entries(
-    ctx: &Ctx<'_>,
-    w: &mut Weighed,
-    def: &Map<String, Value>,
-    bare: &dyn Fn(&str) -> Option<WholeRef>,
-) -> Result<(), HostError> {
-    let format = ctx.format;
-    let oauth = def.get("oauth");
-    let shape_ok = match oauth {
+/// The OAuth table's shape and the variables its secrets and the headers travel under, both refused before any value is
+/// read (mcp.ts:1008-1013).
+struct OauthPlan {
+    secrets: Vec<String>,
+    minted: IndexMap<String, String>,
+}
+
+/// The table must be absent, false or an object.
+fn oauth_plan(ctx: &Ctx<'_>, def: &Map<String, Value>) -> Result<OauthPlan, HostError> {
+    let shape_ok = match def.get("oauth") {
         None | Some(Value::Bool(false)) => true,
         Some(v) => v.is_object(),
     };
     if !shape_ok {
         return Err(shape_refusal(&ctx.base));
     }
-    let oauth_map = oauth.and_then(|o| o.as_object());
-    let secrets: Vec<String> = oauth_map.map(oauth_secret_keys).unwrap_or_default();
-    let headers = dict(def.get("headers"));
-    let mut minted_names: Vec<String> = headers.keys().cloned().collect();
+    let secrets: Vec<String> = def.get("oauth").and_then(|o| o.as_object()).map(oauth_secret_keys).unwrap_or_default();
+    let mut minted_names: Vec<String> = dict(def.get("headers")).keys().cloned().collect();
     minted_names.extend(secrets.iter().map(|k| format!("oauth.{k}")));
-    let minted: IndexMap<String, String> = header_variables(ctx.name, &minted_names, &|h| mcp_header_variable(ctx.name, h))?;
-    for k in &secrets {
+    let minted = header_variables(ctx.name, &minted_names, &|h| mcp_header_variable(ctx.name, h))?;
+    Ok(OauthPlan { secrets, minted })
+}
+
+/// Each OAuth secret the agent reads is written by its variable (mcp.ts:1014).
+fn oauth_entries(
+    ctx: &Ctx<'_>,
+    w: &mut Weighed,
+    def: &Map<String, Value>,
+    bare: &dyn Fn(&str) -> Option<WholeRef>,
+    plan: &OauthPlan,
+) -> Result<(), HostError> {
+    let format = ctx.format;
+    let oauth_map = def.get("oauth").and_then(|o| o.as_object());
+    let OauthPlan { secrets, minted } = plan;
+    for k in secrets {
         let Some(Value::String(v)) = oauth_map.and_then(|o| o.get(k)) else {
             return Err(secret_refusal(ctx, &ctx.base, k));
         };

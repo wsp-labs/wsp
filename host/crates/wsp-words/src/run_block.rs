@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! A reply's shell block that a person can run where it stands: which labels run, the command a block holds, and
-//! the text a finished run leaves behind it. Port of packages/protocol/src/run-block.ts at a3b870a6e; spec chapter 13
+//! the text a finished run leaves behind it. Port of packages/protocol/src/run-block.ts at the cut (383708c78); spec chapter 13
 //! carries it as the worked example. Each TS statement stands as a comment above its stub. See spec/run_block.md.
 
 use wsp_wire::types::run_block::{RUN_SENT_LINES, SHELL_FENCES};
@@ -142,52 +142,52 @@ pub fn run_output_tail(text: &str, max: usize) -> String {
 //   return out.map(l => l.replace(/\s+$/, "")).join("\n");
 // }
 pub fn terminal_text(raw: &str) -> String {
-    let raw: Vec<char> = raw.chars().collect();
+    // The TS walks UTF-16 units, so a character above U+FFFF fills two columns, and a backspace takes one of them.
+    let raw: Vec<u16> = raw.encode_utf16().collect();
+    // A lone half of a surrogate pair has no text in Rust and is dropped (rule 8.5).
+    let text = |units: &[u16]| char::decode_utf16(units.iter().copied()).filter_map(Result::ok).collect::<String>();
+    let is = |at: usize, c: char| raw.get(at) == Some(&(c as u16));
     let mut out: Vec<String> = Vec::new();
-    let mut line: Vec<char> = Vec::new();
+    let mut line: Vec<u16> = Vec::new();
     let mut col: usize = 0;
     let mut i = 0;
     while i < raw.len() {
         let ch = raw[i];
-        if ch == '\x1b' {
-            match raw.get(i + 1) {
-                Some('[') => {
-                    let mut j = i + 2;
-                    while j < raw.len() && !('\x40'..='\x7e').contains(&raw[j]) {
-                        j += 1;
-                    }
-                    i = j;
+        if ch == 0x1b {
+            if is(i + 1, '[') {
+                let mut j = i + 2;
+                while j < raw.len() && !(0x40..=0x7e).contains(&raw[j]) {
+                    j += 1;
                 }
-                Some(']' | 'P' | '_' | '^') => {
-                    let mut j = i + 2;
-                    while j < raw.len() && raw[j] != '\x07' && !(raw[j] == '\x1b' && raw.get(j + 1) == Some(&'\\')) {
-                        j += 1;
-                    }
-                    i = if raw.get(j) == Some(&'\x07') { j } else { j + 1 };
+                i = j;
+            } else if is(i + 1, ']') || is(i + 1, 'P') || is(i + 1, '_') || is(i + 1, '^') {
+                let mut j = i + 2;
+                while j < raw.len() && raw[j] != 0x07 && !(raw[j] == 0x1b && is(j + 1, '\\')) {
+                    j += 1;
                 }
-                _ => {
-                    let mut j = i + 1;
-                    while j < raw.len() && ('\x20'..='\x2f').contains(&raw[j]) {
-                        j += 1;
-                    }
-                    i = j;
+                i = if raw.get(j) == Some(&0x07) { j } else { j + 1 };
+            } else {
+                let mut j = i + 1;
+                while j < raw.len() && (0x20..=0x2f).contains(&raw[j]) {
+                    j += 1;
                 }
+                i = j;
             }
             i += 1;
             continue;
         }
         match ch {
-            '\r' => col = 0,
-            '\n' => {
-                out.push(line.iter().collect());
+            0x0d => col = 0,
+            0x0a => {
+                out.push(text(&line));
                 line.clear();
                 col = 0;
             }
-            '\x08' => {
+            0x08 => {
                 col = col.saturating_sub(1);
                 line.truncate(col);
             }
-            _ if ch < ' ' && ch != '\t' => {}
+            _ if ch < 0x20 && ch != 0x09 => {}
             _ => {
                 if col < line.len() {
                     line[col] = ch;
@@ -199,7 +199,7 @@ pub fn terminal_text(raw: &str) -> String {
         }
         i += 1;
     }
-    out.push(line.iter().collect());
+    out.push(text(&line));
     while out.last().is_some_and(|l| js_trim(l).is_empty()) {
         out.pop();
     }

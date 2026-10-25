@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Port of packages/protocol/src/words/base.ts and words/boat.ts at a3b870a6e: counts with their noun, names in a
+//! Port of packages/protocol/src/words/base.ts and words/boat.ts at the cut (383708c78): counts with their noun, names in a
 //! list, a line cut at a word, a text's last line, and Boat's plan line. Each TS statement stands as a comment
 //! above its stub. See spec/base.md.
 
@@ -24,7 +24,9 @@ pub fn lower_first(words: &str) -> String {
     let mut chars = words.chars();
     match chars.next() {
         None => String::new(),
-        Some(first) => format!("{}{}", first.to_lowercase(), chars.as_str()),
+        // `charAt(0)` of a character above U+FFFF is half a surrogate pair, which has no case.
+        Some(first) if first.len_utf16() == 1 => format!("{}{}", first.to_lowercase(), chars.as_str()),
+        Some(_) => words.to_string(),
     }
 }
 
@@ -231,18 +233,6 @@ pub fn boat_added_line(limits: Option<&BoatLimitsRead>, size: &BoatSizeWords) ->
 // boat.ts:42
 // private in the TS: port it as a private helper
 // const sizeWords = (size: BoatSizeWords): string => `${size.type} ${fmtCpus(size.cpu)} ${fmtMemGb(size.memMb)} at ${fmtRateDollars(size.rateUsdPerHour)}/h until you pick another size`;
-
-/// What wsp init says of the first machine's flags on a build on Boat, which forks no first machine.
-// boat.ts:45
-// export const boatForksNoFirstLine = (flags: readonly string[]): string => `Boat forks no first machine, so ${flags.join(" and ")} ${flags.length === 1 ? "does" : "do"} nothing here.`;
-pub fn boat_forks_no_first_line(flags: &[impl AsRef<str>]) -> String {
-    let joined = flags.iter().map(|flag| flag.as_ref()).collect::<Vec<_>>().join(" and ");
-    format!("Boat forks no first machine, so {joined} {} nothing here.", if flags.len() == 1 { "does" } else { "do" })
-}
-
-/// What a seal on Boat ends on in place of a first machine: nothing is forked there, a lead's sub-thread is.
-// boat.ts:48
-pub const BOAT_READY_LINE: &str = "Boat is ready for sub-threads: a thread starts one with run and on boat.";
 
 /// The GitHub CLI login row's label: the detector writes it and a seal records the login under it.
 // boat.ts:51

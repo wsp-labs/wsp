@@ -60,7 +60,7 @@ replayed by `tests/detect_commands.rs` `w2_oracle::*`.
 Corrections to the rules above, found against the TS (each overrides the rule it names):
 
 - C1. Rule 7: words after the closing `)` on a list line are still offered to `drop` (`plugins=(git) eza` loses `eza`); the whitespace before a trailing comment goes with a dropped word (`plugins=(eza # c )` becomes `plugins=(# c )`).
-- C2. Rule 2: own names come from every FUNCTION_HEAD match over the whole text, heredoc bodies included, at a line start only (an indented head counts, one after `;` or `then` does not).
+- C2. Rule 2: own names come from every FUNCTION_HEAD match over the whole text (found by trying the pattern at each line start in turn on the `regex` crate, never in fancy-regex's backtracking VM, which stops at a million backtracks: a 330 KB rc file and 5,000 blank lines in a row are answered as node answers them), heredoc bodies included, at a line start only (an indented head counts, one after `;` or `then` does not).
 - C3. Any word of a command that ends in `/<head>` makes it no call.
 
 - W1. `called_commands` over 124 texts and every RC_BUILTIN member (`called_commands`, `called_commands_rc_builtin`); `drop_plugins` and the names offered to `drop` (`drop_plugins`, `drop_plugins_calls`); `guard_commands` (`guard_commands`).

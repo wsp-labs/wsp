@@ -1,18 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Port of packages/protocol/src/words/image.ts at a3b870a6e: the image record and its copies as `wsp image` and
+//! Port of packages/protocol/src/words/image.ts at the cut (383708c78): the image record and its copies as `wsp image` and
 //! Settings > Image read them, project images, pins and the recipe's install lines, the lineage marks, and every line
 //! a snapshot, a template and a seal end on. Each TS statement stands as a comment above its stub. See spec/image.md.
 
-use crate::js::{js_round, number_string, to_fixed, utf16};
-use crate::words::base::{fmt_threads, listed_name, lower_first, name_list, plural};
-use crate::words::computer::{this_computer, Platform};
+use crate::js::{number_string, utf16};
+use crate::words::base::{fmt_threads, lower_first, plural};
 use crate::words::init::{cloud_setup_words, golden_stage_word, init_stopped_line, SAVING_IMAGE_LINE};
-use crate::words::units::{disk_tone, fmt_bytes, fmt_bytes_of, fmt_duration, SizeTone};
-use regex::Regex;
+use crate::words::units::{fmt_bytes, fmt_duration};
 use serde::Serialize;
 use wsp_wire::types::init_job::LoginState;
-use wsp_wire::views::golden_image::{GoldenStage, SealedImage, SealedImageCopy, SealedImageExport, ToolPin};
-use wsp_wire::views::snapshot_lineage::{ProjectGolden, SealedProjectImage};
+use wsp_wire::views::golden_image::{GoldenStage, SealedImage, SealedImageCopy};
 
 /// --- the image and its copies, as `wsp image` and Settings > Image read them ---
 /// What a record with no vault says: its copies ask for every sign-in again until the next version holds them.
@@ -41,9 +38,9 @@ pub fn image_held_sign_ins_line(r#where: &str) -> String {
 }
 
 // image.ts:20
-// export const imageRebuildFix = (place: string): string => `Rebuild it: wsp init --on ${place} --rebuild.`;
+// export const imageRebuildFix = (place: string): string => `Seal your image again for ${place}.`;
 pub fn image_rebuild_fix(place: &str) -> String {
-    format!("Rebuild it: wsp init --on {place} --rebuild.")
+    format!("Seal your image again for {place}.")
 }
 
 /// What to do about each refusal a copy build meets before anything boots: said after it on a terminal, and in the
@@ -63,24 +60,13 @@ pub mod copy_build_fix {
     pub const NO_VAULT: &str = "Build the next version to hold them, or run it again with --force to copy this one anyway.";
 }
 
-/// Where a run with nobody at its terminal reads the passphrase an export is sealed to; never a flag, since every
-/// process on a computer can read another's command line.
-// image.ts:32
-pub const IMAGE_PASSPHRASE_ENV: &str = "WSP_IMAGE_PASSPHRASE";
-
 /// What a host that has sealed nothing says. Named apart from the attachment lines beside it: those are pictures.
 // image.ts:34
-pub const NO_SEALED_IMAGE: &str = "no image yet; run wsp init to build one";
+pub const NO_SEALED_IMAGE: &str = "no image yet";
 
 /// The same where a road needed the image to fork and there is none.
 // image.ts:36
-pub const NO_IMAGE_YET: &str = "no image yet; run wsp init";
-
-/// And where that road was an add carrying a person's own files onto a computer that keeps an image.
-// image.ts:38
-// export const NO_IMAGE_FOR_SEED = `${NO_IMAGE_YET}; the seed lands inside a copy of your image, so there is nowhere for it to go yet`;
-pub const NO_IMAGE_FOR_SEED: &str =
-    "no image yet; run wsp init; the seed lands inside a copy of your image, so there is nowhere for it to go yet";
+pub const NO_IMAGE_YET: &str = "no image yet";
 
 /// Whether a copy stands on the record as it is now: built at the record's hash, which is the whole of it. The
 /// version is the place's own manifest number and says nothing about which record the copy came from, so a second
@@ -250,115 +236,6 @@ pub fn sealed_built_line(image: &SealedImage, copy: &SealedImageCopy, built: boo
     }
 }
 
-/// One project image under the image, as a line: the id a remove or a --from takes, the workspace it was taken off,
-/// the projects on that disk, its size where the provider lists one, and when.
-// image.ts:116
-// export function sealedProjectLine(project: SealedProjectImage): string {
-//   const size = project.sizeBytes === undefined ? [] : [fmtBytes(project.sizeBytes)];
-//   return [project.snapshotId, `project ${project.workspaceName}`, project.projects.map(p => p.name).join(", "), ...size, project.createdAt].join("  ");
-// }
-pub fn sealed_project_line(project: &SealedProjectImage) -> String {
-    let names: Vec<&str> = project.projects.iter().map(|p| p.name.as_str()).collect();
-    let mut parts = vec![project.snapshot_id.clone(), format!("project {}", project.workspace_name), names.join(", ")];
-    if let Some(bytes) = project.size_bytes {
-        parts.push(fmt_bytes(bytes.0));
-    }
-    parts.push(project.created_at.clone());
-    parts.join("  ")
-}
-
-/// Why a word names no project image here: a golden version's snapshot, a project's name and a typo alike, since a
-/// remove takes the id alone.
-// image.ts:123
-// export const noProjectImageLine = (word: string): string => `no project image ${word}; wsp image lists them with their ids`;
-pub fn no_project_image_line(word: &str) -> String {
-    format!("no project image {word}; wsp image lists them with their ids")
-}
-
-/// Why a project image cannot be removed yet, with the workspaces standing on it whatever their phase: a gone one's
-/// record stands on it too until a forget takes it.
-// image.ts:127
-// export const projectImageInUseRefusal = (id: string, workspaces: readonly string[]): string =>
-//   `project image ${id} has ${workspaces.length === 1 ? "a workspace" : "workspaces"} standing on it: ${nameList(workspaces)}; delete ${workspaces.length === 1 ? "it" : "them"} first, and forget any whose machine is already gone`;
-pub fn project_image_in_use_refusal(id: &str, workspaces: &[impl AsRef<str>]) -> String {
-    let (what, pronoun) = if workspaces.len() == 1 { ("a workspace", "it") } else { ("workspaces", "them") };
-    format!(
-        "project image {id} has {what} standing on it: {}; delete {pronoun} first, and forget any whose machine is already gone",
-        name_list(workspaces)
-    )
-}
-
-/// What a removal takes, the one sentence the command line's question and the tool's unconfirmed answer both say.
-// image.ts:131
-// export const projectImageRemoveNotice = (g: Pick<ProjectGolden, "workspaceName" | "createdAt">): string =>
-//   `Its snapshot, taken from ${g.workspaceName} on ${g.createdAt.slice(0, 10)}, is deleted at the provider, and no workspace starts from it again.`;
-pub fn project_image_remove_notice(g: &ProjectGolden) -> String {
-    format!(
-        "Its snapshot, taken from {} on {}, is deleted at the provider, and no workspace starts from it again.",
-        g.workspace_name,
-        utf16::slice(&g.created_at, 0, Some(10))
-    )
-}
-
-/// What a removal came to: a snapshot the provider had already lost is gone either way, so its record went too.
-// image.ts:135
-// export const projectImageRemovedLine = (id: string, alreadyGone: boolean): string =>
-//   alreadyGone ? `project image ${id} was already gone at the provider; its record is removed` : `removed project image ${id}: its snapshot is gone at the provider, and its record with it`;
-pub fn project_image_removed_line(id: &str, already_gone: bool) -> String {
-    if already_gone {
-        format!("project image {id} was already gone at the provider; its record is removed")
-    } else {
-        format!("removed project image {id}: its snapshot is gone at the provider, and its record with it")
-    }
-}
-
-/// The delete answered and no read of the listing within the window showed the id gone, whether the listing held it
-/// or would not answer, so the record stays.
-// image.ts:140
-// export const projectImageStillListedLine = (id: string, graceMs: number): string =>
-//   `project image ${id} could not be read gone within ${Math.round(graceMs / 1000)} s of the delete answering, so its record stays; run wsp image remove ${id} again`;
-pub fn project_image_still_listed_line(id: &str, grace_ms: f64) -> String {
-    format!("project image {id} could not be read gone within {} s of the delete answering, so its record stays; run wsp image remove {id} again", number_string(js_round(grace_ms / 1000.0)))
-}
-
-// image.ts:143
-// export const projectImageRefusedLine = (id: string, answer: ProviderAnswer): string =>
-//   `project image ${id} was not removed: the provider answered ${providerAnswerLine(answer)}; its record stays`;
-pub fn project_image_refused_line(id: &str, answer: &ProviderAnswer) -> String {
-    format!("project image {id} was not removed: the provider answered {}; its record stays", provider_answer_line(answer))
-}
-
-/// What an export wrote, as the line a person reads after it.
-// image.ts:147
-// export function sealedExportLine(exported: SealedImageExport): string {
-//   return `${exported.path}  ${fmtBytes(exported.bytes)}  opens with the passphrase you typed and nothing else`;
-// }
-pub fn sealed_export_line(exported: &SealedImageExport) -> String {
-    format!("{}  {}  opens with the passphrase you typed and nothing else", exported.path, fmt_bytes(exported.bytes.as_f64()))
-}
-
-/// What the copy answer reads as on the row of a tool signed in as one account at a time: the answer's own words and
-/// the login a copy would carry, so the row says whose sign-in lands on the machine before anyone answers it.
-// image.ts:153
-// export const copyNamesLogin = (copy: string, login: string): string => `${copy} (${login})`;
-pub fn copy_names_login(copy: &str, login: &str) -> String {
-    format!("{copy} ({login})")
-}
-
-/// That row's own detail: the login the tool is in use as here, and the accounts a copy leaves where they are,
-/// since the machine is signed in as one of them and a file naming the rest would hold no token for them.
-// image.ts:157
-// export const loginsHereLine = (login: string, left: readonly string[]): string =>
-//   left.length === 0 ? `signed in here as ${login}` : `signed in here as ${login}; ${nameList(left)} ${left.length === 1 ? "stays" : "stay"} on this computer`;
-pub fn logins_here_line(login: &str, left: &[impl AsRef<str>]) -> String {
-    if left.is_empty() {
-        format!("signed in here as {login}")
-    } else {
-        let stays = if left.len() == 1 { "stays" } else { "stay" };
-        format!("signed in here as {login}; {} {stays} on this computer", name_list(left))
-    }
-}
-
 /// What forgetting a workspace takes off this computer, the one sentence every client's confirmation shows.
 // image.ts:161
 // export function forgetNotice(threads: number): string {
@@ -382,29 +259,6 @@ pub struct GoldenChange {
     /// Singular; the line pluralises it.
     pub noun: String,
     pub word: String,
-}
-
-/// The wizard's build line and the app's word for what a re-run does: which version it makes, the version it is
-/// built on top of, and what it changes. `from` is 0 before any golden was sealed, and the line says so instead of
-/// naming a version nothing was built on.
-// image.ts:176
-// export function goldenBuildLine(from: number, to: number, changes: readonly GoldenChange[]): string {
-//   const what = changes.filter(c => c.count > 0).map(c => `${plural(c.count, c.noun)} ${c.word}`);
-//   const head = from === 0 ? `Builds version ${to}` : `Builds version ${to} on top of version ${from}`;
-//   return what.length === 0 ? head : `${head}: ${what.join(", ")}`;
-// }
-pub fn golden_build_line(from: f64, to: f64, changes: &[GoldenChange]) -> String {
-    let what: Vec<String> = changes.iter().filter(|c| c.count > 0.0).map(|c| format!("{} {}", plural(c.count, &c.noun), c.word)).collect();
-    let head = if from == 0.0 {
-        format!("Builds version {}", number_string(to))
-    } else {
-        format!("Builds version {} on top of version {}", number_string(to), number_string(from))
-    };
-    if what.is_empty() {
-        head
-    } else {
-        format!("{head}: {}", what.join(", "))
-    }
 }
 
 /// How much of a checksum a line shows: enough to tell two apart, short enough that a reason line with both fits its cut.
@@ -453,152 +307,9 @@ pub const NO_ROAD_WORDS: &str = "by no road";
 // image.ts:206
 pub const INSTALLS_LATEST: &str = "installs latest";
 
-/// A pin beside its row, as `wsp recipe` shows it: the version, and for a road that fixes none that it installs
-/// latest wherever it is built.
-// image.ts:210
-// export function pinWords(pin: ToolPin): string {
-//   return pin.latest === true ? `${pin.tag}, ${INSTALLS_LATEST}` : pin.tag;
-// }
-pub fn pin_words(pin: &ToolPin) -> String {
-    if pin.latest.is_some() {
-        format!("{}, {INSTALLS_LATEST}", pin.tag)
-    } else {
-        pin.tag.clone()
-    }
-}
-
-/// The one line a stage says about what its installs read back: the rows fixed to what they installed, then, once,
-/// the rows whose road installs latest wherever the image is built, each with the version this build got and the
-/// road's own words. Nothing when no row read a version.
-// image.ts:217
-// export function pinsReadLine(fixed: readonly { name: string; tag: string }[], latest: readonly { name: string; tag: string; words?: string }[]): string | undefined {
-//   const parts = [
-//     ...(fixed.length > 0 ? [`pinned: ${fixed.map(p => `${listedName(p.name)} ${p.tag}`).join(", ")}`] : []),
-//     ...(latest.length > 0 ? [`${INSTALLS_LATEST} on every place: ${latest.map(p => `${listedName(p.name)} ${p.tag}${p.words === undefined ? "" : ` ${p.words}`}`).join(", ")}`] : []),
-//   ];
-//   return parts.length === 0 ? undefined : parts.join("; ");
-// }
-/// A row's name and the version it installed, and the road's own words for a row that installs latest.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct PinRead {
-    pub name: String,
-    pub tag: String,
-    pub words: Option<String>,
-}
-
-/// `fixed` rows carry no words.
-pub fn pins_read_line(fixed: &[PinRead], latest: &[PinRead]) -> Option<String> {
-    let mut parts = Vec::new();
-    if !fixed.is_empty() {
-        let items: Vec<String> = fixed.iter().map(|p| format!("{} {}", listed_name(&p.name), p.tag)).collect();
-        parts.push(format!("pinned: {}", items.join(", ")));
-    }
-    if !latest.is_empty() {
-        let items: Vec<String> = latest
-            .iter()
-            .map(|p| match &p.words {
-                None => format!("{} {}", listed_name(&p.name), p.tag),
-                Some(words) => format!("{} {} {words}", listed_name(&p.name), p.tag),
-            })
-            .collect();
-        parts.push(format!("{INSTALLS_LATEST} on every place: {}", items.join(", ")));
-    }
-    if parts.is_empty() {
-        None
-    } else {
-        Some(parts.join("; "))
-    }
-}
-
-/// One of the record's pins in one line, under `wsp image`: the row by name, what it installed, the checksum where the
-/// road recorded one, and for a road that fixes none that it installs latest, in the road's words.
-// image.ts:227
-// export function sealedPinLine(name: string, pin: ToolPin, words?: string): string {
-//   const sum = pin.sha256 === undefined ? [] : [`checksum ${shortSum(pin.sha256)}`];
-//   const latest = pin.latest === true ? [`${INSTALLS_LATEST}${words === undefined ? "" : ` ${words}`}`] : [];
-//   return [name, pin.tag, ...sum, ...latest].join("  ");
-// }
-pub fn sealed_pin_line(name: &str, pin: &ToolPin, words: Option<&str>) -> String {
-    let mut parts = vec![name.to_string(), pin.tag.clone()];
-    if let Some(sum) = &pin.sha256 {
-        parts.push(format!("checksum {}", short_sum(sum)));
-    }
-    if pin.latest.is_some() {
-        parts.push(match words {
-            None => INSTALLS_LATEST.to_string(),
-            Some(words) => format!("{INSTALLS_LATEST} {words}"),
-        });
-    }
-    parts.join("  ")
-}
-
 /// Why a tool installs differently now when its road stands: the lines the road runs are not the golden's.
 // image.ts:234
 pub const INSTALLER_MOVED_LINE: &str = "its install lines changed";
-
-/// The detail of a tools row the catalog does not carry: it is on this computer, at the version this computer runs
-/// when the collector read one.
-// image.ts:238
-// export function installedHereLine(platform: "darwin" | "linux", version: string | undefined): string {
-//   const here = `installed on ${thisComputer(platform)}`;
-//   return version === undefined ? here : `${here}, ${version}`;
-// }
-pub fn installed_here_line(platform: Platform, version: Option<&str>) -> String {
-    let here = format!("installed on {}", this_computer(platform));
-    match version {
-        None => here,
-        Some(version) => format!("{here}, {version}"),
-    }
-}
-
-/// What the build does with a tools row it installs: the road in its own words, then the line the step runs.
-// image.ts:244
-// export function installsByLine(words: string, shown: string): string {
-//   return `installs ${words}: ${shown}`;
-// }
-pub fn installs_by_line(words: &str, shown: &str) -> String {
-    format!("installs {words}: {shown}")
-}
-
-/// What the build does with a ticked tools row it sets aside, with the plan's reason.
-// image.ts:249
-// export function leftOutLine(note: string): string {
-//   return `left out of the build: ${note}`;
-// }
-pub fn left_out_line(note: &str) -> String {
-    format!("left out of the build: {note}")
-}
-
-/// Why `wsp recipe --add` refuses a package a manager on this computer already has: that package is a row of its own,
-/// which the build installs by the road the plan resolves for it (a tap formula from its GitHub release, pinned),
-/// and a second row would install it twice by a line the image can refuse. The word that ticks the row instead.
-// image.ts:256
-// export function addAlreadyHereLine(platform: "darwin" | "linux", id: string): string {
-//   return `--add ${id}: a package manager on ${thisComputer(platform)} already has ${id}, so it is a row of its own.`;
-// }
-pub fn add_already_here_line(platform: Platform, id: &str) -> String {
-    format!("--add {id}: a package manager on {} already has {id}, so it is a row of its own.", this_computer(platform))
-}
-
-/// What to do about it: the word that ticks that row, which installs the package by its own road rather than by a
-/// second row that installs it again.
-// image.ts:262
-// export function addAlreadyHereFix(scanId: string): string {
-//   return `Tick it with --set ${scanId}=on.`;
-// }
-pub fn add_already_here_fix(scan_id: &str) -> String {
-    format!("Tick it with --set {scan_id}=on.")
-}
-
-/// A recipe file's tick on a tool outside the catalog that this computer has no row for: nothing here says how to install
-/// it, so the tick is said and left out rather than dropped in silence.
-// image.ts:268
-// export function notHereLine(platform: "darwin" | "linux", name: string, file: string): string {
-//   return `${name} is ticked in ${file}, but ${thisComputer(platform)} has no row that installs it; it is left out.`;
-// }
-pub fn not_here_line(platform: Platform, name: &str, file: &str) -> String {
-    format!("{name} is ticked in {file}, but {} has no row that installs it; it is left out.", this_computer(platform))
-}
 
 /// The app's line for a workspace still forked from an older golden version, offered the way the helper update is:
 /// a state in words, never a badge. The move is the person's; nothing replaces a machine they are working on.
@@ -758,91 +469,6 @@ pub enum DiskUse {
     Unknown { reason: String },
 }
 
-/// A workspace snapshot the provider refused: its answer, and the disk read before the ask, named the reason only at
-/// the danger tier the disk meter uses.
-// image.ts:326
-// export function snapshotRefusedLine(name: string, answer: ProviderAnswer, disk: DiskUse): string {
-//   const answered = `the provider answered ${providerAnswerLine(answer)}`;
-//   if (disk.kind === "unknown") return `${name} was not snapshotted: ${answered}; the disk could not be read (${disk.reason})`;
-//   const full = `its disk is ${Math.floor((disk.usedBytes / disk.sizeBytes) * 100)} percent full (${fmtBytesOf(disk.usedBytes, disk.sizeBytes)})`;
-//   if (diskTone(disk.usedBytes, disk.sizeBytes) === "danger") return `${name} was not snapshotted: ${full} and ${answered}; free space on it or delete the workspace, then snapshot again`;
-//   return `${name} was not snapshotted: ${answered}; ${full}, so the disk is not the reason`;
-// }
-pub fn snapshot_refused_line(name: &str, answer: &ProviderAnswer, disk: &DiskUse) -> String {
-    let answered = format!("the provider answered {}", provider_answer_line(answer));
-    match disk {
-        DiskUse::Unknown { reason } => format!("{name} was not snapshotted: {answered}; the disk could not be read ({reason})"),
-        DiskUse::Use { used_bytes, size_bytes } => {
-            let full = format!(
-                "its disk is {} percent full ({})",
-                number_string((used_bytes / size_bytes * 100.0).floor()),
-                fmt_bytes_of(*used_bytes, *size_bytes, None)
-            );
-            if disk_tone(*used_bytes, *size_bytes) == SizeTone::Danger {
-                format!("{name} was not snapshotted: {full} and {answered}; free space on it or delete the workspace, then snapshot again")
-            } else {
-                format!("{name} was not snapshotted: {answered}; {full}, so the disk is not the reason")
-            }
-        }
-    }
-}
-
-// The folders that hold a pnpm switched to the version a folder pins, read off everything the failed call printed:
-// pnpm 10 keeps the copy in PNPM_HOME/.tools/pnpm/<v> beside its <v>_tmp_ stage, pnpm 11 in its store's
-// links/@/pnpm/<v>. Either is trusted while it stands and never fetched again, so removing it is the repair.
-// image.ts:337
-// private in the TS: port it as a private helper
-// function switchedPnpm(output: string): string | undefined {
-//   const tools = /([^\s'"]*\/\.tools\/pnpm\/)([^/]+?)(?:_tmp_[^/]*)?\//.exec(output);
-//   if (tools !== null) return `${tools[1]}${tools[2]} and ${tools[1]}${tools[2]}_tmp_*`;
-//   return /([^\s'"]*\/store\/v\d+\/links\/@\/pnpm\/[^/\s'"]+)\//.exec(output)?.[1];
-// }
-
-fn switched_pnpm(output: &str) -> Option<String> {
-    let tools = Regex::new(r#"([^\s'"]*/\.tools/pnpm/)([^/]+?)(?:_tmp_[^/]*)?/"#).ok()?;
-    if let Some(caps) = tools.captures(output) {
-        let (dir, version) = (&caps[1], &caps[2]);
-        return Some(format!("{dir}{version} and {dir}{version}_tmp_*"));
-    }
-    let store = Regex::new(r#"([^\s'"]*/store/v[0-9]+/links/@/pnpm/[^/\s'"]+)/"#).ok()?;
-    store.captures(output).map(|caps| caps[1].to_string())
-}
-
-/// A workspace snapshot refused because the manager the project's install runs does not start in its folder: every
-/// fork of that disk would fail its first install the same way. `output` is all the call printed, where a switched
-/// pnpm's folder may show only in a stack below the error line.
-// image.ts:346
-// export function snapshotManagerLine(name: string, check: string, dir: string, said: string, output: string = said): string {
-//   const copy = switchedPnpm(output);
-//   const fix = copy === undefined ? `make ${check} answer there` : `remove ${copy}, run ${check} in ${dir} to fetch it again`;
-//   return `${name} was not snapshotted: ${check} fails in ${dir} (${said}), so every fork of it would fail the same way; ${fix}, then snapshot again`;
-// }
-pub fn snapshot_manager_line(name: &str, check: &str, dir: &str, said: &str, output: Option<&str>) -> String {
-    let output = output.unwrap_or(said);
-    let fix = match switched_pnpm(output) {
-        None => format!("make {check} answer there"),
-        Some(copy) => format!("remove {copy}, run {check} in {dir} to fetch it again"),
-    };
-    format!("{name} was not snapshotted: {check} fails in {dir} ({said}), so every fork of it would fail the same way; {fix}, then snapshot again")
-}
-
-/// What happened when a workspace snapshot at a provider is refused while the machine holds a sign-in, every path
-/// named; SNAPSHOT_LOGIN_FIX is what to do.
-// image.ts:354
-// export function snapshotLoginLine(name: string, paths: readonly string[]): string {
-//   return `${name} was not snapshotted: it holds sign-in files (${paths.join(", ")}), which every workspace forked from the snapshot would carry`;
-// }
-pub fn snapshot_login_line(name: &str, paths: &[impl AsRef<str>]) -> String {
-    let paths: Vec<&str> = paths.iter().map(|p| p.as_ref()).collect();
-    format!(
-        "{name} was not snapshotted: it holds sign-in files ({}), which every workspace forked from the snapshot would carry",
-        paths.join(", ")
-    )
-}
-
-// image.ts:357
-pub const SNAPSHOT_LOGIN_FIX: &str = "Remove them on the machine, then snapshot again.";
-
 /// The snapshotting stage's line after one refused attempt with another to come: which attempt, what the provider
 /// said, what the builder reads at the provider, and when the next attempt is.
 // image.ts:361
@@ -989,38 +615,6 @@ pub fn other_hosts_machines_line(machines: &[OwnedMachine]) -> String {
     format!("left alone {} this host did not make: {}", plural(machines.len() as f64, "machine"), named.join(", "))
 }
 
-/// The one sentence every road that leaves a builder running says: its id, what it costs, how to attach to it
-/// again, and that the sweep ends it.
-// image.ts:423
-// export function builderStaysLine(builderId: string, rateUsdPerHour: number, attachCommand: string): string {
-//   return `Builder ${builderId} stays up at about $${rateUsdPerHour.toFixed(2)}/hr; ${attachCommand} attaches to it again, and the sweep stops it once it is six hours old.`;
-// }
-pub fn builder_stays_line(builder_id: &str, rate_usd_per_hour: f64, attach_command: &str) -> String {
-    format!("Builder {builder_id} stays up at about ${}/hr; {attach_command} attaches to it again, and the sweep stops it once it is six hours old.", to_fixed(rate_usd_per_hour, 2))
-}
-
-/// The wizard's last line when the snapshot failed and the provider still has the builder: nothing on it changed.
-// image.ts:428
-// export function sealFailedBuilderStaysLine(builderId: string, rateUsdPerHour: number, attachCommand: string): string {
-//   return `Seal failed; the builder is as you left it. ${builderStaysLine(builderId, rateUsdPerHour, attachCommand)}`;
-// }
-pub fn seal_failed_builder_stays_line(builder_id: &str, rate_usd_per_hour: f64, attach_command: &str) -> String {
-    format!("Seal failed; the builder is as you left it. {}", builder_stays_line(builder_id, rate_usd_per_hour, attach_command))
-}
-
-/// The wizard's last line when the snapshot failed and the provider would not say what became of the builder: it
-/// was not touched, and the attach is offered as when it is known to be up.
-// image.ts:434
-// export function sealFailedBuilderUnreadLine(builderId: string, rateUsdPerHour: number, attachCommand: string): string {
-//   return `Seal failed; the provider could not be read about the builder, so nothing on it was touched. ${builderStaysLine(builderId, rateUsdPerHour, attachCommand)}`;
-// }
-pub fn seal_failed_builder_unread_line(builder_id: &str, rate_usd_per_hour: f64, attach_command: &str) -> String {
-    format!(
-        "Seal failed; the provider could not be read about the builder, so nothing on it was touched. {}",
-        builder_stays_line(builder_id, rate_usd_per_hour, attach_command)
-    )
-}
-
 /// Why a seal was refused before it took the snapshot: the builder holds a file a sign-in leaves behind. The paths
 /// are the guest's own, so whoever reads the line can go and look at them.
 // image.ts:440
@@ -1030,46 +624,4 @@ pub fn seal_failed_builder_unread_line(builder_id: &str, rate_usd_per_hour: f64,
 pub fn credential_on_builder_line(paths: &[impl AsRef<str>]) -> String {
     let paths: Vec<&str> = paths.iter().map(|p| p.as_ref()).collect();
     format!("the builder holds a sign-in file at {}; sign-ins never sit in an image, so nothing was sealed", paths.join(", "))
-}
-
-/// The wizard's last line when the seal failed on any road but a refused snapshot: the builder was consumed.
-// image.ts:445
-pub const SEAL_FAILED_LINE: &str = "Seal failed and the builder is gone. Run wsp init again; the recipe is kept.";
-
-/// The wizard's last line when the snapshot failed and the provider answers 404 for the builder: the provider
-/// dropped it, not wsp.
-// image.ts:449
-pub const SEAL_FAILED_BUILDER_GONE_LINE: &str =
-    "Seal failed and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again; the recipe is kept.";
-
-/// The update's last line when the snapshot of the new version failed and the provider still has the machine it
-/// ran on: the golden stands, the machine is as it was, the retry runs on it or the sweep ends it.
-// image.ts:453
-// export function upgradeSealFailedStaysLine(version: number, builderId: string, rateUsdPerHour: number): string {
-//   return `Image v${version} is unchanged. Builder ${builderId} is as it was, up at about $${rateUsdPerHour.toFixed(2)}/hr; run wsp init again to retry, and the sweep stops it once it is six hours old.`;
-// }
-pub fn upgrade_seal_failed_stays_line(version: f64, builder_id: &str, rate_usd_per_hour: f64) -> String {
-    format!("Image v{} is unchanged. Builder {builder_id} is as it was, up at about ${}/hr; run wsp init again to retry, and the sweep stops it once it is six hours old.", number_string(version), to_fixed(rate_usd_per_hour, 2))
-}
-
-/// The update's last line when the snapshot failed and the provider would not say what became of the machine it
-/// ran on: nothing on it was touched, the retry runs on it or the sweep ends it.
-// image.ts:459
-// export function upgradeSealFailedUnreadLine(version: number, builderId: string): string {
-//   return `Image v${version} is unchanged. The provider could not be read about builder ${builderId}, so nothing on it was touched; run wsp init again to retry, and the sweep stops it once it is six hours old.`;
-// }
-pub fn upgrade_seal_failed_unread_line(version: f64, builder_id: &str) -> String {
-    format!("Image v{} is unchanged. The provider could not be read about builder {builder_id}, so nothing on it was touched; run wsp init again to retry, and the sweep stops it once it is six hours old.", number_string(version))
-}
-
-/// The update's last line when the snapshot failed and the provider answers 404 for the machine it ran on.
-// image.ts:464
-// export function upgradeSealFailedGoneLine(version: number): string {
-//   return `Image v${version} is unchanged and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again to retry.`;
-// }
-pub fn upgrade_seal_failed_gone_line(version: f64) -> String {
-    format!(
-        "Image v{} is unchanged and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again to retry.",
-        number_string(version)
-    )
 }

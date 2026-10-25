@@ -22,6 +22,13 @@ packages/protocol/src/wire at a3b870a6e, 5,356 TS lines, cut into ten units. Eac
 
 The TS module's own tests: 188 `it` blocks across 23 protocol test files touch a wire export (some of them only a constant list or another module's export, which are skipped and named in each porter's report); the TS has no test file of its own for the wire folder.
 
+## Layout
+
+A file that would pass 1,500 lines is a folder: its head (docs, imports) is `mod.rs`, its sections are child modules, and
+`mod.rs` re-exports them, so `wsp_wire::wire::runtime::X` and the like are unchanged. `RuntimeOp`'s check and pass are free
+functions in `src/wire/runtime/` (`runtime_op_check`, `runtime_op_pass_a`, `runtime_op_pass_b`). Every schema pass is one
+call per key from `src/types/keys.rs`. The spec's `src/wire/runtime.rs`-style paths name the folder now.
+
 ## Rules pinned, and the test that pins each
 
 Null, absent and empty:
@@ -79,4 +86,4 @@ What survives a host restart:
 - One mechanism reads a tagged enum: its `pass` reads the tag, then the member's keys in schema order (`spec/check.md`, rule 2). The per-op payload structs and the mirror enum that read machine-link and daemon frames, the externally tagged `RuntimeOp` and its keyed reading, `struct_variants!`, `ExecEventFrame` and `parse_event`'s 77 arms are gone; `parse_runtime_request`, `parse_daemon_request`, `parse_machine_link_request`, `parse_daemon_event` and `parse_event` are `parse::<T>`. `RuntimeOp` is internally tagged, so it writes its own frame, and `RuntimeRequest` adds `origin`.
 - Every wire struct's pass carries its rules inline in schema order, generated from the hand `check` bodies one key at a time; the four structs whose `check` read two keys at once (`ProcScope`, `PlaceReport`, and the two sys events' literal) were split by hand first. Inline enum members keep their rules in `check`, run once their keys read clean.
 - Every `.int()` key the wire holds is a `JsInt`, the keys of `PreferencesPatch`, `ActivityProc`, `ActivityRead`, `WorkspaceAgents` and its patch, `DaemonAuthRequest`, `ProcEntry`, `StateShape`, `DaemonErrorResponse`, `PlaceReport`, `ProviderKeyWorks` and `EventsSubscribeReply`, and every other `.int()` key of the wire's structs and inline enum members. `by_proc_column` is one function over `ProcRow`, which this crate's row and wsp-frames' row both implement, so `views::activity` calls it. `crate::text` holds `collate` (ICU4X) and `json_stringify`; the views' stand-ins for `listed`, `place_behind_line` and `collate` are calls.
-- The tests changed in three ways only: integer literals where a field became `JsInt`; the shared reader compares numbers as numbers (`json!(0.0)` is `0`), and three assertions that compared text or values by hand use it; and `anyOrder` on the three fixture cases that hold a plugin row (`PluginRow` full and nulls, `AgentsReport` full), whose written order is the host's: `project`, `path` and `setIn` after `brings`.
+- The tests changed in three ways only: integer literals where a field became `JsInt`; the shared reader compares numbers as numbers (`json!(0.0)` is `0`), and three assertions that compared text or values by hand use it; and `anyOrder` on the three fixture cases that hold a plugin row (`PluginRow` full and nulls, `AgentsReport` full), whose written order is the host's: `project`, `path` and `setIn` after `brings`; the join adds `anyOrder` on `HarnessCatalog`'s three cases, whose written order is the host's table row: `source, version, contextWindows, steers, renames, images`, then `harness`, `label` and the rest (`written_order.rs`).

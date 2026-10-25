@@ -1,0 +1,236 @@
+{
+ "rootsScript": [
+  {
+   "roots": [],
+   "path": null,
+   "script": "next='/root/.wsp/roots.next.'$$\nmkdir -p '/root/.wsp'\nprintf '%s\\n'  > \"$next\"\nmv -f \"$next\" '/root/.wsp/roots'"
+  },
+  {
+   "roots": [
+    "/srv/web"
+   ],
+   "path": null,
+   "script": "next='/root/.wsp/roots.next.'$$\nmkdir -p '/root/.wsp'\nprintf '%s\\n' '/srv/web' > \"$next\"\nmv -f \"$next\" '/root/.wsp/roots'"
+  },
+  {
+   "roots": [
+    "/srv/it's",
+    "/home/dev/a b"
+   ],
+   "path": null,
+   "script": "next='/root/.wsp/roots.next.'$$\nmkdir -p '/root/.wsp'\nprintf '%s\\n' '/srv/it'\\''s' '/home/dev/a b' > \"$next\"\nmv -f \"$next\" '/root/.wsp/roots'"
+  },
+  {
+   "roots": [
+    "/x"
+   ],
+   "path": "/home/dev/.wsp/roots",
+   "script": "next='/home/dev/.wsp/roots.next.'$$\nmkdir -p '/home/dev/.wsp'\nprintf '%s\\n' '/x' > \"$next\"\nmv -f \"$next\" '/home/dev/.wsp/roots'"
+  },
+  {
+   "roots": [
+    "/x"
+   ],
+   "path": "roots",
+   "script": "next='roots.next.'$$\nmkdir -p '.'\nprintf '%s\\n' '/x' > \"$next\"\nmv -f \"$next\" 'roots'"
+  },
+  {
+   "roots": [
+    "/x"
+   ],
+   "path": "/roots",
+   "script": "next='/roots.next.'$$\nmkdir -p '/'\nprintf '%s\\n' '/x' > \"$next\"\nmv -f \"$next\" '/roots'"
+  }
+ ],
+ "tokenFor": [
+  {
+   "seed": "0123456789abcdef0123456789abcdef0123456789abcdef",
+   "machine": "m1",
+   "out": {
+    "ok": "9b0479ab257771d7329000164db37c9b19234e68e7a73d7e6071f76d15422816"
+   }
+  },
+  {
+   "seed": "0123456789abcdef0123456789abcdef0123456789abcdef",
+   "machine": "m2",
+   "out": {
+    "ok": "40707f82e6bc486770430df95759bf1744ffc717f6c118b45cc74c948b3854cb"
+   }
+  },
+  {
+   "seed": "beefcafebeefcafebeefcafe",
+   "machine": "m1",
+   "out": {
+    "ok": "ad850193c0e3ca54a88e18c3b88ceb8a23b96db922cf8497252b70a34b4c0198"
+   }
+  },
+  {
+   "seed": "0123456789abcdef0123456789abcdef0123456789abcdef",
+   "machine": "",
+   "out": {
+    "ok": "6a1c151c2429b493cab341760c82965330315775a94525f41762e0fff2709be9"
+   }
+  },
+  {
+   "seed": "0123456789abcdef0123456789abcdef0123456789abcdef",
+   "machine": "ws_é",
+   "out": {
+    "ok": "8275f6fb709da098da78f9a6dc990b3488c27771c2cbeb625373824822f9d554"
+   }
+  },
+  {
+   "seed": "it's not hex",
+   "machine": "m1",
+   "out": {
+    "err": "a daemon token is lowercase hex"
+   }
+  },
+  {
+   "seed": "ABCDEF",
+   "machine": "m1",
+   "out": {
+    "err": "a daemon token is lowercase hex"
+   }
+  }
+ ],
+ "shape": [
+  {
+   "token": "",
+   "out": {
+    "err": "a daemon token is lowercase hex"
+   }
+  },
+  {
+   "token": "0",
+   "out": {
+    "ok": null
+   }
+  },
+  {
+   "token": "abc",
+   "out": {
+    "ok": null
+   }
+  },
+  {
+   "token": "ABC",
+   "out": {
+    "err": "a daemon token is lowercase hex"
+   }
+  },
+  {
+   "token": "0123x",
+   "out": {
+    "err": "a daemon token is lowercase hex"
+   }
+  },
+  {
+   "token": "it's-not-hex-at-all-000",
+   "out": {
+    "err": "a daemon token is lowercase hex"
+   }
+  },
+  {
+   "token": "0123456789abcdef0123456789abcdef0123456789abcdef",
+   "out": {
+    "ok": null
+   }
+  },
+  {
+   "token": "ab\n",
+   "out": {
+    "err": "a daemon token is lowercase hex"
+   }
+  }
+ ],
+ "writeScript": [
+  {
+   "token": "0123456789abcdef0123456789abcdef0123456789abcdef",
+   "path": null,
+   "out": {
+    "ok": "WSP_DAEMON_TOKEN='0123456789abcdef0123456789abcdef0123456789abcdef'\numask 077\nprintf '%s' \"$WSP_DAEMON_TOKEN\" > /root/.wsp/daemon-token.next\nmv -f /root/.wsp/daemon-token.next /root/.wsp/daemon-token"
+   }
+  },
+  {
+   "token": "0123456789abcdef0123456789abcdef0123456789abcdef",
+   "path": "/tmp/stand-in/m1/.wsp-daemon-token",
+   "out": {
+    "ok": "WSP_DAEMON_TOKEN='0123456789abcdef0123456789abcdef0123456789abcdef'\numask 077\nprintf '%s' \"$WSP_DAEMON_TOKEN\" > /tmp/stand-in/m1/.wsp-daemon-token.next\nmv -f /tmp/stand-in/m1/.wsp-daemon-token.next /tmp/stand-in/m1/.wsp-daemon-token"
+   }
+  },
+  {
+   "token": "'; rm -rf /; echo '0123456789abcdef",
+   "path": null,
+   "out": {
+    "err": "a daemon token is lowercase hex"
+   }
+  }
+ ],
+ "rotateScript": [
+  {
+   "token": "0123456789abcdef0123456789abcdef0123456789abcdef",
+   "path": null,
+   "out": {
+    "ok": "test -f /root/.wsp/daemon-token || { echo WSP_DAEMON_TOKEN_NONE; exit 0; }\nWSP_DAEMON_TOKEN='0123456789abcdef0123456789abcdef0123456789abcdef'\numask 077\nprintf '%s' \"$WSP_DAEMON_TOKEN\" > /root/.wsp/daemon-token.next\nmv -f /root/.wsp/daemon-token.next /root/.wsp/daemon-token\necho WSP_DAEMON_TOKEN_SET"
+   }
+  },
+  {
+   "token": "0123456789abcdef0123456789abcdef0123456789abcdef",
+   "path": "/home/dev/.wsp/daemon-token",
+   "out": {
+    "ok": "test -f /home/dev/.wsp/daemon-token || { echo WSP_DAEMON_TOKEN_NONE; exit 0; }\nWSP_DAEMON_TOKEN='0123456789abcdef0123456789abcdef0123456789abcdef'\numask 077\nprintf '%s' \"$WSP_DAEMON_TOKEN\" > /home/dev/.wsp/daemon-token.next\nmv -f /home/dev/.wsp/daemon-token.next /home/dev/.wsp/daemon-token\necho WSP_DAEMON_TOKEN_SET"
+   }
+  },
+  {
+   "token": "nothex!",
+   "path": null,
+   "out": {
+    "err": "a daemon token is lowercase hex"
+   }
+  }
+ ],
+ "constants": {
+  "set": "WSP_DAEMON_TOKEN_SET",
+  "none": "WSP_DAEMON_TOKEN_NONE",
+  "path": "/root/.wsp/daemon-token",
+  "rootsPath": "/root/.wsp/roots"
+ },
+ "templateHost": [
+  [
+   "zingzys-MacBook-Pro.local:9f3a1c2b",
+   "9f3a1c2b"
+  ],
+  [
+   "dev.box:00ff00ff",
+   "00ff00ff"
+  ],
+  [
+   "zingzys-MacBook-Pro.local",
+   "zingzysmacbookprolocal"
+  ],
+  [
+   "",
+   ""
+  ],
+  [
+   ":",
+   ""
+  ],
+  [
+   "a:b:C-1_2",
+   "c12"
+  ],
+  [
+   "host:",
+   ""
+  ],
+  [
+   "Ünïcode:ÄB9",
+   "b9"
+  ],
+  [
+   "x:İ",
+   "i"
+  ]
+ ]
+}

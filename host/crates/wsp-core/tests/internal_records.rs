@@ -905,6 +905,19 @@ fn record_session_index_record_with_only_its_required_keys_writes_no_other_key()
     assert_eq!(keys(&out["sessions"][0]), vec!["id", "workspaceId", "harness", "status", "turnId"]);
 }
 
+// transcripts.ts persistSessions: `{ workspaceId, sessions, threads, viewed? }`
+#[test]
+fn record_session_index_record_writes_its_keys_in_the_order_persist_sessions_does() {
+    let doc = json!({
+        "workspaceId": "w1",
+        "sessions": [{"id": "s1", "workspaceId": "w1", "harness": "claude", "status": "completed", "turnId": "u1"}],
+        "threads": {"t1": {"harness": "claude"}},
+        "viewed": {"a.ts": "b1"},
+    });
+    let out = round_trip::<SessionIndexRecord>(&doc);
+    assert_eq!(keys(&out), vec!["workspaceId", "sessions", "threads", "viewed"]);
+}
+
 // internal.ts:106-117
 #[test]
 fn record_held_start_record_with_every_optional_key_writes_back_equal() {
@@ -971,7 +984,12 @@ fn builder_full() -> Value {
     json!({
         "id": "b1", "name": "img", "kind": "sandbox", "baseTemplate": "tpl", "setupSha": "sha", "createdAt": "2026-10-01T00:00:00.000Z",
         "size": {"cpu": 2, "memMb": 4096}, "streamUrl": "https://s", "firstLife": true,
-        "heldBy": {"host": "h1", "pid": 7, "heartbeat": "2026-10-01T00:01:00.000Z"}, "building": true, "import": {},
+        "heldBy": {"host": "h1", "pid": 7, "heartbeat": "2026-10-01T00:01:00.000Z"}, "building": true,
+        "import": {
+            "recipeHash": "rh", "recipe": {"ticks": [{"id": "tools/brew/gh"}], "login": "l", "files": []}, "applied": ["applying-setup", "installing-mcp"],
+            "smoke": "claude --version", "missingTools": [{"id": "tools/mac/app", "name": "App", "outcome": "skipped", "note": "macOS only"}],
+            "silenced": ["nvm"], "shellNoise": "warn", "leftBehind": [{"id": "files/a", "path": "~/a", "note": "too big"}]
+        },
         "base": [{"name": "node", "version": "22"}], "parentSnapshotId": "snap1", "retired": [{"id": "g0", "name": "old"}],
         "sealed": {"at": "2026-10-01T00:02:00.000Z", "version": 3}, "place": "p1",
     })

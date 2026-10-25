@@ -54,6 +54,7 @@ fn every_capability_is_false_and_it_offers_no_sizes() {
             // Nothing forks and nothing copies: there is nothing to copy onto.
             copies: false,
             own_network: false,
+            sizes_last: false,
         }
     );
 }

@@ -77,7 +77,7 @@ fn asker(workspace_id: &str, name: &str) -> PaneAsker {
 }
 
 fn view(workspace_id: &str, port: u16, name: &str, at: i64) -> PortForward {
-    PortForward { workspace_id: workspace_id.to_string(), port: RelayPort(port as i64), started_at: iso(at), name: name.to_string(), kind: PortForwardKind::Url }
+    PortForward { workspace_id: workspace_id.to_string(), port: RelayPort((port as i64).into()), started_at: iso(at), name: name.to_string(), kind: PortForwardKind::Url }
 }
 
 fn open(v: &PortForward) -> ForwardEvent {

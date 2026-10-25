@@ -15,7 +15,7 @@ use wsp_adapters::claude::permissions::{control_answer_line, control_error_line,
 use wsp_adapters::claude::shell_cwd::shell_cwd_after;
 use wsp_adapters::claude::steers::steered_ids;
 use wsp_adapters::port::{DeltaKind, FilePatch, HarnessStartOptions, PermissionAsk, PermissionOption, TurnDelta, PERMISSION_ALLOW, PERMISSION_DENY};
-use wsp_wire::types::pending_wire::PermissionEffect;
+use wsp_wire::wire::helpers::PermissionEffect;
 use wsp_wire::views::session_events::PatchHunk;
 
 use claude_exec::{collect, FakeExec, StreamOpts};
@@ -521,7 +521,7 @@ async fn results(lines: Vec<String>) -> HashMap<String, TurnDelta> {
 }
 
 fn hunk(old_start: i64, old_lines: i64, new_start: i64, new_lines: i64, lines: &[&str]) -> PatchHunk {
-    PatchHunk { old_start, old_lines, new_start, new_lines, lines: lines.iter().map(|s| s.to_string()).collect() }
+    PatchHunk { old_start: old_start.into(), old_lines: old_lines.into(), new_start: new_start.into(), new_lines: new_lines.into(), lines: lines.iter().map(|s| s.to_string()).collect() }
 }
 
 fn patch(path: &str, hunks: Vec<PatchHunk>) -> Vec<FilePatch> {

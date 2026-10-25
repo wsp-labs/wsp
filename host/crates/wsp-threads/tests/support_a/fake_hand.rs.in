@@ -1,0 +1,265 @@
+// The bodies gen_fake.py puts after a method's hook, where the host's own state answers. One per `//@ Trait::name`.
+//@ WaitsCtx::clock
+        self.clock.clock()
+//@end
+//@ WaitsCtx::sessions
+        self.rows.clone()
+//@end
+//@ WaitsCtx::closing
+        self.closing.get()
+//@end
+//@ WaitsCtx::record
+        self.recorded.borrow_mut().push(event)
+//@end
+//@ LaunchCtx::ids
+        self.ids.clone()
+//@end
+//@ LaunchCtx::entry_of
+        self.live(workspace_id).ok_or_else(|| HostError::with_kind(format!("no workspace {workspace_id}"), Kind::NotFound))
+//@end
+//@ LaunchCtx::closing
+        self.closing.get()
+//@end
+//@ LaunchCtx::keeps_agents
+        true
+//@end
+//@ LaunchCtx::default_agent_of
+        "claude".to_string()
+//@end
+//@ LaunchCtx::folder_exists
+        true
+//@end
+//@ LaunchCtx::runs_in
+        folder.to_string()
+//@end
+//@ LaunchCtx::thread_folder
+        Ok(cwd.map(String::from).unwrap_or_else(|| format!("/work/{}", entry.borrow().record.borrow().id)))
+//@end
+//@ LaunchCtx::thread_launch
+        Ok(ThreadLaunch::default())
+//@end
+//@ LaunchCtx::vault_server_values
+        Default::default()
+//@end
+//@ LaunchCtx::launch_servers_for
+        Ok(LaunchServers::default())
+//@end
+//@ LaunchCtx::ran_on
+        RanPicks::default()
+//@end
+//@ LaunchCtx::defaults_on
+        DefaultsOn { catalog, open_model: None, open_effort: None }
+//@end
+//@ ActivityCtx::clock
+        self.clock.clock()
+//@end
+//@ ActivityCtx::sessions
+        self.rows.clone()
+//@end
+//@ ActivityCtx::records
+        self.records.clone()
+//@end
+//@ ActivityCtx::live_entry
+        self.live(workspace_id)
+//@end
+//@ ActivityCtx::latest_on
+        self.latest_row(thread_id)
+//@end
+//@ ActivityCtx::drives
+        true
+//@end
+//@ ActivityCtx::settles_thread
+        true
+//@end
+//@ ActivityCtx::host_pid
+        4242
+//@end
+//@ TurnsCtx::clock
+        self.clock.clock()
+//@end
+//@ TurnsCtx::sessions
+        self.rows.clone()
+//@end
+//@ TurnsCtx::records
+        self.records.clone()
+//@end
+//@ TurnsCtx::live_entry
+        self.live(workspace_id)
+//@end
+//@ TurnsCtx::latest_on
+        self.latest_row(thread_id)
+//@end
+//@ TurnsCtx::closing
+        self.closing.get()
+//@end
+//@ TurnsCtx::record
+        self.recorded.borrow_mut().push(event)
+//@end
+//@ TurnsCtx::emit
+        self.emitted.borrow_mut().push(serde_json::to_value(&event).expect("an event serializes"))
+//@end
+//@ TurnsCtx::pass
+        self.passed.borrow_mut().push(serde_json::to_value(&event).expect("an event serializes"))
+//@end
+//@ TurnsCtx::held_at_close
+        self.held_at_close.clone()
+//@end
+//@ TurnsCtx::keep_checkpoint
+        done()
+//@end
+//@ TurnsCtx::checkpoints_landing
+        self.checkpoints_landing.clone()
+//@end
+//@ TurnsCtx::lead_asks
+        self.lead_asks.clone()
+//@end
+//@ TurnsCtx::usage_account_of
+        UsageAccount { key: format!("{harness}:default"), label: None, road: None }
+//@end
+//@ TurnsCtx::usage_computer_of
+        "this-computer".to_string()
+//@end
+//@ TurnsCtx::turn_groups
+        self.turn_groups.clone()
+//@end
+//@ TurnsCtx::hold_kept
+        Some(hold)
+//@end
+//@ TurnsCtx::open_thread
+        Ok(self.thread_events(thread_id))
+//@end
+//@ SessionsCtx::clock
+        self.clock.clock()
+//@end
+//@ SessionsCtx::sessions
+        self.rows.clone()
+//@end
+//@ SessionsCtx::records
+        self.records.clone()
+//@end
+//@ SessionsCtx::live_entry
+        self.live(workspace_id)
+//@end
+//@ SessionsCtx::latest_on
+        self.latest_row(thread_id)
+//@end
+//@ SessionsCtx::rows_on
+        self.rows.borrow().values().filter(|r| r.borrow().view.thread_id.as_deref() == Some(thread_id)).map(|r| r.borrow().view.clone()).collect()
+//@end
+//@ SessionsCtx::thread_runs
+        self.rows.borrow().values().any(|r| { let r = r.borrow(); let v = &r.view; v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) })
+//@end
+//@ SessionsCtx::running_on
+        self.rows.borrow().values().find(|row| { let r = row.borrow(); let v = &r.view; v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) && r.handle.is_some() }).cloned()
+//@end
+//@ SessionsCtx::launching_on
+        self.rows.borrow().values().find(|row| { let r = row.borrow(); let v = &r.view; v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) && r.handle.is_none() && r.launch.is_some() }).cloned()
+//@end
+//@ SessionsCtx::entry_of_row
+        Ok(self.live(&at.workspace_id))
+//@end
+//@ SessionsCtx::entry_of_with
+        self.live(workspace_id).ok_or_else(|| HostError::with_kind(format!("no workspace {workspace_id}"), Kind::NotFound))
+//@end
+//@ SessionsCtx::record
+        self.recorded.borrow_mut().push(event)
+//@end
+//@ SessionsCtx::emit
+        self.emitted.borrow_mut().push(serde_json::to_value(&event).expect("an event serializes"))
+//@end
+//@ SessionsCtx::pass
+        self.passed.borrow_mut().push(serde_json::to_value(&event).expect("an event serializes"))
+//@end
+//@ SessionsCtx::on_turn_settled
+        Rc::new(|| {})
+//@end
+//@ SessionsCtx::on_place_absent
+        Rc::new(|| {})
+//@end
+//@ SessionsCtx::cap_stopping
+        Rc::new(|| {})
+//@end
+//@ SessionsCtx::cap_wait
+        done()
+//@end
+//@ SessionsCtx::agent_label
+        harness.to_string()
+//@end
+//@ SessionsCtx::place_name_of
+        place.to_string()
+//@end
+//@ SessionsCtx::computer_of
+        "this computer".to_string()
+//@end
+//@ SessionsCtx::root_of
+        thread_id.to_string()
+//@end
+//@ SessionsCtx::tree_of
+        TreeOf::default()
+//@end
+//@ SessionsCtx::thread_of_token
+        token.to_string()
+//@end
+//@ SessionsCtx::reaches_row
+        true
+//@end
+//@ SessionsCtx::opens_in
+        true
+//@end
+//@ SessionsCtx::snapshot_of
+        futures::future::ready(None).boxed_local().shared()
+//@end
+//@ SessionsCtx::carried_title
+        (None, None)
+//@end
+//@ SessionsCtx::tree_stands_on
+        true
+//@end
+//@ SessionsCtx::title_rows
+        rows
+//@end
+//@ SessionsCtx::listed_rows
+        rows
+//@end
+//@ SessionsCtx::placed_rows
+        rows
+//@end
+//@ SessionsCtx::drives_thread
+        true
+//@end
+//@ SessionsCtx::open_thread
+        Ok(self.thread_events(thread_id))
+//@end
+//@ SessionsCtx::open_transcript
+        Ok(self.recorded.borrow().clone())
+//@end
+//@ SessionsCtx::index_workspaces
+        self.entries.borrow().keys().cloned().collect()
+//@end
+//@ SessionsCtx::settles_thread
+        true
+//@end
+//@ SessionsCtx::restarts
+        IndexMap::new()
+//@end
+//@ SessionsCtx::checkout_of
+        format!("/work/{}", record.id)
+//@end
+//@ SessionsCtx::git_restore
+        Ok(Map::new())
+//@end
+//@ SessionsCtx::acts_on
+        true
+//@end
+//@ SessionsCtx::project_computer_name
+        project.to_string()
+//@end
+//@ SessionsCtx::kept_warm
+        true
+//@end
+//@ TurnsCtx::harness_exec
+        Arc::new(NoExec)
+//@end
+//@ LaunchCtx::vault
+        Default::default()
+//@end

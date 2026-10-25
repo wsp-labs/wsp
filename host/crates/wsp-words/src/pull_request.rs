@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! A thread's pull request as a row and a prompt read it: its state words, the prompts that hand a failed check, a
 //! conflict or the page's comments to the agent, and the refusals of an item that is not there. Port of the
-//! functions of packages/protocol/src/pull-request.ts at a3b870a6e; its shapes and flat constants are
+//! functions of packages/protocol/src/pull-request.ts at the cut (383708c78); its shapes and flat constants are
 //! wsp_wire::types::pull_request. See spec/pull_request.md.
 
 use wsp_wire::types::pull_request::MergeMethod;
@@ -322,11 +322,15 @@ pub fn pull_request_stopped_line(host: &str, workspace: &str) -> String {
 // }
 pub fn tail_within(text: &str, max: f64) -> String {
     let bytes = text.as_bytes();
-    let max = max as usize;
-    if bytes.len() <= max {
+    let len = bytes.len() as f64;
+    if len <= max {
         return text.to_string();
     }
-    let tail = &bytes[bytes.len() - max..];
+    // `subarray(start)`: a NaN start is 0, a fraction is cut toward zero and a negative start counts from the end.
+    let start = len - max;
+    let start = if start.is_nan() { 0.0 } else { start.trunc() };
+    let start = if start < 0.0 { (len + start).max(0.0) } else { start.min(len) } as usize;
+    let tail = &bytes[start..];
     let kept = match tail.iter().position(|&b| b == b'\n') {
         Some(nl) if nl + 1 < tail.len() => &tail[nl + 1..],
         _ => tail,

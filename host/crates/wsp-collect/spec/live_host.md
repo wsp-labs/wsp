@@ -15,7 +15,7 @@ The real Host: the disk behind `HostFs` and processes behind `HostExec`. `spawn_
 5. `lines` (:84-125): open fails, nothing. Read `LINE_CHUNK` (1 MiB) at a time; a line is the bytes up to LF, joined across reads; with `holding`, a line whose bytes do not contain the needle's bytes is skipped before any decoding; one trailing CR is dropped; decoded as UTF-8 with U+FFFD. After end of file, leftover bytes are one last line (no LF needed); an empty remainder gives nothing. A read error ends the stream quietly. The file is closed when the stream ends or is dropped.
 6. `on_path` (:133-144): each non-empty entry of the PATH text in order, true when `<dir>/<bin>` passes `access(X_OK)`; `None` or empty PATH is false. `NodeExec::which` reads this process's PATH.
 7. `NodeExec::run` (:150-153): `spawn_run(cmd, args, this process's environment with opts.env laid over it, opts)`.
-8. `spawn_run` (:177-252): a signal already cancelled answers `None` and spawns nothing. Spawn with exactly `env` (cleared first), stdin null, stdout piped, stderr piped and drained unread, in a new session (node's `detached: true` is `setsid()`: the child leads a new session and a new group, pgid and sid equal to its pid, with no controlling terminal; `process_group(0)` alone is not enough, since `login-path.ts` runs an interactive login shell this way). A spawn error (ENOENT, EACCES, ENOTDIR, a folder) answers `None`. A NUL byte in the command, an argument or an env value, or an empty command, makes node throw synchronously, so the TS promise rejects with `TypeError [ERR_INVALID_ARG_VALUE]`; the Rust answers `None` for these (accepted difference, flagged: no caller passes such a value).
+8. `spawn_run` (:177-252): a signal already cancelled answers `None` and spawns nothing. Spawn with exactly `env` (cleared first), stdin null, stdout piped, stderr piped and drained unread, in a new session (node's `detached: true` is `setsid()`: the child leads a new session and a new group, pgid and sid equal to its pid, with no controlling terminal; `process_group(0)` alone is not enough, since `login-path.ts` runs an interactive login shell this way). A spawn error (ENOENT, EACCES, ENOTDIR, a folder) answers `None`. A NUL byte in the command, an argument or an env value, or an empty command, makes node throw synchronously, so the TS promise rejects with `TypeError [ERR_INVALID_ARG_VALUE]`; `spawn_run` answers `Err(SpawnRefusal)` with node's message, in node's checking order (command empty, command NUL, each argument, then each env key and value), after the already-cancelled check. `NodeExec::run`, whose seam has no error, reads a refusal as `None`; no caller passes such a value.
 9. Budget `timeout_ms` or 120,000 ms: on expiry mark failed, SIGTERM the group, and settle `None` after `CLOSE_GRACE_MS` (1 s) if nothing settled first (an interactive shell ignores SIGTERM).
 10. Exit: when the child exits, wait up to 1 s for both stdout and stderr to close (node's `close` event); settle on close or at the grace, whichever first, the grace timer started at the exit and replacing a budget grace still pending. A grandchild that holds only stderr costs the full grace too; a child that closes stdout early but keeps running is not settled by that. A background job that kept stdout does not hold the run past the grace.
 11. Settle (once): stop timers, SIGKILL the group (whatever is left of it dies), drop the pipes, answer stdout as UTF-8 only when not failed, exit code 0 and no signal; else `None`.
@@ -34,7 +34,7 @@ Every exit from `spawn_run` SIGKILLs the child's group (rule 11), so jobs an rc 
 
 ## Decisions
 
-1. `node_host` takes `HOME` as node does; node falls back to the password entry when `HOME` is unset, Rust may do the same.
+1. `node_host` takes `HOME` as node does, and the password entry when `HOME` is unset (W13).
 2. The TS spies on `process.kill` to prove the exited pid is never signalled; Rust cannot, so the test pins only that the run answers `None` and the job dies.
 
 ## After the port
@@ -70,8 +70,21 @@ outcome measured on the TS `spawnRun`.
 - W10. A zero budget answers `None` at once (`a_zero_budget_*`).
 - W11. stdout is decoded as node decodes UTF-8 (each bad byte one U+FFFD, a BOM kept); a stderr flood never blocks;
   exit 143 is `None`; `true` is `""` (`stdout_is_decoded_*`).
-- W12. An empty command, a NUL in the command, an argument or an env value, a missing binary and a folder all answer
-  `None` (`an_empty_command_or_a_nul_*`).
+- W12. An empty command, or a NUL in the command, an argument or an env value, is a `SpawnRefusal` with the message node
+  threw on node 22.23; a missing binary and a folder answer `None` (`an_empty_command_or_a_nul_*`).
+
+- W13. After the cold review: `node_host` takes `HOME` when it is set (empty included), else the password entry of the
+  effective user, as libuv does, and fails with node's sentence when there is none; `SHELL`, `PATH` and the other
+  variables, and every name and value `run` passes on, are decoded as node decodes them, each bad sequence one U+FFFD;
+  a variable named by a whole number below 2^32 - 1 never reaches a child (`review_files::*`, `review_proc::*`).
+- W14. `read_text` answers `None` for a file past 536,870,888 bytes, node's longest string, and stops reading there,
+  `/dev/zero` included. `stat`, `list`, `read_text` and `walk` run on the blocking pool, so a read stuck on a pipe leaves
+  the caller's timer free. `tree_bytes` and `walk` look up the path made from a name's lossy form, as node does, so a name
+  that is not UTF-8 counts nothing. `which` joins as `path.join` does: a trailing slash stays, an empty join is `.`.
+- W15. `spawn_run`: a budget past 2^31 - 1 ms is one millisecond, as `setTimeout` makes it; the child gets the default
+  action for every signal; the refusal text is `util.inspect`'s, a string past 124 UTF-16 units cut into its lines
+  joined by `' +\n  '` before the 128-unit cut, and `Object.keys` order (whole-number names first) decides which env value
+  is refused first. `HostExec::try_run` carries the refusal; `run` still reads it as `None`.
 
 ## Rules pinned
 

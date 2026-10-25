@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-slates"
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The slates area of the runtime: the slate store, its runs, its files, images, tools and sources"
+
+[dependencies]
+async-trait = "0.1"
+base64 = "0.22"
+futures = "0.3"
+hex = "0.4"
+indexmap = { version = "2", features = ["serde"] }
+jiff = "0.2"
+libc = "0.2"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["process", "time", "io-util", "fs", "rt", "macros", "sync"] }
+tokio-util = "0.7"
+url = "2"
+wsp-catalog = { path = "../wsp-catalog" }
+wsp-core = { path = "../wsp-core" }
+wsp-engine = { path = "../wsp-engine" }
+wsp-machines = { path = "../wsp-machines" }
+wsp-store = { path = "../wsp-store" }
+wsp-wire = { path = "../wsp-wire" }
+wsp-words = { path = "../wsp-words" }
+wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt", "macros", "test-util", "net"] }

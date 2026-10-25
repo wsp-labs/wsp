@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::{json, Value};
-use wsp_wire::types::harness_picks::{context_windows_for, efforts_for, marked_default};
+use wsp_wire::types::harness_picks::{context_windows_for, efforts_for, marked_default, PickOption};
 use wsp_wire::types::{parse, Check, JsNumber};
 use wsp_wire::views::golden_image::{
     agent_of_row, golden_head, golden_image, package_of, recipe_pins, tool_row_id, tool_row_prefix, GoldenImage, GoldenManifest,
@@ -65,8 +65,8 @@ fn without(base: &Value, key: &str) -> Value {
     out
 }
 
-fn texts(options: Vec<HarnessOption>) -> Vec<String> {
-    options.into_iter().map(|o| o.value).collect()
+fn texts<O: PickOption>(options: Vec<O>) -> Vec<String> {
+    options.iter().map(|o| o.value().to_string()).collect()
 }
 
 mod a_copy_of_the_image_beside_the_record {

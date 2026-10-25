@@ -170,14 +170,6 @@ mod who_holds_a_port_and_the_lines_about_it {
         assert_eq!(PORT_TAKEN_REFUSAL, "Nothing was booted. Stop that process, or name a free port with --port.");
         assert!(!PORT_TAKEN_REFUSAL.contains('\u{2014}'), "{PORT_TAKEN_REFUSAL}");
     }
-
-    #[test]
-    fn the_state_file_line_names_the_file_and_the_flag_that_starts_a_fresh_setup() {
-        assert_eq!(
-            state_file_line("/Users/z/.wsp/state.json"),
-            "Setting up /Users/z/.wsp/state.json; --state <path> starts a fresh setup instead."
-        );
-    }
 }
 
 mod ws_url_of {
