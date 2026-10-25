@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-collect"
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "What a computer holds, read for a recipe: tools, shells, agents, MCP servers, skills, plugins, sign-ins and history"
+
+[dependencies]
+indexmap = { version = "2", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+wsp-catalog = { path = "../wsp-catalog" }
+wsp-wire = { path = "../wsp-wire" }
+wsp-words = { path = "../wsp-words" }
+
+[dev-dependencies]
+tempfile = "3"
