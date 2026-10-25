@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-account"
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The account area of the runtime: channels, usage, rules, pull requests, box panels, process scopes, status, preferences, and the projects area"
+
+[dependencies]
+async-trait = "0.1"
+futures = "0.3"
+indexmap = { version = "2", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+tokio = { version = "1", features = ["process", "time", "io-util", "fs", "rt", "macros", "sync"] }
+wsp-machines = { path = "../wsp-machines" }
+wsp-core = { path = "../wsp-core" }
+wsp-catalog = { path = "../wsp-catalog" }
+wsp-engine = { path = "../wsp-engine" }
+wsp-store = { path = "../wsp-store" }
+wsp-wire = { path = "../wsp-wire" }
+wsp-words = { path = "../wsp-words" }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "test-util"] }
