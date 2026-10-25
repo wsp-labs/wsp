@@ -74,7 +74,27 @@ pub struct ActivityProc {
 impl Check for ActivityProc {
     /// Rules: depth: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.depth as f64, 0.0).map_err(|e| e.under("depth"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "pid" => <i64 as Check>::describe(rest),
+                "ppid" => <i64 as Check>::describe(rest),
+                "depth" => <i64 as Check>::describe(rest),
+                "startedAt" => <JsNumber as Check>::describe(rest),
+                "kind" => None,
+                "name" => <String as Check>::describe(rest),
+                "command" => <String as Check>::describe(rest),
+                "memory" => <JsNumber as Check>::describe(rest),
+                "cpu" => <JsNumber as Check>::describe(rest),
+                "ports" => <Vec<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -93,7 +113,23 @@ pub struct ActivityThread {
 impl Check for ActivityThread {
     /// Nested checks: processes.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.processes.check().map_err(|e| e.under("processes"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "threadId" => <String as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                "workspaceId" => <String as Check>::describe(rest),
+                "memory" => <JsNumber as Check>::describe(rest),
+                "cpu" => <JsNumber as Check>::describe(rest),
+                "processes" => <Vec<ActivityProc> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -111,7 +147,24 @@ pub struct ActivityView {
 impl Check for ActivityView {
     /// Nested checks: threads, wsp, unowned.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.threads.check().map_err(|e| e.under("threads"))?;
+        self.wsp.check().map_err(|e| e.under("wsp"))?;
+        self.unowned.check().map_err(|e| e.under("unowned"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "computer" => <String as Check>::describe(rest),
+                "at" => <JsNumber as Check>::describe(rest),
+                "threads" => <Vec<ActivityThread> as Check>::describe(rest),
+                "wsp" => <Vec<ActivityProc> as Check>::describe(rest),
+                "unowned" => <Vec<ActivityProc> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -132,7 +185,24 @@ pub struct LeftThread {
 impl Check for LeftThread {
     /// Nested checks: processes.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.processes.check().map_err(|e| e.under("processes"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "threadId" => <String as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                "workspaceId" => <String as Check>::describe(rest),
+                "memory" => <JsNumber as Check>::describe(rest),
+                "cpu" => <JsNumber as Check>::describe(rest),
+                "processes" => <Vec<ActivityProc> as Check>::describe(rest),
+                "on" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -151,7 +221,22 @@ pub struct ActivityEnded {
 impl Check for ActivityEnded {
     /// Nested checks: ended.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.ended.check().map_err(|e| e.under("ended"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "pid" => <i64 as Check>::describe(rest),
+                "ended" => <Vec<ActivityProc> as Check>::describe(rest),
+                "forced" => <Vec<i64> as Check>::describe(rest),
+                "left" => <Vec<i64> as Check>::describe(rest),
+                "freed" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -166,7 +251,11 @@ pub enum ProcessesAsk {
     Keep,
 }
 
-impl Check for ProcessesAsk {}
+impl Check for ProcessesAsk {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["ask", "stop", "keep"]))
+    }
+}
 
 // ---- Hand-written below: the functions of the unit.
 

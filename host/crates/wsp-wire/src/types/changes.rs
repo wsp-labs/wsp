@@ -40,7 +40,28 @@ pub struct Checkout {
 impl Check for Checkout {
     /// Rules: stashes: > 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.stashes {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("stashes"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "branch" => <String as Check>::describe(rest),
+                "ahead" => <i64 as Check>::describe(rest),
+                "behind" => <i64 as Check>::describe(rest),
+                "changed" => <i64 as Check>::describe(rest),
+                "editsUnread" => <Option<bool> as Check>::describe(rest),
+                "countsUnknown" => <Option<bool> as Check>::describe(rest),
+                "stashes" => <Option<i64> as Check>::describe(rest),
+                "head" => <Option<String> as Check>::describe(rest),
+                "readAt" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -55,7 +76,18 @@ pub struct CheckoutReply {
 impl Check for CheckoutReply {
     /// Nested checks: checkout.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.checkout.check().map_err(|e| e.under("checkout"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "checkout" => <Option<Checkout> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -71,7 +103,18 @@ pub struct CommitDraft {
 
 impl Check for CommitDraft {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "message" => <Option<String> as Check>::describe(rest),
+                "note" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -84,6 +127,16 @@ pub struct ViewedMarks {
 
 impl Check for ViewedMarks {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "viewed" => <IndexMap<String, String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

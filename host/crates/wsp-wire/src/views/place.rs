@@ -102,7 +102,18 @@ impl ForwardOpenEvent {
 impl Check for ForwardOpenEvent {
     /// Nested checks: forward.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.forward.check().map_err(|e| e.under("forward"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "forward" => <PortForward as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -122,7 +133,18 @@ impl ForwardCloseEvent {
 impl Check for ForwardCloseEvent {
     /// Nested checks: port.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "port" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -153,7 +175,11 @@ pub enum PlaceAddStep {
     Join,
 }
 
-impl Check for PlaceAddStep {}
+impl Check for PlaceAddStep {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["connect", "host-key", "check", "chip", "root", "system", "disk", "reach", "wsp", "service", "join"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:69 at a3b870a6e.
 pub type SudoPassword = String;
@@ -169,7 +195,11 @@ pub enum PlaceStageEventState {
     Failed,
 }
 
-impl Check for PlaceStageEventState {}
+impl Check for PlaceStageEventState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["running", "done", "failed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:77 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -195,7 +225,27 @@ impl Check for PlaceStageEvent {
     /// Rules: ms: >= 0.
     /// Nested checks: step.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.step.check().map_err(|e| e.under("step"))?;
+        self.state.check().map_err(|e| e.under("state"))?;
+        if let Some(v) = self.ms {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("ms"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "addId" => <String as Check>::describe(rest),
+                "step" => <PlaceAddStep as Check>::describe(rest),
+                "state" => <PlaceStageEventState as Check>::describe(rest),
+                "note" => <Option<String> as Check>::describe(rest),
+                "placeId" => <Option<String> as Check>::describe(rest),
+                "ms" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -209,7 +259,11 @@ pub enum PlaceAddJobState {
     Failed,
 }
 
-impl Check for PlaceAddJobState {}
+impl Check for PlaceAddJobState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["running", "done", "failed"]))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PlaceAddJobStepsItemState {
@@ -221,7 +275,11 @@ pub enum PlaceAddJobStepsItemState {
     Failed,
 }
 
-impl Check for PlaceAddJobStepsItemState {}
+impl Check for PlaceAddJobStepsItemState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["running", "done", "failed"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -238,7 +296,25 @@ impl Check for PlaceAddJobStepsItem {
     /// Rules: ms: >= 0.
     /// Nested checks: step.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.step.check().map_err(|e| e.under("step"))?;
+        self.state.check().map_err(|e| e.under("state"))?;
+        if let Some(v) = self.ms {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("ms"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "step" => <PlaceAddStep as Check>::describe(rest),
+                "state" => <PlaceAddJobStepsItemState as Check>::describe(rest),
+                "note" => <Option<String> as Check>::describe(rest),
+                "ms" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -268,7 +344,29 @@ pub struct PlaceAddJob {
 impl Check for PlaceAddJob {
     /// Nested checks: steps.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        self.steps.check().map_err(|e| e.under("steps"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "addId" => <String as Check>::describe(rest),
+                "address" => <String as Check>::describe(rest),
+                "sshPort" => <Option<i64> as Check>::describe(rest),
+                "startedAt" => <String as Check>::describe(rest),
+                "state" => <PlaceAddJobState as Check>::describe(rest),
+                "steps" => <Vec<PlaceAddJobStepsItem> as Check>::describe(rest),
+                "said" => <Option<String> as Check>::describe(rest),
+                "fix" => <Option<String> as Check>::describe(rest),
+                "kind" => <Option<String> as Check>::describe(rest),
+                "placeId" => <Option<String> as Check>::describe(rest),
+                "hostKey" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -280,7 +378,11 @@ pub enum DoctorLineEventStream {
     Err,
 }
 
-impl Check for DoctorLineEventStream {}
+impl Check for DoctorLineEventStream {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["out", "err"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:127 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -298,7 +400,20 @@ impl DoctorLineEvent {
 
 impl Check for DoctorLineEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.stream.check().map_err(|e| e.under("stream"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "doctorId" => <String as Check>::describe(rest),
+                "line" => <String as Check>::describe(rest),
+                "stream" => <DoctorLineEventStream as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -312,7 +427,19 @@ pub struct PlaceBack {
 impl Check for PlaceBack {
     /// Rules: boxPort: >= 1; boxPort: <= 65535.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.box_port as f64, 1.0).map_err(|e| e.under("boxPort"))?;
+        crate::types::check::num_at_most(self.box_port as f64, 65535.0).map_err(|e| e.under("boxPort"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "boxPort" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -332,7 +459,26 @@ impl Check for PlaceRoad {
     /// Rules: ssh: at most 300 UTF-16 units; from: at most 300 UTF-16 units.
     /// Nested checks: back.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = &self.ssh {
+            crate::types::check::text_at_most(v, 300).map_err(|e| e.under("ssh"))?;
+        }
+        if let Some(v) = &self.from {
+            crate::types::check::text_at_most(v, 300).map_err(|e| e.under("from"))?;
+        }
+        self.back.check().map_err(|e| e.under("back"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "ssh" => <Option<String> as Check>::describe(rest),
+                "from" => <Option<String> as Check>::describe(rest),
+                "back" => <Option<PlaceBack> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -351,7 +497,26 @@ pub struct PlaceDialled {
 impl Check for PlaceDialled {
     /// Rules: roundTripMs: >= 0; said: at most 2000 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.round_trip_ms {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("roundTripMs"))?;
+        }
+        if let Some(v) = &self.said {
+            crate::types::check::text_at_most(v, 2000).map_err(|e| e.under("said"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "at" => <String as Check>::describe(rest),
+                "answered" => <bool as Check>::describe(rest),
+                "roundTripMs" => <Option<i64> as Check>::describe(rest),
+                "said" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -362,7 +527,22 @@ pub use wsp_frames::WorkspaceCopy;
 impl Check for WorkspaceCopy {
     /// Rules: from: at least 1 UTF-16 units; from: a refine (spec/shapes.md rule 7); at: at least 1 UTF-16 units; at: a refine (spec/shapes.md rule 7).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.from, 1).map_err(|e| e.under("from"))?;
+        crate::types::check::refine(crate::wire::limits::is_plain_path(&self.from), "an absolute path on the computer").map_err(|e| e.under("from"))?;
+        crate::types::check::text_at_least(&self.at, 1).map_err(|e| e.under("at"))?;
+        crate::types::check::refine(crate::wire::limits::is_plain_path(&self.at), "an absolute path inside the workspace").map_err(|e| e.under("at"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "from" => <String as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -370,7 +550,11 @@ impl Check for WorkspaceCopy {
 /// The daemon's own enum: wsp-frames declares it, with the same values in the same order.
 pub use wsp_frames::CopyWord;
 
-impl Check for CopyWord {}
+impl Check for CopyWord {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Reflink", "Snapshot", "Plain"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:194 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -383,7 +567,22 @@ pub struct MachineShare {
 impl Check for MachineShare {
     /// Rules: source: at least 1 UTF-16 units; source: a refine (spec/shapes.md rule 7); target: at least 1 UTF-16 units; target: a refine (spec/shapes.md rule 7).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.source, 1).map_err(|e| e.under("source"))?;
+        crate::types::check::refine(crate::wire::limits::is_plain_path(&self.source), "an absolute path on the computer").map_err(|e| e.under("source"))?;
+        crate::types::check::text_at_least(&self.target, 1).map_err(|e| e.under("target"))?;
+        crate::types::check::refine(crate::wire::limits::is_plain_path(&self.target), "an absolute path inside the workspace").map_err(|e| e.under("target"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "source" => <String as Check>::describe(rest),
+                "target" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -400,7 +599,23 @@ pub struct MachineBind {
 impl Check for MachineBind {
     /// Rules: source: at least 1 UTF-16 units; source: a refine (spec/shapes.md rule 7); target: at least 1 UTF-16 units; target: a refine (spec/shapes.md rule 7).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.source, 1).map_err(|e| e.under("source"))?;
+        crate::types::check::refine(crate::wire::limits::is_plain_path(&self.source), "an absolute path on the computer").map_err(|e| e.under("source"))?;
+        crate::types::check::text_at_least(&self.target, 1).map_err(|e| e.under("target"))?;
+        crate::types::check::refine(crate::wire::limits::is_plain_path(&self.target), "an absolute path inside the workspace").map_err(|e| e.under("target"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "source" => <String as Check>::describe(rest),
+                "target" => <String as Check>::describe(rest),
+                "readOnly" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -415,7 +630,11 @@ pub enum PlaceProvisionKind {
     Server,
 }
 
-impl Check for PlaceProvisionKind {}
+impl Check for PlaceProvisionKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["tool", "file", "server"]))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PlaceProvisionRowOutcome {
@@ -429,7 +648,11 @@ pub enum PlaceProvisionRowOutcome {
     Skipped,
 }
 
-impl Check for PlaceProvisionRowOutcome {}
+impl Check for PlaceProvisionRowOutcome {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["installed", "present", "failed", "skipped"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -440,7 +663,18 @@ pub struct PlaceProvisionRowProject {
 impl Check for PlaceProvisionRowProject {
     /// Rules: id: at least 1 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.id, 1).map_err(|e| e.under("id"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -473,7 +707,41 @@ impl Check for PlaceProvisionRow {
     /// Rules: id: at least 1 UTF-16 units; label: at least 1 UTF-16 units; keys[]: at least 1 UTF-16 units; ms: >= 0.
     /// Nested checks: kind, step, project.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.id, 1).map_err(|e| e.under("id"))?;
+        crate::types::check::text_at_least(&self.label, 1).map_err(|e| e.under("label"))?;
+        self.outcome.check().map_err(|e| e.under("outcome"))?;
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.step.check().map_err(|e| e.under("step"))?;
+        if let Some(list) = &self.keys {
+            for (i, item) in list.iter().enumerate() {
+                crate::types::check::text_at_least(item, 1).map_err(|e| e.under(i).under("keys"))?;
+            }
+        }
+        if let Some(v) = self.ms {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("ms"))?;
+        }
+        self.project.check().map_err(|e| e.under("project"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "outcome" => <PlaceProvisionRowOutcome as Check>::describe(rest),
+                "kind" => <Option<PlaceProvisionKind> as Check>::describe(rest),
+                "step" => <Option<PlaceSetupStep> as Check>::describe(rest),
+                "note" => <Option<String> as Check>::describe(rest),
+                "fix" => <Option<String> as Check>::describe(rest),
+                "keys" => <Option<Vec<String>> as Check>::describe(rest),
+                "ms" => <Option<i64> as Check>::describe(rest),
+                "earlier" => <Option<bool> as Check>::describe(rest),
+                "project" => <Option<PlaceProvisionRowProject> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -506,7 +774,11 @@ pub enum PlaceSetupStep {
     Context,
 }
 
-impl Check for PlaceSetupStep {}
+impl Check for PlaceSetupStep {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["floor", "agents", "signins", "clis", "skills", "mcp", "plugins", "configs", "folders", "folderServers", "github", "context"]))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PlaceSetupLineState {
@@ -520,7 +792,11 @@ pub enum PlaceSetupLineState {
     Skipped,
 }
 
-impl Check for PlaceSetupLineState {}
+impl Check for PlaceSetupLineState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["running", "done", "failed", "skipped"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:317 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -540,7 +816,26 @@ impl Check for PlaceSetupLine {
     /// Rules: ms: >= 0.
     /// Nested checks: step.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.step.check().map_err(|e| e.under("step"))?;
+        self.state.check().map_err(|e| e.under("state"))?;
+        if let Some(v) = self.ms {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("ms"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "step" => <PlaceSetupStep as Check>::describe(rest),
+                "state" => <PlaceSetupLineState as Check>::describe(rest),
+                "note" => <Option<String> as Check>::describe(rest),
+                "ms" => <Option<i64> as Check>::describe(rest),
+                "startedAt" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -552,7 +847,11 @@ pub enum PlaceWaitState {
     Expired,
 }
 
-impl Check for PlaceWaitState {}
+impl Check for PlaceWaitState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["waiting", "expired"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:328 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -570,7 +869,23 @@ pub struct PlaceWait {
 
 impl Check for PlaceWait {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "row" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "url" => <Option<String> as Check>::describe(rest),
+                "code" => <Option<String> as Check>::describe(rest),
+                "expiresAt" => <String as Check>::describe(rest),
+                "state" => <PlaceWaitState as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -584,7 +899,11 @@ pub enum PlaceSetupState {
     Failed,
 }
 
-impl Check for PlaceSetupState {}
+impl Check for PlaceSetupState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["running", "done", "failed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:341 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -604,7 +923,26 @@ pub struct PlaceSetup {
 impl Check for PlaceSetup {
     /// Nested checks: steps, waiting.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        self.steps.check().map_err(|e| e.under("steps"))?;
+        self.waiting.check().map_err(|e| e.under("waiting"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "state" => <PlaceSetupState as Check>::describe(rest),
+                "addId" => <String as Check>::describe(rest),
+                "startedAt" => <String as Check>::describe(rest),
+                "finishedAt" => <Option<String> as Check>::describe(rest),
+                "steps" => <Vec<PlaceSetupLine> as Check>::describe(rest),
+                "waiting" => <Vec<PlaceWait> as Check>::describe(rest),
+                "said" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -622,7 +960,21 @@ pub struct PlaceApplied {
 impl Check for PlaceApplied {
     /// Nested checks: rows.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.rows.check().map_err(|e| e.under("rows"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "hash" => <String as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                "rows" => <Vec<PlaceProvisionRow> as Check>::describe(rest),
+                "items" => <Option<IndexMap<String, String>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -634,7 +986,11 @@ pub enum PlaceSyncState {
     Running,
 }
 
-impl Check for PlaceSyncState {}
+impl Check for PlaceSyncState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["behind", "running"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:368 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -647,7 +1003,20 @@ pub struct PlaceSync {
 
 impl Check for PlaceSync {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "state" => <PlaceSyncState as Check>::describe(rest),
+                "changes" => <Vec<String> as Check>::describe(rest),
+                "since" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -662,7 +1031,11 @@ pub enum SetupEnd {
     Failed,
 }
 
-impl Check for SetupEnd {}
+impl Check for SetupEnd {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["ready", "needs-you", "failed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:379 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -692,7 +1065,28 @@ impl PlaceSetupEvent {
 impl Check for PlaceSetupEvent {
     /// Nested checks: line, wait, running, end.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.line.check().map_err(|e| e.under("line"))?;
+        self.wait.check().map_err(|e| e.under("wait"))?;
+        self.running.check().map_err(|e| e.under("running"))?;
+        self.end.check().map_err(|e| e.under("end"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "addId" => <String as Check>::describe(rest),
+                "placeId" => <String as Check>::describe(rest),
+                "line" => <Option<PlaceSetupLine> as Check>::describe(rest),
+                "wait" => <Option<PlaceWait> as Check>::describe(rest),
+                "landed" => <Option<String> as Check>::describe(rest),
+                "running" => <Option<Vec<PlaceSetupStep>> as Check>::describe(rest),
+                "end" => <Option<SetupEnd> as Check>::describe(rest),
+                "said" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -717,7 +1111,23 @@ impl PlaceSyncEvent {
 impl Check for PlaceSyncEvent {
     /// Nested checks: sync, line, applied.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.sync.check().map_err(|e| e.under("sync"))?;
+        self.line.check().map_err(|e| e.under("line"))?;
+        self.applied.check().map_err(|e| e.under("applied"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "placeId" => <String as Check>::describe(rest),
+                "sync" => <Option<PlaceSync> as Check>::describe(rest),
+                "line" => <Option<PlaceSetupLine> as Check>::describe(rest),
+                "applied" => <Option<PlaceApplied> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -735,7 +1145,17 @@ impl RecipesChangedEvent {
 
 impl Check for RecipesChangedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "slug" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -749,7 +1169,15 @@ pub enum AddLineStep {
 
 impl Check for AddLineStep {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            AddLineStep::PlaceAddStep(v) => v.check(),
+            AddLineStep::PlaceSetupStep(v) => v.check(),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Union); }
+        <PlaceAddStep as Check>::describe(path).or_else(|| <PlaceSetupStep as Check>::describe(path))
     }
 }
 
@@ -771,7 +1199,26 @@ impl Check for AddLine {
     /// Rules: ms: >= 0.
     /// Nested checks: step.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.step.check().map_err(|e| e.under("step"))?;
+        self.state.check().map_err(|e| e.under("state"))?;
+        if let Some(v) = self.ms {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("ms"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "step" => <AddLineStep as Check>::describe(rest),
+                "state" => <PlaceSetupLineState as Check>::describe(rest),
+                "note" => <Option<String> as Check>::describe(rest),
+                "ms" => <Option<i64> as Check>::describe(rest),
+                "startedAt" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -790,7 +1237,11 @@ pub enum PendingStep {
     Choosing,
 }
 
-impl Check for PendingStep {}
+impl Check for PendingStep {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["connect", "check", "wsp", "floor", "choosing"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -802,7 +1253,18 @@ pub struct PendingComputerFailed {
 
 impl Check for PendingComputerFailed {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "said" => <String as Check>::describe(rest),
+                "fix" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -830,7 +1292,29 @@ pub struct PendingComputer {
 impl Check for PendingComputer {
     /// Nested checks: step, choices, failed.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.step.check().map_err(|e| e.under("step"))?;
+        self.choices.check().map_err(|e| e.under("choices"))?;
+        self.failed.check().map_err(|e| e.under("failed"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "address" => <String as Check>::describe(rest),
+                "sshPort" => <Option<i64> as Check>::describe(rest),
+                "name" => <Option<String> as Check>::describe(rest),
+                "placeId" => <Option<String> as Check>::describe(rest),
+                "step" => <PendingStep as Check>::describe(rest),
+                "choices" => <RecipeFile as Check>::describe(rest),
+                "recipe" => <Option<String> as Check>::describe(rest),
+                "startedAt" => <String as Check>::describe(rest),
+                "failed" => <Option<PendingComputerFailed> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 

@@ -29,7 +29,18 @@ impl WorkspaceCreatedEvent {
 impl Check for WorkspaceCreatedEvent {
     /// Nested checks: workspace.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.workspace.check().map_err(|e| e.under("workspace"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspace" => <WorkspaceView as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -52,7 +63,11 @@ pub enum WorkspaceCreateStage {
     Failed,
 }
 
-impl Check for WorkspaceCreateStage {}
+impl Check for WorkspaceCreateStage {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["fork-requested", "hostname-set", "preview-route", "daemon-answering", "project-cloned", "ready", "failed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/workspace-events.ts:25 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -81,7 +96,27 @@ impl WorkspaceCreatingEvent {
 impl Check for WorkspaceCreatingEvent {
     /// Nested checks: stage, askedBy.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.stage.check().map_err(|e| e.under("stage"))?;
+        self.asked_by.check().map_err(|e| e.under("askedBy"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "stage" => <WorkspaceCreateStage as Check>::describe(rest),
+                "message" => <String as Check>::describe(rest),
+                "elapsedMs" => <JsNumber as Check>::describe(rest),
+                "notice" => <Option<String> as Check>::describe(rest),
+                "detail" => <Option<String> as Check>::describe(rest),
+                "waiting" => None,
+                "askedBy" => <Option<EventAsker> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -101,7 +136,18 @@ impl WorkspaceNappedEvent {
 
 impl Check for WorkspaceNappedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "found" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -120,7 +166,18 @@ impl WorkspaceWokenEvent {
 
 impl Check for WorkspaceWokenEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "machineId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -139,7 +196,18 @@ impl WorkspaceUpgradedEvent {
 
 impl Check for WorkspaceUpgradedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "machineId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -158,7 +226,18 @@ impl WorkspaceRenamedEvent {
 
 impl Check for WorkspaceRenamedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -181,7 +260,21 @@ impl WorkspaceLookEvent {
 impl Check for WorkspaceLookEvent {
     /// Nested checks: theme, glyph.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.theme.check().map_err(|e| e.under("theme"))?;
+        self.glyph.check().map_err(|e| e.under("glyph"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "theme" => <Option<WorkspaceTheme> as Check>::describe(rest),
+                "glyph" => <Option<WorkspaceGlyph> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -199,7 +292,17 @@ impl WorkspaceDeletedEvent {
 
 impl Check for WorkspaceDeletedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -219,7 +322,19 @@ impl WorkspaceGoneEvent {
 
 impl Check for WorkspaceGoneEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "machineId" => <String as Check>::describe(rest),
+                "reason" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -237,7 +352,17 @@ impl WorkspaceReleasedEvent {
 
 impl Check for WorkspaceReleasedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -256,7 +381,18 @@ impl WorkspaceStatusEvent {
 impl Check for WorkspaceStatusEvent {
     /// Nested checks: status.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.status.check().map_err(|e| e.under("status"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "status" => <WorkspaceStatus as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -274,7 +410,17 @@ impl WorkspaceReviewEvent {
 
 impl Check for WorkspaceReviewEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -293,7 +439,18 @@ impl WorkspaceViewedEvent {
 
 impl Check for WorkspaceViewedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "viewed" => <IndexMap<String, String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -317,7 +474,23 @@ impl WorkspaceCostEvent {
 impl Check for WorkspaceCostEvent {
     /// Nested checks: phase.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.phase.check().map_err(|e| e.under("phase"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "phase" => <WorkspacePhase as Check>::describe(rest),
+                "rateUsdPerHour" => <JsNumber as Check>::describe(rest),
+                "awakeMs" => <JsNumber as Check>::describe(rest),
+                "accruedUsd" => <JsNumber as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -340,7 +513,20 @@ impl PortOpenEvent {
 
 impl Check for PortOpenEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "port" => <JsNumber as Check>::describe(rest),
+                "pid" => <Option<JsNumber> as Check>::describe(rest),
+                "process" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -373,7 +559,25 @@ impl PortCloseEvent {
 
 impl Check for PortCloseEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "port" => <JsNumber as Check>::describe(rest),
+                "pid" => <Option<JsNumber> as Check>::describe(rest),
+                "process" => <Option<String> as Check>::describe(rest),
+                "command" => <Option<String> as Check>::describe(rest),
+                "exited" => <Option<bool> as Check>::describe(rest),
+                "left" => <Option<bool> as Check>::describe(rest),
+                "at" => <Option<String> as Check>::describe(rest),
+                "watch" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -393,6 +597,18 @@ impl InboxFileEvent {
 
 impl Check for InboxFileEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "path" => <String as Check>::describe(rest),
+                "bytes" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

@@ -40,31 +40,51 @@ pub const PR_REPLY_BODY_MAX: u64 = 65_536;
 /// The daemon's own enum: wsp-frames declares it, with the same values in the same order.
 pub use wsp_frames::PullRequestState;
 
-impl Check for PullRequestState {}
+impl Check for PullRequestState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Open", "Merged", "Closed"]))
+    }
+}
 
 /// TS: packages/protocol/src/pull-request.ts:13 at a3b870a6e.
 /// The daemon's own enum: wsp-frames declares it, with the same values in the same order.
 pub use wsp_frames::Mergeable;
 
-impl Check for Mergeable {}
+impl Check for Mergeable {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Mergeable", "Conflicting", "Unknown"]))
+    }
+}
 
 /// TS: packages/protocol/src/pull-request.ts:16 at a3b870a6e.
 /// The daemon's own enum: wsp-frames declares it, with the same values in the same order.
 pub use wsp_frames::ReviewState;
 
-impl Check for ReviewState {}
+impl Check for ReviewState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["None", "Approved", "ChangesAsked", "Required"]))
+    }
+}
 
 /// TS: packages/protocol/src/pull-request.ts:19 at a3b870a6e.
 /// The daemon's own enum: wsp-frames declares it, with the same values in the same order.
 pub use wsp_frames::CheckState;
 
-impl Check for CheckState {}
+impl Check for CheckState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Pass", "Fail", "Pending", "Skipped", "Cancelled"]))
+    }
+}
 
 /// TS: packages/protocol/src/pull-request.ts:22 at a3b870a6e.
 /// The daemon's own enum: wsp-frames declares it, with the same values in the same order.
 pub use wsp_frames::MergeMethod;
 
-impl Check for MergeMethod {}
+impl Check for MergeMethod {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Merge", "Squash", "Rebase"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -76,7 +96,20 @@ pub struct PullRequestCheckRun {
 impl Check for PullRequestCheckRun {
     /// Rules: runId: >= 0; jobId: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.run_id as f64, 0.0).map_err(|e| e.under("runId"))?;
+        crate::types::check::num_at_least(self.job_id as f64, 0.0).map_err(|e| e.under("jobId"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "runId" => <i64 as Check>::describe(rest),
+                "jobId" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -103,7 +136,26 @@ pub struct PullRequestCheck {
 impl Check for PullRequestCheck {
     /// Nested checks: state, run.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        self.run.check().map_err(|e| e.under("run"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "workflow" => <Option<String> as Check>::describe(rest),
+                "state" => <CheckState as Check>::describe(rest),
+                "run" => <Option<PullRequestCheckRun> as Check>::describe(rest),
+                "link" => <Option<String> as Check>::describe(rest),
+                "description" => <Option<String> as Check>::describe(rest),
+                "startedAt" => <Option<String> as Check>::describe(rest),
+                "completedAt" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -116,7 +168,18 @@ pub struct PullRequestFork {
 
 impl Check for PullRequestFork {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "owner" => <String as Check>::describe(rest),
+                "pushable" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -131,7 +194,19 @@ pub struct PullRequestAutoMerge {
 impl Check for PullRequestAutoMerge {
     /// Nested checks: method.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.method.check().map_err(|e| e.under("method"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "method" => <MergeMethod as Check>::describe(rest),
+                "by" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -170,7 +245,51 @@ impl Check for PullRequest {
     /// Rules: number: >= 0; additions: >= 0; deletions: >= 0; changedFiles: >= 0; commits: >= 0; behindBase: >= 0.
     /// Nested checks: state, mergeable, review, checks, fork, autoMerge.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.number as f64, 0.0).map_err(|e| e.under("number"))?;
+        self.state.check().map_err(|e| e.under("state"))?;
+        self.mergeable.check().map_err(|e| e.under("mergeable"))?;
+        self.review.check().map_err(|e| e.under("review"))?;
+        self.checks.check().map_err(|e| e.under("checks"))?;
+        crate::types::check::num_at_least(self.additions as f64, 0.0).map_err(|e| e.under("additions"))?;
+        crate::types::check::num_at_least(self.deletions as f64, 0.0).map_err(|e| e.under("deletions"))?;
+        crate::types::check::num_at_least(self.changed_files as f64, 0.0).map_err(|e| e.under("changedFiles"))?;
+        crate::types::check::num_at_least(self.commits as f64, 0.0).map_err(|e| e.under("commits"))?;
+        if let Some(v) = self.behind_base {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("behindBase"))?;
+        }
+        self.fork.check().map_err(|e| e.under("fork"))?;
+        self.auto_merge.check().map_err(|e| e.under("autoMerge"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "number" => <i64 as Check>::describe(rest),
+                "url" => <String as Check>::describe(rest),
+                "state" => <PullRequestState as Check>::describe(rest),
+                "host" => <String as Check>::describe(rest),
+                "draft" => <bool as Check>::describe(rest),
+                "base" => <String as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "headOid" => <String as Check>::describe(rest),
+                "headSubject" => <String as Check>::describe(rest),
+                "mergeable" => <Mergeable as Check>::describe(rest),
+                "mergeState" => <String as Check>::describe(rest),
+                "review" => <ReviewState as Check>::describe(rest),
+                "checks" => <Vec<PullRequestCheck> as Check>::describe(rest),
+                "additions" => <i64 as Check>::describe(rest),
+                "deletions" => <i64 as Check>::describe(rest),
+                "changedFiles" => <i64 as Check>::describe(rest),
+                "commits" => <i64 as Check>::describe(rest),
+                "behindBase" => <Option<i64> as Check>::describe(rest),
+                "author" => <Option<String> as Check>::describe(rest),
+                "fork" => <Option<PullRequestFork> as Check>::describe(rest),
+                "autoMerge" => <Option<PullRequestAutoMerge> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -210,7 +329,52 @@ impl Check for PullRequestFact {
     /// Rules: number: >= 0; additions: >= 0; deletions: >= 0; changedFiles: >= 0; commits: >= 0; behindBase: >= 0.
     /// Nested checks: state, mergeable, review, checks.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.number as f64, 0.0).map_err(|e| e.under("number"))?;
+        self.state.check().map_err(|e| e.under("state"))?;
+        self.mergeable.check().map_err(|e| e.under("mergeable"))?;
+        self.review.check().map_err(|e| e.under("review"))?;
+        self.checks.check().map_err(|e| e.under("checks"))?;
+        crate::types::check::num_at_least(self.additions as f64, 0.0).map_err(|e| e.under("additions"))?;
+        crate::types::check::num_at_least(self.deletions as f64, 0.0).map_err(|e| e.under("deletions"))?;
+        crate::types::check::num_at_least(self.changed_files as f64, 0.0).map_err(|e| e.under("changedFiles"))?;
+        crate::types::check::num_at_least(self.commits as f64, 0.0).map_err(|e| e.under("commits"))?;
+        if let Some(v) = self.behind_base {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("behindBase"))?;
+        }
+        self.fork.check().map_err(|e| e.under("fork"))?;
+        self.auto_merge.check().map_err(|e| e.under("autoMerge"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "number" => <i64 as Check>::describe(rest),
+                "url" => <String as Check>::describe(rest),
+                "state" => <PullRequestState as Check>::describe(rest),
+                "host" => <String as Check>::describe(rest),
+                "draft" => <bool as Check>::describe(rest),
+                "base" => <String as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "headOid" => <String as Check>::describe(rest),
+                "headSubject" => <String as Check>::describe(rest),
+                "mergeable" => <Mergeable as Check>::describe(rest),
+                "mergeState" => <String as Check>::describe(rest),
+                "review" => <ReviewState as Check>::describe(rest),
+                "checks" => <Vec<PullRequestCheck> as Check>::describe(rest),
+                "additions" => <i64 as Check>::describe(rest),
+                "deletions" => <i64 as Check>::describe(rest),
+                "changedFiles" => <i64 as Check>::describe(rest),
+                "commits" => <i64 as Check>::describe(rest),
+                "behindBase" => <Option<i64> as Check>::describe(rest),
+                "author" => <Option<String> as Check>::describe(rest),
+                "fork" => <Option<PullRequestFork> as Check>::describe(rest),
+                "autoMerge" => <Option<PullRequestAutoMerge> as Check>::describe(rest),
+                "readAt" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -224,7 +388,18 @@ pub struct PullRequestUnread {
 
 impl Check for PullRequestUnread {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "why" => <String as Check>::describe(rest),
+                "readAt" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -250,7 +425,27 @@ impl Check for PullRequestRecord {
     /// Rules: number: >= 0.
     /// Nested checks: state, checks.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.number as f64, 0.0).map_err(|e| e.under("number"))?;
+        self.state.check().map_err(|e| e.under("state"))?;
+        self.checks.check().map_err(|e| e.under("checks"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "number" => <i64 as Check>::describe(rest),
+                "url" => <String as Check>::describe(rest),
+                "state" => <PullRequestState as Check>::describe(rest),
+                "base" => <String as Check>::describe(rest),
+                "branch" => <Option<String> as Check>::describe(rest),
+                "mergedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "closedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "checks" => <Option<Vec<PullRequestCheck>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -277,7 +472,28 @@ impl Check for PullRequestKept {
     /// Rules: number: >= 0.
     /// Nested checks: state, checks.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.number as f64, 0.0).map_err(|e| e.under("number"))?;
+        self.state.check().map_err(|e| e.under("state"))?;
+        self.checks.check().map_err(|e| e.under("checks"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "number" => <i64 as Check>::describe(rest),
+                "url" => <String as Check>::describe(rest),
+                "state" => <PullRequestState as Check>::describe(rest),
+                "base" => <String as Check>::describe(rest),
+                "branch" => <Option<String> as Check>::describe(rest),
+                "mergedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "closedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "checks" => <Option<Vec<PullRequestCheck>> as Check>::describe(rest),
+                "readAt" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -293,7 +509,16 @@ pub enum PullRequestSeen {
 
 impl Check for PullRequestSeen {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            PullRequestSeen::PullRequestFact(v) => v.check(),
+            PullRequestSeen::PullRequestKept(v) => v.check(),
+            PullRequestSeen::PullRequestUnread(v) => v.check(),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Union); }
+        <PullRequestFact as Check>::describe(path).or_else(|| <PullRequestKept as Check>::describe(path)).or_else(|| <PullRequestUnread as Check>::describe(path))
     }
 }
 
@@ -312,7 +537,11 @@ pub enum FixOutcome {
     Updated,
 }
 
-impl Check for FixOutcome {}
+impl Check for FixOutcome {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["steered", "queued", "started", "held", "updated"]))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum FixResultV0Outcome {
@@ -326,7 +555,11 @@ pub enum FixResultV0Outcome {
     Held,
 }
 
-impl Check for FixResultV0Outcome {}
+impl Check for FixResultV0Outcome {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["steered", "queued", "started", "held"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -346,7 +579,25 @@ pub struct FixResultV0 {
 impl Check for FixResultV0 {
     /// Nested checks: capped.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.outcome.check().map_err(|e| e.under("outcome"))?;
+        self.capped.check().map_err(|e| e.under("capped"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "outcome" => <FixResultV0Outcome as Check>::describe(rest),
+                "threadId" => <String as Check>::describe(rest),
+                "check" => <Option<String> as Check>::describe(rest),
+                "child" => <Option<String> as Check>::describe(rest),
+                "base" => <String as Check>::describe(rest),
+                "agent" => <String as Check>::describe(rest),
+                "capped" => <Option<ThreadCapWait> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -359,7 +610,19 @@ pub struct FixResultV1 {
 
 impl Check for FixResultV1 {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.outcome.check().map_err(|e| e.under("outcome"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "outcome" => <UpdatedLit as Check>::describe(rest),
+                "base" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -374,7 +637,15 @@ pub enum FixResult {
 
 impl Check for FixResult {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            FixResult::V0(v) => v.check(),
+            FixResult::V1(v) => v.check(),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Union); }
+        <FixResultV0 as Check>::describe(path).or_else(|| <FixResultV1 as Check>::describe(path))
     }
 }
 
@@ -392,7 +663,22 @@ impl Check for MergeResult {
     /// Rules: number: >= 0.
     /// Nested checks: method.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.number as f64, 0.0).map_err(|e| e.under("number"))?;
+        self.method.check().map_err(|e| e.under("method"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "number" => <i64 as Check>::describe(rest),
+                "method" => <MergeMethod as Check>::describe(rest),
+                "merged" => <bool as Check>::describe(rest),
+                "autoArmed" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -402,7 +688,19 @@ pub use wsp_frames::PullRequestLabel;
 
 impl Check for PullRequestLabel {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "color" => <String as Check>::describe(rest),
+                "description" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -412,7 +710,18 @@ pub use wsp_frames::PullRequestReviewRequest;
 
 impl Check for PullRequestReviewRequest {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "team" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -420,7 +729,11 @@ impl Check for PullRequestReviewRequest {
 /// The daemon's own enum: wsp-frames declares it, with the same values in the same order.
 pub use wsp_frames::ReactionContent;
 
-impl Check for ReactionContent {}
+impl Check for ReactionContent {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["+1", "-1", "laugh", "hooray", "confused", "heart", "rocket", "eyes"]))
+    }
+}
 
 /// TS: packages/protocol/src/pull-request.ts:399 at a3b870a6e.
 /// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
@@ -430,7 +743,21 @@ impl Check for PullRequestReaction {
     /// Rules: count: >= 0.
     /// Nested checks: content.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.content.check().map_err(|e| e.under("content"))?;
+        crate::types::check::num_at_least(self.count as f64, 0.0).map_err(|e| e.under("count"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "content" => <ReactionContent as Check>::describe(rest),
+                "count" => <u64 as Check>::describe(rest),
+                "mine" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -442,7 +769,35 @@ impl Check for PullRequestCommit {
     /// Rules: parents: >= 0; additions: >= 0; deletions: >= 0.
     /// Nested checks: check.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.parents {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("parents"))?;
+        }
+        if let Some(v) = self.additions {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("additions"))?;
+        }
+        if let Some(v) = self.deletions {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("deletions"))?;
+        }
+        self.check.check().map_err(|e| e.under("check"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "oid" => <String as Check>::describe(rest),
+                "subject" => <String as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                "author" => <String as Check>::describe(rest),
+                "parents" => <Option<u64> as Check>::describe(rest),
+                "additions" => <Option<u64> as Check>::describe(rest),
+                "deletions" => <Option<u64> as Check>::describe(rest),
+                "check" => <Option<CheckState> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -468,7 +823,28 @@ impl Check for PullRequestReview {
     /// Rules: id: >= 0.
     /// Nested checks: reactions.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.id {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("id"))?;
+        }
+        self.reactions.check().map_err(|e| e.under("reactions"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <Option<i64> as Check>::describe(rest),
+                "nodeId" => <Option<String> as Check>::describe(rest),
+                "author" => <String as Check>::describe(rest),
+                "association" => <Option<String> as Check>::describe(rest),
+                "state" => <String as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                "reactions" => <Option<Vec<PullRequestReaction>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -496,7 +872,28 @@ impl Check for PullRequestComment {
     /// Rules: id: >= 0.
     /// Nested checks: reactions.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.id as f64, 0.0).map_err(|e| e.under("id"))?;
+        self.reactions.check().map_err(|e| e.under("reactions"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <i64 as Check>::describe(rest),
+                "nodeId" => <Option<String> as Check>::describe(rest),
+                "author" => <String as Check>::describe(rest),
+                "association" => <Option<String> as Check>::describe(rest),
+                "bot" => <bool as Check>::describe(rest),
+                "avatar" => <Option<String> as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                "url" => <String as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                "reactions" => <Option<Vec<PullRequestReaction>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -539,7 +936,45 @@ impl Check for PullRequestReviewComment {
     /// Rules: id: >= 0; line: >= 0; replyTo: >= 0; reviewId: >= 0.
     /// Nested checks: reactions.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.id as f64, 0.0).map_err(|e| e.under("id"))?;
+        if let Some(v) = self.line {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("line"))?;
+        }
+        if let Some(v) = self.reply_to {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("replyTo"))?;
+        }
+        if let Some(v) = self.review_id {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("reviewId"))?;
+        }
+        self.reactions.check().map_err(|e| e.under("reactions"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <i64 as Check>::describe(rest),
+                "nodeId" => <Option<String> as Check>::describe(rest),
+                "path" => <String as Check>::describe(rest),
+                "line" => <Option<i64> as Check>::describe(rest),
+                "side" => <Option<String> as Check>::describe(rest),
+                "author" => <String as Check>::describe(rest),
+                "association" => <Option<String> as Check>::describe(rest),
+                "bot" => <bool as Check>::describe(rest),
+                "avatar" => <Option<String> as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                "url" => <String as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                "hunk" => <Option<String> as Check>::describe(rest),
+                "replyTo" => <Option<i64> as Check>::describe(rest),
+                "reviewId" => <Option<i64> as Check>::describe(rest),
+                "resolved" => <Option<bool> as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "reactions" => <Option<Vec<PullRequestReaction>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -553,7 +988,19 @@ pub struct GitPrViewReplyLatestReviewsItem {
 
 impl Check for GitPrViewReplyLatestReviewsItem {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "author" => <String as Check>::describe(rest),
+                "state" => <String as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -568,7 +1015,21 @@ pub struct GitPrViewReplyFilesItem {
 impl Check for GitPrViewReplyFilesItem {
     /// Rules: additions: >= 0; deletions: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.additions as f64, 0.0).map_err(|e| e.under("additions"))?;
+        crate::types::check::num_at_least(self.deletions as f64, 0.0).map_err(|e| e.under("deletions"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "additions" => <i64 as Check>::describe(rest),
+                "deletions" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -587,7 +1048,20 @@ pub struct GitPrViewReplyCut {
 
 impl Check for GitPrViewReplyCut {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "commits" => <Option<bool> as Check>::describe(rest),
+                "reviews" => <Option<bool> as Check>::describe(rest),
+                "threads" => <Option<bool> as Check>::describe(rest),
+                "comments" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -624,7 +1098,44 @@ pub struct GitPrViewReply {
 impl Check for GitPrViewReply {
     /// Nested checks: labels, reviewRequests, latestReviews, commits, reviews, comments, reviewComments, files, cut.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.labels.check().map_err(|e| e.under("labels"))?;
+        self.review_requests.check().map_err(|e| e.under("reviewRequests"))?;
+        self.latest_reviews.check().map_err(|e| e.under("latestReviews"))?;
+        self.commits.check().map_err(|e| e.under("commits"))?;
+        self.reviews.check().map_err(|e| e.under("reviews"))?;
+        self.comments.check().map_err(|e| e.under("comments"))?;
+        self.review_comments.check().map_err(|e| e.under("reviewComments"))?;
+        self.files.check().map_err(|e| e.under("files"))?;
+        self.cut.check().map_err(|e| e.under("cut"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "title" => <String as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                "author" => <String as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "updatedAt" => <String as Check>::describe(rest),
+                "closedAt" => <Option<String> as Check>::describe(rest),
+                "mergedAt" => <Option<String> as Check>::describe(rest),
+                "mergedBy" => <Option<String> as Check>::describe(rest),
+                "mergeCommit" => <Option<String> as Check>::describe(rest),
+                "labels" => <Vec<PullRequestLabel> as Check>::describe(rest),
+                "reviewRequests" => <Vec<PullRequestReviewRequest> as Check>::describe(rest),
+                "latestReviews" => <Vec<GitPrViewReplyLatestReviewsItem> as Check>::describe(rest),
+                "assignees" => <Vec<String> as Check>::describe(rest),
+                "commits" => <Vec<PullRequestCommit> as Check>::describe(rest),
+                "reviews" => <Vec<PullRequestReview> as Check>::describe(rest),
+                "comments" => <Vec<PullRequestComment> as Check>::describe(rest),
+                "reviewComments" => <Vec<PullRequestReviewComment> as Check>::describe(rest),
+                "files" => <Vec<GitPrViewReplyFilesItem> as Check>::describe(rest),
+                "cut" => <Option<GitPrViewReplyCut> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -635,7 +1146,20 @@ pub use wsp_frames::GitPrReadReply;
 impl Check for GitPrReadReply {
     /// Nested checks: pr.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.pr.check().map_err(|e| e.under("pr"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "pr" => <Option<PullRequest> as Check>::describe(rest),
+                "seen" => <Option<String> as Check>::describe(rest),
+                "unchanged" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -645,7 +1169,18 @@ pub use wsp_frames::GitRunLogReply;
 
 impl Check for GitRunLogReply {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "lines" => <Vec<String> as Check>::describe(rest),
+                "truncated" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -655,7 +1190,18 @@ pub use wsp_frames::GitPrMergeReply;
 
 impl Check for GitPrMergeReply {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "merged" => <bool as Check>::describe(rest),
+                "autoArmed" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -666,7 +1212,21 @@ pub use wsp_frames::GitRepoReadReply;
 impl Check for GitRepoReadReply {
     /// Nested checks: methods, defaultMethod.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.methods.check().map_err(|e| e.under("methods"))?;
+        self.default_method.check().map_err(|e| e.under("defaultMethod"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "methods" => <Vec<MergeMethod> as Check>::describe(rest),
+                "defaultMethod" => <MergeMethod as Check>::describe(rest),
+                "autoMerge" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -683,7 +1243,21 @@ pub struct GitUpdateReply {
 impl Check for GitUpdateReply {
     /// Rules: commits: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.commits as f64, 0.0).map_err(|e| e.under("commits"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "base" => <String as Check>::describe(rest),
+                "merged" => <bool as Check>::describe(rest),
+                "commits" => <i64 as Check>::describe(rest),
+                "conflicts" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -697,7 +1271,11 @@ pub enum PullRequestItemKind {
     ReviewComment,
 }
 
-impl Check for PullRequestItemKind {}
+impl Check for PullRequestItemKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["comment", "review", "reviewComment"]))
+    }
+}
 
 /// TS: packages/protocol/src/pull-request.ts:528 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -710,7 +1288,20 @@ pub struct PullRequestItem {
 impl Check for PullRequestItem {
     /// Rules: id: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        crate::types::check::num_at_least(self.id as f64, 0.0).map_err(|e| e.under("id"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "kind" => <PullRequestItemKind as Check>::describe(rest),
+                "id" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -726,7 +1317,21 @@ pub struct PullRequestSent {
 impl Check for PullRequestSent {
     /// Rules: id: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        crate::types::check::num_at_least(self.id as f64, 0.0).map_err(|e| e.under("id"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "kind" => <PullRequestItemKind as Check>::describe(rest),
+                "id" => <i64 as Check>::describe(rest),
+                "at" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -768,7 +1373,49 @@ pub struct PullRequestPage {
 impl Check for PullRequestPage {
     /// Nested checks: labels, reviewRequests, commits, reviews, comments, reviewComments, merge, sent.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.labels.check().map_err(|e| e.under("labels"))?;
+        self.review_requests.check().map_err(|e| e.under("reviewRequests"))?;
+        self.latest_reviews.check().map_err(|e| e.under("latestReviews"))?;
+        self.commits.check().map_err(|e| e.under("commits"))?;
+        self.reviews.check().map_err(|e| e.under("reviews"))?;
+        self.comments.check().map_err(|e| e.under("comments"))?;
+        self.review_comments.check().map_err(|e| e.under("reviewComments"))?;
+        self.files.check().map_err(|e| e.under("files"))?;
+        self.cut.check().map_err(|e| e.under("cut"))?;
+        self.merge.check().map_err(|e| e.under("merge"))?;
+        self.sent.check().map_err(|e| e.under("sent"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "title" => <String as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                "author" => <String as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "updatedAt" => <String as Check>::describe(rest),
+                "closedAt" => <Option<String> as Check>::describe(rest),
+                "mergedAt" => <Option<String> as Check>::describe(rest),
+                "mergedBy" => <Option<String> as Check>::describe(rest),
+                "mergeCommit" => <Option<String> as Check>::describe(rest),
+                "labels" => <Vec<PullRequestLabel> as Check>::describe(rest),
+                "reviewRequests" => <Vec<PullRequestReviewRequest> as Check>::describe(rest),
+                "latestReviews" => <Vec<GitPrViewReplyLatestReviewsItem> as Check>::describe(rest),
+                "assignees" => <Vec<String> as Check>::describe(rest),
+                "commits" => <Vec<PullRequestCommit> as Check>::describe(rest),
+                "reviews" => <Vec<PullRequestReview> as Check>::describe(rest),
+                "comments" => <Vec<PullRequestComment> as Check>::describe(rest),
+                "reviewComments" => <Vec<PullRequestReviewComment> as Check>::describe(rest),
+                "files" => <Vec<GitPrViewReplyFilesItem> as Check>::describe(rest),
+                "cut" => <Option<GitPrViewReplyCut> as Check>::describe(rest),
+                "merge" => <Option<GitRepoReadReply> as Check>::describe(rest),
+                "sent" => <Vec<PullRequestSent> as Check>::describe(rest),
+                "postsAsYou" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -784,7 +1431,11 @@ pub enum PullRequestSendResultOutcome {
     Held,
 }
 
-impl Check for PullRequestSendResultOutcome {}
+impl Check for PullRequestSendResultOutcome {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["steered", "queued", "started", "held"]))
+    }
+}
 
 /// TS: packages/protocol/src/pull-request.ts:550 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -801,7 +1452,24 @@ pub struct PullRequestSendResult {
 impl Check for PullRequestSendResult {
     /// Nested checks: capped, sent.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.outcome.check().map_err(|e| e.under("outcome"))?;
+        self.capped.check().map_err(|e| e.under("capped"))?;
+        self.sent.check().map_err(|e| e.under("sent"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "outcome" => <PullRequestSendResultOutcome as Check>::describe(rest),
+                "threadId" => <String as Check>::describe(rest),
+                "agent" => <String as Check>::describe(rest),
+                "capped" => <Option<ThreadCapWait> as Check>::describe(rest),
+                "sent" => <Vec<PullRequestSent> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -812,7 +1480,20 @@ pub use wsp_frames::GitPrReplyReply;
 impl Check for GitPrReplyReply {
     /// Nested checks: comment, reviewComment.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.comment.check().map_err(|e| e.under("comment"))?;
+        self.review_comment.check().map_err(|e| e.under("reviewComment"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "comment" => <Option<PullRequestComment> as Check>::describe(rest),
+                "reviewComment" => <Option<PullRequestReviewComment> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -822,7 +1503,18 @@ pub use wsp_frames::GitPrResolveReply;
 
 impl Check for GitPrResolveReply {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "threadId" => <String as Check>::describe(rest),
+                "resolved" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -833,6 +1525,18 @@ pub use wsp_frames::GitPrReactReply;
 impl Check for GitPrReactReply {
     /// Nested checks: reactions.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.reactions.check().map_err(|e| e.under("reactions"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "subject" => <String as Check>::describe(rest),
+                "reactions" => <Vec<PullRequestReaction> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

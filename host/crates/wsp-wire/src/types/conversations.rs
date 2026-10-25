@@ -64,7 +64,11 @@ pub enum ConversationOrigin {
     Script,
 }
 
-impl Check for ConversationOrigin {}
+impl Check for ConversationOrigin {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["terminal", "wsp", "script"]))
+    }
+}
 
 /// TS: packages/protocol/src/conversations.ts:17 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -92,7 +96,29 @@ pub struct OutsideConversation {
 impl Check for OutsideConversation {
     /// Nested checks: origin.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.origin.check().map_err(|e| e.under("origin"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <String as Check>::describe(rest),
+                "id" => <String as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                "firstPrompt" => <Option<String> as Check>::describe(rest),
+                "branch" => <Option<String> as Check>::describe(rest),
+                "cwd" => <String as Check>::describe(rest),
+                "lastAt" => <JsNumber as Check>::describe(rest),
+                "bytes" => <Option<JsNumber> as Check>::describe(rest),
+                "origin" => <ConversationOrigin as Check>::describe(rest),
+                "live" => <bool as Check>::describe(rest),
+                "thread" => <Option<String> as Check>::describe(rest),
+                "letsGo" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -109,7 +135,20 @@ pub struct ConversationsHeld {
 
 impl Check for ConversationsHeld {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <String as Check>::describe(rest),
+                "said" => <String as Check>::describe(rest),
+                "fix" => <String as Check>::describe(rest),
+                "why" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -124,7 +163,20 @@ pub struct ConversationsAnswer {
 impl Check for ConversationsAnswer {
     /// Nested checks: rows, held.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.rows.check().map_err(|e| e.under("rows"))?;
+        self.held.check().map_err(|e| e.under("held"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "rows" => <Vec<OutsideConversation> as Check>::describe(rest),
+                "held" => <Vec<ConversationsHeld> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -140,7 +192,20 @@ pub struct ResumeAsk {
 impl Check for ResumeAsk {
     /// Rules: id: at least 1 UTF-16 units; id: at most 200 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.id, 1).map_err(|e| e.under("id"))?;
+        crate::types::check::text_at_most(&self.id, 200).map_err(|e| e.under("id"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "copy" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -156,7 +221,11 @@ pub enum ConversationReadRowsItemWho {
     Note,
 }
 
-impl Check for ConversationReadRowsItemWho {}
+impl Check for ConversationReadRowsItemWho {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["person", "agent", "tool", "note"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -169,7 +238,20 @@ pub struct ConversationReadRowsItem {
 
 impl Check for ConversationReadRowsItem {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.who.check().map_err(|e| e.under("who"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "who" => <ConversationReadRowsItemWho as Check>::describe(rest),
+                "text" => <String as Check>::describe(rest),
+                "at" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -186,6 +268,19 @@ pub struct ConversationRead {
 impl Check for ConversationRead {
     /// Nested checks: rows.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.rows.check().map_err(|e| e.under("rows"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "cwd" => <Option<String> as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                "rows" => <Vec<ConversationReadRowsItem> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

@@ -22,7 +22,11 @@ pub enum ThreadVoice {
     Turn,
 }
 
-impl Check for ThreadVoice {}
+impl Check for ThreadVoice {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["person", "agent", "tool", "turn"]))
+    }
+}
 
 /// TS: packages/protocol/src/thread-read.ts:21 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -37,6 +41,19 @@ pub struct ThreadMessage {
 impl Check for ThreadMessage {
     /// Nested checks: who.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.who.check().map_err(|e| e.under("who"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "who" => <ThreadVoice as Check>::describe(rest),
+                "at" => <Option<JsNumber> as Check>::describe(rest),
+                "text" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

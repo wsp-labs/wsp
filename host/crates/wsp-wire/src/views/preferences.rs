@@ -158,7 +158,106 @@ impl Check for PreferencesStored {
     /// Rules: sidebarWidth: > 0; keybindings{}: at least 1 UTF-16 units; keybindings{}: at most 64 UTF-16 units; appFont: at most 128 UTF-16 units; codeFont: at most 128 UTF-16 units; textSize: a refine (spec/shapes.md rule 7); codeSize: a refine (spec/shapes.md rule 7).
     /// Nested checks: theme, lightTheme, darkTheme, sidebarMode, terminalSize, target, projectLook, projectIcon, computerLook, recipeLook, editor, agentDefaults, projectDefaults, sendWith, midTurn, notifyNeeds, notifyDone, settleAfter, onQuit, newThreadIn.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.theme.check().map_err(|e| e.under("theme"))?;
+        if let Some(v) = &self.light_theme {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("lightTheme"))?;
+        }
+        if let Some(v) = &self.dark_theme {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("darkTheme"))?;
+        }
+        self.sidebar_mode.check().map_err(|e| e.under("sidebarMode"))?;
+        if let Some(v) = self.sidebar_width {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("sidebarWidth"))?;
+        }
+        self.terminal_size.check().map_err(|e| e.under("terminalSize"))?;
+        self.target.check().map_err(|e| e.under("target"))?;
+        self.project_look.check().map_err(|e| e.under("projectLook"))?;
+        self.computer_look.check().map_err(|e| e.under("computerLook"))?;
+        self.recipe_look.check().map_err(|e| e.under("recipeLook"))?;
+        self.editor.check().map_err(|e| e.under("editor"))?;
+        if let Some(list) = &self.keybindings {
+            for (k, item) in list {
+                crate::types::check::text_at_least(item, 1).map_err(|e| e.under(k.as_str()).under("keybindings"))?;
+            }
+        }
+        if let Some(list) = &self.keybindings {
+            for (k, item) in list {
+                crate::types::check::text_at_most(item, 64).map_err(|e| e.under(k.as_str()).under("keybindings"))?;
+            }
+        }
+        if let Some(v) = &self.app_font {
+            crate::types::check::text_at_most(v, 128).map_err(|e| e.under("appFont"))?;
+        }
+        if let Some(v) = &self.code_font {
+            crate::types::check::text_at_most(v, 128).map_err(|e| e.under("codeFont"))?;
+        }
+        if let Some(v) = self.text_size {
+            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v as u64)), "one of 13, 14, 15, 16, 17").map_err(|e| e.under("textSize"))?;
+        }
+        if let Some(v) = self.code_size {
+            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v as u64)), "one of 11, 12, 13, 14, 15").map_err(|e| e.under("codeSize"))?;
+        }
+        self.agent_defaults.check().map_err(|e| e.under("agentDefaults"))?;
+        self.project_defaults.check().map_err(|e| e.under("projectDefaults"))?;
+        self.send_with.check().map_err(|e| e.under("sendWith"))?;
+        self.mid_turn.check().map_err(|e| e.under("midTurn"))?;
+        self.notify_needs.check().map_err(|e| e.under("notifyNeeds"))?;
+        self.notify_done.check().map_err(|e| e.under("notifyDone"))?;
+        self.settle_after.check().map_err(|e| e.under("settleAfter"))?;
+        self.on_quit.check().map_err(|e| e.under("onQuit"))?;
+        self.new_thread_in.check().map_err(|e| e.under("newThreadIn"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "theme" => <Option<ThemePreference> as Check>::describe(rest),
+                "lightTheme" => <Option<ThemeId> as Check>::describe(rest),
+                "darkTheme" => <Option<ThemeId> as Check>::describe(rest),
+                "sidebarMode" => <Option<SidebarMode> as Check>::describe(rest),
+                "sidebarWidth" => <Option<i64> as Check>::describe(rest),
+                "terminalSize" => <Option<TerminalSizeSource> as Check>::describe(rest),
+                "terminalZoom" => <Option<IndexMap<String, i64>> as Check>::describe(rest),
+                "access" => <Option<IndexMap<String, String>> as Check>::describe(rest),
+                "target" => <Option<PreferencesTarget> as Check>::describe(rest),
+                "projectLook" => <Option<IndexMap<String, ProjectLook>> as Check>::describe(rest),
+                "projectIcon" => None,
+                "computerLook" => <Option<IndexMap<String, ComputerLook>> as Check>::describe(rest),
+                "recipeLook" => <Option<IndexMap<String, RecipeLook>> as Check>::describe(rest),
+                "threadsShut" => None,
+                "serverIcons" => <Option<bool> as Check>::describe(rest),
+                "agentVersions" => <Option<bool> as Check>::describe(rest),
+                "usageLogs" => <Option<bool> as Check>::describe(rest),
+                "productUsage" => <Option<bool> as Check>::describe(rest),
+                "editor" => <Option<EditorId> as Check>::describe(rest),
+                "updateDismissed" => <Option<String> as Check>::describe(rest),
+                "cloudCardDismissed" => <Option<bool> as Check>::describe(rest),
+                "keepAwake" => <Option<bool> as Check>::describe(rest),
+                "transparency" => <Option<bool> as Check>::describe(rest),
+                "projectOrder" => <Option<Vec<String>> as Check>::describe(rest),
+                "keybindings" => <Option<IndexMap<String, String>> as Check>::describe(rest),
+                "appFont" => <Option<String> as Check>::describe(rest),
+                "codeFont" => <Option<String> as Check>::describe(rest),
+                "textSize" => <Option<i64> as Check>::describe(rest),
+                "codeSize" => <Option<i64> as Check>::describe(rest),
+                "defaultAgent" => <Option<String> as Check>::describe(rest),
+                "agentDefaults" => <Option<IndexMap<String, AgentDefaults>> as Check>::describe(rest),
+                "projectDefaults" => <Option<IndexMap<String, ProjectOverrides>> as Check>::describe(rest),
+                "sendWith" => <Option<SendKey> as Check>::describe(rest),
+                "midTurn" => <Option<MidTurn> as Check>::describe(rest),
+                "notifyNeeds" => <Option<NotifyChoice> as Check>::describe(rest),
+                "notifyDone" => <Option<NotifyChoice> as Check>::describe(rest),
+                "planAlerts" => <Option<bool> as Check>::describe(rest),
+                "settleAfter" => <Option<SettleAfter> as Check>::describe(rest),
+                "askDelete" => <Option<bool> as Check>::describe(rest),
+                "onQuit" => <Option<OnQuit> as Check>::describe(rest),
+                "newThreadIn" => <Option<NewThreadIn> as Check>::describe(rest),
+                "labs" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -173,7 +272,11 @@ pub enum ThemePreference {
     Dark,
 }
 
-impl Check for ThemePreference {}
+impl Check for ThemePreference {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["system", "light", "dark"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/preferences.ts:18 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -184,7 +287,11 @@ pub enum SidebarMode {
     Spaces,
 }
 
-impl Check for SidebarMode {}
+impl Check for SidebarMode {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["list", "spaces"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/preferences.ts:22 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -195,7 +302,11 @@ pub enum TerminalSizeSource {
     File,
 }
 
-impl Check for TerminalSizeSource {}
+impl Check for TerminalSizeSource {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["app", "file"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/preferences.ts:27 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -207,7 +318,17 @@ pub struct PreferencesTarget {
 impl Check for PreferencesTarget {
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspace" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -225,7 +346,20 @@ impl Check for ProjectLook {
     /// Nested checks: icon, hue.
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.icon.check().map_err(|e| e.under("icon"))?;
+        self.hue.check().map_err(|e| e.under("hue"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "icon" => <Option<ProjectIcon> as Check>::describe(rest),
+                "hue" => <Option<ProjectHue> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -256,7 +390,11 @@ pub enum ComputerIcon {
     Home,
 }
 
-impl Check for ComputerIcon {}
+impl Check for ComputerIcon {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["laptop", "desktop", "mac-mini", "mac-studio", "tower", "server", "cloud", "cpu", "drive", "container", "home"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/preferences.ts:38 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -269,7 +407,18 @@ impl Check for ComputerLook {
     /// Nested checks: icon.
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.icon.check().map_err(|e| e.under("icon"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "icon" => <ComputerIcon as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -284,7 +433,18 @@ impl Check for RecipeLook {
     /// Nested checks: icon.
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.icon.check().map_err(|e| e.under("icon"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "icon" => <ProjectIcon as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -325,7 +485,11 @@ pub enum EditorId {
     Finder,
 }
 
-impl Check for EditorId {}
+impl Check for EditorId {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["vscode", "cursor", "vscode-insiders", "zed", "idea", "webstorm", "pycharm", "goland", "rustrover", "clion", "phpstorm", "rubymine", "rider", "finder"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/preferences.ts:61 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -340,7 +504,20 @@ pub struct EditorChoice {
 impl Check for EditorChoice {
     /// Nested checks: id.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.id.check().map_err(|e| e.under("id"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <EditorId as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "remote" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -430,7 +607,94 @@ impl Check for Preferences {
     /// Rules: keybindings{}: at least 1 UTF-16 units; keybindings{}: at most 64 UTF-16 units; appFont: at most 128 UTF-16 units; codeFont: at most 128 UTF-16 units; sidebarWidth: > 0; textSize: a refine (spec/shapes.md rule 7); codeSize: a refine (spec/shapes.md rule 7).
     /// Nested checks: theme, lightTheme, darkTheme, sidebarMode, terminalSize, projectLook, projectIcon, computerLook, agentDefaults, projectDefaults, sendWith, midTurn, notifyNeeds, notifyDone, settleAfter, onQuit, newThreadIn, target, editor, recipeLook.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.theme.check().map_err(|e| e.under("theme"))?;
+        crate::types::check::text_at_least(&self.light_theme, 1).map_err(|e| e.under("lightTheme"))?;
+        crate::types::check::text_at_least(&self.dark_theme, 1).map_err(|e| e.under("darkTheme"))?;
+        self.sidebar_mode.check().map_err(|e| e.under("sidebarMode"))?;
+        self.terminal_size.check().map_err(|e| e.under("terminalSize"))?;
+        self.project_look.check().map_err(|e| e.under("projectLook"))?;
+        self.computer_look.check().map_err(|e| e.under("computerLook"))?;
+        for (k, item) in &self.keybindings {
+            crate::types::check::text_at_least(item, 1).map_err(|e| e.under(k.as_str()).under("keybindings"))?;
+        }
+        for (k, item) in &self.keybindings {
+            crate::types::check::text_at_most(item, 64).map_err(|e| e.under(k.as_str()).under("keybindings"))?;
+        }
+        crate::types::check::text_at_most(&self.app_font, 128).map_err(|e| e.under("appFont"))?;
+        crate::types::check::text_at_most(&self.code_font, 128).map_err(|e| e.under("codeFont"))?;
+        self.agent_defaults.check().map_err(|e| e.under("agentDefaults"))?;
+        self.project_defaults.check().map_err(|e| e.under("projectDefaults"))?;
+        self.send_with.check().map_err(|e| e.under("sendWith"))?;
+        self.mid_turn.check().map_err(|e| e.under("midTurn"))?;
+        self.notify_needs.check().map_err(|e| e.under("notifyNeeds"))?;
+        self.notify_done.check().map_err(|e| e.under("notifyDone"))?;
+        self.settle_after.check().map_err(|e| e.under("settleAfter"))?;
+        self.on_quit.check().map_err(|e| e.under("onQuit"))?;
+        self.new_thread_in.check().map_err(|e| e.under("newThreadIn"))?;
+        if let Some(v) = self.sidebar_width {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("sidebarWidth"))?;
+        }
+        self.target.check().map_err(|e| e.under("target"))?;
+        self.editor.check().map_err(|e| e.under("editor"))?;
+        if let Some(v) = self.text_size {
+            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v as u64)), "one of 13, 14, 15, 16, 17").map_err(|e| e.under("textSize"))?;
+        }
+        if let Some(v) = self.code_size {
+            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v as u64)), "one of 11, 12, 13, 14, 15").map_err(|e| e.under("codeSize"))?;
+        }
+        self.recipe_look.check().map_err(|e| e.under("recipeLook"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "theme" => <ThemePreference as Check>::describe(rest),
+                "lightTheme" => <ThemeId as Check>::describe(rest),
+                "darkTheme" => <ThemeId as Check>::describe(rest),
+                "sidebarMode" => <SidebarMode as Check>::describe(rest),
+                "terminalSize" => <TerminalSizeSource as Check>::describe(rest),
+                "terminalZoom" => <IndexMap<String, i64> as Check>::describe(rest),
+                "access" => <IndexMap<String, String> as Check>::describe(rest),
+                "projectLook" => <IndexMap<String, ProjectLook> as Check>::describe(rest),
+                "projectIcon" => None,
+                "computerLook" => <IndexMap<String, ComputerLook> as Check>::describe(rest),
+                "serverIcons" => <bool as Check>::describe(rest),
+                "agentVersions" => <bool as Check>::describe(rest),
+                "usageLogs" => <bool as Check>::describe(rest),
+                "productUsage" => <bool as Check>::describe(rest),
+                "keepAwake" => <bool as Check>::describe(rest),
+                "transparency" => <bool as Check>::describe(rest),
+                "projectOrder" => <Vec<String> as Check>::describe(rest),
+                "keybindings" => <IndexMap<String, String> as Check>::describe(rest),
+                "appFont" => <String as Check>::describe(rest),
+                "codeFont" => <String as Check>::describe(rest),
+                "agentDefaults" => <IndexMap<String, AgentDefaults> as Check>::describe(rest),
+                "projectDefaults" => <IndexMap<String, ProjectOverrides> as Check>::describe(rest),
+                "sendWith" => <SendKey as Check>::describe(rest),
+                "midTurn" => <MidTurn as Check>::describe(rest),
+                "notifyNeeds" => <NotifyChoice as Check>::describe(rest),
+                "notifyDone" => <NotifyChoice as Check>::describe(rest),
+                "planAlerts" => <bool as Check>::describe(rest),
+                "settleAfter" => <SettleAfter as Check>::describe(rest),
+                "askDelete" => <bool as Check>::describe(rest),
+                "onQuit" => <OnQuit as Check>::describe(rest),
+                "newThreadIn" => <NewThreadIn as Check>::describe(rest),
+                "labs" => <bool as Check>::describe(rest),
+                "sidebarWidth" => <Option<i64> as Check>::describe(rest),
+                "target" => <Option<PreferencesTarget> as Check>::describe(rest),
+                "editor" => <Option<EditorId> as Check>::describe(rest),
+                "updateDismissed" => <Option<String> as Check>::describe(rest),
+                "cloudCardDismissed" => <Option<bool> as Check>::describe(rest),
+                "textSize" => <Option<i64> as Check>::describe(rest),
+                "codeSize" => <Option<i64> as Check>::describe(rest),
+                "defaultAgent" => <Option<String> as Check>::describe(rest),
+                "recipeLook" => <Option<IndexMap<String, RecipeLook>> as Check>::describe(rest),
+                "threadsShut" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -621,7 +885,108 @@ impl Check for PreferencesPatch {
     /// Nested checks: theme, lightTheme, darkTheme, sidebarMode, terminalSize, target, projectLook, computerLook, recipeLook, editor, agentDefaults, projectDefaults, sendWith, midTurn, notifyNeeds, notifyDone, settleAfter, onQuit, newThreadIn.
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.theme.check().map_err(|e| e.under("theme"))?;
+        if let Some(v) = &self.light_theme {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("lightTheme"))?;
+        }
+        if let Some(v) = &self.dark_theme {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("darkTheme"))?;
+        }
+        self.sidebar_mode.check().map_err(|e| e.under("sidebarMode"))?;
+        if let Some(Some(v)) = self.sidebar_width {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("sidebarWidth"))?;
+        }
+        self.terminal_size.check().map_err(|e| e.under("terminalSize"))?;
+        self.target.check().map_err(|e| e.under("target"))?;
+        self.project_look.check().map_err(|e| e.under("projectLook"))?;
+        self.computer_look.check().map_err(|e| e.under("computerLook"))?;
+        self.recipe_look.check().map_err(|e| e.under("recipeLook"))?;
+        self.editor.check().map_err(|e| e.under("editor"))?;
+        if let Some(list) = &self.keybindings {
+            for (k, item) in list {
+                if let Some(v) = item {
+                    crate::types::check::text_at_least(v, 1).map_err(|e| e.under(k.as_str()).under("keybindings"))?;
+                }
+            }
+        }
+        if let Some(list) = &self.keybindings {
+            for (k, item) in list {
+                if let Some(v) = item {
+                    crate::types::check::text_at_most(v, 64).map_err(|e| e.under(k.as_str()).under("keybindings"))?;
+                }
+            }
+        }
+        if let Some(v) = &self.app_font {
+            crate::types::check::text_at_most(v, 128).map_err(|e| e.under("appFont"))?;
+        }
+        if let Some(v) = &self.code_font {
+            crate::types::check::text_at_most(v, 128).map_err(|e| e.under("codeFont"))?;
+        }
+        if let Some(Some(v)) = self.text_size {
+            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v as u64)), "one of 13, 14, 15, 16, 17").map_err(|e| e.under("textSize"))?;
+        }
+        if let Some(Some(v)) = self.code_size {
+            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v as u64)), "one of 11, 12, 13, 14, 15").map_err(|e| e.under("codeSize"))?;
+        }
+        self.agent_defaults.check().map_err(|e| e.under("agentDefaults"))?;
+        self.project_defaults.check().map_err(|e| e.under("projectDefaults"))?;
+        self.send_with.check().map_err(|e| e.under("sendWith"))?;
+        self.mid_turn.check().map_err(|e| e.under("midTurn"))?;
+        self.notify_needs.check().map_err(|e| e.under("notifyNeeds"))?;
+        self.notify_done.check().map_err(|e| e.under("notifyDone"))?;
+        self.settle_after.check().map_err(|e| e.under("settleAfter"))?;
+        self.on_quit.check().map_err(|e| e.under("onQuit"))?;
+        self.new_thread_in.check().map_err(|e| e.under("newThreadIn"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "theme" => <Option<ThemePreference> as Check>::describe(rest),
+                "lightTheme" => <Option<ThemeId> as Check>::describe(rest),
+                "darkTheme" => <Option<ThemeId> as Check>::describe(rest),
+                "sidebarMode" => <Option<SidebarMode> as Check>::describe(rest),
+                "sidebarWidth" => <Option<Option<i64>> as Check>::describe(rest),
+                "terminalSize" => <Option<TerminalSizeSource> as Check>::describe(rest),
+                "terminalZoom" => <Option<IndexMap<String, Option<i64>>> as Check>::describe(rest),
+                "access" => <Option<IndexMap<String, Option<String>>> as Check>::describe(rest),
+                "target" => <Option<Option<PreferencesTarget>> as Check>::describe(rest),
+                "projectLook" => <Option<IndexMap<String, Option<ProjectLook>>> as Check>::describe(rest),
+                "computerLook" => <Option<IndexMap<String, Option<ComputerLook>>> as Check>::describe(rest),
+                "recipeLook" => <Option<IndexMap<String, Option<RecipeLook>>> as Check>::describe(rest),
+                "threadsShut" => None,
+                "serverIcons" => <Option<bool> as Check>::describe(rest),
+                "agentVersions" => <Option<bool> as Check>::describe(rest),
+                "usageLogs" => <Option<bool> as Check>::describe(rest),
+                "productUsage" => <Option<bool> as Check>::describe(rest),
+                "editor" => <Option<EditorId> as Check>::describe(rest),
+                "updateDismissed" => <Option<String> as Check>::describe(rest),
+                "cloudCardDismissed" => <Option<bool> as Check>::describe(rest),
+                "keepAwake" => <Option<bool> as Check>::describe(rest),
+                "transparency" => <Option<bool> as Check>::describe(rest),
+                "projectOrder" => <Option<Vec<String>> as Check>::describe(rest),
+                "keybindings" => <Option<IndexMap<String, Option<String>>> as Check>::describe(rest),
+                "appFont" => <Option<String> as Check>::describe(rest),
+                "codeFont" => <Option<String> as Check>::describe(rest),
+                "textSize" => <Option<Option<i64>> as Check>::describe(rest),
+                "codeSize" => <Option<Option<i64>> as Check>::describe(rest),
+                "defaultAgent" => <Option<Option<String>> as Check>::describe(rest),
+                "agentDefaults" => <Option<IndexMap<String, Option<AgentDefaultsPatch>>> as Check>::describe(rest),
+                "projectDefaults" => <Option<IndexMap<String, Option<ProjectOverridesPatch>>> as Check>::describe(rest),
+                "sendWith" => <Option<SendKey> as Check>::describe(rest),
+                "midTurn" => <Option<MidTurn> as Check>::describe(rest),
+                "notifyNeeds" => <Option<NotifyChoice> as Check>::describe(rest),
+                "notifyDone" => <Option<NotifyChoice> as Check>::describe(rest),
+                "planAlerts" => <Option<bool> as Check>::describe(rest),
+                "settleAfter" => <Option<SettleAfter> as Check>::describe(rest),
+                "askDelete" => <Option<bool> as Check>::describe(rest),
+                "onQuit" => <Option<OnQuit> as Check>::describe(rest),
+                "newThreadIn" => <Option<NewThreadIn> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -640,7 +1005,18 @@ impl ThreadMarkedEvent {
 
 impl Check for ThreadMarkedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "threadIds" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -743,7 +1119,74 @@ impl Check for ThreadFacts {
     /// Rules: turns: > 0.
     /// Nested checks: startedBy, status, waitingOn, sub, capped, limit, section, forkedFrom.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.started_by.check().map_err(|e| e.under("startedBy"))?;
+        self.status.check().map_err(|e| e.under("status"))?;
+        crate::types::check::num_above(self.turns as f64, 0.0).map_err(|e| e.under("turns"))?;
+        self.waiting_on.check().map_err(|e| e.under("waitingOn"))?;
+        self.sub.check().map_err(|e| e.under("sub"))?;
+        self.capped.check().map_err(|e| e.under("capped"))?;
+        self.limit.check().map_err(|e| e.under("limit"))?;
+        self.section.check().map_err(|e| e.under("section"))?;
+        self.forked_from.check().map_err(|e| e.under("forkedFrom"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "workspaceId" => <String as Check>::describe(rest),
+                "harness" => <String as Check>::describe(rest),
+                "startedBy" => <SessionOrigin as Check>::describe(rest),
+                "status" => <SessionStatus as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                "sessionId" => <String as Check>::describe(rest),
+                "claudeSessionId" => <Option<String> as Check>::describe(rest),
+                "startedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "endedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "cwd" => <Option<String> as Check>::describe(rest),
+                "turns" => <i64 as Check>::describe(rest),
+                "ran" => <bool as Check>::describe(rest),
+                "parentThreadId" => <Option<String> as Check>::describe(rest),
+                "rootThreadId" => <Option<String> as Check>::describe(rest),
+                "attempt" => <Option<String> as Check>::describe(rest),
+                "asking" => <Option<String> as Check>::describe(rest),
+                "waitingOn" => <Option<ThreadWaitingOn> as Check>::describe(rest),
+                "setupRefusal" => <Option<String> as Check>::describe(rest),
+                "sub" => <Option<SubRow> as Check>::describe(rest),
+                "diskKeptUntil" => <Option<JsNumber> as Check>::describe(rest),
+                "diskGone" => <Option<String> as Check>::describe(rest),
+                "capped" => <Option<ThreadCapWait> as Check>::describe(rest),
+                "limit" => <Option<TurnLimit> as Check>::describe(rest),
+                "resumeAt" => <Option<JsNumber> as Check>::describe(rest),
+                "costUsd" => <Option<JsNumber> as Check>::describe(rest),
+                "lastLine" => <Option<String> as Check>::describe(rest),
+                "failure" => <Option<String> as Check>::describe(rest),
+                "pid" => <Option<i64> as Check>::describe(rest),
+                "agentPid" => <Option<i64> as Check>::describe(rest),
+                "readAt" => <Option<JsNumber> as Check>::describe(rest),
+                "settledAt" => <Option<JsNumber> as Check>::describe(rest),
+                "pinnedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "order" => <Option<JsNumber> as Check>::describe(rest),
+                "foldedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "replaces" => <Option<String> as Check>::describe(rest),
+                "replacedBy" => <Option<String> as Check>::describe(rest),
+                "snoozedUntil" => <Option<JsNumber> as Check>::describe(rest),
+                "wokeAt" => <Option<JsNumber> as Check>::describe(rest),
+                "section" => <Option<ThreadPlacement> as Check>::describe(rest),
+                "rewoundAt" => <Option<JsNumber> as Check>::describe(rest),
+                "forkedFrom" => <Option<ForkedFrom> as Check>::describe(rest),
+                "permissionMode" => <Option<String> as Check>::describe(rest),
+                "fast" => <Option<bool> as Check>::describe(rest),
+                "model" => <Option<String> as Check>::describe(rest),
+                "effort" => <Option<String> as Check>::describe(rest),
+                "contextWindow" => <Option<String> as Check>::describe(rest),
+                "turnId" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -763,7 +1206,25 @@ impl Check for ThreadHead {
     /// Rules: pos: >= 0; total: >= 0.
     /// Nested checks: facts, events.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.facts.check().map_err(|e| e.under("facts"))?;
+        self.events.check().map_err(|e| e.under("events"))?;
+        crate::types::check::num_at_least(self.pos as f64, 0.0).map_err(|e| e.under("pos"))?;
+        crate::types::check::num_at_least(self.total as f64, 0.0).map_err(|e| e.under("total"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "facts" => <ThreadFacts as Check>::describe(rest),
+                "events" => <Vec<SessionEvent> as Check>::describe(rest),
+                "pos" => <i64 as Check>::describe(rest),
+                "total" => <i64 as Check>::describe(rest),
+                "trimmed" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -782,7 +1243,23 @@ impl Check for HistoryPage {
     /// Rules: pos: >= 0; total: >= 0.
     /// Nested checks: events.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.events.check().map_err(|e| e.under("events"))?;
+        crate::types::check::num_at_least(self.pos as f64, 0.0).map_err(|e| e.under("pos"))?;
+        crate::types::check::num_at_least(self.total as f64, 0.0).map_err(|e| e.under("total"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "events" => <Vec<SessionEvent> as Check>::describe(rest),
+                "pos" => <i64 as Check>::describe(rest),
+                "total" => <i64 as Check>::describe(rest),
+                "trimmed" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -805,7 +1282,22 @@ impl Check for ThreadHeadEvent {
     /// Rules: pos: >= 0.
     /// Nested checks: facts.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.facts.check().map_err(|e| e.under("facts"))?;
+        crate::types::check::num_at_least(self.pos as f64, 0.0).map_err(|e| e.under("pos"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "threadId" => <String as Check>::describe(rest),
+                "facts" => <ThreadFacts as Check>::describe(rest),
+                "pos" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -824,7 +1316,18 @@ impl ThreadRewoundEvent {
 
 impl Check for ThreadRewoundEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "threadId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -843,7 +1346,18 @@ impl PreferencesChangedEvent {
 impl Check for PreferencesChangedEvent {
     /// Nested checks: preferences.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.preferences.check().map_err(|e| e.under("preferences"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "preferences" => <Preferences as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 

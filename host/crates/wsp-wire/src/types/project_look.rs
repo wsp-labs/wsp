@@ -65,7 +65,11 @@ pub enum ProjectIcon {
     Wrench,
 }
 
-impl Check for ProjectIcon {}
+impl Check for ProjectIcon {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["folder", "code", "terminal", "globe", "rocket", "box", "database", "server", "cpu", "zap", "flame", "leaf", "star", "heart", "book", "music", "camera", "gamepad", "shield", "wrench"]))
+    }
+}
 
 /// TS: packages/protocol/src/project-look.ts:10 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -90,7 +94,11 @@ pub enum ProjectHue {
     Pink,
 }
 
-impl Check for ProjectHue {}
+impl Check for ProjectHue {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["neutral", "red", "orange", "amber", "green", "teal", "blue", "violet", "pink"]))
+    }
+}
 
 /// TS: packages/protocol/src/project-look.ts:14 at a3b870a6e.
 pub type ProjectIconHash = String;

@@ -45,7 +45,11 @@ pub enum AppProcKind {
     Helper,
 }
 
-impl Check for AppProcKind {}
+impl Check for AppProcKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["main", "gpu", "network", "renderer", "tab", "frame", "helper"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/app-procs.ts:25 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -63,7 +67,38 @@ impl Check for AppProc {
     /// Rules: pid: > 0; origins[]: at most 256 UTF-16 units; origins: at most 20 items; contents[]: >= 0; contents: at most 20 items.
     /// Nested checks: kind.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_above(self.pid as f64, 0.0).map_err(|e| e.under("pid"))?;
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        if let Some(list) = &self.origins {
+            for (i, item) in list.iter().enumerate() {
+                crate::types::check::text_at_most(item, 256).map_err(|e| e.under(i).under("origins"))?;
+            }
+        }
+        if let Some(list) = &self.origins {
+            crate::types::check::items_at_most(list.len(), 20).map_err(|e| e.under("origins"))?;
+        }
+        if let Some(list) = &self.contents {
+            for (i, &item) in list.iter().enumerate() {
+                crate::types::check::num_at_least(item as f64, 0.0).map_err(|e| e.under(i).under("contents"))?;
+            }
+        }
+        if let Some(list) = &self.contents {
+            crate::types::check::items_at_most(list.len(), 20).map_err(|e| e.under("contents"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "pid" => <i64 as Check>::describe(rest),
+                "kind" => <AppProcKind as Check>::describe(rest),
+                "origins" => <Option<Vec<String>> as Check>::describe(rest),
+                "contents" => <Option<Vec<i64>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -86,7 +121,19 @@ impl AppProcsEvent {
 impl Check for AppProcsEvent {
     /// Nested checks: procs.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::items_at_most(self.procs.len(), 200).map_err(|e| e.under("procs"))?;
+        self.procs.check().map_err(|e| e.under("procs"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "procs" => <AppProcList as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -104,6 +151,16 @@ impl AppProcsWantedEvent {
 
 impl Check for AppProcsWantedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "wanted" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

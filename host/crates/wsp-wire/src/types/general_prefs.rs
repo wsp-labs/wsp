@@ -32,7 +32,11 @@ pub enum SendKey {
     ModEnter,
 }
 
-impl Check for SendKey {}
+impl Check for SendKey {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["enter", "mod-enter"]))
+    }
+}
 
 /// TS: packages/protocol/src/general-prefs.ts:16 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -43,7 +47,11 @@ pub enum MidTurn {
     Steer,
 }
 
-impl Check for MidTurn {}
+impl Check for MidTurn {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["queue", "steer"]))
+    }
+}
 
 /// TS: packages/protocol/src/general-prefs.ts:21 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -58,7 +66,11 @@ pub enum NotifyChoice {
     NotifySound,
 }
 
-impl Check for NotifyChoice {}
+impl Check for NotifyChoice {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["off", "notify", "sound", "notify-sound"]))
+    }
+}
 
 /// TS: packages/protocol/src/general-prefs.ts:34 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -75,7 +87,11 @@ pub enum SettleAfter {
     Never,
 }
 
-impl Check for SettleAfter {}
+impl Check for SettleAfter {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["15m", "1h", "2h", "1d", "never"]))
+    }
+}
 
 /// TS: packages/protocol/src/general-prefs.ts:42 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -88,7 +104,11 @@ pub enum OnQuit {
     Stop,
 }
 
-impl Check for OnQuit {}
+impl Check for OnQuit {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["ask", "keep", "stop"]))
+    }
+}
 
 /// TS: packages/protocol/src/general-prefs.ts:47 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -99,7 +119,11 @@ pub enum NewThreadIn {
     Ask,
 }
 
-impl Check for NewThreadIn {}
+impl Check for NewThreadIn {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["current", "ask"]))
+    }
+}
 
 // ---- Hand-written below: the functions of the unit.
 

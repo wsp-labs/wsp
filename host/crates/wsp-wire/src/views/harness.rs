@@ -25,7 +25,21 @@ pub struct HarnessOption {
 
 impl Check for HarnessOption {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "value" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "description" => <Option<String> as Check>::describe(rest),
+                "isDefault" => <Option<bool> as Check>::describe(rest),
+                "short" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -55,7 +69,26 @@ pub struct HarnessModel {
 
 impl Check for HarnessModel {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "value" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "description" => <Option<String> as Check>::describe(rest),
+                "isDefault" => <Option<bool> as Check>::describe(rest),
+                "short" => <Option<String> as Check>::describe(rest),
+                "efforts" => <Option<Vec<String>> as Check>::describe(rest),
+                "defaultEffort" => <Option<String> as Check>::describe(rest),
+                "contextWindows" => <Option<Vec<String>> as Check>::describe(rest),
+                "fast" => <Option<bool> as Check>::describe(rest),
+                "added" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -68,7 +101,11 @@ pub enum HarnessCatalogSource {
     Table,
 }
 
-impl Check for HarnessCatalogSource {}
+impl Check for HarnessCatalogSource {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["harness", "table"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/harness.ts:44 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -85,7 +122,11 @@ pub enum ScreenControl {
     Docs,
 }
 
-impl Check for ScreenControl {}
+impl Check for ScreenControl {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["sign-in", "model", "access", "settings", "docs"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/harness.ts:48 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -98,7 +139,19 @@ pub struct ScreenCommand {
 impl Check for ScreenCommand {
     /// Nested checks: control.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.control.check().map_err(|e| e.under("control"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "control" => <ScreenControl as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -115,7 +168,24 @@ pub struct HarnessCatalogUnshaped {
 impl Check for HarnessCatalogUnshaped {
     /// Nested checks: models, legacyModels, efforts, permissionModes.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.models.check().map_err(|e| e.under("models"))?;
+        self.legacy_models.check().map_err(|e| e.under("legacyModels"))?;
+        self.efforts.check().map_err(|e| e.under("efforts"))?;
+        self.permission_modes.check().map_err(|e| e.under("permissionModes"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "models" => <Vec<HarnessModel> as Check>::describe(rest),
+                "legacyModels" => <Option<Vec<HarnessModel>> as Check>::describe(rest),
+                "efforts" => <Vec<HarnessOption> as Check>::describe(rest),
+                "permissionModes" => <Vec<HarnessOption> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -184,7 +254,58 @@ pub struct HarnessCatalog {
 impl Check for HarnessCatalog {
     /// Nested checks: source, models, legacyModels, hiddenModels, unshaped, efforts, contextWindows, permissionModes, screenCommands, access.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.source.check().map_err(|e| e.under("source"))?;
+        self.models.check().map_err(|e| e.under("models"))?;
+        self.legacy_models.check().map_err(|e| e.under("legacyModels"))?;
+        self.hidden_models.check().map_err(|e| e.under("hiddenModels"))?;
+        self.unshaped.check().map_err(|e| e.under("unshaped"))?;
+        self.efforts.check().map_err(|e| e.under("efforts"))?;
+        self.context_windows.check().map_err(|e| e.under("contextWindows"))?;
+        self.permission_modes.check().map_err(|e| e.under("permissionModes"))?;
+        self.screen_commands.check().map_err(|e| e.under("screenCommands"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "harness" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "source" => <HarnessCatalogSource as Check>::describe(rest),
+                "version" => <Option<String> as Check>::describe(rest),
+                "models" => <Vec<HarnessModel> as Check>::describe(rest),
+                "legacyModels" => <Option<Vec<HarnessModel>> as Check>::describe(rest),
+                "legacyListed" => <Option<bool> as Check>::describe(rest),
+                "hiddenModels" => <Option<Vec<HarnessModel>> as Check>::describe(rest),
+                "unshaped" => <Option<HarnessCatalogUnshaped> as Check>::describe(rest),
+                "efforts" => <Vec<HarnessOption> as Check>::describe(rest),
+                "contextWindows" => <Vec<HarnessOption> as Check>::describe(rest),
+                "permissionModes" => <Vec<HarnessOption> as Check>::describe(rest),
+                "steers" => <bool as Check>::describe(rest),
+                "renames" => <bool as Check>::describe(rest),
+                "images" => <bool as Check>::describe(rest),
+                "mcpServers" => <Option<bool> as Check>::describe(rest),
+                "screenCommands" => <Option<Vec<ScreenCommand>> as Check>::describe(rest),
+                "movesAccess" => <Option<bool> as Check>::describe(rest),
+                "steersImages" => <Option<bool> as Check>::describe(rest),
+                "asides" => <Option<bool> as Check>::describe(rest),
+                "compacts" => <Option<String> as Check>::describe(rest),
+                "terminalResume" => <Option<String> as Check>::describe(rest),
+                "rewindsConversation" => <Option<bool> as Check>::describe(rest),
+                "rewindsByCount" => <Option<bool> as Check>::describe(rest),
+                "forks" => <Option<bool> as Check>::describe(rest),
+                "forksByCount" => <Option<bool> as Check>::describe(rest),
+                "isDefault" => <Option<bool> as Check>::describe(rest),
+                "refusal" => <Option<String> as Check>::describe(rest),
+                "smallModel" => <Option<String> as Check>::describe(rest),
+                "bypassMode" => <Option<String> as Check>::describe(rest),
+                "readOnlyMode" => <Option<String> as Check>::describe(rest),
+                "readOnlyToolsFree" => <Option<bool> as Check>::describe(rest),
+                "access" => <Option<IndexMap<AccessChoice, String>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -200,7 +321,20 @@ pub struct StartResult {
 impl Check for StartResult {
     /// Nested checks: workspace.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.workspace.check().map_err(|e| e.under("workspace"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspace" => <WorkspaceOut as Check>::describe(rest),
+                "threadId" => <String as Check>::describe(rest),
+                "sessionId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -217,7 +351,23 @@ pub struct ReviewPostResult {
 impl Check for ReviewPostResult {
     /// Rules: number: >= 0; comments: >= 0; folded: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.number as f64, 0.0).map_err(|e| e.under("number"))?;
+        crate::types::check::num_at_least(self.comments as f64, 0.0).map_err(|e| e.under("comments"))?;
+        crate::types::check::num_at_least(self.folded as f64, 0.0).map_err(|e| e.under("folded"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "url" => <String as Check>::describe(rest),
+                "number" => <i64 as Check>::describe(rest),
+                "comments" => <i64 as Check>::describe(rest),
+                "folded" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 

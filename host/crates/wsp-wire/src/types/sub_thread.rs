@@ -29,7 +29,18 @@ pub struct SubOutSize {
 
 impl Check for SubOutSize {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "cpu" => <i64 as Check>::describe(rest),
+                "memMb" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -42,7 +53,18 @@ pub struct SubOutBase {
 
 impl Check for SubOutBase {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "branch" => <String as Check>::describe(rest),
+                "sha" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -57,7 +79,20 @@ pub struct SubOutSent {
 impl Check for SubOutSent {
     /// Rules: bytes: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.bytes as f64, 0.0).map_err(|e| e.under("bytes"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "paths" => <Vec<String> as Check>::describe(rest),
+                "bytes" => <i64 as Check>::describe(rest),
+                "missing" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -72,7 +107,19 @@ pub struct SubOutNotSent {
 impl Check for SubOutNotSent {
     /// Rules: uncommitted: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.uncommitted as f64, 0.0).map_err(|e| e.under("uncommitted"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "uncommitted" => <i64 as Check>::describe(rest),
+                "why" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -96,7 +143,31 @@ impl Check for SubOut {
     /// Rules: deleteAfterMinutes: >= 0.
     /// Nested checks: size, base, sent, notSent.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.size.check().map_err(|e| e.under("size"))?;
+        self.base.check().map_err(|e| e.under("base"))?;
+        self.sent.check().map_err(|e| e.under("sent"))?;
+        self.not_sent.check().map_err(|e| e.under("notSent"))?;
+        crate::types::check::num_at_least(self.delete_after_minutes as f64, 0.0).map_err(|e| e.under("deleteAfterMinutes"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "on" => <String as Check>::describe(rest),
+                "machine" => <String as Check>::describe(rest),
+                "size" => <SubOutSize as Check>::describe(rest),
+                "rateUsdPerHour" => <JsNumber as Check>::describe(rest),
+                "repo" => <String as Check>::describe(rest),
+                "base" => <SubOutBase as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "sent" => <SubOutSent as Check>::describe(rest),
+                "notSent" => <SubOutNotSent as Check>::describe(rest),
+                "deleteAfterMinutes" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -113,6 +184,20 @@ pub struct SubStarted {
 impl Check for SubStarted {
     /// Nested checks: out.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.out.check().map_err(|e| e.under("out"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "out" => <SubOut as Check>::describe(rest),
+                "folder" => <String as Check>::describe(rest),
+                "preamble" => <String as Check>::describe(rest),
+                "harness" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

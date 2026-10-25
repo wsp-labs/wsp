@@ -22,6 +22,20 @@ pub struct OutsideLine {
 
 impl Check for OutsideLine {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "title" => <String as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                "show" => <bool as Check>::describe(rest),
+                "sound" => <bool as Check>::describe(rest),
+                "id" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

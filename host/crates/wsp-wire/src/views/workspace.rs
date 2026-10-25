@@ -39,13 +39,21 @@ pub enum WorkspacePhase {
     Released,
 }
 
-impl Check for WorkspacePhase {}
+impl Check for WorkspacePhase {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["running", "pausing", "napping", "waking", "gone", "queued", "released"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/workspace.ts:33 at a3b870a6e.
 /// The daemon's own enum: wsp-frames declares it, with the same values in the same order.
 pub use wsp_frames::MachineState;
 
-impl Check for MachineState {}
+impl Check for MachineState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Starting", "Running", "Paused", "Gone"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/workspace.ts:43 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -68,7 +76,11 @@ pub enum ReachState {
     Zombie,
 }
 
-impl Check for ReachState {}
+impl Check for ReachState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["reachable", "no-daemon", "unreachable", "napping", "unsupported", "gone", "slow", "zombie"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/workspace.ts:46 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -86,7 +98,21 @@ pub struct ReachStatus {
 impl Check for ReachStatus {
     /// Nested checks: state.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "state" => <ReachState as Check>::describe(rest),
+                "url" => <Option<String> as Check>::describe(rest),
+                "expiresAt" => <Option<JsNumber> as Check>::describe(rest),
+                "offline" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -102,7 +128,19 @@ pub struct ReachView {
 impl Check for ReachView {
     /// Nested checks: state.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "state" => <ReachState as Check>::describe(rest),
+                "offline" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -118,7 +156,19 @@ pub struct DaemonReachView {
 
 impl Check for DaemonReachView {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "url" => <String as Check>::describe(rest),
+                "expiresAt" => <JsNumber as Check>::describe(rest),
+                "daemonToken" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -132,7 +182,18 @@ pub struct PortReachView {
 
 impl Check for PortReachView {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "url" => <String as Check>::describe(rest),
+                "expiresAt" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -146,7 +207,18 @@ pub struct PortProbeView {
 
 impl Check for PortProbeView {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "status" => <i64 as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -164,7 +236,23 @@ pub struct WorkspaceProject {
 impl Check for WorkspaceProject {
     /// Rules: size: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.size {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("size"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "dest" => <String as Check>::describe(rest),
+                "importedAt" => <String as Check>::describe(rest),
+                "size" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -185,7 +273,11 @@ pub enum SeedKind {
     Unknown,
 }
 
-impl Check for SeedKind {}
+impl Check for SeedKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["config", "secret", "rebuilt", "data", "never", "unknown"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -196,7 +288,18 @@ pub struct SeedFileRow {
 
 impl Check for SeedFileRow {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -217,7 +320,25 @@ impl Check for SeedFile {
     /// Rules: bytes: >= 0.
     /// Nested checks: kind, row.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.bytes as f64, 0.0).map_err(|e| e.under("bytes"))?;
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.row.check().map_err(|e| e.under("row"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "dir" => <bool as Check>::describe(rest),
+                "bytes" => <i64 as Check>::describe(rest),
+                "kind" => <SeedKind as Check>::describe(rest),
+                "row" => <Option<SeedFileRow> as Check>::describe(rest),
+                "ticked" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -230,7 +351,18 @@ pub struct SeedPlanUnpushed {
 
 impl Check for SeedPlanUnpushed {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "commits" => <i64 as Check>::describe(rest),
+                "base" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -244,7 +376,19 @@ pub struct SeedPlanMemory {
 
 impl Check for SeedPlanMemory {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "key" => <String as Check>::describe(rest),
+                "files" => <i64 as Check>::describe(rest),
+                "bytes" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -273,7 +417,30 @@ impl Check for SeedPlan {
     /// Rules: uncommitted: >= 0.
     /// Nested checks: unpushed, memory, files.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.unpushed.check().map_err(|e| e.under("unpushed"))?;
+        crate::types::check::num_at_least(self.uncommitted as f64, 0.0).map_err(|e| e.under("uncommitted"))?;
+        self.memory.check().map_err(|e| e.under("memory"))?;
+        self.files.check().map_err(|e| e.under("files"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "source" => <String as Check>::describe(rest),
+                "remote" => <Option<String> as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "defaultBranch" => <Option<String> as Check>::describe(rest),
+                "unpushed" => <Option<SeedPlanUnpushed> as Check>::describe(rest),
+                "uncommitted" => <i64 as Check>::describe(rest),
+                "memory" => <Option<SeedPlanMemory> as Check>::describe(rest),
+                "files" => <Vec<SeedFile> as Check>::describe(rest),
+                "remembered" => <bool as Check>::describe(rest),
+                "provider" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -290,7 +457,20 @@ pub struct SeedChoice {
 
 impl Check for SeedChoice {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "files" => <Vec<String> as Check>::describe(rest),
+                "memory" => <bool as Check>::describe(rest),
+                "commits" => <bool as Check>::describe(rest),
+                "remember" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -309,7 +489,23 @@ pub struct SeedPickRow {
 impl Check for SeedPickRow {
     /// Nested checks: kind.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "dir" => <bool as Check>::describe(rest),
+                "bytes" => <i64 as Check>::describe(rest),
+                "kind" => <SeedKind as Check>::describe(rest),
+                "why" => <String as Check>::describe(rest),
+                "picked" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -323,7 +519,19 @@ pub struct ProjectSeedPicked {
 
 impl Check for ProjectSeedPicked {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "paths" => <Vec<String> as Check>::describe(rest),
+                "bytes" => <i64 as Check>::describe(rest),
+                "missing" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -341,7 +549,23 @@ pub struct ProjectSeed {
 impl Check for ProjectSeed {
     /// Nested checks: rows, picked.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.rows.check().map_err(|e| e.under("rows"))?;
+        self.picked.check().map_err(|e| e.under("picked"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "project" => <String as Check>::describe(rest),
+                "folder" => <String as Check>::describe(rest),
+                "rows" => <Vec<SeedPickRow> as Check>::describe(rest),
+                "picked" => <ProjectSeedPicked as Check>::describe(rest),
+                "saved" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -364,7 +588,11 @@ pub enum ProjectAddStage {
     Failed,
 }
 
-impl Check for ProjectAddStage {}
+impl Check for ProjectAddStage {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["planned", "cloning", "seeding", "installing", "imaging", "done", "failed"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -379,7 +607,17 @@ impl ProjectSourceFolder {
 
 impl Check for ProjectSourceFolder {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -396,7 +634,17 @@ impl ProjectSourceGit {
 
 impl Check for ProjectSourceGit {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "url" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -413,7 +661,17 @@ impl ProjectSourceGithub {
 
 impl Check for ProjectSourceGithub {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "repo" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -430,7 +688,17 @@ impl ProjectSourceGitlab {
 
 impl Check for ProjectSourceGitlab {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "repo" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -451,7 +719,18 @@ pub enum ProjectSource {
 
 impl Check for ProjectSource {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            ProjectSource::Folder(v) => v.check(),
+            ProjectSource::Git(v) => v.check(),
+            ProjectSource::Github(v) => v.check(),
+            ProjectSource::Gitlab(v) => v.check(),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Word("object")); }
+        if path.len() == 1 && path[0].as_str() == Some("kind") { return Some(crate::types::check::Zod::Tags("kind", &["folder", "git", "github", "gitlab"])); }
+        <ProjectSourceFolder as Check>::describe(path).or_else(|| <ProjectSourceGit as Check>::describe(path)).or_else(|| <ProjectSourceGithub as Check>::describe(path)).or_else(|| <ProjectSourceGitlab as Check>::describe(path))
     }
 }
 
@@ -465,7 +744,11 @@ pub enum ProjectViewSeededMemory {
     None,
 }
 
-impl Check for ProjectViewSeededMemory {}
+impl Check for ProjectViewSeededMemory {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["landed", "kept", "none"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -481,7 +764,23 @@ pub struct ProjectViewSeeded {
 
 impl Check for ProjectViewSeeded {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.memory.check().map_err(|e| e.under("memory"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "files" => <i64 as Check>::describe(rest),
+                "bytes" => <i64 as Check>::describe(rest),
+                "memory" => <ProjectViewSeededMemory as Check>::describe(rest),
+                "memoryFiles" => <Option<i64> as Check>::describe(rest),
+                "commits" => <i64 as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -496,7 +795,20 @@ pub struct ProjectViewInstalled {
 
 impl Check for ProjectViewInstalled {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "row" => <String as Check>::describe(rest),
+                "command" => <String as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                "seconds" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -511,7 +823,19 @@ pub struct ProjectViewImage {
 
 impl Check for ProjectViewImage {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "snapshotId" => <String as Check>::describe(rest),
+                "builtAt" => <String as Check>::describe(rest),
+                "lockfileSha" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -523,7 +847,17 @@ pub struct ProjectViewGit {
 
 impl Check for ProjectViewGit {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "top" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -558,7 +892,37 @@ pub struct ProjectView {
 impl Check for ProjectView {
     /// Nested checks: source, seeded, installed, image, git.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.source.check().map_err(|e| e.under("source"))?;
+        self.seeded.check().map_err(|e| e.under("seeded"))?;
+        self.installed.check().map_err(|e| e.under("installed"))?;
+        self.image.check().map_err(|e| e.under("image"))?;
+        self.git.check().map_err(|e| e.under("git"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "computer" => <String as Check>::describe(rest),
+                "source" => <ProjectSource as Check>::describe(rest),
+                "path" => <String as Check>::describe(rest),
+                "remote" => <String as Check>::describe(rest),
+                "defaultBranch" => <String as Check>::describe(rest),
+                "memoryKey" => <String as Check>::describe(rest),
+                "memoryDir" => <String as Check>::describe(rest),
+                "checkout" => <Option<String> as Check>::describe(rest),
+                "seeded" => <Option<ProjectViewSeeded> as Check>::describe(rest),
+                "installed" => <Option<ProjectViewInstalled> as Check>::describe(rest),
+                "image" => <Option<ProjectViewImage> as Check>::describe(rest),
+                "base" => <Option<String> as Check>::describe(rest),
+                "git" => <Option<ProjectViewGit> as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -579,7 +943,29 @@ pub struct BranchOfRecord {
 impl Check for BranchOfRecord {
     /// Rules: repoId: > 0; owner: at least 1 UTF-16 units; name: at least 1 UTF-16 units; branch: at least 1 UTF-16 units; startSha: at least 1 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_above(self.repo_id as f64, 0.0).map_err(|e| e.under("repoId"))?;
+        crate::types::check::text_at_least(&self.owner, 1).map_err(|e| e.under("owner"))?;
+        crate::types::check::text_at_least(&self.name, 1).map_err(|e| e.under("name"))?;
+        crate::types::check::text_at_least(&self.branch, 1).map_err(|e| e.under("branch"))?;
+        if let Some(v) = &self.start_sha {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("startSha"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "repoId" => <i64 as Check>::describe(rest),
+                "owner" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "startSha" => <Option<String> as Check>::describe(rest),
+                "public" => None,
+                _ => None,
+            },
+        }
     }
 }
 
