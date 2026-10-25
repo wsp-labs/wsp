@@ -47,7 +47,8 @@ detail?, step?, left?}` (`left` only when not empty). With `on`, `ready`, `seale
 
 L11. `recording_creates(b, name, imp, made, stop, place)` (builders.ts:285-324) answers a backend that is `b` for every
 road but `create`. A create whose stop signal is already cancelled fails at once with `PrepareStoppedError` with no
-builder id, and `b.create` is never asked. Otherwise the creating future is handed to `stop.began` before the provider
+builder id, carried as `EngineError::CreateCancelled { machine_id: "", why: "stopped", line: <its message> }` since
+a backend's create answers engine errors; `b.create` is never asked. Otherwise the creating future is handed to `stop.began` before the provider
 answers; it creates on `b`, passes the machine through `ctx.observed`, and records a placeholder: `{id, name, kind:
 spec.kind, baseTemplate: spec.template or "", setupSha: "", createdAt, size, firstLife: true, building: true,
 streamUrl?, import?, place}` where `createdAt` is the machine's `createdAt` label, else the spec's, else the clock;

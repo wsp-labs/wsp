@@ -52,11 +52,22 @@ its `heldBy` removed, life `reusable`, the record written (a failed write warns 
 ages out in 15 minutes`), `PrepareStopped {id, kept}`. A made builder: killed until gone (a failed kill answers
 `PrepareStopped {id, left: <message>}` and keeps the record), then forgotten (a failed forget warns `record of builder
 <id> not dropped; the machine is gone and the next load drops it`), `PrepareStopped {id}`. Once a stop has begun its
-answer is the run's answer, whatever the work does after.
+answer is the run's answer, whatever the work does after. The stop reads which machine the prepare holds only after
+one turn (TS `await creating?.catch()` on nothing still yields), so a signal cancelled before the prepare began still
+finds the builder an attach took, and releases it.
 G10. `seal(id, o)` (golden.ts:273-281): after `refresh_builders`, an unknown id fails `no such builder: <id>`, no kind;
 `ctx.refuse_untouchable`; then `ctx.seal_entry(entry, keep, o.logins)` where keep is `o.keepBuilder` not false and the
 record's import carries a recipe.
 G11. `recipe(name)` (golden.ts:283-290): the digest filed under the image place's copy head; no copy answers `None`.
+
+## Two stand-ins the port reads around
+
+- The import hash: wsp-engine's `GoldenImport` has no `recipeHash` or `recipe` yet, so every read of `imp.recipeHash`
+  goes through `ctx.import_mark(imp)`.
+- The record's import: wsp-core's `BuilderRecord.import` is an empty stand-in (`types::pending::ImportLedger`), so G6
+  compares and G7 writes the builder's `builder.import`, which a loaded builder carries from its record, and G10
+  reads the recipe off it. When the
+  core type gains the engine ledger's fields, both are written.
 
 ## After the port
 
