@@ -33,4 +33,4 @@ wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
 
 [dev-dependencies]
 tempfile = "3"
-tokio = { version = "1", features = ["rt", "macros", "test-util"] }
+tokio = { version = "1", features = ["rt", "macros", "test-util", "net"] }
