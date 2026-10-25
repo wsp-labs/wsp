@@ -10,8 +10,8 @@ use serde_json::{json, Value};
 
 use wsp_engine::box_backend::BoxLimits;
 use wsp_core::clock::Cancel;
-use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
-use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_core::types::internal::{SessionEntry, SubStartRecord, SUB_STARTS};
+use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_queue::{StartedTurn, SubQueueCtx};
@@ -20,6 +20,63 @@ use wsp_wire::views::workspace::Caller;
 use wsp_wire::views::workspace_more::ThreadScope;
 
 use super::*;
+
+/// A session row with only its view and turn id set, as the fakes hold one (every other field absent).
+pub fn session_entry(view: SessionView, turn_id: String) -> SessionEntry {
+    SessionEntry {
+        view,
+        turn_id,
+        replaces: None,
+        notify: None,
+        notify_by: None,
+        notify_road: None,
+        turn_token: None,
+        scope_device_id: None,
+        handle: None,
+        end: None,
+        turn_live: None,
+        run: None,
+        from: None,
+        asked: None,
+        snapshot: None,
+        pid: None,
+        launch: None,
+        calls: None,
+        unanswered: false,
+        queued: false,
+    }
+}
+
+/// A copy of a row, field by field: `SessionEntry` is not `Clone`, and the table keeps the one row it is changed in.
+pub fn snapshot_of(e: &SessionEntry) -> SessionEntry {
+    SessionEntry {
+        view: e.view.clone(),
+        turn_id: e.turn_id.clone(),
+        replaces: e.replaces.clone(),
+        notify: e.notify.clone(),
+        notify_by: e.notify_by.clone(),
+        notify_road: e.notify_road,
+        turn_token: e.turn_token.clone(),
+        scope_device_id: e.scope_device_id.clone(),
+        handle: e.handle.clone(),
+        end: e.end.clone(),
+        turn_live: e.turn_live.clone(),
+        run: e.run.clone(),
+        from: e.from,
+        asked: e.asked.clone(),
+        snapshot: e.snapshot.clone(),
+        pid: e.pid,
+        launch: e.launch.clone(),
+        calls: e.calls.clone(),
+        unanswered: e.unanswered,
+        queued: e.queued,
+    }
+}
+
+/// The first row of a workspace in the fake's table, copied.
+pub fn row_on(host: &FakeHost, workspace_id: &str) -> Option<SessionEntry> {
+    host.sessions.borrow().values().find(|s| s.view.workspace_id == workspace_id).map(snapshot_of)
+}
 
 #[async_trait(?Send)]
 impl SubQueueCtx for FakeHost {
@@ -30,7 +87,7 @@ impl SubQueueCtx for FakeHost {
         self.live.borrow().values().cloned().collect()
     }
     fn session(&self, turn_id: &str) -> Option<SessionEntry> {
-        self.sessions.borrow().get(turn_id).cloned()
+        self.sessions.borrow().get(turn_id).map(snapshot_of)
     }
     fn set_session(&self, turn_id: &str, entry: SessionEntry) {
         self.sessions.borrow_mut().insert(turn_id.to_string(), entry);
@@ -99,7 +156,7 @@ impl SubQueueCtx for FakeHost {
         entry
     }
     fn record_cell(&self, workspace_id: &str) -> Option<Rc<RefCell<WorkspaceRecord>>> {
-        self.live.borrow().get(workspace_id).map(|e| e.record.clone())
+        self.live.borrow().get(workspace_id).map(|e| e.borrow().record.clone())
     }
     async fn drop_workspace(&self, workspace_id: &str) -> AreaResult<()> {
         self.call("drop_workspace", &[workspace_id]);
@@ -173,11 +230,12 @@ impl SubQueueCtx for FakeHost {
         Ok(StartedTurn { id: as_["turnId"].as_str().unwrap_or("").to_string(), workspace_id: workspace_id.to_string(), turn_id: as_["turnId"].as_str().unwrap_or("").to_string() })
     }
     async fn cut_off(&self, entry: &Entry) {
-        self.call("cut_off", &[&entry.id()]);
+        self.call("cut_off", &[&entry_id(entry)]);
     }
     async fn unfork(&self, entry: &Entry) -> AreaResult<()> {
-        self.call("unfork", &[&entry.id(), entry.machine.id()]);
-        entry.machine.kill().await.map_err(AreaError::Engine)
+        let machine = entry.borrow().machine.clone();
+        self.call("unfork", &[&entry_id(entry), machine.id()]);
+        machine.kill().await.map_err(AreaError::Engine)
     }
     fn now(&self) -> f64 {
         self.clock.now()
