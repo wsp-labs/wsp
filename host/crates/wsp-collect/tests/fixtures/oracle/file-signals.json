@@ -1,0 +1,190 @@
+[
+ {
+  "name": ".env",
+  "bytes": 0,
+  "mode": 384,
+  "text": "A=1",
+  "shallow": true,
+  "signals": null,
+  "reads": 0
+ },
+ {
+  "name": ".env",
+  "bytes": 20,
+  "mode": 420,
+  "text": "  {} ",
+  "shallow": false,
+  "signals": null,
+  "reads": 1
+ },
+ {
+  "name": ".env",
+  "bytes": 20,
+  "mode": 420,
+  "text": "[\n]",
+  "shallow": false,
+  "signals": null,
+  "reads": 1
+ },
+ {
+  "name": ".env",
+  "bytes": 20,
+  "mode": 420,
+  "text": "API_KEY=x",
+  "shallow": false,
+  "signals": [
+   "name",
+   "keys"
+  ],
+  "reads": 1
+ },
+ {
+  "name": "settings.json",
+  "bytes": 50,
+  "mode": 384,
+  "text": "{\"theme\":\"dark\"}",
+  "shallow": true,
+  "signals": null,
+  "reads": 1
+ },
+ {
+  "name": "settings.json",
+  "bytes": 50,
+  "mode": 384,
+  "text": "not json at all",
+  "shallow": true,
+  "signals": [
+   "mode"
+  ],
+  "reads": 1
+ },
+ {
+  "name": "settings.json",
+  "bytes": 50,
+  "mode": 384,
+  "text": "not json at all",
+  "shallow": false,
+  "signals": null,
+  "reads": 1
+ },
+ {
+  "name": "state.yml",
+  "bytes": 50,
+  "mode": 384,
+  "text": "- a\n- b",
+  "shallow": true,
+  "signals": [
+   "mode"
+  ],
+  "reads": 1
+ },
+ {
+  "name": "notes.txt",
+  "bytes": 50,
+  "mode": 384,
+  "text": "token: x",
+  "shallow": true,
+  "signals": null,
+  "reads": 0
+ },
+ {
+  "name": "config",
+  "bytes": 50,
+  "mode": 384,
+  "text": null,
+  "shallow": true,
+  "signals": null,
+  "reads": 1
+ },
+ {
+  "name": "config",
+  "bytes": 50,
+  "mode": 420,
+  "text": "token: x",
+  "shallow": false,
+  "signals": [
+   "keys"
+  ],
+  "reads": 1
+ },
+ {
+  "name": "big.json",
+  "bytes": 204800,
+  "mode": 384,
+  "text": "{\"token\":\"x\"}",
+  "shallow": true,
+  "signals": null,
+  "reads": 0
+ },
+ {
+  "name": "id_rsa",
+  "bytes": 1700,
+  "mode": 384,
+  "text": "-----BEGIN OPENSSH PRIVATE KEY-----\n",
+  "shallow": false,
+  "signals": [
+   "name",
+   "mode",
+   "pem"
+  ],
+  "reads": 1
+ },
+ {
+  "name": "x.png",
+  "bytes": 50,
+  "mode": 384,
+  "text": "token: x",
+  "shallow": true,
+  "signals": null,
+  "reads": 0
+ },
+ {
+  "name": "db.sqlite",
+  "bytes": 50,
+  "mode": 384,
+  "text": "token=x",
+  "shallow": true,
+  "signals": null,
+  "reads": 0
+ },
+ {
+  "name": "db",
+  "bytes": 50,
+  "mode": 384,
+  "text": "token=x\nhttps://a:b@c",
+  "shallow": false,
+  "signals": [
+   "mode",
+   "keys",
+   "url"
+  ],
+  "reads": 1
+ },
+ {
+  "name": "key.pub",
+  "bytes": 50,
+  "mode": 384,
+  "text": "ssh-ed25519 AAAA",
+  "shallow": true,
+  "signals": null,
+  "reads": 0
+ },
+ {
+  "name": "creds.toml",
+  "bytes": 102400,
+  "mode": 384,
+  "text": "",
+  "shallow": true,
+  "signals": null,
+  "reads": 1
+ },
+ {
+  "name": "creds.toml",
+  "bytes": 102401,
+  "mode": 420,
+  "text": "",
+  "shallow": true,
+  "signals": null,
+  "reads": 0
+ }
+]

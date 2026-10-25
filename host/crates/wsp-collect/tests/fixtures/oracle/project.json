@@ -1,0 +1,145 @@
+[
+ {
+  "files": {
+   "package.json": "not json"
+  },
+  "scan": {
+   "dir": "/Users/dev/proj",
+   "rows": [],
+   "candidates": []
+  }
+ },
+ {
+  "files": {
+   "package.json": "[1,2]"
+  },
+  "scan": {
+   "dir": "/Users/dev/proj",
+   "rows": [],
+   "candidates": []
+  }
+ },
+ {
+  "files": {
+   "package.json": "{\"packageManager\":\"\",\"engines\":{\"node\":22},\"scripts\":{\"a\":1,\"b\":\"VAR=1 vercel deploy\"}}"
+  },
+  "scan": {
+   "dir": "/Users/dev/proj",
+   "rows": [
+    {
+     "id": "vercel",
+     "name": "Vercel CLI",
+     "why": "package.json scripts run vercel"
+    }
+   ],
+   "candidates": []
+  }
+ },
+ {
+  "files": {
+   "package.json": "{\"packageManager\":\"@yarnpkg/cli@4\"}"
+  },
+  "scan": {
+   "dir": "/Users/dev/proj",
+   "rows": [],
+   "candidates": []
+  }
+ },
+ {
+  "files": {
+   ".tool-versions": "nodejs\n  python 3.12 3.11 # pinned\n#all\n",
+   ".mise.toml": "[tools]\n'node' = { version = '22' }\nrust = 'stable'\n[tools.extra]\nzig = '0.13'\n"
+  },
+  "scan": {
+   "dir": "/Users/dev/proj",
+   "rows": [
+    {
+     "id": "node",
+     "name": "Node 22 with npm",
+     "why": ".tool-versions names nodejs"
+    },
+    {
+     "id": "python",
+     "name": "Python 3.12",
+     "why": ".tool-versions names python 3.12"
+    },
+    {
+     "id": "rust",
+     "name": "Rust with cargo",
+     "why": ".mise.toml names rust stable"
+    },
+    {
+     "id": "mise",
+     "name": "mise",
+     "why": ".tool-versions needs mise"
+    }
+   ],
+   "candidates": []
+  }
+ },
+ {
+  "files": {
+   ".github/workflows/a.yml": "steps:\n  - uses: 'actions/setup-node@v4'\n  - run: >-\n      pnpm i\n      gh pr view\n  - run:\n  - uses: oven-sh/setup-bun@v2\n  - uses: astral-sh/setup-uv@v3\n  - uses: actions/checkout@v4\n",
+   ".github/workflows/b.yaml": "  - run: |\n      docker build .\n    env: {}\n"
+  },
+  "scan": {
+   "dir": "/Users/dev/proj",
+   "rows": [
+    {
+     "id": "node",
+     "name": "Node 22 with npm",
+     "why": ".github/workflows/a.yml sets up node"
+    },
+    {
+     "id": "bun",
+     "name": "Bun",
+     "why": ".github/workflows/a.yml sets up bun"
+    },
+    {
+     "id": "uv",
+     "name": "uv",
+     "why": ".github/workflows/a.yml sets up uv"
+    },
+    {
+     "id": "pnpm",
+     "name": "pnpm",
+     "why": ".github/workflows/a.yml runs pnpm"
+    },
+    {
+     "id": "gh",
+     "name": "GitHub CLI",
+     "why": ".github/workflows/a.yml runs gh"
+    },
+    {
+     "id": "docker",
+     "name": "Docker engine and compose",
+     "why": ".github/workflows/b.yaml runs docker"
+    }
+   ],
+   "candidates": []
+  }
+ },
+ {
+  "files": {
+   "apps/web/package.json": "{\"scripts\":{\"e2e\":\"playwright test\"}}",
+   "packages/x/README.md": "no",
+   "Dockerfile": "FROM x"
+  },
+  "scan": {
+   "dir": "/Users/dev/proj",
+   "rows": [
+    {
+     "id": "playwright",
+     "name": "Chromium for Playwright",
+     "why": "apps/web/package.json scripts run playwright"
+    },
+    {
+     "id": "docker",
+     "name": "Docker engine and compose",
+     "why": "Dockerfile needs Docker"
+    }
+   ],
+   "candidates": []
+  }
+ }
+]

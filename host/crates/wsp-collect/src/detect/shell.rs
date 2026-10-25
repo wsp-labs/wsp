@@ -5,7 +5,8 @@ use crate::host::Host;
 use crate::manifest::ManifestEntry;
 
 /// shell.ts:6, in this order.
-pub const RC_FILES: [&str; 10] = ["zshrc", "zshenv", "zprofile", "zlogin", "bashrc", "bash_profile", "profile", "inputrc", "aliases", "zsh_aliases"];
+pub const RC_FILES: [&str; 10] =
+    ["zshrc", "zshenv", "zprofile", "zlogin", "bashrc", "bash_profile", "profile", "inputrc", "aliases", "zsh_aliases"];
 
 /// The name of the login shell, when SHELL names one /etc/shells lists.
 // detect/shell.ts:29
