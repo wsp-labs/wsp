@@ -13,7 +13,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
-use wsp_core::types::pending::{BlobMark, Clock, DaemonReach, DeviceDoor, IssuedCode, PairedDevice, Store};
+use wsp_core::clock::{Cancel, Clock, Timer};
+use wsp_core::devices::{HeldDevice, MintMore};
+use wsp_core::reach::{ReachError, ReachStats};
+use wsp_core::types::pending::{BlobMark, DaemonReach, DeviceDoor, IssuedCode, PairedDevice, Store};
 use wsp_core::types::wiring::{HereDaemon, PlaceBackends};
 use wsp_engine::link_backend::MachineLink;
 use wsp_engine::machine::MachineBackend;
@@ -29,6 +32,9 @@ use wsp_wire::views::place::{PlaceSetupEvent, PlaceSync, PlaceSyncEvent};
 use wsp_wire::views::place_more::{PlaceHolds, PlaceRemovedTook, PlaceView};
 use wsp_wire::wire::place_link::PlaceReport;
 use wsp_words::exit::HostError;
+use wsp_wire::views::workspace_more::ThreadScope;
+use wsp_wire::wire::daemon::DaemonLinkStatus;
+use wsp_wire::wire::devices::{DeviceVia, DeviceView};
 
 pub type Fails = Result<(), HostError>;
 
@@ -199,7 +205,31 @@ impl DeviceDoor for FakeDevices {
     }
     async fn admit(&self, name: &str, _now: i64) -> Result<PairedDevice, HostError> {
         self.admitted.borrow_mut().push(name.to_string());
-        Ok(PairedDevice { device_id: format!("d_{name}"), device_token: format!("token-{name}"), device: Value::Null })
+        Ok(PairedDevice { device_id: format!("d_{name}"), device_token: format!("token-{name}"), device: device_view(name) })
+    }
+    async fn admit_account(&self, _name: &str, _via: DeviceVia, _now: i64) -> Result<PairedDevice, HostError> {
+        Err(HostError::new("no account here"))
+    }
+    async fn refuses(&self, _fingerprint: &str) -> Result<bool, HostError> {
+        Ok(false)
+    }
+    async fn mint(&self, _name: &str, _scope: ThreadScope, _now: i64, _more: MintMore) -> Result<PairedDevice, HostError> {
+        Err(HostError::new("no scoped tokens here"))
+    }
+    async fn revoke_asides(&self) -> Result<(), HostError> {
+        Ok(())
+    }
+    async fn r#match(&self, _token: &str) -> Result<Option<HeldDevice>, HostError> {
+        Ok(None)
+    }
+    async fn seen(&self, _id: &str, _now: i64) -> Result<Option<HeldDevice>, HostError> {
+        Ok(None)
+    }
+    async fn list(&self) -> Result<Vec<DeviceView>, HostError> {
+        Ok(Vec::new())
+    }
+    async fn revoke(&self, _id: &str) -> Result<bool, HostError> {
+        Ok(false)
     }
 }
 
@@ -246,12 +276,12 @@ impl Clock for FakeClock {
     fn now(&self) -> i64 {
         self.now.get()
     }
-    fn schedule(&self, run: Box<dyn FnOnce()>, ms: u64) -> Box<dyn FnOnce()> {
+    fn schedule(&self, run: Timer, ms: i64) -> Cancel {
         let id = self.next.get();
         self.next.set(id + 1);
-        self.timers.borrow_mut().push((self.now.get() + ms as i64, id, Some(run)));
+        self.timers.borrow_mut().push((self.now.get() + ms, id, Some(run)));
         let timers = self.timers.clone();
-        Box::new(move || {
+        Rc::new(move || {
             if let Some(t) = timers.borrow_mut().iter_mut().find(|t| t.1 == id) {
                 t.2 = None;
             }
@@ -536,13 +566,13 @@ impl LinkReads for FakeLinks {
 
 /// A daemon reach answering each op with what `answer` says, every request written down with its params.
 pub struct FakeReach {
-    pub answer: RefCell<Box<dyn Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, HostError>>>,
+    pub answer: RefCell<Box<dyn Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, ReachError>>>,
     pub asked: RefCell<Vec<(String, Value)>>,
     pub closed: Cell<bool>,
 }
 
 impl FakeReach {
-    pub fn new(answer: impl Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, HostError> + 'static) -> Rc<Self> {
+    pub fn new(answer: impl Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, ReachError> + 'static) -> Rc<Self> {
         Rc::new(FakeReach { answer: RefCell::new(Box::new(answer)), asked: RefCell::new(Vec::new()), closed: Cell::new(false) })
     }
     /// Answers `ping`, `exec` (exit 0, nothing said) and `place.leave` (`swept`), refusing the rest.
@@ -551,7 +581,7 @@ impl FakeReach {
             "ping" => Ok(Map::new()),
             "exec" => Ok(obj(json!({ "exitCode": 0, "stdout": "", "stderr": "" }))),
             "place.leave" => Ok(obj(json!({ "swept": swept }))),
-            other => Err(HostError::new(format!("unknown op {other}"))),
+            other => Err(reach_err(format!("unknown op {other}"))),
         })
     }
     pub fn ops(&self) -> Vec<String> {
@@ -561,13 +591,32 @@ impl FakeReach {
 
 #[async_trait(?Send)]
 impl DaemonReach for FakeReach {
-    async fn request(&self, op: &str, params: Map<String, Value>) -> Result<Map<String, Value>, HostError> {
+    async fn request(&self, op: &str, params: Map<String, Value>) -> Result<Map<String, Value>, ReachError> {
         self.asked.borrow_mut().push((op.to_string(), Value::Object(params.clone())));
         (self.answer.borrow())(op, &params)
+    }
+    async fn ready(&self) -> Result<(), ReachError> {
+        Ok(())
+    }
+    fn status(&self) -> Option<DaemonLinkStatus> {
+        None
+    }
+    fn stats(&self) -> ReachStats {
+        ReachStats::default()
     }
     fn close(&self) {
         self.closed.set(true);
     }
+}
+
+/// What a refused frame answers with.
+pub fn reach_err(message: impl Into<String>) -> ReachError {
+    ReachError { message: message.into(), kind: None, status: None, code: None }
+}
+
+/// The record `admit` lists for a device of that name.
+pub fn device_view(name: &str) -> DeviceView {
+    serde_json::from_value(json!({ "id": format!("d_{name}"), "name": name, "createdAt": "2023-11-14T22:13:20.000Z", "lastSeenAt": "2023-11-14T22:13:20.000Z" })).expect("a device view")
 }
 
 pub fn obj(v: Value) -> Map<String, Value> {
@@ -1039,7 +1088,7 @@ fn refused<T>(what: &str) -> wsp_engine::errors::Result<T> {
     Err(wsp_engine::EngineError::Other { message: format!("{what} is not on this stub"), code: None })
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for StubBackend {
     fn capabilities(&self) -> wsp_engine::machine::Capabilities {
         serde_json::from_value(self.capabilities.clone()).expect("capabilities")
@@ -1109,7 +1158,7 @@ impl FakeMachineLink {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineLink for FakeMachineLink {
     async fn request(&self, op: &str, params: Map<String, Value>, _ask: wsp_engine::link_backend::LinkAsk) -> wsp_engine::errors::Result<Map<String, Value>> {
         self.asked.lock().unwrap().push((op.to_string(), Value::Object(params.clone())));
