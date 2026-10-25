@@ -6,6 +6,12 @@ use indexmap::IndexSet;
 
 use wsp_wire::types::attachments::Attachment;
 use wsp_wire::types::attachments::AttachmentRecord;
+use wsp_wire::types::attachments::{FILES_DIR, FILES_MAX, FILE_MAX_BYTES, FILE_MAX_WORDS, IMAGE_MAX_BYTES, IMAGE_MAX_WORDS};
+use wsp_wire::types::js_number::{JsInt, JsNumber};
+use wsp_wire::types::shell_quote::shell_quote;
+
+use crate::exit::HostError;
+use crate::words::units::fmt_bytes;
 
 /// The image types a message carries, each with the word a transcript prints and the extension its copy on a machine
 /// lands under. A type outside this table is refused before it travels: the harnesses take these four.
@@ -52,7 +58,7 @@ pub const IMAGE_TYPES: &[(&str, &str, &str)] = &[
 // attachments.ts:49
 // export const isImage = (mediaType: string): boolean => IMAGE_TYPES[mediaType] !== undefined;
 pub fn is_image(media_type: &str) -> bool {
-    todo!()
+    IMAGE_TYPES.iter().any(|(media, _, _)| *media == media_type)
 }
 
 /// What an attachment weighs, from the base64 the wire carries, without decoding it.
@@ -64,7 +70,15 @@ pub fn is_image(media_type: &str) -> bool {
 // }
 /// `bytes` is the image's base64 text.
 pub fn attachment_bytes(bytes: &str) -> f64 {
-    todo!()
+    let len = bytes.encode_utf16().count() as f64;
+    let pad = if bytes.ends_with("==") {
+        2.0
+    } else if bytes.ends_with('=') {
+        1.0
+    } else {
+        0.0
+    };
+    ((len / 4.0).floor() * 3.0 - pad).max(0.0)
 }
 
 // One file of a person's message as a transcript keeps it: what it was, what it weighed and what it was called.
@@ -82,7 +96,11 @@ pub fn attachment_bytes(bytes: &str) -> f64 {
 //   return { mediaType: file.mediaType, bytes: attachmentBytes(file), ...(file.name !== undefined ? { name: file.name } : {}) };
 // }
 pub fn attachment_record(file: &Attachment) -> AttachmentRecord {
-    todo!()
+    AttachmentRecord {
+        media_type: file.media_type.clone(),
+        bytes: JsInt(JsNumber(attachment_bytes(&file.bytes))),
+        name: file.name.clone(),
+    }
 }
 
 // attachments.ts:75
@@ -116,7 +134,17 @@ pub fn attachment_record(file: &Attachment) -> AttachmentRecord {
 //   return MAGIC.find(m => starts(0, m.head) && (m.at8 === undefined || starts(8, m.at8)))?.mediaType ?? null;
 // }
 pub fn image_type_of(bytes: &[u8]) -> Option<String> {
-    todo!()
+    let starts = |at: usize, want: &[u8]| want.iter().enumerate().all(|(i, byte)| bytes.get(at + i) == Some(byte));
+    let magic: [(&str, &[u8], Option<&[u8]>); 4] = [
+        ("image/png", &[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], None),
+        ("image/jpeg", &[0xff, 0xd8, 0xff], None),
+        ("image/gif", &[0x47, 0x49, 0x46, 0x38], None),
+        ("image/webp", &[0x52, 0x49, 0x46, 0x46], Some(&[0x57, 0x45, 0x42, 0x50])),
+    ];
+    magic
+        .iter()
+        .find(|(_, head, at8)| starts(0, head) && (*at8).map_or(true, |at8| starts(8, at8)))
+        .map(|(media, _, _)| media.to_string())
 }
 
 /// The refusal of a path the person named that this computer has no file at, or has something other than a file at:
@@ -126,7 +154,7 @@ pub fn image_type_of(bytes: &[u8]) -> Option<String> {
 //   return `there is no file at ${path} on this computer`;
 // }
 pub fn not_a_file_line(path: &str) -> String {
-    todo!()
+    format!("there is no file at {path} on this computer")
 }
 
 /// What a transcript prints in place of an attachment, in one bracket: an image's weight and type, a file's weight
@@ -139,7 +167,11 @@ pub fn not_a_file_line(path: &str) -> String {
 //   return `[file ${fmtBytes(file.bytes)}${file.name !== undefined ? ` ${file.name}` : ""}]`;
 // }
 pub fn attachment_line(file: &AttachmentRecord) -> String {
-    todo!()
+    let bytes = fmt_bytes(file.bytes.0 .0);
+    match IMAGE_TYPES.iter().find(|(media, _, _)| *media == file.media_type) {
+        Some((_, word, _)) => format!("[image {bytes} {word}]"),
+        None => format!("[file {bytes}{}]", file.name.as_ref().map(|name| format!(" {name}")).unwrap_or_default()),
+    }
 }
 
 /// Why these files cannot travel, in the person's words, or null when they can: too many for one message, one over
@@ -159,7 +191,25 @@ pub fn attachment_line(file: &AttachmentRecord) -> String {
 //   return null;
 // }
 pub fn files_refusal(files: &[AttachmentRecord]) -> Option<String> {
-    todo!()
+    if files.len() as u64 > FILES_MAX {
+        return Some(format!("only {FILES_MAX} files fit one message; this one carries {}", files.len()));
+    }
+    for (index, file) in files.iter().enumerate() {
+        let image = is_image(&file.media_type);
+        let kind = if image { "image" } else { "file" };
+        let at = file.name.clone().unwrap_or_else(|| format!("{kind} {}", index + 1));
+        let bytes = file.bytes.0 .0;
+        if bytes == 0.0 {
+            return Some(format!("{at} is empty"));
+        }
+        if image && bytes > IMAGE_MAX_BYTES as f64 {
+            return Some(format!("{at} is {}, over the {IMAGE_MAX_WORDS} an image may be", fmt_bytes(bytes)));
+        }
+        if !image && bytes > FILE_MAX_BYTES as f64 {
+            return Some(format!("{at} is {}, over the {FILE_MAX_WORDS} a file may be", fmt_bytes(bytes)));
+        }
+    }
+    None
 }
 
 /// Why these files cannot go into a running turn of this agent, or null when they can: an image goes where the
@@ -172,7 +222,17 @@ pub fn files_refusal(files: &[AttachmentRecord]) -> Option<String> {
 //   return steersImages ? null : `${agent} takes no image into a running turn`;
 // }
 pub fn steer_files_blocked(files: &[AttachmentRecord], steers_images: bool, agent: &str) -> Option<String> {
-    todo!()
+    if files.is_empty() {
+        return None;
+    }
+    if files.iter().any(|file| !is_image(&file.media_type)) {
+        return Some("a file that is not an image goes only with a message that starts a turn".to_string());
+    }
+    if steers_images {
+        None
+    } else {
+        Some(format!("{agent} takes no image into a running turn"))
+    }
 }
 
 /// The refusal of a message with an image to an agent that takes none, said before the machine is asked.
@@ -181,7 +241,7 @@ pub fn steer_files_blocked(files: &[AttachmentRecord], steers_images: bool, agen
 //   return `${harness} takes no image with a message; describe it in words, or open the thread on an agent that reads images`;
 // }
 pub fn no_images_line(harness: &str) -> String {
-    todo!()
+    format!("{harness} takes no image with a message; describe it in words, or open the thread on an agent that reads images")
 }
 
 /// Why these files cannot go to this agent, or null when they can: the caps first, since a person fixes those
@@ -204,7 +264,13 @@ pub enum AttachmentRoad {
 }
 
 pub fn files_blocked(files: &[AttachmentRecord], road: Option<&AttachmentRoad>, harness: &str) -> Option<String> {
-    todo!()
+    if files.is_empty() {
+        return None;
+    }
+    files_refusal(files).or_else(|| {
+        let image = files.iter().any(|file| is_image(&file.media_type));
+        (road.is_none() && image).then(|| no_images_line(harness))
+    })
 }
 
 // A folder name that is one path segment and nothing else. A request id is a string a client chose, and it travels
@@ -221,7 +287,11 @@ pub fn files_blocked(files: &[AttachmentRecord], road: Option<&AttachmentRoad>, 
 //   return requestId !== undefined && PLAIN_ID.test(requestId) && PLAIN_ID.test(threadId) ? `${threadId}.${requestId}.${index}` : undefined;
 // }
 pub fn attachment_key(thread_id: &str, request_id: Option<&str>, index: f64) -> Option<String> {
-    todo!()
+    let request_id = request_id.filter(|id| plain_id(id))?;
+    if !plain_id(thread_id) {
+        return None;
+    }
+    Some(format!("{thread_id}.{request_id}.{}", crate::js::number_string(index)))
 }
 
 // One image of a message as the host kept it: its type and the bytes, base64, as the wire carried them.
@@ -242,7 +312,7 @@ pub fn attachment_key(thread_id: &str, request_id: Option<&str>, index: f64) -> 
 //   return `${threadFilesDir(folder, threadId)}/${plainOr(requestId, minted)}.images`;
 // }
 pub fn turn_images_dir(folder: &str, thread_id: &str, request_id: Option<&str>, minted: &str) -> String {
-    todo!()
+    format!("{}/{}.images", thread_files_dir(folder, thread_id), plain_or(request_id, minted))
 }
 
 /// Where one image of a message lands inside its send's folder: named by its place in the message and its own type,
@@ -256,7 +326,10 @@ pub fn turn_images_dir(folder: &str, thread_id: &str, request_id: Option<&str>, 
 // }
 /// The TS throw is the Err.
 pub fn image_path_in(dir: &str, index: f64, media_type: &str) -> Result<String, crate::exit::HostError> {
-    todo!()
+    let Some((_, _, ext)) = IMAGE_TYPES.iter().find(|(media, _, _)| *media == media_type) else {
+        return Err(HostError::new(format!("{media_type} is not an image type a message carries")));
+    };
+    Ok(format!("{dir}/{}.{ext}", crate::js::number_string(index + 1.0)))
 }
 
 // attachments.ts:190
@@ -277,7 +350,7 @@ pub fn image_path_in(dir: &str, index: f64, media_type: &str) -> Result<String, 
 //   return `${folder.replace(/\/+$/, "")}/${FILES_DIR}/${plainOr(threadId, "thread")}`;
 // }
 pub fn thread_files_dir(folder: &str, thread_id: &str) -> String {
-    todo!()
+    format!("{}/{FILES_DIR}/{}", folder.trim_end_matches('/'), plain_or(Some(thread_id), "thread"))
 }
 
 /// Where one send's files land: its own folder under its thread's, named by the request id the client minted where
@@ -287,7 +360,7 @@ pub fn thread_files_dir(folder: &str, thread_id: &str) -> String {
 //   return `${threadFilesDir(folder, threadId)}/${plainOr(requestId, minted)}`;
 // }
 pub fn send_files_dir(folder: &str, thread_id: &str, request_id: Option<&str>, minted: &str) -> String {
-    todo!()
+    format!("{}/{}", thread_files_dir(folder, thread_id), plain_or(request_id, minted))
 }
 
 /// The longest name a file lands under, its extension kept.
@@ -307,7 +380,29 @@ const FILE_NAME_MAX: i64 = 120;
 //   return plain.slice(0, FILE_NAME_MAX - ext.length) + ext;
 // }
 pub fn safe_file_name(name: Option<&str>) -> String {
-    todo!()
+    let last = name.unwrap_or("").rsplit(['/', '\\']).next().unwrap_or("");
+    let mapped: String = last
+        .chars()
+        .flat_map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') {
+                vec![c]
+            } else {
+                vec!['-'; c.len_utf16()]
+            }
+        })
+        .collect();
+    let plain = mapped.trim_start_matches(['.', '-']);
+    if plain.chars().all(|c| c == '.' || c == '-') {
+        return "file".to_string();
+    }
+    if plain.len() <= FILE_NAME_MAX as usize {
+        return plain.to_string();
+    }
+    let ext = match plain.rfind('.') {
+        Some(dot) if dot > 0 && plain.len() - dot <= 10 => &plain[dot..],
+        _ => "",
+    };
+    format!("{}{ext}", &plain[..FILE_NAME_MAX as usize - ext.len()])
 }
 
 /// Where one file lands in its send's folder: under its own plain name, and a second file of the same name in that
@@ -321,7 +416,15 @@ pub fn safe_file_name(name: Option<&str>) -> String {
 //   return `${dir}/${landed}`;
 // }
 pub fn file_path_in(dir: &str, name: Option<&str>, taken: &mut IndexSet<String>) -> String {
-    todo!()
+    let plain = safe_file_name(name);
+    let mut landed = plain.clone();
+    let mut n = 2;
+    while taken.contains(&landed) {
+        landed = format!("{n}-{plain}");
+        n += 1;
+    }
+    taken.insert(landed.clone());
+    format!("{dir}/{landed}")
 }
 
 /// The one command that readies a send's folder before its files land. FILES_DIR and the thread's folder are
@@ -336,7 +439,23 @@ pub fn file_path_in(dir: &str, name: Option<&str>, taken: &mut IndexSet<String>)
 //   return `cd ${shellQuote(folder)} && [ ! -L ${FILES_DIR} ] && mkdir -p ${FILES_DIR} && { ${exclude} || true; } && [ ! -L ${thread} ] && mkdir -p ${thread} && mkdir ${shellQuote(dir)}`;
 // }
 pub fn land_files_line(folder: &str, dir: &str) -> String {
-    todo!()
+    let thread = match dir.rfind('/') {
+        Some(slash) => dir[..slash].to_string(),
+        None => {
+            let mut cut = dir.to_string();
+            cut.pop();
+            cut
+        }
+    };
+    let thread = shell_quote(&thread);
+    let exclude = format!(
+        r#"x=$(git -c core.fsmonitor=false rev-parse --git-path info/exclude 2>/dev/null) && [ ! -L "$x" ] && {{ grep -qxF '{EXCLUDE_LINE}' "$x" 2>/dev/null || {{ mkdir -p "$(dirname "$x")" && printf '%s\n' '{EXCLUDE_LINE}' >> "$x"; }}; }}"#
+    );
+    format!(
+        "cd {} && [ ! -L {FILES_DIR} ] && mkdir -p {FILES_DIR} && {{ {exclude} || true; }} && [ ! -L {thread} ] && mkdir -p {thread} && mkdir {}",
+        shell_quote(folder),
+        shell_quote(dir)
+    )
 }
 
 /// The one command that takes these threads' files off a folder: each thread's own folder under FILES_DIR, and
@@ -348,7 +467,16 @@ pub fn land_files_line(folder: &str, dir: &str) -> String {
 //   return dirs.length === 0 ? "true" : `cd ${shellQuote(folder)} && [ ! -L ${FILES_DIR} ] && rm -rf -- ${dirs.join(" ")}`;
 // }
 pub fn drop_files_line(folder: &str, thread_ids: &[impl AsRef<str>]) -> String {
-    todo!()
+    let dirs: Vec<String> = thread_ids
+        .iter()
+        .map(|id| id.as_ref())
+        .filter(|id| plain_id(id))
+        .map(|id| shell_quote(&format!("{FILES_DIR}/{id}")))
+        .collect();
+    if dirs.is_empty() {
+        return "true".to_string();
+    }
+    format!("cd {} && [ ! -L {FILES_DIR} ] && rm -rf -- {}", shell_quote(folder), dirs.join(" "))
 }
 
 /// The refusal of a message whose files could not land in the thread's folder: its FILES_DIR is a link, or the
@@ -358,7 +486,7 @@ pub fn drop_files_line(folder: &str, thread_ids: &[impl AsRef<str>]) -> String {
 //   return `the attached files could not land in ${folder}/${FILES_DIR}; make sure it is a folder the agent can write in, not a link, and send again`;
 // }
 pub fn files_not_landed_line(folder: &str) -> String {
-    todo!()
+    format!("the attached files could not land in {folder}/{FILES_DIR}; make sure it is a folder the agent can write in, not a link, and send again")
 }
 
 /// The prompt the agent is handed for a message with files: the person's words, then every landed path.
@@ -367,6 +495,25 @@ pub fn files_not_landed_line(folder: &str) -> String {
 //   return paths.length === 0 ? prompt : `${prompt}\n\n${ATTACHED_FILES_HEAD}\n${paths.map(p => `- ${p}`).join("\n")}`;
 // }
 pub fn attached_files_prompt(prompt: &str, paths: &[impl AsRef<str>]) -> String {
-    todo!()
+    if paths.is_empty() {
+        return prompt.to_string();
+    }
+    let lines: Vec<String> = paths.iter().map(|path| format!("- {}", path.as_ref())).collect();
+    format!("{prompt}\n\nAttached files:\n{}", lines.join("\n"))
 }
 
+// The plain-id rule (attachments.ts:156): one ASCII letter or digit, then letters, digits, dots, underscores and dashes.
+fn plain_id(id: &str) -> bool {
+    let mut chars = id.chars();
+    matches!(chars.next(), Some(first) if first.is_ascii_alphanumeric())
+        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+}
+
+fn plain_or(id: Option<&str>, fallback: &str) -> String {
+    match id {
+        Some(id) if plain_id(id) => id.to_string(),
+        _ => fallback.to_string(),
+    }
+}
+
+const EXCLUDE_LINE: &str = ".wsp-files/";

@@ -2,7 +2,7 @@
 //! The one vocabulary for a thread's state, read off the rows the runtime writes, and when a read thread settles.
 //! Port of packages/protocol/src/thread-state.ts at a3b870a6e. See spec/thread_state.md.
 
-use wsp_wire::views::session::{SubagentState, ThreadView};
+use wsp_wire::views::session::{SessionStatus, SubagentState, ThreadView};
 use wsp_wire::views::session_events::SessionPermissionEvent;
 
 // thread-state.ts:14
@@ -29,7 +29,7 @@ pub enum ThreadState {
 //   return unseen.length === 0 ? undefined : Math.max(...unseen);
 // }
 pub fn thread_unseen_at(thread: &ThreadView) -> Option<f64> {
-    todo!()
+    unseen_at(thread, thread.ended_at.as_ref().map(|at| at.0))
 }
 
 /// Whether the thread's latest turn ended, or its snooze ended, and no window has shown the thread since. A failed
@@ -39,7 +39,7 @@ pub fn thread_unseen_at(thread: &ThreadView) -> Option<f64> {
 //   return (thread.status === "completed" || thread.status === "interrupted") && threadUnseenAt(thread) !== undefined;
 // }
 pub fn thread_unread(thread: &ThreadView) -> bool {
-    todo!()
+    matches!(thread.status, SessionStatus::Completed | SessionStatus::Interrupted) && thread_unseen_at(thread).is_some()
 }
 
 /// Whether the thread waits on the person: it asks, or is stopped behind a thread that asks, or a finish, a failure or
@@ -53,7 +53,14 @@ pub fn thread_unread(thread: &ThreadView) -> bool {
 //   return threadUnseenAt(thread.status === "interrupted" ? { ...thread, endedAt: undefined } : thread) !== undefined;
 // }
 pub fn thread_needs_you(thread: &ThreadView) -> bool {
-    todo!()
+    if thread.asking.is_some() || thread.waiting_on.is_some() {
+        return true;
+    }
+    if thread.sub.as_ref().is_some_and(|sub| sub.held.is_some()) && thread.status != SessionStatus::Running {
+        return true;
+    }
+    let ended_at = if thread.status == SessionStatus::Interrupted { None } else { thread.ended_at.as_ref().map(|at| at.0) };
+    unseen_at(thread, ended_at).is_some()
 }
 
 /// What a thread reads as, from its folded row alone.
@@ -63,7 +70,18 @@ pub fn thread_needs_you(thread: &ThreadView) -> bool {
 //   return threadUnread(thread) ? "done" : thread.status;
 // }
 pub fn thread_state(thread: &ThreadView) -> ThreadState {
-    todo!()
+    if thread.asking.is_some() || thread.waiting_on.is_some() {
+        return ThreadState::Waiting;
+    }
+    if thread_unread(thread) {
+        return ThreadState::Done;
+    }
+    match thread.status {
+        SessionStatus::Running => ThreadState::Running,
+        SessionStatus::Completed => ThreadState::Completed,
+        SessionStatus::Interrupted => ThreadState::Interrupted,
+        SessionStatus::Failed => ThreadState::Failed,
+    }
 }
 
 /// What a waiting thread is stopped on, in one line: its own open prompt, else the question the thread it is behind
@@ -74,7 +92,14 @@ pub fn thread_state(thread: &ThreadView) -> ThreadState {
 //   return thread.waitingOn === undefined ? undefined : `${askingLine(thread.waitingOn.prompt)} needs an answer`;
 // }
 pub fn waiting_line(thread: &ThreadView) -> Option<String> {
-    todo!()
+    if let Some(asking) = &thread.asking {
+        return Some(asking.clone());
+    }
+    thread.waiting_on.as_ref().map(|on| {
+        let prompt = &on.prompt;
+        let line = crate::words::tools::permission_ask_line(&prompt.tool_name, &prompt.input, prompt.detail.as_deref());
+        format!("{line} needs an answer")
+    })
 }
 
 // thread-state.ts:54
@@ -93,7 +118,15 @@ pub fn waiting_line(thread: &ThreadView) -> Option<String> {
 //   return WORDS[state];
 // }
 pub fn thread_state_word(state: ThreadState) -> String {
-    todo!()
+    let word = match state {
+        ThreadState::Waiting => "Needs you",
+        ThreadState::Running => "Working",
+        ThreadState::Completed => "Idle",
+        ThreadState::Interrupted => "Idle",
+        ThreadState::Failed => "Failed",
+        ThreadState::Done => "Done",
+    };
+    word.to_string()
 }
 
 /// The word a thread's row shows, the short road every surface takes.
@@ -102,7 +135,7 @@ pub fn thread_state_word(state: ThreadState) -> String {
 //   return threadStateWord(threadState(thread));
 // }
 pub fn thread_word_of(thread: &ThreadView) -> String {
-    todo!()
+    thread_state_word(thread_state(thread))
 }
 
 // thread-state.ts:72
@@ -115,7 +148,13 @@ pub fn thread_word_of(thread: &ThreadView) -> String {
 //   return SUBAGENT_WORDS[state];
 // }
 pub fn subagent_state_word(state: SubagentState) -> String {
-    todo!()
+    let word = match state {
+        SubagentState::Running => "Working",
+        SubagentState::Done => "Done",
+        SubagentState::Failed => "Failed",
+        SubagentState::Stopped => "Stopped",
+    };
+    word.to_string()
 }
 
 /// What a terminal watching a turn prints the moment that turn stops on a prompt: the thread's own state word, in
@@ -126,7 +165,7 @@ pub fn subagent_state_word(state: SubagentState) -> String {
 //   return `${threadStateWord("waiting").toLowerCase()}: ${askingLine(ask)}`;
 // }
 pub fn needs_you_line(ask: &SessionPermissionEvent) -> String {
-    todo!()
+    format!("{}: {}", thread_state_word(ThreadState::Waiting).to_lowercase(), crate::words::tools::asking_line(ask))
 }
 
 /// A thread as the Settled fold reads it, its times ms epoch on the host's clock.
@@ -162,7 +201,10 @@ pub struct SettleFacts {
 // export const threadSeen = (t: { endedAt: number | null; readAt: number | null }): boolean => t.endedAt === null || (t.readAt !== null && t.readAt >= t.endedAt);
 /// Reads only `ended_at` and `read_at`.
 pub fn thread_seen(t: &SettleFacts) -> bool {
-    todo!()
+    match t.ended_at {
+        None => true,
+        Some(ended_at) => t.read_at.is_some_and(|read_at| read_at >= ended_at),
+    }
 }
 
 // thread-state.ts:105
@@ -172,7 +214,7 @@ pub fn thread_seen(t: &SettleFacts) -> bool {
 // }
 /// `settle_ms` None is the TS null; `held` defaults to false.
 pub fn thread_settled(t: &SettleFacts, now_ms: f64, settle_ms: Option<f64>, held: bool) -> bool {
-    todo!()
+    settle_moment(t, settle_ms, held).is_some_and(|at| at.by_hand || now_ms >= at.ms)
 }
 
 /// When the rule above settles the thread: the hand's stamp, or the end of the quiet it waits out; null while it never will.
@@ -194,6 +236,33 @@ pub struct SettleMoment {
 
 /// None is the TS null.
 pub fn settle_moment(t: &SettleFacts, settle_ms: Option<f64>, held: bool) -> Option<SettleMoment> {
-    todo!()
+    if t.asking || t.working {
+        return None;
+    }
+    let last = [t.started_at, t.ended_at].into_iter().flatten().reduce(f64::max);
+    if let Some(settled_at) = t.settled_at {
+        if last.map_or(true, |last| settled_at >= last) {
+            return Some(SettleMoment { ms: settled_at, by_hand: true });
+        }
+    }
+    if held || t.failed || !thread_seen(t) {
+        return None;
+    }
+    let (Some(last), Some(settle_ms)) = (last, settle_ms) else {
+        return None;
+    };
+    Some(SettleMoment { ms: last.max(t.read_at.unwrap_or(last)) + settle_ms, by_hand: false })
 }
 
+fn unseen_at(thread: &ThreadView, ended_at: Option<f64>) -> Option<f64> {
+    if thread.status == SessionStatus::Running {
+        return None;
+    }
+    let read_at = thread.read_at.as_ref().map(|at| at.0);
+    let woke_at = thread.woke_at.as_ref().map(|at| at.0);
+    [ended_at, woke_at]
+        .into_iter()
+        .flatten()
+        .filter(|at| read_at.map_or(true, |read| read < *at))
+        .reduce(f64::max)
+}
