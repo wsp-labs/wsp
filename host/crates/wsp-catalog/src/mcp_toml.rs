@@ -286,7 +286,7 @@ pub fn place_codex(text: Option<&str>, name: &str, server: &McpTransport) -> Str
         return format!("{text}{sep}\n{table}");
     };
     let mut end = start + 1;
-    while end < lines.len() && !lines[end].trim_start().starts_with('[') {
+    while end < lines.len() && !wsp_words::js::js_trim_start(lines[end]).starts_with('[') {
         end += 1;
     }
     let gap: Vec<&str> = if end < lines.len() { vec![""] } else { Vec::new() };

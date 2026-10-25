@@ -144,9 +144,9 @@ pub struct PluginsFound {
     pub plugins: Vec<FoundPlugin>,
     pub refused: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub file: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }
 
 /// One shelf per agent (plugins-claude.ts:183, plugins-codex.ts:343).

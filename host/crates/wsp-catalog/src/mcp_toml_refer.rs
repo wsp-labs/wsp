@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 
+use crate::smol_toml::parse_toml;
 use crate::json_edit::json_canonical;
 use crate::jsonc_tree::PathSeg;
 use crate::mcp::{KnownValue, McpReferred, McpTransport, ReferredServer};
@@ -180,10 +181,7 @@ fn edit_server(
 
 /// `CODEX_TOML.refer` (mcp.ts:1661). Errors "the file is not valid TOML (<first line of the parser's message>)".
 pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside: &IndexSet<String>) -> Result<McpReferred, HostError> {
-    let tree: toml::Table = text.parse().map_err(|e: toml::de::Error| {
-        let first = e.to_string().lines().next().unwrap_or_default().to_string();
-        HostError::new(format!("the file is not valid TOML ({first})"))
-    })?;
+    let tree = parse_toml(text).map_err(|e| HostError::new(format!("the file is not valid TOML ({})", e.lines().next().unwrap_or_default())))?;
     let Some(table_value) = tree.get("mcp_servers") else {
         return Ok(McpReferred { text: text.to_string(), servers: Vec::new(), entries: Vec::new() });
     };
@@ -317,7 +315,7 @@ pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside
         Ok(lined) if same_tree(&lined, &want) => lined,
         _ => toml::to_string(&want).map_err(|e| HostError::new(e.to_string()))?,
     };
-    let written: toml::Table = out.parse().map_err(|e: toml::de::Error| HostError::new(e.to_string()))?;
+    let written = parse_toml(&out).map_err(HostError::new)?;
     let entries = match written.get("mcp_servers").and_then(|v| v.as_table()) {
         Some(t) => t.values().map(to_json).collect::<Result<Vec<Value>, HostError>>()?,
         None => Vec::new(),
@@ -355,7 +353,7 @@ fn json_map(t: &toml::Table) -> Result<serde_json::Map<String, Value>, HostError
 
 /// Whether the text parses to the tree wanted, compared as `jsonCanonical` compares (mcp.ts:1685).
 fn same_tree(lined: &str, want: &toml::Table) -> bool {
-    let Ok(parsed) = lined.parse::<toml::Table>() else {
+    let Ok(parsed) = parse_toml(lined) else {
         return false;
     };
     match (to_json(&toml::Value::Table(parsed)), to_json(&toml::Value::Table(want.clone()))) {
