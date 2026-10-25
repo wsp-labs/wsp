@@ -37,7 +37,7 @@ impl ProviderSlot {
 }
 
 /// Forwards every method, the optional ones and `offers()` included, to `current()` at the moment of the call.
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for ProviderSlot {
     fn capabilities(&self) -> Capabilities {
         todo!()

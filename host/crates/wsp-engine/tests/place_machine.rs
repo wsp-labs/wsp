@@ -34,7 +34,7 @@ const MAX_MS: u64 = EXEC_TIMEOUT_MAX_MS as u64;
 /// detached run, and exit 0 for everything else.
 fn link<F>(answer: F) -> Arc<FakeLink>
 where
-    F: Fn(&str) -> Option<ExecResult> + Send + Sync + 'static,
+    F: Fn(&str) -> Option<ExecResult> + 'static,
 {
     FakeLink::new(move |sent| {
         let cmd = sent.params.get("cmd").and_then(Value::as_str).unwrap_or("");
@@ -166,7 +166,7 @@ async fn is_launched_under_wsps_own_folder_on_that_computer() {
     let l = plain_link();
     let run = RunOptions { deadline_ms: 60_000, poll_ms: Some(1), ..Default::default() };
     let got = machine_on(&l).run("apt-get install -y -qq jq", run).await.unwrap();
-    assert_eq!(got.exit_code, 0);
+    assert_eq!(got.exit_code, 0.into());
     let sent = l.sent();
     let launch = sent.iter().find(|s| cmd_of(s).contains("echo WSP_LAUNCHED")).unwrap();
     assert!(cmd_of(launch).contains(&format!("b={}/", place_provision_paths(HOME).run_dir)));

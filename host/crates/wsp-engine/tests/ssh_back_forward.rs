@@ -133,7 +133,7 @@ fn fake_child() -> (HeldChild, Fake) {
             log.lock().unwrap().push(signal.to_string());
             true
         }),
-        exit: async move { end_rx.await.unwrap_or_else(|_| ChildEnd::Failed("the test dropped the child".to_string())) }.boxed(),
+        exit: async move { end_rx.await.unwrap_or_else(|_| ChildEnd::Failed("the test dropped the child".to_string())) }.boxed_local(),
     };
     (child, Fake { stdout: Some(stdout_w), stderr: Some(stderr_w), stdin: stdin_r, killed, end: Some(end_tx) })
 }

@@ -16,13 +16,13 @@ use std::time::{Duration, Instant};
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use futures::FutureExt;
 use indexmap::IndexMap;
 use roads_common::*;
 use serde_json::json;
 use tempfile::TempDir;
-use tokio_util::sync::CancellationToken;
+use wsp_engine::cancel::Cancel;
 
 use wsp_engine::errors::{Carried as CarriedFields, EngineError, ErrorKind, Result, WspError};
 use wsp_engine::exec_detached::{
@@ -434,7 +434,7 @@ fn append_key(cmd: &str, mark: &str) -> String {
 /// A wrapper machine named `id` whose exec is `f`, which is handed the machine it wraps.
 fn delegating<F>(id: &str, inner: Arc<dyn Machine>, f: F) -> Arc<ScriptedMachine>
 where
-    F: Fn(Arc<dyn Machine>, String, ExecOptions) -> BoxFuture<'static, Result<ExecResult>> + Send + Sync + 'static,
+    F: Fn(Arc<dyn Machine>, String, ExecOptions) -> LocalBoxFuture<'static, Result<ExecResult>> + 'static,
 {
     let f = Arc::new(f);
     ScriptedMachine::with_future(id, Arc::new(move |cmd: &str, o: &ExecOptions| f(inner.clone(), cmd.to_string(), o.clone())))
@@ -452,7 +452,7 @@ fn twice(machine: Arc<dyn Machine>, mark: &'static str) -> Arc<ScriptedMachine> 
                 Ok(first)
             }
         }
-        .boxed()
+        .boxed_local()
     })
 }
 
@@ -471,7 +471,7 @@ async fn launches_the_script_detached_reads_both_streams_from_where_the_last_pol
     let g = guest(vec![Step::new().out("one\ntw"), Step::new().out("o\nthree\n").err("warn\n"), Step::new().exit(3)]);
     let (on_line, lines) = collecting();
     let res = exec_detached(&*g.machine, "brew install gh", RunOptions { on_line: Some(on_line), ..run_opts(10_000, 1) }).await.unwrap();
-    assert_eq!(res, ExecResult { exit_code: 3, stdout: "one\ntwo\nthree\n".to_string(), stderr: "warn\n".to_string() });
+    assert_eq!(res, ExecResult { exit_code: 3.into(), stdout: "one\ntwo\nthree\n".to_string(), stderr: "warn\n".to_string() });
     assert_eq!(*lines.lock().unwrap(), texts(&["one", "two", "three", "warn"]));
     assert_eq!(g.script().as_deref(), Some("brew install gh"));
     assert_eq!(g.polls(), vec![(0, 0), (6, 0), (14, 5)]);
@@ -514,7 +514,7 @@ async fn past_the_deadline_it_kills_the_recorded_pid_with_its_group() {
     let t0 = Instant::now();
     let res = exec_detached(&*g.machine, "sleep 999", run_opts(40, 1)).await.unwrap();
     assert!(t0.elapsed() < Duration::from_millis(2_000), "{:?}", t0.elapsed());
-    assert_eq!(res.exit_code, DEADLINE_EXIT);
+    assert_eq!(res.exit_code, DEADLINE_EXIT.into());
     assert_eq!(res.stdout, "started\n");
     let kills = g.kills();
     assert_eq!(kills.len(), 1);
@@ -527,7 +527,7 @@ async fn past_the_deadline_it_kills_the_recorded_pid_with_its_group() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_cancel_kills_the_recorded_group_cleans_up_and_answers_at_once() {
     let g = guest(vec![Step::new().out("started\n"), Step::new(), Step::new(), Step::new(), Step::new(), Step::new()]);
-    let cancel = CancellationToken::new();
+    let cancel = Cancel::new();
     let on_line_cancel = cancel.clone();
     let t0 = Instant::now();
     let res = exec_detached(
@@ -535,23 +535,23 @@ async fn a_cancel_kills_the_recorded_group_cleans_up_and_answers_at_once() {
         "sleep 999",
         RunOptions {
             signal: Some(cancel.clone()),
-            on_line: Some(Arc::new(move |_l: &str| on_line_cancel.cancel())),
+            on_line: Some(Arc::new(move |_l: &str| on_line_cancel.cancel(None))),
             ..run_opts(60_000, 200)
         },
     )
     .await
     .unwrap();
     assert!(t0.elapsed() < Duration::from_millis(2_000), "{:?}", t0.elapsed());
-    assert_eq!(res.exit_code, CANCELLED_EXIT);
+    assert_eq!(res.exit_code, CANCELLED_EXIT.into());
     assert_eq!(res.stdout, "started\n");
     assert_eq!(g.kills().len(), 1);
     assert_eq!(g.cleaned(), 1);
 
     let before = guest(vec![Step::new().exit(0)]);
-    let gone = CancellationToken::new();
-    gone.cancel();
+    let gone = Cancel::new();
+    gone.cancel(None);
     let res = exec_detached(&*before.machine, "true", RunOptions { signal: Some(gone), ..run_opts(10_000, 1) }).await.unwrap();
-    assert_eq!(res.exit_code, CANCELLED_EXIT);
+    assert_eq!(res.exit_code, CANCELLED_EXIT.into());
     assert!(before.calls().is_empty(), "{:?}", before.machine.cmds());
 }
 
@@ -559,16 +559,16 @@ async fn a_cancel_kills_the_recorded_group_cleans_up_and_answers_at_once() {
 async fn a_cancel_during_the_pause_between_polls_cuts_the_pause_short() {
     // A poll that fails while the machine naps is retried a whole poll_ms later, the longest pause the loop takes.
     let g = guest(vec![Step::new().nap(), Step::new().nap()]);
-    let cancel = CancellationToken::new();
+    let cancel = Cancel::new();
     let later = cancel.clone();
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(50)).await;
-        later.cancel();
+        later.cancel(None);
     });
     let t0 = Instant::now();
     let res = exec_detached(&*g.machine, "sleep 999", RunOptions { signal: Some(cancel), ..run_opts(600_000, 60_000) }).await.unwrap();
     assert!(t0.elapsed() < Duration::from_millis(1_000), "{:?}", t0.elapsed());
-    assert_eq!(res.exit_code, CANCELLED_EXIT);
+    assert_eq!(res.exit_code, CANCELLED_EXIT.into());
     assert_eq!(g.kills().len(), 1);
 }
 
@@ -576,7 +576,7 @@ async fn a_cancel_during_the_pause_between_polls_cuts_the_pause_short() {
 async fn a_poll_that_fails_while_the_machine_naps_is_retried() {
     let g = guest(vec![Step::new().out("before\n"), Step::new().nap(), Step::new().nap(), Step::new().out("after\n").exit(0)]);
     let res = exec_detached(&*g.machine, "true", run_opts(10_000, 1)).await.unwrap();
-    assert_eq!(res, ExecResult { exit_code: 0, stdout: "before\nafter\n".to_string(), stderr: String::new() });
+    assert_eq!(res, ExecResult { exit_code: 0.into(), stdout: "before\nafter\n".to_string(), stderr: String::new() });
     assert_eq!(g.calls().iter().filter(|c| is_poll(c)).count(), 4);
 }
 
@@ -626,7 +626,7 @@ async fn a_poll_that_meets_a_machine_the_provider_stopped() {
 async fn a_nap_that_outlasts_the_deadline_still_ends_in_124() {
     let g = guest((0..200).map(|_| Step::new().nap()).collect());
     let res = exec_detached(&*g.machine, "true", run_opts(30, 1)).await.unwrap();
-    assert_eq!(res.exit_code, DEADLINE_EXIT);
+    assert_eq!(res.exit_code, DEADLINE_EXIT.into());
 }
 
 #[tokio::test]
@@ -634,7 +634,7 @@ async fn a_leader_gone_without_an_exit_file_answers_minus_one() {
     let g = guest(vec![Step::new().out("partial"), Step::new().dead()]);
     let (on_line, lines) = collecting();
     let res = exec_detached(&*g.machine, "true", RunOptions { on_line: Some(on_line), ..run_opts(10_000, 1) }).await.unwrap();
-    assert_eq!(res.exit_code, -1);
+    assert_eq!(res.exit_code, (-1).into());
     assert_eq!(res.stdout, "partial");
     assert!(res.stderr.contains("ended without reporting an exit code"), "{:?}", res.stderr);
     assert_eq!(*lines.lock().unwrap(), texts(&["partial"]));
@@ -668,7 +668,7 @@ async fn a_40_kb_script_goes_up_in_pieces() {
     assert!(big.len() > 40_000);
     let g = guest(vec![Step::new().out("x\n").exit(0)]);
     let res = exec_detached(&*g.machine, &big, run_opts(10_000, 1)).await.unwrap();
-    assert_eq!(res.exit_code, 0);
+    assert_eq!(res.exit_code, 0.into());
     assert_eq!(g.script(), Some(big));
     let calls = g.calls();
     let launch = launch_calls(&calls);
@@ -1030,7 +1030,7 @@ fn local_guest(default_mask: Option<u32>) -> Local {
                     .map_err(|e| plain(&e.to_string()))?;
                 Ok(res(out.status.code().unwrap_or(1) as i64, &String::from_utf8_lossy(&out.stdout), &String::from_utf8_lossy(&out.stderr)))
             }
-            .boxed()
+            .boxed_local()
         }),
     );
     let run_dir = dir.path().join("run").to_string_lossy().into_owned();
@@ -1061,7 +1061,7 @@ async fn runs_the_real_launch_poll_and_cleanup_commands() {
     )
     .await
     .unwrap();
-    assert_eq!(res, ExecResult { exit_code: 3, stdout: "one\ntwo\n".to_string(), stderr: "warn\n".to_string() });
+    assert_eq!(res, ExecResult { exit_code: 3.into(), stdout: "one\ntwo\n".to_string(), stderr: "warn\n".to_string() });
     // A poll reads stdout then stderr, so where warn lands among the lines is timing; each stream keeps its order.
     let lines = lines.lock().unwrap().clone();
     assert_eq!(lines.iter().filter(|l| *l != "warn").cloned().collect::<Vec<_>>(), texts(&["one", "two"]));
@@ -1081,7 +1081,7 @@ async fn the_script_and_the_streams_of_a_run_are_readable_by_nobody_but_their_ow
     )
     .await
     .unwrap();
-    assert_eq!(res, ExecResult { exit_code: 0, stdout: "running\n".to_string(), stderr: String::new() });
+    assert_eq!(res, ExecResult { exit_code: 0.into(), stdout: "running\n".to_string(), stderr: String::new() });
     assert_eq!(
         [seen.of(".sh"), seen.of(".out"), seen.of(".err")],
         [Some("600".to_string()), Some("600".to_string()), Some("600".to_string())]
@@ -1098,9 +1098,9 @@ async fn a_detached_script_creates_files_as_its_own_shell_would() {
         exec_detached_in(&*local.machine, &script, RunOptions { on_line: Some(seen.on_line()), ..run_opts(20_000, 50) }, &local.run_dir)
             .await
             .unwrap();
-    assert_eq!(res.exit_code, 0);
+    assert_eq!(res.exit_code, 0.into());
     let outside = local.machine.exec(&format!("cd {} && touch ref && mkdir refd", local.run_dir), ExecOptions::default()).await.unwrap();
-    assert_eq!(outside.exit_code, 0);
+    assert_eq!(outside.exit_code, 0.into());
     // What the script makes is what a command outside the run makes: the road lends it no mask of its own.
     let at = |name: &str| mode_of(Path::new(&local.run_dir).join(name));
     assert_eq!([at("made"), at("dir")], [at("ref"), at("refd")]);
@@ -1135,7 +1135,7 @@ async fn a_launch_that_lands_its_script_and_then_fails_leaves_nothing() {
             assert_eq!(scripts, 1);
             Ok(ExecResult { stdout: String::new(), ..landed })
         }
-        .boxed()
+        .boxed_local()
     });
     let e = failure(exec_detached_in(&*watched, "true", run_opts(1_000, 1), &local.run_dir)).await;
     assert!(e.to_string().contains("launch failed"), "{e}");
@@ -1149,7 +1149,7 @@ async fn a_launch_posted_twice_under_one_base_starts_the_script_once() {
     let marks = format!("{}/../marks", local.run_dir);
     let retrying = twice(local.machine.clone(), "echo WSP_LAUNCHED");
     let res = exec_detached_in(&*retrying, &format!("echo ran >> {marks}; echo hi"), run_opts(20_000, 50), &local.run_dir).await.unwrap();
-    assert_eq!(res, ExecResult { exit_code: 0, stdout: "hi\n".to_string(), stderr: String::new() });
+    assert_eq!(res, ExecResult { exit_code: 0.into(), stdout: "hi\n".to_string(), stderr: String::new() });
     assert_eq!(fs::read_to_string(&marks).unwrap(), "ran\n");
     assert_eq!(local.ls().await, "");
 }
@@ -1159,7 +1159,7 @@ async fn a_script_over_the_cap_runs_for_real_from_its_pieces() {
     let local = local_guest(None);
     let retrying = twice(local.machine.clone(), "echo WSP_PIECE");
     let res = exec_detached_in(&*retrying, &format!("{}\necho tail", big_script()), run_opts(20_000, 50), &local.run_dir).await.unwrap();
-    assert_eq!(res.exit_code, 0);
+    assert_eq!(res.exit_code, 0.into());
     assert_eq!(res.stderr, "");
     let lines: Vec<&str> = res.stdout.split('\n').collect();
     assert_eq!(lines[lines.len() - 3..], [format!("line 479 it's ünïcödé {}", "y".repeat(50)).as_str(), "tail", ""]);
@@ -1254,10 +1254,10 @@ async fn the_deadline_kill_ends_the_launched_session_for_real() {
                 }
                 Ok(res)
             }
-            .boxed()
+            .boxed_local()
         });
         let res = exec_detached_in(&*settled, "echo pid $$; sleep 30", run_opts(800, 50), &local.run_dir).await.unwrap();
-        assert_eq!(res.exit_code, DEADLINE_EXIT);
+        assert_eq!(res.exit_code, DEADLINE_EXIT.into());
         let digits: String = res.stdout.split("pid ").nth(1).unwrap_or("").chars().take_while(char::is_ascii_digit).collect();
         let pid: u32 = digits.parse().unwrap_or(0);
         assert!(pid > 0, "no pid in {:?}", res.stdout);

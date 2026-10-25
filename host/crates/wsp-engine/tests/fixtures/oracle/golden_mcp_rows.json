@@ -1,0 +1,2954 @@
+{
+  "plan": {
+    "agents": [
+      {
+        "id": "claude",
+        "label": "Claude Code",
+        "scopes": [
+          {
+            "files": [
+              "/root/.claude-cfg/.claude.json"
+            ],
+            "format": "McpServersJson",
+            "keep": [
+              "github",
+              "gsc",
+              "survivor",
+              "local"
+            ],
+            "drop": [
+              {
+                "name": "notes",
+                "reason": "macOS-only"
+              }
+            ]
+          },
+          {
+            "files": [
+              "/root/.claude-cfg/.claude.json"
+            ],
+            "format": "McpServersJson",
+            "project": {
+              "from": "/Users/dev",
+              "to": "/root"
+            },
+            "keep": [
+              "zomato",
+              "whatsapp"
+            ],
+            "drop": []
+          }
+        ],
+        "aside": []
+      },
+      {
+        "id": "codex",
+        "label": "Codex",
+        "scopes": [
+          {
+            "files": [
+              "/root/.codex/config.toml",
+              "/root/.codex/alt.toml"
+            ],
+            "format": "CodexToml",
+            "keep": [
+              "grafana",
+              "keeper"
+            ],
+            "drop": [
+              {
+                "name": "sentry",
+                "reason": "unticked",
+                "keys": [
+                  "SENTRY_TOKEN"
+                ]
+              }
+            ]
+          }
+        ],
+        "aside": []
+      },
+      {
+        "id": "opencode",
+        "label": "OpenCode",
+        "scopes": [
+          {
+            "files": [
+              "/root/.config/opencode/opencode.json"
+            ],
+            "format": "OpencodeJson",
+            "keep": [
+              "ctx"
+            ],
+            "drop": []
+          }
+        ],
+        "aside": [
+          {
+            "id": "agents/mcp/opencode/late",
+            "name": "late",
+            "reason": "OpenCode is not ticked, so its config did not travel"
+          }
+        ]
+      }
+    ],
+    "guestHome": "/root",
+    "rewrites": [
+      [
+        "/Users/dev/",
+        "/root/"
+      ],
+      [
+        "/opt/homebrew/",
+        "/home/linuxbrew/.linuxbrew/"
+      ]
+    ],
+    "binDirs": [
+      "/Users/dev/.local/bin/",
+      "~/.local/bin/",
+      "/opt/homebrew/bin/",
+      "/opt/homebrew/sbin/"
+    ],
+    "tools": [
+      {
+        "id": "tools/brew/survivor-bin",
+        "ticked": false,
+        "reason": "unticked by you"
+      },
+      {
+        "id": "tools/npm/keeper",
+        "ticked": true
+      },
+      {
+        "id": "tools/cargo/local-mcp",
+        "ticked": true
+      }
+    ]
+  },
+  "FETCHERS": {
+    "npx": "npx",
+    "uvx": "uv",
+    "uv": "uv"
+  },
+  "report": [
+    {
+      "file": "/root/.claude-cfg/.claude.json",
+      "results": [
+        {
+          "name": "github",
+          "outcome": "written",
+          "command": "npx"
+        },
+        {
+          "name": "gsc",
+          "outcome": "written",
+          "command": "uvx"
+        },
+        {
+          "name": "survivor",
+          "outcome": "written",
+          "command": "survivor-bin"
+        },
+        {
+          "name": "local",
+          "outcome": "written",
+          "command": "local-mcp"
+        },
+        {
+          "name": "notes",
+          "outcome": "dropped"
+        }
+      ]
+    },
+    {
+      "file": "/root/.claude-cfg/.claude.json",
+      "results": [
+        {
+          "name": "zomato",
+          "outcome": "written",
+          "command": "npx"
+        },
+        {
+          "name": "whatsapp",
+          "outcome": "missing"
+        }
+      ]
+    },
+    {
+      "file": "/root/.codex/config.toml",
+      "results": [
+        {
+          "name": "grafana",
+          "outcome": "written",
+          "command": "/home/linuxbrew/.linuxbrew/bin/uvx"
+        },
+        {
+          "name": "keeper",
+          "outcome": "written",
+          "command": "~/.local/bin/keeper"
+        },
+        {
+          "name": "sentry",
+          "outcome": "dropped"
+        }
+      ]
+    },
+    {
+      "file": null,
+      "results": []
+    }
+  ],
+  "absentCommands": [
+    {
+      "name": "two commands missing",
+      "report": [
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [
+            {
+              "name": "github",
+              "outcome": "written",
+              "command": "npx"
+            },
+            {
+              "name": "gsc",
+              "outcome": "written",
+              "command": "uvx"
+            },
+            {
+              "name": "survivor",
+              "outcome": "written",
+              "command": "survivor-bin"
+            },
+            {
+              "name": "local",
+              "outcome": "written",
+              "command": "local-mcp"
+            },
+            {
+              "name": "notes",
+              "outcome": "dropped"
+            }
+          ]
+        },
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [
+            {
+              "name": "zomato",
+              "outcome": "written",
+              "command": "npx"
+            },
+            {
+              "name": "whatsapp",
+              "outcome": "missing"
+            }
+          ]
+        },
+        {
+          "file": "/root/.codex/config.toml",
+          "results": [
+            {
+              "name": "grafana",
+              "outcome": "written",
+              "command": "/home/linuxbrew/.linuxbrew/bin/uvx"
+            },
+            {
+              "name": "keeper",
+              "outcome": "written",
+              "command": "~/.local/bin/keeper"
+            },
+            {
+              "name": "sentry",
+              "outcome": "dropped"
+            }
+          ]
+        },
+        {
+          "file": null,
+          "results": []
+        }
+      ],
+      "path": null,
+      "out": [
+        "uvx",
+        "survivor-bin",
+        "/root/.local/bin/keeper"
+      ],
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v 'npx' >/dev/null 2>&1; then echo 'ok npx'; else echo 'no npx'; fi\nif command -v 'uvx' >/dev/null 2>&1; then echo 'ok uvx'; else echo 'no uvx'; fi\nif command -v 'survivor-bin' >/dev/null 2>&1; then echo 'ok survivor-bin'; else echo 'no survivor-bin'; fi\nif command -v 'local-mcp' >/dev/null 2>&1; then echo 'ok local-mcp'; else echo 'no local-mcp'; fi\nif command -v '/home/linuxbrew/.linuxbrew/bin/uvx' >/dev/null 2>&1; then echo 'ok /home/linuxbrew/.linuxbrew/bin/uvx'; else echo 'no /home/linuxbrew/.linuxbrew/bin/uvx'; fi\nif command -v '/root/.local/bin/keeper' >/dev/null 2>&1; then echo 'ok /root/.local/bin/keeper'; else echo 'no /root/.local/bin/keeper'; fi",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "no command at all asks nothing",
+      "report": [
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [
+            {
+              "name": "a",
+              "outcome": "written"
+            }
+          ]
+        }
+      ],
+      "path": null,
+      "out": [],
+      "calls": []
+    },
+    {
+      "name": "a check the machine refuses drops nothing",
+      "report": [
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [
+            {
+              "name": "github",
+              "outcome": "written",
+              "command": "npx"
+            },
+            {
+              "name": "gsc",
+              "outcome": "written",
+              "command": "uvx"
+            },
+            {
+              "name": "survivor",
+              "outcome": "written",
+              "command": "survivor-bin"
+            },
+            {
+              "name": "local",
+              "outcome": "written",
+              "command": "local-mcp"
+            },
+            {
+              "name": "notes",
+              "outcome": "dropped"
+            }
+          ]
+        },
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [
+            {
+              "name": "zomato",
+              "outcome": "written",
+              "command": "npx"
+            },
+            {
+              "name": "whatsapp",
+              "outcome": "missing"
+            }
+          ]
+        },
+        {
+          "file": "/root/.codex/config.toml",
+          "results": [
+            {
+              "name": "grafana",
+              "outcome": "written",
+              "command": "/home/linuxbrew/.linuxbrew/bin/uvx"
+            },
+            {
+              "name": "keeper",
+              "outcome": "written",
+              "command": "~/.local/bin/keeper"
+            },
+            {
+              "name": "sentry",
+              "outcome": "dropped"
+            }
+          ]
+        },
+        {
+          "file": null,
+          "results": []
+        }
+      ],
+      "path": "/custom/bin",
+      "out": [],
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "export PATH=/custom/bin\nif command -v 'npx' >/dev/null 2>&1; then echo 'ok npx'; else echo 'no npx'; fi\nif command -v 'uvx' >/dev/null 2>&1; then echo 'ok uvx'; else echo 'no uvx'; fi\nif command -v 'survivor-bin' >/dev/null 2>&1; then echo 'ok survivor-bin'; else echo 'no survivor-bin'; fi\nif command -v 'local-mcp' >/dev/null 2>&1; then echo 'ok local-mcp'; else echo 'no local-mcp'; fi\nif command -v '/home/linuxbrew/.linuxbrew/bin/uvx' >/dev/null 2>&1; then echo 'ok /home/linuxbrew/.linuxbrew/bin/uvx'; else echo 'no /home/linuxbrew/.linuxbrew/bin/uvx'; fi\nif command -v '/root/.local/bin/keeper' >/dev/null 2>&1; then echo 'ok /root/.local/bin/keeper'; else echo 'no /root/.local/bin/keeper'; fi",
+          "timeoutMs": 20000
+        }
+      ]
+    }
+  ],
+  "asRun": [
+    {
+      "command": "~/.local/bin/x",
+      "out": "/root/.local/bin/x"
+    },
+    {
+      "command": "~x",
+      "out": "~x"
+    },
+    {
+      "command": "/abs",
+      "out": "/abs"
+    },
+    {
+      "command": "npx",
+      "out": "npx"
+    }
+  ],
+  "absentReason": [
+    {
+      "command": "survivor-bin",
+      "tools": [
+        {
+          "id": "tools/npm/keeper",
+          "label": "keeper",
+          "outcome": "failed",
+          "note": "npm broke"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "label": "local-mcp",
+          "outcome": "installed"
+        }
+      ],
+      "out": "command not on the machine; tools/brew/survivor-bin was not ticked (unticked by you)"
+    },
+    {
+      "command": "/x/keeper",
+      "tools": [
+        {
+          "id": "tools/npm/keeper",
+          "label": "keeper",
+          "outcome": "failed",
+          "note": "npm broke"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "label": "local-mcp",
+          "outcome": "installed"
+        }
+      ],
+      "out": "command not on the machine; tools/npm/keeper failed (npm broke)"
+    },
+    {
+      "command": "local-mcp",
+      "tools": [
+        {
+          "id": "tools/npm/keeper",
+          "label": "keeper",
+          "outcome": "failed",
+          "note": "npm broke"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "label": "local-mcp",
+          "outcome": "installed"
+        }
+      ],
+      "out": "command not on the machine; tools/cargo/local-mcp was ticked, but nothing by that name is on PATH"
+    },
+    {
+      "command": "nothing-here",
+      "tools": [
+        {
+          "id": "tools/npm/keeper",
+          "label": "keeper",
+          "outcome": "failed",
+          "note": "npm broke"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "label": "local-mcp",
+          "outcome": "installed"
+        }
+      ],
+      "out": "command not on the machine"
+    },
+    {
+      "command": "/opt/homebrew/bin/gh",
+      "tools": [
+        {
+          "id": "tools/npm/keeper",
+          "label": "keeper",
+          "outcome": "failed",
+          "note": "npm broke"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "label": "local-mcp",
+          "outcome": "installed"
+        }
+      ],
+      "out": "command not on the machine"
+    }
+  ],
+  "withoutAbsent": [
+    {
+      "missing": [
+        "uvx",
+        "survivor-bin",
+        "/root/.local/bin/keeper",
+        "local-mcp"
+      ],
+      "tools": [
+        {
+          "id": "tools/npm/keeper",
+          "label": "keeper",
+          "outcome": "failed",
+          "note": "npm broke"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "label": "local-mcp",
+          "outcome": "installed"
+        }
+      ],
+      "out": {
+        "agents": [
+          {
+            "id": "claude",
+            "label": "Claude Code",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "keep": [
+                  "github",
+                  "gsc"
+                ],
+                "drop": [
+                  {
+                    "name": "notes",
+                    "reason": "macOS-only"
+                  },
+                  {
+                    "name": "survivor",
+                    "reason": "command not on the machine; tools/brew/survivor-bin was not ticked (unticked by you)"
+                  },
+                  {
+                    "name": "local",
+                    "reason": "command not on the machine; tools/cargo/local-mcp was ticked, but nothing by that name is on PATH"
+                  }
+                ]
+              },
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "project": {
+                  "from": "/Users/dev",
+                  "to": "/root"
+                },
+                "keep": [
+                  "zomato",
+                  "whatsapp"
+                ],
+                "drop": []
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "codex",
+            "label": "Codex",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.codex/config.toml",
+                  "/root/.codex/alt.toml"
+                ],
+                "format": "CodexToml",
+                "keep": [
+                  "grafana"
+                ],
+                "drop": [
+                  {
+                    "name": "sentry",
+                    "reason": "unticked",
+                    "keys": [
+                      "SENTRY_TOKEN"
+                    ]
+                  },
+                  {
+                    "name": "keeper",
+                    "reason": "command not on the machine; tools/npm/keeper failed (npm broke)"
+                  }
+                ]
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "opencode",
+            "label": "OpenCode",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.config/opencode/opencode.json"
+                ],
+                "format": "OpencodeJson",
+                "keep": [
+                  "ctx"
+                ],
+                "drop": []
+              }
+            ],
+            "aside": [
+              {
+                "id": "agents/mcp/opencode/late",
+                "name": "late",
+                "reason": "OpenCode is not ticked, so its config did not travel"
+              }
+            ]
+          }
+        ],
+        "guestHome": "",
+        "rewrites": [],
+        "binDirs": [],
+        "tools": []
+      }
+    },
+    {
+      "missing": [],
+      "tools": [
+        {
+          "id": "tools/npm/keeper",
+          "label": "keeper",
+          "outcome": "failed",
+          "note": "npm broke"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "label": "local-mcp",
+          "outcome": "installed"
+        }
+      ],
+      "out": {
+        "agents": [
+          {
+            "id": "claude",
+            "label": "Claude Code",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "keep": [
+                  "github",
+                  "gsc",
+                  "survivor",
+                  "local"
+                ],
+                "drop": [
+                  {
+                    "name": "notes",
+                    "reason": "macOS-only"
+                  }
+                ]
+              },
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "project": {
+                  "from": "/Users/dev",
+                  "to": "/root"
+                },
+                "keep": [
+                  "zomato",
+                  "whatsapp"
+                ],
+                "drop": []
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "codex",
+            "label": "Codex",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.codex/config.toml",
+                  "/root/.codex/alt.toml"
+                ],
+                "format": "CodexToml",
+                "keep": [
+                  "grafana",
+                  "keeper"
+                ],
+                "drop": [
+                  {
+                    "name": "sentry",
+                    "reason": "unticked",
+                    "keys": [
+                      "SENTRY_TOKEN"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "opencode",
+            "label": "OpenCode",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.config/opencode/opencode.json"
+                ],
+                "format": "OpencodeJson",
+                "keep": [
+                  "ctx"
+                ],
+                "drop": []
+              }
+            ],
+            "aside": [
+              {
+                "id": "agents/mcp/opencode/late",
+                "name": "late",
+                "reason": "OpenCode is not ticked, so its config did not travel"
+              }
+            ]
+          }
+        ],
+        "guestHome": "",
+        "rewrites": [],
+        "binDirs": [],
+        "tools": []
+      }
+    },
+    {
+      "missing": [
+        "npx",
+        "uvx"
+      ],
+      "tools": [
+        {
+          "id": "tools/npm/keeper",
+          "label": "keeper",
+          "outcome": "failed",
+          "note": "npm broke"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "label": "local-mcp",
+          "outcome": "installed"
+        }
+      ],
+      "out": {
+        "agents": [
+          {
+            "id": "claude",
+            "label": "Claude Code",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "keep": [
+                  "github",
+                  "gsc",
+                  "survivor",
+                  "local"
+                ],
+                "drop": [
+                  {
+                    "name": "notes",
+                    "reason": "macOS-only"
+                  }
+                ]
+              },
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "project": {
+                  "from": "/Users/dev",
+                  "to": "/root"
+                },
+                "keep": [
+                  "zomato",
+                  "whatsapp"
+                ],
+                "drop": []
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "codex",
+            "label": "Codex",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.codex/config.toml",
+                  "/root/.codex/alt.toml"
+                ],
+                "format": "CodexToml",
+                "keep": [
+                  "grafana",
+                  "keeper"
+                ],
+                "drop": [
+                  {
+                    "name": "sentry",
+                    "reason": "unticked",
+                    "keys": [
+                      "SENTRY_TOKEN"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "opencode",
+            "label": "OpenCode",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.config/opencode/opencode.json"
+                ],
+                "format": "OpencodeJson",
+                "keep": [
+                  "ctx"
+                ],
+                "drop": []
+              }
+            ],
+            "aside": [
+              {
+                "id": "agents/mcp/opencode/late",
+                "name": "late",
+                "reason": "OpenCode is not ticked, so its config did not travel"
+              }
+            ]
+          }
+        ],
+        "guestHome": "",
+        "rewrites": [],
+        "binDirs": [],
+        "tools": []
+      }
+    }
+  ],
+  "mcpOpening": [
+    {
+      "agents": {
+        "agents": [
+          {
+            "id": "claude",
+            "label": "Claude Code",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "keep": [
+                  "github",
+                  "gsc",
+                  "survivor",
+                  "local"
+                ],
+                "drop": [
+                  {
+                    "name": "notes",
+                    "reason": "macOS-only"
+                  }
+                ]
+              },
+              {
+                "files": [
+                  "/root/.claude-cfg/.claude.json"
+                ],
+                "format": "McpServersJson",
+                "project": {
+                  "from": "/Users/dev",
+                  "to": "/root"
+                },
+                "keep": [
+                  "zomato",
+                  "whatsapp"
+                ],
+                "drop": []
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "codex",
+            "label": "Codex",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.codex/config.toml",
+                  "/root/.codex/alt.toml"
+                ],
+                "format": "CodexToml",
+                "keep": [
+                  "grafana",
+                  "keeper"
+                ],
+                "drop": [
+                  {
+                    "name": "sentry",
+                    "reason": "unticked",
+                    "keys": [
+                      "SENTRY_TOKEN"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "aside": []
+          },
+          {
+            "id": "opencode",
+            "label": "OpenCode",
+            "scopes": [
+              {
+                "files": [
+                  "/root/.config/opencode/opencode.json"
+                ],
+                "format": "OpencodeJson",
+                "keep": [
+                  "ctx"
+                ],
+                "drop": []
+              }
+            ],
+            "aside": [
+              {
+                "id": "agents/mcp/opencode/late",
+                "name": "late",
+                "reason": "OpenCode is not ticked, so its config did not travel"
+              }
+            ]
+          }
+        ],
+        "guestHome": "",
+        "rewrites": [],
+        "binDirs": [],
+        "tools": []
+      },
+      "out": "Claude Code 7, Codex 3, OpenCode 2"
+    },
+    {
+      "agents": [],
+      "out": ""
+    }
+  ],
+  "mcpRows": [
+    {
+      "name": "every kind of row, uv installed for the servers that need it",
+      "report": [
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [
+            {
+              "name": "github",
+              "outcome": "written",
+              "command": "npx"
+            },
+            {
+              "name": "gsc",
+              "outcome": "written",
+              "command": "uvx"
+            },
+            {
+              "name": "survivor",
+              "outcome": "written",
+              "command": "survivor-bin"
+            },
+            {
+              "name": "local",
+              "outcome": "written",
+              "command": "local-mcp"
+            },
+            {
+              "name": "notes",
+              "outcome": "dropped"
+            }
+          ]
+        },
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [
+            {
+              "name": "zomato",
+              "outcome": "written",
+              "command": "npx"
+            },
+            {
+              "name": "whatsapp",
+              "outcome": "missing"
+            }
+          ]
+        },
+        {
+          "file": "/root/.codex/config.toml",
+          "results": [
+            {
+              "name": "grafana",
+              "outcome": "written",
+              "command": "/home/linuxbrew/.linuxbrew/bin/uvx"
+            },
+            {
+              "name": "keeper",
+              "outcome": "written",
+              "command": "~/.local/bin/keeper"
+            },
+            {
+              "name": "sentry",
+              "outcome": "dropped"
+            }
+          ]
+        },
+        {
+          "file": null,
+          "results": []
+        }
+      ],
+      "missing": [
+        "uvx",
+        "survivor-bin"
+      ],
+      "present": [
+        "agents/mcp/claude/github"
+      ],
+      "rules": [
+        {
+          "has": "NR==2{print $4}",
+          "seq": [
+            {
+              "stdout": "9437184\n"
+            }
+          ]
+        },
+        {
+          "has": "uv",
+          "kind": "run",
+          "seq": [
+            {
+              "lines": [
+                "downloading uv"
+              ]
+            }
+          ]
+        }
+      ],
+      "failure": null,
+      "out": [
+        {
+          "id": "agents/mcp/claude/github",
+          "agent": "Claude Code",
+          "name": "github",
+          "outcome": "fetched-on-first-use",
+          "note": "npx fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/claude/gsc",
+          "agent": "Claude Code",
+          "name": "gsc",
+          "outcome": "fetched-on-first-use",
+          "note": "uv installed for it; uv fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/claude/survivor",
+          "agent": "Claude Code",
+          "name": "survivor",
+          "outcome": "installed",
+          "note": "survivor-bin is not on the machine; the server starts once it is installed there"
+        },
+        {
+          "id": "agents/mcp/claude/local",
+          "agent": "Claude Code",
+          "name": "local",
+          "outcome": "installed"
+        },
+        {
+          "id": "agents/mcp/claude/notes",
+          "agent": "Claude Code",
+          "name": "notes",
+          "outcome": "skipped",
+          "note": "macOS-only"
+        },
+        {
+          "id": "agents/mcp/claude/home/zomato",
+          "agent": "Claude Code",
+          "name": "zomato",
+          "outcome": "fetched-on-first-use",
+          "note": "npx fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/claude/home/whatsapp",
+          "agent": "Claude Code",
+          "name": "whatsapp",
+          "outcome": "skipped",
+          "note": "not in the config that travelled"
+        },
+        {
+          "id": "agents/mcp/codex/grafana",
+          "agent": "Codex",
+          "name": "grafana",
+          "outcome": "fetched-on-first-use",
+          "note": "uv fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/codex/keeper",
+          "agent": "Codex",
+          "name": "keeper",
+          "outcome": "installed"
+        },
+        {
+          "id": "agents/mcp/codex/sentry",
+          "agent": "Codex",
+          "name": "sentry",
+          "outcome": "skipped",
+          "note": "unticked",
+          "keys": [
+            "SENTRY_TOKEN"
+          ]
+        },
+        {
+          "id": "agents/mcp/opencode/ctx",
+          "agent": "OpenCode",
+          "name": "ctx",
+          "outcome": "skipped",
+          "note": "OpenCode's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/opencode/late",
+          "agent": "OpenCode",
+          "name": "late",
+          "outcome": "skipped",
+          "note": "OpenCode is not ticked, so its config did not travel"
+        }
+      ],
+      "stages": [
+        [
+          "installing-mcp",
+          "uv for gsc"
+        ],
+        [
+          "installing-mcp",
+          "uv: downloading uv"
+        ],
+        [
+          "installing-mcp",
+          "github already there; local, keeper installed; gsc: uv installed, package fetched on first use by uv; survivor: survivor-bin is not on the machine; zomato: package fetched on first use by npx; grafana: package fetched on first use by uv; notes skipped (macOS-only); whatsapp skipped (not in the config that travelled); sentry skipped (unticked); ctx skipped (OpenCode's config is not on the machine); late skipped (OpenCode is not ticked, so its config did not travel); 9 GB free"
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "run",
+          "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\nif ! command -v uv >/dev/null 2>&1; then\n  arch=\"$(uname -m)\"\n  case \"$arch\" in\n    x86_64) sha=ec7a99cd05e0cd7f80243f135ce1361c76835cb0ee60055d14d20eba8eba1460 ;;\n    aarch64) sha=c36fe17937ff6bd16dc42fc13854b5465999fcab2efe0af559381e945e3c6001 ;;\n    *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\n  esac\n  pkg=\"uv-$arch-unknown-linux-gnu.tar.gz\"\n  curl -o \"/tmp/$pkg\" \"https://github.com/astral-sh/uv/releases/download/0.12.9/$pkg\"\n  echo \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\n  tar -xzf \"/tmp/$pkg\" -C /tmp\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uv\" /usr/local/bin/uv\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uvx\" /usr/local/bin/uvx\n  rm -rf \"/tmp/$pkg\" \"/tmp/uv-$arch-unknown-linux-gnu\"\nfi' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+          "deadlineMs": 660000
+        },
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a failed uv install is named on every server that needed it",
+      "report": [
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [
+            {
+              "name": "github",
+              "outcome": "written",
+              "command": "npx"
+            },
+            {
+              "name": "gsc",
+              "outcome": "written",
+              "command": "uvx"
+            },
+            {
+              "name": "survivor",
+              "outcome": "written",
+              "command": "survivor-bin"
+            },
+            {
+              "name": "local",
+              "outcome": "written",
+              "command": "local-mcp"
+            },
+            {
+              "name": "notes",
+              "outcome": "dropped"
+            }
+          ]
+        },
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [
+            {
+              "name": "zomato",
+              "outcome": "written",
+              "command": "npx"
+            },
+            {
+              "name": "whatsapp",
+              "outcome": "missing"
+            }
+          ]
+        },
+        {
+          "file": "/root/.codex/config.toml",
+          "results": [
+            {
+              "name": "grafana",
+              "outcome": "written",
+              "command": "/home/linuxbrew/.linuxbrew/bin/uvx"
+            },
+            {
+              "name": "keeper",
+              "outcome": "written",
+              "command": "~/.local/bin/keeper"
+            },
+            {
+              "name": "sentry",
+              "outcome": "dropped"
+            }
+          ]
+        },
+        {
+          "file": null,
+          "results": []
+        }
+      ],
+      "missing": [
+        "uvx",
+        "/home/linuxbrew/.linuxbrew/bin/uvx"
+      ],
+      "present": [],
+      "rules": [
+        {
+          "has": "NR==2{print $4}",
+          "seq": [
+            {
+              "stdout": "9437184\n"
+            }
+          ]
+        },
+        {
+          "has": "uv",
+          "kind": "run",
+          "seq": [
+            {
+              "exit": 1,
+              "stderr": "curl: (22) 404\n"
+            }
+          ]
+        }
+      ],
+      "failure": null,
+      "out": [
+        {
+          "id": "agents/mcp/claude/github",
+          "agent": "Claude Code",
+          "name": "github",
+          "outcome": "fetched-on-first-use",
+          "note": "npx fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/claude/gsc",
+          "agent": "Claude Code",
+          "name": "gsc",
+          "outcome": "fetched-on-first-use",
+          "note": "uv did not install (curl: (22) 404); the server starts once it is installed there; uv fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/claude/survivor",
+          "agent": "Claude Code",
+          "name": "survivor",
+          "outcome": "installed"
+        },
+        {
+          "id": "agents/mcp/claude/local",
+          "agent": "Claude Code",
+          "name": "local",
+          "outcome": "installed"
+        },
+        {
+          "id": "agents/mcp/claude/notes",
+          "agent": "Claude Code",
+          "name": "notes",
+          "outcome": "skipped",
+          "note": "macOS-only"
+        },
+        {
+          "id": "agents/mcp/claude/home/zomato",
+          "agent": "Claude Code",
+          "name": "zomato",
+          "outcome": "fetched-on-first-use",
+          "note": "npx fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/claude/home/whatsapp",
+          "agent": "Claude Code",
+          "name": "whatsapp",
+          "outcome": "skipped",
+          "note": "not in the config that travelled"
+        },
+        {
+          "id": "agents/mcp/codex/grafana",
+          "agent": "Codex",
+          "name": "grafana",
+          "outcome": "fetched-on-first-use",
+          "note": "uv did not install (curl: (22) 404); the server starts once it is installed there; uv fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/codex/keeper",
+          "agent": "Codex",
+          "name": "keeper",
+          "outcome": "installed"
+        },
+        {
+          "id": "agents/mcp/codex/sentry",
+          "agent": "Codex",
+          "name": "sentry",
+          "outcome": "skipped",
+          "note": "unticked",
+          "keys": [
+            "SENTRY_TOKEN"
+          ]
+        },
+        {
+          "id": "agents/mcp/opencode/ctx",
+          "agent": "OpenCode",
+          "name": "ctx",
+          "outcome": "skipped",
+          "note": "OpenCode's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/opencode/late",
+          "agent": "OpenCode",
+          "name": "late",
+          "outcome": "skipped",
+          "note": "OpenCode is not ticked, so its config did not travel"
+        }
+      ],
+      "stages": [
+        [
+          "installing-mcp",
+          "uv for gsc, grafana"
+        ],
+        [
+          "installing-mcp",
+          "survivor, local, keeper installed; github, zomato: package fetched on first use by npx; gsc, grafana: uv did not install (curl: (22) 404), package fetched on first use by uv; notes skipped (macOS-only); whatsapp skipped (not in the config that travelled); sentry skipped (unticked); ctx skipped (OpenCode's config is not on the machine); late skipped (OpenCode is not ticked, so its config did not travel); 9 GB free"
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "run",
+          "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\nif ! command -v uv >/dev/null 2>&1; then\n  arch=\"$(uname -m)\"\n  case \"$arch\" in\n    x86_64) sha=ec7a99cd05e0cd7f80243f135ce1361c76835cb0ee60055d14d20eba8eba1460 ;;\n    aarch64) sha=c36fe17937ff6bd16dc42fc13854b5465999fcab2efe0af559381e945e3c6001 ;;\n    *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\n  esac\n  pkg=\"uv-$arch-unknown-linux-gnu.tar.gz\"\n  curl -o \"/tmp/$pkg\" \"https://github.com/astral-sh/uv/releases/download/0.12.9/$pkg\"\n  echo \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\n  tar -xzf \"/tmp/$pkg\" -C /tmp\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uv\" /usr/local/bin/uv\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uvx\" /usr/local/bin/uvx\n  rm -rf \"/tmp/$pkg\" \"/tmp/uv-$arch-unknown-linux-gnu\"\nfi' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+          "deadlineMs": 660000
+        },
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a failure skips every kept server with its words",
+      "report": [
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [
+            {
+              "name": "github",
+              "outcome": "written",
+              "command": "npx"
+            },
+            {
+              "name": "gsc",
+              "outcome": "written",
+              "command": "uvx"
+            },
+            {
+              "name": "survivor",
+              "outcome": "written",
+              "command": "survivor-bin"
+            },
+            {
+              "name": "local",
+              "outcome": "written",
+              "command": "local-mcp"
+            },
+            {
+              "name": "notes",
+              "outcome": "dropped"
+            }
+          ]
+        },
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [
+            {
+              "name": "zomato",
+              "outcome": "written",
+              "command": "npx"
+            },
+            {
+              "name": "whatsapp",
+              "outcome": "missing"
+            }
+          ]
+        },
+        {
+          "file": "/root/.codex/config.toml",
+          "results": [
+            {
+              "name": "grafana",
+              "outcome": "written",
+              "command": "/home/linuxbrew/.linuxbrew/bin/uvx"
+            },
+            {
+              "name": "keeper",
+              "outcome": "written",
+              "command": "~/.local/bin/keeper"
+            },
+            {
+              "name": "sentry",
+              "outcome": "dropped"
+            }
+          ]
+        },
+        {
+          "file": null,
+          "results": []
+        }
+      ],
+      "failure": "the config edit did not run (exit 2)",
+      "missing": [],
+      "present": [],
+      "rules": [
+        {
+          "has": "NR==2{print $4}",
+          "seq": [
+            {
+              "exit": 1
+            }
+          ]
+        }
+      ],
+      "out": [
+        {
+          "id": "agents/mcp/claude/github",
+          "agent": "Claude Code",
+          "name": "github",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 2)"
+        },
+        {
+          "id": "agents/mcp/claude/gsc",
+          "agent": "Claude Code",
+          "name": "gsc",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 2)"
+        },
+        {
+          "id": "agents/mcp/claude/survivor",
+          "agent": "Claude Code",
+          "name": "survivor",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 2)"
+        },
+        {
+          "id": "agents/mcp/claude/local",
+          "agent": "Claude Code",
+          "name": "local",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 2)"
+        },
+        {
+          "id": "agents/mcp/claude/notes",
+          "agent": "Claude Code",
+          "name": "notes",
+          "outcome": "skipped",
+          "note": "macOS-only"
+        },
+        {
+          "id": "agents/mcp/claude/home/zomato",
+          "agent": "Claude Code",
+          "name": "zomato",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 2)"
+        },
+        {
+          "id": "agents/mcp/claude/home/whatsapp",
+          "agent": "Claude Code",
+          "name": "whatsapp",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 2)"
+        },
+        {
+          "id": "agents/mcp/codex/grafana",
+          "agent": "Codex",
+          "name": "grafana",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 2)"
+        },
+        {
+          "id": "agents/mcp/codex/keeper",
+          "agent": "Codex",
+          "name": "keeper",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 2)"
+        },
+        {
+          "id": "agents/mcp/codex/sentry",
+          "agent": "Codex",
+          "name": "sentry",
+          "outcome": "skipped",
+          "note": "unticked",
+          "keys": [
+            "SENTRY_TOKEN"
+          ]
+        },
+        {
+          "id": "agents/mcp/opencode/ctx",
+          "agent": "OpenCode",
+          "name": "ctx",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 2)"
+        },
+        {
+          "id": "agents/mcp/opencode/late",
+          "agent": "OpenCode",
+          "name": "late",
+          "outcome": "skipped",
+          "note": "OpenCode is not ticked, so its config did not travel"
+        }
+      ],
+      "stages": [
+        [
+          "installing-mcp",
+          "github skipped (the config edit did not run (exit 2)); gsc skipped (the config edit did not run (exit 2)); survivor skipped (the config edit did not run (exit 2)); local skipped (the config edit did not run (exit 2)); notes skipped (macOS-only); zomato skipped (the config edit did not run (exit 2)); whatsapp skipped (the config edit did not run (exit 2)); grafana skipped (the config edit did not run (exit 2)); keeper skipped (the config edit did not run (exit 2)); sentry skipped (unticked); ctx skipped (the config edit did not run (exit 2)); late skipped (OpenCode is not ticked, so its config did not travel)"
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "no report: every config is not on the machine",
+      "report": null,
+      "missing": [],
+      "present": [],
+      "rules": [
+        {
+          "has": "NR==2{print $4}",
+          "seq": [
+            {
+              "throws": "df rejected"
+            }
+          ]
+        }
+      ],
+      "failure": null,
+      "out": [
+        {
+          "id": "agents/mcp/claude/github",
+          "agent": "Claude Code",
+          "name": "github",
+          "outcome": "skipped",
+          "note": "Claude Code's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/claude/gsc",
+          "agent": "Claude Code",
+          "name": "gsc",
+          "outcome": "skipped",
+          "note": "Claude Code's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/claude/survivor",
+          "agent": "Claude Code",
+          "name": "survivor",
+          "outcome": "skipped",
+          "note": "Claude Code's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/claude/local",
+          "agent": "Claude Code",
+          "name": "local",
+          "outcome": "skipped",
+          "note": "Claude Code's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/claude/notes",
+          "agent": "Claude Code",
+          "name": "notes",
+          "outcome": "skipped",
+          "note": "macOS-only"
+        },
+        {
+          "id": "agents/mcp/claude/home/zomato",
+          "agent": "Claude Code",
+          "name": "zomato",
+          "outcome": "skipped",
+          "note": "Claude Code's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/claude/home/whatsapp",
+          "agent": "Claude Code",
+          "name": "whatsapp",
+          "outcome": "skipped",
+          "note": "Claude Code's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/codex/grafana",
+          "agent": "Codex",
+          "name": "grafana",
+          "outcome": "skipped",
+          "note": "Codex's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/codex/keeper",
+          "agent": "Codex",
+          "name": "keeper",
+          "outcome": "skipped",
+          "note": "Codex's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/codex/sentry",
+          "agent": "Codex",
+          "name": "sentry",
+          "outcome": "skipped",
+          "note": "unticked",
+          "keys": [
+            "SENTRY_TOKEN"
+          ]
+        },
+        {
+          "id": "agents/mcp/opencode/ctx",
+          "agent": "OpenCode",
+          "name": "ctx",
+          "outcome": "skipped",
+          "note": "OpenCode's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/opencode/late",
+          "agent": "OpenCode",
+          "name": "late",
+          "outcome": "skipped",
+          "note": "OpenCode is not ticked, so its config did not travel"
+        }
+      ],
+      "stages": [
+        [
+          "installing-mcp",
+          "github skipped (Claude Code's config is not on the machine); gsc skipped (Claude Code's config is not on the machine); survivor skipped (Claude Code's config is not on the machine); local skipped (Claude Code's config is not on the machine); notes skipped (macOS-only); zomato skipped (Claude Code's config is not on the machine); whatsapp skipped (Claude Code's config is not on the machine); grafana skipped (Codex's config is not on the machine); keeper skipped (Codex's config is not on the machine); sentry skipped (unticked); ctx skipped (OpenCode's config is not on the machine); late skipped (OpenCode is not ticked, so its config did not travel)"
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "unread and error outcomes",
+      "report": [
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [],
+          "unread": "not a plain file"
+        },
+        {
+          "file": "/root/.claude-cfg/.claude.json",
+          "results": [],
+          "error": "Unexpected token } in JSON"
+        },
+        {
+          "file": "/root/.codex/config.toml",
+          "results": []
+        },
+        {
+          "file": null,
+          "results": []
+        }
+      ],
+      "missing": [],
+      "present": [],
+      "rules": [],
+      "failure": null,
+      "out": [
+        {
+          "id": "agents/mcp/claude/github",
+          "agent": "Claude Code",
+          "name": "github",
+          "outcome": "skipped",
+          "note": "/root/.claude-cfg/.claude.json was not read: not a plain file"
+        },
+        {
+          "id": "agents/mcp/claude/gsc",
+          "agent": "Claude Code",
+          "name": "gsc",
+          "outcome": "skipped",
+          "note": "/root/.claude-cfg/.claude.json was not read: not a plain file"
+        },
+        {
+          "id": "agents/mcp/claude/survivor",
+          "agent": "Claude Code",
+          "name": "survivor",
+          "outcome": "skipped",
+          "note": "/root/.claude-cfg/.claude.json was not read: not a plain file"
+        },
+        {
+          "id": "agents/mcp/claude/local",
+          "agent": "Claude Code",
+          "name": "local",
+          "outcome": "skipped",
+          "note": "/root/.claude-cfg/.claude.json was not read: not a plain file"
+        },
+        {
+          "id": "agents/mcp/claude/notes",
+          "agent": "Claude Code",
+          "name": "notes",
+          "outcome": "skipped",
+          "note": "macOS-only"
+        },
+        {
+          "id": "agents/mcp/claude/home/zomato",
+          "agent": "Claude Code",
+          "name": "zomato",
+          "outcome": "skipped",
+          "note": "Claude Code's config on the machine did not parse (Unexpected token } in JSON)"
+        },
+        {
+          "id": "agents/mcp/claude/home/whatsapp",
+          "agent": "Claude Code",
+          "name": "whatsapp",
+          "outcome": "skipped",
+          "note": "Claude Code's config on the machine did not parse (Unexpected token } in JSON)"
+        },
+        {
+          "id": "agents/mcp/codex/grafana",
+          "agent": "Codex",
+          "name": "grafana",
+          "outcome": "skipped",
+          "note": "not in the config that travelled"
+        },
+        {
+          "id": "agents/mcp/codex/keeper",
+          "agent": "Codex",
+          "name": "keeper",
+          "outcome": "skipped",
+          "note": "not in the config that travelled"
+        },
+        {
+          "id": "agents/mcp/codex/sentry",
+          "agent": "Codex",
+          "name": "sentry",
+          "outcome": "skipped",
+          "note": "unticked",
+          "keys": [
+            "SENTRY_TOKEN"
+          ]
+        },
+        {
+          "id": "agents/mcp/opencode/ctx",
+          "agent": "OpenCode",
+          "name": "ctx",
+          "outcome": "skipped",
+          "note": "OpenCode's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/opencode/late",
+          "agent": "OpenCode",
+          "name": "late",
+          "outcome": "skipped",
+          "note": "OpenCode is not ticked, so its config did not travel"
+        }
+      ],
+      "stages": [
+        [
+          "installing-mcp",
+          "github skipped (/root/.claude-cfg/.claude.json was not read: not a plain file); gsc skipped (/root/.claude-cfg/.claude.json was not read: not a plain file); survivor skipped (/root/.claude-cfg/.claude.json was not read: not a plain file); local skipped (/root/.claude-cfg/.claude.json was not read: not a plain file); notes skipped (macOS-only); zomato skipped (Claude Code's config on the machine did not parse (Unexpected token } in JSON)); whatsapp skipped (Claude Code's config on the machine did not parse (Unexpected token } in JSON)); grafana skipped (not in the config that travelled); keeper skipped (not in the config that travelled); sentry skipped (unticked); ctx skipped (OpenCode's config is not on the machine); late skipped (OpenCode is not ticked, so its config did not travel)"
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    }
+  ],
+  "applyMcp": [
+    {
+      "name": "the whole round: read, both edits, the PATH check, the landing",
+      "rules": [
+        {
+          "has": "wsp_mcp_read",
+          "kind": "run",
+          "seq": [
+            {
+              "stdout": "wsp-mcp 0 0 ewogICJudW1TdGFydHVwcyI6IDMsCiAgIm1jcFNlcnZlcnMiOiB7CiAgICAiZ2l0aHViIjogewogICAgICAidHlwZSI6ICJzdGRpbyIsCiAgICAgICJjb21tYW5kIjogIm5weCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICIteSIsCiAgICAgICAgIkBtb2RlbGNvbnRleHRwcm90b2NvbC9zZXJ2ZXItZ2l0aHViIgogICAgICBdLAogICAgICAiZW52IjogewogICAgICAgICJHSVRIVUJfVE9LRU4iOiAiZ2hwX3NlY3JldCIKICAgICAgfQogICAgfSwKICAgICJnc2MiOiB7CiAgICAgICJjb21tYW5kIjogInV2eCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICJtY3Atc2VhcmNoLWNvbnNvbGUiCiAgICAgIF0sCiAgICAgICJlbnYiOiB7CiAgICAgICAgIkdTQ19DUkVERU5USUFMU19QQVRIIjogIi9Vc2Vycy9kZXYvLmNvbmZpZy9nc2MvY3JlZHMuanNvbiIKICAgICAgfQogICAgfSwKICAgICJub3RlcyI6IHsKICAgICAgImNvbW1hbmQiOiAiL1VzZXJzL2Rldi9MaWJyYXJ5L0FwcGxpY2F0aW9uIFN1cHBvcnQvTm90ZXMvbWNwIiwKICAgICAgImFyZ3MiOiBbXQogICAgfSwKICAgICJzdXJ2aXZvciI6IHsKICAgICAgImNvbW1hbmQiOiAic3Vydml2b3ItYmluIiwKICAgICAgImFyZ3MiOiBbXQogICAgfSwKICAgICJsb2NhbCI6IHsKICAgICAgImNvbW1hbmQiOiAiL1VzZXJzL2Rldi8ubG9jYWwvYmluL2xvY2FsLW1jcCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICItLXJvb3Q9L1VzZXJzL2Rldi9jb2RlIgogICAgICBdCiAgICB9CiAgfSwKICAicHJvamVjdHMiOiB7CiAgICAiL1VzZXJzL2RldiI6IHsKICAgICAgImFsbG93ZWRUb29scyI6IFsKICAgICAgICAiQmFzaCIKICAgICAgXSwKICAgICAgIm1jcFNlcnZlcnMiOiB7CiAgICAgICAgInpvbWF0byI6IHsKICAgICAgICAgICJ0eXBlIjogInN0ZGlvIiwKICAgICAgICAgICJjb21tYW5kIjogIm5weCIsCiAgICAgICAgICAiYXJncyI6IFsKICAgICAgICAgICAgIm1jcC1yZW1vdGUiLAogICAgICAgICAgICAiaHR0cHM6Ly9tY3Auem9tYXRvLmNvbS9tY3AiCiAgICAgICAgICBdCiAgICAgICAgfSwKICAgICAgICAid2hhdHNhcHAiOiB7CiAgICAgICAgICAiY29tbWFuZCI6ICIvVXNlcnMvZGV2Ly5sb2NhbC9iaW4vdXYiLAogICAgICAgICAgImFyZ3MiOiBbCiAgICAgICAgICAgICItLWRpcmVjdG9yeSIsCiAgICAgICAgICAgICIvVXNlcnMvZGV2L2NvZGUvd2EiLAogICAgICAgICAgICAicnVuIiwKICAgICAgICAgICAgIm1haW4ucHkiCiAgICAgICAgICBdCiAgICAgICAgfQogICAgICB9CiAgICB9CiAgfQp9Cg==\nwsp-mcp 1 0 ewogICJudW1TdGFydHVwcyI6IDMsCiAgIm1jcFNlcnZlcnMiOiB7CiAgICAiZ2l0aHViIjogewogICAgICAidHlwZSI6ICJzdGRpbyIsCiAgICAgICJjb21tYW5kIjogIm5weCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICIteSIsCiAgICAgICAgIkBtb2RlbGNvbnRleHRwcm90b2NvbC9zZXJ2ZXItZ2l0aHViIgogICAgICBdLAogICAgICAiZW52IjogewogICAgICAgICJHSVRIVUJfVE9LRU4iOiAiZ2hwX3NlY3JldCIKICAgICAgfQogICAgfSwKICAgICJnc2MiOiB7CiAgICAgICJjb21tYW5kIjogInV2eCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICJtY3Atc2VhcmNoLWNvbnNvbGUiCiAgICAgIF0sCiAgICAgICJlbnYiOiB7CiAgICAgICAgIkdTQ19DUkVERU5USUFMU19QQVRIIjogIi9Vc2Vycy9kZXYvLmNvbmZpZy9nc2MvY3JlZHMuanNvbiIKICAgICAgfQogICAgfSwKICAgICJub3RlcyI6IHsKICAgICAgImNvbW1hbmQiOiAiL1VzZXJzL2Rldi9MaWJyYXJ5L0FwcGxpY2F0aW9uIFN1cHBvcnQvTm90ZXMvbWNwIiwKICAgICAgImFyZ3MiOiBbXQogICAgfSwKICAgICJzdXJ2aXZvciI6IHsKICAgICAgImNvbW1hbmQiOiAic3Vydml2b3ItYmluIiwKICAgICAgImFyZ3MiOiBbXQogICAgfSwKICAgICJsb2NhbCI6IHsKICAgICAgImNvbW1hbmQiOiAiL1VzZXJzL2Rldi8ubG9jYWwvYmluL2xvY2FsLW1jcCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICItLXJvb3Q9L1VzZXJzL2Rldi9jb2RlIgogICAgICBdCiAgICB9CiAgfSwKICAicHJvamVjdHMiOiB7CiAgICAiL1VzZXJzL2RldiI6IHsKICAgICAgImFsbG93ZWRUb29scyI6IFsKICAgICAgICAiQmFzaCIKICAgICAgXSwKICAgICAgIm1jcFNlcnZlcnMiOiB7CiAgICAgICAgInpvbWF0byI6IHsKICAgICAgICAgICJ0eXBlIjogInN0ZGlvIiwKICAgICAgICAgICJjb21tYW5kIjogIm5weCIsCiAgICAgICAgICAiYXJncyI6IFsKICAgICAgICAgICAgIm1jcC1yZW1vdGUiLAogICAgICAgICAgICAiaHR0cHM6Ly9tY3Auem9tYXRvLmNvbS9tY3AiCiAgICAgICAgICBdCiAgICAgICAgfSwKICAgICAgICAid2hhdHNhcHAiOiB7CiAgICAgICAgICAiY29tbWFuZCI6ICIvVXNlcnMvZGV2Ly5sb2NhbC9iaW4vdXYiLAogICAgICAgICAgImFyZ3MiOiBbCiAgICAgICAgICAgICItLWRpcmVjdG9yeSIsCiAgICAgICAgICAgICIvVXNlcnMvZGV2L2NvZGUvd2EiLAogICAgICAgICAgICAicnVuIiwKICAgICAgICAgICAgIm1haW4ucHkiCiAgICAgICAgICBdCiAgICAgICAgfQogICAgICB9CiAgICB9CiAgfQp9Cg==\nwsp-mcp 2 0 bW9kZWwgPSAiZ3B0LTUiCgpbbWNwX3NlcnZlcnMuZ3JhZmFuYV0KY29tbWFuZCA9ICIvb3B0L2hvbWVicmV3L2Jpbi91dngiCmFyZ3MgPSBbIm1jcC1ncmFmYW5hIiwgIi0tY29uZmlnPS9Vc2Vycy9kZXYvLmNvbmZpZy9ncmFmYW5hLnRvbWwiXQoKW21jcF9zZXJ2ZXJzLnNlbnRyeV0KdXJsID0gImh0dHBzOi8vbWNwLnNlbnRyeS5kZXYvbWNwIgoKW21jcF9zZXJ2ZXJzLmtlZXBlcl0KY29tbWFuZCA9ICJrZWVwZXIiCg==\nwsp-mcp 3 - -\nwsp-mcp end\n"
+            }
+          ]
+        },
+        {
+          "has": "command -v",
+          "seq": [
+            {
+              "stdout": "ok npx\nno uvx\nno survivor-bin\nok local-mcp\nok /home/linuxbrew/.linuxbrew/bin/uvx\nok keeper\n"
+            }
+          ]
+        },
+        {
+          "has": "NR==2{print $4}",
+          "seq": [
+            {
+              "stdout": "9437184\n"
+            }
+          ]
+        }
+      ],
+      "out": [
+        {
+          "id": "agents/mcp/claude/github",
+          "agent": "Claude Code",
+          "name": "github",
+          "outcome": "fetched-on-first-use",
+          "note": "npx fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/claude/gsc",
+          "agent": "Claude Code",
+          "name": "gsc",
+          "outcome": "fetched-on-first-use",
+          "note": "uv installed for it; uv fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/claude/local",
+          "agent": "Claude Code",
+          "name": "local",
+          "outcome": "installed"
+        },
+        {
+          "id": "agents/mcp/claude/notes",
+          "agent": "Claude Code",
+          "name": "notes",
+          "outcome": "skipped",
+          "note": "macOS-only"
+        },
+        {
+          "id": "agents/mcp/claude/survivor",
+          "agent": "Claude Code",
+          "name": "survivor",
+          "outcome": "skipped",
+          "note": "command not on the machine; tools/brew/survivor-bin was not ticked (unticked by you)"
+        },
+        {
+          "id": "agents/mcp/claude/home/zomato",
+          "agent": "Claude Code",
+          "name": "zomato",
+          "outcome": "fetched-on-first-use",
+          "note": "npx fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/claude/home/whatsapp",
+          "agent": "Claude Code",
+          "name": "whatsapp",
+          "outcome": "fetched-on-first-use",
+          "note": "uv fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/codex/grafana",
+          "agent": "Codex",
+          "name": "grafana",
+          "outcome": "fetched-on-first-use",
+          "note": "uv installed for it; uv fetches the package on first use"
+        },
+        {
+          "id": "agents/mcp/codex/keeper",
+          "agent": "Codex",
+          "name": "keeper",
+          "outcome": "installed"
+        },
+        {
+          "id": "agents/mcp/codex/sentry",
+          "agent": "Codex",
+          "name": "sentry",
+          "outcome": "skipped",
+          "note": "unticked",
+          "keys": [
+            "SENTRY_TOKEN"
+          ]
+        },
+        {
+          "id": "agents/mcp/opencode/ctx",
+          "agent": "OpenCode",
+          "name": "ctx",
+          "outcome": "skipped",
+          "note": "OpenCode's config is not on the machine"
+        },
+        {
+          "id": "agents/mcp/opencode/late",
+          "agent": "OpenCode",
+          "name": "late",
+          "outcome": "skipped",
+          "note": "OpenCode is not ticked, so its config did not travel"
+        }
+      ],
+      "stages": [
+        [
+          "installing-mcp",
+          "Claude Code 7, Codex 3, OpenCode 2"
+        ],
+        [
+          "installing-mcp",
+          "uv for gsc, grafana"
+        ],
+        [
+          "installing-mcp",
+          "local, keeper installed; github, zomato: package fetched on first use by npx; gsc, grafana: uv installed, package fetched on first use by uv; whatsapp: package fetched on first use by uv; notes skipped (macOS-only); survivor skipped (command not on the machine; tools/brew/survivor-bin was not ticked (unticked by you)); sentry skipped (unticked); ctx skipped (OpenCode's config is not on the machine); late skipped (OpenCode is not ticked, so its config did not travel); 9 GB free"
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "run",
+          "text": "wsp_mcp_read() {\n  i=\"$1\"; b=$(realpath \"$2\" 2>/dev/null) || b=; shift 2; n=0\n  for f in \"$@\"; do\n    if [ -e \"$f\" ] || [ -L \"$f\" ]; then\n      r=$(realpath \"$f\" 2>/dev/null) && [ -n \"$b\" ] && case $r/ in \"${b%/}\"/*) [ -f \"$r\" ] ;; *) false ;; esac || { printf 'wsp-mcp %s %s -plain\\n' \"$i\" \"$n\"; return 0; }\n      if [ \"$(head -c 33554433 < \"$r\" | wc -c | tr -d ' ')\" -gt 33554432 ]; then printf 'wsp-mcp %s %s -cap\\n' \"$i\" \"$n\"; return 0; fi\n      printf 'wsp-mcp %s %s ' \"$i\" \"$n\"; head -c 33554432 < \"$r\" | base64 | tr -d '\\n'; printf '\\n'; return 0\n    fi\n    n=$((n+1))\n  done\n  printf 'wsp-mcp %s - -\\n' \"$i\"\n}\nwsp_mcp_read 0 '/root' '/root/.claude-cfg/.claude.json'\nwsp_mcp_read 1 '/root' '/root/.claude-cfg/.claude.json'\nwsp_mcp_read 2 '/root' '/root/.codex/config.toml' '/root/.codex/alt.toml'\nwsp_mcp_read 3 '/root' '/root/.config/opencode/opencode.json'\nprintf '%s\\n' 'wsp-mcp end'",
+          "deadlineMs": 120000,
+          "unlogged": true
+        },
+        {
+          "kind": "exec",
+          "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v 'npx' >/dev/null 2>&1; then echo 'ok npx'; else echo 'no npx'; fi\nif command -v 'uvx' >/dev/null 2>&1; then echo 'ok uvx'; else echo 'no uvx'; fi\nif command -v 'survivor-bin' >/dev/null 2>&1; then echo 'ok survivor-bin'; else echo 'no survivor-bin'; fi\nif command -v 'local-mcp' >/dev/null 2>&1; then echo 'ok local-mcp'; else echo 'no local-mcp'; fi\nif command -v 'uv' >/dev/null 2>&1; then echo 'ok uv'; else echo 'no uv'; fi\nif command -v 'keeper' >/dev/null 2>&1; then echo 'ok keeper'; else echo 'no keeper'; fi",
+          "timeoutMs": 20000
+        },
+        {
+          "kind": "put",
+          "text": "/root/.claude-cfg/.wsp-config-tmp.abababababab\n{\n  \"numStartups\": 3,\n  \"mcpServers\": {\n    \"github\": {\n      \"type\": \"stdio\",\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@modelcontextprotocol/server-github\"\n      ],\n      \"env\": {\n        \"GITHUB_TOKEN\": \"ghp_secret\"\n      }\n    },\n    \"gsc\": {\n      \"command\": \"uvx\",\n      \"args\": [\n        \"mcp-search-console\"\n      ],\n      \"env\": {\n        \"GSC_CREDENTIALS_PATH\": \"/root/.config/gsc/creds.json\"\n      }\n    },\n    \"local\": {\n      \"command\": \"local-mcp\",\n      \"args\": [\n        \"--root=/root/code\"\n      ]\n    }\n  },\n  \"projects\": {\n    \"/Users/dev\": {\n      \"allowedTools\": [\n        \"Bash\"\n      ],\n      \"mcpServers\": {\n      }\n    },\n    \"/root\": {\n      \"mcpServers\": {\n        \"zomato\": {\n          \"type\": \"stdio\",\n          \"command\": \"npx\",\n          \"args\": [\n            \"mcp-remote\",\n            \"https://mcp.zomato.com/mcp\"\n          ]\n        },\n        \"whatsapp\": {\n          \"command\": \"uv\",\n          \"args\": [\n            \"--directory\",\n            \"/root/code/wa\",\n            \"run\",\n            \"main.py\"\n          ]\n        }\n      }\n    }\n  }\n}\n",
+          "timeoutMs": 120000
+        },
+        {
+          "kind": "put",
+          "text": "/root/.codex/.wsp-config-tmp.abababababab\nmodel = \"gpt-5\"\n\n[mcp_servers.grafana]\ncommand = \"uvx\"\nargs = [\"mcp-grafana\", \"--config=/root/.config/grafana.toml\"]\n\n[mcp_servers.keeper]\ncommand = \"keeper\"\n",
+          "timeoutMs": 120000
+        },
+        {
+          "kind": "exec",
+          "text": "(\numask 077\nl='/root/.claude-cfg/.wsp-config-tmp.abababababab'\ntrap 'rm -f -- \"$l\"' EXIT\nb=$(realpath '/root') || exit 1\nf='/root/.claude-cfg/.claude.json'\nif [ -e \"$f\" ] || [ -L \"$f\" ]; then\n  :\n  r=$(realpath \"$f\" 2>/dev/null) || { printf '%s\\000%s\\000' \"$f\" \"$(readlink \"$f\")\"; exit 4; }\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$f\" \"$r\"; exit 4 ;; esac\n  [ -z \"$(find \"$r\" -links +1)\" ] || { printf '%s\\000' \"$f\"; exit 6; }\nelse\n  { printf '%s\\000' \"$f\"; exit 5; }\n  d=${f%/*}; a=$d\n  while [ -n \"$a\" ] && [ ! -e \"$a\" ]; do a=${a%/*}; done\n  r=$(realpath \"${a:-/}\") || exit 1\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$a\" \"$r\"; exit 4 ;; esac\n  mkdir -p \"$d\" || exit 1\n  r=$f\nfi\nfor s in \"${f%/*}\" \"${r%/*}\"; do LC_ALL=C find \"$s\" -maxdepth 1 -type f \\( -name '.wsp-config-tmp.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].part[0-9]*' \\) -mmin +10 -exec rm -f {} + 2>/dev/null; done\nn=$(mktemp \"${r%/*}/.wsp-config-tmp.XXXXXX\") || exit 1\ntrap 'rm -f -- \"$n\" \"$l\"' EXIT\nif { [ -e \"$r\" ] || [ -L \"$r\" ]; }; then cp -p \"$r\" \"$n\" || exit 1; fi\ncat \"$l\" > \"$n\" || exit 1\n[ \"$(wc -c < \"$n\" | tr -d ' ')\" = 1098 ] || exit 1\n[ \"$(cksum < \"$r\")\" = '1560717769 1288' ] || { printf '%s\\000' \"$f\"; exit 5; }\nmv -f \"$n\" \"$r\" || exit 1\n) || exit $?\n(\numask 077\nl='/root/.codex/.wsp-config-tmp.abababababab'\ntrap 'rm -f -- \"$l\"' EXIT\nb=$(realpath '/root') || exit 1\nf='/root/.codex/config.toml'\nif [ -e \"$f\" ] || [ -L \"$f\" ]; then\n  :\n  r=$(realpath \"$f\" 2>/dev/null) || { printf '%s\\000%s\\000' \"$f\" \"$(readlink \"$f\")\"; exit 4; }\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$f\" \"$r\"; exit 4 ;; esac\n  [ -z \"$(find \"$r\" -links +1)\" ] || { printf '%s\\000' \"$f\"; exit 6; }\nelse\n  { printf '%s\\000' \"$f\"; exit 5; }\n  d=${f%/*}; a=$d\n  while [ -n \"$a\" ] && [ ! -e \"$a\" ]; do a=${a%/*}; done\n  r=$(realpath \"${a:-/}\") || exit 1\n  case $r/ in \"${b%/}\"/*) : ;; *) printf '%s\\000%s\\000' \"$a\" \"$r\"; exit 4 ;; esac\n  mkdir -p \"$d\" || exit 1\n  r=$f\nfi\nfor s in \"${f%/*}\" \"${r%/*}\"; do LC_ALL=C find \"$s\" -maxdepth 1 -type f \\( -name '.wsp-config-tmp.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]' -o -name '.wsp-config-tmp.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].part[0-9]*' \\) -mmin +10 -exec rm -f {} + 2>/dev/null; done\nn=$(mktemp \"${r%/*}/.wsp-config-tmp.XXXXXX\") || exit 1\ntrap 'rm -f -- \"$n\" \"$l\"' EXIT\nif { [ -e \"$r\" ] || [ -L \"$r\" ]; }; then cp -p \"$r\" \"$n\" || exit 1; fi\ncat \"$l\" > \"$n\" || exit 1\n[ \"$(wc -c < \"$n\" | tr -d ' ')\" = 158 ] || exit 1\n[ \"$(cksum < \"$r\")\" = '2862603689 238' ] || { printf '%s\\000' \"$f\"; exit 5; }\nmv -f \"$n\" \"$r\" || exit 1\n) || exit $?",
+          "timeoutMs": 20000
+        },
+        {
+          "kind": "run",
+          "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\nif ! command -v uv >/dev/null 2>&1; then\n  arch=\"$(uname -m)\"\n  case \"$arch\" in\n    x86_64) sha=ec7a99cd05e0cd7f80243f135ce1361c76835cb0ee60055d14d20eba8eba1460 ;;\n    aarch64) sha=c36fe17937ff6bd16dc42fc13854b5465999fcab2efe0af559381e945e3c6001 ;;\n    *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\n  esac\n  pkg=\"uv-$arch-unknown-linux-gnu.tar.gz\"\n  curl -o \"/tmp/$pkg\" \"https://github.com/astral-sh/uv/releases/download/0.12.9/$pkg\"\n  echo \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\n  tar -xzf \"/tmp/$pkg\" -C /tmp\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uv\" /usr/local/bin/uv\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uvx\" /usr/local/bin/uvx\n  rm -rf \"/tmp/$pkg\" \"/tmp/uv-$arch-unknown-linux-gnu\"\nfi' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+          "deadlineMs": 660000
+        },
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a read whose leader was killed says so by its exit code",
+      "rules": [
+        {
+          "has": "wsp_mcp_read",
+          "kind": "run",
+          "seq": [
+            {
+              "exit": 137,
+              "stdout": "wsp-mcp 0 0 ewogICJudW1TdGFydHVwcyI6IDMsCiAgIm1jcFNlcnZlcnMiOiB7CiAgICAiZ2l0aHViIjogewogICAgICAidHlwZSI6ICJzdGRpbyIsCiAgICAgICJjb21tYW5kIjogIm5weCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICIteSIsCiAgICAgICAgIkBtb2RlbGNvbnRleHRwcm90b2NvbC9zZXJ2ZXItZ2l0aHViIgogICAgICBdLAogICAgICAiZW52IjogewogICAgICAgICJHSVRIVUJfVE9LRU4iOiAiZ2hwX3NlY3JldCIKICAgICAgfQogICAgfSwKICAgICJnc2MiOiB7CiAgICAgICJjb21tYW5kIjogInV2eCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICJtY3Atc2VhcmNoLWNvbnNvbGUiCiAgICAgIF0sCiAgICAgICJlbnYiOiB7CiAgICAgICAgIkdTQ19DUkVERU5USUFMU19QQVRIIjogIi9Vc2Vycy9kZXYvLmNvbmZpZy9nc2MvY3JlZHMuanNvbiIKICAgICAgfQogICAgfSwKICAgICJub3RlcyI6IHsKICAgICAgImNvbW1hbmQiOiAiL1VzZXJzL2Rldi9MaWJyYXJ5L0FwcGxpY2F0aW9uIFN1cHBvcnQvTm90ZXMvbWNwIiwKICAgICAgImFyZ3MiOiBbXQogICAgfSwKICAgICJzdXJ2aXZvciI6IHsKICAgICAgImNvbW1hbmQiOiAic3Vydml2b3ItYmluIiwKICAgICAgImFyZ3MiOiBbXQogICAgfSwKICAgICJsb2NhbCI6IHsKICAgICAgImNvbW1hbmQiOiAiL1VzZXJzL2Rldi8ubG9jYWwvYmluL2xvY2FsLW1jcCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICItLXJvb3Q9L1VzZXJzL2Rldi9jb2RlIgogICAgICBdCiAgICB9CiAgfSwKICAicHJvamVjdHMiOiB7CiAgICAiL1VzZXJzL2RldiI6IHsKICAgICAgImFsbG93ZWRUb29scyI6IFsKICAgICAgICAiQmFzaCIKICAgICAgXSwKICAgICAgIm1jcFNlcnZlcnMiOiB7CiAgICAgICAgInpvbWF0byI6IHsKICAgICAgICAgICJ0eXBlIjogInN0ZGlvIiwKICAgICAgICAgICJjb21tYW5kIjogIm5weCIsCiAgICAgICAgICAiYXJncyI6IFsKICAgICAgICAgICAgIm1jcC1yZW1vdGUiLAogICAgICAgICAgICAiaHR0cHM6Ly9tY3Auem9tYXRvLmNvbS9tY3AiCiAgICAgICAgICBdCiAgICAgICAgfSwKICAgICAgICAid2hhdHNhcHAiOiB7CiAgICAgICAgICAiY29tbWFuZCI6ICIvVXNlcnMvZGV2Ly5sb2NhbC9iaW4vdXYiLAogICAgICAgICAgImFyZ3MiOiBbCiAgICAgICAgICAgICItLWRpcmVjdG9yeSIsCiAgICAgICAgICAgICIvVXNlcnMvZGV2L2NvZGUvd2EiLAogICAgICAgICAgICAicnVuIiwKICAgICAgICAgICAgIm1haW4ucHkiCiAgICAgICAgICBdCiAgICAgICAgfQogICAgICB9CiAgICB9CiAgfQp9Cg==\nwsp-mcp 1 0 ewogICJudW1TdGFydHVwcyI6IDMsCiAgIm1jcFNlcnZlcnMiOiB7CiAgICAiZ2l0aHViIjogewogICAgICAidHlwZSI6ICJzdGRpbyIsCiAgICAgICJjb21tYW5kIjogIm5weCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICIteSIsCiAgICAgICAgIkBtb2RlbGNvbnRleHRwcm90b2NvbC9zZXJ2ZXItZ2l0aHViIgogICAgICBdLAogICAgICAiZW52IjogewogICAgICAgICJHSVRIVUJfVE9LRU4iOiAiZ2hwX3NlY3JldCIKICAgICAgfQogICAgfSwKICAgICJnc2MiOiB7CiAgICAgICJjb21tYW5kIjogInV2eCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICJtY3Atc2VhcmNoLWNvbnNvbGUiCiAgICAgIF0sCiAgICAgICJlbnYiOiB7CiAgICAgICAgIkdTQ19DUkVERU5USUFMU19QQVRIIjogIi9Vc2Vycy9kZXYvLmNvbmZpZy9nc2MvY3JlZHMuanNvbiIKICAgICAgfQogICAgfSwKICAgICJub3RlcyI6IHsKICAgICAgImNvbW1hbmQiOiAiL1VzZXJzL2Rldi9MaWJyYXJ5L0FwcGxpY2F0aW9uIFN1cHBvcnQvTm90ZXMvbWNwIiwKICAgICAgImFyZ3MiOiBbXQogICAgfSwKICAgICJzdXJ2aXZvciI6IHsKICAgICAgImNvbW1hbmQiOiAic3Vydml2b3ItYmluIiwKICAgICAgImFyZ3MiOiBbXQogICAgfSwKICAgICJsb2NhbCI6IHsKICAgICAgImNvbW1hbmQiOiAiL1VzZXJzL2Rldi8ubG9jYWwvYmluL2xvY2FsLW1jcCIsCiAgICAgICJhcmdzIjogWwogICAgICAgICItLXJvb3Q9L1VzZXJzL2Rldi9jb2RlIgogICAgICBdCiAgICB9CiAgfSwKICAicHJvamVjdHMiOiB7CiAgICAiL1VzZXJzL2RldiI6IHsKICAgICAgImFsbG93ZWRUb29scyI6IFsKICAgICAgICAiQmFzaCIKICAgICAgXSwKICAgICAgIm1jcFNlcnZlcnMiOiB7CiAgICAgICAgInpvbWF0byI6IHsKICAgICAgICAgICJ0eXBlIjogInN0ZGlvIiwKICAgICAgICAgICJjb21tYW5kIjogIm5weCIsCiAgICAgICAgICAiYXJncyI6IFsKICAgICAgICAgICAgIm1jcC1yZW1vdGUiLAogICAgICAgICAgICAiaHR0cHM6Ly9tY3Auem9tYXRvLmNvbS9tY3AiCiAgICAgICAgICBdCiAgICAgICAgfSwKICAgICAgICAid2hhdHNhcHAiOiB7CiAgICAgICAgICAiY29tbWFuZCI6ICIvVXNlcnMvZGV2Ly5sb2NhbC9iaW4vdXYiLAogICAgICAgICAgImFyZ3MiOiBbCiAgICAgICAgICAgICItLWRpcmVjdG9yeSIsCiAgICAgICAgICAgICIvVXNlcnMvZGV2L2NvZGUvd2EiLAogICAgICAgICAgICAicnVuIiwKICAgICAgICAgICAgIm1haW4ucHkiCiAgICAgICAgICBdCiAgICAgICAgfQogICAgICB9CiAgICB9CiAgfQp9Cg==\nwsp-mcp 2 0 bW9kZWwgPSAiZ3B0LTUiCgpbbWNwX3NlcnZlcnMuZ3JhZmFuYV0KY29tbWFuZCA9ICIvb3B0L2hvbWVicmV3L2Jpbi91dngiCmFyZ3MgPSBbIm1jcC1ncmFmYW5hIiwgIi0tY29uZmlnPS9Vc2Vycy9kZXYvLmNvbmZpZy9ncmFmYW5hLnRvbWwiXQoKW21jcF9zZXJ2ZXJzLnNlbnRyeV0KdXJsID0gImh0dHBzOi8vbWNwLnNlbnRyeS5kZXYvbWNwIgoKW21jcF9zZXJ2ZXJzLmtlZXBlcl0KY29tbWFuZCA9ICJrZWVwZXIiCg==\nwsp-mcp 3 - -\nwsp-mcp end\n"
+            }
+          ]
+        }
+      ],
+      "out": [
+        {
+          "id": "agents/mcp/claude/github",
+          "agent": "Claude Code",
+          "name": "github",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 137)"
+        },
+        {
+          "id": "agents/mcp/claude/gsc",
+          "agent": "Claude Code",
+          "name": "gsc",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 137)"
+        },
+        {
+          "id": "agents/mcp/claude/survivor",
+          "agent": "Claude Code",
+          "name": "survivor",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 137)"
+        },
+        {
+          "id": "agents/mcp/claude/local",
+          "agent": "Claude Code",
+          "name": "local",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 137)"
+        },
+        {
+          "id": "agents/mcp/claude/notes",
+          "agent": "Claude Code",
+          "name": "notes",
+          "outcome": "skipped",
+          "note": "macOS-only"
+        },
+        {
+          "id": "agents/mcp/claude/home/zomato",
+          "agent": "Claude Code",
+          "name": "zomato",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 137)"
+        },
+        {
+          "id": "agents/mcp/claude/home/whatsapp",
+          "agent": "Claude Code",
+          "name": "whatsapp",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 137)"
+        },
+        {
+          "id": "agents/mcp/codex/grafana",
+          "agent": "Codex",
+          "name": "grafana",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 137)"
+        },
+        {
+          "id": "agents/mcp/codex/keeper",
+          "agent": "Codex",
+          "name": "keeper",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 137)"
+        },
+        {
+          "id": "agents/mcp/codex/sentry",
+          "agent": "Codex",
+          "name": "sentry",
+          "outcome": "skipped",
+          "note": "unticked",
+          "keys": [
+            "SENTRY_TOKEN"
+          ]
+        },
+        {
+          "id": "agents/mcp/opencode/ctx",
+          "agent": "OpenCode",
+          "name": "ctx",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 137)"
+        },
+        {
+          "id": "agents/mcp/opencode/late",
+          "agent": "OpenCode",
+          "name": "late",
+          "outcome": "skipped",
+          "note": "OpenCode is not ticked, so its config did not travel"
+        }
+      ],
+      "stages": [
+        [
+          "installing-mcp",
+          "Claude Code 7, Codex 3, OpenCode 2"
+        ],
+        [
+          "installing-mcp",
+          "github skipped (the config edit did not run (exit 137)); gsc skipped (the config edit did not run (exit 137)); survivor skipped (the config edit did not run (exit 137)); local skipped (the config edit did not run (exit 137)); notes skipped (macOS-only); zomato skipped (the config edit did not run (exit 137)); whatsapp skipped (the config edit did not run (exit 137)); grafana skipped (the config edit did not run (exit 137)); keeper skipped (the config edit did not run (exit 137)); sentry skipped (unticked); ctx skipped (the config edit did not run (exit 137)); late skipped (OpenCode is not ticked, so its config did not travel)"
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "run",
+          "text": "wsp_mcp_read() {\n  i=\"$1\"; b=$(realpath \"$2\" 2>/dev/null) || b=; shift 2; n=0\n  for f in \"$@\"; do\n    if [ -e \"$f\" ] || [ -L \"$f\" ]; then\n      r=$(realpath \"$f\" 2>/dev/null) && [ -n \"$b\" ] && case $r/ in \"${b%/}\"/*) [ -f \"$r\" ] ;; *) false ;; esac || { printf 'wsp-mcp %s %s -plain\\n' \"$i\" \"$n\"; return 0; }\n      if [ \"$(head -c 33554433 < \"$r\" | wc -c | tr -d ' ')\" -gt 33554432 ]; then printf 'wsp-mcp %s %s -cap\\n' \"$i\" \"$n\"; return 0; fi\n      printf 'wsp-mcp %s %s ' \"$i\" \"$n\"; head -c 33554432 < \"$r\" | base64 | tr -d '\\n'; printf '\\n'; return 0\n    fi\n    n=$((n+1))\n  done\n  printf 'wsp-mcp %s - -\\n' \"$i\"\n}\nwsp_mcp_read 0 '/root' '/root/.claude-cfg/.claude.json'\nwsp_mcp_read 1 '/root' '/root/.claude-cfg/.claude.json'\nwsp_mcp_read 2 '/root' '/root/.codex/config.toml' '/root/.codex/alt.toml'\nwsp_mcp_read 3 '/root' '/root/.config/opencode/opencode.json'\nprintf '%s\\n' 'wsp-mcp end'",
+          "deadlineMs": 120000,
+          "unlogged": true
+        },
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a machine that refuses the script",
+      "rules": [
+        {
+          "has": "wsp_mcp_read",
+          "kind": "run",
+          "seq": [
+            {
+              "throws": "the request body is over the provider's cap"
+            }
+          ]
+        }
+      ],
+      "out": [
+        {
+          "id": "agents/mcp/claude/github",
+          "agent": "Claude Code",
+          "name": "github",
+          "outcome": "skipped",
+          "note": "the config edit did not run (the request body is over the provider's cap)"
+        },
+        {
+          "id": "agents/mcp/claude/gsc",
+          "agent": "Claude Code",
+          "name": "gsc",
+          "outcome": "skipped",
+          "note": "the config edit did not run (the request body is over the provider's cap)"
+        },
+        {
+          "id": "agents/mcp/claude/survivor",
+          "agent": "Claude Code",
+          "name": "survivor",
+          "outcome": "skipped",
+          "note": "the config edit did not run (the request body is over the provider's cap)"
+        },
+        {
+          "id": "agents/mcp/claude/local",
+          "agent": "Claude Code",
+          "name": "local",
+          "outcome": "skipped",
+          "note": "the config edit did not run (the request body is over the provider's cap)"
+        },
+        {
+          "id": "agents/mcp/claude/notes",
+          "agent": "Claude Code",
+          "name": "notes",
+          "outcome": "skipped",
+          "note": "macOS-only"
+        },
+        {
+          "id": "agents/mcp/claude/home/zomato",
+          "agent": "Claude Code",
+          "name": "zomato",
+          "outcome": "skipped",
+          "note": "the config edit did not run (the request body is over the provider's cap)"
+        },
+        {
+          "id": "agents/mcp/claude/home/whatsapp",
+          "agent": "Claude Code",
+          "name": "whatsapp",
+          "outcome": "skipped",
+          "note": "the config edit did not run (the request body is over the provider's cap)"
+        },
+        {
+          "id": "agents/mcp/codex/grafana",
+          "agent": "Codex",
+          "name": "grafana",
+          "outcome": "skipped",
+          "note": "the config edit did not run (the request body is over the provider's cap)"
+        },
+        {
+          "id": "agents/mcp/codex/keeper",
+          "agent": "Codex",
+          "name": "keeper",
+          "outcome": "skipped",
+          "note": "the config edit did not run (the request body is over the provider's cap)"
+        },
+        {
+          "id": "agents/mcp/codex/sentry",
+          "agent": "Codex",
+          "name": "sentry",
+          "outcome": "skipped",
+          "note": "unticked",
+          "keys": [
+            "SENTRY_TOKEN"
+          ]
+        },
+        {
+          "id": "agents/mcp/opencode/ctx",
+          "agent": "OpenCode",
+          "name": "ctx",
+          "outcome": "skipped",
+          "note": "the config edit did not run (the request body is over the provider's cap)"
+        },
+        {
+          "id": "agents/mcp/opencode/late",
+          "agent": "OpenCode",
+          "name": "late",
+          "outcome": "skipped",
+          "note": "OpenCode is not ticked, so its config did not travel"
+        }
+      ],
+      "stages": [
+        [
+          "installing-mcp",
+          "Claude Code 7, Codex 3, OpenCode 2"
+        ],
+        [
+          "installing-mcp",
+          "github skipped (the config edit did not run (the request body is over the provider's cap)); gsc skipped (the config edit did not run (the request body is over the provider's cap)); survivor skipped (the config edit did not run (the request body is over the provider's cap)); local skipped (the config edit did not run (the request body is over the provider's cap)); notes skipped (macOS-only); zomato skipped (the config edit did not run (the request body is over the provider's cap)); whatsapp skipped (the config edit did not run (the request body is over the provider's cap)); grafana skipped (the config edit did not run (the request body is over the provider's cap)); keeper skipped (the config edit did not run (the request body is over the provider's cap)); sentry skipped (unticked); ctx skipped (the config edit did not run (the request body is over the provider's cap)); late skipped (OpenCode is not ticked, so its config did not travel)"
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "run",
+          "text": "wsp_mcp_read() {\n  i=\"$1\"; b=$(realpath \"$2\" 2>/dev/null) || b=; shift 2; n=0\n  for f in \"$@\"; do\n    if [ -e \"$f\" ] || [ -L \"$f\" ]; then\n      r=$(realpath \"$f\" 2>/dev/null) && [ -n \"$b\" ] && case $r/ in \"${b%/}\"/*) [ -f \"$r\" ] ;; *) false ;; esac || { printf 'wsp-mcp %s %s -plain\\n' \"$i\" \"$n\"; return 0; }\n      if [ \"$(head -c 33554433 < \"$r\" | wc -c | tr -d ' ')\" -gt 33554432 ]; then printf 'wsp-mcp %s %s -cap\\n' \"$i\" \"$n\"; return 0; fi\n      printf 'wsp-mcp %s %s ' \"$i\" \"$n\"; head -c 33554432 < \"$r\" | base64 | tr -d '\\n'; printf '\\n'; return 0\n    fi\n    n=$((n+1))\n  done\n  printf 'wsp-mcp %s - -\\n' \"$i\"\n}\nwsp_mcp_read 0 '/root' '/root/.claude-cfg/.claude.json'\nwsp_mcp_read 1 '/root' '/root/.claude-cfg/.claude.json'\nwsp_mcp_read 2 '/root' '/root/.codex/config.toml' '/root/.codex/alt.toml'\nwsp_mcp_read 3 '/root' '/root/.config/opencode/opencode.json'\nprintf '%s\\n' 'wsp-mcp end'",
+          "deadlineMs": 120000,
+          "unlogged": true
+        },
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    },
+    {
+      "name": "a read that printed no line with the mark",
+      "rules": [
+        {
+          "has": "wsp_mcp_read",
+          "kind": "run",
+          "seq": [
+            {
+              "stdout": "bash: realpath: not found\n"
+            }
+          ]
+        }
+      ],
+      "out": [
+        {
+          "id": "agents/mcp/claude/github",
+          "agent": "Claude Code",
+          "name": "github",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 0)"
+        },
+        {
+          "id": "agents/mcp/claude/gsc",
+          "agent": "Claude Code",
+          "name": "gsc",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 0)"
+        },
+        {
+          "id": "agents/mcp/claude/survivor",
+          "agent": "Claude Code",
+          "name": "survivor",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 0)"
+        },
+        {
+          "id": "agents/mcp/claude/local",
+          "agent": "Claude Code",
+          "name": "local",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 0)"
+        },
+        {
+          "id": "agents/mcp/claude/notes",
+          "agent": "Claude Code",
+          "name": "notes",
+          "outcome": "skipped",
+          "note": "macOS-only"
+        },
+        {
+          "id": "agents/mcp/claude/home/zomato",
+          "agent": "Claude Code",
+          "name": "zomato",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 0)"
+        },
+        {
+          "id": "agents/mcp/claude/home/whatsapp",
+          "agent": "Claude Code",
+          "name": "whatsapp",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 0)"
+        },
+        {
+          "id": "agents/mcp/codex/grafana",
+          "agent": "Codex",
+          "name": "grafana",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 0)"
+        },
+        {
+          "id": "agents/mcp/codex/keeper",
+          "agent": "Codex",
+          "name": "keeper",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 0)"
+        },
+        {
+          "id": "agents/mcp/codex/sentry",
+          "agent": "Codex",
+          "name": "sentry",
+          "outcome": "skipped",
+          "note": "unticked",
+          "keys": [
+            "SENTRY_TOKEN"
+          ]
+        },
+        {
+          "id": "agents/mcp/opencode/ctx",
+          "agent": "OpenCode",
+          "name": "ctx",
+          "outcome": "skipped",
+          "note": "the config edit did not run (exit 0)"
+        },
+        {
+          "id": "agents/mcp/opencode/late",
+          "agent": "OpenCode",
+          "name": "late",
+          "outcome": "skipped",
+          "note": "OpenCode is not ticked, so its config did not travel"
+        }
+      ],
+      "stages": [
+        [
+          "installing-mcp",
+          "Claude Code 7, Codex 3, OpenCode 2"
+        ],
+        [
+          "installing-mcp",
+          "github skipped (the config edit did not run (exit 0)); gsc skipped (the config edit did not run (exit 0)); survivor skipped (the config edit did not run (exit 0)); local skipped (the config edit did not run (exit 0)); notes skipped (macOS-only); zomato skipped (the config edit did not run (exit 0)); whatsapp skipped (the config edit did not run (exit 0)); grafana skipped (the config edit did not run (exit 0)); keeper skipped (the config edit did not run (exit 0)); sentry skipped (unticked); ctx skipped (the config edit did not run (exit 0)); late skipped (OpenCode is not ticked, so its config did not travel)"
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "run",
+          "text": "wsp_mcp_read() {\n  i=\"$1\"; b=$(realpath \"$2\" 2>/dev/null) || b=; shift 2; n=0\n  for f in \"$@\"; do\n    if [ -e \"$f\" ] || [ -L \"$f\" ]; then\n      r=$(realpath \"$f\" 2>/dev/null) && [ -n \"$b\" ] && case $r/ in \"${b%/}\"/*) [ -f \"$r\" ] ;; *) false ;; esac || { printf 'wsp-mcp %s %s -plain\\n' \"$i\" \"$n\"; return 0; }\n      if [ \"$(head -c 33554433 < \"$r\" | wc -c | tr -d ' ')\" -gt 33554432 ]; then printf 'wsp-mcp %s %s -cap\\n' \"$i\" \"$n\"; return 0; fi\n      printf 'wsp-mcp %s %s ' \"$i\" \"$n\"; head -c 33554432 < \"$r\" | base64 | tr -d '\\n'; printf '\\n'; return 0\n    fi\n    n=$((n+1))\n  done\n  printf 'wsp-mcp %s - -\\n' \"$i\"\n}\nwsp_mcp_read 0 '/root' '/root/.claude-cfg/.claude.json'\nwsp_mcp_read 1 '/root' '/root/.claude-cfg/.claude.json'\nwsp_mcp_read 2 '/root' '/root/.codex/config.toml' '/root/.codex/alt.toml'\nwsp_mcp_read 3 '/root' '/root/.config/opencode/opencode.json'\nprintf '%s\\n' 'wsp-mcp end'",
+          "deadlineMs": 120000,
+          "unlogged": true
+        },
+        {
+          "kind": "exec",
+          "text": "df -Pk /root | awk 'NR==2{print $4}'",
+          "timeoutMs": 20000
+        }
+      ]
+    }
+  ],
+  "mcpTally": [
+    {
+      "rows": [],
+      "out": null
+    },
+    {
+      "rows": [
+        {
+          "outcome": "installed"
+        },
+        {
+          "outcome": "skipped"
+        },
+        {
+          "outcome": "installed"
+        },
+        {
+          "outcome": "fetched-on-first-use"
+        }
+      ],
+      "out": "2 installed, 1 skipped, 1 on first use"
+    },
+    {
+      "rows": [
+        {
+          "outcome": "skipped"
+        }
+      ],
+      "out": "1 skipped"
+    }
+  ],
+  "commandRow": [
+    {
+      "command": "gh",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "out": {
+        "id": "tools/brew/gh"
+      }
+    },
+    {
+      "command": "/usr/bin/keeper",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "out": {
+        "id": "tools/npm/keeper"
+      }
+    },
+    {
+      "command": "lm",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "out": {
+        "id": "tools/cargo/local-mcp",
+        "bin": "lm"
+      }
+    },
+    {
+      "command": "kubectl",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "out": {
+        "id": "tools/catalog/kubectl"
+      }
+    },
+    {
+      "command": "thing",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "out": null
+    },
+    {
+      "command": "b",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "out": null
+    },
+    {
+      "command": "nope",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "out": null
+    },
+    {
+      "command": "x",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "out": null
+    }
+  ],
+  "serverNeeds": [
+    {
+      "command": "npx",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "ready": [
+        "ready-one"
+      ],
+      "out": []
+    },
+    {
+      "command": "/x/uvx",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "ready": [
+        "ready-one"
+      ],
+      "out": []
+    },
+    {
+      "command": "uv",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "ready": [
+        "ready-one"
+      ],
+      "out": []
+    },
+    {
+      "command": "git",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "ready": [
+        "ready-one"
+      ],
+      "out": []
+    },
+    {
+      "command": "jq",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "ready": [
+        "ready-one"
+      ],
+      "out": []
+    },
+    {
+      "command": "unzip",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "ready": [
+        "ready-one"
+      ],
+      "out": []
+    },
+    {
+      "command": "gh",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "ready": [
+        "ready-one"
+      ],
+      "out": [
+        {
+          "id": "tools/brew/gh"
+        }
+      ]
+    },
+    {
+      "command": "keeper",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "ready": [
+        "ready-one"
+      ],
+      "out": [
+        {
+          "id": "tools/npm/keeper"
+        }
+      ]
+    },
+    {
+      "command": "unknown-bin",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "ready": [
+        "ready-one"
+      ],
+      "out": [
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/custom/thing"
+        }
+      ]
+    },
+    {
+      "command": "ready-one",
+      "rows": [
+        {
+          "id": "tools/brew/gh"
+        },
+        {
+          "id": "tools/npm/keeper"
+        },
+        {
+          "id": "tools/cargo/local-mcp",
+          "bin": "lm"
+        },
+        {
+          "id": "tools/catalog/kubectl"
+        },
+        {
+          "id": "tools/custom/thing"
+        },
+        {
+          "id": "tools/brew-tap/a/b"
+        },
+        {
+          "id": "tools/release/x"
+        }
+      ],
+      "ready": [
+        "ready-one"
+      ],
+      "out": []
+    }
+  ]
+}

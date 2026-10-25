@@ -58,7 +58,7 @@ fn resurrect(log: &Log) -> ResurrectHook {
     Arc::new(move |_spec| {
         log.lock().unwrap().push("resurrect".into());
         let m: MachineRef = FakeMachine::with_log("m2", log.clone());
-        async move { Ok(m) }.boxed()
+        async move { Ok(m) }.boxed_local()
     })
 }
 
@@ -66,7 +66,7 @@ fn failing(log: &Log, what: &'static str) -> MachineHook {
     let log = log.clone();
     Arc::new(move |_m| {
         log.lock().unwrap().push(what.into());
-        async move { Err(EngineError::Other { message: format!("{what} broke"), code: None }) }.boxed()
+        async move { Err(EngineError::Other { message: format!("{what} broke"), code: None }) }.boxed_local()
     })
 }
 
@@ -74,7 +74,7 @@ fn exporting(log: &Log, payload: &'static [u8]) -> VaultExportHook {
     let log = log.clone();
     Arc::new(move |_m| {
         log.lock().unwrap().push("export".into());
-        async move { Ok(Some(payload.to_vec())) }.boxed()
+        async move { Ok(Some(payload.to_vec())) }.boxed_local()
     })
 }
 
@@ -106,7 +106,7 @@ async fn an_empty_fault_is_still_a_fault() {
         let mut k = n.lock().unwrap();
         *k += 1;
         let fault = (*k == 1).then(String::new);
-        async move { Ok(fault) }.boxed()
+        async move { Ok(fault) }.boxed_local()
     }));
     let mut ws = Workspace::new(FakeMachine::with_log("m1", log.clone()), h, initial(&w));
     let r = ws.wake(false).await.unwrap();
@@ -137,7 +137,7 @@ async fn an_upgrade_whose_export_fails_changes_nothing() {
     let l = log.clone();
     h.vault_export = Some(Arc::new(move |_m| {
         l.lock().unwrap().push("export".into());
-        async { Err(EngineError::Other { message: "export broke".into(), code: None }) }.boxed()
+        async { Err(EngineError::Other { message: "export broke".into(), code: None }) }.boxed_local()
     }));
     let mut ws = Workspace::new(FakeMachine::with_log("m1", log.clone()), h, initial(&w));
     let e = ws.upgrade(None).await.err();
@@ -153,7 +153,7 @@ async fn an_upgrade_whose_resurrect_fails_after_the_retire_keeps_the_killed_mach
     let l = log.clone();
     h.resurrect = Some(Arc::new(move |_spec| {
         l.lock().unwrap().push("resurrect".into());
-        async { Err(EngineError::Other { message: "resurrect broke".into(), code: None }) }.boxed()
+        async { Err(EngineError::Other { message: "resurrect broke".into(), code: None }) }.boxed_local()
     }));
     h.vault_export = Some(exporting(&log, b"v"));
     let mut ws = Workspace::new(FakeMachine::with_log("m1", log.clone()), h, initial(&w));
@@ -172,7 +172,7 @@ async fn an_upgrade_whose_import_fails_keeps_the_new_machine_and_the_old_phase()
     let l = log.clone();
     h.vault_import = Some(Arc::new(move |_m, _p| {
         l.lock().unwrap().push("import".into());
-        async { Err(EngineError::Other { message: "import broke".into(), code: None }) }.boxed()
+        async { Err(EngineError::Other { message: "import broke".into(), code: None }) }.boxed_local()
     }));
     let mut ws = Workspace::new(FakeMachine::with_log("m1", log.clone()), h, initial(&w));
     let e = ws.upgrade(None).await.err();
@@ -190,7 +190,7 @@ async fn an_empty_payload_is_still_imported() {
     let l = log.clone();
     h.vault_import = Some(Arc::new(move |_m, p| {
         l.lock().unwrap().push(format!("import:{}", p.len()));
-        async { Ok(()) }.boxed()
+        async { Ok(()) }.boxed_local()
     }));
     let mut ws = Workspace::new(FakeMachine::with_log("m1", log.clone()), h, initial(&w));
     let e = ws.upgrade(None).await.err();
@@ -219,14 +219,14 @@ async fn a_wakes_re_pause_stashes_no_vault() {
     let l = log.clone();
     h.stash_vault = Some(Arc::new(move |_m| {
         l.lock().unwrap().push("stash".into());
-        async { Ok(()) }.boxed()
+        async { Ok(()) }.boxed_local()
     }));
     let n = Arc::new(Mutex::new(0));
     h.wake_check = Some(Arc::new(move |_m| {
         let mut k = n.lock().unwrap();
         *k += 1;
         let fault = (*k == 1).then(|| "silent".to_string());
-        async move { Ok(fault) }.boxed()
+        async move { Ok(fault) }.boxed_local()
     }));
     let mut ws = Workspace::new(FakeMachine::with_log("m1", log.clone()), h, initial(&w));
     let r = ws.wake(false).await.unwrap();
@@ -250,7 +250,7 @@ async fn a_wake_that_runs_out_fails_with_plain_words() {
     let log: Log = Arc::default();
     let mut h = hooks();
     h.wake_attempts = 1;
-    h.wake_check = Some(Arc::new(|_m| async { Ok(Some("silent".to_string())) }.boxed()));
+    h.wake_check = Some(Arc::new(|_m| async { Ok(Some("silent".to_string())) }.boxed_local()));
     let mut ws = Workspace::new(FakeMachine::with_log("m1", log.clone()), h, initial(&w));
     let e = ws.wake(false).await.unwrap_err();
     assert!(matches!(e, EngineError::Other { code: None, .. }), "{e:?}");

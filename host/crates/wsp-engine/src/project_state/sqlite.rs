@@ -126,6 +126,11 @@ pub fn update_rows(db: &str, updates: &[RowUpdate]) -> Result<Option<Vec<u64>>> 
 
 /// sqlite.ts:40 used by codex: runs `select` (its first column as text) then `update` in one transaction; `None` where
 /// the file is absent. Answers the selected values and the rows the update changed.
-pub fn select_then_update(db: &str, select: &str, select_params: &[(String, SqlValue)], update: &RowUpdate) -> Result<Option<(Vec<String>, u64)>> {
+pub fn select_then_update(
+    db: &str,
+    select: &str,
+    select_params: &[(String, SqlValue)],
+    update: &RowUpdate,
+) -> Result<Option<(Vec<String>, u64)>> {
     todo!()
 }

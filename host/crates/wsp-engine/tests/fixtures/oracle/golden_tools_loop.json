@@ -1,0 +1,3487 @@
+[
+  {
+    "name": "two steps, the second after the first, each checked after the loop",
+    "tools": [
+      {
+        "id": "agents/node",
+        "label": "Node 22.23.2",
+        "manager": "script",
+        "cmd": "install node",
+        "check": "node --version"
+      },
+      {
+        "id": "agents/codex",
+        "label": "Codex",
+        "manager": "npm",
+        "cmd": "install codex",
+        "after": "agents/node",
+        "bin": "codex"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          },
+          {
+            "stdout": "8388608\n"
+          },
+          {
+            "stdout": "7340032\n"
+          }
+        ]
+      }
+    ],
+    "out": {
+      "tools": [
+        {
+          "id": "agents/node",
+          "label": "Node 22.23.2",
+          "outcome": "installed",
+          "bytes": 1073741824,
+          "ms": true
+        },
+        {
+          "id": "agents/codex",
+          "label": "Codex",
+          "outcome": "installed",
+          "bytes": 1073741824,
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "agents/node",
+        "label": "Node 22.23.2",
+        "outcome": "installed",
+        "bytes": 1073741824,
+        "ms": true
+      },
+      {
+        "id": "agents/codex",
+        "label": "Codex",
+        "outcome": "installed",
+        "bytes": 1073741824,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "Node 22.23.2 (1/2)"
+      ],
+      [
+        "installing-tools",
+        "Codex (2/2)"
+      ],
+      [
+        "installing-tools",
+        "2 installed; caches swept; 7 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall node' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\ninstall codex' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nfor b in 'codex'; do command -v \"$b\" >/dev/null 2>&1 || echo \"missing $b\"; done",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nif ! out=\"$( ( node --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 0 \"$(printf '%s' \"$out\" | tail -1)\"; fi",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a failure is named by its Error line and skips what waits on it; the next one still runs",
+    "tools": [
+      {
+        "id": "tools/brew/gh",
+        "label": "gh",
+        "manager": "brew",
+        "cmd": "brew install gh"
+      },
+      {
+        "id": "tools/brew/gh-dash",
+        "label": "gh-dash",
+        "manager": "brew",
+        "cmd": "install tools/brew/gh-dash",
+        "after": "tools/brew/gh"
+      },
+      {
+        "id": "tools/npm/turbo",
+        "label": "turbo",
+        "manager": "npm",
+        "cmd": "install tools/npm/turbo"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      },
+      {
+        "has": "brew install gh",
+        "kind": "run",
+        "seq": [
+          {
+            "exit": 1,
+            "stderr": "==> Downloading\nError: no bottle for gh\n  advice\n",
+            "lines": [
+              "==> Downloading",
+              "Error: no bottle for gh"
+            ]
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/brew/gh",
+          "label": "gh",
+          "outcome": "failed",
+          "note": "Error: no bottle for gh",
+          "ms": true
+        },
+        {
+          "id": "tools/brew/gh-dash",
+          "label": "gh-dash",
+          "outcome": "skipped",
+          "note": "gh did not install"
+        },
+        {
+          "id": "tools/npm/turbo",
+          "label": "turbo",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/brew/gh",
+        "label": "gh",
+        "outcome": "failed",
+        "note": "Error: no bottle for gh",
+        "ms": true
+      },
+      {
+        "id": "tools/brew/gh-dash",
+        "label": "gh-dash",
+        "outcome": "skipped",
+        "note": "gh did not install"
+      },
+      {
+        "id": "tools/npm/turbo",
+        "label": "turbo",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "gh (1/3)"
+      ],
+      [
+        "installing-tools",
+        "gh: ==> Downloading"
+      ],
+      [
+        "installing-tools",
+        "gh: Error: no bottle for gh"
+      ],
+      [
+        "installing-tools",
+        "turbo (3/3)"
+      ],
+      [
+        "installing-tools",
+        "1 installed, 1 failed: gh (Error: no bottle for gh), 1 skipped: gh-dash (gh did not install); 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'brew install gh' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\ninstall tools/npm/turbo' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a step already on the machine runs nothing and lets what waits on it run",
+    "tools": [
+      {
+        "id": "agents/node",
+        "label": "Node",
+        "manager": "script",
+        "cmd": "install agents/node",
+        "check": "node --version"
+      },
+      {
+        "id": "agents/codex",
+        "label": "Codex",
+        "manager": "npm",
+        "cmd": "install agents/codex",
+        "after": "agents/node",
+        "bin": "codex"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "present": [
+        "agents/node"
+      ],
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "agents/node",
+          "label": "Node",
+          "outcome": "installed",
+          "note": "already on the machine"
+        },
+        {
+          "id": "agents/codex",
+          "label": "Codex",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "agents/node",
+        "label": "Node",
+        "outcome": "installed",
+        "note": "already on the machine"
+      },
+      {
+        "id": "agents/codex",
+        "label": "Codex",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "Codex (2/2)"
+      ],
+      [
+        "installing-tools",
+        "2 installed (Node (already on the machine)); 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\ninstall agents/codex' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nfor b in 'codex'; do command -v \"$b\" >/dev/null 2>&1 || echo \"missing $b\"; done",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nif ! out=\"$( ( node --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 0 \"$(printf '%s' \"$out\" | tail -1)\"; fi",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "under the floor with no Homebrew the sweep alone runs and the install goes on when it clears",
+    "tools": [
+      {
+        "id": "tools/x",
+        "label": "x",
+        "manager": "script",
+        "cmd": "install tools/x"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "1048576\n"
+          },
+          {
+            "stdout": "1048576\n"
+          },
+          {
+            "stdout": "3145728\n"
+          },
+          {
+            "stdout": "3145728\n"
+          },
+          {
+            "stdout": "2621440\n"
+          }
+        ]
+      }
+    ],
+    "out": {
+      "tools": [
+        {
+          "id": "tools/x",
+          "label": "x",
+          "outcome": "installed",
+          "bytes": 536870912,
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/x",
+        "label": "x",
+        "outcome": "installed",
+        "bytes": 536870912,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "1 GB free, under the 2 GB floor; cleaning up before skipping"
+      ],
+      [
+        "installing-tools",
+        "caches swept, 2 GB back; 3 GB free"
+      ],
+      [
+        "installing-tools",
+        "x (1/1)"
+      ],
+      [
+        "installing-tools",
+        "1 installed; caches swept; 2.5 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/x' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "under the floor and still under after the cleanup: every tool left is skipped with the reading",
+    "tools": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "manager": "script",
+        "cmd": "install tools/a"
+      },
+      {
+        "id": "tools/b",
+        "label": "b",
+        "manager": "script",
+        "cmd": "install tools/b"
+      },
+      {
+        "id": "tools/c",
+        "label": "c",
+        "manager": "script",
+        "cmd": "install tools/c"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "1048576\n"
+          }
+        ]
+      }
+    ],
+    "out": {
+      "tools": [
+        {
+          "id": "tools/a",
+          "label": "a",
+          "outcome": "skipped",
+          "note": "1 GB free after cleanup, keeping 2 GB free"
+        },
+        {
+          "id": "tools/b",
+          "label": "b",
+          "outcome": "skipped",
+          "note": "1 GB free after cleanup, keeping 2 GB free"
+        },
+        {
+          "id": "tools/c",
+          "label": "c",
+          "outcome": "skipped",
+          "note": "1 GB free after cleanup, keeping 2 GB free"
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "outcome": "skipped",
+        "note": "1 GB free after cleanup, keeping 2 GB free"
+      },
+      {
+        "id": "tools/b",
+        "label": "b",
+        "outcome": "skipped",
+        "note": "1 GB free after cleanup, keeping 2 GB free"
+      },
+      {
+        "id": "tools/c",
+        "label": "c",
+        "outcome": "skipped",
+        "note": "1 GB free after cleanup, keeping 2 GB free"
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "1 GB free, under the 2 GB floor; cleaning up before skipping"
+      ],
+      [
+        "installing-tools",
+        "caches swept; 1 GB free"
+      ],
+      [
+        "installing-tools",
+        "0 installed, 3 skipped: a, b, c (1 GB free after cleanup, keeping 2 GB free); caches swept; 1 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "df unknown after the cleanup",
+    "tools": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "manager": "script",
+        "cmd": "install tools/a"
+      },
+      {
+        "id": "tools/b",
+        "label": "b",
+        "manager": "script",
+        "cmd": "install tools/b"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "1048576\n"
+          },
+          {
+            "exit": 1,
+            "stderr": "df: gone\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/a",
+          "label": "a",
+          "outcome": "skipped",
+          "note": "1 GB free before cleanup and unknown after (df failed: df: gone), keeping 2 GB free"
+        },
+        {
+          "id": "tools/b",
+          "label": "b",
+          "outcome": "skipped",
+          "note": "1 GB free before cleanup and unknown after (df failed: df: gone), keeping 2 GB free"
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "outcome": "skipped",
+        "note": "1 GB free before cleanup and unknown after (df failed: df: gone), keeping 2 GB free"
+      },
+      {
+        "id": "tools/b",
+        "label": "b",
+        "outcome": "skipped",
+        "note": "1 GB free before cleanup and unknown after (df failed: df: gone), keeping 2 GB free"
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "1 GB free, under the 2 GB floor; cleaning up before skipping"
+      ],
+      [
+        "installing-tools",
+        "df failed: df: gone"
+      ],
+      [
+        "installing-tools",
+        "0 installed, 2 skipped: a, b (1 GB free before cleanup and unknown after (df failed: df: gone), keeping 2 GB free)"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a full disk reads zero, not unknown",
+    "tools": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "manager": "script",
+        "cmd": "install tools/a"
+      },
+      {
+        "id": "tools/b",
+        "label": "b",
+        "manager": "script",
+        "cmd": "install tools/b"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "0\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/a",
+          "label": "a",
+          "outcome": "skipped",
+          "note": "0 B free after cleanup, keeping 2 GB free"
+        },
+        {
+          "id": "tools/b",
+          "label": "b",
+          "outcome": "skipped",
+          "note": "0 B free after cleanup, keeping 2 GB free"
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "outcome": "skipped",
+        "note": "0 B free after cleanup, keeping 2 GB free"
+      },
+      {
+        "id": "tools/b",
+        "label": "b",
+        "outcome": "skipped",
+        "note": "0 B free after cleanup, keeping 2 GB free"
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "0 B free, under the 2 GB floor; cleaning up before skipping"
+      ],
+      [
+        "installing-tools",
+        "0 B free"
+      ],
+      [
+        "installing-tools",
+        "0 installed, 2 skipped: a, b (0 B free after cleanup, keeping 2 GB free); 0 B free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a df that fails warns once and installs without the floor",
+    "tools": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "manager": "script",
+        "cmd": "install tools/a"
+      },
+      {
+        "id": "tools/b",
+        "label": "b",
+        "manager": "script",
+        "cmd": "install tools/b"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "exit": 1,
+            "stderr": "df: /root: No such file or directory\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/a",
+          "label": "a",
+          "outcome": "installed",
+          "ms": true
+        },
+        {
+          "id": "tools/b",
+          "label": "b",
+          "outcome": "installed",
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "outcome": "installed",
+        "ms": true
+      },
+      {
+        "id": "tools/b",
+        "label": "b",
+        "outcome": "installed",
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "free disk unknown (df failed: df: /root: No such file or directory); installing without the 2 GB floor"
+      ],
+      [
+        "installing-tools",
+        "a (1/2)"
+      ],
+      [
+        "installing-tools",
+        "b (2/2)"
+      ],
+      [
+        "installing-tools",
+        "2 installed"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/a' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/b' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a df that exits 0 printing something it cannot use names what it printed",
+    "tools": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "manager": "script",
+        "cmd": "install tools/a"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "garbage here\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/a",
+          "label": "a",
+          "outcome": "installed",
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "outcome": "installed",
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "free disk unknown (df answered garbage here); installing without the 2 GB floor"
+      ],
+      [
+        "installing-tools",
+        "a (1/1)"
+      ],
+      [
+        "installing-tools",
+        "1 installed"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/a' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "an install too big for the room above the floor is skipped alone, and what fits after it installs",
+    "tools": [
+      {
+        "id": "tools/llvm",
+        "label": "llvm",
+        "manager": "script",
+        "cmd": "install tools/llvm",
+        "bytes": 5368709120
+      },
+      {
+        "id": "tools/jq2",
+        "label": "jq2",
+        "manager": "script",
+        "cmd": "install tools/jq2",
+        "bytes": 10485760
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "3145728\n"
+          },
+          {
+            "stdout": "3145728\n"
+          },
+          {
+            "stdout": "3040870\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/llvm",
+          "label": "llvm",
+          "outcome": "skipped",
+          "note": "needs about 5 GB, 3 GB free, keeping 2 GB free"
+        },
+        {
+          "id": "tools/jq2",
+          "label": "jq2",
+          "outcome": "installed",
+          "bytes": 107374592,
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/llvm",
+        "label": "llvm",
+        "outcome": "skipped",
+        "note": "needs about 5 GB, 3 GB free, keeping 2 GB free"
+      },
+      {
+        "id": "tools/jq2",
+        "label": "jq2",
+        "outcome": "installed",
+        "bytes": 107374592,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "llvm needs about 5 GB with 3 GB free above a 2 GB floor; cleaning up before skipping"
+      ],
+      [
+        "installing-tools",
+        "3 GB free"
+      ],
+      [
+        "installing-tools",
+        "jq2 (2/2)"
+      ],
+      [
+        "installing-tools",
+        "1 installed, 1 skipped: llvm (needs about 5 GB, 3 GB free, keeping 2 GB free); 2.9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/jq2' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a too-big install still too big after the cleanup stays skipped",
+    "tools": [
+      {
+        "id": "tools/llvm",
+        "label": "llvm",
+        "manager": "script",
+        "cmd": "install tools/llvm",
+        "bytes": 2147483648
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "3145728\n"
+          },
+          {
+            "stdout": "5242880\n"
+          },
+          {
+            "stdout": "3145728\n"
+          },
+          {
+            "stdout": "3145728\n"
+          }
+        ]
+      }
+    ],
+    "out": {
+      "tools": [
+        {
+          "id": "tools/llvm",
+          "label": "llvm",
+          "outcome": "skipped",
+          "note": "needs about 2 GB, 3 GB free, keeping 2 GB free"
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/llvm",
+        "label": "llvm",
+        "outcome": "skipped",
+        "note": "needs about 2 GB, 3 GB free, keeping 2 GB free"
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "llvm needs about 2 GB with 3 GB free above a 2 GB floor; cleaning up before skipping"
+      ],
+      [
+        "installing-tools",
+        "caches swept; 3 GB free"
+      ],
+      [
+        "installing-tools",
+        "0 installed, 1 skipped: llvm (needs about 2 GB, 3 GB free, keeping 2 GB free); caches swept; 3 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a cellar lock waits for every Homebrew lock, then tries once more",
+    "tools": [
+      {
+        "id": "tools/brew/gh",
+        "label": "gh",
+        "manager": "brew",
+        "cmd": "brew install gh"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      },
+      {
+        "has": "brew install gh",
+        "kind": "run",
+        "seq": [
+          {
+            "exit": 1,
+            "stderr": "Error: Another active Homebrew process has already locked /home/linuxbrew/.linuxbrew/var/homebrew/locks/gh.formula.lock\n"
+          },
+          {
+            "exit": 0
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/brew/gh",
+          "label": "gh",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/brew/gh",
+        "label": "gh",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "gh (1/1)"
+      ],
+      [
+        "installing-tools",
+        "gh: another brew holds its cellar; waiting for it, then once more"
+      ],
+      [
+        "installing-tools",
+        "1 installed; 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'brew install gh' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "run",
+        "text": "for l in /home/linuxbrew/.linuxbrew/var/homebrew/locks/*.lock; do [ -e \"$l\" ] && flock -w 600 \"$l\" true; done; true",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'brew install gh' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a download road that hits its limit is tried once more, and the second run is an install",
+    "tools": [
+      {
+        "id": "tools/release/gh",
+        "label": "gh",
+        "manager": "release",
+        "cmd": "fetch gh"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      },
+      {
+        "has": "fetch gh",
+        "kind": "run",
+        "seq": [
+          {
+            "exit": 124
+          },
+          {
+            "exit": 0
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/release/gh",
+          "label": "gh",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/release/gh",
+        "label": "gh",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "gh (1/1)"
+      ],
+      [
+        "installing-tools",
+        "gh: timed out after 300s; trying once more"
+      ],
+      [
+        "installing-tools",
+        "1 installed; 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\nfetch gh' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\nfetch gh' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a download road that hits its limit twice is failed with both timeouts; a compile road is not tried again",
+    "tools": [
+      {
+        "id": "tools/release/gh",
+        "label": "gh",
+        "manager": "release",
+        "cmd": "fetch gh"
+      },
+      {
+        "id": "tools/cargo/tokei",
+        "label": "tokei",
+        "manager": "cargo",
+        "cmd": "cargo install tokei"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      },
+      {
+        "has": "fetch gh",
+        "kind": "run",
+        "seq": [
+          {
+            "exit": 124
+          }
+        ]
+      },
+      {
+        "has": "cargo install tokei",
+        "kind": "run",
+        "seq": [
+          {
+            "exit": 124
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/release/gh",
+          "label": "gh",
+          "outcome": "failed",
+          "note": "timed out after 300s, twice",
+          "ms": true
+        },
+        {
+          "id": "tools/cargo/tokei",
+          "label": "tokei",
+          "outcome": "failed",
+          "note": "timed out after 1200s",
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/release/gh",
+        "label": "gh",
+        "outcome": "failed",
+        "note": "timed out after 300s, twice",
+        "ms": true
+      },
+      {
+        "id": "tools/cargo/tokei",
+        "label": "tokei",
+        "outcome": "failed",
+        "note": "timed out after 1200s",
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "gh (1/2)"
+      ],
+      [
+        "installing-tools",
+        "gh: timed out after 300s; trying once more"
+      ],
+      [
+        "installing-tools",
+        "tokei (2/2)"
+      ],
+      [
+        "installing-tools",
+        "0 installed, 2 failed: gh (timed out after 300s, twice), tokei (timed out after 1200s); 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\nfetch gh' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\nfetch gh' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncargo install tokei' &\np=$!\nt=0\nwhile [ $t -lt 1200 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 1260000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "Homebrew installs: the result carries its checkout and the housekeeping after the loop says what it freed",
+    "tools": [
+      {
+        "id": "tools/homebrew",
+        "label": "Homebrew",
+        "manager": "brew",
+        "cmd": "bootstrap brew",
+        "bin": "brew"
+      },
+      {
+        "id": "tools/brew/gh",
+        "label": "gh",
+        "manager": "brew",
+        "cmd": "brew install gh",
+        "after": "tools/homebrew",
+        "bin": "gh"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          },
+          {
+            "stdout": "8388608\n"
+          },
+          {
+            "stdout": "7340032\n"
+          },
+          {
+            "stdout": "7340032\n"
+          },
+          {
+            "stdout": "8388608\n"
+          },
+          {
+            "stdout": "8388608\n"
+          },
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      }
+    ],
+    "out": {
+      "tools": [
+        {
+          "id": "tools/homebrew",
+          "label": "Homebrew",
+          "outcome": "installed",
+          "bytes": 1073741824,
+          "ms": true
+        },
+        {
+          "id": "tools/brew/gh",
+          "label": "gh",
+          "outcome": "installed",
+          "bytes": 1073741824,
+          "ms": true
+        }
+      ],
+      "homebrew": {
+        "tag": "6.0.21",
+        "commit": "560147012b9678b42ef5e83b690f0895552d1366"
+      }
+    },
+    "onTool": [
+      {
+        "id": "tools/homebrew",
+        "label": "Homebrew",
+        "outcome": "installed",
+        "bytes": 1073741824,
+        "ms": true
+      },
+      {
+        "id": "tools/brew/gh",
+        "label": "gh",
+        "outcome": "installed",
+        "bytes": 1073741824,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "Homebrew (1/2)"
+      ],
+      [
+        "installing-tools",
+        "gh (2/2)"
+      ],
+      [
+        "installing-tools",
+        "2 installed; Homebrew cleanup freed 1 GB; caches swept, 1 GB back; 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'bootstrap brew' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'brew install gh' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nfor b in 'brew' 'gh'; do command -v \"$b\" >/dev/null 2>&1 || echo \"missing $b\"; done",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '\\''[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew autoremove'\\''' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '\\''[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew cleanup -s --prune=all'\\''' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "Homebrew cleanup that fails at the floor is named in the rescue's line",
+    "tools": [
+      {
+        "id": "tools/homebrew",
+        "label": "Homebrew",
+        "manager": "brew",
+        "cmd": "bootstrap brew"
+      },
+      {
+        "id": "tools/brew/gh",
+        "label": "gh",
+        "manager": "brew",
+        "cmd": "brew install gh",
+        "after": "tools/homebrew"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          },
+          {
+            "stdout": "1048576\n"
+          }
+        ]
+      },
+      {
+        "has": "autoremove",
+        "kind": "run",
+        "seq": [
+          {
+            "exit": 1,
+            "stderr": "Error: autoremove broke\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/homebrew",
+          "label": "Homebrew",
+          "outcome": "installed",
+          "bytes": 8589934592,
+          "ms": true
+        },
+        {
+          "id": "tools/brew/gh",
+          "label": "gh",
+          "outcome": "skipped",
+          "note": "1 GB free after cleanup, keeping 2 GB free"
+        }
+      ],
+      "homebrew": {
+        "tag": "6.0.21",
+        "commit": "560147012b9678b42ef5e83b690f0895552d1366"
+      }
+    },
+    "onTool": [
+      {
+        "id": "tools/homebrew",
+        "label": "Homebrew",
+        "outcome": "installed",
+        "bytes": 8589934592,
+        "ms": true
+      },
+      {
+        "id": "tools/brew/gh",
+        "label": "gh",
+        "outcome": "skipped",
+        "note": "1 GB free after cleanup, keeping 2 GB free"
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "Homebrew (1/2)"
+      ],
+      [
+        "installing-tools",
+        "1 GB free, under the 2 GB floor; cleaning up before skipping"
+      ],
+      [
+        "installing-tools",
+        "Homebrew cleanup failed (Error: autoremove broke); 1 GB free"
+      ],
+      [
+        "installing-tools",
+        "1 installed, 1 skipped: gh (1 GB free after cleanup, keeping 2 GB free); Homebrew cleanup failed (Error: autoremove broke); 1 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'bootstrap brew' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '\\''[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew autoremove'\\''' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '\\''[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew cleanup -s --prune=all'\\''' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '\\''[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew autoremove'\\''' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nsu -s /bin/bash linuxbrew -c '\\''[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew cleanup -s --prune=all'\\''' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "an install that exits 0 without its command on PATH is failed by name",
+    "tools": [
+      {
+        "id": "agents/codex",
+        "label": "Codex",
+        "manager": "npm",
+        "cmd": "install agents/codex",
+        "bin": "codex"
+      },
+      {
+        "id": "tools/release/gh",
+        "label": "gh",
+        "manager": "release",
+        "cmd": "fetch gh",
+        "bin": "gh"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      },
+      {
+        "has": "command -v \"$b\"",
+        "seq": [
+          {
+            "stdout": "missing gh\n"
+          }
+        ]
+      },
+      {
+        "has": "fetch gh",
+        "kind": "run",
+        "seq": [
+          {
+            "stdout": "WSP_ROAD release https://x/gh.tgz eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee v2.1.0 x86_64\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "agents/codex",
+          "label": "Codex",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        },
+        {
+          "id": "tools/release/gh",
+          "label": "gh",
+          "outcome": "failed",
+          "bytes": 0,
+          "note": "gh is not on PATH after the install",
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "agents/codex",
+        "label": "Codex",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/release/gh",
+        "label": "gh",
+        "outcome": "installed",
+        "bytes": 0,
+        "road": {
+          "kind": "release",
+          "from": "https://x/gh.tgz",
+          "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "tag": "v2.1.0",
+          "arch": "x86_64"
+        },
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "Codex (1/2)"
+      ],
+      [
+        "installing-tools",
+        "gh (2/2)"
+      ],
+      [
+        "installing-tools",
+        "1 installed, 1 failed: gh (gh is not on PATH after the install); 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\ninstall agents/codex' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\nfetch gh' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nfor b in 'codex' 'gh'; do command -v \"$b\" >/dev/null 2>&1 || echo \"missing $b\"; done",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a PATH check that itself fails counts every named tool as failed",
+    "tools": [
+      {
+        "id": "agents/codex",
+        "label": "Codex",
+        "manager": "npm",
+        "cmd": "install agents/codex",
+        "bin": "codex"
+      },
+      {
+        "id": "tools/x",
+        "label": "x",
+        "manager": "script",
+        "cmd": "install tools/x"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      },
+      {
+        "has": "command -v \"$b\"",
+        "seq": [
+          {
+            "exit": 1,
+            "stderr": "bash: boom\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "agents/codex",
+          "label": "Codex",
+          "outcome": "failed",
+          "bytes": 0,
+          "note": "codex could not be checked on PATH: bash: boom",
+          "ms": true
+        },
+        {
+          "id": "tools/x",
+          "label": "x",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "agents/codex",
+        "label": "Codex",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/x",
+        "label": "x",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "Codex (1/2)"
+      ],
+      [
+        "installing-tools",
+        "x (2/2)"
+      ],
+      [
+        "installing-tools",
+        "the PATH check failed (bash: boom): codex count as failed"
+      ],
+      [
+        "installing-tools",
+        "1 installed, 1 failed: Codex (codex could not be checked on PATH: bash: boom); 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\ninstall agents/codex' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/x' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nfor b in 'codex'; do command -v \"$b\" >/dev/null 2>&1 || echo \"missing $b\"; done",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "checks read a page at a time: a page that printed failures fails those rows, a page that could not run fails its own",
+    "tools": [
+      {
+        "id": "tools/c0",
+        "label": "c0",
+        "manager": "script",
+        "cmd": "install tools/c0",
+        "check": "check-0 --version"
+      },
+      {
+        "id": "tools/c1",
+        "label": "c1",
+        "manager": "script",
+        "cmd": "install tools/c1",
+        "check": "check-1 --version"
+      },
+      {
+        "id": "tools/c2",
+        "label": "c2",
+        "manager": "script",
+        "cmd": "install tools/c2",
+        "check": "check-2 --version"
+      },
+      {
+        "id": "tools/c3",
+        "label": "c3",
+        "manager": "script",
+        "cmd": "install tools/c3",
+        "check": "check-3 --version"
+      },
+      {
+        "id": "tools/c4",
+        "label": "c4",
+        "manager": "script",
+        "cmd": "install tools/c4",
+        "check": "check-4 --version"
+      },
+      {
+        "id": "tools/c5",
+        "label": "c5",
+        "manager": "script",
+        "cmd": "install tools/c5",
+        "check": "check-5 --version"
+      },
+      {
+        "id": "tools/c6",
+        "label": "c6",
+        "manager": "script",
+        "cmd": "install tools/c6",
+        "check": "check-6 --version"
+      },
+      {
+        "id": "tools/c7",
+        "label": "c7",
+        "manager": "script",
+        "cmd": "install tools/c7",
+        "check": "check-7 --version"
+      },
+      {
+        "id": "tools/c8",
+        "label": "c8",
+        "manager": "script",
+        "cmd": "install tools/c8",
+        "check": "check-8 --version"
+      },
+      {
+        "id": "tools/c9",
+        "label": "c9",
+        "manager": "script",
+        "cmd": "install tools/c9",
+        "check": "check-9 --version"
+      },
+      {
+        "id": "tools/c10",
+        "label": "c10",
+        "manager": "script",
+        "cmd": "install tools/c10",
+        "check": "check-10 --version"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      },
+      {
+        "has": "wsp-check",
+        "seq": [
+          {
+            "stdout": "wsp-check 1 c1: command not found\nwsp-check 3 \nnoise\n"
+          },
+          {
+            "exit": 1,
+            "stderr": "timed out\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/c0",
+          "label": "c0",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        },
+        {
+          "id": "tools/c1",
+          "label": "c1",
+          "outcome": "failed",
+          "bytes": 0,
+          "note": "c1: command not found",
+          "ms": true
+        },
+        {
+          "id": "tools/c2",
+          "label": "c2",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        },
+        {
+          "id": "tools/c3",
+          "label": "c3",
+          "outcome": "failed",
+          "bytes": 0,
+          "note": "c3 is not there after the install",
+          "ms": true
+        },
+        {
+          "id": "tools/c4",
+          "label": "c4",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        },
+        {
+          "id": "tools/c5",
+          "label": "c5",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        },
+        {
+          "id": "tools/c6",
+          "label": "c6",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        },
+        {
+          "id": "tools/c7",
+          "label": "c7",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        },
+        {
+          "id": "tools/c8",
+          "label": "c8",
+          "outcome": "failed",
+          "bytes": 0,
+          "note": "the check could not be run: timed out",
+          "ms": true
+        },
+        {
+          "id": "tools/c9",
+          "label": "c9",
+          "outcome": "failed",
+          "bytes": 0,
+          "note": "the check could not be run: timed out",
+          "ms": true
+        },
+        {
+          "id": "tools/c10",
+          "label": "c10",
+          "outcome": "failed",
+          "bytes": 0,
+          "note": "the check could not be run: timed out",
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/c0",
+        "label": "c0",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/c1",
+        "label": "c1",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/c2",
+        "label": "c2",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/c3",
+        "label": "c3",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/c4",
+        "label": "c4",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/c5",
+        "label": "c5",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/c6",
+        "label": "c6",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/c7",
+        "label": "c7",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/c8",
+        "label": "c8",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/c9",
+        "label": "c9",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/c10",
+        "label": "c10",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "c0 (1/11)"
+      ],
+      [
+        "installing-tools",
+        "c1 (2/11)"
+      ],
+      [
+        "installing-tools",
+        "c2 (3/11)"
+      ],
+      [
+        "installing-tools",
+        "c3 (4/11)"
+      ],
+      [
+        "installing-tools",
+        "c4 (5/11)"
+      ],
+      [
+        "installing-tools",
+        "c5 (6/11)"
+      ],
+      [
+        "installing-tools",
+        "c6 (7/11)"
+      ],
+      [
+        "installing-tools",
+        "c7 (8/11)"
+      ],
+      [
+        "installing-tools",
+        "c8 (9/11)"
+      ],
+      [
+        "installing-tools",
+        "c9 (10/11)"
+      ],
+      [
+        "installing-tools",
+        "c10 (11/11)"
+      ],
+      [
+        "installing-tools",
+        "c1: the check did not pass: check-1 --version"
+      ],
+      [
+        "installing-tools",
+        "c3: the check did not pass: check-3 --version"
+      ],
+      [
+        "installing-tools",
+        "the checks could not be run (timed out): c8, c9, c10 count as failed"
+      ],
+      [
+        "installing-tools",
+        "c8: its check was check-8 --version"
+      ],
+      [
+        "installing-tools",
+        "c9: its check was check-9 --version"
+      ],
+      [
+        "installing-tools",
+        "c10: its check was check-10 --version"
+      ],
+      [
+        "installing-tools",
+        "6 installed, 5 failed: c1 (c1: command not found), c3 (c3 is not there after the install), c8 (the check could not be run: timed out), c9 (the check could not be run: timed out), c10 (the check could not be run: timed out); 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/c0' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/c1' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/c2' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/c3' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/c4' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/c5' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/c6' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/c7' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/c8' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/c9' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/c10' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nif ! out=\"$( ( check-0 --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 0 \"$(printf '%s' \"$out\" | tail -1)\"; fi\nif ! out=\"$( ( check-1 --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 1 \"$(printf '%s' \"$out\" | tail -1)\"; fi\nif ! out=\"$( ( check-2 --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 2 \"$(printf '%s' \"$out\" | tail -1)\"; fi\nif ! out=\"$( ( check-3 --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 3 \"$(printf '%s' \"$out\" | tail -1)\"; fi\nif ! out=\"$( ( check-4 --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 4 \"$(printf '%s' \"$out\" | tail -1)\"; fi\nif ! out=\"$( ( check-5 --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 5 \"$(printf '%s' \"$out\" | tail -1)\"; fi\nif ! out=\"$( ( check-6 --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 6 \"$(printf '%s' \"$out\" | tail -1)\"; fi\nif ! out=\"$( ( check-7 --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 7 \"$(printf '%s' \"$out\" | tail -1)\"; fi",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "export PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin PNPM_HOME=/root/.local/share/pnpm\nif ! out=\"$( ( check-8 --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 0 \"$(printf '%s' \"$out\" | tail -1)\"; fi\nif ! out=\"$( ( check-9 --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 1 \"$(printf '%s' \"$out\" | tail -1)\"; fi\nif ! out=\"$( ( check-10 --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 2 \"$(printf '%s' \"$out\" | tail -1)\"; fi",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a road install names the road in its result and the summary; a note and a label with a comma",
+    "tools": [
+      {
+        "id": "tools/release/gh",
+        "label": "gh",
+        "manager": "release",
+        "cmd": "fetch gh",
+        "note": "by an unmeasured road"
+      },
+      {
+        "id": "tools/x",
+        "label": "x, y",
+        "manager": "script",
+        "cmd": "install tools/x",
+        "note": "a; b"
+      },
+      {
+        "id": "tools/go/sqlc",
+        "label": "sqlc",
+        "manager": "go",
+        "cmd": "go install sqlc"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      },
+      {
+        "has": "fetch gh",
+        "kind": "run",
+        "seq": [
+          {
+            "stdout": "WSP_ROAD release https://x/gh.tgz ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff v2 aarch64\n"
+          }
+        ]
+      },
+      {
+        "has": "go install sqlc",
+        "kind": "run",
+        "seq": [
+          {
+            "stdout": "WSP_ROAD go github.com/sqlc-dev/sqlc/cmd/sqlc@v1\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/release/gh",
+          "label": "gh",
+          "outcome": "installed",
+          "note": "by an unmeasured road",
+          "bytes": 0,
+          "road": {
+            "kind": "release",
+            "from": "https://x/gh.tgz",
+            "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "tag": "v2",
+            "arch": "aarch64"
+          },
+          "ms": true
+        },
+        {
+          "id": "tools/x",
+          "label": "x, y",
+          "outcome": "installed",
+          "note": "a; b",
+          "bytes": 0,
+          "ms": true
+        },
+        {
+          "id": "tools/go/sqlc",
+          "label": "sqlc",
+          "outcome": "installed",
+          "bytes": 0,
+          "road": {
+            "kind": "go",
+            "from": "github.com/sqlc-dev/sqlc/cmd/sqlc@v1"
+          },
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/release/gh",
+        "label": "gh",
+        "outcome": "installed",
+        "note": "by an unmeasured road",
+        "bytes": 0,
+        "road": {
+          "kind": "release",
+          "from": "https://x/gh.tgz",
+          "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "tag": "v2",
+          "arch": "aarch64"
+        },
+        "ms": true
+      },
+      {
+        "id": "tools/x",
+        "label": "x, y",
+        "outcome": "installed",
+        "note": "a; b",
+        "bytes": 0,
+        "ms": true
+      },
+      {
+        "id": "tools/go/sqlc",
+        "label": "sqlc",
+        "outcome": "installed",
+        "bytes": 0,
+        "road": {
+          "kind": "go",
+          "from": "github.com/sqlc-dev/sqlc/cmd/sqlc@v1"
+        },
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "gh (1/3)"
+      ],
+      [
+        "installing-tools",
+        "x, y (2/3)"
+      ],
+      [
+        "installing-tools",
+        "sqlc (3/3)"
+      ],
+      [
+        "installing-tools",
+        "3 installed (gh from its release (by an unmeasured road), \"x, y\" (a; b), sqlc with go install); 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\nfetch gh' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall tools/x' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'go install sqlc' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a prefix reads the volume wsp installs onto and runs on the probe PATH, with a floor the caller holds",
+    "tools": [
+      {
+        "id": "tools/uv/ruff",
+        "label": "ruff",
+        "manager": "uv",
+        "cmd": "install tools/uv/ruff",
+        "bin": "ruff",
+        "check": "ruff --version"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "6291456\n"
+          },
+          {
+            "stdout": "5767168\n"
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep",
+      "floor": 5368709120,
+      "prefix": "/opt/wsp",
+      "path": "/opt/wsp/bin:/usr/bin:/bin"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/uv/ruff",
+          "label": "ruff",
+          "outcome": "installed",
+          "bytes": 536870912,
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/uv/ruff",
+        "label": "ruff",
+        "outcome": "installed",
+        "bytes": 536870912,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "ruff (1/1)"
+      ],
+      [
+        "installing-tools",
+        "1 installed; 5.5 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk \"$(p='/opt/wsp'; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\" | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'export UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\ninstall tools/uv/ruff' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk \"$(p='/opt/wsp'; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\" | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "export PATH=/opt/wsp/bin:/usr/bin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nfor b in 'ruff'; do command -v \"$b\" >/dev/null 2>&1 || echo \"missing $b\"; done",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "export PATH=/opt/wsp/bin:/usr/bin:/bin PNPM_HOME=/opt/wsp/pnpm BUN_INSTALL=/opt/wsp/bun BUN_INSTALL_BIN=/usr/local/bin UV_TOOL_DIR=/opt/wsp/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/wsp/uv/python PIPX_HOME=/opt/wsp/pipx PIPX_BIN_DIR=/usr/local/bin CARGO_HOME=/opt/wsp/cargo RUSTUP_HOME=/opt/wsp/rustup GOPATH=/opt/wsp/go GOBIN=/usr/local/bin\nif ! out=\"$( ( ruff --version ) 2>&1 )\"; then printf 'wsp-check %s %s\\n' 0 \"$(printf '%s' \"$out\" | tail -1)\"; fi",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk \"$(p='/opt/wsp'; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\" | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "the base stage's own name on every line",
+    "tools": [
+      {
+        "id": "base/login-path",
+        "label": "login shell PATH",
+        "manager": "script",
+        "cmd": "install base/login-path",
+        "shown": "the tools PATH in /etc/profile.d/wsp-golden.sh"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      }
+    ],
+    "at": "deploying-daemon",
+    "out": {
+      "tools": [
+        {
+          "id": "base/login-path",
+          "label": "login shell PATH",
+          "outcome": "installed",
+          "bytes": 0,
+          "ms": true
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "base/login-path",
+        "label": "login shell PATH",
+        "outcome": "installed",
+        "bytes": 0,
+        "ms": true
+      }
+    ],
+    "stages": [
+      [
+        "deploying-daemon",
+        "login shell PATH (1/1)"
+      ],
+      [
+        "deploying-daemon",
+        "1 installed; caches swept; 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall base/login-path' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "a free read whose exec rejects throws out of the loop before anything installs",
+    "tools": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "manager": "script",
+        "cmd": "install tools/a"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "throws": "the machine went away"
+          }
+        ]
+      }
+    ],
+    "out": {
+      "error": "the machine went away"
+    },
+    "onTool": [],
+    "stages": [],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "an install run that rejects throws out of the loop",
+    "tools": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "manager": "script",
+        "cmd": "install a"
+      },
+      {
+        "id": "tools/b",
+        "label": "b",
+        "manager": "script",
+        "cmd": "install tools/b"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      },
+      {
+        "has": "install a",
+        "kind": "run",
+        "seq": [
+          {
+            "throws": "lost the machine"
+          }
+        ]
+      }
+    ],
+    "out": {
+      "error": "lost the machine"
+    },
+    "onTool": [],
+    "stages": [
+      [
+        "installing-tools",
+        "a (1/2)"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall a' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      }
+    ]
+  },
+  {
+    "name": "skipped rows share a reason line",
+    "tools": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "manager": "script",
+        "cmd": "install a"
+      },
+      {
+        "id": "tools/b",
+        "label": "b",
+        "manager": "script",
+        "cmd": "install tools/b",
+        "after": "tools/a"
+      },
+      {
+        "id": "tools/c",
+        "label": "c",
+        "manager": "script",
+        "cmd": "install tools/c",
+        "after": "tools/a"
+      },
+      {
+        "id": "tools/d",
+        "label": "d",
+        "manager": "script",
+        "cmd": "install tools/d",
+        "after": "tools/nowhere"
+      }
+    ],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      },
+      {
+        "has": "install a",
+        "kind": "run",
+        "seq": [
+          {
+            "exit": 2
+          }
+        ]
+      }
+    ],
+    "opts": {
+      "caches": "keep"
+    },
+    "out": {
+      "tools": [
+        {
+          "id": "tools/a",
+          "label": "a",
+          "outcome": "failed",
+          "note": "exit 2",
+          "ms": true
+        },
+        {
+          "id": "tools/b",
+          "label": "b",
+          "outcome": "skipped",
+          "note": "a did not install"
+        },
+        {
+          "id": "tools/c",
+          "label": "c",
+          "outcome": "skipped",
+          "note": "a did not install"
+        },
+        {
+          "id": "tools/d",
+          "label": "d",
+          "outcome": "skipped",
+          "note": "tools/nowhere did not install"
+        }
+      ],
+      "homebrew": null
+    },
+    "onTool": [
+      {
+        "id": "tools/a",
+        "label": "a",
+        "outcome": "failed",
+        "note": "exit 2",
+        "ms": true
+      },
+      {
+        "id": "tools/b",
+        "label": "b",
+        "outcome": "skipped",
+        "note": "a did not install"
+      },
+      {
+        "id": "tools/c",
+        "label": "c",
+        "outcome": "skipped",
+        "note": "a did not install"
+      },
+      {
+        "id": "tools/d",
+        "label": "d",
+        "outcome": "skipped",
+        "note": "tools/nowhere did not install"
+      }
+    ],
+    "stages": [
+      [
+        "installing-tools",
+        "a (1/4)"
+      ],
+      [
+        "installing-tools",
+        "0 installed, 1 failed: a (exit 2), 3 skipped: b, c (a did not install); d (tools/nowhere did not install); 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport npm_config_fetch_timeout=60000 npm_config_fetch_retries=1 npm_config_fetch_retry_maxtimeout=10000\nexport PIP_TIMEOUT=60 PIP_RETRIES=1\nexport UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=1\nexport CARGO_HTTP_TIMEOUT=60 CARGO_NET_RETRY=1\ncurl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }\ninstall a' &\np=$!\nt=0\nwhile [ $t -lt 600 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 660000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  },
+  {
+    "name": "no tools at all",
+    "tools": [],
+    "rules": [
+      {
+        "has": "NR==2{print $4}",
+        "seq": [
+          {
+            "stdout": "9437184\n"
+          }
+        ]
+      }
+    ],
+    "out": {
+      "tools": [],
+      "homebrew": null
+    },
+    "onTool": [],
+    "stages": [
+      [
+        "installing-tools",
+        "0 installed; caches swept; 9 GB free"
+      ]
+    ],
+    "calls": [
+      {
+        "kind": "exec",
+        "text": "rm -f /tmp/wsp-vault-*.tgz",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "run",
+        "text": "tree() {\n  local want=\"$1\" found=\"\" f s pid ppid more=1\n  while [ -n \"$more\" ]; do\n    more=\n    for f in /proc/[0-9]*/stat; do\n      [ -r \"$f\" ] && read -r s < \"$f\" || continue\n      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}\n      case \" $want $found \" in *\" $pid \"*) continue;; esac\n      case \" $want $found \" in *\" $ppid \"*) found=\"$found $pid\"; more=1;; esac\n    done\n  done\n  echo $found\n}\nsetsid bash -c 'set -euo pipefail\nexport PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin\nif command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi\nrm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp\nif command -v apt-get >/dev/null 2>&1; then apt-get clean; fi' &\np=$!\nt=0\nwhile [ $t -lt 300 ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done\nif kill -0 $p 2>/dev/null; then\n  disown $p 2>/dev/null\n  v=\"$p $(tree $p)\"\n  kill -TERM -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  v=\"$p $(tree $p)\"\n  kill -KILL -- -$p $v 2>/dev/null\n  t=0; while [ $t -lt 10 ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done\n  exit 124\nfi\nwait $p",
+        "deadlineMs": 360000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "exec",
+        "text": "df -Pk /root | awk 'NR==2{print $4}'",
+        "timeoutMs": 20000
+      }
+    ]
+  }
+]

@@ -1,0 +1,72 @@
+{
+ "probes": [
+  {
+   "given": null,
+   "cmd": "uname -s; id -u; id -un; stat -L -c %U \"$HOME\" 2>/dev/null || stat -L -f %Su \"$HOME\" 2>/dev/null || echo; command -v runuser >/dev/null 2>&1 && echo 1 || echo 0; printf '%s\\n' \"$HOME\" \"$PATH\"",
+   "login": {
+    "platform": "linux",
+    "home": "/home/ada",
+    "path": "/usr/bin",
+    "user": "ada"
+   }
+  },
+  {
+   "given": {
+    "HOME": "/home/ada"
+   },
+   "cmd": "uname -s; id -u; id -un; stat -L -c %U '/home/ada' 2>/dev/null || stat -L -f %Su '/home/ada' 2>/dev/null || echo; command -v runuser >/dev/null 2>&1 && echo 1 || echo 0; printf '%s\\n' \"$HOME\" \"$PATH\"",
+   "login": {
+    "platform": "linux",
+    "home": "/home/ada",
+    "path": "/usr/bin",
+    "user": "ada"
+   }
+  },
+  {
+   "given": {
+    "HOME": "/home/ada's",
+    "PATH": "/x"
+   },
+   "cmd": "uname -s; id -u; id -un; stat -L -c %U '/home/ada'\\''s' 2>/dev/null || stat -L -f %Su '/home/ada'\\''s' 2>/dev/null || echo; command -v runuser >/dev/null 2>&1 && echo 1 || echo 0; printf '%s\\n' \"$HOME\" \"$PATH\"",
+   "login": {
+    "platform": "linux",
+    "home": "/home/ada's",
+    "path": "/x",
+    "user": "ada"
+   }
+  }
+ ],
+ "asLogin": [
+  {
+   "t": {
+    "platform": "linux",
+    "home": "/home/a'da",
+    "path": "/usr/bin:/bin",
+    "user": "ada",
+    "runAs": "ada"
+   },
+   "line": "ls ~",
+   "out": "runuser -u 'ada' -- bash -c 'export HOME='\\''/home/a'\\''\\'\\'''\\''da'\\'' PATH='\\''/usr/bin:/bin'\\''; cd \"$HOME\" 2>/dev/null; ls ~'"
+  },
+  {
+   "t": {
+    "platform": "linux",
+    "home": "/root",
+    "user": "root"
+   },
+   "line": "true",
+   "out": "export HOME='/root'; cd \"$HOME\" 2>/dev/null; true"
+  },
+  {
+   "t": {
+    "platform": "darwin",
+    "home": "/Users/ada",
+    "path": "/usr/bin",
+    "user": "ada"
+   },
+   "line": "echo 'x'",
+   "out": "export HOME='/Users/ada' PATH='/usr/bin'; cd \"$HOME\" 2>/dev/null; echo 'x'"
+  }
+ ],
+ "loginShellCmd": "runuser -u 'ada' -- bash -c 'export HOME='\\''/home/a'\\''\\'\\'''\\''da'\\'' PATH='\\''/usr/bin:/bin'\\''; cd \"$HOME\" 2>/dev/null; s=$(getent passwd '\\''ada'\\'' | cut -d: -f7); timeout 15 \"${s:-/bin/sh}\" -ilc '\\''printf %s \"$PATH\"'\\'' < /dev/null 2> /dev/null'"
+}

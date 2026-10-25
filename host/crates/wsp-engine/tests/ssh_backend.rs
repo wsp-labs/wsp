@@ -82,7 +82,7 @@ const CANNED_READ: &str = "home /home/dev\nuser dev\npath /home/dev/.local/bin:/
 /// asked to carry, and lets a case script the answer for anything else, streaming each line as the client would.
 fn fake_ssh<F>(answer: F) -> (SshTransport, Arc<Mutex<Vec<Carried>>>)
 where
-    F: Fn(&str) -> ExecResult + Send + Sync + 'static,
+    F: Fn(&str) -> ExecResult + 'static,
 {
     let read = ssh_read_script();
     transport(move |_reach, script, opts| {
@@ -103,11 +103,11 @@ where
 const FOUND_KEY: &str = "ssh-ed25519 SHA256:Ge9MQ9S/Faik2WzsxidRXnoEOJRIHkJKTBkOJ903vq4";
 
 fn known_key() -> SshHostKeyReader {
-    Arc::new(|_| async { Some(FOUND_KEY.to_string()) }.boxed())
+    Arc::new(|_| async { Some(FOUND_KEY.to_string()) }.boxed_local())
 }
 
 fn no_key() -> SshHostKeyReader {
-    Arc::new(|_| async { None }.boxed())
+    Arc::new(|_| async { None }.boxed_local())
 }
 
 /// A backend whose key reader never reaches the real client.
@@ -120,7 +120,7 @@ fn bare_backend_of(t: SshTransport) -> SshBackend {
     SshBackend::new(SshBackendOptions {
         transport: Some(t),
         host_key: Some(no_key()),
-        known_hosts: Some(Arc::new(|_| async { KnownHostsEntry::default() }.boxed())),
+        known_hosts: Some(Arc::new(|_| async { KnownHostsEntry::default() }.boxed_local())),
         ..Default::default()
     })
 }
@@ -166,7 +166,7 @@ type Asked = Arc<Mutex<Vec<Vec<String>>>>;
 /// A local run that records into a log the case shares between several runs.
 fn run_into<F>(asked: &Asked, answer: F) -> SshLocalRun
 where
-    F: Fn(&str, &[String]) -> ExecResult + Send + Sync + 'static,
+    F: Fn(&str, &[String]) -> ExecResult + 'static,
 {
     let log = asked.clone();
     Arc::new(move |file: String, args: Vec<String>, _timeout: u64| {
@@ -174,7 +174,7 @@ where
         line.extend(args.iter().cloned());
         log.lock().unwrap().push(line);
         let out = answer(&file, &args);
-        async move { out }.boxed()
+        async move { out }.boxed_local()
     })
 }
 
@@ -476,7 +476,7 @@ async fn exec_and_run_carry_the_script_to_the_machine() {
     let (t, carried) = fake_ssh(|script| if script == "exit 7" { res(7, "", "") } else { res(0, "a\nb\n", "") });
     let backend = backend_of(t);
     let machine = backend.adopt(&reach()).await.unwrap().machine;
-    assert_eq!(machine.exec("exit 7", ExecOptions::default()).await.unwrap().exit_code, 7);
+    assert_eq!(machine.exec("exit 7", ExecOptions::default()).await.unwrap().exit_code, 7.into());
     let lines = Arc::new(Mutex::new(Vec::<String>::new()));
     let seen = lines.clone();
     let out = machine
@@ -491,7 +491,7 @@ async fn exec_and_run_carry_the_script_to_the_machine() {
         .await
         .unwrap();
     assert_eq!(*lines.lock().unwrap(), strs(&["a", "b"]));
-    assert_eq!(out.exit_code, 0);
+    assert_eq!(out.exit_code, 0.into());
     assert_eq!(scripts(&carried)[1..].to_vec(), strs(&["exit 7", "printf 'a\\nb\\n'"]));
     let reaches: Vec<SshReach> = carried.lock().unwrap().iter().map(|c| c.reach.clone()).collect();
     assert_eq!(reaches, vec![reach(); 3]);
@@ -584,7 +584,7 @@ const UBUNTU: &str = "pretty Ubuntu 24.04.3 LTS\nmac \nkernel Linux 6.8.0-79-gen
 /// The machine handle as the runtime holds it, through the seam every kind answers on.
 async fn machine_of<F>(answer: F) -> (Arc<dyn Machine>, Arc<Mutex<Vec<Carried>>>)
 where
-    F: Fn(&str) -> ExecResult + Send + Sync + 'static,
+    F: Fn(&str) -> ExecResult + 'static,
 {
     let (t, carried) = fake_ssh(answer);
     let machine: Arc<dyn Machine> = backend_of(t).adopt(&reach()).await.unwrap().machine;
@@ -1064,7 +1064,7 @@ async fn is_the_hostname_the_config_gives_an_alias() {
     let (broken, _) = local_run(|_, _| res(255, "", "Bad configuration option\n"));
     assert_eq!(ssh_host_name(&reach_of("root", "spoo", 22), &broken).await.as_deref(), Some("spoo"));
     let backend = SshBackend::new(SshBackendOptions {
-        host_name: Some(Arc::new(|_| async { Some("10.0.0.9".to_string()) }.boxed())),
+        host_name: Some(Arc::new(|_| async { Some("10.0.0.9".to_string()) }.boxed_local())),
         ..Default::default()
     });
     assert_eq!(backend.host_name_for(&reach_of("root", "spoo", 22)).await.as_deref(), Some("10.0.0.9"));

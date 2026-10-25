@@ -14,7 +14,7 @@ fn want(name: &str) -> Value {
     serde_json::from_str::<Value>(&text).unwrap()["places"].as_array().unwrap().iter().find(|s| s["name"] == name).unwrap().clone()
 }
 
-fn daemon(part_fails: bool) -> impl Fn(&Sent) -> wsp_engine::errors::Result<Value> + Send + Sync + 'static {
+fn daemon(part_fails: bool) -> impl Fn(&Sent) -> wsp_engine::errors::Result<Value> + 'static {
     move |sent: &Sent| {
         let cmd = sent.params.get("cmd").and_then(Value::as_str).unwrap_or("");
         Ok(if cmd.starts_with("uname -s") {

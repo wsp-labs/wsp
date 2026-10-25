@@ -127,7 +127,7 @@ fn an_inline_command_is_bounded_under_the_edges_cut_and_above_the_detached_roads
 async fn declares_its_lifecycle_one_wake_attempt_fifteen_minutes_no_asking_again_a_backstop() {
     let on = backend_on(&FakeBox::new(), "trial", BoxBudgetsAsk::default());
     let lifecycle = on.backend.lifecycle().expect("a box declares a lifecycle");
-    let expected = LifecycleBudgets { wake_attempts: 1, daemon_answers_ms: n(900_000.0), resume_asks: None };
+    let expected = LifecycleBudgets { wake_attempts: 1.into(), daemon_answers_ms: n(900_000.0), resume_asks: None };
     assert_eq!(lifecycle.budgets(), expected);
     assert_eq!(box_budgets(), expected);
     assert!(lifecycle.has_backstop());

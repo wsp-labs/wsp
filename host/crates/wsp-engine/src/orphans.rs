@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 
 use crate::errors::Result;
@@ -22,7 +22,7 @@ pub const UNOWNED_BACKSTOP_MS: i64 = 10 * 60_000;
 pub type ListedMachine = MachineListRow;
 
 /// orphans.ts:22 `stop`: stops one machine the sweep kills.
-pub type StopMachine = Arc<dyn Fn(Arc<dyn Machine>) -> BoxFuture<'static, Result<()>> + Send + Sync>;
+pub type StopMachine = Arc<dyn Fn(Arc<dyn Machine>) -> LocalBoxFuture<'static, Result<()>>>;
 
 /// orphans.ts:14.
 pub struct ReapOptions {
@@ -30,14 +30,14 @@ pub struct ReapOptions {
     /// The listing the caller already fetched; `None` reads `backend.list(None)`.
     pub listing: Option<Vec<ListedMachine>>,
     /// Ids something claims. Read once, after the listing returns.
-    pub known_ids: Box<dyn Fn() -> Vec<String> + Send + Sync>,
+    pub known_ids: Box<dyn Fn() -> Vec<String>>,
     /// The sweeping state file's id.
     pub owner: String,
     pub stop: StopMachine,
     /// Age an unclaimed unowned non-builder must reach; `UNOWNED_BACKSTOP_MS` when `None`.
     pub older_than_ms: Option<i64>,
     /// Epoch ms, read once; the wall clock when `None`.
-    pub now: Option<Box<dyn Fn() -> i64 + Send + Sync>>,
+    pub now: Option<Box<dyn Fn() -> i64>>,
 }
 
 /// orphans.ts:30.

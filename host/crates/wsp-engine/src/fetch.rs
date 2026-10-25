@@ -4,6 +4,8 @@
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
+use crate::cancel::Cancel;
+
 use crate::errors::RoadError;
 
 /// What ends a fetch early (errors.ts:261's answer): the token fires when either the cap or the caller's signal does,
@@ -12,6 +14,9 @@ use crate::errors::RoadError;
 pub struct Abort {
     pub token: CancellationToken,
     pub timed_out: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// The caller's cancel where one was given, so a fetch it ended rejects with its reason (spec/README.md, "A cancel and
+    /// its words").
+    pub caller: Option<Cancel>,
 }
 
 #[derive(Clone)]
@@ -50,7 +55,7 @@ impl FetchResponse {
 pub struct FetchStream {
     pub status: u16,
     pub headers: Vec<(String, String)>,
-    pub body: Option<futures::stream::BoxStream<'static, Result<Vec<u8>, RoadError>>>,
+    pub body: Option<futures::stream::LocalBoxStream<'static, Result<Vec<u8>, RoadError>>>,
 }
 
 impl FetchStream {
@@ -63,8 +68,8 @@ impl FetchStream {
 }
 
 /// A fetch that rejects answers a [`RoadError`]: "fetch failed" with its cause, or a TimeoutError or AbortError.
-#[async_trait]
-pub trait Fetch: Send + Sync {
+#[async_trait(?Send)]
+pub trait Fetch {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError>;
     /// The same request with the body as a stream; by default the whole body as one chunk.
     async fn fetch_stream(&self, req: FetchRequest) -> Result<FetchStream, RoadError> {

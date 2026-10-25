@@ -19,7 +19,7 @@ The seam every backend sits behind, and the backend of a host with no provider k
 - `root_disk_of` is synchronous (:298); `None` both for a size nobody measured and for a backend without it.
 - Options: `RunOptions` (:44: `deadline_ms`, `on_line`, `poll_ms`, `unlogged`, `signal`, `launch_on`), `ExecOptions`
   (:104: `timeout_ms`, `idempotency_key`, `stdin`), `SnapshotOptions { on_progress }`. A cancel is a
-  `CancellationToken`.
+  `Cancel` (src/cancel.rs), taken as `Option<&Cancel>` by a method and held as `Option<Cancel>` in `RunOptions`.
 - `SnapshotStoragePricing` (:27) is the wire shape plus `free_named` and `usd_per_named_month`, absent on every
   backend but Box.
 - `fetch::Fetch` stands for `globalThis.fetch`: a request is method, URL, headers in the order written, body bytes and

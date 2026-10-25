@@ -5,10 +5,10 @@
 //! for a computer it reaches over ssh.
 use std::sync::{Arc, Mutex};
 
+use crate::cancel::Cancel;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
-use tokio_util::sync::CancellationToken;
 
 use crate::errors::Result;
 use crate::machine::{
@@ -118,7 +118,7 @@ pub fn put_bytes_script(path: &str, size: usize, tmp: &str) -> String {
 }
 
 /// Where a machine says why its facts cannot be read (the TS's `console.warn`).
-pub type WarnSink = Arc<dyn Fn(&str) + Send + Sync>;
+pub type WarnSink = Arc<dyn Fn(&str)>;
 
 /// ssh-backend.ts:795. A machine reached over ssh.
 pub struct SshMachine {
@@ -142,7 +142,7 @@ impl SshMachine {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for SshMachine {
     fn id(&self) -> &str {
         todo!()
@@ -165,7 +165,7 @@ impl Machine for SshMachine {
     async fn pause(&self, wait_ms: Option<u64>) -> Result<()> {
         todo!()
     }
-    async fn resume(&self, signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, signal: Option<&Cancel>) -> Result<()> {
         todo!()
     }
     async fn kill(&self) -> Result<()> {
@@ -196,9 +196,9 @@ impl Machine for SshMachine {
 pub struct SshBackendOptions {
     pub transport: Option<SshTransport>,
     pub host_key: Option<SshHostKeyReader>,
-    pub known_hosts: Option<Arc<dyn Fn(SshReach) -> BoxFuture<'static, KnownHostsEntry> + Send + Sync>>,
-    pub offered_key: Option<Arc<dyn Fn(SshReach) -> BoxFuture<'static, OfferedKey> + Send + Sync>>,
-    pub host_name: Option<Arc<dyn Fn(SshReach) -> BoxFuture<'static, Option<String>> + Send + Sync>>,
+    pub known_hosts: Option<Arc<dyn Fn(SshReach) -> LocalBoxFuture<'static, KnownHostsEntry>>>,
+    pub offered_key: Option<Arc<dyn Fn(SshReach) -> LocalBoxFuture<'static, OfferedKey>>>,
+    pub host_name: Option<Arc<dyn Fn(SshReach) -> LocalBoxFuture<'static, Option<String>>>>,
 }
 
 /// ssh-backend.ts:896. What every script one backend carries rides with.
@@ -224,9 +224,9 @@ pub struct SshAdopted {
 pub struct SshBackend {
     transport: SshTransport,
     host_key: SshHostKeyReader,
-    known_hosts: Arc<dyn Fn(SshReach) -> BoxFuture<'static, KnownHostsEntry> + Send + Sync>,
-    offered: Arc<dyn Fn(SshReach) -> BoxFuture<'static, OfferedKey> + Send + Sync>,
-    host_name: Arc<dyn Fn(SshReach) -> BoxFuture<'static, Option<String>> + Send + Sync>,
+    known_hosts: Arc<dyn Fn(SshReach) -> LocalBoxFuture<'static, KnownHostsEntry>>,
+    offered: Arc<dyn Fn(SshReach) -> LocalBoxFuture<'static, OfferedKey>>,
+    host_name: Arc<dyn Fn(SshReach) -> LocalBoxFuture<'static, Option<String>>>,
 }
 
 impl SshBackend {

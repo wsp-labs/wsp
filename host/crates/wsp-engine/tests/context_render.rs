@@ -8,9 +8,9 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use indexmap::IndexSet;
 use serde_json::json;
-use tokio_util::sync::CancellationToken;
 use wsp_catalog::catalog::AgentEntry;
 use wsp_catalog::context::ContextHooks;
+use wsp_engine::cancel::Cancel;
 use wsp_engine::errors::{EngineError, ErrorKind, RoadError, WspError};
 use wsp_engine::fetch::{Fetch, FetchRequest, FetchResponse};
 use wsp_engine::golden_seam::{ImportResult, ImportRow, EXEC_ENV};
@@ -520,7 +520,7 @@ fn body_bytes(cmd: &str) -> usize {
 async fn bash(script: &str) -> ExecResult {
     let out = tokio::process::Command::new("bash").arg("-c").arg(script).output().await.expect("bash runs");
     ExecResult {
-        exit_code: out.status.code().unwrap_or(1) as i64,
+        exit_code: (out.status.code().unwrap_or(1) as i64).into(),
         stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
     }
@@ -537,7 +537,7 @@ struct UploadRoad {
     puts: Mutex<Vec<Put>>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Fetch for UploadRoad {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError> {
         let url = url::Url::parse(&req.url).expect("an upload url");
@@ -571,7 +571,7 @@ fn not_here<T>() -> wsp_engine::errors::Result<T> {
     Err(EngineError::Other { message: "not on this guest".into(), code: None })
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for TestGuest {
     fn id(&self) -> &str {
         "m1"
@@ -604,7 +604,7 @@ impl Machine for TestGuest {
         }
         if cmd.contains("echo WSP_CTX") {
             let stdout = self.probe.clone().unwrap_or_default();
-            return Ok(ExecResult { exit_code: 0, stdout, stderr: String::new() });
+            return Ok(ExecResult { exit_code: 0.into(), stdout, stderr: String::new() });
         }
         Ok(bash(cmd).await)
     }
@@ -621,7 +621,7 @@ impl Machine for TestGuest {
         not_here()
     }
 
-    async fn resume(&self, _signal: Option<CancellationToken>) -> wsp_engine::errors::Result<()> {
+    async fn resume(&self, _signal: Option<&Cancel>) -> wsp_engine::errors::Result<()> {
         not_here()
     }
 
@@ -853,8 +853,11 @@ async fn a_refused_upload_is_a_failure_that_names_the_cap_and_nothing_lands() {
 #[tokio::test]
 async fn an_untar_that_fails_is_a_failure_with_the_guests_last_line() {
     let g = guest_with(Some("WSP_CTX\nAGENT claude\nWSP_CTX_END\n".into()), usize::MAX);
-    *g.m.untar.lock().unwrap() =
-        Some(ExecResult { exit_code: 2, stdout: String::new(), stderr: "tar: etc/wsp: Cannot mkdir: Read-only file system\n".into() });
+    *g.m.untar.lock().unwrap() = Some(ExecResult {
+        exit_code: 2.into(),
+        stdout: String::new(),
+        stderr: "tar: etc/wsp: Cannot mkdir: Read-only file system\n".into(),
+    });
     let out = g.apply(ApplyContextOptions::default()).await;
     assert_eq!(
         out.failure.as_deref(),

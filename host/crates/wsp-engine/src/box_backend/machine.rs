@@ -2,9 +2,9 @@
 //! box-backend.ts:1046-1430 at a4033dc34. Spec: spec/box_machine.md.
 use std::sync::Mutex;
 
+use crate::cancel::Cancel;
 use async_trait::async_trait;
 use indexmap::IndexMap;
-use tokio_util::sync::CancellationToken;
 
 use super::plan::BoxClassType;
 use super::request::BoxBackend;
@@ -78,7 +78,7 @@ impl BoxMachine {
     }
 
     /// box-backend.ts:1147.
-    pub async fn exec_inline(&self, cmd: &str, timeout_ms: u64, signal: Option<&CancellationToken>) -> Result<ExecResult> {
+    pub async fn exec_inline(&self, cmd: &str, timeout_ms: u64, signal: Option<&Cancel>) -> Result<ExecResult> {
         todo!()
     }
 
@@ -88,7 +88,7 @@ impl BoxMachine {
     }
 
     /// box-backend.ts:1260. `None` keeps the box's own class.
-    pub async fn resume_as(&self, kind: Option<BoxClassType>, signal: Option<&CancellationToken>) -> Result<()> {
+    pub async fn resume_as(&self, kind: Option<BoxClassType>, signal: Option<&Cancel>) -> Result<()> {
         todo!()
     }
 
@@ -103,7 +103,7 @@ impl BoxMachine {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for BoxMachine {
     fn id(&self) -> &str {
         &self.id
@@ -148,11 +148,11 @@ impl Machine for BoxMachine {
         todo!()
     }
     /// box-backend.ts:1249.
-    async fn resume(&self, signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume(&self, signal: Option<&Cancel>) -> Result<()> {
         todo!()
     }
     /// box-backend.ts:1256.
-    async fn resume_at(&self, cpu: f64, mem_mb: u64, signal: Option<CancellationToken>) -> Result<()> {
+    async fn resume_at(&self, cpu: f64, mem_mb: u64, signal: Option<&Cancel>) -> Result<()> {
         todo!()
     }
     /// box-backend.ts:1277.
@@ -176,7 +176,7 @@ impl Machine for BoxMachine {
         todo!()
     }
     /// box-backend.ts:1174.
-    async fn prove_road(&self, signal: Option<CancellationToken>) -> Result<()> {
+    async fn prove_road(&self, signal: Option<&Cancel>) -> Result<()> {
         todo!()
     }
     /// box-backend.ts:1137.

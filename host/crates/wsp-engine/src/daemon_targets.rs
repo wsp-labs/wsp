@@ -35,10 +35,38 @@ pub struct DaemonTarget {
 
 /// daemon-targets.ts:23. In this order; the first row a lookup matches wins.
 pub const DAEMON_TARGETS: [DaemonTarget; 4] = [
-    DaemonTarget { triple: "x86_64-unknown-linux-musl", platform: Platform::Linux, arch: Arch::X64, system: "Linux", uname: "x86_64", computer: "Linux computer" },
-    DaemonTarget { triple: "aarch64-unknown-linux-musl", platform: Platform::Linux, arch: Arch::Arm64, system: "Linux", uname: "aarch64", computer: "Linux computer" },
-    DaemonTarget { triple: "aarch64-apple-darwin", platform: Platform::Darwin, arch: Arch::Arm64, system: "Darwin", uname: "arm64", computer: "Mac" },
-    DaemonTarget { triple: "x86_64-apple-darwin", platform: Platform::Darwin, arch: Arch::X64, system: "Darwin", uname: "x86_64", computer: "Mac" },
+    DaemonTarget {
+        triple: "x86_64-unknown-linux-musl",
+        platform: Platform::Linux,
+        arch: Arch::X64,
+        system: "Linux",
+        uname: "x86_64",
+        computer: "Linux computer",
+    },
+    DaemonTarget {
+        triple: "aarch64-unknown-linux-musl",
+        platform: Platform::Linux,
+        arch: Arch::Arm64,
+        system: "Linux",
+        uname: "aarch64",
+        computer: "Linux computer",
+    },
+    DaemonTarget {
+        triple: "aarch64-apple-darwin",
+        platform: Platform::Darwin,
+        arch: Arch::Arm64,
+        system: "Darwin",
+        uname: "arm64",
+        computer: "Mac",
+    },
+    DaemonTarget {
+        triple: "x86_64-apple-darwin",
+        platform: Platform::Darwin,
+        arch: Arch::X64,
+        system: "Darwin",
+        uname: "x86_64",
+        computer: "Mac",
+    },
 ];
 
 /// daemon-targets.ts:31. node's word for the system a machine's `uname -s` names; exact, case-sensitive match on
