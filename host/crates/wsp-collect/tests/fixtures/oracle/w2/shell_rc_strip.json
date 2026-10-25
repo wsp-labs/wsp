@@ -1,0 +1,4382 @@
+{
+ "strip_exports": [
+  {
+   "name": "\"a\\nb\\r\\nc\"",
+   "args": [
+    "a\nb\r\nc",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "a\r\nb\r\nc",
+    "held": []
+   }
+  },
+  {
+   "name": "\"a\\r\\nb\\nexport A_TOKEN=1\\nc\\n\"",
+   "args": [
+    "a\r\nb\nexport A_TOKEN=1\nc\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "a\r\nb\r\nc\r\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"a\\rb\\nc\"",
+   "args": [
+    "a\rb\nc",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "a\rb\nc",
+    "held": []
+   }
+  },
+  {
+   "name": "\"a\"",
+   "args": [
+    "a",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "a",
+    "held": []
+   }
+  },
+  {
+   "name": "\"\\n\"",
+   "args": [
+    "\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"\\r\\n\"",
+   "args": [
+    "\r\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "\r\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"\\r\\n\\r\\n\"",
+   "args": [
+    "\r\n\r\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "\r\n\r\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=1\\r\\nb\\nexport B_TOKEN=1\\n\"",
+   "args": [
+    "export A_TOKEN=1\r\nb\nexport B_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "b\r\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"a\\r\\nexport A_TOKEN=1\"",
+   "args": [
+    "a\r\nexport A_TOKEN=1",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "a",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=1\"",
+   "args": [
+    "export A_TOKEN=1",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=1\\n\"",
+   "args": [
+    "export A_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=1\\r\\n\"",
+   "args": [
+    "export A_TOKEN=1\r\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "",
+    "held": []
+   }
+  },
+  {
+   "name": "\"\"",
+   "args": [
+    "",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=1\\n\\n\\nb\\n\"",
+   "args": [
+    "export A_TOKEN=1\n\n\nb\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "\n\nb\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"\\n\\nexport A_TOKEN=1\\n\\n\"",
+   "args": [
+    "\n\nexport A_TOKEN=1\n\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "\n\n\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=1\\n# c\\n\"",
+   "args": [
+    "export A_TOKEN=1\n# c\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "# c\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1\"",
+   "args": [
+    "export A_TOKEN=1",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"a\\r\\nexport A_TOKEN=1\"",
+   "args": [
+    "a\r\nexport A_TOKEN=1",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "a\r\ntrue",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"\"",
+   "args": [
+    "",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1\\n\"",
+   "args": [
+    "export A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1\\r\\n\"",
+   "args": [
+    "export A_TOKEN=1\r\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true\r\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1\\n\\n\"",
+   "args": [
+    "export A_TOKEN=1\n\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true\n\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"x\\nexport A_TOKEN=\\\"a\\n\"",
+   "args": [
+    "x\nexport A_TOKEN=\"a\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "x",
+    "held": []
+   }
+  },
+  {
+   "name": "\"a\\nexport A_TOKEN=\\\"a\\n\"",
+   "args": [
+    "a\nexport A_TOKEN=\"a\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "a",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=\\\"a\\nb\\n\"",
+   "args": [
+    "export A_TOKEN=\"a\nb\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=\\\"a\"",
+   "args": [
+    "export A_TOKEN=\"a",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=$(\"",
+   "args": [
+    "export A_TOKEN=$(",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "",
+    "held": []
+   }
+  },
+  {
+   "name": "\"x\\nexport A_TOKEN=\\\"a\\nb\\\"\"",
+   "args": [
+    "x\nexport A_TOKEN=\"a\nb\"",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "x",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"x\\nexport A_TOKEN=\\\"a\\n\"",
+   "args": [
+    "x\nexport A_TOKEN=\"a\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "x\ntrue",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=\\\"a\\nb\\n\"",
+   "args": [
+    "export A_TOKEN=\"a\nb\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=\\\"a\"",
+   "args": [
+    "export A_TOKEN=\"a",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=$(\"",
+   "args": [
+    "export A_TOKEN=$(",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"x\\nexport A_TOKEN=\\\"a\\nb\\\"\"",
+   "args": [
+    "x\nexport A_TOKEN=\"a\nb\"",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "x\ntrue",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"y; echo \\\"a\\nplain0\\\"; z\\n\"",
+   "args": [
+    "y; echo \"a\nplain0\"; z\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "y; echo \"a\ntrue",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo \\\"a\\nplain0\\\"\\n\"",
+   "args": [
+    "echo \"a\nplain0\"\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo \"a\ntrue",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "\"export FOO=sk-1 BAR=2\\nnext\\n\"",
+   "args": [
+    "export FOO=sk-1 BAR=2\nnext\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "FOO",
+     "BAR"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"FOO=sk-1 cmd; BAR=2 cmd2\\nnext\\n\"",
+   "args": [
+    "FOO=sk-1 cmd; BAR=2 cmd2\nnext\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "FOO"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export GH_TOKEN=x\\nexport A=sk-1\\n\"",
+   "args": [
+    "export GH_TOKEN=x\nexport A=sk-1\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "GH_TOKEN",
+     "A"
+    ],
+    "carried": "",
+    "held": []
+   }
+  },
+  {
+   "name": "\"echo sk-1\\nnext\\n\"",
+   "args": [
+    "echo sk-1\nnext\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "next\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nx=sk-1\\nEOF\\n\"",
+   "args": [
+    "cat <<EOF\nx=sk-1\nEOF\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "cat <<EOF\nEOF\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nGH_TOKEN=sk-1\\nEOF\\n\"",
+   "args": [
+    "cat <<EOF\nGH_TOKEN=sk-1\nEOF\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "GH_TOKEN"
+    ],
+    "carried": "cat <<EOF\nEOF\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"echo ok; echo sk-1\\n\"",
+   "args": [
+    "echo ok; echo sk-1\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "\"echo sk-1\\n\"",
+   "args": [
+    "echo sk-1\n",
+    {
+     "contains": "sk-",
+     "name": ""
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "",
+    "held": [
+     ""
+    ]
+   }
+  },
+  {
+   "name": "\"echo sk-1\\necho sk-22\\necho sk-1\\n\"",
+   "args": [
+    "echo sk-1\necho sk-22\necho sk-1\n",
+    {
+     "contains": "sk-",
+     "name": "$line"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "",
+    "held": [
+     "echo sk-1",
+     "echo sk-22"
+    ]
+   }
+  },
+  {
+   "name": "\"echo sk-1\\necho sk-1\\n\"",
+   "args": [
+    "echo sk-1\necho sk-1\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [
+     "KEEP",
+     "OPENAI"
+    ],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "",
+    "held": [
+     "KEEP",
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo sk-1\\necho sk-2\\nexport PLAIN=1\\necho sk-3\\n\"",
+   "args": [
+    "echo sk-1\necho sk-2\nexport PLAIN=1\necho sk-3\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [
+     "KEEP"
+    ],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\ntrue\nexport PLAIN=1\ntrue\n",
+    "held": [
+     "KEEP",
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"export A=1; export B=sk-2\\n\"",
+   "args": [
+    "export A=1; export B=sk-2\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "B"
+    ],
+    "carried": "export A=1; true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A=1; echo sk-2; export C=3\\n\"",
+   "args": [
+    "export A=1; echo sk-2; export C=3\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "export A=1; true; export C=3\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"# sk-1\\nnext\\n\"",
+   "args": [
+    "# sk-1\nnext\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "next\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "\"# sk-1\\nnext\\n\"",
+   "args": [
+    "# sk-1\nnext\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "next\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo a # sk-1\\nnext\\n\"",
+   "args": [
+    "echo a # sk-1\nnext\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo a\nnext\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo sk-1 # c\\nnext\\n\"",
+   "args": [
+    "echo sk-1 # c\nnext\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true # c\nnext\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"if x; then\\n  echo sk-1\\nfi\\n\"",
+   "args": [
+    "if x; then\n  echo sk-1\nfi\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if x; then\n  true\nfi\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo sk-\\\"a\\nb\\\"\\nnext\\n\"",
+   "args": [
+    "echo sk-\"a\nb\"\nnext\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\nnext\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "\"echo sk-\\\"a\\nb\\\"\\nnext\\n\"",
+   "args": [
+    "echo sk-\"a\nb\"\nnext\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "next\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"x=1\\ntrue sk-1\\nx=2\\n\"",
+   "args": [
+    "x=1\ntrue sk-1\nx=2\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "x=1\ntrue\nx=2\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo sk-1 && echo ok\\n\"",
+   "args": [
+    "echo sk-1 && echo ok\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo ok && echo sk-1\\n\"",
+   "args": [
+    "echo ok && echo sk-1\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo ok && true\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo ok; echo sk-1; echo ok2\\n\"",
+   "args": [
+    "echo ok; echo sk-1; echo ok2\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo ok; true; echo ok2\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "script \"a=1\\r\\necho sk-1\\r\\nb=2\\r\\n\"",
+   "args": [
+    "a=1\r\necho sk-1\r\nb=2\r\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "a=1\r\ntrue\r\nb=2\r\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\necho sk-\\\"abc\\nrest\\\"\\nnext\\nEOF\\n\"",
+   "args": [
+    "cat <<EOF\necho sk-\"abc\nrest\"\nnext\nEOF\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "cat <<EOF\nrest\"\nnext\nEOF\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nGH_TOKEN=\\\"sk-abc\\nrest\\\"\\nnext\\nEOF\\n\"",
+   "args": [
+    "cat <<EOF\nGH_TOKEN=\"sk-abc\nrest\"\nnext\nEOF\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "GH_TOKEN"
+    ],
+    "carried": "cat <<EOF\nnext\nEOF\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nsk-1\\nEOF\\n\"",
+   "args": [
+    "cat <<EOF\nsk-1\nEOF\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "cat <<EOF\nEOF\n",
+    "held": [
+     "OPENAI"
+    ]
+   }
+  },
+  {
+   "name": "\"echo \\\"a\\nexport A_TOKEN=1\\nb\\\"\\n\"",
+   "args": [
+    "echo \"a\nexport A_TOKEN=1\nb\"\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "echo \"a\nb\"\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"echo a \\\\\\nexport A_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "echo a \\\nexport A_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "echo a \\\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"echo 'a\\nexport A_TOKEN=1\\nb'\\n\"",
+   "args": [
+    "echo 'a\nexport A_TOKEN=1\nb'\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "echo 'a\nb'\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"echo 'a\\nexport A_TOKEN=1\\nb'\\n\"",
+   "args": [
+    "echo 'a\nexport A_TOKEN=1\nb'\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "echo 'a\ntrue\nb'\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"if x \\\\\\n  && plain0; then y; fi\\n\"",
+   "args": [
+    "if x \\\n  && plain0; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if x \\\n  && true; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo a\\\\\\n  plain0\\nnext\\n\"",
+   "args": [
+    "echo a\\\n  plain0\nnext\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo a\\\n  true\nnext\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "\"eval 'a\\nb\\nc'\\nexport A_TOKEN=1\\n\"",
+   "args": [
+    "eval 'a\nb\nc'\nexport A_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "eval 'a\nb\nc'\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval 'a\\nexport A_TOKEN=1\\n\"",
+   "args": [
+    "eval 'a\nexport A_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "",
+    "held": []
+   }
+  },
+  {
+   "name": "\"x=1 eval 'a\\nexport B_TOKEN=1'\\nnext\\n\"",
+   "args": [
+    "x=1 eval 'a\nexport B_TOKEN=1'\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "B_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"echo hi; eval 'a\\nexport B_TOKEN=1'\\nnext\\n\"",
+   "args": [
+    "echo hi; eval 'a\nexport B_TOKEN=1'\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "B_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval 'a\\nb'; echo hi\\nexport B_TOKEN=1\\n\"",
+   "args": [
+    "eval 'a\nb'; echo hi\nexport B_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "B_TOKEN"
+    ],
+    "carried": "eval 'a\nb'; echo hi\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval 'a' ; eval 'b\\nexport A_TOKEN=1'\\nn\\n\"",
+   "args": [
+    "eval 'a' ; eval 'b\nexport A_TOKEN=1'\nn\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "n\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval 'a\\n# note\\nexport A_TOKEN=1'\\nn\\n\"",
+   "args": [
+    "eval 'a\n# note\nexport A_TOKEN=1'\nn\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "n\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"echo 'a\\neval 'b\\nexport A_TOKEN=1'\\nn\\n\"",
+   "args": [
+    "echo 'a\neval 'b\nexport A_TOKEN=1'\nn\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "echo 'a\nn\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval \\\"a \\\\\\nb\\\"\\nexport A_TOKEN=1\\n\"",
+   "args": [
+    "eval \"a \\\nb\"\nexport A_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "eval \"a \\\nb\"\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval a \\\\\\nexport A_TOKEN=1\\nn\\n\"",
+   "args": [
+    "eval a \\\nexport A_TOKEN=1\nn\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "eval a \\\nn\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"eval \\\"$(\\nx\\n)\\\"\\nnext\\n\"",
+   "args": [
+    "eval \"$(\nx\n)\"\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "eval \"$(\nx\n)\"\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"eval 'a\\nexport A_TOKEN=1\\n\"",
+   "args": [
+    "eval 'a\nexport A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF \\nexport A_TOKEN=1\\n\"",
+   "args": [
+    "cat <<EOF\nEOF \nexport A_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<EOF\nEOF \n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF # c\\nexport A_TOKEN=1\\nEOF\\nB\\n\"",
+   "args": [
+    "cat <<EOF\nEOF # c\nexport A_TOKEN=1\nEOF\nB\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<EOF\nEOF # c\nEOF\nB\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\n EOF \\nexport A_TOKEN=1\\n\"",
+   "args": [
+    "cat <<EOF\n EOF \nexport A_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<EOF\n EOF \n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nA_TOKEN=\\\"a\\nEOF\\nb\\\"\\nEOF\\nnext\\n\"",
+   "args": [
+    "cat <<EOF\nA_TOKEN=\"a\nEOF\nb\"\nEOF\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<EOF\nEOF\nb\"\nEOF\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nA_TOKEN=1\\nB=2\\n\"",
+   "args": [
+    "cat <<EOF\nA_TOKEN=1\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<EOF\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nEOF\\nexport A_TOKEN=1\\nEOF\\n\"",
+   "args": [
+    "cat <<EOF\nEOF\nexport A_TOKEN=1\nEOF\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<EOF\nEOF\nEOF\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<END-OF\\nA_TOKEN=1\\nEND\\nB=2\\nEND-OF\\nC=3\\n\"",
+   "args": [
+    "cat <<END-OF\nA_TOKEN=1\nEND\nB=2\nEND-OF\nC=3\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<END-OF\nEND\nB=2\nEND-OF\nC=3\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<A <<B\\nx\\nA\\nB_TOKEN=1\\nB\\nnext\\n\"",
+   "args": [
+    "cat <<A <<B\nx\nA\nB_TOKEN=1\nB\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "B_TOKEN"
+    ],
+    "carried": "cat <<A <<B\nx\nA\nB\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<a.b\\nA_TOKEN=1\\na\\nB=2\\n\"",
+   "args": [
+    "cat <<a.b\nA_TOKEN=1\na\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<a.b\na\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<aé\\nA_TOKEN=1\\na\\nB=2\\n\"",
+   "args": [
+    "cat <<aé\nA_TOKEN=1\na\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<aé\na\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<é\\nA_TOKEN=1\\nB=2\\n\"",
+   "args": [
+    "cat <<é\nA_TOKEN=1\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<é\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<1\\nA_TOKEN=1\\nB=2\\n\"",
+   "args": [
+    "cat <<1\nA_TOKEN=1\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<1\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<_\\nA_TOKEN=1\\n_\\nB=2\\n\"",
+   "args": [
+    "cat <<_\nA_TOKEN=1\n_\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<_\n_\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<'E OF'\\nA_TOKEN=1\\nB=2\\n\"",
+   "args": [
+    "cat <<'E OF'\nA_TOKEN=1\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<'E OF'\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<$X\\nA_TOKEN=1\\nB=2\\n\"",
+   "args": [
+    "cat <<$X\nA_TOKEN=1\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<$X\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat << EOF\\nA_TOKEN=1\\nEOF\\nB=2\\n\"",
+   "args": [
+    "cat << EOF\nA_TOKEN=1\nEOF\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat << EOF\nEOF\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF'\\nA_TOKEN=1\\nEOF\\nB=2\\n\"",
+   "args": [
+    "cat <<EOF'\nA_TOKEN=1\nEOF\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<EOF'\nEOF\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<<EOF\\nA_TOKEN=1\\n\"",
+   "args": [
+    "cat <<<EOF\nA_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<<EOF\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<<<EOF\\nA_TOKEN=1\\n\"",
+   "args": [
+    "cat <<<<EOF\nA_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<<<EOF\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat < <EOF\\nA_TOKEN=1\\n\"",
+   "args": [
+    "cat < <EOF\nA_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat < <EOF\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<(x)\\nA_TOKEN=1\\n\"",
+   "args": [
+    "cat <<(x)\nA_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<(x)\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"echo \\\"<<EOF\\\"\\nA_TOKEN=1\\n\"",
+   "args": [
+    "echo \"<<EOF\"\nA_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "echo \"<<EOF\"\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"echo '<<EOF'\\nA_TOKEN=1\\n\"",
+   "args": [
+    "echo '<<EOF'\nA_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "echo '<<EOF'\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"echo \\\\<<EOF\\nA_TOKEN=1\\n\"",
+   "args": [
+    "echo \\<<EOF\nA_TOKEN=1\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "echo \\<<EOF\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"((1<<EOF\\nA_TOKEN=1\\n))\\nB=2\\n\"",
+   "args": [
+    "((1<<EOF\nA_TOKEN=1\n))\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "((1<<EOF\n))\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"(( 1 )) <<EOF\\nA_TOKEN=1\\nEOF\\nB=2\\n\"",
+   "args": [
+    "(( 1 )) <<EOF\nA_TOKEN=1\nEOF\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "(( 1 )) <<EOF\nEOF\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"x=$(cat <<EOF)\\nA_TOKEN=1\\nEOF\\n)\\nB=2\\n\"",
+   "args": [
+    "x=$(cat <<EOF)\nA_TOKEN=1\nEOF\n)\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "x=$(cat <<EOF)\nEOF\n)\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"echo ${x:-<<EOF\\nA_TOKEN=1\\nEOF\\n}\\nB=2\\n\"",
+   "args": [
+    "echo ${x:-<<EOF\nA_TOKEN=1\nEOF\n}\nB=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "echo ${x:-<<EOF\nEOF\n}\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nfoo \\\\\\nexport A_TOKEN=1\\nexport B_TOKEN=2\\nEOF\\n\"",
+   "args": [
+    "cat <<EOF\nfoo \\\nexport A_TOKEN=1\nexport B_TOKEN=2\nEOF\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "cat <<EOF\nfoo \\\n\nEOF\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nfoo \\\\\\\\\\nexport A_TOKEN=1\\nEOF\\n\"",
+   "args": [
+    "cat <<EOF\nfoo \\\\\nexport A_TOKEN=1\nEOF\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<EOF\nfoo \\\\\nEOF\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nA_TOKEN=\\\"a\\nb\\\"\\nC=1\\nEOF\\nnext\\n\"",
+   "args": [
+    "cat <<EOF\nA_TOKEN=\"a\nb\"\nC=1\nEOF\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<EOF\nC=1\nEOF\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<EOF\\nA_TOKEN=1\\nEOF\\ncat <<EOF\\nB_TOKEN=2\\nEOF\\n\"",
+   "args": [
+    "cat <<EOF\nA_TOKEN=1\nEOF\ncat <<EOF\nB_TOKEN=2\nEOF\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "cat <<EOF\nEOF\ncat <<EOF\nEOF\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"cat <<-EOF\\n\\tA_TOKEN=1\\n\\tEOF\\nB_TOKEN=2\\n\"",
+   "args": [
+    "cat <<-EOF\n\tA_TOKEN=1\n\tEOF\nB_TOKEN=2\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "cat <<-EOF\n\tEOF\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"cat <<EOF\\nA_TOKEN=\\\"a\\nb\\\"\\nC=1\\nEOF\\nnext\\n\"",
+   "args": [
+    "cat <<EOF\nA_TOKEN=\"a\nb\"\nC=1\nEOF\nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<EOF\nC=1\nEOF\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"cat <<EOF\\nA_TOKEN=1\\nB=2\\n\"",
+   "args": [
+    "cat <<EOF\nA_TOKEN=1\nB=2\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cat <<EOF\nB=2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=x # keep me\\n\"",
+   "args": [
+    "export A_TOKEN=x # keep me\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true # keep me\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=x # c1\\nexport B_TOKEN=y # c2\\n\"",
+   "args": [
+    "export A_TOKEN=x # c1\nexport B_TOKEN=y # c2\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "true # c1\ntrue # c2\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=x   \\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=x   \nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true   \nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1;\\n\"",
+   "args": [
+    "export A_TOKEN=1;\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true;\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1;;\\n\"",
+   "args": [
+    "export A_TOKEN=1;;\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true;;\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1 # c\\n  # d\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=1 # c\n  # d\nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true # c\n  # d\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1 # c; cat <<EOF\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=1 # c; cat <<EOF\nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true # c; cat <<EOF\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=x # it's\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=x # it's\nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true # it's\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=\\\"a\\nb\\\" # c\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=\"a\nb\" # c\nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true # c\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"x; # plain0\\n\"",
+   "args": [
+    "x; # plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "x;\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo a \\t # plain0\\nnext\\n\"",
+   "args": [
+    "echo a \t # plain0\nnext\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo a\nnext\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo a   # plain0\\nnext\\n\"",
+   "args": [
+    "echo a   # plain0\nnext\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo a\nnext\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo a;# plain0\\nnext\\n\"",
+   "args": [
+    "echo a;# plain0\nnext\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo a;\nnext\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"a;b # plain0\\n\"",
+   "args": [
+    "a;b # plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "a;b\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1 # plain0\\n\"",
+   "args": [
+    "export A_TOKEN=1 # plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"  # plain0\\n  x\\n\"",
+   "args": [
+    "  # plain0\n  x\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "  x\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"# plain0\\n\"",
+   "args": [
+    "# plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"x # plain0 \\\"\\ny\\n\"",
+   "args": [
+    "x # plain0 \"\ny\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "x\ny\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo \\\"a # plain0\\\"\\n\"",
+   "args": [
+    "echo \"a # plain0\"\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo a#plain0\\n\"",
+   "args": [
+    "echo a#plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"x && y # plain0\\n\"",
+   "args": [
+    "x && y # plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "x && y\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"plain0 # c\\n\"",
+   "args": [
+    "plain0 # c\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true # c\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"f() export A_TOKEN=1\\n\"",
+   "args": [
+    "f() export A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"{export A_TOKEN=1;}\\n\"",
+   "args": [
+    "{export A_TOKEN=1;}\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"{ export A_TOKEN=1 }\\n\"",
+   "args": [
+    "{ export A_TOKEN=1 }\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "{ true }\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"(export A_TOKEN=1)\\n\"",
+   "args": [
+    "(export A_TOKEN=1)\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "(true)\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"(export A_TOKEN=1; echo hi)\\n\"",
+   "args": [
+    "(export A_TOKEN=1; echo hi)\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "(true; echo hi)\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"f() { export A_TOKEN=1; }\\n\"",
+   "args": [
+    "f() { export A_TOKEN=1; }\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "f() { true; }\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"{ export A_TOKEN=1; }; x\\n\"",
+   "args": [
+    "{ export A_TOKEN=1; }; x\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "{ true; }; x\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"[[ -n $x ]] && export A_TOKEN=1\\n\"",
+   "args": [
+    "[[ -n $x ]] && export A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "[[ -n $x ]] && true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"echo ok | export A_TOKEN=\\\"a\\nb\\\" | cat\\n\"",
+   "args": [
+    "echo ok | export A_TOKEN=\"a\nb\" | cat\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "echo ok | true | cat\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"a | export A_TOKEN=1\\n\"",
+   "args": [
+    "a | export A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "a | true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1 | cat\\n\"",
+   "args": [
+    "export A_TOKEN=1 | cat\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true | cat\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"cmd 2>&1 && export A_TOKEN=1\\n\"",
+   "args": [
+    "cmd 2>&1 && export A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cmd 2>&1 && true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"cmd &>f && export A_TOKEN=1 || y\\n\"",
+   "args": [
+    "cmd &>f && export A_TOKEN=1 || y\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cmd &>f && true || y\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"x >| f; export A_TOKEN=1\\n\"",
+   "args": [
+    "x >| f; export A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "x >| f; true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"cmd <&3; export A_TOKEN=1\\n\"",
+   "args": [
+    "cmd <&3; export A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cmd <&3; true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"cmd >&2; export A_TOKEN=1\\n\"",
+   "args": [
+    "cmd >&2; export A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "cmd >&2; true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"else export A_TOKEN=1\\n\"",
+   "args": [
+    "else export A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "else true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"time export A_TOKEN=1\\n\"",
+   "args": [
+    "time export A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "time true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"! export A_TOKEN=1\\n\"",
+   "args": [
+    "! export A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "! true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1 & export B_TOKEN=2\\n\"",
+   "args": [
+    "export A_TOKEN=1 & export B_TOKEN=2\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "true & true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"begin; set -gx A_TOKEN 1; end\\n\"",
+   "args": [
+    "begin; set -gx A_TOKEN 1; end\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "begin; true; end\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"function f; set -gx A_TOKEN 1; end\\n\"",
+   "args": [
+    "function f; set -gx A_TOKEN 1; end\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "function f; true; end\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1 &\\n\"",
+   "args": [
+    "export A_TOKEN=1 &\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true &\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1; export B_TOKEN=2\\n\"",
+   "args": [
+    "export A_TOKEN=1; export B_TOKEN=2\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "true; true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1 && export B_TOKEN=2\\n\"",
+   "args": [
+    "export A_TOKEN=1 && export B_TOKEN=2\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "true && true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"echo $(export A_TOKEN=1)\\n\"",
+   "args": [
+    "echo $(export A_TOKEN=1)\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"x=1 && A_TOKEN=2 || true\\n\"",
+   "args": [
+    "x=1 && A_TOKEN=2 || true\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "x=1 && true || true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"  \\texport A_TOKEN=1\\n\"",
+   "args": [
+    "  \texport A_TOKEN=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "  \ttrue\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"if x; then :; else export A_TOKEN=1; fi\\n\"",
+   "args": [
+    "if x; then :; else export A_TOKEN=1; fi\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "if x; then :; else true; fi\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export B=1; export A_TOKEN=\\\"a\\nb\\\"; export C=1\\n\"",
+   "args": [
+    "export B=1; export A_TOKEN=\"a\nb\"; export C=1\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "export B=1; true; export C=1\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=${x:-\\n  y}; z\\n\"",
+   "args": [
+    "export A_TOKEN=${x:-\n  y}; z\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true; z\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=`a\\nb`; z\\n\"",
+   "args": [
+    "export A_TOKEN=`a\nb`; z\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true; z\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=(a\\nb); z\\n\"",
+   "args": [
+    "export A_TOKEN=(a\nb); z\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true; z\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=\\\"a\\nb\\\" && echo ok\\n\"",
+   "args": [
+    "export A_TOKEN=\"a\nb\" && echo ok\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true && echo ok\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"echo ok && export A_TOKEN=\\\"a\\nb\\\"\\n\"",
+   "args": [
+    "echo ok && export A_TOKEN=\"a\nb\"\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "echo ok && true\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"(( x = 1 +\\nexport A_TOKEN=2 ))\\nnext\\n\"",
+   "args": [
+    "(( x = 1 +\nexport A_TOKEN=2 ))\nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "(( x = 1 +\ntrue ))\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"export A_TOKEN=1; (( y = 1 +\\nz ))\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=1; (( y = 1 +\nz ))\nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "true; (( y = 1 +\nz ))\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"case x in\\n a|b) export A_TOKEN=1 ;;\\nesac\\n\"",
+   "args": [
+    "case x in\n a|b) export A_TOKEN=1 ;;\nesac\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "case x in\n a|b) true ;;\nesac\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"case x in\\n  a) export A_TOKEN=\\\"a\\nb\\\" ;;\\nesac\\n\"",
+   "args": [
+    "case x in\n  a) export A_TOKEN=\"a\nb\" ;;\nesac\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "case x in\n  a) true ;;\nesac\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"x) export A_TOKEN=1 ;& \\n\"",
+   "args": [
+    "x) export A_TOKEN=1 ;& \n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "x) true ;& \n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"if (plain0); then y; fi\\n\"",
+   "args": [
+    "if (plain0); then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if (true); then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if { plain0; }; then y; fi\\n\"",
+   "args": [
+    "if { plain0; }; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if { true; }; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if $(plain0); then y; fi\\n\"",
+   "args": [
+    "if $(plain0); then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if false; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if plain0 \\n{\\ny\\n}\\n\"",
+   "args": [
+    "if plain0 \n{\ny\n}\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if false \n{\ny\n}\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if [[ plain0 ]] \\n{\\ny\\n}\\n\"",
+   "args": [
+    "if [[ plain0 ]] \n{\ny\n}\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if false \n{\ny\n}\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"[[ $x = plain0 ]] && y\\n\"",
+   "args": [
+    "[[ $x = plain0 ]] && y\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"[[ $x = plain0 ]]\\n\"",
+   "args": [
+    "[[ $x = plain0 ]]\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"x && [[ $x = plain0 ]] && y\\n\"",
+   "args": [
+    "x && [[ $x = plain0 ]] && y\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"x || plain0\\n\"",
+   "args": [
+    "x || plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "x || true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"x ; plain0 ; y\\n\"",
+   "args": [
+    "x ; plain0 ; y\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "x ; true ; y\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"plain0 & y\\n\"",
+   "args": [
+    "plain0 & y\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true & y\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"{ plain0; } && y\\n\"",
+   "args": [
+    "{ plain0; } && y\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "{ true; } && y\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo $(\\n plain0\\n)\\n\"",
+   "args": [
+    "echo $(\n plain0\n)\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo $(\n true\n)\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo `\\n plain0\\n`\\n\"",
+   "args": [
+    "echo `\n plain0\n`\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo `\n true\n`\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo ${x:-\\nplain0}\\n\"",
+   "args": [
+    "echo ${x:-\nplain0}\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo ${x:-\ntrue\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo \\\"a\\nplain0\\\"\\n\"",
+   "args": [
+    "echo \"a\nplain0\"\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo \"a\ntrue",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"plain0\\n\"",
+   "args": [
+    "plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"  plain0\\n\"",
+   "args": [
+    "  plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "  true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"x\\n  plain0 y\\nz\\n\"",
+   "args": [
+    "x\n  plain0 y\nz\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "x\n  true\nz\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"plain0 && y\\n\"",
+   "args": [
+    "plain0 && y\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"plain0; y\\n\"",
+   "args": [
+    "plain0; y\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true; y\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"x; plain0\\n\"",
+   "args": [
+    "x; plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "x; true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"plain0 &\\n\"",
+   "args": [
+    "plain0 &\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true &\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo \\\"plain0\\\"; y\\n\"",
+   "args": [
+    "echo \"plain0\"; y\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true; y\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo 'plain0 \\n x'; y\\n\"",
+   "args": [
+    "echo 'plain0 \n x'; y\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true; y\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if A_TOKEN=\\\"a\\nb\\\"; then y; fi\\n\"",
+   "args": [
+    "if A_TOKEN=\"a\nb\"; then y; fi\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "if true; then y; fi\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"if A_TOKEN=$(\\n cmd\\n); then y; fi\\n\"",
+   "args": [
+    "if A_TOKEN=$(\n cmd\n); then y; fi\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "if false; then y; fi\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"while A_TOKEN=$(\\n cmd\\n); do y; done\\n\"",
+   "args": [
+    "while A_TOKEN=$(\n cmd\n); do y; done\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "while false; do y; done\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"until A_TOKEN=$(\\n cmd\\n); do y; done\\n\"",
+   "args": [
+    "until A_TOKEN=$(\n cmd\n); do y; done\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "until true; do y; done\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"if x && plain0; then y; fi\\n\"",
+   "args": [
+    "if x && plain0; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if false; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if x | plain0; then y; fi\\n\"",
+   "args": [
+    "if x | plain0; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if false; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if plain0 && x; then y; fi\\n\"",
+   "args": [
+    "if plain0 && x; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if false; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if plain0 | x; then y; fi\\n\"",
+   "args": [
+    "if plain0 | x; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if false; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if ! x; then plain0; fi\\n\"",
+   "args": [
+    "if ! x; then plain0; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if ! x; then true; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if x; then if plain0; then y; fi; fi\\n\"",
+   "args": [
+    "if x; then if plain0; then y; fi; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if x; then if false; then y; fi; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if time plain0; then y; fi\\n\"",
+   "args": [
+    "if time plain0; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if false; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo a; elif plain0 x; then y; fi\\n\"",
+   "args": [
+    "echo a; elif plain0 x; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo a; elif false; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo a; if plain0 x; then y; fi\\n\"",
+   "args": [
+    "echo a; if plain0 x; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "echo a; if false; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if x; plain0; then y; fi\\n\"",
+   "args": [
+    "if x; plain0; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if x; true; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if\\nplain0; then y; fi\\n\"",
+   "args": [
+    "if\nplain0; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if\ntrue; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if plain0 {\\ny\\n}\\n\"",
+   "args": [
+    "if plain0 {\ny\n}\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if [[ -n '' ]] {\ny\n}\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"while plain0 {\\ny\\n}\\n\"",
+   "args": [
+    "while plain0 {\ny\n}\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "while [[ -n '' ]] {\ny\n}\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if ! plain0; then y; fi\\n\"",
+   "args": [
+    "if ! plain0; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if false; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if plain0 \\\\\\n  x; then y; fi\\n\"",
+   "args": [
+    "if plain0 \\\n  x; then y; fi\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "if false; then y; fi\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"echo if plain0\\n\"",
+   "args": [
+    "echo if plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"x; for plain0 in a; do y; done\\n\"",
+   "args": [
+    "x; for plain0 in a; do y; done\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"for\\tplain0 in a; do y; done\\n\"",
+   "args": [
+    "for\tplain0 in a; do y; done\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"select plain0 in a; do y; done\\n\"",
+   "args": [
+    "select plain0 in a; do y; done\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"case plain0 in\\n a) y;;\\nesac\\n\"",
+   "args": [
+    "case plain0 in\n a) y;;\nesac\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n a) y;;\nesac\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"forx plain0\\n\"",
+   "args": [
+    "forx plain0\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"for f in a; do plain0; done\\n\"",
+   "args": [
+    "for f in a; do plain0; done\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "for f in a; do true; done\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"for plain0; do y; done\\n\"",
+   "args": [
+    "for plain0; do y; done\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"for plain0 in a; do y; done\\n\"",
+   "args": [
+    "for plain0 in a; do y; done\n",
+    {
+     "contains": "plain0",
+     "name": "a login"
+    },
+    [],
+    true
+   ],
+   "out": {
+    "names": [],
+    "carried": "true\n",
+    "held": [
+     "a login"
+    ]
+   }
+  },
+  {
+   "name": "script \"if x; then\\r\\n  export A_TOKEN=\\\"a\\r\\nb\\\"\\r\\nfi\\r\\n\"",
+   "args": [
+    "if x; then\r\n  export A_TOKEN=\"a\r\nb\"\r\nfi\r\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "if x; then\r\n  true\r\nfi\r\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"  export A_TOKEN=\\\"a\\n\\n\\nb\\\"\\nnext\\n\"",
+   "args": [
+    "  export A_TOKEN=\"a\n\n\nb\"\nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "  true\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"  export A_TOKEN=1 \\\\\\n  --flag\\nnext\\n\"",
+   "args": [
+    "  export A_TOKEN=1 \\\n  --flag\nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "  true\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"\\texport A_TOKEN=<<EOF\\nbody\\nEOF\\nnext\\n\"",
+   "args": [
+    "\texport A_TOKEN=<<EOF\nbody\nEOF\nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "\ttrue\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "script \"if x; then export A_TOKEN=1 \\\\\\n  --flag; fi\\nnext\\n\"",
+   "args": [
+    "if x; then export A_TOKEN=1 \\\n  --flag; fi\nnext\n",
+    null,
+    [],
+    true
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "if x; then true; fi\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=\\\"a\\r\\nb\\\"\\r\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=\"a\r\nb\"\r\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\r\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export É_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "export É_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export É_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export xÉ_TOKEN=1\\nnext\\n\"",
+   "args": [
+    "export xÉ_TOKEN=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export xÉ_TOKEN=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export ÀPI_KEY=1\\nnext\\n\"",
+   "args": [
+    "export ÀPI_KEY=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export ÀPI_KEY=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export Token=1\\nnext\\n\"",
+   "args": [
+    "export Token=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "Token"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export mytoken=1\\nnext\\n\"",
+   "args": [
+    "export mytoken=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export mytoken=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export MyToken=1\\nnext\\n\"",
+   "args": [
+    "export MyToken=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export MyToken=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export my_Token=1\\nnext\\n\"",
+   "args": [
+    "export my_Token=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "my_Token"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export api_key=1\\nnext\\n\"",
+   "args": [
+    "export api_key=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "api_key"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export APIKEY=1\\nnext\\n\"",
+   "args": [
+    "export APIKEY=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "APIKEY"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"set -gx token 1\\nnext\\n\"",
+   "args": [
+    "set -gx token 1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "token"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export HISTKEY=1\\nnext\\n\"",
+   "args": [
+    "export HISTKEY=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export HISTKEY=1\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export PASSWORD_STORE_DIR=~/.pass PASSWORD=1\\nnext\\n\"",
+   "args": [
+    "export PASSWORD_STORE_DIR=~/.pass PASSWORD=1\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "PASSWORD"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export PASSWORD_STORE_DIR=~/.pass\\nnext\\n\"",
+   "args": [
+    "export PASSWORD_STORE_DIR=~/.pass\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [],
+    "carried": "export PASSWORD_STORE_DIR=~/.pass\nnext\n",
+    "held": []
+   }
+  },
+  {
+   "name": "\"A_TOKEN=1 A_TOKEN=2 B_TOKEN=3 A_TOKEN=4\\n\"",
+   "args": [
+    "A_TOKEN=1 A_TOKEN=2 B_TOKEN=3 A_TOKEN=4\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN",
+     "B_TOKEN"
+    ],
+    "carried": "",
+    "held": []
+   }
+  },
+  {
+   "name": "\"export A_TOKEN=é\\nnext\\n\"",
+   "args": [
+    "export A_TOKEN=é\nnext\n",
+    null,
+    [],
+    false
+   ],
+   "out": {
+    "names": [
+     "A_TOKEN"
+    ],
+    "carried": "next\n",
+    "held": []
+   }
+  }
+ ],
+ "strip_exports_calls": [
+  {
+   "name": "calls of \"echo sk-1\\nnext\\n\"",
+   "args": [
+    "echo sk-1\nnext\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": [
+    "echo sk-1",
+    "next",
+    ""
+   ]
+  },
+  {
+   "name": "calls of \"export FOO=sk-1 BAR=2\\nnext\\n\"",
+   "args": [
+    "export FOO=sk-1 BAR=2\nnext\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": [
+    "export FOO=sk-1 BAR=2",
+    "export FOO=sk-1 BAR=2",
+    "export FOO=sk-1 BAR=2",
+    "next",
+    ""
+   ]
+  },
+  {
+   "name": "calls of script \"export A=1; export B=sk-2\\n\"",
+   "args": [
+    "export A=1; export B=sk-2\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    true
+   ],
+   "out": [
+    "export A=1; export B=sk-2",
+    "export A=1",
+    " export B=sk-2",
+    "export A=1",
+    "export B=sk-2",
+    "export A=1; true",
+    "export A=1",
+    " true",
+    ""
+   ]
+  },
+  {
+   "name": "calls of \"echo ok; echo sk-1\\n\"",
+   "args": [
+    "echo ok; echo sk-1\n",
+    {
+     "contains": "sk-",
+     "name": "OPENAI"
+    },
+    [],
+    false
+   ],
+   "out": [
+    "echo ok; echo sk-1",
+    ""
+   ]
+  }
+ ]
+}

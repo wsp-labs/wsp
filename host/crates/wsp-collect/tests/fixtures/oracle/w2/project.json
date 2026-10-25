@@ -1,0 +1,2701 @@
+{
+ "scan_project": [
+  {
+   "name": "CRLF .tool-versions: a comment line is not cut, so it is a pin named #",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.tool-versions": "# pinned\r\nnodejs 22.1.0\r\npython 3.12 # c\r\nruby 3.3\r\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".tool-versions names nodejs 22.1.0"
+     },
+     {
+      "id": "python",
+      "name": "Python 3.12",
+      "why": ".tool-versions names python 3.12"
+     },
+     {
+      "id": "ruby",
+      "name": "Ruby 3.1 with bundler",
+      "why": ".tool-versions names ruby 3.3"
+     },
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": ".tool-versions needs mise"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "#",
+      "name": "#",
+      "why": ".tool-versions names # pinned"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "CRLF mise.toml: header, keys and versions still read",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/mise.toml": "[tools]\r\ngo = \"1.24\" # c\r\nzig = \"0.13\"\r\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "go",
+      "name": "Go",
+      "why": "mise.toml names go 1.24"
+     },
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": "mise.toml needs mise"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "zig",
+      "name": "zig",
+      "why": "mise.toml names zig 0.13"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "mise key and version quirks",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/mise.toml": "[tools] # x\n'node' = \"22\"\n\"zig' = \"0.1\"\nnode.version = \"1\"\n= \"v\"\nrust = \"1.80#x\"\npy = [\n  \"3.12\",\n]\ngo = 1.24\nbun = 'a' # \"b\"\n[ tools ]\nzz = \"1\"\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": "mise.toml names node 22"
+     },
+     {
+      "id": "rust",
+      "name": "Rust with cargo",
+      "why": "mise.toml names rust"
+     },
+     {
+      "id": "go",
+      "name": "Go",
+      "why": "mise.toml names go"
+     },
+     {
+      "id": "bun",
+      "name": "Bun",
+      "why": "mise.toml names bun a"
+     },
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": "mise.toml needs mise"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "zig",
+      "name": "zig",
+      "why": "mise.toml names zig 0.1"
+     },
+     {
+      "id": "node.version",
+      "name": "node.version",
+      "why": "mise.toml names node.version 1"
+     },
+     {
+      "id": "py",
+      "name": "py",
+      "why": "mise.toml names py"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "mise tables: [tools] reopened counts, [[tools]] does not",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/mise.toml": "[tools]\na = \"1\"\n[env]\nb = \"2\"\n[tools]\nc = \"3\"\n[[tools]]\nd = \"4\"\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": "mise.toml needs mise"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "a",
+      "name": "a",
+      "why": "mise.toml names a 1"
+     },
+     {
+      "id": "c",
+      "name": "c",
+      "why": "mise.toml names c 3"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "mise version regex",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/mise.toml": "[tools]\na = \"a'b\"\nb = \"\"\nc = { version = \"22\", x = \"1\" }\nd = \"\" \"1\"\ne = 'x\"\nf=\"6\"\n  g  =  \"7\"  \n\"h\" = \"8\"\n'i\" = \"9\"\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": "mise.toml needs mise"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "a",
+      "name": "a",
+      "why": "mise.toml names a a"
+     },
+     {
+      "id": "b",
+      "name": "b",
+      "why": "mise.toml names b"
+     },
+     {
+      "id": "c",
+      "name": "c",
+      "why": "mise.toml names c 22"
+     },
+     {
+      "id": "d",
+      "name": "d",
+      "why": "mise.toml names d  "
+     },
+     {
+      "id": "e",
+      "name": "e",
+      "why": "mise.toml names e x"
+     },
+     {
+      "id": "f",
+      "name": "f",
+      "why": "mise.toml names f 6"
+     },
+     {
+      "id": "g",
+      "name": "g",
+      "why": "mise.toml names g 7"
+     },
+     {
+      "id": "h",
+      "name": "h",
+      "why": "mise.toml names h 8"
+     },
+     {
+      "id": "i",
+      "name": "i",
+      "why": "mise.toml names i 9"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": ".tool-versions whitespace: a BOM is trimmed, U+0085 does not split, a vertical tab does",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.tool-versions": "﻿nodejs 22.1\ngolang1.24\nzig\u000b0.1\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".tool-versions names nodejs 22.1"
+     },
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": ".tool-versions needs mise"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "golang1.24",
+      "name": "golang1.24",
+      "why": ".tool-versions names golang1.24"
+     },
+     {
+      "id": "zig",
+      "name": "zig",
+      "why": ".tool-versions names zig 0.1"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": ".tool-versions blank, tab and nbsp",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.tool-versions": "nodejs 22.1\n\tgolang\t1.24\n#\nzig # c\n  \n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".tool-versions names nodejs 22.1"
+     },
+     {
+      "id": "go",
+      "name": "Go",
+      "why": ".tool-versions names golang 1.24"
+     },
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": ".tool-versions needs mise"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "zig",
+      "name": "zig",
+      "why": ".tool-versions names zig"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": ".tool-versions first version only",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.tool-versions": "nodejs 22 20 18\n   \n\n# only\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".tool-versions names nodejs 22"
+     },
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": ".tool-versions needs mise"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "first pin wins across .tool-versions, mise.toml, .mise.toml",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.tool-versions": "zig 0.13\nnodejs 20\n",
+     "/Users/dev/proj/mise.toml": "[tools]\nzig = \"0.14\"\nnode = \"22\"\n",
+     "/Users/dev/proj/.mise.toml": "[tools]\nzig = \"0.15\"\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".tool-versions names nodejs 20"
+     },
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": ".tool-versions needs mise"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "zig",
+      "name": "zig",
+      "why": ".tool-versions names zig 0.13"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "candidates dedupe by word across readers",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/package.json": "{\"packageManager\":\"weirdpm@1\"}",
+     "/Users/dev/proj/.tool-versions": "weirdpm 2\nzig 1\n",
+     "/Users/dev/proj/.github/workflows/a.yml": "- uses: x/setup-zig@v1\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": ".tool-versions needs mise"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "weirdpm",
+      "name": "weirdpm",
+      "why": "packageManager weirdpm@1"
+     },
+     {
+      "id": "zig",
+      "name": "zig",
+      "why": ".tool-versions names zig 1"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "CRLF workflow: run lines with text never match, an empty run: does",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "steps:\r\n  - uses: actions/setup-go@v5\r\n  - run: gh pr list\r\n  - run: |\r\n      docker build .\r\n  - run:\r\n      npm ci\r\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "go",
+      "name": "Go",
+      "why": ".github/workflows/a.yml sets up go"
+     },
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".github/workflows/a.yml runs npm"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "workflow setup variants",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "steps:\n  - uses: foo/setup-action@v1\n  - uses: x/setup-go-action@v1\n  - uses: pnpm/foo/action-setup@v4\n  - uses: bar/baz/action-setup\n  -uses: actions/setup-java@v4\n  - uses: \"actions/setup-ruby\"\n  # - uses: actions/setup-deno@v1\n  - uses: ./local/setup-node\n  - uses: actions/checkout@v4\n  - uses: a/setup-.@v1\n  - uses: a/setup-@v1\n  - uses: a/b/setup-lua@v1\n  - uses: Actions/Setup-Node@v1\n  uses: actions/setup-php@v1 # c\n\t- uses: actions/setup-zig@v1"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "java",
+      "name": "Java 21",
+      "why": ".github/workflows/a.yml sets up java"
+     },
+     {
+      "id": "ruby",
+      "name": "Ruby 3.1 with bundler",
+      "why": ".github/workflows/a.yml sets up ruby"
+     },
+     {
+      "id": "php",
+      "name": "PHP 8.2 with Composer",
+      "why": ".github/workflows/a.yml sets up php"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "action",
+      "name": "action",
+      "why": ".github/workflows/a.yml sets up action"
+     },
+     {
+      "id": "x",
+      "name": "x",
+      "why": ".github/workflows/a.yml sets up x"
+     },
+     {
+      "id": "foo",
+      "name": "foo",
+      "why": ".github/workflows/a.yml sets up foo"
+     },
+     {
+      "id": "baz",
+      "name": "baz",
+      "why": ".github/workflows/a.yml sets up baz"
+     },
+     {
+      "id": ".",
+      "name": ".",
+      "why": ".github/workflows/a.yml sets up ."
+     },
+     {
+      "id": "zig",
+      "name": "zig",
+      "why": ".github/workflows/a.yml sets up zig"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "run block indent counts the spaces before the dash",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "  - run: |\n    gh pr list\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": ".github/workflows/a.yml runs gh"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "run block: a sibling key deeper than the dash is inside it, a same-column one ends it",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "      - run: |\n          npm ci\n        shell: x && gh pr list\n      - name: n\n        run: |\n          uv sync\n        shell: x && docker build .\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".github/workflows/a.yml runs npm"
+     },
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": ".github/workflows/a.yml runs gh"
+     },
+     {
+      "id": "uv",
+      "name": "uv",
+      "why": ".github/workflows/a.yml runs uv"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "run block: an env sibling",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "jobs:\n  b:\n    steps:\n      - run: |\n          docker build .\n        env:\n          X: gh\n      - name: n\n        run: |\n          npm ci\n        env: {}\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "docker",
+      "name": "Docker engine and compose",
+      "why": ".github/workflows/a.yml runs docker"
+     },
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".github/workflows/a.yml runs npm"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "a run: line inside a block is not scanned again",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "- run: |\n    echo hi\n    run: gh pr\n    - run: docker x\n- run: npm ci\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".github/workflows/a.yml runs npm"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "run |+ is an inline command, not a block",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "- run: |+\n    gh pr list\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "run |2 is an inline command, not a block",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "- run: |2\n    gh pr list\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "inline run text keeps its quotes",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "- run: 'gh pr list'\n- run: \"docker build .\"\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": ".github/workflows/a.yml runs gh"
+     },
+     {
+      "id": "docker",
+      "name": "Docker engine and compose",
+      "why": ".github/workflows/a.yml runs docker"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "blank lines stay in a block, |- and > open blocks, trailing spaces after run:",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "- run: |-\n    gh a\n\n    docker b\n\n- run: >\n    npm i\n- run: |+\n    cargo b\n- run: |2\n    go b\n- run: 'gh pr list'\n- run: \"docker build .\"\n- run:   \n    uv sync\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": ".github/workflows/a.yml runs gh"
+     },
+     {
+      "id": "docker",
+      "name": "Docker engine and compose",
+      "why": ".github/workflows/a.yml runs docker"
+     },
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".github/workflows/a.yml runs npm"
+     },
+     {
+      "id": "uv",
+      "name": "uv",
+      "why": ".github/workflows/a.yml runs uv"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "blank lines before the first block line",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "- run: |\n    gh a\n\n    \n\n- run: |\n\n    docker b\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": ".github/workflows/a.yml runs gh"
+     },
+     {
+      "id": "docker",
+      "name": "Docker engine and compose",
+      "why": ".github/workflows/a.yml runs docker"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "an empty run: and a run: at the end of the file",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "- run:\n- run: npm ci"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".github/workflows/a.yml runs npm"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "tab-indented block line",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": "- run: |\n\tgh pr list\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": ".github/workflows/a.yml runs gh"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "every file in the workflows folder is read, a subfolder gives nothing",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/notes.txt": "- run: gh pr list\n",
+     "/Users/dev/proj/.github/workflows/sub/ci.yml": "- run: docker x\n",
+     "/Users/dev/proj/.github/workflows/z.yml": "- run: npm ci\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": ".github/workflows/notes.txt runs gh"
+     },
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": ".github/workflows/z.yml runs npm"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/notes.txt",
+    "read /Users/dev/proj/.github/workflows/sub",
+    "read /Users/dev/proj/.github/workflows/z.yml"
+   ]
+  },
+  {
+   "name": "an empty workflow file",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/.github/workflows/a.yml": ""
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml",
+    "read /Users/dev/proj/.github/workflows/a.yml"
+   ]
+  },
+  {
+   "name": "package.json arrays: scripts read by index, engines and dependencies give names 0",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/package.json": "{\"scripts\":[\"gh release create\"],\"engines\":[\"node\"],\"dependencies\":[\"playwright\"]}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": "package.json scripts run gh"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "package.json integer-like keys come first",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/package.json": "{\"scripts\":{\"1\":\"docker x\",\"b\":\"gh x\",\"a\":\"uv x\"}}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "docker",
+      "name": "Docker engine and compose",
+      "why": "package.json scripts run docker"
+     },
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": "package.json scripts run gh"
+     },
+     {
+      "id": "uv",
+      "name": "uv",
+      "why": "package.json scripts run uv"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "package.json duplicate keys: last value, first place",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/package.json": "{\"scripts\":{\"a\":\"gh x\",\"b\":\"docker y\",\"a\":\"uv z\"}}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "uv",
+      "name": "uv",
+      "why": "package.json scripts run uv"
+     },
+     {
+      "id": "docker",
+      "name": "Docker engine and compose",
+      "why": "package.json scripts run docker"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "package.json empty ranges leave a trailing space",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/package.json": "{\"engines\":{\"node\":\"\"},\"devDependencies\":{\"playwright\":\"\"}}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": "engines.node "
+     },
+     {
+      "id": "playwright",
+      "name": "Chromium for Playwright",
+      "why": "package.json depends on playwright "
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "packageManager shapes",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/package.json": "{\"packageManager\":\"weirdpm@1.0.0+sha512.abc+x\"}",
+     "/Users/dev/proj/apps/a/package.json": "{\"packageManager\":\"pnpm\"}",
+     "/Users/dev/proj/apps/b/package.json": "{\"packageManager\":\"+sha\"}",
+     "/Users/dev/proj/apps/c/package.json": "{\"packageManager\":\"yarn@\"}",
+     "/Users/dev/proj/apps/d/package.json": "{\"packageManager\":\"Yarn@4\"}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "pnpm",
+      "name": "pnpm",
+      "why": "packageManager pnpm"
+     },
+     {
+      "id": "yarn",
+      "name": "Yarn",
+      "why": "packageManager yarn@"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "weirdpm",
+      "name": "weirdpm",
+      "why": "packageManager weirdpm@1.0.0"
+     },
+     {
+      "id": "Yarn",
+      "name": "Yarn",
+      "why": "packageManager Yarn@4"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/apps/a/package.json",
+    "read /Users/dev/proj/apps/b/package.json",
+    "read /Users/dev/proj/apps/c/package.json",
+    "read /Users/dev/proj/apps/d/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "scripts: version checks are not runs, heredoc bodies are skipped",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/package.json": "{\"scripts\":{\"a\":\"node --version\",\"b\":\"node -v && gh --help\",\"c\":\"docker version\",\"d\":\"FOO=1 npm ci && cd x && uv sync | tee y; cargo build\",\"e\":\"echo hi; python <<EOF\\ngh x\\nEOF\"}}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": "package.json scripts run gh"
+     },
+     {
+      "id": "docker",
+      "name": "Docker engine and compose",
+      "why": "package.json scripts run docker"
+     },
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": "package.json scripts run npm"
+     },
+     {
+      "id": "uv",
+      "name": "uv",
+      "why": "package.json scripts run uv"
+     },
+     {
+      "id": "rust",
+      "name": "Rust with cargo",
+      "why": "package.json scripts run cargo"
+     },
+     {
+      "id": "python",
+      "name": "Python 3.12",
+      "why": "package.json scripts run python"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "dependencies before devDependencies whatever the file order",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/package.json": "{\"devDependencies\":{\"@playwright/test\":\"1.0\"},\"dependencies\":{\"playwright\":\"2.0\"}}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "playwright",
+      "name": "Chromium for Playwright",
+      "why": "package.json depends on playwright 2.0"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "engines: first entry that lands on a row wins; non-object values give nothing",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/package.json": "{\"engines\":{\"npm\":\">=10\",\"node\":\">=22\"}}",
+     "/Users/dev/proj/apps/x/package.json": "{\"engines\":\"node\",\"scripts\":\"gh x\",\"dependencies\":null}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": "engines.npm >=10"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/apps/x/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "wrong JSON types and empty text give nothing",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/package.json": "null",
+     "/Users/dev/proj/apps/a/package.json": "\"str\"",
+     "/Users/dev/proj/apps/b/package.json": "7",
+     "/Users/dev/proj/apps/c/package.json": "",
+     "/Users/dev/proj/apps/d/package.json": "{}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/apps/a/package.json",
+    "read /Users/dev/proj/apps/b/package.json",
+    "read /Users/dev/proj/apps/c/package.json",
+    "read /Users/dev/proj/apps/d/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "workspace order: root, apps, packages",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/packages/b/package.json": "{\"scripts\":{\"x\":\"gh x\"}}",
+     "/Users/dev/proj/packages/a/package.json": "{\"scripts\":{\"x\":\"gh y\"}}",
+     "/Users/dev/proj/apps/z/package.json": "{\"scripts\":{\"x\":\"docker y\"}}",
+     "/Users/dev/proj/package.json": "{\"scripts\":{\"x\":\"uv y\"}}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "uv",
+      "name": "uv",
+      "why": "package.json scripts run uv"
+     },
+     {
+      "id": "docker",
+      "name": "Docker engine and compose",
+      "why": "apps/z/package.json scripts run docker"
+     },
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": "packages/a/package.json scripts run gh"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/apps/z/package.json",
+    "read /Users/dev/proj/packages/a/package.json",
+    "read /Users/dev/proj/packages/b/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "only one level under apps and packages",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/apps/a/b/package.json": "{\"scripts\":{\"x\":\"gh y\"}}",
+     "/Users/dev/proj/apps/package.json": "{\"scripts\":{\"x\":\"docker y\"}}",
+     "/Users/dev/proj/packages/a/package.jsonx": "{}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/apps/a/package.json",
+    "read /Users/dev/proj/apps/package.json/package.json",
+    "read /Users/dev/proj/packages/a/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "only scripts and depends lines carry the file path",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/apps/a/package.json": "{\"packageManager\":\"pnpm@9\",\"engines\":{\"node\":\"22\"},\"scripts\":{\"x\":\"gh y\"},\"dependencies\":{\"playwright\":\"1\"}}"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "pnpm",
+      "name": "pnpm",
+      "why": "packageManager pnpm@9"
+     },
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": "engines.node 22"
+     },
+     {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "why": "apps/a/package.json scripts run gh"
+     },
+     {
+      "id": "playwright",
+      "name": "Chromium for Playwright",
+      "why": "apps/a/package.json depends on playwright 1"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/apps/a/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "a directory named like a marker is skipped, an empty marker file counts",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/Dockerfile/x": "FROM",
+     "/Users/dev/proj/go.mod": "",
+     "/Users/dev/proj/Gemfile": "x"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "go",
+      "name": "Go",
+      "why": "go.mod needs Go"
+     },
+     {
+      "id": "ruby",
+      "name": "Ruby 3.1 with bundler",
+      "why": "Gemfile needs Ruby"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "empty text readers are read and give nothing",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/package.json": "",
+     "/Users/dev/proj/mise.toml": ""
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": "mise.toml needs mise"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "every marker file",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/pnpm-lock.yaml": "x",
+     "/Users/dev/proj/yarn.lock": "x",
+     "/Users/dev/proj/bun.lock": "x",
+     "/Users/dev/proj/bun.lockb": "x",
+     "/Users/dev/proj/package-lock.json": "x",
+     "/Users/dev/proj/pyproject.toml": "x",
+     "/Users/dev/proj/uv.lock": "x",
+     "/Users/dev/proj/requirements.txt": "x",
+     "/Users/dev/proj/.tool-versions": "x",
+     "/Users/dev/proj/mise.toml": "x",
+     "/Users/dev/proj/.mise.toml": "x",
+     "/Users/dev/proj/go.mod": "x",
+     "/Users/dev/proj/Cargo.toml": "x",
+     "/Users/dev/proj/Gemfile": "x",
+     "/Users/dev/proj/composer.json": "x",
+     "/Users/dev/proj/Dockerfile": "x",
+     "/Users/dev/proj/compose.yaml": "x",
+     "/Users/dev/proj/compose.yml": "x",
+     "/Users/dev/proj/docker-compose.yaml": "x",
+     "/Users/dev/proj/docker-compose.yml": "x"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "pnpm",
+      "name": "pnpm",
+      "why": "pnpm-lock.yaml needs pnpm"
+     },
+     {
+      "id": "yarn",
+      "name": "Yarn",
+      "why": "yarn.lock needs Yarn"
+     },
+     {
+      "id": "bun",
+      "name": "Bun",
+      "why": "bun.lock needs Bun"
+     },
+     {
+      "id": "node",
+      "name": "Node 22 with npm",
+      "why": "package-lock.json needs npm"
+     },
+     {
+      "id": "python",
+      "name": "Python 3.12",
+      "why": "pyproject.toml needs Python"
+     },
+     {
+      "id": "uv",
+      "name": "uv",
+      "why": "uv.lock needs uv"
+     },
+     {
+      "id": "mise",
+      "name": "mise",
+      "why": ".tool-versions needs mise"
+     },
+     {
+      "id": "go",
+      "name": "Go",
+      "why": "go.mod needs Go"
+     },
+     {
+      "id": "rust",
+      "name": "Rust with cargo",
+      "why": "Cargo.toml needs Rust"
+     },
+     {
+      "id": "ruby",
+      "name": "Ruby 3.1 with bundler",
+      "why": "Gemfile needs Ruby"
+     },
+     {
+      "id": "php",
+      "name": "PHP 8.2 with Composer",
+      "why": "composer.json needs PHP"
+     },
+     {
+      "id": "docker",
+      "name": "Docker engine and compose",
+      "why": "Dockerfile needs Docker"
+     }
+    ],
+    "candidates": [
+     {
+      "id": "x",
+      "name": "x",
+      "why": ".tool-versions names x"
+     }
+    ]
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "a folder with nothing to read",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/README.md": "# x"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "folder with several trailing slashes",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/go.mod": "x"
+    }
+   },
+   "args": [
+    "/Users/dev/proj///"
+   ],
+   "out": {
+    "dir": "/Users/dev/proj",
+    "rows": [
+     {
+      "id": "go",
+      "name": "Go",
+      "why": "go.mod needs Go"
+     }
+    ],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj/package.json",
+    "read /Users/dev/proj/.tool-versions",
+    "read /Users/dev/proj/mise.toml",
+    "read /Users/dev/proj/.mise.toml"
+   ]
+  },
+  {
+   "name": "folder with a trailing space is not trimmed",
+   "laptop": {
+    "files": {
+     "/Users/dev/proj/go.mod": "x"
+    }
+   },
+   "args": [
+    "/Users/dev/proj "
+   ],
+   "out": {
+    "dir": "/Users/dev/proj ",
+    "rows": [],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/proj /package.json",
+    "read /Users/dev/proj /.tool-versions",
+    "read /Users/dev/proj /mise.toml",
+    "read /Users/dev/proj /.mise.toml"
+   ]
+  },
+  {
+   "name": "a folder that is not there",
+   "laptop": {
+    "files": {}
+   },
+   "args": [
+    "/Users/dev/none"
+   ],
+   "out": {
+    "dir": "/Users/dev/none",
+    "rows": [],
+    "candidates": []
+   },
+   "calls": [
+    "read /Users/dev/none/package.json",
+    "read /Users/dev/none/.tool-versions",
+    "read /Users/dev/none/mise.toml",
+    "read /Users/dev/none/.mise.toml"
+   ]
+  }
+ ],
+ "package_json_read": [
+  {
+   "name": "packageManager with corepack suffix",
+   "args": [
+    {
+     "path": "package.json",
+     "text": "{\"packageManager\":\"pnpm@10.15.0+sha512.abc\"}"
+    }
+   ],
+   "out": [
+    {
+     "name": "pnpm",
+     "label": "pnpm",
+     "why": "packageManager pnpm@10.15.0"
+    }
+   ]
+  },
+  {
+   "name": "packageManager without @",
+   "args": [
+    {
+     "path": "package.json",
+     "text": "{\"packageManager\":\"pnpm\"}"
+    }
+   ],
+   "out": [
+    {
+     "name": "pnpm",
+     "label": "pnpm",
+     "why": "packageManager pnpm"
+    }
+   ]
+  },
+  {
+   "name": "packageManager that is only a suffix",
+   "args": [
+    {
+     "path": "package.json",
+     "text": "{\"packageManager\":\"+sha\"}"
+    }
+   ],
+   "out": []
+  },
+  {
+   "name": "packageManager scoped name",
+   "args": [
+    {
+     "path": "package.json",
+     "text": "{\"packageManager\":\"@yarnpkg/cli@4\"}"
+    }
+   ],
+   "out": []
+  },
+  {
+   "name": "engines, scripts, dependencies and devDependencies in order",
+   "args": [
+    {
+     "path": "apps/web/package.json",
+     "text": "{\"engines\":{\"node\":\">=22\",\"npm\":7},\"scripts\":{\"build\":\"tsup && gh x\",\"n\":1},\"dependencies\":{\"a\":\"1\",\"b\":2},\"devDependencies\":{\"c\":\"3\"}}"
+    }
+   ],
+   "out": [
+    {
+     "name": "node",
+     "label": "node",
+     "why": "engines.node >=22",
+     "catalogOnly": true
+    },
+    {
+     "name": "tsup",
+     "label": "tsup",
+     "why": "apps/web/package.json scripts run tsup",
+     "catalogOnly": true
+    },
+    {
+     "name": "gh",
+     "label": "gh",
+     "why": "apps/web/package.json scripts run gh",
+     "catalogOnly": true
+    },
+    {
+     "name": "a",
+     "label": "a",
+     "why": "apps/web/package.json depends on a 1",
+     "catalogOnly": true,
+     "installs": "npm"
+    },
+    {
+     "name": "c",
+     "label": "c",
+     "why": "apps/web/package.json depends on c 3",
+     "catalogOnly": true,
+     "installs": "npm"
+    }
+   ]
+  },
+  {
+   "name": "arrays are walked by index",
+   "args": [
+    {
+     "path": "package.json",
+     "text": "{\"scripts\":[\"gh x\"],\"engines\":[\"node\"],\"dependencies\":[\"a\"]}"
+    }
+   ],
+   "out": [
+    {
+     "name": "0",
+     "label": "0",
+     "why": "engines.0 node",
+     "catalogOnly": true
+    },
+    {
+     "name": "gh",
+     "label": "gh",
+     "why": "package.json scripts run gh",
+     "catalogOnly": true
+    },
+    {
+     "name": "0",
+     "label": "0",
+     "why": "package.json depends on 0 a",
+     "catalogOnly": true,
+     "installs": "npm"
+    }
+   ]
+  },
+  {
+   "name": "integer-like keys first",
+   "args": [
+    {
+     "path": "package.json",
+     "text": "{\"scripts\":{\"1\":\"docker x\",\"b\":\"gh x\"}}"
+    }
+   ],
+   "out": [
+    {
+     "name": "docker",
+     "label": "docker",
+     "why": "package.json scripts run docker",
+     "catalogOnly": true
+    },
+    {
+     "name": "gh",
+     "label": "gh",
+     "why": "package.json scripts run gh",
+     "catalogOnly": true
+    }
+   ]
+  },
+  {
+   "name": "not JSON",
+   "args": [
+    {
+     "path": "package.json",
+     "text": "not json"
+    }
+   ],
+   "out": []
+  },
+  {
+   "name": "empty text",
+   "args": [
+    {
+     "path": "package.json",
+     "text": ""
+    }
+   ],
+   "out": []
+  },
+  {
+   "name": "an array root",
+   "args": [
+    {
+     "path": "package.json",
+     "text": "[1,2]"
+    }
+   ],
+   "out": []
+  },
+  {
+   "name": "null",
+   "args": [
+    {
+     "path": "package.json",
+     "text": "null"
+    }
+   ],
+   "out": []
+  },
+  {
+   "name": "empty ranges",
+   "args": [
+    {
+     "path": "package.json",
+     "text": "{\"engines\":{\"node\":\"\"},\"devDependencies\":{\"playwright\":\"\"}}"
+    }
+   ],
+   "out": [
+    {
+     "name": "node",
+     "label": "node",
+     "why": "engines.node ",
+     "catalogOnly": true
+    },
+    {
+     "name": "playwright",
+     "label": "playwright",
+     "why": "package.json depends on playwright ",
+     "catalogOnly": true,
+     "installs": "npm"
+    }
+   ]
+  }
+ ],
+ "toolchain_pins_read": [
+  {
+   "name": ".tool-versions with CRLF",
+   "args": [
+    {
+     "path": ".tool-versions",
+     "text": "# pinned\r\nnodejs 22.1.0\r\npython 3.12 # c\r\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "#",
+     "label": "#",
+     "why": ".tool-versions names # pinned"
+    },
+    {
+     "name": "nodejs",
+     "label": "nodejs",
+     "why": ".tool-versions names nodejs 22.1.0"
+    },
+    {
+     "name": "python",
+     "label": "python",
+     "why": ".tool-versions names python 3.12"
+    }
+   ]
+  },
+  {
+   "name": ".tool-versions name only and blanks",
+   "args": [
+    {
+     "path": ".tool-versions",
+     "text": "nodejs\n  python 3.12 3.11 # pinned\n#all\n\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "nodejs",
+     "label": "nodejs",
+     "why": ".tool-versions names nodejs"
+    },
+    {
+     "name": "python",
+     "label": "python",
+     "why": ".tool-versions names python 3.12"
+    }
+   ]
+  },
+  {
+   "name": ".tool-versions BOM, U+0085, vertical tab",
+   "args": [
+    {
+     "path": ".tool-versions",
+     "text": "﻿nodejs 22.1\ngolang1.24\nzig\u000b0.1\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "nodejs",
+     "label": "nodejs",
+     "why": ".tool-versions names nodejs 22.1"
+    },
+    {
+     "name": "golang1.24",
+     "label": "golang1.24",
+     "why": ".tool-versions names golang1.24"
+    },
+    {
+     "name": "zig",
+     "label": "zig",
+     "why": ".tool-versions names zig 0.1"
+    }
+   ]
+  },
+  {
+   "name": "mise.toml tools table",
+   "args": [
+    {
+     "path": "mise.toml",
+     "text": "[tools]\n'node' = { version = '22' }\nrust = 'stable'\n[tools.extra]\nzig = '0.13'\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "node",
+     "label": "node",
+     "why": "mise.toml names node 22"
+    },
+    {
+     "name": "rust",
+     "label": "rust",
+     "why": "mise.toml names rust stable"
+    }
+   ]
+  },
+  {
+   "name": "mise.toml header with a comment, odd values",
+   "args": [
+    {
+     "path": "mise.toml",
+     "text": "[tools] # x\n'node' = \"22\"\n\"zig' = \"0.1\"\nnode.version = \"1\"\n= \"v\"\nrust = \"1.80#x\"\npy = [\n  \"3.12\",\n]\ngo = 1.24\nbun = 'a' # \"b\"\n[ tools ]\nzz = \"1\"\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "node",
+     "label": "node",
+     "why": "mise.toml names node 22"
+    },
+    {
+     "name": "zig",
+     "label": "zig",
+     "why": "mise.toml names zig 0.1"
+    },
+    {
+     "name": "node.version",
+     "label": "node.version",
+     "why": "mise.toml names node.version 1"
+    },
+    {
+     "name": "rust",
+     "label": "rust",
+     "why": "mise.toml names rust"
+    },
+    {
+     "name": "py",
+     "label": "py",
+     "why": "mise.toml names py"
+    },
+    {
+     "name": "go",
+     "label": "go",
+     "why": "mise.toml names go"
+    },
+    {
+     "name": "bun",
+     "label": "bun",
+     "why": "mise.toml names bun a"
+    }
+   ]
+  },
+  {
+   "name": "mise.toml version regex",
+   "args": [
+    {
+     "path": ".mise.toml",
+     "text": "[tools]\na = \"a'b\"\nb = \"\"\nd = \"\" \"1\"\ne = 'x\"\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "a",
+     "label": "a",
+     "why": ".mise.toml names a a"
+    },
+    {
+     "name": "b",
+     "label": "b",
+     "why": ".mise.toml names b"
+    },
+    {
+     "name": "d",
+     "label": "d",
+     "why": ".mise.toml names d  "
+    },
+    {
+     "name": "e",
+     "label": "e",
+     "why": ".mise.toml names e x"
+    }
+   ]
+  },
+  {
+   "name": "mise.toml with CRLF",
+   "args": [
+    {
+     "path": "mise.toml",
+     "text": "[tools]\r\ngo = \"1.24\" # c\r\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "go",
+     "label": "go",
+     "why": "mise.toml names go 1.24"
+    }
+   ]
+  },
+  {
+   "name": "empty text",
+   "args": [
+    {
+     "path": "mise.toml",
+     "text": ""
+    }
+   ],
+   "out": []
+  }
+ ],
+ "marker_read": [
+  {
+   "name": "marker pnpm-lock.yaml",
+   "args": [
+    {
+     "path": "pnpm-lock.yaml",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "pnpm",
+     "label": "pnpm",
+     "why": "pnpm-lock.yaml needs pnpm"
+    }
+   ]
+  },
+  {
+   "name": "marker yarn.lock",
+   "args": [
+    {
+     "path": "yarn.lock",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "yarn",
+     "label": "Yarn",
+     "why": "yarn.lock needs Yarn"
+    }
+   ]
+  },
+  {
+   "name": "marker bun.lock",
+   "args": [
+    {
+     "path": "bun.lock",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "bun",
+     "label": "Bun",
+     "why": "bun.lock needs Bun"
+    }
+   ]
+  },
+  {
+   "name": "marker bun.lockb",
+   "args": [
+    {
+     "path": "bun.lockb",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "bun",
+     "label": "Bun",
+     "why": "bun.lockb needs Bun"
+    }
+   ]
+  },
+  {
+   "name": "marker package-lock.json",
+   "args": [
+    {
+     "path": "package-lock.json",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "npm",
+     "label": "npm",
+     "why": "package-lock.json needs npm"
+    }
+   ]
+  },
+  {
+   "name": "marker pyproject.toml",
+   "args": [
+    {
+     "path": "pyproject.toml",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "python",
+     "label": "Python",
+     "why": "pyproject.toml needs Python"
+    }
+   ]
+  },
+  {
+   "name": "marker uv.lock",
+   "args": [
+    {
+     "path": "uv.lock",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "uv",
+     "label": "uv",
+     "why": "uv.lock needs uv"
+    }
+   ]
+  },
+  {
+   "name": "marker requirements.txt",
+   "args": [
+    {
+     "path": "requirements.txt",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "python",
+     "label": "Python",
+     "why": "requirements.txt needs Python"
+    }
+   ]
+  },
+  {
+   "name": "marker .tool-versions",
+   "args": [
+    {
+     "path": ".tool-versions",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "mise",
+     "label": "mise",
+     "why": ".tool-versions needs mise"
+    }
+   ]
+  },
+  {
+   "name": "marker mise.toml",
+   "args": [
+    {
+     "path": "mise.toml",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "mise",
+     "label": "mise",
+     "why": "mise.toml needs mise"
+    }
+   ]
+  },
+  {
+   "name": "marker .mise.toml",
+   "args": [
+    {
+     "path": ".mise.toml",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "mise",
+     "label": "mise",
+     "why": ".mise.toml needs mise"
+    }
+   ]
+  },
+  {
+   "name": "marker go.mod",
+   "args": [
+    {
+     "path": "go.mod",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "go",
+     "label": "Go",
+     "why": "go.mod needs Go"
+    }
+   ]
+  },
+  {
+   "name": "marker Cargo.toml",
+   "args": [
+    {
+     "path": "Cargo.toml",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "rust",
+     "label": "Rust",
+     "why": "Cargo.toml needs Rust"
+    }
+   ]
+  },
+  {
+   "name": "marker Gemfile",
+   "args": [
+    {
+     "path": "Gemfile",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "ruby",
+     "label": "Ruby",
+     "why": "Gemfile needs Ruby"
+    }
+   ]
+  },
+  {
+   "name": "marker composer.json",
+   "args": [
+    {
+     "path": "composer.json",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "php",
+     "label": "PHP",
+     "why": "composer.json needs PHP"
+    }
+   ]
+  },
+  {
+   "name": "marker Dockerfile",
+   "args": [
+    {
+     "path": "Dockerfile",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "docker",
+     "label": "Docker",
+     "why": "Dockerfile needs Docker"
+    }
+   ]
+  },
+  {
+   "name": "marker compose.yaml",
+   "args": [
+    {
+     "path": "compose.yaml",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "docker",
+     "label": "Docker",
+     "why": "compose.yaml needs Docker"
+    }
+   ]
+  },
+  {
+   "name": "marker compose.yml",
+   "args": [
+    {
+     "path": "compose.yml",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "docker",
+     "label": "Docker",
+     "why": "compose.yml needs Docker"
+    }
+   ]
+  },
+  {
+   "name": "marker docker-compose.yaml",
+   "args": [
+    {
+     "path": "docker-compose.yaml",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "docker",
+     "label": "Docker",
+     "why": "docker-compose.yaml needs Docker"
+    }
+   ]
+  },
+  {
+   "name": "marker docker-compose.yml",
+   "args": [
+    {
+     "path": "docker-compose.yml",
+     "text": ""
+    }
+   ],
+   "out": [
+    {
+     "name": "docker",
+     "label": "Docker",
+     "why": "docker-compose.yml needs Docker"
+    }
+   ]
+  },
+  {
+   "name": "a path that is no marker",
+   "args": [
+    {
+     "path": "README.md",
+     "text": ""
+    }
+   ],
+   "out": []
+  },
+  {
+   "name": "a marker in a subfolder is no marker",
+   "args": [
+    {
+     "path": "apps/Dockerfile",
+     "text": ""
+    }
+   ],
+   "out": []
+  }
+ ],
+ "workflows_read": [
+  {
+   "name": "setup actions and run steps",
+   "args": [
+    {
+     "path": ".github/workflows/ci.yml",
+     "text": "jobs:\n  build:\n    steps:\n      - uses: actions/setup-go@v5\n      - uses: pnpm/action-setup@v4\n      - run: go build ./...\n      - run: |\n          docker compose up -d\n          npm ci\n      - name: after\n        run: echo done\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "go",
+     "label": "go",
+     "why": ".github/workflows/ci.yml sets up go"
+    },
+    {
+     "name": "pnpm",
+     "label": "pnpm",
+     "why": ".github/workflows/ci.yml sets up pnpm"
+    },
+    {
+     "name": "go",
+     "label": "go",
+     "why": ".github/workflows/ci.yml runs go",
+     "catalogOnly": true
+    },
+    {
+     "name": "docker",
+     "label": "docker",
+     "why": ".github/workflows/ci.yml runs docker",
+     "catalogOnly": true
+    },
+    {
+     "name": "npm",
+     "label": "npm",
+     "why": ".github/workflows/ci.yml runs npm",
+     "catalogOnly": true
+    }
+   ]
+  },
+  {
+   "name": "setup variants",
+   "args": [
+    {
+     "path": "w.yml",
+     "text": "  - uses: foo/setup-action@v1\n  - uses: x/setup-go-action@v1\n  - uses: pnpm/foo/action-setup@v4\n  - uses: bar/baz/action-setup\n  -uses: actions/setup-java@v4\n  - uses: \"actions/setup-ruby\"\n  # - uses: actions/setup-deno@v1\n  - uses: ./local/setup-node\n  - uses: actions/checkout@v4\n  - uses: a/setup-.@v1\n  - uses: a/setup-@v1\n  - uses: a/b/setup-lua@v1\n  - uses: Actions/Setup-Node@v1\n  uses: actions/setup-php@v1 # c\n\t- uses: actions/setup-zig@v1"
+    }
+   ],
+   "out": [
+    {
+     "name": "action",
+     "label": "action",
+     "why": "w.yml sets up action"
+    },
+    {
+     "name": "x",
+     "label": "x",
+     "why": "w.yml sets up x"
+    },
+    {
+     "name": "foo",
+     "label": "foo",
+     "why": "w.yml sets up foo"
+    },
+    {
+     "name": "baz",
+     "label": "baz",
+     "why": "w.yml sets up baz"
+    },
+    {
+     "name": "java",
+     "label": "java",
+     "why": "w.yml sets up java"
+    },
+    {
+     "name": "ruby",
+     "label": "ruby",
+     "why": "w.yml sets up ruby"
+    },
+    {
+     "name": ".",
+     "label": ".",
+     "why": "w.yml sets up ."
+    },
+    {
+     "name": "php",
+     "label": "php",
+     "why": "w.yml sets up php"
+    },
+    {
+     "name": "zig",
+     "label": "zig",
+     "why": "w.yml sets up zig"
+    }
+   ]
+  },
+  {
+   "name": "CRLF run lines",
+   "args": [
+    {
+     "path": "w.yml",
+     "text": "  - run: gh pr list\r\n  - run: |\r\n      docker build .\r\n  - run:\r\n      npm ci\r\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "npm",
+     "label": "npm",
+     "why": "w.yml runs npm",
+     "catalogOnly": true
+    }
+   ]
+  },
+  {
+   "name": "indent before the dash",
+   "args": [
+    {
+     "path": "w.yml",
+     "text": "  - run: |\n    gh pr list\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "gh",
+     "label": "gh",
+     "why": "w.yml runs gh",
+     "catalogOnly": true
+    }
+   ]
+  },
+  {
+   "name": "sibling keys in a block",
+   "args": [
+    {
+     "path": "w.yml",
+     "text": "      - run: |\n          npm ci\n        shell: x && gh pr list\n      - name: n\n        run: |\n          uv sync\n        shell: x && docker build .\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "npm",
+     "label": "npm",
+     "why": "w.yml runs npm",
+     "catalogOnly": true
+    },
+    {
+     "name": "shell:",
+     "label": "shell:",
+     "why": "w.yml runs shell:",
+     "catalogOnly": true
+    },
+    {
+     "name": "gh",
+     "label": "gh",
+     "why": "w.yml runs gh",
+     "catalogOnly": true
+    },
+    {
+     "name": "uv",
+     "label": "uv",
+     "why": "w.yml runs uv",
+     "catalogOnly": true
+    }
+   ]
+  },
+  {
+   "name": "a run: inside a block",
+   "args": [
+    {
+     "path": "w.yml",
+     "text": "- run: |\n    echo hi\n    run: gh pr\n    - run: docker x\n- run: npm ci\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "run:",
+     "label": "run:",
+     "why": "w.yml runs run:",
+     "catalogOnly": true
+    },
+    {
+     "name": "-",
+     "label": "-",
+     "why": "w.yml runs -",
+     "catalogOnly": true
+    },
+    {
+     "name": "npm",
+     "label": "npm",
+     "why": "w.yml runs npm",
+     "catalogOnly": true
+    }
+   ]
+  },
+  {
+   "name": "|+ and |2 are inline",
+   "args": [
+    {
+     "path": "w.yml",
+     "text": "- run: |+\n    gh pr list\n- run: |2\n    go b\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "+",
+     "label": "+",
+     "why": "w.yml runs +",
+     "catalogOnly": true
+    },
+    {
+     "name": "2",
+     "label": "2",
+     "why": "w.yml runs 2",
+     "catalogOnly": true
+    }
+   ]
+  },
+  {
+   "name": "blank lines in blocks, empty run",
+   "args": [
+    {
+     "path": "w.yml",
+     "text": "- run: |-\n    gh a\n\n    docker b\n\n- run:\n- run: >\n    npm i\n"
+    }
+   ],
+   "out": [
+    {
+     "name": "gh",
+     "label": "gh",
+     "why": "w.yml runs gh",
+     "catalogOnly": true
+    },
+    {
+     "name": "docker",
+     "label": "docker",
+     "why": "w.yml runs docker",
+     "catalogOnly": true
+    },
+    {
+     "name": "npm",
+     "label": "npm",
+     "why": "w.yml runs npm",
+     "catalogOnly": true
+    }
+   ]
+  },
+  {
+   "name": "empty text",
+   "args": [
+    {
+     "path": "w.yml",
+     "text": ""
+    }
+   ],
+   "out": []
+  }
+ ]
+}

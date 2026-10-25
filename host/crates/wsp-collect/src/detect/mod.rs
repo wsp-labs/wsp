@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! The detectors: each reads one kind of thing off a computer through `crate::host::Host`.
+pub mod agents;
+pub mod apt;
+pub mod commands;
+pub mod common;
+pub mod identity;
+pub mod logins;
+pub mod mcp;
+pub mod mcp_args;
+pub mod mcp_project;
+pub mod plugins;
+pub mod presence;
+pub mod shell;
+pub mod shell_rc;
+pub mod shell_rc_strip;
+pub mod skills;
+pub mod sources;
+pub mod terminal;
+pub mod toolchains;
+pub mod tools;
+pub mod turn_servers;

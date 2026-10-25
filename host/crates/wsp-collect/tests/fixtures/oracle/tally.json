@@ -1,0 +1,158 @@
+{
+ "held": [
+  {
+   "holder": "A",
+   "buckets": [
+    {
+     "session": "s1",
+     "at": 5,
+     "calls": 1,
+     "commands": {
+      "gh": 1
+     },
+     "installs": {}
+    },
+    {
+     "session": "s2",
+     "calls": 2,
+     "commands": {
+      "ls": 2
+     },
+     "installs": {}
+    }
+   ]
+  },
+  {
+   "holder": "B",
+   "buckets": [
+    {
+     "session": "s1",
+     "at": 5,
+     "calls": 1,
+     "commands": {
+      "git": 1
+     },
+     "installs": {}
+    },
+    {
+     "session": "s2",
+     "at": 1,
+     "calls": 1,
+     "commands": {
+      "ls": 1
+     },
+     "installs": {}
+    }
+   ]
+  },
+  {
+   "holder": "C",
+   "buckets": [
+    {
+     "session": "s1",
+     "at": 9,
+     "calls": 1,
+     "commands": {
+      "jq": 1
+     },
+     "installs": {}
+    },
+    {
+     "session": "s3",
+     "calls": 2,
+     "commands": {
+      "b": 1,
+      "a": 1
+     },
+     "installs": {}
+    }
+   ]
+  },
+  {
+   "holder": "D",
+   "buckets": [
+    {
+     "session": "s3",
+     "calls": 1,
+     "commands": {
+      "c": 1
+     },
+     "installs": {}
+    }
+   ]
+  }
+ ],
+ "kept": [
+  {
+   "session": "s2",
+   "at": 1,
+   "calls": 1,
+   "commands": {
+    "ls": 1
+   },
+   "installs": {}
+  },
+  {
+   "session": "s1",
+   "at": 9,
+   "calls": 1,
+   "commands": {
+    "jq": 1
+   },
+   "installs": {}
+  },
+  {
+   "session": "s3",
+   "calls": 2,
+   "commands": {
+    "b": 1,
+    "a": 1
+   },
+   "installs": {}
+  }
+ ],
+ "usage": {
+  "sessions": 3,
+  "calls": 4,
+  "commands": [
+   [
+    "a",
+    {
+     "sessions": 1,
+     "calls": 1
+    }
+   ],
+   [
+    "b",
+    {
+     "sessions": 1,
+     "calls": 1
+    }
+   ],
+   [
+    "jq",
+    {
+     "sessions": 1,
+     "calls": 1
+    }
+   ],
+   [
+    "ls",
+    {
+     "sessions": 1,
+     "calls": 1
+    }
+   ]
+  ],
+  "installs": [],
+  "tools": [
+   [
+    "jq",
+    {
+     "sessions": 1,
+     "calls": 1
+    }
+   ]
+  ]
+ }
+}

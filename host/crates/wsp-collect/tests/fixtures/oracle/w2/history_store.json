@@ -1,0 +1,6633 @@
+{
+ "reduce_calls": [
+  {
+   "name": "at zero and negative",
+   "args": [
+    [
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": "ls",
+      "at": 0
+     },
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": "ls",
+      "at": -3
+     },
+     {
+      "session": "t",
+      "kind": "other",
+      "name": "x",
+      "at": -3
+     },
+     {
+      "session": "t",
+      "kind": "other",
+      "name": "x",
+      "at": -9
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 2,
+     "commands": {
+      "ls": 2
+     },
+     "installs": {},
+     "at": 0
+    },
+    {
+     "session": "t",
+     "calls": 2,
+     "commands": {},
+     "installs": {},
+     "at": -3
+    }
+   ]
+  },
+  {
+   "name": "at undefined then defined",
+   "args": [
+    [
+     {
+      "session": "s",
+      "kind": "other",
+      "name": "x"
+     },
+     {
+      "session": "s",
+      "kind": "other",
+      "name": "x",
+      "at": 4
+     },
+     {
+      "session": "s",
+      "kind": "other",
+      "name": "x"
+     },
+     {
+      "session": "s",
+      "kind": "other",
+      "name": "x",
+      "at": 4
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 4,
+     "commands": {},
+     "installs": {},
+     "at": 4
+    }
+   ]
+  },
+  {
+   "name": "folder empty vs missing share a key",
+   "args": [
+    [
+     {
+      "session": "a",
+      "kind": "other",
+      "name": "x"
+     },
+     {
+      "session": "a",
+      "kind": "other",
+      "name": "x",
+      "folder": ""
+     },
+     {
+      "session": "b",
+      "kind": "other",
+      "name": "x",
+      "folder": ""
+     },
+     {
+      "session": "b",
+      "kind": "other",
+      "name": "x"
+     },
+     {
+      "session": "c",
+      "kind": "other",
+      "name": "x",
+      "folder": "/f"
+     },
+     {
+      "session": "c",
+      "kind": "other",
+      "name": "x"
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "a",
+     "calls": 2,
+     "commands": {},
+     "installs": {}
+    },
+    {
+     "session": "b",
+     "folder": "",
+     "calls": 2,
+     "commands": {},
+     "installs": {}
+    },
+    {
+     "session": "c",
+     "folder": "/f",
+     "calls": 1,
+     "commands": {},
+     "installs": {}
+    },
+    {
+     "session": "c",
+     "calls": 1,
+     "commands": {},
+     "installs": {}
+    }
+   ]
+  },
+  {
+   "name": "same session two folders",
+   "args": [
+    [
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": "gh",
+      "folder": "/a"
+     },
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": "gh",
+      "folder": "/b"
+     },
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": "gh",
+      "folder": "/a"
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "folder": "/a",
+     "calls": 2,
+     "commands": {
+      "gh": 2
+     },
+     "installs": {}
+    },
+    {
+     "session": "s",
+     "folder": "/b",
+     "calls": 1,
+     "commands": {
+      "gh": 1
+     },
+     "installs": {}
+    }
+   ]
+  },
+  {
+   "name": "shell lines yield counts, empty ones count a call",
+   "args": [
+    [
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": ""
+     },
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": "   "
+     },
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": "ls | ls && brew install a a b; npm i -g a"
+     },
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": "cd /x"
+     },
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": "git --version"
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 5,
+     "commands": {
+      "ls": 2,
+      "brew": 1,
+      "npm": 1
+     },
+     "installs": {
+      "brew a": 2,
+      "brew b": 1,
+      "npm a": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "[JS key order: integer-like names first] integer-like names",
+   "args": [
+    [
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": "z; 7; a; 10; 007; 2"
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 1,
+     "commands": {
+      "2": 1,
+      "7": 1,
+      "10": 1,
+      "z": 1,
+      "a": 1,
+      "007": 1
+     },
+     "installs": {}
+    }
+   ]
+  },
+  {
+   "name": "no calls",
+   "args": [
+    []
+   ],
+   "out": []
+  },
+  {
+   "name": "a NUL in a session id keeps two buckets",
+   "args": [
+    [
+     {
+      "session": "a\u0000b",
+      "kind": "other",
+      "name": "x"
+     },
+     {
+      "session": "a",
+      "kind": "other",
+      "name": "x",
+      "folder": "b"
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "a\u0000b",
+     "calls": 1,
+     "commands": {},
+     "installs": {}
+    },
+    {
+     "session": "a",
+     "folder": "b",
+     "calls": 1,
+     "commands": {},
+     "installs": {}
+    }
+   ]
+  },
+  {
+   "name": "install keys in first-seen order",
+   "args": [
+    [
+     {
+      "session": "s",
+      "kind": "shell",
+      "line": "npm i -g b a; brew install c; npm i -g b"
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 1,
+     "commands": {
+      "npm": 2,
+      "brew": 1
+     },
+     "installs": {
+      "npm b": 2,
+      "npm a": 1,
+      "brew c": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "first call order of buckets",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "kind": "other",
+      "name": "Read",
+      "folder": "/a",
+      "at": 5
+     },
+     {
+      "session": "s2",
+      "kind": "other",
+      "name": "Read"
+     },
+     {
+      "session": "s1",
+      "kind": "shell",
+      "line": "ls",
+      "folder": "/b"
+     },
+     {
+      "session": "s1",
+      "kind": "shell",
+      "line": "gh api",
+      "folder": "/a",
+      "at": 3
+     },
+     {
+      "session": "s1",
+      "kind": "other",
+      "name": "Edit",
+      "folder": "/a",
+      "at": 9
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s1",
+     "folder": "/a",
+     "calls": 3,
+     "commands": {
+      "gh": 1
+     },
+     "installs": {},
+     "at": 9
+    },
+    {
+     "session": "s2",
+     "calls": 1,
+     "commands": {},
+     "installs": {}
+    },
+    {
+     "session": "s1",
+     "folder": "/b",
+     "calls": 1,
+     "commands": {
+      "ls": 1
+     },
+     "installs": {}
+    }
+   ]
+  }
+ ],
+ "one_holder": [
+  {
+   "name": "a repeated holder merges its newest",
+   "args": [
+    [
+     {
+      "holder": "A",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 1,
+        "commands": {},
+        "installs": {},
+        "at": 5
+       }
+      ]
+     },
+     {
+      "holder": "B",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 1,
+        "commands": {},
+        "installs": {},
+        "at": 10
+       },
+       {
+        "session": "s",
+        "calls": 7,
+        "commands": {},
+        "installs": {},
+        "at": 1
+       }
+      ]
+     },
+     {
+      "holder": "A",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 2,
+        "commands": {},
+        "installs": {},
+        "at": 20
+       }
+      ]
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 1,
+     "commands": {},
+     "installs": {},
+     "at": 5
+    },
+    {
+     "session": "s",
+     "calls": 2,
+     "commands": {},
+     "installs": {},
+     "at": 20
+    }
+   ]
+  },
+  {
+   "name": "two folder buckets of the kept holder both stay",
+   "args": [
+    [
+     {
+      "holder": "A",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 1,
+        "commands": {},
+        "installs": {},
+        "at": 5,
+        "folder": "/x"
+       },
+       {
+        "session": "s",
+        "calls": 1,
+        "commands": {},
+        "installs": {},
+        "at": 5,
+        "folder": "/y"
+       }
+      ]
+     },
+     {
+      "holder": "B",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 1,
+        "commands": {},
+        "installs": {},
+        "at": 5
+       }
+      ]
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 1,
+     "commands": {},
+     "installs": {},
+     "at": 5,
+     "folder": "/x"
+    },
+    {
+     "session": "s",
+     "calls": 1,
+     "commands": {},
+     "installs": {},
+     "at": 5,
+     "folder": "/y"
+    }
+   ]
+  },
+  {
+   "name": "a time of zero beats none",
+   "args": [
+    [
+     {
+      "holder": "A",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 3,
+        "commands": {},
+        "installs": {}
+       }
+      ]
+     },
+     {
+      "holder": "B",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 4,
+        "commands": {},
+        "installs": {},
+        "at": 0
+       }
+      ]
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 4,
+     "commands": {},
+     "installs": {},
+     "at": 0
+    }
+   ]
+  },
+  {
+   "name": "negative times",
+   "args": [
+    [
+     {
+      "holder": "A",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 3,
+        "commands": {},
+        "installs": {},
+        "at": -5
+       }
+      ]
+     },
+     {
+      "holder": "B",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 4,
+        "commands": {},
+        "installs": {},
+        "at": -6
+       }
+      ]
+     },
+     {
+      "holder": "C",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 5,
+        "commands": {},
+        "installs": {},
+        "at": -5
+       }
+      ]
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 3,
+     "commands": {},
+     "installs": {},
+     "at": -5
+    }
+   ]
+  },
+  {
+   "name": "a later holder wins, then a tie keeps it",
+   "args": [
+    [
+     {
+      "holder": "A",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 3,
+        "commands": {},
+        "installs": {},
+        "at": 1
+       }
+      ]
+     },
+     {
+      "holder": "B",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 4,
+        "commands": {},
+        "installs": {},
+        "at": 2
+       }
+      ]
+     },
+     {
+      "holder": "C",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 5,
+        "commands": {},
+        "installs": {},
+        "at": 2
+       }
+      ]
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 4,
+     "commands": {},
+     "installs": {},
+     "at": 2
+    }
+   ]
+  },
+  {
+   "name": "a holder with no buckets",
+   "args": [
+    [
+     {
+      "holder": "A",
+      "buckets": []
+     },
+     {
+      "holder": "B",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 1,
+        "commands": {},
+        "installs": {},
+        "at": 1
+       }
+      ]
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 1,
+     "commands": {},
+     "installs": {},
+     "at": 1
+    }
+   ]
+  },
+  {
+   "name": "output order is held order then bucket order",
+   "args": [
+    [
+     {
+      "holder": "B",
+      "buckets": [
+       {
+        "session": "t",
+        "calls": 1,
+        "commands": {},
+        "installs": {},
+        "at": 1
+       },
+       {
+        "session": "s",
+        "calls": 2,
+        "commands": {},
+        "installs": {},
+        "at": 1
+       }
+      ]
+     },
+     {
+      "holder": "A",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 3,
+        "commands": {},
+        "installs": {},
+        "at": 1
+       },
+       {
+        "session": "u",
+        "calls": 1,
+        "commands": {},
+        "installs": {},
+        "at": 1
+       }
+      ]
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "t",
+     "calls": 1,
+     "commands": {},
+     "installs": {},
+     "at": 1
+    },
+    {
+     "session": "s",
+     "calls": 2,
+     "commands": {},
+     "installs": {},
+     "at": 1
+    },
+    {
+     "session": "u",
+     "calls": 1,
+     "commands": {},
+     "installs": {},
+     "at": 1
+    }
+   ]
+  },
+  {
+   "name": "nothing held",
+   "args": [
+    []
+   ],
+   "out": []
+  },
+  {
+   "name": "both with no time: the first holder",
+   "args": [
+    [
+     {
+      "holder": "A",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 3,
+        "commands": {},
+        "installs": {}
+       }
+      ]
+     },
+     {
+      "holder": "B",
+      "buckets": [
+       {
+        "session": "s",
+        "calls": 4,
+        "commands": {},
+        "installs": {}
+       }
+      ]
+     }
+    ]
+   ],
+   "out": [
+    {
+     "session": "s",
+     "calls": 3,
+     "commands": {},
+     "installs": {}
+    }
+   ]
+  }
+ ],
+ "usage_of": [
+  {
+   "name": "code unit order of names",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "9": 1,
+       "10": 1,
+       "～": 1,
+       "😀": 1,
+       "Z": 1,
+       "a": 1,
+       "é": 1,
+       "e": 1,
+       "B": 1,
+       "b": 1
+      },
+      "installs": {}
+     }
+    ]
+   ],
+   "out": {
+    "sessions": 1,
+    "calls": 1,
+    "commands": [
+     [
+      "10",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "9",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "B",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "Z",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "a",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "b",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "e",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "é",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "😀",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "～",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ],
+    "installs": [],
+    "tools": []
+   }
+  },
+  {
+   "name": "sessions desc, calls desc, name asc",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "b": 3,
+       "a": 3,
+       "c": 1
+      },
+      "installs": {}
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "b": 1,
+       "c": 5,
+       "d": 9
+      },
+      "installs": {}
+     },
+     {
+      "session": "s3",
+      "calls": 1,
+      "commands": {
+       "c": 1
+      },
+      "installs": {}
+     }
+    ]
+   ],
+   "out": {
+    "sessions": 3,
+    "calls": 3,
+    "commands": [
+     [
+      "c",
+      {
+       "sessions": 3,
+       "calls": 7
+      }
+     ],
+     [
+      "b",
+      {
+       "sessions": 2,
+       "calls": 4
+      }
+     ],
+     [
+      "d",
+      {
+       "sessions": 1,
+       "calls": 9
+      }
+     ],
+     [
+      "a",
+      {
+       "sessions": 1,
+       "calls": 3
+      }
+     ]
+    ],
+    "installs": [],
+    "tools": []
+   }
+  },
+  {
+   "name": "a tool sums its commands and its installs",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 5,
+      "commands": {
+       "jq": 2,
+       "brew": 1
+      },
+      "installs": {
+       "brew jq": 1,
+       "apt jq": 2
+      }
+     }
+    ]
+   ],
+   "out": {
+    "sessions": 1,
+    "calls": 5,
+    "commands": [
+     [
+      "jq",
+      {
+       "sessions": 1,
+       "calls": 2
+      }
+     ],
+     [
+      "brew",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ],
+    "installs": [
+     [
+      "apt jq",
+      {
+       "sessions": 1,
+       "calls": 2
+      }
+     ],
+     [
+      "brew jq",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ],
+    "tools": [
+     [
+      "jq",
+      {
+       "sessions": 1,
+       "calls": 5
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "name": "two names of one tool add up, npx has no tool",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "npm": 2,
+       "npx": 1,
+       "node": 1,
+       "pnpm": 1
+      },
+      "installs": {
+       "npm agent-browser": 1,
+       "go gh": 1,
+       "cargo ripgrep": 1
+      }
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "npm": 1
+      },
+      "installs": {}
+     }
+    ]
+   ],
+   "out": {
+    "sessions": 2,
+    "calls": 2,
+    "commands": [
+     [
+      "npm",
+      {
+       "sessions": 2,
+       "calls": 3
+      }
+     ],
+     [
+      "node",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "npx",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "pnpm",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ],
+    "installs": [
+     [
+      "cargo ripgrep",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "go gh",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "npm agent-browser",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ],
+    "tools": [
+     [
+      "node",
+      {
+       "sessions": 2,
+       "calls": 4
+      }
+     ],
+     [
+      "agent-browser",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "gh",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "pnpm",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "ripgrep",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "name": "installs alone, a key with spaces or none",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {},
+      "installs": {
+       "brew gh": 1,
+       "weird": 1,
+       "a b c": 1
+      }
+     }
+    ]
+   ],
+   "out": {
+    "sessions": 1,
+    "calls": 1,
+    "commands": [],
+    "installs": [
+     [
+      "a b c",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "brew gh",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ],
+     [
+      "weird",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ],
+    "tools": [
+     [
+      "gh",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "name": "a session in two folders counts once",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a"
+     },
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 2
+      },
+      "installs": {},
+      "folder": "/b"
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {}
+     }
+    ]
+   ],
+   "out": {
+    "sessions": 2,
+    "calls": 3,
+    "commands": [
+     [
+      "gh",
+      {
+       "sessions": 2,
+       "calls": 4
+      }
+     ]
+    ],
+    "installs": [],
+    "tools": [
+     [
+      "gh",
+      {
+       "sessions": 2,
+       "calls": 4
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "name": "calls and no names",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 7,
+      "commands": {},
+      "installs": {}
+     }
+    ]
+   ],
+   "out": {
+    "sessions": 1,
+    "calls": 7,
+    "commands": [],
+    "installs": [],
+    "tools": []
+   }
+  },
+  {
+   "name": "no buckets",
+   "args": [
+    []
+   ],
+   "out": {
+    "sessions": 0,
+    "calls": 0,
+    "commands": [],
+    "installs": [],
+    "tools": []
+   }
+  },
+  {
+   "name": "folders []",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/b"
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a"
+     },
+     {
+      "session": "s3",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": ""
+     },
+     {
+      "session": "s4",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {}
+     },
+     {
+      "session": "s5",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/"
+     },
+     {
+      "session": "s6",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/ab"
+     },
+     {
+      "session": "s7",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/"
+     }
+    ],
+    []
+   ],
+   "out": {
+    "sessions": 0,
+    "calls": 0,
+    "commands": [],
+    "installs": [],
+    "tools": []
+   }
+  },
+  {
+   "name": "folders [\"/\"]",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/b"
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a"
+     },
+     {
+      "session": "s3",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": ""
+     },
+     {
+      "session": "s4",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {}
+     },
+     {
+      "session": "s5",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/"
+     },
+     {
+      "session": "s6",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/ab"
+     },
+     {
+      "session": "s7",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/"
+     }
+    ],
+    [
+     "/"
+    ]
+   ],
+   "out": {
+    "sessions": 1,
+    "calls": 1,
+    "commands": [
+     [
+      "gh",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ],
+    "installs": [],
+    "tools": [
+     [
+      "gh",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "name": "folders [\"/a\"]",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/b"
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a"
+     },
+     {
+      "session": "s3",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": ""
+     },
+     {
+      "session": "s4",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {}
+     },
+     {
+      "session": "s5",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/"
+     },
+     {
+      "session": "s6",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/ab"
+     },
+     {
+      "session": "s7",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/"
+     }
+    ],
+    [
+     "/a"
+    ]
+   ],
+   "out": {
+    "sessions": 3,
+    "calls": 3,
+    "commands": [
+     [
+      "gh",
+      {
+       "sessions": 3,
+       "calls": 3
+      }
+     ]
+    ],
+    "installs": [],
+    "tools": [
+     [
+      "gh",
+      {
+       "sessions": 3,
+       "calls": 3
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "name": "folders [\"/a/\"]",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/b"
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a"
+     },
+     {
+      "session": "s3",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": ""
+     },
+     {
+      "session": "s4",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {}
+     },
+     {
+      "session": "s5",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/"
+     },
+     {
+      "session": "s6",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/ab"
+     },
+     {
+      "session": "s7",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/"
+     }
+    ],
+    [
+     "/a/"
+    ]
+   ],
+   "out": {
+    "sessions": 1,
+    "calls": 1,
+    "commands": [
+     [
+      "gh",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ],
+    "installs": [],
+    "tools": [
+     [
+      "gh",
+      {
+       "sessions": 1,
+       "calls": 1
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "name": "folders [\"/a/b/\"]",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/b"
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a"
+     },
+     {
+      "session": "s3",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": ""
+     },
+     {
+      "session": "s4",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {}
+     },
+     {
+      "session": "s5",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/"
+     },
+     {
+      "session": "s6",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/ab"
+     },
+     {
+      "session": "s7",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/"
+     }
+    ],
+    [
+     "/a/b/"
+    ]
+   ],
+   "out": {
+    "sessions": 0,
+    "calls": 0,
+    "commands": [],
+    "installs": [],
+    "tools": []
+   }
+  },
+  {
+   "name": "folders [\"\"]",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/b"
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a"
+     },
+     {
+      "session": "s3",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": ""
+     },
+     {
+      "session": "s4",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {}
+     },
+     {
+      "session": "s5",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/"
+     },
+     {
+      "session": "s6",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/ab"
+     },
+     {
+      "session": "s7",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/"
+     }
+    ],
+    [
+     ""
+    ]
+   ],
+   "out": {
+    "sessions": 6,
+    "calls": 6,
+    "commands": [
+     [
+      "gh",
+      {
+       "sessions": 6,
+       "calls": 6
+      }
+     ]
+    ],
+    "installs": [],
+    "tools": [
+     [
+      "gh",
+      {
+       "sessions": 6,
+       "calls": 6
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "name": "folders [\"/a\",\"/ab\"]",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/b"
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a"
+     },
+     {
+      "session": "s3",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": ""
+     },
+     {
+      "session": "s4",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {}
+     },
+     {
+      "session": "s5",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/"
+     },
+     {
+      "session": "s6",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/ab"
+     },
+     {
+      "session": "s7",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/"
+     }
+    ],
+    [
+     "/a",
+     "/ab"
+    ]
+   ],
+   "out": {
+    "sessions": 4,
+    "calls": 4,
+    "commands": [
+     [
+      "gh",
+      {
+       "sessions": 4,
+       "calls": 4
+      }
+     ]
+    ],
+    "installs": [],
+    "tools": [
+     [
+      "gh",
+      {
+       "sessions": 4,
+       "calls": 4
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "name": "folders [\"/a/b\",\"/a\"]",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/b"
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a"
+     },
+     {
+      "session": "s3",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": ""
+     },
+     {
+      "session": "s4",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {}
+     },
+     {
+      "session": "s5",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/"
+     },
+     {
+      "session": "s6",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/ab"
+     },
+     {
+      "session": "s7",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/"
+     }
+    ],
+    [
+     "/a/b",
+     "/a"
+    ]
+   ],
+   "out": {
+    "sessions": 3,
+    "calls": 3,
+    "commands": [
+     [
+      "gh",
+      {
+       "sessions": 3,
+       "calls": 3
+      }
+     ]
+    ],
+    "installs": [],
+    "tools": [
+     [
+      "gh",
+      {
+       "sessions": 3,
+       "calls": 3
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "name": "folders [\"a\"]",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/b"
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a"
+     },
+     {
+      "session": "s3",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": ""
+     },
+     {
+      "session": "s4",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {}
+     },
+     {
+      "session": "s5",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/"
+     },
+     {
+      "session": "s6",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/ab"
+     },
+     {
+      "session": "s7",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/"
+     }
+    ],
+    [
+     "a"
+    ]
+   ],
+   "out": {
+    "sessions": 0,
+    "calls": 0,
+    "commands": [],
+    "installs": [],
+    "tools": []
+   }
+  },
+  {
+   "name": "folders [\"/A\"]",
+   "args": [
+    [
+     {
+      "session": "s1",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/b"
+     },
+     {
+      "session": "s2",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a"
+     },
+     {
+      "session": "s3",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": ""
+     },
+     {
+      "session": "s4",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {}
+     },
+     {
+      "session": "s5",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/"
+     },
+     {
+      "session": "s6",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/ab"
+     },
+     {
+      "session": "s7",
+      "calls": 1,
+      "commands": {
+       "gh": 1
+      },
+      "installs": {},
+      "folder": "/a/"
+     }
+    ],
+    [
+     "/A"
+    ]
+   ],
+   "out": {
+    "sessions": 0,
+    "calls": 0,
+    "commands": [],
+    "installs": [],
+    "tools": []
+   }
+  }
+ ],
+ "in_folders": [
+  {
+   "name": "folder \"/a/b\" against /a",
+   "args": [
+    {
+     "folder": "/a/b"
+    },
+    [
+     "/a"
+    ]
+   ],
+   "out": true
+  },
+  {
+   "name": "folder \"/a\" against /a",
+   "args": [
+    {
+     "folder": "/a"
+    },
+    [
+     "/a"
+    ]
+   ],
+   "out": true
+  },
+  {
+   "name": "folder \"\" against /a",
+   "args": [
+    {
+     "folder": ""
+    },
+    [
+     "/a"
+    ]
+   ],
+   "out": false
+  },
+  {
+   "name": "folder null against /a",
+   "args": [
+    {},
+    [
+     "/a"
+    ]
+   ],
+   "out": false
+  },
+  {
+   "name": "folder \"/\" against /a",
+   "args": [
+    {
+     "folder": "/"
+    },
+    [
+     "/a"
+    ]
+   ],
+   "out": false
+  },
+  {
+   "name": "folder \"/ab\" against /a",
+   "args": [
+    {
+     "folder": "/ab"
+    },
+    [
+     "/a"
+    ]
+   ],
+   "out": false
+  },
+  {
+   "name": "folder \"/a/\" against /a",
+   "args": [
+    {
+     "folder": "/a/"
+    },
+    [
+     "/a"
+    ]
+   ],
+   "out": true
+  },
+  {
+   "name": "no folders at all",
+   "args": [
+    {
+     "folder": "/a"
+    },
+    []
+   ],
+   "out": false
+  }
+ ],
+ "installed_name": [
+  {
+   "name": "\"a b c\"",
+   "args": [
+    "a b c"
+   ],
+   "out": "b c"
+  },
+  {
+   "name": "\"nospace\"",
+   "args": [
+    "nospace"
+   ],
+   "out": "nospace"
+  },
+  {
+   "name": "\"\"",
+   "args": [
+    ""
+   ],
+   "out": ""
+  },
+  {
+   "name": "\" x\"",
+   "args": [
+    " x"
+   ],
+   "out": "x"
+  },
+  {
+   "name": "\"npm @scope/x\"",
+   "args": [
+    "npm @scope/x"
+   ],
+   "out": "@scope/x"
+  },
+  {
+   "name": "\"npm x\"",
+   "args": [
+    "npm x"
+   ],
+   "out": "x"
+  }
+ ],
+ "install_key": [
+  {
+   "name": "{\"via\":\"npm\",\"name\":\"x\"}",
+   "args": [
+    {
+     "via": "npm",
+     "name": "x"
+    }
+   ],
+   "out": "npm x"
+  },
+  {
+   "name": "{\"via\":\"brew\",\"name\":\"a b\"}",
+   "args": [
+    {
+     "via": "brew",
+     "name": "a b"
+    }
+   ],
+   "out": "brew a b"
+  }
+ ],
+ "meets_used_floor": [
+  {
+   "name": "2 sessions, 5 calls, size undefined",
+   "args": [
+    {
+     "sessions": 2,
+     "calls": 5
+    }
+   ],
+   "out": true
+  },
+  {
+   "name": "1 sessions, 99 calls, size undefined",
+   "args": [
+    {
+     "sessions": 1,
+     "calls": 99
+    }
+   ],
+   "out": false
+  },
+  {
+   "name": "2 sessions, 4 calls, size undefined",
+   "args": [
+    {
+     "sessions": 2,
+     "calls": 4
+    }
+   ],
+   "out": false
+  },
+  {
+   "name": "2 sessions, 5 calls, size 0",
+   "args": [
+    {
+     "sessions": 2,
+     "calls": 5
+    },
+    0
+   ],
+   "out": true
+  },
+  {
+   "name": "3 sessions, 20 calls, size 314572800",
+   "args": [
+    {
+     "sessions": 3,
+     "calls": 20
+    },
+    314572800
+   ],
+   "out": true
+  },
+  {
+   "name": "2 sessions, 5 calls, size 314572800",
+   "args": [
+    {
+     "sessions": 2,
+     "calls": 5
+    },
+    314572800
+   ],
+   "out": true
+  },
+  {
+   "name": "2 sessions, 5 calls, size 314572801",
+   "args": [
+    {
+     "sessions": 2,
+     "calls": 5
+    },
+    314572801
+   ],
+   "out": false
+  },
+  {
+   "name": "3 sessions, 20 calls, size 314572801",
+   "args": [
+    {
+     "sessions": 3,
+     "calls": 20
+    },
+    314572801
+   ],
+   "out": true
+  },
+  {
+   "name": "3 sessions, 19 calls, size 314572801",
+   "args": [
+    {
+     "sessions": 3,
+     "calls": 19
+    },
+    314572801
+   ],
+   "out": false
+  },
+  {
+   "name": "2 sessions, 20 calls, size 314572801",
+   "args": [
+    {
+     "sessions": 2,
+     "calls": 20
+    },
+    314572801
+   ],
+   "out": false
+  },
+  {
+   "name": "3 sessions, 5 calls, size 314572801",
+   "args": [
+    {
+     "sessions": 3,
+     "calls": 5
+    },
+    314572801
+   ],
+   "out": false
+  },
+  {
+   "name": "0 sessions, 0 calls, size undefined",
+   "args": [
+    {
+     "sessions": 0,
+     "calls": 0
+    }
+   ],
+   "out": false
+  },
+  {
+   "name": "100 sessions, 100 calls, size 1000000000000",
+   "args": [
+    {
+     "sessions": 100,
+     "calls": 100
+    },
+    1000000000000
+   ],
+   "out": true
+  }
+ ],
+ "is_heavy": [
+  {
+   "name": "size undefined",
+   "args": [],
+   "out": false
+  },
+  {
+   "name": "size 0",
+   "args": [
+    0
+   ],
+   "out": false
+  },
+  {
+   "name": "size 314572800",
+   "args": [
+    314572800
+   ],
+   "out": false
+  },
+  {
+   "name": "size 314572801",
+   "args": [
+    314572801
+   ],
+   "out": true
+  },
+  {
+   "name": "size -1",
+   "args": [
+    -1
+   ],
+   "out": false
+  }
+ ],
+ "file_history_cache": [
+  {
+   "name": "shape: good",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [
+     {
+      "session": "s",
+      "folder": "/f",
+      "at": 5,
+      "calls": 2,
+      "commands": {
+       "gh": 2
+      },
+      "installs": {
+       "brew jq": 1
+      }
+     }
+    ],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: an extra top-level key",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}},\"extra\":1}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}},\"extra\":1}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [
+     {
+      "session": "s",
+      "folder": "/f",
+      "at": 5,
+      "calls": 2,
+      "commands": {
+       "gh": 2
+      },
+      "installs": {
+       "brew jq": 1
+      }
+     }
+    ],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: an extra key on the entry",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}],\"extra\":1}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}],\"extra\":1}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [
+     {
+      "session": "s",
+      "folder": "/f",
+      "at": 5,
+      "calls": 2,
+      "commands": {
+       "gh": 2
+      },
+      "installs": {
+       "brew jq": 1
+      }
+     }
+    ],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: an extra key on the bucket",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1},\"extra\":1}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1},\"extra\":1}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [
+     {
+      "session": "s",
+      "folder": "/f",
+      "at": 5,
+      "calls": 2,
+      "commands": {
+       "gh": 2
+      },
+      "installs": {
+       "brew jq": 1
+      }
+     }
+    ],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: a null folder refuses the whole file",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":null,\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":null,\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: a null at refuses the whole file",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":null,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":null,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: no folder and no at, zero calls",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"calls\":0,\"commands\":{},\"installs\":{}}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"calls\":0,\"commands\":{},\"installs\":{}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [
+     {
+      "session": "s",
+      "calls": 0,
+      "commands": {},
+      "installs": {}
+     }
+    ],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: a fractional negative at",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":-1.5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":-1.5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [
+     {
+      "session": "s",
+      "folder": "/f",
+      "at": -1.5,
+      "calls": 2,
+      "commands": {
+       "gh": 2
+      },
+      "installs": {
+       "brew jq": 1
+      }
+     }
+    ],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: fractional calls",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":1.5,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":1.5,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: a command count of zero",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":0},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":0},\"installs\":{\"brew jq\":1}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [
+     {
+      "session": "s",
+      "folder": "/f",
+      "at": 5,
+      "calls": 2,
+      "commands": {
+       "gh": 0
+      },
+      "installs": {
+       "brew jq": 1
+      }
+     }
+    ],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: a command count as a string",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":\"2\"},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":\"2\"},\"installs\":{\"brew jq\":1}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: installs as an array",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":[]}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":[]}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: a numeric stamp",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":1,\"buckets\":[]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":1,\"buckets\":[]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: buckets missing",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\"}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\"}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: one bad entry of two refuses both",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]},\"/y\":{\"stamp\":\"1:1\",\"buckets\":\"no\"}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]},\"/y\":{\"stamp\":\"1:1\",\"buckets\":\"no\"}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: files as an array",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":[]}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":[]}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: files null",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":null}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":null}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: files missing",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2}",
+    "after": "{\"version\":1,\"parse\":2}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: version as a string",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":\"1\",\"parse\":2,\"files\":{}}",
+    "after": "{\"version\":\"1\",\"parse\":2,\"files\":{}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: parse missing",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "{\"version\":1,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: parse 1",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":1,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "{\"version\":1,\"parse\":1,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: session as a number",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":5,\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":5,\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: empty session and empty stamp",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"\",\"buckets\":[{\"session\":\"\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{}}\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: a BOM before the JSON",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "﻿{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "after": "﻿{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: text after the JSON",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}} x",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}} x",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: blank lines after the JSON",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}\n\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"folder\":\"/f\",\"at\":5,\"calls\":2,\"commands\":{\"gh\":2},\"installs\":{\"brew jq\":1}}]}}}\n\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [
+     {
+      "session": "s",
+      "folder": "/f",
+      "at": 5,
+      "calls": 2,
+      "commands": {
+       "gh": 2
+      },
+      "installs": {
+       "brew jq": 1
+      }
+     }
+    ],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: duplicate keys: the last wins",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"9:9\",\"buckets\":[]},\"/x\":{\"stamp\":\"1:1\",\"buckets\":[]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"9:9\",\"buckets\":[]},\"/x\":{\"stamp\":\"1:1\",\"buckets\":[]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: version and parse written 1.0 and 2.0",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1.0,\"parse\":2.0,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[]}}}",
+    "after": "{\"version\":1.0,\"parse\":2.0,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "shape: calls written 1e3",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"calls\":1e3,\"commands\":{},\"installs\":{}}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"calls\":1e3,\"commands\":{},\"installs\":{}}]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/y",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [
+     {
+      "session": "s",
+      "calls": 1000,
+      "commands": {},
+      "installs": {}
+     }
+    ],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "a second stamp on a duplicate-key file",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"9:9\",\"buckets\":[]},\"/x\":{\"stamp\":\"1:1\",\"buckets\":[]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"9:9\",\"buckets\":[]},\"/x\":{\"stamp\":\"1:1\",\"buckets\":[]}}}",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "9:9"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/x",
+      "1:1"
+     ]
+    }
+   ],
+   "outs": [
+    null,
+    []
+   ]
+  },
+  {
+   "name": "save with nothing asked and no file: no file, no folder",
+   "cache": {
+    "path": "<dir>/deep/c.json",
+    "before": null,
+    "after": null,
+    "dirs_after": {
+     "<dir>/deep": false
+    }
+   },
+   "ops": [
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null
+   ]
+  },
+  {
+   "name": "save with nothing asked over a garbage file leaves it",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "garbage",
+    "after": "garbage",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null
+   ]
+  },
+  {
+   "name": "a set over a garbage file replaces it whole",
+   "cache": {
+    "path": "<dir>/deep/er/c.json",
+    "before": "garbage",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/f\":{\"stamp\":\"1:2\",\"buckets\":[]}}}\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "set",
+     "args": [
+      "/f",
+      "1:2",
+      []
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null
+   ]
+  },
+  {
+   "name": "a set makes the missing folder",
+   "cache": {
+    "path": "<dir>/new/folder/c.json",
+    "before": null,
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/f\":{\"stamp\":\"1:2\",\"buckets\":[]}}}\n",
+    "dirs_after": {
+     "<dir>/new/folder": true
+    }
+   },
+   "ops": [
+    {
+     "op": "set",
+     "args": [
+      "/f",
+      "1:2",
+      []
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null
+   ]
+  },
+  {
+   "name": "set twice replaces in place",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": null,
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/b\":{\"stamp\":\"2:2\",\"buckets\":[{\"session\":\"t\",\"calls\":1,\"commands\":{},\"installs\":{}}]},\"/a\":{\"stamp\":\"1:1\",\"buckets\":[]}}}\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "set",
+     "args": [
+      "/b",
+      "1:1",
+      [
+       {
+        "session": "s",
+        "calls": 1,
+        "commands": {},
+        "installs": {},
+        "at": 3
+       }
+      ]
+     ]
+    },
+    {
+     "op": "set",
+     "args": [
+      "/a",
+      "1:1",
+      []
+     ]
+    },
+    {
+     "op": "set",
+     "args": [
+      "/b",
+      "2:2",
+      [
+       {
+        "session": "t",
+        "calls": 1,
+        "commands": {},
+        "installs": {}
+       }
+      ]
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "hits and a miss, nothing changed: no write",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/b\":{\"stamp\":\"2:2\",\"buckets\":[{\"session\":\"t\",\"calls\":1,\"commands\":{},\"installs\":{}}]},\"/a\":{\"stamp\":\"1:1\",\"buckets\":[]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/b\":{\"stamp\":\"2:2\",\"buckets\":[{\"session\":\"t\",\"calls\":1,\"commands\":{},\"installs\":{}}]},\"/a\":{\"stamp\":\"1:1\",\"buckets\":[]}}}\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/a",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/b",
+      "9:9"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/b",
+      "2:2"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [],
+    null,
+    [
+     {
+      "session": "t",
+      "calls": 1,
+      "commands": {},
+      "installs": {}
+     }
+    ],
+    null
+   ]
+  },
+  {
+   "name": "all hits and a miss for an unknown path: no write",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/b\":{\"stamp\":\"2:2\",\"buckets\":[{\"session\":\"t\",\"calls\":1,\"commands\":{},\"installs\":{}}]},\"/a\":{\"stamp\":\"1:1\",\"buckets\":[]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/b\":{\"stamp\":\"2:2\",\"buckets\":[{\"session\":\"t\",\"calls\":1,\"commands\":{},\"installs\":{}}]},\"/a\":{\"stamp\":\"1:1\",\"buckets\":[]}}}\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/a",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/b",
+      "2:2"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/c",
+      "1:1"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [],
+    [
+     {
+      "session": "t",
+      "calls": 1,
+      "commands": {},
+      "installs": {}
+     }
+    ],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "a hit then a miss on one path keeps the hit, drops the rest",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/b\":{\"stamp\":\"2:2\",\"buckets\":[{\"session\":\"t\",\"calls\":1,\"commands\":{},\"installs\":{}}]},\"/a\":{\"stamp\":\"1:1\",\"buckets\":[]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/a\":{\"stamp\":\"1:1\",\"buckets\":[]}}}\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/a",
+      "1:1"
+     ]
+    },
+    {
+     "op": "get",
+     "args": [
+      "/a",
+      "0:0"
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "save with nothing asked of a filled cache",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/b\":{\"stamp\":\"2:2\",\"buckets\":[{\"session\":\"t\",\"calls\":1,\"commands\":{},\"installs\":{}}]},\"/a\":{\"stamp\":\"1:1\",\"buckets\":[]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{}}\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null
+   ]
+  },
+  {
+   "name": "a miss and a set of the same path",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/b\":{\"stamp\":\"2:2\",\"buckets\":[{\"session\":\"t\",\"calls\":1,\"commands\":{},\"installs\":{}}]},\"/a\":{\"stamp\":\"1:1\",\"buckets\":[]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/a\":{\"stamp\":\"9:9\",\"buckets\":[{\"session\":\"n\",\"calls\":1,\"commands\":{},\"installs\":{}}]}}}\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/a",
+      "9:9"
+     ]
+    },
+    {
+     "op": "set",
+     "args": [
+      "/a",
+      "9:9",
+      [
+       {
+        "session": "n",
+        "calls": 1,
+        "commands": {},
+        "installs": {}
+       }
+      ]
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "name": "[JS key order: integer-like command names first] key order of a bucket",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": null,
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/o\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"at\":7,\"calls\":1,\"commands\":{\"1\":1,\"3\":1,\"b\":1,\"a\":1},\"installs\":{}}]}}}\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "set",
+     "args": [
+      "/o",
+      "1:1",
+      [
+       {
+        "session": "s",
+        "at": 7,
+        "calls": 1,
+        "commands": {
+         "1": 1,
+         "3": 1,
+         "b": 1,
+         "a": 1
+        },
+        "installs": {}
+       }
+      ]
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null
+   ]
+  },
+  {
+   "name": "a re-read bucket comes back in zod order (at before calls)",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/o\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"calls\":1,\"commands\":{\"b\":1},\"installs\":{},\"at\":7}]}}}",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/o\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"at\":7,\"calls\":1,\"commands\":{\"b\":1},\"installs\":{}}]},\"/z\":{\"stamp\":\"1:1\",\"buckets\":[]}}}\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "get",
+     "args": [
+      "/o",
+      "1:1"
+     ]
+    },
+    {
+     "op": "set",
+     "args": [
+      "/z",
+      "1:1",
+      []
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    [
+     {
+      "session": "s",
+      "at": 7,
+      "calls": 1,
+      "commands": {
+       "b": 1
+      },
+      "installs": {}
+     }
+    ],
+    null,
+    null
+   ]
+  },
+  {
+   "name": "escapes in text",
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": null,
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/x\":{\"stamp\":\"1:1\",\"buckets\":[{\"session\":\"s\",\"calls\":1,\"commands\":{\"a\\u0000b\":1,\"\":2},\"installs\":{},\"folder\":\"/f \\n\\t\\\"é😀\"}]}}}\n",
+    "dirs_after": {}
+   },
+   "ops": [
+    {
+     "op": "set",
+     "args": [
+      "/x",
+      "1:1",
+      [
+       {
+        "session": "s",
+        "calls": 1,
+        "commands": {
+         "a\u0000b": 1,
+         "": 2
+        },
+        "installs": {},
+        "folder": "/f \n\t\"é😀"
+       }
+      ]
+     ]
+    },
+    {
+     "op": "save"
+    }
+   ],
+   "outs": [
+    null,
+    null
+   ]
+  }
+ ],
+ "read_histories": [
+  {
+   "name": "a first run with a cache",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"pnpm test && npm install -g agent-browser\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 2,
+     "calls": 3,
+     "usage": {
+      "sessions": 2,
+      "calls": 3,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "ls",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "npm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [
+       [
+        "npm agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "tools": [
+       [
+        "agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "node",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl",
+    "lines /Users/dev/.claude/projects/-p/s2.jsonl"
+   ],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": null,
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]}}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "a second run over an unchanged history opens no file",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"pnpm test && npm install -g agent-browser\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 2,
+     "calls": 3,
+     "usage": {
+      "sessions": 2,
+      "calls": 3,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "ls",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "npm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [
+       [
+        "npm agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "tools": [
+       [
+        "agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "node",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2"
+   ],
+   "calls": [],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]}}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "a later mtime re-reads one file",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"pnpm test && npm install -g agent-browser\"}}]}}"
+    },
+    "mtimes": {
+     "~/.claude/projects/-p/s2.jsonl": 1001
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 2,
+     "calls": 3,
+     "usage": {
+      "sessions": 2,
+      "calls": 3,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "ls",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "npm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [
+       [
+        "npm agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "tools": [
+       [
+        "agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "node",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s2.jsonl"
+   ],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]},\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1001:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]}}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "a grown file re-reads one file",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"pnpm test && npm install -g agent-browser\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"cargo build\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 2,
+     "calls": 4,
+     "usage": {
+      "sessions": 2,
+      "calls": 4,
+      "commands": [
+       [
+        "cargo",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "ls",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "npm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [
+       [
+        "npm agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "tools": [
+       [
+        "agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "node",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "rust",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s2.jsonl"
+   ],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]},\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:367\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"pnpm\":1,\"npm\":1,\"cargo\":1},\"installs\":{\"npm agent-browser\":1}}]}}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "a file that is gone leaves the cache",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 1,
+     "calls": 2,
+     "usage": {
+      "sessions": 1,
+      "calls": 2,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "ls",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/1"
+   ],
+   "calls": [],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]}}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "a half-written cache is read as none",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"pnpm test && npm install -g agent-browser\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 2,
+     "calls": 3,
+     "usage": {
+      "sessions": 2,
+      "calls": 3,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "ls",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "npm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [
+       [
+        "npm agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "tools": [
+       [
+        "agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "node",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl",
+    "lines /Users/dev/.claude/projects/-p/s2.jsonl"
+   ],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{ half a file",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]}}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "another parse version is read as none",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"pnpm test && npm install -g agent-browser\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 2,
+     "calls": 3,
+     "usage": {
+      "sessions": 2,
+      "calls": 3,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "ls",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "npm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [
+       [
+        "npm agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "tools": [
+       [
+        "agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "node",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl",
+    "lines /Users/dev/.claude/projects/-p/s2.jsonl"
+   ],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":3,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]}}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "a first run over every catalog agent",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"pnpm test && npm install -g agent-browser\"}}]}}",
+     "~/.codex/sessions/2026/a/rollout-t.jsonl": "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}"
+    }
+   },
+   "args": [
+    [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 2,
+     "calls": 3,
+     "usage": {
+      "sessions": 2,
+      "calls": 3,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "ls",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "npm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [
+       [
+        "npm agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "tools": [
+       [
+        "agent-browser",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "node",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ],
+       [
+        "pnpm",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    },
+    {
+     "agent": "codex",
+     "state": "read",
+     "sessions": 1,
+     "calls": 1,
+     "usage": {
+      "sessions": 1,
+      "calls": 1,
+      "commands": [
+       [
+        "ls",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "gemini",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "opencode",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "pi",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "hermes",
+     "state": "empty",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "crush",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "qwen",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "goose",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "amp",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "cursor",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "claude read",
+    "codex read",
+    "gemini no-reader",
+    "opencode no-reader",
+    "pi no-reader",
+    "hermes empty",
+    "crush no-reader",
+    "qwen no-reader",
+    "goose no-reader",
+    "amp no-reader",
+    "cursor no-reader"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2",
+    "codex 1/1"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl",
+    "lines /Users/dev/.claude/projects/-p/s2.jsonl",
+    "lines /Users/dev/.codex/sessions/2026/a/rollout-t.jsonl"
+   ],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": null,
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]},\"/Users/dev/.codex/sessions/2026/a/rollout-t.jsonl\":{\"stamp\":\"1000:109\",\"buckets\":[{\"session\":\"rollout-t\",\"calls\":1,\"commands\":{\"ls\":1},\"installs\":{}}]}}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "a run over only codex drops claude's entries",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"pnpm test && npm install -g agent-browser\"}}]}}",
+     "~/.codex/sessions/2026/a/rollout-t.jsonl": "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}"
+    }
+   },
+   "args": [
+    [
+     "codex"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "codex",
+     "state": "read",
+     "sessions": 1,
+     "calls": 1,
+     "usage": {
+      "sessions": 1,
+      "calls": 1,
+      "commands": [
+       [
+        "ls",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "codex read"
+   ],
+   "progress": [
+    "codex 1/1"
+   ],
+   "calls": [],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]},\"/Users/dev/.codex/sessions/2026/a/rollout-t.jsonl\":{\"stamp\":\"1000:109\",\"buckets\":[{\"session\":\"rollout-t\",\"calls\":1,\"commands\":{\"ls\":1},\"installs\":{}}]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.codex/sessions/2026/a/rollout-t.jsonl\":{\"stamp\":\"1000:109\",\"buckets\":[{\"session\":\"rollout-t\",\"calls\":1,\"commands\":{\"ls\":1},\"installs\":{}}]}}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "a run over only a no-reader agent empties the cache",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"pnpm test && npm install -g agent-browser\"}}]}}",
+     "~/.codex/sessions/2026/a/rollout-t.jsonl": "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}"
+    }
+   },
+   "args": [
+    [
+     "gemini"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "gemini",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "gemini no-reader"
+   ],
+   "progress": [],
+   "calls": [],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]},\"/Users/dev/.codex/sessions/2026/a/rollout-t.jsonl\":{\"stamp\":\"1000:109\",\"buckets\":[{\"session\":\"rollout-t\",\"calls\":1,\"commands\":{\"ls\":1},\"installs\":{}}]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "no agents empties the cache",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"pnpm test && npm install -g agent-browser\"}}]}}",
+     "~/.codex/sessions/2026/a/rollout-t.jsonl": "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}"
+    }
+   },
+   "args": [
+    [],
+    {}
+   ],
+   "out": [],
+   "told": [],
+   "progress": [],
+   "calls": [],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:198\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"pnpm\":1,\"npm\":1},\"installs\":{\"npm agent-browser\":1}}]},\"/Users/dev/.claude/projects/-p/s1.jsonl\":{\"stamp\":\"1000:327\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/p\",\"calls\":2,\"commands\":{\"gh\":1,\"ls\":1},\"installs\":{}}]},\"/Users/dev/.codex/sessions/2026/a/rollout-t.jsonl\":{\"stamp\":\"1000:109\",\"buckets\":[{\"session\":\"rollout-t\",\"calls\":1,\"commands\":{\"ls\":1},\"installs\":{}}]}}}\n",
+    "after": "{\"version\":1,\"parse\":2,\"files\":{}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "nothing to read, no cache file, folder not made",
+   "laptop": {},
+   "args": [
+    [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "empty",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "codex",
+     "state": "empty",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "gemini",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "opencode",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "pi",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "hermes",
+     "state": "empty",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "crush",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "qwen",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "goose",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "amp",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "cursor",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "claude empty",
+    "codex empty",
+    "gemini no-reader",
+    "opencode no-reader",
+    "pi no-reader",
+    "hermes empty",
+    "crush no-reader",
+    "qwen no-reader",
+    "goose no-reader",
+    "amp no-reader",
+    "cursor no-reader"
+   ],
+   "progress": [],
+   "calls": [],
+   "cache": {
+    "path": "<dir>/deep/c.json",
+    "before": null,
+    "after": null,
+    "dirs_after": {
+     "<dir>/deep": false
+    }
+   }
+  },
+  {
+   "name": "nothing to read, a garbage cache file is left",
+   "laptop": {},
+   "args": [
+    [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "empty",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "codex",
+     "state": "empty",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "gemini",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "opencode",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "pi",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "hermes",
+     "state": "empty",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "crush",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "qwen",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "goose",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "amp",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "cursor",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "claude empty",
+    "codex empty",
+    "gemini no-reader",
+    "opencode no-reader",
+    "pi no-reader",
+    "hermes empty",
+    "crush no-reader",
+    "qwen no-reader",
+    "goose no-reader",
+    "amp no-reader",
+    "cursor no-reader"
+   ],
+   "progress": [],
+   "calls": [],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": "garbage",
+    "after": "garbage",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "every catalog agent: claude read, codex empty, hermes unreadable, the rest no reader",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh auth status\"}}]}}",
+     "~/.hermes/state.db": 4096
+    }
+   },
+   "args": [
+    [
+     "claude",
+     "codex",
+     "gemini",
+     "opencode",
+     "pi",
+     "hermes",
+     "crush",
+     "qwen",
+     "goose",
+     "amp",
+     "cursor"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 1,
+     "calls": 1,
+     "usage": {
+      "sessions": 1,
+      "calls": 1,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    },
+    {
+     "agent": "codex",
+     "state": "empty",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "gemini",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "opencode",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "pi",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "hermes",
+     "state": "unreadable",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "crush",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "qwen",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "goose",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "amp",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    },
+    {
+     "agent": "cursor",
+     "state": "no-reader",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "claude read",
+    "codex empty",
+    "gemini no-reader",
+    "opencode no-reader",
+    "pi no-reader",
+    "hermes unreadable",
+    "crush no-reader",
+    "qwen no-reader",
+    "goose no-reader",
+    "amp no-reader",
+    "cursor no-reader"
+   ],
+   "progress": [
+    "claude 1/1"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl",
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select m.session_id, m.tool_calls, s.cwd from messages m left join sessions s on s.id = m.session_id where m.tool_calls is not null",
+    "run sqlite3 -readonly -json /Users/dev/.hermes/state.db select session_id, tool_calls from messages where tool_calls is not null"
+   ]
+  },
+  {
+   "name": "a file that cannot be read among three: the others finish and are cached",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s0.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s0\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh a\"}}]}}",
+     "~/.claude/projects/-p/s1.jsonl": "\u0000fail:EIO",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh c\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "unreadable",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "claude unreadable"
+   ],
+   "progress": [
+    "claude 1/3",
+    "claude 2/3"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s0.jsonl",
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl",
+    "lines /Users/dev/.claude/projects/-p/s2.jsonl"
+   ],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": null,
+    "after": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-p/s0.jsonl\":{\"stamp\":\"1000:161\",\"buckets\":[{\"session\":\"s0\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"gh\":1},\"installs\":{}}]},\"/Users/dev/.claude/projects/-p/s2.jsonl\":{\"stamp\":\"1000:161\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/p\",\"calls\":1,\"commands\":{\"gh\":1},\"installs\":{}}]}}}\n",
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "a file that cannot be read alone",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s0.jsonl": "\u0000fail:EIO"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "unreadable",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "claude unreadable"
+   ],
+   "progress": [],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s0.jsonl"
+   ],
+   "cache": {
+    "path": "<dir>/c.json",
+    "before": null,
+    "after": null,
+    "dirs_after": {
+     "<dir>/.": true
+    }
+   }
+  },
+  {
+   "name": "a file that cannot be read, after a failing part way",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s0.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s0\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh a\"}}]}}\n\u0000fail:EIO"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "unreadable",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "claude unreadable"
+   ],
+   "progress": [],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s0.jsonl"
+   ]
+  },
+  {
+   "name": "folders that match nothing say empty",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s0.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s0\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x0\"}}]}}",
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x1\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x2\"}}]}}",
+     "~/.claude/projects/-p/s3.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s3\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x3\"}}]}}",
+     "~/.claude/projects/-p/s4.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s4\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x4\"}}]}}",
+     "~/.claude/projects/-p/s5.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s5\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x5\"}}]}}",
+     "~/.claude/projects/-p/s6.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/other\",\"sessionId\":\"s6\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x6\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {
+     "folders": [
+      "/nowhere"
+     ]
+    }
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "empty",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "claude empty"
+   ],
+   "progress": [
+    "claude 1/7",
+    "claude 2/7",
+    "claude 3/7",
+    "claude 4/7",
+    "claude 5/7",
+    "claude 6/7",
+    "claude 7/7"
+   ]
+  },
+  {
+   "name": "folders /p",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s0.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s0\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x0\"}}]}}",
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x1\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x2\"}}]}}",
+     "~/.claude/projects/-p/s3.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s3\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x3\"}}]}}",
+     "~/.claude/projects/-p/s4.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s4\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x4\"}}]}}",
+     "~/.claude/projects/-p/s5.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s5\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x5\"}}]}}",
+     "~/.claude/projects/-p/s6.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/other\",\"sessionId\":\"s6\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x6\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {
+     "folders": [
+      "/p"
+     ]
+    }
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 6,
+     "calls": 6,
+     "usage": {
+      "sessions": 6,
+      "calls": 6,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 6,
+         "calls": 6
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": [
+       [
+        "gh",
+        {
+         "sessions": 6,
+         "calls": 6
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/7",
+    "claude 2/7",
+    "claude 3/7",
+    "claude 4/7",
+    "claude 5/7",
+    "claude 6/7",
+    "claude 7/7"
+   ]
+  },
+  {
+   "name": "an empty folders list counts nothing",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s0.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s0\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x0\"}}]}}",
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x1\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x2\"}}]}}",
+     "~/.claude/projects/-p/s3.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s3\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x3\"}}]}}",
+     "~/.claude/projects/-p/s4.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s4\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x4\"}}]}}",
+     "~/.claude/projects/-p/s5.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s5\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x5\"}}]}}",
+     "~/.claude/projects/-p/s6.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/other\",\"sessionId\":\"s6\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x6\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {
+     "folders": []
+    }
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "empty",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "claude empty"
+   ],
+   "progress": [
+    "claude 1/7",
+    "claude 2/7",
+    "claude 3/7",
+    "claude 4/7",
+    "claude 5/7",
+    "claude 6/7",
+    "claude 7/7"
+   ]
+  },
+  {
+   "name": "all seven files, no weighing",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s0.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s0\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x0\"}}]}}",
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x1\"}}]}}",
+     "~/.claude/projects/-p/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x2\"}}]}}",
+     "~/.claude/projects/-p/s3.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s3\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x3\"}}]}}",
+     "~/.claude/projects/-p/s4.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s4\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x4\"}}]}}",
+     "~/.claude/projects/-p/s5.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"s5\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x5\"}}]}}",
+     "~/.claude/projects/-p/s6.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/other\",\"sessionId\":\"s6\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh x6\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 7,
+     "calls": 7,
+     "usage": {
+      "sessions": 7,
+      "calls": 7,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 7,
+         "calls": 7
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": [
+       [
+        "gh",
+        {
+         "sessions": 7,
+         "calls": 7
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/7",
+    "claude 2/7",
+    "claude 3/7",
+    "claude 4/7",
+    "claude 5/7",
+    "claude 6/7",
+    "claude 7/7"
+   ]
+  },
+  {
+   "name": "an empty transcript",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/e.jsonl": ""
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "empty",
+     "sessions": 0,
+     "calls": 0,
+     "usage": {
+      "sessions": 0,
+      "calls": 0,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "claude empty"
+   ],
+   "progress": [
+    "claude 1/1"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/e.jsonl"
+   ]
+  },
+  {
+   "name": "a transcript with one empty command",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/e.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/p\",\"sessionId\":\"e\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 1,
+     "calls": 1,
+     "usage": {
+      "sessions": 1,
+      "calls": 1,
+      "commands": [],
+      "installs": [],
+      "tools": []
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/1"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/e.jsonl"
+   ]
+  },
+  {
+   "name": "a cleared copy under the same holder double counts",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh a\"}}]}}",
+     "~/.claude/projects/-p/_cleared_sessions/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh b\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 1,
+     "calls": 2,
+     "usage": {
+      "sessions": 1,
+      "calls": 2,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 2
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 2
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/_cleared_sessions/s1.jsonl",
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl"
+   ]
+  },
+  {
+   "name": "a folder named memory is a session, a root file is not",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/memory/notes.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"m\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh a\"}}]}}",
+     "~/.claude/projects/stray.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"t\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh b\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 1,
+     "calls": 1,
+     "usage": {
+      "sessions": 1,
+      "calls": 1,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/1"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/memory/notes.jsonl"
+   ]
+  },
+  {
+   "name": "two holders, no times: the first holder",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh a\"}}]}}",
+     "~/.claude/projects/-q/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"git b\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 1,
+     "calls": 1,
+     "usage": {
+      "sessions": 1,
+      "calls": 1,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl",
+    "lines /Users/dev/.claude/projects/-q/s1.jsonl"
+   ]
+  },
+  {
+   "name": "two holders, the later call wins",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh a\"}}]},\"timestamp\":\"2026-09-06T10:00:00Z\"}",
+     "~/.claude/projects/-q/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"git b\"}}]},\"timestamp\":\"2026-09-06T10:00:01Z\"}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 1,
+     "calls": 1,
+     "usage": {
+      "sessions": 1,
+      "calls": 1,
+      "commands": [
+       [
+        "git",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": [
+       [
+        "git",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl",
+    "lines /Users/dev/.claude/projects/-q/s1.jsonl"
+   ]
+  },
+  {
+   "name": "two holders, the same time: the first holder",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh a\"}}]},\"timestamp\":\"2026-09-06T10:00:00Z\"}",
+     "~/.claude/projects/-q/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"git b\"}}]},\"timestamp\":\"2026-09-06T10:00:00Z\"}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 1,
+     "calls": 1,
+     "usage": {
+      "sessions": 1,
+      "calls": 1,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl",
+    "lines /Users/dev/.claude/projects/-q/s1.jsonl"
+   ]
+  },
+  {
+   "name": "two holders, one with no time",
+   "laptop": {
+    "files": {
+     "~/.claude/projects/-p/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"gh a\"}}]},\"timestamp\":\"2026-09-06T10:00:00Z\"}",
+     "~/.claude/projects/-q/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/x\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"git b\"}}]}}"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    {}
+   ],
+   "out": [
+    {
+     "agent": "claude",
+     "state": "read",
+     "sessions": 1,
+     "calls": 1,
+     "usage": {
+      "sessions": 1,
+      "calls": 1,
+      "commands": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ],
+      "installs": [],
+      "tools": [
+       [
+        "gh",
+        {
+         "sessions": 1,
+         "calls": 1
+        }
+       ]
+      ]
+     }
+    }
+   ],
+   "told": [
+    "claude read"
+   ],
+   "progress": [
+    "claude 1/2",
+    "claude 2/2"
+   ],
+   "calls": [
+    "lines /Users/dev/.claude/projects/-p/s1.jsonl",
+    "lines /Users/dev/.claude/projects/-q/s1.jsonl"
+   ]
+  }
+ ]
+}

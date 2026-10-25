@@ -1,0 +1,2249 @@
+{
+ "seed_menu": [
+  {
+   "name": "an opened folder: nested, duplicated, a file of the name, a near name; junk and never inner paths",
+   "laptop": {
+    "exec": {
+     "git -C /p ls-files -z -o -i --exclude-standard --directory": "a/.claude/\u0000foo.claude/\u0000.claude/\u0000.claude/\u0000x/\u0000sub/node_modules/\u0000plain.txt\u0000.claude",
+     "git -C /p ls-files -z -o -i --exclude-standard -- a/.claude": "a/.claude/settings.local.json\u0000a/.claude/.DS_Store\u0000a/.claude/.credentials.json\u0000a/.claude/other.txt\u0000a/.claude/.cc-writes/y",
+     "git -C /p ls-files -z -o -i --exclude-standard -- .claude": ".claude/settings.local.json\u0000.claude/CLAUDE.local.md",
+     "du -sk /p/a/.claude /p/foo.claude /p/.claude /p/.claude /p/x /p/sub/node_modules /p/plain.txt /p/.claude /p/a/.claude/settings.local.json /p/a/.claude/.DS_Store /p/a/.claude/.credentials.json /p/.claude/settings.local.json /p/.claude/CLAUDE.local.md": "100\t/p/a/.claude\n7\t/p/foo.claude\n50\t/p/.claude\n9\t/p/x\n300\t/p/sub/node_modules\n1\t/p/plain.txt\n10\t/p/a/.claude/settings.local.json\n20\t/p/a/.claude/.DS_Store\n30\t/p/a/.claude/.credentials.json\n5\t/p/.claude/settings.local.json\n6\t/p/.claude/CLAUDE.local.md"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [
+     {
+      "path": ".claude",
+      "dir": true,
+      "bytes": 39936,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": ".claude",
+      "dir": true,
+      "bytes": 39936,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": ".claude",
+      "dir": false,
+      "bytes": 51200,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": ".claude/CLAUDE.local.md",
+      "dir": false,
+      "bytes": 6144,
+      "kind": "config",
+      "row": {
+       "id": "agents",
+       "name": "agents"
+      },
+      "ticked": true
+     },
+     {
+      "path": ".claude/CLAUDE.local.md",
+      "dir": false,
+      "bytes": 6144,
+      "kind": "config",
+      "row": {
+       "id": "agents",
+       "name": "agents"
+      },
+      "ticked": true
+     },
+     {
+      "path": ".claude/settings.local.json",
+      "dir": false,
+      "bytes": 5120,
+      "kind": "config",
+      "row": {
+       "id": "agents",
+       "name": "agents"
+      },
+      "ticked": true
+     },
+     {
+      "path": ".claude/settings.local.json",
+      "dir": false,
+      "bytes": 5120,
+      "kind": "config",
+      "row": {
+       "id": "agents",
+       "name": "agents"
+      },
+      "ticked": true
+     },
+     {
+      "path": "a/.claude",
+      "dir": true,
+      "bytes": 40960,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "a/.claude/.credentials.json",
+      "dir": false,
+      "bytes": 30720,
+      "kind": "never",
+      "row": {
+       "id": "logins",
+       "name": "logins"
+      },
+      "ticked": false
+     },
+     {
+      "path": "a/.claude/settings.local.json",
+      "dir": false,
+      "bytes": 10240,
+      "kind": "config",
+      "row": {
+       "id": "agents",
+       "name": "agents"
+      },
+      "ticked": true
+     },
+     {
+      "path": "foo.claude",
+      "dir": true,
+      "bytes": 7168,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "plain.txt",
+      "dir": false,
+      "bytes": 1024,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "sub/node_modules",
+      "dir": true,
+      "bytes": 307200,
+      "kind": "rebuilt",
+      "row": {
+       "id": "node",
+       "name": "Node"
+      },
+      "ticked": false
+     },
+     {
+      "path": "x",
+      "dir": true,
+      "bytes": 9216,
+      "kind": "unknown",
+      "ticked": false
+     }
+    ],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p ls-files -z -o -i --exclude-standard -- a/.claude (120000 ms)",
+    "run git -C /p ls-files -z -o -i --exclude-standard -- .claude (120000 ms)",
+    "run git -C /p ls-files -z -o -i --exclude-standard -- .claude (120000 ms)",
+    "run du -sk /p/a/.claude /p/foo.claude /p/.claude /p/.claude /p/x /p/sub/node_modules /p/plain.txt /p/.claude /p/a/.claude/settings.local.json /p/a/.claude/.DS_Store /p/a/.claude/.credentials.json /p/.claude/settings.local.json /p/.claude/CLAUDE.local.md (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "the inside listing fails: the folder keeps its whole size",
+   "laptop": {
+    "exec": {
+     "git -C /p ls-files -z -o -i --exclude-standard --directory": ".claude/\u0000z/",
+     "du -sk /p/.claude /p/z": "50\t/p/.claude\n4\t/p/z"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [
+     {
+      "path": ".claude",
+      "dir": true,
+      "bytes": 51200,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "z",
+      "dir": true,
+      "bytes": 4096,
+      "kind": "unknown",
+      "ticked": false
+     }
+    ],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p ls-files -z -o -i --exclude-standard -- .claude (120000 ms)",
+    "run du -sk /p/.claude /p/z (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "du lines: Number() parsing, the slash-only path trim, the last line for a path wins",
+   "laptop": {
+    "exec": {
+     "git -C /p/ ls-files -z -o -i --exclude-standard --directory": "a\u0000b\u0000c\u0000d\u0000e\u0000f\u0000g\u0000h/\u0000i\u0000j\u0000k\u0000l\u0000.DS_Store\u0000m",
+     "du -sk /p/a /p/b /p/c /p/d /p/e /p/f /p/g /p/h /p/i /p/j /p/k /p/l /p/.DS_Store /p/m": "0x10\t/p/a\n\t/p/b\n 4\t/p/c\n4.3\t/p/d\n-4\t/p/e\n7\t/p/f\n9\t/p/f\n3\t/p/g\r\n2\t/p/h/\n5 /p/i\n1e1\t/p/j\n8\t /p/k\n6\t/p/l \n   \n4\t/p/.DS_Store\n12\t/p/m\t"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p/",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p/",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [
+     {
+      "path": "a",
+      "dir": false,
+      "bytes": 16384,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "b",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "c",
+      "dir": false,
+      "bytes": 4096,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "d",
+      "dir": false,
+      "bytes": 4403.2,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "e",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "f",
+      "dir": false,
+      "bytes": 9216,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "g",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "h",
+      "dir": true,
+      "bytes": 2048,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "i",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "j",
+      "dir": false,
+      "bytes": 10240,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "k",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "l",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "m",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     }
+    ],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p/ ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run du -sk /p/a /p/b /p/c /p/d /p/e /p/f /p/g /p/h /p/i /p/j /p/k /p/l /p/.DS_Store /p/m (120000 ms)",
+    "run git -C /p/ remote get-url origin (120000 ms)",
+    "run git -C /p/ rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p/ symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p/ rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p/ status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "a folder with several trailing slashes: git as given, du prefix trimmed, source as given",
+   "laptop": {
+    "exec": {
+     "git -C /p// ls-files -z -o -i --exclude-standard --directory": "a\u0000",
+     "du -sk /p/a": "3\t/p/a"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p//",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p//",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [
+     {
+      "path": "a",
+      "dir": false,
+      "bytes": 3072,
+      "kind": "unknown",
+      "ticked": false
+     }
+    ],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p// ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run du -sk /p/a (120000 ms)",
+    "run git -C /p// remote get-url origin (120000 ms)",
+    "run git -C /p// rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p// symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p// rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p// status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "only a junk entry: du still runs, no rows",
+   "laptop": {
+    "exec": {
+     "git -C /p ls-files -z -o -i --exclude-standard --directory": ".DS_Store\u0000",
+     "du -sk /p/.DS_Store": "4\t/p/.DS_Store"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run du -sk /p/.DS_Store (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "no du answer: every size is 0",
+   "laptop": {
+    "exec": {
+     "git -C /p ls-files -z -o -i --exclude-standard --directory": "a\u0000b/\u0000"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [
+     {
+      "path": "a",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "b",
+      "dir": true,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     }
+    ],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run du -sk /p/a /p/b (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "empty and doubled NULs in the listing are dropped",
+   "laptop": {
+    "exec": {
+     "git -C /p ls-files -z -o -i --exclude-standard --directory": "\u0000\u0000a\u0000\u0000",
+     "du -sk /p/a": "1\t/p/a"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [
+     {
+      "path": "a",
+      "dir": false,
+      "bytes": 1024,
+      "kind": "unknown",
+      "ticked": false
+     }
+    ],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run du -sk /p/a (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "origin url with a blank first line is no remote",
+   "laptop": {
+    "exec": {
+     "git -C /p remote get-url origin": "\nhttps://x\n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "origin url of only unicode blanks is no remote",
+   "laptop": {
+    "exec": {
+     "git -C /p remote get-url origin": "  ﻿ \n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "origin url is the first line, trimmed",
+   "laptop": {
+    "exec": {
+     "git -C /p remote get-url origin": "  git@github.com:o/r.git  \nsecond\n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": "git@github.com:o/r.git",
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "HEAD with a blank first line is an empty branch",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref HEAD": "\n\nmain"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "HEAD with CRLF and padding",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref HEAD": "  feat/x \r\nmore"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "feat/x",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "upstream with a blank first line is no upstream",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "\norigin/feat\n",
+     "git -C /p symbolic-ref refs/remotes/origin/HEAD": "refs/remotes/origin/main\n",
+     "git -C /p merge-base HEAD origin/main": "dd\n",
+     "git -C /p rev-list --count dd..HEAD": "4\n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": "main",
+    "unpushed": {
+     "commits": 4,
+     "base": "dd"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/main (120000 ms)",
+    "run git -C /p rev-list --count dd..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "merge base with a blank first line is no merge base",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "\nbb\n",
+     "git -C /p rev-list --count bb..HEAD": "2"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "merge base is the first line, trimmed",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "  bb  \nxx\n",
+     "git -C /p rev-list --count bb..HEAD": "2"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": {
+     "commits": 2,
+     "base": "bb"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "the symbolic ref ends at origin/",
+   "laptop": {
+    "exec": {
+     "git -C /p symbolic-ref refs/remotes/origin/HEAD": "refs/remotes/origin/\n",
+     "git -C /p merge-base HEAD origin/": "ee\n",
+     "git -C /p rev-list --count ee..HEAD": "2\n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": "",
+    "unpushed": {
+     "commits": 2,
+     "base": "ee"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/ (120000 ms)",
+    "run git -C /p rev-list --count ee..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "the symbolic ref is under heads",
+   "laptop": {
+    "exec": {
+     "git -C /p symbolic-ref refs/remotes/origin/HEAD": "refs/heads/main\n",
+     "git -C /p merge-base HEAD origin/refs/heads/main": "ee\n",
+     "git -C /p rev-list --count ee..HEAD": "2\n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": "refs/heads/main",
+    "unpushed": {
+     "commits": 2,
+     "base": "ee"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/refs/heads/main (120000 ms)",
+    "run git -C /p rev-list --count ee..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "the symbolic ref names another remote",
+   "laptop": {
+    "exec": {
+     "git -C /p symbolic-ref refs/remotes/origin/HEAD": "refs/remotes/upstream/main\n",
+     "git -C /p merge-base HEAD origin/refs/remotes/upstream/main": "ee\n",
+     "git -C /p rev-list --count ee..HEAD": "2\n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": "refs/remotes/upstream/main",
+    "unpushed": {
+     "commits": 2,
+     "base": "ee"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/refs/remotes/upstream/main (120000 ms)",
+    "run git -C /p rev-list --count ee..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "the symbolic ref repeats the prefix",
+   "laptop": {
+    "exec": {
+     "git -C /p symbolic-ref refs/remotes/origin/HEAD": "refs/remotes/origin/refs/remotes/origin/x\n",
+     "git -C /p merge-base HEAD origin/refs/remotes/origin/x": "ee\n",
+     "git -C /p rev-list --count ee..HEAD": "2\n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": "refs/remotes/origin/x",
+    "unpushed": {
+     "commits": 2,
+     "base": "ee"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/refs/remotes/origin/x (120000 ms)",
+    "run git -C /p rev-list --count ee..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "the symbolic ref is origin/main",
+   "laptop": {
+    "exec": {
+     "git -C /p symbolic-ref refs/remotes/origin/HEAD": "refs/remotes/origin/main\n",
+     "git -C /p merge-base HEAD origin/main": "ee\n",
+     "git -C /p rev-list --count ee..HEAD": "2\n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": "main",
+    "unpushed": {
+     "commits": 2,
+     "base": "ee"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/main (120000 ms)",
+    "run git -C /p rev-list --count ee..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "an upstream whose merge base is missing does not fall back to the default branch",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p symbolic-ref refs/remotes/origin/HEAD": "refs/remotes/origin/main\n",
+     "git -C /p merge-base HEAD origin/main": "dd\n",
+     "git -C /p rev-list --count dd..HEAD": "4\n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": "main",
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "an upstream with a merge base and no count",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb\n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"3.0\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "3.0"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": {
+     "commits": 3,
+     "base": "bb"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"0x3\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "0x3"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": {
+     "commits": 3,
+     "base": "bb"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"1e1\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "1e1"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": {
+     "commits": 10,
+     "base": "bb"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"+2\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "+2"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": {
+     "commits": 2,
+     "base": "bb"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"-1\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "-1"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"Infinity\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "Infinity"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": ""
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \" 5 \"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": " 5 "
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": {
+     "commits": 5,
+     "base": "bb"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"2 3\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "2 3"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"007\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "007"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": {
+     "commits": 7,
+     "base": "bb"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"1_0\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "1_0"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"4\\n9\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "4\n9"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": {
+     "commits": 4,
+     "base": "bb"
+    },
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"0\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "0"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rev-list count \"00\"",
+   "laptop": {
+    "exec": {
+     "git -C /p rev-parse --abbrev-ref @{upstream}": "origin/feat\n",
+     "git -C /p merge-base HEAD origin/feat": "bb",
+     "git -C /p rev-list --count bb..HEAD": "00"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p merge-base HEAD origin/feat (120000 ms)",
+    "run git -C /p rev-list --count bb..HEAD (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "status lines that are blank under a JS trim are not counted",
+   "laptop": {
+    "exec": {
+     "git -C /p status --porcelain": "﻿\n M a\n \n\t\n?? b\r\n \n"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 2,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "memory: the folder's own size, files at any depth, a trailing slash on the folder and the state home",
+   "laptop": {
+    "files": {
+     "/Users/dev/.claude/projects/-Users-dev-app-/memory/": 5000,
+     "/Users/dev/.claude/projects/-Users-dev-app-/memory/a.md": 100,
+     "/Users/dev/.claude/projects/-Users-dev-app-/memory/sub/b.md": 50
+    }
+   },
+   "args": [
+    "/Users/dev/app/",
+    {
+     "claudeStateHome": "/Users/dev/.claude/"
+    }
+   ],
+   "out": {
+    "source": "/Users/dev/app/",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": {
+     "key": "-Users-dev-app-",
+     "files": 2,
+     "bytes": 5000
+    },
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /Users/dev/app/ ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /Users/dev/app/ remote get-url origin (120000 ms)",
+    "run git -C /Users/dev/app/ rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /Users/dev/app/ symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /Users/dev/app/ rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /Users/dev/app/ status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "memory: no folder key, the size is the sum",
+   "laptop": {
+    "files": {
+     "/Users/dev/.claude/projects/-Users-dev-app-/memory/a.md": 100,
+     "/Users/dev/.claude/projects/-Users-dev-app-/memory/b.md": 50
+    }
+   },
+   "args": [
+    "/Users/dev/app/",
+    {
+     "claudeStateHome": "/Users/dev/.claude/"
+    }
+   ],
+   "out": {
+    "source": "/Users/dev/app/",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": {
+     "key": "-Users-dev-app-",
+     "files": 2,
+     "bytes": 150
+    },
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /Users/dev/app/ ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /Users/dev/app/ remote get-url origin (120000 ms)",
+    "run git -C /Users/dev/app/ rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /Users/dev/app/ symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /Users/dev/app/ rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /Users/dev/app/ status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "memory: an empty folder is still a row",
+   "laptop": {
+    "files": {
+     "/Users/dev/.claude/projects/-Users-dev-app-/memory/": 0
+    }
+   },
+   "args": [
+    "/Users/dev/app/",
+    {
+     "claudeStateHome": "/Users/dev/.claude/"
+    }
+   ],
+   "out": {
+    "source": "/Users/dev/app/",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": {
+     "key": "-Users-dev-app-",
+     "files": 0,
+     "bytes": 0
+    },
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /Users/dev/app/ ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /Users/dev/app/ remote get-url origin (120000 ms)",
+    "run git -C /Users/dev/app/ rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /Users/dev/app/ symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /Users/dev/app/ rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /Users/dev/app/ status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "memory: a file of that name is no row",
+   "laptop": {
+    "files": {
+     "/Users/dev/.claude/projects/-Users-dev-app-/memory": 12
+    }
+   },
+   "args": [
+    "/Users/dev/app/",
+    {
+     "claudeStateHome": "/Users/dev/.claude/"
+    }
+   ],
+   "out": {
+    "source": "/Users/dev/app/",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /Users/dev/app/ ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /Users/dev/app/ remote get-url origin (120000 ms)",
+    "run git -C /Users/dev/app/ rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /Users/dev/app/ symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /Users/dev/app/ rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /Users/dev/app/ status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "memory: none",
+   "laptop": {},
+   "args": [
+    "/Users/dev/app/",
+    {
+     "claudeStateHome": "/Users/dev/.claude/"
+    }
+   ],
+   "out": {
+    "source": "/Users/dev/app/",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /Users/dev/app/ ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /Users/dev/app/ remote get-url origin (120000 ms)",
+    "run git -C /Users/dev/app/ rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /Users/dev/app/ symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /Users/dev/app/ rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /Users/dev/app/ status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "memory: the key replaces each UTF-16 unit, an astral character is two dashes",
+   "laptop": {
+    "files": {
+     "/Users/dev/.claude/projects/-p------x/memory/a.md": 1
+    }
+   },
+   "args": [
+    "/p/😀 é/x",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p/😀 é/x",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": {
+     "key": "-p------x",
+     "files": 1,
+     "bytes": 1
+    },
+    "files": [],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p/😀 é/x ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run git -C /p/😀 é/x remote get-url origin (120000 ms)",
+    "run git -C /p/😀 é/x rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p/😀 é/x symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p/😀 é/x rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p/😀 é/x status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "rows sort by localeCompare",
+   "laptop": {
+    "exec": {
+     "git -C /p ls-files -z -o -i --exclude-standard --directory": ".env\u0000.env.local\u0000env\u0000Env.txt\u0000a b\u0000a-b\u0000a_b\u0000a.b\u0000ab\u0000a/b\u000010\u00009\u0000é\u0000e\u0000f\u0000Z\u0000z\u0000ä\u0000B\u0000b\u0000A\u0000a\u0000résumé\u0000resume\u0000Résumé\u0000_x\u0000~y\u0000😀\u0000Ａ\u0000item2\u0000item10\u0000ß\u0000ss\u0000.claude\u0000docs/\u0000Docs/"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [
+     {
+      "path": "_x",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": ".claude",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": ".env",
+      "dir": false,
+      "bytes": 0,
+      "kind": "secret",
+      "row": {
+       "id": "node",
+       "name": "Node"
+      },
+      "ticked": true
+     },
+     {
+      "path": ".env.local",
+      "dir": false,
+      "bytes": 0,
+      "kind": "secret",
+      "row": {
+       "id": "next",
+       "name": "Next"
+      },
+      "ticked": true
+     },
+     {
+      "path": "~y",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "😀",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "10",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "9",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "a",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "A",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "Ａ",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "ä",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "a b",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "a_b",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "a-b",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "a.b",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "a/b",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "ab",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "b",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "B",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "docs",
+      "dir": true,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "Docs",
+      "dir": true,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "e",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "é",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "env",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "Env.txt",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "f",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "item10",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "item2",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "resume",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "résumé",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "Résumé",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "ss",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "ß",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "z",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "Z",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     }
+    ],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run du -sk /p/.env /p/.env.local /p/env /p/Env.txt /p/a b /p/a-b /p/a_b /p/a.b /p/ab /p/a/b /p/10 /p/9 /p/é /p/e /p/f /p/Z /p/z /p/ä /p/B /p/b /p/A /p/a /p/résumé /p/resume /p/Résumé /p/_x /p/~y /p/😀 /p/Ａ /p/item2 /p/item10 /p/ß /p/ss /p/.claude /p/docs /p/Docs (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  },
+  {
+   "name": "equal and near paths keep listing order",
+   "laptop": {
+    "exec": {
+     "git -C /p ls-files -z -o -i --exclude-standard --directory": "x\u0000X\u0000x"
+    },
+    "files": {}
+   },
+   "args": [
+    "/p",
+    {
+     "claudeStateHome": "/Users/dev/.claude"
+    }
+   ],
+   "out": {
+    "source": "/p",
+    "remote": null,
+    "branch": "",
+    "defaultBranch": null,
+    "unpushed": null,
+    "uncommitted": 0,
+    "memory": null,
+    "files": [
+     {
+      "path": "x",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "x",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     },
+     {
+      "path": "X",
+      "dir": false,
+      "bytes": 0,
+      "kind": "unknown",
+      "ticked": false
+     }
+    ],
+    "remembered": false
+   },
+   "calls": [
+    "run git -C /p ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+    "run du -sk /p/x /p/X /p/x (120000 ms)",
+    "run git -C /p remote get-url origin (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref HEAD (120000 ms)",
+    "run git -C /p symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+    "run git -C /p rev-parse --abbrev-ref @{upstream} (120000 ms)",
+    "run git -C /p status --porcelain (120000 ms)"
+   ]
+  }
+ ]
+}

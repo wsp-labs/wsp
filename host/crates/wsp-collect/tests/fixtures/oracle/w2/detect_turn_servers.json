@@ -1,0 +1,3404 @@
+{
+ "read_checkout": [
+  {
+   "name": "\"\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": ""
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "key": "/Users/dev/proj"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "key": "/Users/dev/proj"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"/a/b\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/a/b\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "top": "/a/b",
+    "key": "/a/b"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"/a/b\\n/a/b/.git\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/a/b\n/a/b/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "top": "/a/b",
+    "key": "/a/b"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"/a/b\\n/main/.git\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/a/b\n/main/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "top": "/a/b",
+    "key": "/main"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"/a/b\\n/main/repo.git\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/a/b\n/main/repo.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "top": "/a/b",
+    "key": "/a/b"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"rel/b\\n/x/.git\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "rel/b\n/x/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "key": "/Users/dev/proj"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"  /a/b  \\r\\n  /main/.git  \\r\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "  /a/b  \r\n  /main/.git  \r\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "top": "/a/b",
+    "key": "/main"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"/a/b\\n\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/a/b\n\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "top": "/a/b",
+    "key": "/a/b"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"\\n/a/b\\n/x/.git\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "\n/a/b\n/x/.git"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "key": "/Users/dev/proj"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"/a/b\\n/.git\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/a/b\n/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "top": "/a/b",
+    "key": "/"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"fatal: not a git repository\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "fatal: not a git repository\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "key": "/Users/dev/proj"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"/a/b\\n.git\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/a/b\n.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "top": "/a/b",
+    "key": "/a/b"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"/a/b\\n/x/y/.git/worktrees/w\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/a/b\n/x/y/.git/worktrees/w\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "top": "/a/b",
+    "key": "/a/b"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "\"/\\n/.git\\n\"",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/\n/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "top": "/",
+    "key": "/"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "git gives no answer",
+   "laptop": {},
+   "args": [
+    "/Users/dev/proj"
+   ],
+   "out": {
+    "key": "/Users/dev/proj"
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  }
+ ],
+ "read_turn_servers": [
+  {
+   "name": "claude, folder under the top: scopes and the files up to /",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"home\":{\"command\":\"npx\"}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"loc\":{\"command\":\"x\"}}},\"/Users/dev/main\":{\"mcpServers\":{\"mainloc\":{\"command\":\"y\"}}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"subs\":{\"command\":\"s\"}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"rootp\":{\"command\":\"r\"}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"abovep\":{\"command\":\"a\"}}}",
+     "/Users/.mcp.json": "{\"mcpServers\":{\"rootabove\":{\"command\":\"b\"}}}",
+     "/Users/dev/store/.claude.json": "{\"mcpServers\":{\"stored\":{\"command\":\"z\"}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "claude",
+    "/Users/dev/proj/sub",
+    {}
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "loc",
+      "scope": "home",
+      "transport": {
+       "kind": "stdio",
+       "command": "x",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "local",
+     "file": "/Users/dev/.claude.json"
+    },
+    {
+     "server": {
+      "name": "subs",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "s",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/sub/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootp",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "r",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "abovep",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "a",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootabove",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "b",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "home",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "npx",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.claude.json"
+    }
+   ],
+   "calls": [
+    "run git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/sub/.mcp.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json"
+   ]
+  },
+  {
+   "name": "claude, a worktree is keyed by the main checkout",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"home\":{\"command\":\"npx\"}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"loc\":{\"command\":\"x\"}}},\"/Users/dev/main\":{\"mcpServers\":{\"mainloc\":{\"command\":\"y\"}}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"subs\":{\"command\":\"s\"}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"rootp\":{\"command\":\"r\"}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"abovep\":{\"command\":\"a\"}}}",
+     "/Users/.mcp.json": "{\"mcpServers\":{\"rootabove\":{\"command\":\"b\"}}}",
+     "/Users/dev/store/.claude.json": "{\"mcpServers\":{\"stored\":{\"command\":\"z\"}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/wt rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/wt\n/Users/dev/main/.git\n"
+    }
+   },
+   "args": [
+    "claude",
+    "/Users/dev/wt",
+    {}
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "mainloc",
+      "scope": "home",
+      "transport": {
+       "kind": "stdio",
+       "command": "y",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "local",
+     "file": "/Users/dev/.claude.json"
+    },
+    {
+     "server": {
+      "name": "abovep",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "a",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootabove",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "b",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "home",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "npx",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.claude.json"
+    }
+   ],
+   "calls": [
+    "run git -C /Users/dev/wt rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/wt/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json"
+   ]
+  },
+  {
+   "name": "claude, git says not a repository",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"home\":{\"command\":\"npx\"}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"loc\":{\"command\":\"x\"}}},\"/Users/dev/main\":{\"mcpServers\":{\"mainloc\":{\"command\":\"y\"}}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"subs\":{\"command\":\"s\"}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"rootp\":{\"command\":\"r\"}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"abovep\":{\"command\":\"a\"}}}",
+     "/Users/.mcp.json": "{\"mcpServers\":{\"rootabove\":{\"command\":\"b\"}}}",
+     "/Users/dev/store/.claude.json": "{\"mcpServers\":{\"stored\":{\"command\":\"z\"}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir": "fatal: not a git repository\n"
+    }
+   },
+   "args": [
+    "claude",
+    "/Users/dev/proj/sub",
+    {}
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "subs",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "s",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/sub/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootp",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "r",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "abovep",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "a",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootabove",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "b",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "home",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "npx",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.claude.json"
+    }
+   ],
+   "calls": [
+    "run git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/sub/.mcp.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json"
+   ]
+  },
+  {
+   "name": "claude, git gives no answer",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"home\":{\"command\":\"npx\"}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"loc\":{\"command\":\"x\"}}},\"/Users/dev/main\":{\"mcpServers\":{\"mainloc\":{\"command\":\"y\"}}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"subs\":{\"command\":\"s\"}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"rootp\":{\"command\":\"r\"}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"abovep\":{\"command\":\"a\"}}}",
+     "/Users/.mcp.json": "{\"mcpServers\":{\"rootabove\":{\"command\":\"b\"}}}",
+     "/Users/dev/store/.claude.json": "{\"mcpServers\":{\"stored\":{\"command\":\"z\"}}}"
+    }
+   },
+   "args": [
+    "claude",
+    "/Users/dev/proj/sub",
+    {}
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "subs",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "s",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/sub/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootp",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "r",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "abovep",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "a",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootabove",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "b",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "home",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "npx",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.claude.json"
+    }
+   ],
+   "calls": [
+    "run git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/sub/.mcp.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json"
+   ]
+  },
+  {
+   "name": "claude own, the home folder",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"home\":{\"command\":\"npx\"}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"loc\":{\"command\":\"x\"}}},\"/Users/dev/main\":{\"mcpServers\":{\"mainloc\":{\"command\":\"y\"}}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"subs\":{\"command\":\"s\"}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"rootp\":{\"command\":\"r\"}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"abovep\":{\"command\":\"a\"}}}",
+     "/Users/.mcp.json": "{\"mcpServers\":{\"rootabove\":{\"command\":\"b\"}}}",
+     "/Users/dev/store/.claude.json": "{\"mcpServers\":{\"stored\":{\"command\":\"z\"}}}"
+    }
+   },
+   "args": [
+    "claude",
+    "/Users/dev",
+    {
+     "own": true
+    }
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "home",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "npx",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.claude.json"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json"
+   ]
+  },
+  {
+   "name": "claude own, a project folder keys by the folder",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"home\":{\"command\":\"npx\"}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"loc\":{\"command\":\"x\"}}},\"/Users/dev/main\":{\"mcpServers\":{\"mainloc\":{\"command\":\"y\"}}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"subs\":{\"command\":\"s\"}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"rootp\":{\"command\":\"r\"}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"abovep\":{\"command\":\"a\"}}}",
+     "/Users/.mcp.json": "{\"mcpServers\":{\"rootabove\":{\"command\":\"b\"}}}",
+     "/Users/dev/store/.claude.json": "{\"mcpServers\":{\"stored\":{\"command\":\"z\"}}}"
+    }
+   },
+   "args": [
+    "claude",
+    "/Users/dev/proj",
+    {
+     "own": true
+    }
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "loc",
+      "scope": "home",
+      "transport": {
+       "kind": "stdio",
+       "command": "x",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "local",
+     "file": "/Users/dev/.claude.json"
+    },
+    {
+     "server": {
+      "name": "home",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "npx",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.claude.json"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json"
+   ]
+  },
+  {
+   "name": "claude, a checkout with top handed in",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"home\":{\"command\":\"npx\"}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"loc\":{\"command\":\"x\"}}},\"/Users/dev/main\":{\"mcpServers\":{\"mainloc\":{\"command\":\"y\"}}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"subs\":{\"command\":\"s\"}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"rootp\":{\"command\":\"r\"}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"abovep\":{\"command\":\"a\"}}}",
+     "/Users/.mcp.json": "{\"mcpServers\":{\"rootabove\":{\"command\":\"b\"}}}",
+     "/Users/dev/store/.claude.json": "{\"mcpServers\":{\"stored\":{\"command\":\"z\"}}}"
+    }
+   },
+   "args": [
+    "claude",
+    "/Users/dev/proj/sub",
+    {
+     "checkout": {
+      "top": "/Users/dev/proj",
+      "key": "/Users/dev/proj"
+     }
+    }
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "loc",
+      "scope": "home",
+      "transport": {
+       "kind": "stdio",
+       "command": "x",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "local",
+     "file": "/Users/dev/.claude.json"
+    },
+    {
+     "server": {
+      "name": "subs",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "s",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/sub/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootp",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "r",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "abovep",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "a",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootabove",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "b",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "home",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "npx",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.claude.json"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/sub/.mcp.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json"
+   ]
+  },
+  {
+   "name": "claude, a checkout with only a key handed in",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"home\":{\"command\":\"npx\"}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"loc\":{\"command\":\"x\"}}},\"/Users/dev/main\":{\"mcpServers\":{\"mainloc\":{\"command\":\"y\"}}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"subs\":{\"command\":\"s\"}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"rootp\":{\"command\":\"r\"}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"abovep\":{\"command\":\"a\"}}}",
+     "/Users/.mcp.json": "{\"mcpServers\":{\"rootabove\":{\"command\":\"b\"}}}",
+     "/Users/dev/store/.claude.json": "{\"mcpServers\":{\"stored\":{\"command\":\"z\"}}}"
+    }
+   },
+   "args": [
+    "claude",
+    "/Users/dev/proj/sub",
+    {
+     "checkout": {
+      "key": "/Users/dev/proj/sub"
+     }
+    }
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "subs",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "s",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/sub/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootp",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "r",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "abovep",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "a",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootabove",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "b",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "home",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "npx",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.claude.json"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/sub/.mcp.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json"
+   ]
+  },
+  {
+   "name": "claude with a store",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"home\":{\"command\":\"npx\"}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"loc\":{\"command\":\"x\"}}},\"/Users/dev/main\":{\"mcpServers\":{\"mainloc\":{\"command\":\"y\"}}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"subs\":{\"command\":\"s\"}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"rootp\":{\"command\":\"r\"}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"abovep\":{\"command\":\"a\"}}}",
+     "/Users/.mcp.json": "{\"mcpServers\":{\"rootabove\":{\"command\":\"b\"}}}",
+     "/Users/dev/store/.claude.json": "{\"mcpServers\":{\"stored\":{\"command\":\"z\"}}}"
+    },
+    "stores": {
+     "claude": "/Users/dev/store"
+    }
+   },
+   "args": [
+    "claude",
+    "/Users/dev/proj",
+    {
+     "checkout": {
+      "top": "/Users/dev/proj",
+      "key": "/Users/dev/proj"
+     }
+    }
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "rootp",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "r",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "abovep",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "a",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootabove",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "b",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "stored",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "z",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/store/.claude.json"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/store/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json"
+   ]
+  },
+  {
+   "name": "claude with a store that holds no file",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"home\":{\"command\":\"npx\"}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"loc\":{\"command\":\"x\"}}},\"/Users/dev/main\":{\"mcpServers\":{\"mainloc\":{\"command\":\"y\"}}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"subs\":{\"command\":\"s\"}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"rootp\":{\"command\":\"r\"}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"abovep\":{\"command\":\"a\"}}}",
+     "/Users/.mcp.json": "{\"mcpServers\":{\"rootabove\":{\"command\":\"b\"}}}",
+     "/Users/dev/store/.claude.json": "{\"mcpServers\":{\"stored\":{\"command\":\"z\"}}}"
+    },
+    "stores": {
+     "claude": "/Users/dev/nostore"
+    }
+   },
+   "args": [
+    "claude",
+    "/Users/dev/proj",
+    {
+     "checkout": {
+      "top": "/Users/dev/proj",
+      "key": "/Users/dev/proj"
+     }
+    }
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "rootp",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "r",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "abovep",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "a",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/.mcp.json"
+    },
+    {
+     "server": {
+      "name": "rootabove",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "b",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/.mcp.json"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/nostore/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json"
+   ]
+  },
+  {
+   "name": "codex trusted, folder under the top",
+   "laptop": {
+    "files": {
+     "~/.codex/config.toml": "[projects.\"/Users/dev/proj\"]\ntrust_level = \"trusted\"\n[mcp_servers.u]\ncommand = \"uvx\"\n",
+     "/Users/dev/proj/sub/.codex/config.toml": "[mcp_servers.s]\ncommand = \"s\"\n",
+     "/Users/dev/proj/.codex/config.toml": "[mcp_servers.r]\ncommand = \"r\"\n"
+    },
+    "exec": {
+     "git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "codex",
+    "/Users/dev/proj/sub",
+    {}
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "s",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "s",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/sub/.codex/config.toml"
+    },
+    {
+     "server": {
+      "name": "r",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "r",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "project",
+     "file": "/Users/dev/proj/.codex/config.toml"
+    },
+    {
+     "server": {
+      "name": "u",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "uvx",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.codex/config.toml"
+    }
+   ],
+   "calls": [
+    "run git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/proj/sub/.codex/config.toml",
+    "read /Users/dev/proj/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "codex untrusted: the project file is still read",
+   "laptop": {
+    "files": {
+     "~/.codex/config.toml": "[mcp_servers.u]\ncommand = \"u\"\n",
+     "/Users/dev/proj/.codex/config.toml": "[mcp_servers.r]\ncommand = \"r\"\n"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "codex",
+    "/Users/dev/proj",
+    {}
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "u",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "u",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.codex/config.toml"
+    }
+   ],
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/proj/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "codex with a store",
+   "laptop": {
+    "files": {
+     "/Users/dev/cx/config.toml": "[mcp_servers.st]\ncommand = \"st\"\n",
+     "~/.codex/config.toml": "[mcp_servers.u]\ncommand = \"u\"\n"
+    },
+    "stores": {
+     "codex": "/Users/dev/cx"
+    }
+   },
+   "args": [
+    "codex",
+    "/Users/dev/proj",
+    {
+     "checkout": {
+      "key": "/Users/dev/proj"
+     }
+    }
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "st",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "st",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/cx/config.toml"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/cx/config.toml",
+    "read /Users/dev/proj/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "opencode, both own files present: the first only",
+   "laptop": {
+    "files": {
+     "~/.config/opencode/opencode.json": "{\"mcp\":{\"a1\":{\"type\":\"local\",\"command\":[\"x\"]}}}",
+     "~/.config/opencode/opencode.jsonc": "{\"mcp\":{\"a2\":{\"type\":\"local\",\"command\":[\"y\"]}}}"
+    }
+   },
+   "args": [
+    "opencode",
+    "/Users/dev/proj",
+    {
+     "checkout": {
+      "key": "/Users/dev/proj"
+     }
+    }
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "a1",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "x",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.config/opencode/opencode.json"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/proj/opencode.json",
+    "read /Users/dev/proj/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "opencode, only the second own file",
+   "laptop": {
+    "files": {
+     "~/.config/opencode/opencode.jsonc": "{\"mcp\":{\"a2\":{\"type\":\"local\",\"command\":[\"y\"]}}}"
+    }
+   },
+   "args": [
+    "opencode",
+    "/Users/dev/proj",
+    {
+     "checkout": {
+      "key": "/Users/dev/proj"
+     }
+    }
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "a2",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "y",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.config/opencode/opencode.jsonc"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc",
+    "read /Users/dev/proj/opencode.json",
+    "read /Users/dev/proj/opencode.jsonc"
+   ]
+  },
+  {
+   "name": "opencode with a store is ignored",
+   "laptop": {
+    "files": {
+     "~/.config/opencode/opencode.json": "{\"mcp\":{\"a1\":{\"type\":\"local\",\"command\":[\"x\"]}}}"
+    },
+    "stores": {
+     "opencode": "/Users/dev/os"
+    }
+   },
+   "args": [
+    "opencode",
+    "/Users/dev/proj",
+    {
+     "checkout": {
+      "key": "/Users/dev/proj"
+     }
+    }
+   ],
+   "out": [
+    {
+     "server": {
+      "name": "a1",
+      "scope": "user",
+      "transport": {
+       "kind": "stdio",
+       "command": "x",
+       "args": [],
+       "env": {}
+      },
+      "envRefs": []
+     },
+     "scope": "user",
+     "file": "/Users/dev/.config/opencode/opencode.json"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/proj/opencode.json",
+    "read /Users/dev/proj/opencode.jsonc"
+   ]
+  }
+ ],
+ "detect_project_mcp": [
+  {
+   "name": "outside git, an untracked project file is carried",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"p1\":{\"command\":\"npx\",\"args\":[\"p1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "fatal: not a git repository\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "p1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "p1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/p1",
+       "label": "p1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx p1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "outside git, keep brings it",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"p1\":{\"command\":\"npx\",\"args\":[\"p1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "fatal\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": [
+      ".mcp.json"
+     ]
+    }
+   ],
+   "out": {
+    "servers": [],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "a tracked line with CRLF is not tracked",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"p1\":{\"command\":\"npx\",\"args\":[\"p1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n",
+     "git -C /Users/dev/proj ls-files -- .mcp.json": ".mcp.json\r\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "p1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "p1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/p1",
+       "label": "p1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx p1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "blank lines in git's answer",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"p1\":{\"command\":\"npx\",\"args\":[\"p1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n",
+     "git -C /Users/dev/proj ls-files -- .mcp.json": "\n\n.mcp.json\n\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "ls-files gives no answer",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"p1\":{\"command\":\"npx\",\"args\":[\"p1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "p1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "p1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/p1",
+       "label": "p1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx p1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "folder under the top, both files tracked",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"s1\":{\"command\":\"npx\",\"args\":[\"s1\"]}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"r1\":{\"command\":\"npx\",\"args\":[\"r1\"]}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"a1\":{\"command\":\"npx\",\"args\":[\"a1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n",
+     "git -C /Users/dev/proj ls-files -- sub/.mcp.json .mcp.json": ".mcp.json\nsub/.mcp.json\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj/sub",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "a1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "a1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/a1",
+       "label": "a1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx a1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/sub/.mcp.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- sub/.mcp.json .mcp.json"
+   ]
+  },
+  {
+   "name": "folder under the top, nothing tracked",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"s1\":{\"command\":\"npx\",\"args\":[\"s1\"]}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"r1\":{\"command\":\"npx\",\"args\":[\"r1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj/sub",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "s1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "s1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/sub/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/s1",
+       "label": "s1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx s1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "r1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "r1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/r1",
+       "label": "r1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx r1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/sub/.mcp.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- sub/.mcp.json .mcp.json"
+   ]
+  },
+  {
+   "name": "keep names are relative to the folder",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"s1\":{\"command\":\"npx\",\"args\":[\"s1\"]}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"r1\":{\"command\":\"npx\",\"args\":[\"r1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj/sub",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": [
+      ".mcp.json",
+      "../.mcp.json"
+     ]
+    }
+   ],
+   "out": {
+    "servers": [],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/sub/.mcp.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- sub/.mcp.json .mcp.json"
+   ]
+  },
+  {
+   "name": "a keep path above the top brings nothing",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"s1\":{\"command\":\"npx\",\"args\":[\"s1\"]}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"a1\":{\"command\":\"npx\",\"args\":[\"a1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj/sub",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": [
+      "../../.mcp.json",
+      "../../../.mcp.json",
+      ".mcp.json"
+     ]
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "a1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "a1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/a1",
+       "label": "a1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx a1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/sub/.mcp.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- sub/.mcp.json"
+   ]
+  },
+  {
+   "name": "a brought nearest definition shadows a farther one of the same name",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"x\":{\"command\":\"npx\",\"args\":[\"nearest\"]}}}",
+     "/Users/dev/.mcp.json": "{\"mcpServers\":{\"x\":{\"command\":\"npx\",\"args\":[\"farther\"]},\"y\":{\"command\":\"npx\",\"args\":[\"y\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n",
+     "git -C /Users/dev/proj ls-files -- sub/.mcp.json": "sub/.mcp.json\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj/sub",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "y",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "y"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/y",
+       "label": "y",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx y; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/sub/.mcp.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- sub/.mcp.json"
+   ]
+  },
+  {
+   "name": "a local server wins over a project one of the same name",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"x\":{\"command\":\"npx\",\"args\":[\"local\"]}}}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"x\":{\"command\":\"npx\",\"args\":[\"project\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "x",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "local"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/x",
+       "label": "x",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx local; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "disabled and outside at once",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"off\":{\"command\":\"/Users/dev/bin/tool\",\"args\":[\"/Users/dev/data/a\"]}},\"disabledMcpServers\":[\"off\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "off",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "/Users/dev/bin/tool",
+         "args": [
+          "/Users/dev/data/a"
+         ],
+         "env": {}
+        },
+        "envRefs": [],
+        "disabled": true
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/off",
+       "label": "off",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "skip",
+       "detail": "stdio: ~/bin/tool ~/data/a; needs ~/bin/tool on the machine; ~/data/a is not on this computer; unticked, tick it if the server creates it on first start; carries no secret",
+       "signIn": "none",
+       "reason": "switched off for this folder here"
+      }
+     }
+    ],
+    "read": [],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json"
+   ]
+  },
+  {
+   "name": "a disabled project server whose file is tracked",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{},\"disabledMcpServers\":[\"p1\"]}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"p1\":{\"command\":\"npx\",\"args\":[\"p1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n",
+     "git -C /Users/dev/proj ls-files -- .mcp.json": ".mcp.json\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "a disabled project server that is not tracked",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{},\"disabledMcpServers\":[\"p1\"]}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"p1\":{\"command\":\"npx\",\"args\":[\"p1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "p1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "p1"
+         ],
+         "env": {}
+        },
+        "envRefs": [],
+        "disabled": true
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/p1",
+       "label": "p1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "skip",
+       "detail": "stdio: npx p1; runs via npx; carries no secret",
+       "signIn": "none",
+       "reason": "switched off for this folder here"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "the forms of an outside path",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"a\":{\"command\":\"~/.local/bin/tool\"},\"b\":{\"command\":\"/Users/dev/.local/bin\"},\"c\":{\"command\":\"/Users/dev/.local/bin2/x\"},\"d\":{\"command\":\"~/bin/d\",\"args\":[\"~/notes\",\"/Users/dev/proj/in.db\",\"/Users/dev/data/x.db\",\"--cfg=/Users/dev/etc/c.json\",\"/Users/dev/proj\"]},\"e\":{\"command\":\"/Users/dev/proj/bin/e\",\"args\":[\"/Users/dev/proj/in\"]},\"f\":{\"command\":\"/opt/x/f\",\"args\":[\"/tmp/y\"]},\"g\":{\"command\":\"/Users/dev/proj\",\"args\":[]},\"h\":{\"type\":\"http\",\"url\":\"https://h.example/mcp\"},\"i\":{\"command\":\"npx\",\"args\":[\"-y\",\"/Users/dev/other/pkg\"]},\"j\":{\"command\":\"/Users/dev/projx/bin/j\"},\"k\":{\"command\":\"/Users/dev/bin/k\",\"args\":[\"/Users/dev/bin/k\"]}}}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "a",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "~/.local/bin/tool",
+         "args": [],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/a",
+       "label": "a",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: ~/.local/bin/tool; needs tool on the machine; carries no secret",
+       "signIn": "none"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "b",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "/Users/dev/.local/bin",
+         "args": [],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/b",
+       "label": "b",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "skip",
+       "detail": "stdio: ~/.local/bin; needs ~/.local/bin on the machine; carries no secret",
+       "signIn": "none",
+       "reason": "runs against ~/.local/bin, outside the project, which nothing carries to that computer"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "c",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "/Users/dev/.local/bin2/x",
+         "args": [],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/c",
+       "label": "c",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "skip",
+       "detail": "stdio: ~/.local/bin2/x; needs ~/.local/bin2/x on the machine; carries no secret",
+       "signIn": "none",
+       "reason": "runs against ~/.local/bin2/x, outside the project, which nothing carries to that computer"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "d",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "~/bin/d",
+         "args": [
+          "~/notes",
+          "/Users/dev/proj/in.db",
+          "/Users/dev/data/x.db",
+          "--cfg=/Users/dev/etc/c.json",
+          "/Users/dev/proj"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/d",
+       "label": "d",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "skip",
+       "detail": "stdio: ~/bin/d ~/notes ~/proj/in.db ~/data/x.db --cfg=/Users/dev/etc/c.json ~/proj; needs ~/bin/d on the machine; ~/notes is not on this computer; unticked, tick it if the server creates it on first start; ~/proj/in.db is not on this computer; unticked, tick it if the server creates it on first start; ~/data/x.db is not on this computer; unticked, tick it if the server creates it on first start; ~/etc/c.json is not on this computer; unticked, tick it if the server creates it on first start; ~/proj is not on this computer; unticked, tick it if the server creates it on first start; carries no secret",
+       "signIn": "none",
+       "reason": "runs against ~/bin/d, ~/notes, ~/data/x.db, ~/etc/c.json, outside the project, which nothing carries to that computer"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "e",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "/Users/dev/proj/bin/e",
+         "args": [
+          "/Users/dev/proj/in"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/e",
+       "label": "e",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "skip",
+       "detail": "stdio: ~/proj/bin/e ~/proj/in; needs ~/proj/bin/e on the machine; ~/proj/in is not on this computer; unticked, tick it if the server creates it on first start; carries no secret",
+       "signIn": "none"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "f",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "/opt/x/f",
+         "args": [
+          "/tmp/y"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/f",
+       "label": "f",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: /opt/x/f /tmp/y; needs /opt/x/f on the machine; carries no secret",
+       "signIn": "none"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "g",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "/Users/dev/proj",
+         "args": [],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/g",
+       "label": "g",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: ~/proj; needs ~/proj on the machine; carries no secret",
+       "signIn": "none"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "h",
+        "scope": "home",
+        "transport": {
+         "kind": "http",
+         "url": "https://h.example/mcp",
+         "headers": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/h",
+       "label": "h",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "http: h.example/mcp; nothing to install; its sign-in is kept with the Claude Code login",
+       "signIn": "oauth"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "i",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "-y",
+          "/Users/dev/other/pkg"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/i",
+       "label": "i",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "skip",
+       "detail": "stdio: npx ~/other/pkg; runs via npx; ~/other/pkg is not on this computer; unticked, tick it if the server creates it on first start; carries no secret",
+       "signIn": "none",
+       "reason": "runs against ~/other/pkg, outside the project, which nothing carries to that computer"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "j",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "/Users/dev/projx/bin/j",
+         "args": [],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/j",
+       "label": "j",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "skip",
+       "detail": "stdio: ~/projx/bin/j; needs ~/projx/bin/j on the machine; carries no secret",
+       "signIn": "none",
+       "reason": "runs against ~/projx/bin/j, outside the project, which nothing carries to that computer"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "k",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "/Users/dev/bin/k",
+         "args": [
+          "/Users/dev/bin/k"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/k",
+       "label": "k",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "skip",
+       "detail": "stdio: ~/bin/k ~/bin/k; needs ~/bin/k on the machine; ~/bin/k is not on this computer; unticked, tick it if the server creates it on first start; carries no secret",
+       "signIn": "none",
+       "reason": "runs against ~/bin/k, outside the project, which nothing carries to that computer"
+      }
+     }
+    ],
+    "read": [],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json"
+   ]
+  },
+  {
+   "name": "agents with no launch road read nothing",
+   "laptop": {
+    "files": {
+     "~/.gemini/settings.json": "{\"mcpServers\":{\"g\":{\"command\":\"npx\"}}}",
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "gemini",
+      "opencode"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [],
+    "read": [],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "no agents",
+   "laptop": {
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [],
+    "read": [],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+   ]
+  },
+  {
+   "name": "codex then claude, every project server tracked",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"p1\":{\"command\":\"npx\",\"args\":[\"p1\"]}}}",
+     "~/.codex/config.toml": "[projects.\"/Users/dev/proj\"]\ntrust_level = \"trusted\"\n[mcp_servers.u]\ncommand = \"uvx\"\n",
+     "/Users/dev/proj/.codex/config.toml": "[mcp_servers.c1]\ncommand = \"uvx\"\nargs = [\"c1\"]\n"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n",
+     "git -C /Users/dev/proj ls-files -- .mcp.json": ".mcp.json\n",
+     "git -C /Users/dev/proj ls-files -- .codex/config.toml": ".codex/config.toml\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "codex",
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [],
+    "read": [
+     "codex",
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/proj/.codex/config.toml",
+    "run git -C /Users/dev/proj ls-files -- .codex/config.toml",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "codex untracked project server is carried",
+   "laptop": {
+    "files": {
+     "~/.codex/config.toml": "[projects.\"/Users/dev/proj\"]\ntrust_level = \"trusted\"\n[mcp_servers.u]\ncommand = \"uvx\"\n",
+     "/Users/dev/proj/.codex/config.toml": "[mcp_servers.c1]\ncommand = \"uvx\"\nargs = [\"c1\"]\n"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "codex"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "codex",
+      "turn": {
+       "server": {
+        "name": "c1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "uvx",
+         "args": [
+          "c1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/.codex/config.toml"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/codex/c1",
+       "label": "c1",
+       "group": "Codex MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: uvx c1; needs uv, installed on the machine when missing; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "codex"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/proj/.codex/config.toml",
+    "run git -C /Users/dev/proj ls-files -- .codex/config.toml"
+   ]
+  },
+  {
+   "name": "a local-only claude server: no git ls-files call",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{\"l1\":{\"command\":\"npx\",\"args\":[\"l1\"]}}}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "l1",
+        "scope": "home",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "l1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "local",
+       "file": "/Users/dev/.claude.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/l1",
+       "label": "l1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx l1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json"
+   ]
+  },
+  {
+   "name": "a project http server with a secret header",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"h\":{\"type\":\"http\",\"url\":\"https://h.example/mcp\",\"headers\":{\"Authorization\":\"Bearer ${TOK}\"}}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "h",
+        "scope": "user",
+        "transport": {
+         "kind": "http",
+         "url": "https://h.example/mcp",
+         "headers": {
+          "Authorization": "Bearer ${TOK}"
+         }
+        },
+        "envRefs": [
+         "TOK"
+        ]
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/h",
+       "label": "h",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "consent": true,
+       "keys": [
+        "Authorization"
+       ],
+       "detail": "http: h.example/mcp; nothing to install; reads TOK from the environment, set it on the machine; carries a secret: header Authorization (13 B); its sign-in is kept with the Claude Code login",
+       "signIn": "token"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "outside git, a folder with a trailing slash",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"p1\":{\"command\":\"npx\",\"args\":[\"p1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj/ rev-parse --path-format=absolute --show-toplevel --git-common-dir": "fatal\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj/",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "p1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "p1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/p1",
+       "label": "p1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx p1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "key": "/Users/dev/proj/"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj/ rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj/ ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "in git, a folder with a trailing slash",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"p1\":{\"command\":\"npx\",\"args\":[\"p1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj/ rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n",
+     "git -C /Users/dev/proj ls-files -- .mcp.json": ""
+    }
+   },
+   "args": [
+    "/Users/dev/proj/",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "p1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "p1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/p1",
+       "label": "p1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx p1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj/ rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- .mcp.json"
+   ]
+  },
+  {
+   "name": "two project files give one ls-files call in server order",
+   "laptop": {
+    "files": {
+     "~/.claude.json": "{\"mcpServers\":{\"homesrv\":{\"command\":\"npx\",\"args\":[\"home-mcp\"]}},\"projects\":{\"/Users/dev/proj\":{\"mcpServers\":{}}}}",
+     "/Users/dev/proj/sub/.mcp.json": "{\"mcpServers\":{\"s1\":{\"command\":\"npx\",\"args\":[\"s1\"]}}}",
+     "/Users/dev/proj/.mcp.json": "{\"mcpServers\":{\"r1\":{\"command\":\"npx\",\"args\":[\"r1\"]}}}"
+    },
+    "exec": {
+     "git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir": "/Users/dev/proj\n/Users/dev/proj/.git\n"
+    }
+   },
+   "args": [
+    "/Users/dev/proj/sub",
+    {
+     "agents": [
+      "claude"
+     ],
+     "keep": []
+    }
+   ],
+   "out": {
+    "servers": [
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "s1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "s1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/sub/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/s1",
+       "label": "s1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx s1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     },
+     {
+      "agent": "claude",
+      "turn": {
+       "server": {
+        "name": "r1",
+        "scope": "user",
+        "transport": {
+         "kind": "stdio",
+         "command": "npx",
+         "args": [
+          "r1"
+         ],
+         "env": {}
+        },
+        "envRefs": []
+       },
+       "scope": "project",
+       "file": "/Users/dev/proj/.mcp.json"
+      },
+      "row": {
+       "rung": "agents",
+       "id": "agents/mcp/claude/r1",
+       "label": "r1",
+       "group": "Claude Code MCP servers",
+       "paths": [],
+       "bytes": 0,
+       "default": "bring",
+       "detail": "stdio: npx r1; runs via npx; carries no secret",
+       "signIn": "none"
+      }
+     }
+    ],
+    "read": [
+     "claude"
+    ],
+    "checkout": {
+     "top": "/Users/dev/proj",
+     "key": "/Users/dev/proj"
+    }
+   },
+   "calls": [
+    "run git -C /Users/dev/proj/sub rev-parse --path-format=absolute --show-toplevel --git-common-dir",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/proj/sub/.mcp.json",
+    "read /Users/dev/proj/.mcp.json",
+    "read /Users/dev/.mcp.json",
+    "read /Users/.mcp.json",
+    "read /.mcp.json",
+    "run git -C /Users/dev/proj ls-files -- sub/.mcp.json .mcp.json"
+   ]
+  }
+ ],
+ "outside_project_line": [
+  {
+   "name": "[]",
+   "args": [
+    []
+   ],
+   "out": "runs against , outside the project, which nothing carries to that computer"
+  },
+  {
+   "name": "[\"~/a\"]",
+   "args": [
+    [
+     "~/a"
+    ]
+   ],
+   "out": "runs against ~/a, outside the project, which nothing carries to that computer"
+  },
+  {
+   "name": "[\"~/a\",\"~/b\",\"~/c\"]",
+   "args": [
+    [
+     "~/a",
+     "~/b",
+     "~/c"
+    ]
+   ],
+   "out": "runs against ~/a, ~/b, ~/c, outside the project, which nothing carries to that computer"
+  },
+  {
+   "name": "[\"~/bin/mine\",\"~/data/x.db\"]",
+   "args": [
+    [
+     "~/bin/mine",
+     "~/data/x.db"
+    ]
+   ],
+   "out": "runs against ~/bin/mine, ~/data/x.db, outside the project, which nothing carries to that computer"
+  }
+ ]
+}
