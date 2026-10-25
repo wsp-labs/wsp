@@ -392,3 +392,91 @@
   margin-top: 12px;
 }
 
+/* A diagram is drawn for the page, so it has no frame, and on a wide screen it gets more room than the text. */
+.post figure:has(img[src$=".svg"]),
+.post figure:has(img[src*="/diagram-"]) {
+  margin-block: 3.5rem;
+}
+.post figure img[src$=".svg"],
+.post figure img[src*="/diagram-"] {
+  border: 0;
+  border-radius: 0;
+}
+@media (min-width: 1024px) {
+  .post figure:not(.inset):has(> img),
+  .post figure:has(video) {
+    margin-inline: -80px;
+  }
+}
+/* A photo of a small window sits in a panel at its own size, not stretched across the column. */
+.post figure.inset {
+  padding: 2.5rem 1.5rem 1.25rem;
+  border-radius: 16px;
+  background: rgb(236 230 220 / 0.03);
+  border: 1px solid var(--border);
+}
+.post figure.inset img {
+  display: block;
+  max-width: 540px;
+  margin-inline: auto;
+}
+/* A post's breadcrumb, set in the mono face and kept quiet. */
+.crumbs {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.6;
+  color: var(--faint);
+}
+.crumbs a {
+  transition: color 150ms;
+}
+.crumbs a:hover {
+  color: var(--foreground);
+}
+/* A table in a post: its own box, quiet rules, numbers lined up. Wide ones scroll inside the box. */
+.post table {
+  width: 100%;
+  margin: 2rem 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.post thead th {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  background: rgb(236 230 220 / 0.03);
+}
+.post th,
+.post td {
+  padding: 0.7rem 1rem;
+  text-align: left;
+  vertical-align: top;
+}
+.post tbody td {
+  border-top: 1px solid var(--border);
+}
+.post th[align="right"],
+.post td[align="right"] {
+  text-align: right;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .post table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+.post thead th:first-child {
+  border-top-left-radius: 11px;
+}
+.post thead th:last-child {
+  border-top-right-radius: 11px;
+}

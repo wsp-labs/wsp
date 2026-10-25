@@ -1749,6 +1749,25 @@ describe("machineExecStream holding a line written ahead of when it is due", () 
     expect(lines).toEqual(["one"]);
   }, 15_000);
 
+  it("a wait already refused when its line is handed over drops the line and leaves no unhandled rejection", async () => {
+    const unhandled: unknown[] = [];
+    const note = (reason: unknown): void => void unhandled.push(reason);
+    process.on("unhandledRejection", note);
+    try {
+      const { machine, runDir } = localGuest();
+      const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+      const { lines, done } = read(stream);
+      stream.writeAfter!("two", Promise.reject(new Error("stopped")));
+      await new Promise(resolve => setTimeout(resolve, 300));
+      stream.closeInput();
+      await done;
+      expect(lines).toEqual(["one"]);
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", note);
+    }
+  }, 15_000);
+
   it("hands a held seed over once when a write lands as it comes due, and a prompt with the same words goes in each time, through the guest's own shell", async () => {
     // The guest's cat reads a held seed at once and prints it a second later, so two hand-overs that ran at once would
     // both have found the channel empty and both append it.

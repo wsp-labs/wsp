@@ -657,6 +657,11 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
       },
       writeAfter: (line, after) => {
         if (!hasInput) throw new Error("this stream has no input channel");
+        // Taken at once, so a refusal that comes while an earlier line still holds the queue is never left unhandled.
+        const due = after.then(
+          () => true,
+          () => false,
+        );
         const before = parkedLine;
         let settled: () => void = () => {};
         const mine: Promise<void> = new Promise(resolve => (settled = resolve));
@@ -664,13 +669,11 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
         const park = (): Promise<void> => {
           writeOwned(`${base}.late.key`, randomBytes(6).toString("hex"));
           writeOwned(`${base}.late`, `${line}\n`);
-          return after.then(
-            () => releaseLate(base),
-            () => {
-              rmSync(`${base}.late`, { force: true });
-              rmSync(`${base}.late.key`, { force: true });
-            },
-          );
+          return due.then(isDue => {
+            if (isDue) return releaseLate(base);
+            rmSync(`${base}.late`, { force: true });
+            rmSync(`${base}.late.key`, { force: true });
+          });
         };
         void (before === undefined ? park() : before.then(park))
           .catch(() => undefined)

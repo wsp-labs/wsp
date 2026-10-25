@@ -132,7 +132,7 @@ cx.observe(&entity, |this, observed, cx| {
 }).detach();
 ```
 
-## subscribe_in — Subscription with Window Access
+## subscribe_in, Subscription with Window Access
 
 Use when the subscription callback needs `&mut Window`:
 
@@ -162,8 +162,8 @@ impl MyComponent {
 ```
 
 `subscribe` vs `subscribe_in`:
-- `cx.subscribe(&entity, |this, source, event, cx|)` — no window
-- `cx.subscribe_in(&entity, window, |this, source, event, window, cx|)` — window access
+- `cx.subscribe(&entity, |this, source, event, cx|)`, no window
+- `cx.subscribe_in(&entity, window, |this, source, event, window, cx|)`, window access
 
 ## observe_window_activation
 
@@ -190,12 +190,12 @@ cx.observe_global::<Theme>(|cx| {
 Subscriptions are cancelled when dropped. Two ways to keep alive:
 
 ```rust
-// 1. .detach() — lives until entity is dropped
+// 1. .detach(), lives until entity is dropped
 cx.subscribe(&entity, |this, _, event, cx| {
     // ...
 }).detach();
 
-// 2. Store in struct — cancelled when struct drops
+// 2. Store in struct, cancelled when struct drops
 struct MyView {
     _subscriptions: Vec<Subscription>,
 }

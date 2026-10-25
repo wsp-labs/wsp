@@ -679,6 +679,11 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
       },
       writeAfter: (line, after) => {
         if (!hasInput) throw new Error("this stream has no input channel");
+        // Taken at once, so a refusal that comes while the line is still being parked is never left unhandled.
+        const dueAt = after.then(
+          () => true,
+          () => false,
+        );
         const before = parkedLine ?? Promise.resolve();
         let settled: () => void = () => {};
         const mine: Promise<void> = new Promise(resolve => (settled = resolve));
@@ -693,10 +698,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
               () => true,
               () => false,
             );
-          const due = await after.then(
-            () => true,
-            () => false,
-          );
+          const due = await dueAt;
           if (!due) {
             if (parked) await machine.exec(`rm -f ${q(base)}.late ${q(base)}.late.key`, { timeoutMs: execTimeoutMs });
             return;

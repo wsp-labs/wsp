@@ -204,11 +204,11 @@ async fn test_external_io(cx: &mut TestAppContext) {
 
 ## Testing Crash-Free State Management (Re-entrancy)
 
-The most dangerous class of GPUI bugs is **entity re-entrancy**: code that tries to update or read an entity while it is already locked in a render/update pass. These bugs are invisible at compile time — they only panic at runtime, typically when the user clicks something in a list or dropdown.
+The most dangerous class of GPUI bugs is **entity re-entrancy**: code that tries to update or read an entity while it is already locked in a render/update pass. These bugs are invisible at compile time, they only panic at runtime, typically when the user clicks something in a list or dropdown.
 
 **Key properties of re-entrancy panics:**
 - Triggered by user interaction (click, key press), not during static rendering.
-- `#[should_panic]` only confirms the bug exists — tests must pass *without* panicking.
+- `#[should_panic]` only confirms the bug exists, tests must pass *without* panicking.
 - `Select` commits through `defer_in` after the key or click dispatch returns. Wait for the result with `cx.wait_for` instead of asserting straight after the interaction.
 
 Drive the component the way a user does. `SelectState` keeps its list state `pub(crate)`, so a test outside `gpui-component` opens the menu, presses keys, and observes through `selected_value()`, the element snapshot, and the delegate's own hooks.
@@ -275,7 +275,7 @@ async fn confirming_from_the_keyboard_commits_the_value(cx: &mut TestAppContext)
     });
     let language = language.unwrap();
 
-    // Open the menu, move to "Go" and confirm — the same path a user takes.
+    // Open the menu, move to "Go" and confirm, the same path a user takes.
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
         window.within("language").click("input", cx);
