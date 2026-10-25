@@ -37,7 +37,14 @@ export function tapeOf(env: Readonly<Record<string, string | undefined>>, door: 
   }
   const path = join(dir, `${door}-${process.pid}-${++opened}.tape`);
   const secrets = new Set<string>();
-  const marked = (text: string): string => (hostToken === undefined || hostToken.trim().length < 4 ? text : text.split(hostToken).join(HOST_TOKEN_MARK));
+  // Around the marks already written, since a host token can be the text of a mark ("host-token" is one).
+  const marked = (text: string): string =>
+    hostToken === undefined || hostToken.trim().length < 4
+      ? text
+      : text
+          .split(HOST_TOKEN_MARK)
+          .map(piece => piece.split(hostToken).join(HOST_TOKEN_MARK))
+          .join(HOST_TOKEN_MARK);
   // A tape is a witness: a frame it cannot write, one nested past what JSON.stringify walks or a full disk, costs
   // the tape that line and never changes what the host answers.
   const write = (line: Record<string, unknown>): void => {
