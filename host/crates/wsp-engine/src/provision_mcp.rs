@@ -160,6 +160,9 @@ pub async fn headless_keys(machine: &dyn Machine, home: &str, stores: &IndexMap<
     failed
 }
 
+/// Called once per file the merge read, with the names of this computer's servers standing in it.
+pub type IntoReport = Arc<dyn Fn(&str, &[String])>;
+
 /// provision-mcp.ts:161 `provisionMcp`'s options.
 #[derive(Clone)]
 pub struct ProvisionMcpOptions {
@@ -173,7 +176,7 @@ pub struct ProvisionMcpOptions {
     /// `None` is the TS's absent `stores`.
     pub stores: Option<IndexMap<String, String>>,
     /// Called once per file the merge read, with the names of this computer's servers standing in it.
-    pub into: Option<Arc<dyn Fn(&str, &[String])>>,
+    pub into: Option<IntoReport>,
 }
 
 /// provision-mcp.ts:158 `provisionMcp`: one row per server of the plan, in mcpRows' order. Never fails: a read or a

@@ -131,7 +131,10 @@ pub fn merge_facts(prior: Option<&BuildFacts>, result: Option<&ImportResult>) ->
 
 /// The items a facts list holds, whole ones only: a partial item is dropped (spec/context_probe.md, open point 1).
 fn items<T: serde::de::DeserializeOwned>(v: &Value, key: &str) -> Vec<T> {
-    v.get(key).and_then(Value::as_array).map(|a| a.iter().filter_map(|x| serde_json::from_value(x.clone()).ok()).collect()).unwrap_or_default()
+    v.get(key)
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(|x| serde_json::from_value(x.clone()).ok()).collect())
+        .unwrap_or_default()
 }
 
 /// machine-context.ts:93. Base64 of UTF-8 JSON; `None` where it does not decode or parse.

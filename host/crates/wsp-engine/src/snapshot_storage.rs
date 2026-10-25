@@ -92,8 +92,10 @@ fn stamp_ms(s: &str) -> f64 {
     }
     let mut parts = s.split('-');
     let year = parts.next().filter(|y| y.len() == 4 && y.bytes().all(|b| b.is_ascii_digit()));
-    let month = parts.next().map_or(Some(1), |m| (m.len() == 2 && m.bytes().all(|b| b.is_ascii_digit())).then(|| m.parse::<i8>().ok()).flatten());
-    let day = parts.next().map_or(Some(1), |d| (d.len() == 2 && d.bytes().all(|b| b.is_ascii_digit())).then(|| d.parse::<i8>().ok()).flatten());
+    let month =
+        parts.next().map_or(Some(1), |m| (m.len() == 2 && m.bytes().all(|b| b.is_ascii_digit())).then(|| m.parse::<i8>().ok()).flatten());
+    let day =
+        parts.next().map_or(Some(1), |d| (d.len() == 2 && d.bytes().all(|b| b.is_ascii_digit())).then(|| d.parse::<i8>().ok()).flatten());
     let (Some(year), Some(month), Some(day), None) = (year, month, day, parts.next()) else { return f64::NAN };
     let Ok(date) = jiff::civil::Date::new(year.parse().unwrap_or(0), month, day) else { return f64::NAN };
     date.at(0, 0, 0, 0).to_zoned(jiff::tz::TimeZone::UTC).map_or(f64::NAN, |z| z.timestamp().as_millisecond() as f64)
@@ -129,7 +131,8 @@ pub struct OwnerSplit<T> {
 pub fn split_by_owner<T: OwnedRow + Clone>(rows: &[T], read: &OwnerRead) -> Result<OwnerSplit<T>> {
     if read.host_id.is_empty() {
         return Err(EngineError::Other {
-            message: "the snapshot split needs this host's mark; without one it could not tell this host's snapshots from another host's".into(),
+            message: "the snapshot split needs this host's mark; without one it could not tell this host's snapshots from another host's"
+                .into(),
             code: None,
         });
     }
@@ -161,10 +164,8 @@ pub fn snapshot_storage(rows: &[SnapshotRow], pricing: &SnapshotStoragePricing, 
         usd_per_gb_month: pricing.wire.usd_per_gb_month,
         billed_from: pricing.wire.billed_from.clone(),
         monthly_usd: JsNumber(snapshot_monthly_usd(total_bytes, pricing, named)),
-        named: billed_by_count(pricing).then(|| SnapshotStorageNamed {
-            count: JsNumber(named as f64),
-            free: JsNumber(f64::from(pricing.free_named.unwrap_or(0))),
-        }),
+        named: billed_by_count(pricing)
+            .then(|| SnapshotStorageNamed { count: JsNumber(named as f64), free: JsNumber(f64::from(pricing.free_named.unwrap_or(0))) }),
         kept: group(&split.kept),
         orphans: group(&split.orphans),
         others: group(&split.foreign),
@@ -199,7 +200,11 @@ pub struct RetentionPlan {
 
 /// The version a version's parent is: its recorded parent snapshot, else the highest version below it, which is
 /// assumed where the version has no base recorded.
-fn parent_of<'a>(manifest: &'a GoldenManifest, by_snapshot: &HashMap<&str, &'a GoldenVersion>, v: &GoldenVersion) -> (Option<&'a GoldenVersion>, bool) {
+fn parent_of<'a>(
+    manifest: &'a GoldenManifest,
+    by_snapshot: &HashMap<&str, &'a GoldenVersion>,
+    v: &GoldenVersion,
+) -> (Option<&'a GoldenVersion>, bool) {
     if let Some(parent) = &v.parent_snapshot_id {
         return (by_snapshot.get(parent.as_str()).copied(), false);
     }
@@ -244,11 +249,7 @@ pub fn retention_plan(
     let older: Vec<&GoldenVersion> = chain[kept_count..].iter().rev().copied().collect();
     let mut off_chain: Vec<&GoldenVersion> = match head {
         None => Vec::new(),
-        Some(head) => manifest
-            .versions
-            .iter()
-            .filter(|v| v.version.0 < head.version.0 && !chain.iter().any(|c| same(c, v)))
-            .collect(),
+        Some(head) => manifest.versions.iter().filter(|v| v.version.0 < head.version.0 && !chain.iter().any(|c| same(c, v))).collect(),
     };
     off_chain.sort_by(|a, b| a.version.0.total_cmp(&b.version.0));
 

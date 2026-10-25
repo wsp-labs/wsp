@@ -344,12 +344,8 @@ pub fn brewfile_for(entries: &[RecipeEntry], brew: &BrewTable) -> Brewfile {
             }
         }
     }
-    let lines: Vec<String> = out
-        .taps
-        .iter()
-        .map(|t| format!("tap \"{t}\""))
-        .chain(out.formulae.iter().map(|f| format!("brew \"{f}\"")))
-        .collect();
+    let lines: Vec<String> =
+        out.taps.iter().map(|t| format!("tap \"{t}\"")).chain(out.formulae.iter().map(|f| format!("brew \"{f}\""))).collect();
     out.text = if lines.is_empty() { String::new() } else { format!("{}\n", lines.join("\n")) };
     out
 }

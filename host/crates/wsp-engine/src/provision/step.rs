@@ -17,12 +17,11 @@ use wsp_wire::types::js_number::JsInt;
 use wsp_wire::views::golden_image::{agent_of_row, GoldenStage};
 use wsp_wire::views::place::{PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceSetupStep};
 use wsp_words::js::{js_trim, utf16};
-use wsp_words::words::base::plural;
 use wsp_words::views::place_setup_words::provision_servers_line;
+use wsp_words::words::base::plural;
 
 use super::plan::{
-    present_by_what_waits, present_steps, row, row_line, row_of, PresentRead, ProvisionPlan, ProvisionStage, StageAt,
-    Versions,
+    present_by_what_waits, present_steps, row, row_line, row_of, PresentRead, ProvisionPlan, ProvisionStage, StageAt, Versions,
 };
 use crate::errors::Result;
 use crate::golden_seam::{
@@ -32,8 +31,8 @@ use crate::golden_seam::{
 use crate::machine::{ExecOptions, Machine, RunOptions};
 use crate::machine_context::{apply_machine_context, ApplyContextOptions, ProbeShells};
 use crate::provision_files::{
-    close_agent_files, landed_at, merged_into_line, once_paths_of, outside_after_script, outside_before_script, provision_files, store_roots,
-    OwnedPaths, ProvisionFilesAsk, ProvisionLanding,
+    close_agent_files, landed_at, merged_into_line, once_paths_of, outside_after_script, outside_before_script, provision_files,
+    store_roots, OwnedPaths, ProvisionFilesAsk, ProvisionLanding,
 };
 use crate::provision_mcp::{headless_keys, provision_mcp, ProvisionMcpOptions};
 
@@ -123,7 +122,13 @@ pub fn left_off(compiler: bool) -> BTreeSet<String> {
 }
 
 /// provision.ts:367 `projectServersStep`.
-pub async fn project_servers_step(machine: &dyn Machine, mcp: &McpPlan, path: &str, stage: ProvisionStage, on: &ProvisionOn) -> Vec<PlaceProvisionRow> {
+pub async fn project_servers_step(
+    machine: &dyn Machine,
+    mcp: &McpPlan,
+    path: &str,
+    stage: ProvisionStage,
+    on: &ProvisionOn,
+) -> Vec<PlaceProvisionRow> {
     let listener_stage = stage.clone();
     let servers = provision_mcp(
         machine,
@@ -247,7 +252,7 @@ pub fn hook_of(row_id: &str) -> Option<(String, String)> {
 
 /// provision.ts:551 `lastWords`: the last line of the trimmed text, its first 300 UTF-16 units; `None` for empty.
 pub fn last_words(text: &str) -> Option<String> {
-    let last = js_trim(text).split('\n').last()?;
+    let last = js_trim(text).split('\n').next_back()?;
     let cut = utf16::cut(last, 300);
     (!cut.is_empty()).then_some(cut)
 }
@@ -291,11 +296,20 @@ async fn hooked(machine: &dyn Machine, plan: &ProvisionPlan, row: PlaceProvision
     if code == 0 {
         return row;
     }
-    PlaceProvisionRow { outcome: PlaceProvisionRowOutcome::Failed, note: Some(format!("{on}: {}", words_or_exit(&stdout, &stderr, code))), ..row }
+    PlaceProvisionRow {
+        outcome: PlaceProvisionRowOutcome::Failed,
+        note: Some(format!("{on}: {}", words_or_exit(&stdout, &stderr, code))),
+        ..row
+    }
 }
 
 /// provision.ts:285 `floorStep`: the floor through installBase, keeping this computer's caches: only a failed floor row is a row.
-async fn floor_step(machine: &dyn Machine, plan: &ProvisionPlan, run: &SharedRun, stage: &ProvisionStage) -> Result<Vec<PlaceProvisionRow>> {
+async fn floor_step(
+    machine: &dyn Machine,
+    plan: &ProvisionPlan,
+    run: &SharedRun,
+    stage: &ProvisionStage,
+) -> Result<Vec<PlaceProvisionRow>> {
     let listener = stage.clone();
     let on_stage: ToolStage = Arc::new(move |_which: GoldenStage, detail: Option<&str>| {
         if let Some(detail) = detail {
@@ -305,12 +319,7 @@ async fn floor_step(machine: &dyn Machine, plan: &ProvisionPlan, run: &SharedRun
     let base = install_base_with(
         machine,
         on_stage,
-        InstallBaseOptions {
-            keep_caches: true,
-            path: Some(plan.path.clone()),
-            prefix: plan.prefix.clone(),
-            left: left_off(plan.compiler),
-        },
+        InstallBaseOptions { keep_caches: true, path: Some(plan.path.clone()), prefix: plan.prefix.clone(), left: left_off(plan.compiler) },
     )
     .await?;
     stage(&base.line, None, None);
@@ -326,7 +335,13 @@ async fn floor_step(machine: &dyn Machine, plan: &ProvisionPlan, run: &SharedRun
 
 /// provision.ts:296 `toolsStep`: some of the plan's steps through the one tools loop, those the computer already
 /// satisfies read first, each row read once the loop's own checks have run.
-async fn tools_step(machine: &dyn Machine, plan: &ProvisionPlan, steps: Vec<ToolInstall>, run: &SharedRun, stage: &ProvisionStage) -> Result<Vec<PlaceProvisionRow>> {
+async fn tools_step(
+    machine: &dyn Machine,
+    plan: &ProvisionPlan,
+    steps: Vec<ToolInstall>,
+    run: &SharedRun,
+    stage: &ProvisionStage,
+) -> Result<Vec<PlaceProvisionRow>> {
     if steps.is_empty() {
         return Ok(Vec::new());
     }
@@ -460,12 +475,20 @@ async fn files_round(
 }
 
 /// provision.ts:436 `stepRows`: the rows of one step, by the step's own rule.
-async fn step_rows(machine: &dyn Machine, plan: &ProvisionPlan, step: EngineStep, run: &SharedRun, stage: &ProvisionStage, on: &ProvisionOn) -> Result<Vec<PlaceProvisionRow>> {
+async fn step_rows(
+    machine: &dyn Machine,
+    plan: &ProvisionPlan,
+    step: EngineStep,
+    run: &SharedRun,
+    stage: &ProvisionStage,
+    on: &ProvisionOn,
+) -> Result<Vec<PlaceProvisionRow>> {
     let split = plan.agents.min(plan.steps.len());
     match step {
         EngineStep::Floor => floor_step(machine, plan, run, stage).await,
         EngineStep::Agents => {
-            let aside: Vec<PlaceProvisionRow> = plan.skipped.iter().map(|s| row(&s.id, &s.label, PlaceProvisionRowOutcome::Skipped, Some(s.note.clone()))).collect();
+            let aside: Vec<PlaceProvisionRow> =
+                plan.skipped.iter().map(|s| row(&s.id, &s.label, PlaceProvisionRowOutcome::Skipped, Some(s.note.clone()))).collect();
             for r in &aside {
                 stage(&row_line(r), None, Some(r));
             }
@@ -489,7 +512,10 @@ async fn step_rows(machine: &dyn Machine, plan: &ProvisionPlan, step: EngineStep
                 let (code, stdout, stderr) = answer(res);
                 let asked = if code == 0 { None } else { plugin.asked.as_ref().and_then(|asked| asked(&stdout)) };
                 let plugin_row = if code == 0 {
-                    PlaceProvisionRow { ms: Some(JsInt::from(now_ms() - started)), ..row(&plugin.id, &plugin.label, PlaceProvisionRowOutcome::Installed, None) }
+                    PlaceProvisionRow {
+                        ms: Some(JsInt::from(now_ms() - started)),
+                        ..row(&plugin.id, &plugin.label, PlaceProvisionRowOutcome::Installed, None)
+                    }
                 } else if let Some(note) = asked {
                     row(&plugin.id, &plugin.label, PlaceProvisionRowOutcome::Skipped, Some(note))
                 } else {
@@ -520,7 +546,12 @@ async fn step_rows(machine: &dyn Machine, plan: &ProvisionPlan, step: EngineStep
             };
             let context = apply_machine_context(
                 machine,
-                ApplyContextOptions { result: Some(result), path: Some(plan.path.clone()), shells: Some(ProbeShells::None), ..Default::default() },
+                ApplyContextOptions {
+                    result: Some(result),
+                    path: Some(plan.path.clone()),
+                    shells: Some(ProbeShells::None),
+                    ..Default::default()
+                },
             )
             .await;
             stage(&format!("machine context: {}", context.summary), None, None);
@@ -531,7 +562,13 @@ async fn step_rows(machine: &dyn Machine, plan: &ProvisionPlan, step: EngineStep
 
 /// The MCP step: the agents' own files round stays open, the servers merge into them, and the files are closed with
 /// the run's landed list cleared.
-async fn mcp_step(machine: &dyn Machine, plan: &ProvisionPlan, run: &SharedRun, stage: &ProvisionStage, on: &ProvisionOn) -> Result<Vec<PlaceProvisionRow>> {
+async fn mcp_step(
+    machine: &dyn Machine,
+    plan: &ProvisionPlan,
+    run: &SharedRun,
+    stage: &ProvisionStage,
+    on: &ProvisionOn,
+) -> Result<Vec<PlaceProvisionRow>> {
     let mut rows = match &plan.files {
         Some(files) => files_round(machine, files, FILES_LABEL, run, stage, on, false).await?,
         None => Vec::new(),
@@ -570,7 +607,8 @@ async fn mcp_step(machine: &dyn Machine, plan: &ProvisionPlan, run: &SharedRun, 
         let roots = store_roots(&on.home, &stores);
         for land in plan.files.iter().flat_map(|files| files.lands.iter()) {
             let names = if land.once { into.lock().unwrap().get(&landed_at(&on.home, &roots, &land.dest)).cloned() } else { None };
-            let at = rows.iter().position(|r| r.id == format!("files/{}", land.dest) && matches!(r.outcome, PlaceProvisionRowOutcome::Present));
+            let at =
+                rows.iter().position(|r| r.id == format!("files/{}", land.dest) && matches!(r.outcome, PlaceProvisionRowOutcome::Present));
             if let (Some(names), Some(at)) = (names, at) {
                 let note = [rows[at].note.clone(), Some(merged_into_line(&names))].into_iter().flatten().collect::<Vec<_>>().join("; ");
                 rows[at].note = Some(note);

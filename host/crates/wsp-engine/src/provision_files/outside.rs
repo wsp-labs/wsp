@@ -29,11 +29,7 @@ pub fn outside_head(root: &str) -> Vec<String> {
 
 /// provision-files.ts:667 `OUTSIDE_STATES`, the `states` shell function's lines.
 pub fn outside_states() -> Vec<String> {
-    let mut out = lines(&[
-        "states() {",
-        r#"  : > "$1.files""#,
-        "  while IFS= read -r p; do",
-    ]);
+    let mut out = lines(&["states() {", r#"  : > "$1.files""#, "  while IFS= read -r p; do"]);
     out.push(format!(r#"    if [ -L "$p" ]; then printf 'link:%s{TAB}%s{NL}' "$(readlink "$p" | sha256sum | cut -c1-64)" "$p""#));
     out.push(format!(r#"    elif [ -d "$p" ]; then printf 'dir{TAB}%s{NL}' "$p""#));
     out.push(r#"    elif [ -f "$p" ]; then printf '%s\000' "$p" >> "$1.files""#.to_string());
@@ -75,10 +71,7 @@ pub fn outside_still() -> Vec<String> {
 pub fn outside_listing(walked: &[String], out: &str, tests: &str) -> Vec<String> {
     let from: Vec<String> = walked.iter().map(|dir| format!(r#""$root"{}"#, shell_quote(dir))).collect();
     vec![
-        format!(
-            r#"find {} \( -path "$prefix" -o -path "*$nl*" \) -prune -o {tests}-print > "{out}.found" 2>/dev/null"#,
-            from.join(" ")
-        ),
+        format!(r#"find {} \( -path "$prefix" -o -path "*$nl*" \) -prune -o {tests}-print > "{out}.found" 2>/dev/null"#, from.join(" ")),
         format!(
             r#"[ $? -lt 128 ] && LC_ALL=C sort "{out}.found" > "{out}.part" && echo {LISTED} >> "{out}.part" && mv "{out}.part" "{out}" || {{ rm -f "$at".*; exit 0; }}"#
         ),
@@ -122,9 +115,9 @@ pub fn outside_after_script(step: &str, walked: &[String], root: &str) -> String
     out.extend(outside_listing(walked, "$at.after", ""));
     out.extend(outside_listing(walked, "$at.changed", r#"-cnewer "$at.mark" "#));
     out.extend(lines(&[r#"[ -f "$at.ours" ] || : > "$at.ours""#]));
-    out.push(format!(
-        r#"cat "$root"/var/lib/dpkg/info/*.list 2>/dev/null | wsp_root="$root" awk '{{ print ENVIRON["wsp_root"] $0 }}' | LC_ALL=C sort -u > "$at.dpkg""#
-    ));
+    out.push(
+        r#"cat "$root"/var/lib/dpkg/info/*.list 2>/dev/null | wsp_root="$root" awk '{ print ENVIRON["wsp_root"] $0 }' | LC_ALL=C sort -u > "$at.dpkg""#.to_string(),
+    );
     out.push(
         r#"{ LC_ALL=C comm -13 "$at.before" "$at.after"; LC_ALL=C comm -12 "$at.changed" "$at.ours"; } | LC_ALL=C sort -u | LC_ALL=C comm -23 - "$at.dpkg" | states "$at" | while IFS= read -r line; do"#
             .to_string(),

@@ -88,9 +88,7 @@ pub fn assumed_size(e: &RecipeEntry) -> AssumedSize {
 /// with the tag beside it. `None` otherwise, an empty tag included only where the TS reads one (spec).
 pub fn source_of(url: Option<&str>, tag: Option<&str>) -> Option<ToolSource> {
     let (repo, rest) = github_parts(url?)?;
-    let found = release_tag(rest)
-        .or_else(|| archive_tag(rest))
-        .or_else(|| if rest.is_empty() { tag.map(str::to_string) } else { None })?;
+    let found = release_tag(rest).or_else(|| archive_tag(rest)).or_else(|| if rest.is_empty() { tag.map(str::to_string) } else { None })?;
     Some(ToolSource { repo, tag: found })
 }
 
@@ -173,20 +171,10 @@ pub fn parse_brew_info(json: &Value) -> Vec<BrewFormula> {
         let macos_only = MACOS_ONLY_FORMULAE.contains(&full_name)
             || requirements.iter().any(|r| is_record(r).is_some_and(|r| r.get("name").and_then(Value::as_str) == Some("macos")));
         let stable = f.get("urls").and_then(is_record).and_then(|u| u.get("stable")).and_then(is_record);
-        let source = source_of(
-            stable.and_then(|s| s.get("url")).and_then(Value::as_str),
-            stable.and_then(|s| s.get("tag")).and_then(Value::as_str),
-        );
+        let source =
+            source_of(stable.and_then(|s| s.get("url")).and_then(Value::as_str), stable.and_then(|s| s.get("tag")).and_then(Value::as_str));
         let version = installed.and_then(|i| i.get("version")).and_then(Value::as_str).map(str::to_string);
-        out.push(BrewFormula {
-            name: name.to_string(),
-            full_name: full_name.to_string(),
-            deps,
-            bytes: None,
-            version,
-            macos_only,
-            source,
-        });
+        out.push(BrewFormula { name: name.to_string(), full_name: full_name.to_string(), deps, bytes: None, version, macos_only, source });
     }
     out
 }
@@ -208,7 +196,12 @@ fn du_line(line: &str) -> Option<(&str, &str)> {
     }
     let mut starts: Vec<usize> = after.char_indices().map(|(i, _)| i).take_while(|&i| i < ws_end).skip(1).collect();
     starts.push(ws_end);
-    starts.into_iter().rev().map(|start| &after[start..]).find(|path| !path.is_empty() && !path.contains(DOT_REFUSES)).map(|path| (digits, path))
+    starts
+        .into_iter()
+        .rev()
+        .map(|start| &after[start..])
+        .find(|path| !path.is_empty() && !path.contains(DOT_REFUSES))
+        .map(|path| (digits, path))
 }
 
 /// The name a du line is filed under when the caller names none: the last part of its path.

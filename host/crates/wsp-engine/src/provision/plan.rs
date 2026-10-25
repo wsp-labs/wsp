@@ -9,14 +9,14 @@ use wsp_catalog::catalog::{apt_need_rows, node_at_least, setup_need_rows};
 use wsp_catalog::road_modules::road_module_named;
 use wsp_catalog::roads::{is_road, InstallRoad};
 use wsp_wire::types::js_number::JsInt;
+use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::views::golden_image::agent_of_row;
 use wsp_wire::views::place::{PlaceProvisionRow, PlaceProvisionRowOutcome};
-use wsp_wire::types::shell_quote::shell_quote;
 use wsp_words::js::js_trim;
 use wsp_words::words::units::present_elsewhere_line;
 
-use crate::exec_detached::put::{markers_of, paged_reads};
 use crate::errors::Result;
+use crate::exec_detached::put::{markers_of, paged_reads};
 use crate::golden_seam::{
     agent_steps, path_line, via_road, AgentsPlan, GoldenImport, McpPlan, PackFiles, ToolInstall, ToolResult, ViaRoad,
 };
@@ -36,8 +36,11 @@ pub struct PlanPlugin {
     pub id: String,
     pub label: String,
     pub cmd: String,
-    pub asked: Option<Arc<dyn Fn(&str) -> Option<String>>>,
+    pub asked: Option<Asked>,
 }
+
+/// The `asked` callback of a tool row: the answer for a command, or none.
+pub type Asked = Arc<dyn Fn(&str) -> Option<String>>;
 
 /// provision.ts:34 a row set aside before anything ran.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,7 +204,12 @@ pub fn once_dests(imp: &GoldenImport) -> BTreeSet<String> {
 
 /// provision.ts:119 `oncePerDest`: the first landing per dest, in order.
 pub fn once_per_dest(lands: &[ProvisionLanding]) -> Vec<ProvisionLanding> {
-    lands.iter().enumerate().filter(|(at, land)| lands.iter().position(|o| o.dest == land.dest) == Some(*at)).map(|(_, land)| land.clone()).collect()
+    lands
+        .iter()
+        .enumerate()
+        .filter(|(at, land)| lands.iter().position(|o| o.dest == land.dest) == Some(*at))
+        .map(|(_, land)| land.clone())
+        .collect()
 }
 
 /// provision.ts:122 `provisionCountsOf`.
@@ -259,12 +267,9 @@ pub fn presence_tests(step: &ToolInstall, versions: Versions) -> Vec<String> {
             _ => format!("[ -n {read} ]"),
         };
         let test = match &step.below {
-            Some(below) if versions == Versions::Asked => format!(
-                "if {}; then {}; else {}; fi",
-                node_at_least(&below.node),
-                is(step.asks.as_deref()),
-                is(below.asks.as_deref())
-            ),
+            Some(below) if versions == Versions::Asked => {
+                format!("if {}; then {}; else {}; fi", node_at_least(&below.node), is(step.asks.as_deref()), is(below.asks.as_deref()))
+            }
             _ => is(step.asks.as_deref()),
         };
         tests.push(test);
@@ -375,10 +380,7 @@ pub fn row_of(result: &ToolResult, present: &IndexMap<String, PresentRead>, step
     let read = present.get(&result.id);
     let outcome = if result.outcome == "installed" && read.is_some() { "present" } else { result.outcome.as_str() };
     let note = if outcome == "present" { step.and_then(|s| present_elsewhere(s, read)) } else { result.note.clone() };
-    PlaceProvisionRow {
-        ms: result.ms.map(JsInt::from),
-        ..row(&result.id, &result.label, outcome_of(outcome), note)
-    }
+    PlaceProvisionRow { ms: result.ms.map(JsInt::from), ..row(&result.id, &result.label, outcome_of(outcome), note) }
 }
 
 /// A row with no kind, step, fix, keys, ms, earlier or project yet.

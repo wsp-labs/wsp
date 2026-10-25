@@ -227,7 +227,8 @@ pub fn select_then_update(
     }
     let mut conn = open(db, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
     let tx = conn.transaction().map_err(sql_error)?;
-    let values: Vec<String> = query(&tx, select, select_params)?.iter().map(|row| row.values().next().map_or_else(String::new, js_string)).collect();
+    let values: Vec<String> =
+        query(&tx, select, select_params)?.iter().map(|row| row.values().next().map_or_else(String::new, js_string)).collect();
     let changed = run_update(&tx, update)?;
     tx.commit().map_err(sql_error)?;
     Ok(Some((values, changed)))
@@ -355,7 +356,7 @@ fn read_value(value: ValueRef<'_>) -> Result<SqlValue> {
             return Err(EngineError::Other {
                 message: format!("Value is too large to be represented as a JavaScript number: {i}"),
                 code: None,
-            })
+            });
         }
         ValueRef::Integer(i) => SqlValue::Integer(i),
         ValueRef::Real(f) => SqlValue::Real(f),

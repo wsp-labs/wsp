@@ -67,7 +67,12 @@ impl ProjectStateResolver for HermesResolver {
     async fn move_state(&self, home: &str, from: &str, to: &str) -> Result<Vec<MovedState>> {
         let db = join_posix(&[home, DB]);
         let update = RowUpdate {
-            sql: format!("update sessions set cwd = {}, git_repo_root = {} where {}", moved_column("cwd"), moved_column("git_repo_root"), at_path()),
+            sql: format!(
+                "update sessions set cwd = {}, git_repo_root = {} where {}",
+                moved_column("cwd"),
+                moved_column("git_repo_root"),
+                at_path()
+            ),
             params: path_params(from, to),
         };
         let changed = update_rows(&db, &[update])?.and_then(|rows| rows.first().copied()).unwrap_or(0);

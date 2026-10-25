@@ -18,11 +18,7 @@ pub fn pi_project_key(path: &str) -> String {
 
 /// pi.ts:11. The key rule for the machine; pinned by the oracle.
 pub fn key_py() -> String {
-    format!(
-        "lambda p: \"--\" + re.sub({}, \"-\", re.sub({}, \"\", p)) + \"--\"",
-        py_data(&json!("[/\\\\:]")),
-        py_data(&json!("^/"))
-    )
+    format!("lambda p: \"--\" + re.sub({}, \"-\", re.sub({}, \"\", p)) + \"--\"", py_data(&json!("[/\\\\:]")), py_data(&json!("^/")))
 }
 
 /// pi.ts:12.

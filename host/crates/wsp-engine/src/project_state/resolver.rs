@@ -224,7 +224,7 @@ pub fn files_under(dir: &str, ext: &str) -> Result<Vec<String>> {
 /// resolver.ts:208. Rewrites the JSON lines `edit` answers true for, leaving every other byte alone; answers how many.
 /// An edit that fails fails the rewrite with that failure, the file as it was. Rules (temp file, mode, a file with none
 /// untouched, a failure leaving no temp file, the missing-file words) in spec/project_state_files.md.
-pub async fn rewrite_jsonl(file: &str, edit: &mut (dyn FnMut(&mut Map<String, Value>) -> Result<bool>)) -> Result<u64> {
+pub async fn rewrite_jsonl(file: &str, edit: &mut dyn FnMut(&mut Map<String, Value>) -> Result<bool>) -> Result<u64> {
     let text = read_text(file)?;
     let tmp = format!("{file}.wsp-move");
     let parts: Vec<&str> = text.split('\n').collect();

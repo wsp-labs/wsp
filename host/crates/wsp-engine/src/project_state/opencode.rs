@@ -20,8 +20,14 @@ pub struct OpencodeResolver;
 
 fn updates() -> [(&'static str, String); 3] {
     [
-        ("project", format!("update project set worktree = {}, sandboxes = '[]' where {}", moved_column("worktree"), under_path("worktree"))),
-        ("project directories", format!("update project_directory set directory = {} where {}", moved_column("directory"), under_path("directory"))),
+        (
+            "project",
+            format!("update project set worktree = {}, sandboxes = '[]' where {}", moved_column("worktree"), under_path("worktree")),
+        ),
+        (
+            "project directories",
+            format!("update project_directory set directory = {} where {}", moved_column("directory"), under_path("directory")),
+        ),
         ("sessions", format!("update session set directory = {} where {}", moved_column("directory"), under_path("directory"))),
     ]
 }
@@ -99,7 +105,8 @@ impl ProjectStateResolver for OpencodeResolver {
     async fn move_state(&self, home: &str, from: &str, to: &str) -> Result<Vec<MovedState>> {
         let db = join_posix(&[home, DB]);
         let updates = updates();
-        let statements: Vec<RowUpdate> = updates.iter().map(|(_, sql)| RowUpdate { sql: sql.clone(), params: path_params(from, to) }).collect();
+        let statements: Vec<RowUpdate> =
+            updates.iter().map(|(_, sql)| RowUpdate { sql: sql.clone(), params: path_params(from, to) }).collect();
         let Some(rows) = update_rows(&db, &statements)? else {
             return Ok(vec![]);
         };
@@ -111,7 +118,11 @@ impl ProjectStateResolver for OpencodeResolver {
             .collect())
     }
     async fn sessions(&self, home: &str, path: &str) -> Result<u64> {
-        count_rows(&join_posix(&[home, DB]), &format!("select count(*) as n from session where {}", under_path("directory")), &from_param(path))
+        count_rows(
+            &join_posix(&[home, DB]),
+            &format!("select count(*) as n from session where {}", under_path("directory")),
+            &from_param(path),
+        )
     }
     async fn entries(&self, _home: &str, _path: &str) -> Result<Vec<String>> {
         Ok(vec![])

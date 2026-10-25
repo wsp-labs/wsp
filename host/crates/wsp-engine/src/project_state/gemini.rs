@@ -7,16 +7,18 @@ use serde_json::{json, Map, Value};
 
 use wsp_catalog::config_write::config_sum;
 use wsp_wire::views::project_bundle::ProjectCarry;
+use wsp_words::js::js_trim_end;
 use wsp_words::js::number_string;
 use wsp_words::js::utf16::cmp as js_cmp;
-use wsp_words::js::js_trim_end;
 use wsp_words::project_path::under_project;
 
 use crate::config_here::write_config_here;
 use crate::errors::{EngineError, Result};
 use crate::project_state::merge::merge_script;
 use crate::project_state::py::py_data;
-use crate::project_state::resolver::{files_under, join_posix, js_read, js_write, moved_path, read_bytes, under_home, MovedState, ProjectStateResolver, SharedStore};
+use crate::project_state::resolver::{
+    files_under, join_posix, js_read, js_write, moved_path, read_bytes, under_home, MovedState, ProjectStateResolver, SharedStore,
+};
 
 /// gemini.ts:16.
 pub const REGISTRY: &str = "projects.json";
@@ -141,7 +143,8 @@ impl ProjectStateResolver for GeminiResolver {
         }
         let sum = config_sum(&bytes);
         write_config_here(&file, home, Some(sum.as_str()), &(js_write(&registry, Some(2)) + "\n"), None)?;
-        let mut moved = vec![MovedState { state: "project registry".into(), files: vec![file.clone()], changed: renamed.len() as u64, skipped: None }];
+        let mut moved =
+            vec![MovedState { state: "project registry".into(), files: vec![file.clone()], changed: renamed.len() as u64, skipped: None }];
         for (state, dir) in SLUG_DIRS {
             let mut files = Vec::new();
             for (path, slug, target) in &renamed {

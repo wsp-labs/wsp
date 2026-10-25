@@ -12,10 +12,10 @@ use sha2::{Digest, Sha256};
 use wsp_catalog::catalog::mcp_agents;
 use wsp_catalog::mcp_launch::{launch_server_road, own_server_config};
 use wsp_wire::types::shell_quote::shell_quote;
+use wsp_wire::views::place::{PlaceProvisionKind, PlaceProvisionRow, PlaceProvisionRowOutcome};
 use wsp_words::agents_report::servers_unread_line;
 use wsp_words::project_path::place_provision_paths;
 use wsp_words::views::place_setup_words::{provision_list_read_line, provision_packed_line, Packed};
-use wsp_wire::views::place::{PlaceProvisionKind, PlaceProvisionRow, PlaceProvisionRowOutcome};
 
 use super::land::{
     dest_test, file_label, key_test, land_agent_files, lands_once, once_paths_of, once_test, root_of, standing_digests, store_roots,
@@ -389,7 +389,8 @@ async fn files_round(machine: &dyn Machine, o: &ProvisionFilesAsk, say: &FilesSa
             }
         }
     };
-    let packed_line = Packed { bytes: packed.bytes as f64, files: packed.files.map(|n| n as f64), stood: packed.stood.as_ref().map(|s| s.len() as f64) };
+    let packed_line =
+        Packed { bytes: packed.bytes as f64, files: packed.files.map(|n| n as f64), stood: packed.stood.as_ref().map(|s| s.len() as f64) };
     say(&provision_packed_line(o.lands.len() as f64, &packed_line));
     let landed = land_agent_files(
         machine,
@@ -438,9 +439,7 @@ async fn left_out(machine: &dyn Machine, home: &str, roots: &StoreRoots, once: &
     staged
         .iter()
         .filter(|f| {
-            !lands_once(&f.dest, once)
-                && standing.at.get(&f.dest) == Some(&f.digest)
-                && standing.listed.get(&f.dest) == Some(&f.digest)
+            !lands_once(&f.dest, once) && standing.at.get(&f.dest) == Some(&f.digest) && standing.listed.get(&f.dest) == Some(&f.digest)
         })
         .map(|f| f.dest.clone())
         .collect()
