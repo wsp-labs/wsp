@@ -21,6 +21,7 @@ use wsp_engine::lifecycle::WorkspacePhase as EnginePhase;
 use wsp_engine::machine::{ExecOptions, Machine};
 use wsp_machines::machines::machines::attach::engine_phase_of;
 use wsp_machines::machines::machines::{MachinesConfig, Refusal};
+use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::workspace::WorkspacePhase;
 use wsp_words::exit::{HostError, Kind};
 
@@ -55,7 +56,7 @@ fn an_unreachable_answer_marks_the_record_once_and_any_answer_clears_it() {
         let watched = entry.borrow().machine.clone();
         let (err, line) = unreachable_line("m-1");
 
-        machine.s.lock().unwrap().exec.push_back(Err(err.clone()));
+        machine.s.borrow_mut().exec.push_back(Err(err.clone()));
         let first = watched.exec("ls", ExecOptions::default()).await.expect_err("the refusal is rethrown");
         assert_eq!(first.to_string(), line);
         {
@@ -65,7 +66,7 @@ fn an_unreachable_answer_marks_the_record_once_and_any_answer_clears_it() {
         }
         assert_eq!(emit_statuses(&w), vec![json!(["emitStatus", "ws_1", "unreachable", line])], "pushed once, with the sentence");
 
-        machine.s.lock().unwrap().exec.push_back(Err(err.clone()));
+        machine.s.borrow_mut().exec.push_back(Err(err.clone()));
         watched.exec("ls", ExecOptions::default()).await.expect_err("refused again");
         assert!(emit_statuses(&w).is_empty(), "a mark of this machine already stands: nothing more is pushed");
 
@@ -74,8 +75,8 @@ fn an_unreachable_answer_marks_the_record_once_and_any_answer_clears_it() {
         assert!(emit_statuses(&w).is_empty(), "and pushes nothing: the next tick says it");
 
         // A record that is not running is marked and not pushed.
-        entry.borrow_mut().record.phase = WorkspacePhase::Napping;
-        machine.s.lock().unwrap().exec.push_back(Err(err));
+        entry.borrow().record.borrow_mut().phase = WorkspacePhase::Napping;
+        machine.s.borrow_mut().exec.push_back(Err(err));
         watched.exec("ls", ExecOptions::default()).await.expect_err("refused");
         assert!(w.rt.unreached.borrow().contains_key("ws_1"));
         assert!(emit_statuses(&w).is_empty(), "no push for a record that is not running");
@@ -91,12 +92,12 @@ fn a_stopped_answer_adopts_the_pause() {
         let machine = machine_one();
         let entry = w.area.attach(running(), machine.clone() as Arc<dyn Machine>);
         let watched = entry.borrow().machine.clone();
-        machine.s.lock().unwrap().exec.push_back(Err(EngineError::machine_stopped("m-1", &support::plain("the machine is stopped"))));
+        machine.s.borrow_mut().exec.push_back(Err(EngineError::machine_stopped("m-1", &support::plain("the machine is stopped"))));
 
         let err = watched.exec("ls", ExecOptions::default()).await.expect_err("rethrown");
         assert_eq!(err.to_string(), "the machine is stopped");
-        assert_eq!(entry.borrow().record.phase, WorkspacePhase::Napping, "the next verb wakes it");
-        assert_eq!(entry.borrow().record.napped_at, Some(common::T0 as f64));
+        assert_eq!(entry.borrow().record.borrow().phase, WorkspacePhase::Napping, "the next verb wakes it");
+        assert_eq!(entry.borrow().record.borrow().napped_at, Some(JsNumber(common::T0 as f64)));
         let log = w.log_now();
         assert_eq!(support::log_of(&log, &["emit", "emitStatus"]), vec![
             json!(["emit", { "type": "workspace.napped", "workspaceId": "ws_1", "found": true }]),
@@ -116,13 +117,13 @@ fn a_replaced_machines_errors_mark_nothing() {
         entry.borrow_mut().machine = FakeMachine::quiet("m-2") as Arc<dyn Machine>;
 
         let (unreachable, _) = unreachable_line("m-1");
-        old.s.lock().unwrap().exec.push_back(Err(unreachable));
+        old.s.borrow_mut().exec.push_back(Err(unreachable));
         watched_old.exec("ls", ExecOptions::default()).await.expect_err("rethrown");
-        old.s.lock().unwrap().exec.push_back(Err(EngineError::machine_stopped("m-1", &support::plain("stopped"))));
+        old.s.borrow_mut().exec.push_back(Err(EngineError::machine_stopped("m-1", &support::plain("stopped"))));
         watched_old.exec("ls", ExecOptions::default()).await.expect_err("rethrown");
 
         assert!(w.rt.unreached.borrow().is_empty(), "no mark for a machine the entry dropped");
-        assert_eq!(entry.borrow().record.phase, WorkspacePhase::Running, "and no pause adopted");
+        assert_eq!(entry.borrow().record.borrow().phase, WorkspacePhase::Running, "and no pause adopted");
         assert!(support::log_of(&w.log_now(), &["emit", "emitStatus", "persist"]).is_empty());
     })
 }
@@ -160,11 +161,11 @@ fn follow_machine_moves_the_record_onto_the_engines_machine() {
         w.area.follow_machine(&e.entry);
 
         let r = e.entry.borrow();
-        assert_eq!(r.record.phase, WorkspacePhase::Running);
-        assert_eq!(r.record.machine_id, "m-1", "the engine workspace's machine");
-        assert!(!r.record.first_life, "the engine's own first life, which the entry was made with");
-        assert_eq!(r.record.gone, None);
-        assert_eq!(r.record.disk_gone.as_deref(), Some("d"), "diskGone is recoverGone's to keep");
+        assert_eq!(r.record.borrow().phase, WorkspacePhase::Running);
+        assert_eq!(r.record.borrow().machine_id, "m-1", "the engine workspace's machine");
+        assert!(!r.record.borrow().first_life, "the engine's own first life, which the entry was made with");
+        assert_eq!(r.record.borrow().gone, None);
+        assert_eq!(r.record.borrow().disk_gone.as_deref(), Some("d"), "diskGone is recoverGone's to keep");
         assert!(!r.unchecked);
         drop(r);
         assert_eq!(support::log_of(&w.log_now(), &["syncDaemon"]), vec![json!(["syncDaemon", "ws_1"])]);
@@ -226,9 +227,9 @@ fn a_computer_that_keeps_no_image_gets_no_vault_hooks_and_loses_its_vault_marks(
         let bare = World::new(Opts::default());
         let machine = machine_one();
         let entry = bare.area.attach(marked(), machine.clone() as Arc<dyn Machine>);
-        assert_eq!((entry.borrow().record.vaulted_at.clone(), entry.borrow().record.vault_refused.clone()), (None, None));
+        assert_eq!((entry.borrow().record.borrow().vaulted_at.clone(), entry.borrow().record.borrow().vault_refused.clone()), (None, None));
         support::ws_nap(&entry).await.expect("a nap lands");
-        assert_eq!(machine.s.lock().unwrap().pauses, vec![None], "the pause is the machine's own");
+        assert_eq!(machine.s.borrow_mut().pauses, vec![None], "the pause is the machine's own");
         assert!(machine.execs().is_empty(), "no disk sync: there is no stash");
         assert!(bare.rt.cfg.borrow().vault_calls.is_empty(), "nothing read off it");
         assert!(support::log_of(&bare.log_now(), &["store.putBlob"]).is_empty(), "and nothing stored");
@@ -238,7 +239,7 @@ fn a_computer_that_keeps_no_image_gets_no_vault_hooks_and_loses_its_vault_marks(
         keeping.rt.cfg.borrow_mut().keeps_images = true;
         let machine = machine_one();
         let entry = keeping.area.attach(marked(), machine.clone() as Arc<dyn Machine>);
-        assert_eq!(entry.borrow().record.vaulted_at.as_deref(), Some("2026-09-01T00:00:00.000Z"));
+        assert_eq!(entry.borrow().record.borrow().vaulted_at.as_deref(), Some("2026-09-01T00:00:00.000Z"));
         support::ws_nap(&entry).await.expect("a nap lands");
         assert_eq!(machine.execs(), vec![DISK_SYNC_CMD.to_string()], "the disk is synced first");
         assert_eq!(keeping.rt.cfg.borrow().vault_calls.len(), 1);
@@ -315,7 +316,7 @@ fn stash_vault_skips_while_a_refusal_stands_and_a_disk_keeping_pause() {
         support::ws_nap(&entry).await.expect("a nap lands");
         assert!(machine.execs().is_empty());
         assert!(refused.rt.cfg.borrow().vault_calls.is_empty());
-        assert_eq!(machine.s.lock().unwrap().pauses.len(), 1);
+        assert_eq!(machine.s.borrow_mut().pauses.len(), 1);
 
         // A pause that keeps the disk: synced, then nothing read.
         let disk = World::new(Opts::default());
@@ -340,18 +341,18 @@ fn stash_vault_skips_while_a_refusal_stands_and_a_disk_keeping_pause() {
         assert_eq!(machine.execs(), vec![DISK_SYNC_CMD.to_string()]);
         assert_eq!(stored.rt.cfg.borrow().vault_calls, vec![("m-1".to_string(), 1000, None)]);
         assert_eq!(support::log_of(&stored.log_now(), &["store.putBlob"]), vec![json!(["store.putBlob", "vaults", "ws_1", "vault"])]);
-        assert_eq!(entry.borrow().record.vaulted_at.as_deref(), Some("2026-09-21T14:13:20.000Z"));
-        assert_eq!(entry.borrow().record.vault_refused, None);
+        assert_eq!(entry.borrow().record.borrow().vaulted_at.as_deref(), Some("2026-09-21T14:13:20.000Z"));
+        assert_eq!(entry.borrow().record.borrow().vault_refused, None);
 
         // A disk sync that fails is said and the nap goes on.
         let unsynced = World::new(Opts::default());
         unsynced.rt.cfg.borrow_mut().keeps_images = true;
         let machine = machine_one();
-        machine.s.lock().unwrap().exec.push_back(Err(support::plain("exec refused")));
+        machine.s.borrow_mut().exec.push_back(Err(support::plain("exec refused")));
         let entry = unsynced.area.attach(running(), machine.clone() as Arc<dyn Machine>);
         support::ws_nap(&entry).await.expect("a nap lands");
         assert_eq!(unsynced.warns(), vec!["disk sync before the nap of ws_1 failed: exec refused; napping anyway".to_string()]);
-        assert_eq!(machine.s.lock().unwrap().pauses.len(), 1);
+        assert_eq!(machine.s.borrow_mut().pauses.len(), 1);
     })
 }
 
@@ -372,11 +373,11 @@ fn a_stash_that_fails_marks_vault_refused() {
 
         support::ws_nap(&entry).await.expect("the nap goes on");
 
-        assert_eq!(entry.borrow().record.vault_refused.as_deref(), Some("export is too big"));
-        assert_eq!(entry.borrow().record.vaulted_at.as_deref(), Some("2026-09-01T00:00:00.000Z"), "the previous stamp stands");
+        assert_eq!(entry.borrow().record.borrow().vault_refused.as_deref(), Some("export is too big"));
+        assert_eq!(entry.borrow().record.borrow().vaulted_at.as_deref(), Some("2026-09-01T00:00:00.000Z"), "the previous stamp stands");
         assert_eq!(w.warns(), vec!["nap vault for ws_1 not stored, previous kept: export is too big".to_string()]);
         assert!(support::log_of(&w.log_now(), &["store.putBlob"]).is_empty());
-        assert_eq!(machine.s.lock().unwrap().pauses.len(), 1);
+        assert_eq!(machine.s.borrow_mut().pauses.len(), 1);
     })
 }
 
@@ -399,7 +400,7 @@ fn a_resume_sets_the_hostname_again_and_an_unanswered_one_says_waking() {
         let machine = machine_one();
         let entry = w.area.attach(waking_record(), machine.clone() as Arc<dyn Machine>);
         support::ws_wake(&entry).await.expect("the wake lands");
-        assert_eq!(machine.s.lock().unwrap().resumes, vec![None]);
+        assert_eq!(machine.s.borrow_mut().resumes, vec![None]);
         let set = machine.execs();
         assert_eq!(set.len(), 1, "the name is set again after the resume");
         assert!(set[0].contains("w1"), "with the workspace's name: {}", set[0]);
@@ -416,17 +417,17 @@ fn a_resume_sets_the_hostname_again_and_an_unanswered_one_says_waking() {
         let resized = World::new(one_wake());
         resized.rt.cfg.borrow_mut().names_workspace = true;
         let machine = machine_one();
-        machine.s.lock().unwrap().resume_at = true;
+        machine.s.borrow_mut().resume_at = true;
         let entry = resized.area.attach(waking_record(), machine.clone() as Arc<dyn Machine>);
-        entry.borrow_mut().resize_to = Some(SizeAsk { cpu: 4.0, mem_mb: 8192.0 });
+        entry.borrow_mut().resize_to = Some(SizeAsk { cpu: JsNumber(4.0), mem_mb: JsNumber(8192.0) });
         support::ws_wake(&entry).await.expect("the wake lands");
-        assert_eq!(machine.s.lock().unwrap().resumes, vec![Some((4.0, 8192))]);
+        assert_eq!(machine.s.borrow_mut().resumes, vec![Some((4.0, 8192))]);
 
         // A resume the provider never answered says waking on the row, then fails as it was.
         let silent = World::new(one_wake());
         silent.rt.cfg.borrow_mut().names_workspace = true;
         let machine = machine_one();
-        machine.s.lock().unwrap().resume_err = Some(EngineError::ResumeUnanswered { message: "no answer to the resume".into(), cause: None });
+        machine.s.borrow_mut().resume_err = Some(EngineError::ResumeUnanswered { message: "no answer to the resume".into(), cause: None });
         let entry = silent.area.attach(waking_record(), machine.clone() as Arc<dyn Machine>);
         let err = support::ws_wake(&entry).await.expect_err("the wake fails");
         assert_eq!(err.to_string(), "no answer to the resume");
@@ -443,7 +444,7 @@ fn a_resume_sets_the_hostname_again_and_an_unanswered_one_says_waking() {
         support::ws_nap(&entry).await.expect("a nap lands");
         let again = waits.area.attach(running(), machine.clone() as Arc<dyn Machine>);
         support::ws_nap(&again).await.expect("a nap lands");
-        assert_eq!(machine.s.lock().unwrap().pauses, vec![Some(5000), None]);
+        assert_eq!(machine.s.borrow_mut().pauses, vec![Some(5000), None]);
     })
 }
 
@@ -476,7 +477,7 @@ fn the_wake_check_names_both_shapes_and_the_daemons_fault() {
             w.rt.cfg.borrow_mut().names_workspace = true;
             w.rt.cfg.borrow_mut().ping = ping.map(String::from);
             let machine = machine_one();
-            machine.s.lock().unwrap().describe = describe.map(|d| d.map(from).map_err(support::plain));
+            machine.s.borrow_mut().describe = describe.map(|d| d.map(from).map_err(support::plain));
             let entry = w.area.attach(record, machine.clone() as Arc<dyn Machine>);
             let err = support::ws_wake(&entry).await.expect_err("the check fails the wake");
             assert!(err.to_string().contains(&want_fault), "case {i}: {} does not hold {want_fault}", err);
@@ -487,7 +488,7 @@ fn the_wake_check_names_both_shapes_and_the_daemons_fault() {
         let w = World::new(one_wake());
         w.rt.cfg.borrow_mut().names_workspace = true;
         let machine = machine_one();
-        machine.s.lock().unwrap().describe = Some(Ok(from(json!({ "cpu": 2, "memMb": 4096 }))));
+        machine.s.borrow_mut().describe = Some(Ok(from(json!({ "cpu": 2, "memMb": 4096 }))));
         let entry = w.area.attach(shaped(), machine as Arc<dyn Machine>);
         support::ws_wake(&entry).await.expect("a healthy machine wakes");
         assert!(w.warns().is_empty());
@@ -507,7 +508,7 @@ fn idle_window_of_takes_the_record_then_the_place_then_the_default() {
         w.rt.cfg.borrow_mut().place_nap_ms = Some(None);
         assert_eq!(w.area.idle_window_of(&record), None, "the place turns it off");
 
-        record.idle_window_ms = Some(Some(300_000.0));
+        record.idle_window_ms = Some(Some(JsNumber(300_000.0)));
         assert_eq!(w.area.idle_window_of(&record), Some(300_000.0), "the record's own beats the place's");
         w.rt.cfg.borrow_mut().place_nap_ms = Some(Some(600_000.0));
         record.idle_window_ms = Some(None);

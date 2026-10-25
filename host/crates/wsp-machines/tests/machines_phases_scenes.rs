@@ -149,7 +149,7 @@ fn adopt_pause_the_record_follows_a_pause_outside_wsp() {
         let e = w.entry_in(EntryOpts::default());
         w.sessions_of();
         e.entry.borrow_mut().unchecked = true;
-        e.entry.borrow_mut().record.disk_gone = Some("x".into());
+        e.entry.borrow().record.borrow_mut().disk_gone = Some("x".into());
         w.area.adopt_pause(&e.entry).await.expect("adopted");
         let answer = w.after(&e.entry);
         common::flush().await;
@@ -171,7 +171,7 @@ fn adopt_pause_not_while_napping_waking_or_not_running() {
         e.entry.borrow_mut().waking = Some(support::ready_joined(view));
         w.area.adopt_pause(&e.entry).await.expect("returns");
         e.entry.borrow_mut().waking = None;
-        e.entry.borrow_mut().record.phase = WorkspacePhase::Napping;
+        e.entry.borrow().record.borrow_mut().phase = WorkspacePhase::Napping;
         w.area.adopt_pause(&e.entry).await.expect("returns");
         let answer = w.after(&e.entry);
         common::flush().await;
@@ -208,7 +208,7 @@ fn runs_under_napping_only_a_napping_record_a_failed_read_reads_paused() {
         let w = World::new(Opts { reads: Some(vec![]), gone_confirm_ms: 0, ..Default::default() });
         let e = w.entry_in(EntryOpts { phase: "napping", state: Some(Err(support::plain("timeout"))), ..Default::default() });
         let r1 = w.area.runs_under_napping(&e.entry).await;
-        e.entry.borrow_mut().record.phase = WorkspacePhase::Running;
+        e.entry.borrow().record.borrow_mut().phase = WorkspacePhase::Running;
         let r2 = w.area.runs_under_napping(&e.entry).await;
         let answer = json!({ "r1": r1, "r2": r2 });
         common::flush().await;
@@ -276,7 +276,7 @@ fn mark_gone_moot_when_already_gone_on_another_machine_dropped_or_deleting() {
         w.rt.live.borrow_mut().shift_remove("ws_1");
         outs.push(w.area.mark_gone(&e.entry, "m-1", "r").await.expect("an outcome"));
         w.rt.live.borrow_mut().insert("ws_1".into(), e.entry.clone());
-        e.entry.borrow_mut().record.phase = WorkspacePhase::Gone;
+        e.entry.borrow().record.borrow_mut().phase = WorkspacePhase::Gone;
         outs.push(w.area.mark_gone(&e.entry, "m-1", "r").await.expect("an outcome"));
         let answer = w.after_with(&e.entry, json!({ "outs": outs.into_iter().map(support::outcome_str).collect::<Vec<_>>() }));
         common::flush().await;
@@ -438,7 +438,7 @@ fn proven_a_stop_ends_it_with_the_stopped_line() {
         let a = support::started(async move { area.proven(&entry).await }).await;
         common::flush().await;
         let stop = e.entry.borrow().wake_stop.clone().expect("a stop the row can fire");
-        stop.cancel();
+        stop.cancel(None);
         if let Err(err) = a.await.expect("ran") {
             w.rejected(&err, false);
         }

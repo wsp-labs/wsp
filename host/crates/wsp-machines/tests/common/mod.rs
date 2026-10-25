@@ -15,7 +15,9 @@ use indexmap::IndexMap;
 use serde_json::{json, Value};
 
 use wsp_core::types::pending::{BlobMark, Clock, Store};
-use wsp_machines::machines::machines::Ids;
+use wsp_core::clock::{Cancel, Timer};
+use wsp_core::ids::Ids;
+use wsp_wire::types::js_number::JsNumber;
 use wsp_words::exit::HostError;
 
 /// The scene clock every oracle starts at.
@@ -171,22 +173,22 @@ impl Clock for FakeClock {
         *self.now.borrow()
     }
 
-    fn schedule(&self, run: Box<dyn FnOnce()>, ms: u64) -> Box<dyn FnOnce()> {
+    fn schedule(&self, run: Timer, ms: i64) -> Cancel {
         let id = {
             let mut seq = self.seq.borrow_mut();
             *seq += 1;
             *seq
         };
-        let at = *self.now.borrow() + ms as i64;
+        let at = *self.now.borrow() + ms;
         self.timers.borrow_mut().insert(id, (at, Some(run)));
         let timers = Rc::clone(&self.timers);
-        Box::new(move || {
+        Rc::new(move || {
             timers.borrow_mut().shift_remove(&id);
         })
     }
 }
 
-/// The ids the oracles mock: the `k`-th `random_hex(n)` is byte `k` repeated `n` times (`randomBytes` answered with
+/// The ids the oracles mock: the `k`-th `bytes(n)` is byte `k` repeated `n` times (`randomBytes` answered with
 /// `Buffer.alloc(n, k)`); `uuid()` counts on its own.
 #[derive(Default)]
 pub struct FakeIds {
@@ -201,10 +203,14 @@ impl Ids for FakeIds {
         format!("00000000-0000-4000-8000-{:012x}", *n)
     }
 
-    fn random_hex(&self, bytes: usize) -> String {
+    fn bytes(&self, n: usize) -> Vec<u8> {
         let mut k = self.bytes.borrow_mut();
         *k = k.wrapping_add(1);
-        format!("{:02x}", *k).repeat(bytes)
+        vec![*k; n]
+    }
+
+    fn random(&self) -> f64 {
+        0.0
     }
 }
 
@@ -330,7 +336,7 @@ impl Store for MemStore {
     }
 
     async fn stat_blob(&self, collection: &str, id: &str) -> Result<Option<BlobMark>, HostError> {
-        Ok(self.blobs.borrow().get(collection).and_then(|t| t.get(id)).map(|b| BlobMark { bytes: b.len() as f64, at: 0.0 }))
+        Ok(self.blobs.borrow().get(collection).and_then(|t| t.get(id)).map(|b| BlobMark { bytes: JsNumber(b.len() as f64), at: JsNumber(0.0) }))
     }
 }
 

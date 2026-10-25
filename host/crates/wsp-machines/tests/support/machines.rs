@@ -2,30 +2,28 @@
 //! The fakes of the machines oracle (oracle/machines.oracle.ts): a runtime that logs every call as the oracle's
 //! recording context does, a provider with scripted answers, machines with scripted states, and the world a scene
 //! builds them from. Included with `#[path = "support/machines.rs"] mod support;`.
-//!
-//! The machine and the provider are `Send + Sync` and the harness runs on one thread, so their log handle is wrapped
-//! in `Unsend`; nothing here is used from a second thread.
 #![allow(dead_code, unused_imports)]
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::future::Future;
 use std::rc::{Rc, Weak};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::{FutureExt, LocalBoxFuture};
 use indexmap::IndexMap;
 use serde::de::DeserializeOwned;
 use serde_json::{json, Map, Value};
-use tokio_util::sync::CancellationToken;
 
 use wsp_adapters::port::ExecStreamFactory;
+use wsp_core::ids::Ids;
 use wsp_core::types::internal::{EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad, SessionEntry, ThreadRecord};
 use wsp_core::types::pending::{Clock, KillConfirm, MachineExecOptions, Store, TurnWaiting};
 use wsp_core::types::wiring::{
     GoldenExec, GoneOutcome, Joined, LiveWorkspace, Local, PlaceBackends, ProjectImportOptions, StageReport, WorkspaceRecord,
 };
+use wsp_engine::Cancel;
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
 use wsp_engine::lifecycle::{Workspace, WorkspaceHooks, WorkspaceInitial};
 use wsp_engine::machine::{
@@ -34,7 +32,7 @@ use wsp_engine::machine::{
     Seen, SnapshotOptions, SnapshotStoragePricing, Size, Waiting,
 };
 use wsp_machines::machines::machines::{
-    Entry, IdleDoor, Ids, ImageRead, MachinesArea, MachinesConfig, MachinesRuntime, Refusal, Row, ThreadOn, Unreached,
+    Entry, IdleDoor, ImageRead, MachinesArea, MachinesConfig, MachinesRuntime, Refusal, Row, ThreadOn, Unreached,
 };
 use wsp_wire::views::golden_image::MachineKind as _WireMachineKind;
 use wsp_wire::views::workspace::{MachineFacts, ReachState, WorkspacePhase};
@@ -47,23 +45,6 @@ use crate::common::{self, FakeClock, FakeIds, Log, MemStore, StoreLogs, T0};
 
 // ---------------------------------------------------------------------------------------------------------------
 // Plumbing
-
-/// A value the harness only ever touches from its one thread, handed to a `Send + Sync` trait object.
-pub struct Unsend<T>(pub T);
-unsafe impl<T> Send for Unsend<T> {}
-unsafe impl<T> Sync for Unsend<T> {}
-impl<T> std::ops::Deref for Unsend<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        &self.0
-    }
-}
-
-pub type SLog = Unsend<Log>;
-
-pub fn slog(log: &Log) -> SLog {
-    Unsend(log.clone())
-}
 
 pub fn from<T: DeserializeOwned>(v: Value) -> T {
     serde_json::from_value(v.clone()).unwrap_or_else(|e| panic!("{e}: {v}"))
@@ -219,14 +200,14 @@ impl MachineDef {
 
 pub struct FakeMachine {
     pub id: String,
-    log: SLog,
+    log: Log,
     log_state_id: bool,
     log_nap: bool,
     replayed: bool,
     labels: Option<IndexMap<String, String>>,
     seen: Option<Seen>,
     stream_url: Option<String>,
-    pub s: Mutex<Script>,
+    pub s: RefCell<Script>,
 }
 
 impl FakeMachine {
@@ -234,16 +215,16 @@ impl FakeMachine {
     pub fn of_provider(log: &Log, def: &MachineDef) -> Arc<FakeMachine> {
         let m = FakeMachine {
             id: def.id.clone(),
-            log: slog(log),
+            log: log.clone(),
             log_state_id: true,
             log_nap: false,
             replayed: def.replayed,
             labels: def.labels.clone(),
             seen: def.seen.map(|state| Seen { state, created_at: None, paused_at: None }),
             stream_url: def.stream_url.clone(),
-            s: Mutex::new(Script::default()),
+            s: RefCell::new(Script::default()),
         };
-        m.s.lock().unwrap().state = def.state.map(Ok);
+        m.s.borrow_mut().state = def.state.map(Ok);
         Arc::new(m)
     }
 
@@ -251,14 +232,14 @@ impl FakeMachine {
     pub fn of_entry(log: &Log) -> Arc<FakeMachine> {
         Arc::new(FakeMachine {
             id: "m-1".into(),
-            log: slog(log),
+            log: log.clone(),
             log_state_id: false,
             log_nap: true,
             replayed: false,
             labels: None,
             seen: None,
             stream_url: None,
-            s: Mutex::new(Script::default()),
+            s: RefCell::new(Script::default()),
         })
     }
 
@@ -266,27 +247,27 @@ impl FakeMachine {
     pub fn quiet(id: &str) -> Arc<FakeMachine> {
         Arc::new(FakeMachine {
             id: id.into(),
-            log: slog(&Log::default()),
+            log: Log::default(),
             log_state_id: false,
             log_nap: false,
             replayed: false,
             labels: None,
             seen: None,
             stream_url: None,
-            s: Mutex::new(Script::default()),
+            s: RefCell::new(Script::default()),
         })
     }
 
     pub fn set_state(&self, state: Result<MachineState, EngineError>) {
-        self.s.lock().unwrap().state = Some(state);
+        self.s.borrow_mut().state = Some(state);
     }
 
     pub fn execs(&self) -> Vec<String> {
-        self.s.lock().unwrap().execs.clone()
+        self.s.borrow_mut().execs.clone()
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for FakeMachine {
     fn id(&self) -> &str {
         &self.id
@@ -307,13 +288,13 @@ impl Machine for FakeMachine {
         self.replayed
     }
     fn offers(&self) -> MachineOffers {
-        let s = self.s.lock().unwrap();
+        let s = self.s.borrow_mut();
         MachineOffers { prove_road: s.prove.is_some(), describe: s.describe.is_some(), resume_at: s.resume_at, ..Default::default() }
     }
 
     async fn exec(&self, cmd: &str, _opts: ExecOptions) -> Result<ExecResult, EngineError> {
         let next = {
-            let mut s = self.s.lock().unwrap();
+            let mut s = self.s.borrow_mut();
             s.execs.push(cmd.to_string());
             s.exec.pop_front()
         };
@@ -323,7 +304,7 @@ impl Machine for FakeMachine {
 
     async fn run(&self, script: &str, _opts: RunOptions) -> Result<ExecResult, EngineError> {
         let next = {
-            let mut s = self.s.lock().unwrap();
+            let mut s = self.s.borrow_mut();
             s.execs.push(script.to_string());
             s.exec.pop_front()
         };
@@ -340,7 +321,7 @@ impl Machine for FakeMachine {
             self.log.push(json!(["ws.nap"]));
         }
         let err = {
-            let mut s = self.s.lock().unwrap();
+            let mut s = self.s.borrow_mut();
             s.pauses.push(wait_ms);
             s.nap.clone()
         };
@@ -348,9 +329,9 @@ impl Machine for FakeMachine {
         err.map_or(Ok(()), Err)
     }
 
-    async fn resume(&self, _signal: Option<CancellationToken>) -> Result<(), EngineError> {
+    async fn resume(&self, _signal: Option<&Cancel>) -> Result<(), EngineError> {
         let err = {
-            let mut s = self.s.lock().unwrap();
+            let mut s = self.s.borrow_mut();
             s.resumes.push(None);
             s.resume_err.clone()
         };
@@ -358,9 +339,9 @@ impl Machine for FakeMachine {
         err.map_or(Ok(()), Err)
     }
 
-    async fn resume_at(&self, cpu: f64, mem_mb: u64, _signal: Option<CancellationToken>) -> Result<(), EngineError> {
+    async fn resume_at(&self, cpu: f64, mem_mb: u64, _signal: Option<&Cancel>) -> Result<(), EngineError> {
         let err = {
-            let mut s = self.s.lock().unwrap();
+            let mut s = self.s.borrow_mut();
             s.resumes.push(Some((cpu, mem_mb)));
             s.resume_err.clone()
         };
@@ -369,7 +350,7 @@ impl Machine for FakeMachine {
     }
 
     async fn kill(&self) -> Result<(), EngineError> {
-        self.s.lock().unwrap().kills += 1;
+        self.s.borrow_mut().kills += 1;
         tick().await;
         Ok(())
     }
@@ -381,7 +362,7 @@ impl Machine for FakeMachine {
             self.log.push(json!(["machine.state"]));
         }
         tick().await;
-        match &self.s.lock().unwrap().state {
+        match &self.s.borrow_mut().state {
             None => Ok(MachineState::Running),
             Some(Ok(s)) => Ok(*s),
             Some(Err(e)) => Err(e.clone()),
@@ -396,8 +377,8 @@ impl Machine for FakeMachine {
         Err(plain("upload_url is not faked"))
     }
 
-    async fn prove_road(&self, _signal: Option<CancellationToken>) -> Result<(), EngineError> {
-        let prove = self.s.lock().unwrap().prove.clone();
+    async fn prove_road(&self, _signal: Option<&Cancel>) -> Result<(), EngineError> {
+        let prove = self.s.borrow_mut().prove.clone();
         match prove {
             None | Some(Prove::Ok) => Ok(()),
             Some(Prove::Never) => futures::future::pending::<Result<(), EngineError>>().await,
@@ -410,7 +391,7 @@ impl Machine for FakeMachine {
     }
 
     async fn describe(&self) -> Result<MachineShape, EngineError> {
-        let d = self.s.lock().unwrap().describe.clone();
+        let d = self.s.borrow_mut().describe.clone();
         d.unwrap_or_else(|| Err(plain("describe is not faked")))
     }
 }
@@ -493,10 +474,10 @@ pub struct FakeLifecycle {
     pub wake_attempts: u32,
     pub has_backstop: bool,
     pub has_quiet: bool,
-    pub st: Mutex<LifeState>,
+    pub st: RefCell<LifeState>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Lifecycle for FakeLifecycle {
     fn budgets(&self) -> LifecycleBudgets {
         from(json!({ "wakeAttempts": self.wake_attempts, "daemonAnswersMs": 1000 }))
@@ -506,7 +487,7 @@ impl Lifecycle for FakeLifecycle {
     }
     async fn backstop(&self, machine: &dyn Machine, until_ms: i64, _exact: bool) -> Result<(), EngineError> {
         let err = {
-            let mut s = self.st.lock().unwrap();
+            let mut s = self.st.borrow_mut();
             let err = s.backstop_err.clone();
             if err.is_none() {
                 s.backstops.push((machine.id().to_string(), until_ms));
@@ -519,7 +500,7 @@ impl Lifecycle for FakeLifecycle {
         self.has_quiet
     }
     async fn quiet_for_ms(&self, _machine: &dyn Machine) -> Result<Option<u64>, EngineError> {
-        match &self.st.lock().unwrap().quiet {
+        match &self.st.borrow_mut().quiet {
             None => Ok(None),
             Some(r) => r.clone(),
         }
@@ -528,8 +509,8 @@ impl Lifecycle for FakeLifecycle {
 
 pub struct FakeBackend {
     pub name: String,
-    log: SLog,
-    pub b: Mutex<BScript>,
+    log: Log,
+    pub b: RefCell<BScript>,
     pub life: Option<Arc<FakeLifecycle>>,
 }
 
@@ -538,8 +519,8 @@ impl FakeBackend {
         let o_life = o.life;
         Arc::new(FakeBackend {
             name: name.into(),
-            log: slog(log),
-            b: Mutex::new(BScript {
+            log: log.clone(),
+            b: RefCell::new(BScript {
                 creates: o.creates.into(),
                 replays: o.replays.map(Into::into),
                 request: o.request,
@@ -553,7 +534,7 @@ impl FakeBackend {
                 gets: Vec::new(),
             }),
             life: o_life.map(|(wake_attempts, has_backstop, has_quiet)| {
-                Arc::new(FakeLifecycle { wake_attempts, has_backstop, has_quiet, st: Mutex::new(LifeState { quiet: None, backstops: Vec::new(), backstop_err: None }) })
+                Arc::new(FakeLifecycle { wake_attempts, has_backstop, has_quiet, st: RefCell::new(LifeState { quiet: None, backstops: Vec::new(), backstop_err: None }) })
             }),
         })
     }
@@ -562,8 +543,8 @@ impl FakeBackend {
     pub fn with_lifecycle(log: &Log, name: &str, wake_attempts: u32, has_backstop: bool, has_quiet: bool) -> Arc<FakeBackend> {
         Arc::new(FakeBackend {
             name: name.into(),
-            log: slog(log),
-            b: Mutex::new(BScript {
+            log: log.clone(),
+            b: RefCell::new(BScript {
                 creates: VecDeque::new(),
                 replays: None,
                 request: false,
@@ -580,13 +561,13 @@ impl FakeBackend {
                 wake_attempts,
                 has_backstop,
                 has_quiet,
-                st: Mutex::new(LifeState { quiet: None, backstops: Vec::new(), backstop_err: None }),
+                st: RefCell::new(LifeState { quiet: None, backstops: Vec::new(), backstop_err: None }),
             })),
         })
     }
 
     pub fn reads(self: &Arc<Self>, reads: Vec<Read>) {
-        let mut b = self.b.lock().unwrap();
+        let mut b = self.b.borrow_mut();
         b.mode = GetMode::Reads;
         b.reads = reads.into();
     }
@@ -596,7 +577,7 @@ impl FakeBackend {
     }
 
     pub fn created(&self) -> Vec<MachineSpec> {
-        self.b.lock().unwrap().created.clone()
+        self.b.borrow_mut().created.clone()
     }
 }
 
@@ -617,7 +598,7 @@ fn request_json(sent: &Option<String>) -> Value {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for FakeBackend {
     fn capabilities(&self) -> Capabilities {
         from(json!({
@@ -633,20 +614,20 @@ impl MachineBackend for FakeBackend {
         self.life.clone().map(|l| l as Arc<dyn Lifecycle>)
     }
     fn names_workspace(&self) -> bool {
-        self.b.lock().unwrap().names_workspace
+        self.b.borrow_mut().names_workspace
     }
     fn offers(&self) -> BackendOffers {
-        let b = self.b.lock().unwrap();
+        let b = self.b.borrow_mut();
         BackendOffers { keyed_create: b.request || b.replays.is_some() || b.named.is_some(), ..Default::default() }
     }
 
     async fn create(&self, spec: MachineSpec, waiting: Option<Waiting>, sent: Option<String>) -> Result<Arc<dyn Machine>, EngineError> {
         self.log.push(json!(["backend.create", spec.idempotency_key, labels_json(&spec), request_json(&sent)]));
-        self.b.lock().unwrap().created.push(spec.clone());
+        self.b.borrow_mut().created.push(spec.clone());
         if let Some(w) = waiting {
             w("waiting for a box", Some(&ProviderBoxState { id: "box-early".into(), state: String::new() }));
         }
-        let next = self.b.lock().unwrap().creates.pop_front();
+        let next = self.b.borrow_mut().creates.pop_front();
         tick().await;
         match next {
             Some(Made::Fail(e)) => Err(e),
@@ -656,15 +637,15 @@ impl MachineBackend for FakeBackend {
     }
 
     async fn get(&self, id: &str) -> Result<Arc<dyn Machine>, EngineError> {
-        let mode = self.b.lock().unwrap().mode;
+        let mode = self.b.borrow_mut().mode;
         if mode == GetMode::Plain {
             self.log.push(json!(["backend.get", id]));
-            self.b.lock().unwrap().gets.push(id.to_string());
+            self.b.borrow_mut().gets.push(id.to_string());
             tick().await;
             return Ok(self.make(&MachineDef::new(id)));
         }
         let read = {
-            let mut b = self.b.lock().unwrap();
+            let mut b = self.b.borrow_mut();
             if b.series.is_none() {
                 self.log.push(json!(["readGone", id]));
                 let r = b.reads.pop_front().unwrap_or(Ok(MachineState::Gone));
@@ -708,7 +689,7 @@ impl MachineBackend for FakeBackend {
 
     async fn replay_create(&self, key: &str, bytes: &str, made_at: &str) -> Result<Option<Arc<dyn Machine>>, EngineError> {
         self.log.push(json!(["replayCreate", key, request_json(&Some(bytes.to_string())), made_at]));
-        let next = self.b.lock().unwrap().replays.as_mut().and_then(|r| r.pop_front());
+        let next = self.b.borrow_mut().replays.as_mut().and_then(|r| r.pop_front());
         tick().await;
         match next {
             Some(Replay::Fail(e)) => Err(e),
@@ -720,7 +701,7 @@ impl MachineBackend for FakeBackend {
 
     async fn named_after(&self, names: &std::collections::BTreeSet<String>) -> Result<Vec<NamedMachine>, EngineError> {
         self.log.push(json!(["namedAfter", names.iter().collect::<Vec<_>>()]));
-        Ok(self.b.lock().unwrap().named.clone().unwrap_or_default())
+        Ok(self.b.borrow_mut().named.clone().unwrap_or_default())
     }
 }
 
@@ -775,7 +756,7 @@ pub struct FakeKind {
 }
 
 impl KindModule for FakeKind {
-    fn backend(&self, _record: &WorkspaceRecord) -> Arc<dyn MachineBackend> {
+    fn backend(&self, _record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
         unimplemented!("fake kind")
     }
     fn exec_stream(&self, _entry: &LiveWorkspace, _opts: Option<MachineExecOptions>, _waiting: Option<TurnWaiting>) -> Arc<dyn ExecStreamFactory> {
@@ -851,7 +832,7 @@ impl KindModule for FakeKind {
         unimplemented!("fake kind")
     }
     fn dropped(&self, entry: &LiveWorkspace) -> Local<'static, ()> {
-        self.log.push(json!(["module.dropped", self.kind, entry.record.id]));
+        self.log.push(json!(["module.dropped", self.kind, entry.record.borrow().id]));
         let err = self.dropped_err.clone();
         async move {
             match err {
@@ -965,7 +946,7 @@ pub struct Rt {
 
 impl Rt {
     fn id_of(entry: &Entry) -> String {
-        entry.borrow().record.id.clone()
+        entry.borrow().record.borrow().id.clone()
     }
 }
 
@@ -1302,7 +1283,7 @@ impl World {
         for (at, id) in self.rt.lazy_records.borrow().iter() {
             if let Some(entry) = self.rt.live.borrow().get(id) {
                 if let Some(slot) = log.get_mut(*at) {
-                    slot[1] = serde_json::to_value(&entry.borrow().record).unwrap();
+                    slot[1] = serde_json::to_value(&*entry.borrow().record.borrow()).unwrap();
                 }
             }
         }
@@ -1368,7 +1349,7 @@ pub fn hooks_none() -> WorkspaceHooks {
 
 pub fn live_workspace(record: WorkspaceRecord, machine: Arc<dyn Machine>, ws: Workspace, generation: u64) -> LiveWorkspace {
     LiveWorkspace {
-        record,
+        record: Rc::new(RefCell::new(record)),
         opens_thread: None,
         of_record_held: false,
         ws: Rc::new(ws),
@@ -1422,10 +1403,10 @@ pub struct Ent {
 
 impl Ent {
     pub fn phase(&self) -> WorkspacePhase {
-        self.entry.borrow().record.phase
+        self.entry.borrow().record.borrow().phase
     }
     pub fn id(&self) -> String {
-        self.entry.borrow().record.id.clone()
+        self.entry.borrow().record.borrow().id.clone()
     }
 }
 
@@ -1438,7 +1419,7 @@ impl World {
     pub fn entry_in(&self, o: EntryOpts) -> Ent {
         let machine = FakeMachine::of_entry(&self.log);
         {
-            let mut s = machine.s.lock().unwrap();
+            let mut s = machine.s.borrow_mut();
             s.state = o.state;
             s.nap = o.nap;
             s.prove = o.prove;
@@ -1527,7 +1508,7 @@ impl World {
         let nap: Vec<Value> = self.rt.nap_refusals.borrow().iter().map(|(k, r)| json!([k, { "machineId": r.machine_id, "said": r.said }])).collect();
         let stop: Vec<Value> = self.rt.stop_refusals.borrow().iter().map(|(k, r)| json!([k, { "machineId": r.machine_id, "said": r.said }])).collect();
         json!({
-            "record": serde_json::to_value(&e.borrow().record).unwrap(),
+            "record": serde_json::to_value(&*e.borrow().record.borrow()).unwrap(),
             "marks": self.marks(e),
             "napRefusals": nap,
             "stopRefusals": stop,
@@ -1742,7 +1723,7 @@ pub fn spec_default() -> MachineSpec {
 pub async fn create(w: &World, b: Arc<FakeBackend>, purpose: &str, spec: MachineSpec, place: Option<&str>) -> Result<String, HostError> {
     let log = w.log.clone();
     let area = w.area.clone();
-    let waiting_log = slog(&w.log);
+    let waiting_log = w.log.clone();
     w.area
         .claiming(
             purpose,
@@ -1794,7 +1775,7 @@ pub fn store_of(scene: &Value) -> Value {
 impl World {
     /// The view of an entry's record, as the runtime's `view` writes it.
     pub fn view_of(&self, entry: &Entry) -> WorkspaceView {
-        MachinesRuntime::view(&*self.rt, &entry.borrow().record)
+        MachinesRuntime::view(&*self.rt, &entry.borrow().record.borrow())
     }
 
     /// `bus.emit`.
