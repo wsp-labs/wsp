@@ -63,14 +63,14 @@ mod the_apt_reader {
     #[test]
     fn keeps_the_packages_a_person_chose_and_drops_the_distros_own() {
         // What the catalog or another rung already carries is dropped by the caller, so tmux and fd-find are in this list.
-        let names: Vec<String> = block_on(apt_packages(&ubuntu(&[]))).into_iter().map(|p| p.name).collect();
+        let names: Vec<String> = block_on(apt_packages(&ubuntu(&[]))).unwrap().into_iter().map(|p| p.name).collect();
         assert_eq!(names, vec!["direnv", "fd-find", "fish", "tmux"]);
     }
 
     #[test]
     fn reads_one_directory_and_two_dpkg_query_runs_never_a_dpkg_l_per_package() {
         let host = ubuntu(&[]);
-        block_on(apt_packages(&host));
+        block_on(apt_packages(&host)).unwrap();
         let calls = host.calls();
         assert_eq!(calls.iter().filter(|c| c.starts_with("run dpkg-query")).count(), 1);
         assert_eq!(calls.iter().filter(|c| c.contains("dpkg -L")).cloned().collect::<Vec<_>>(), Vec::<String>::new());
@@ -90,7 +90,7 @@ mod the_apt_reader {
 
     #[test]
     fn says_nothing_when_apt_mark_answers_nothing() {
-        let got = block_on(apt_packages(&ubuntu(&[("apt-mark showmanual", "")])));
+        let got = block_on(apt_packages(&ubuntu(&[("apt-mark showmanual", "")]))).unwrap();
         assert!(got.is_empty());
     }
 
@@ -132,7 +132,7 @@ mod pins {
                 .exec("apt-mark showmanual", "sudo\nlsb-release\n")
                 .exec("dpkg-query -Wf ${Package} ${Priority}\n", "sudo optional\n"),
         );
-        assert!(block_on(apt_packages(&host)).is_empty());
+        assert!(block_on(apt_packages(&host)).unwrap().is_empty());
         assert_eq!(host.calls(), vec!["run apt-mark showmanual".to_string()]);
     }
 
@@ -148,7 +148,7 @@ mod pins {
                 .file("/var/lib/dpkg/info/tool:i386.list", "/bin/tool\n")
                 .file("/var/lib/dpkg/info/.list", "/bin/nameless\n"),
         );
-        let got = block_on(apt_packages(&host));
+        let got = block_on(apt_packages(&host)).unwrap();
         // A name the manual list repeats is kept twice.
         assert_eq!(
             got.iter().map(|p| (p.name.as_str(), p.version.clone(), p.path.clone())).collect::<Vec<_>>(),
@@ -172,5 +172,62 @@ mod pins {
             got.into_iter().collect::<Vec<_>>(),
             vec![("d".to_string(), 10240.0), ("e".to_string(), 16384.0), ("f".to_string(), 12800.0)]
         );
+    }
+}
+
+/// The coordinator's ruling on #2446: a list read that fails part way fails the whole read with its words (spec
+/// apt_tools rule 3a). Expected values printed by the TS with a host whose `lines` throws.
+mod a_failing_list_read {
+    use super::*;
+
+    fn failing(first: &str) -> FakeHost {
+        fake_host(
+            FakeLaptop::new()
+                .platform(Platform::Linux)
+                .which(&["apt-mark"])
+                .exec("apt-mark showmanual", "tool\nother\n")
+                .exec("dpkg-query -Wf ${Package} ${Priority}\n", "tool optional\nother optional\n")
+                .file("/var/lib/dpkg/info/tool.list", format!("{first}\n{LINES_FAIL}EIO: i/o error, read\n"))
+                .file("/var/lib/dpkg/info/other.list", "/usr/bin/other\n"),
+        )
+    }
+
+    #[test]
+    fn fails_the_whole_read_with_the_streams_words_and_reads_no_later_list() {
+        let host = failing("/usr/share/doc/tool");
+        let err = block_on(apt_packages(&host)).expect_err("the TS rejects");
+        assert_eq!(err.message, "EIO: i/o error, read");
+        assert_eq!(
+            host.calls().iter().filter(|c| c.starts_with("lines ")).cloned().collect::<Vec<_>>(),
+            vec!["lines /var/lib/dpkg/info/tool.list".to_string()]
+        );
+    }
+
+    #[test]
+    fn a_command_line_before_the_failure_ends_the_read_there_so_nothing_fails() {
+        let host = failing("/usr/bin/tool");
+        let got = block_on(apt_packages(&host)).expect("the TS read stops at the command line");
+        assert_eq!(got.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["tool", "other"]);
+    }
+
+    #[test]
+    fn the_tools_rung_fails_with_it() {
+        let err = block_on(wsp_collect::detect::tools::detect_tools(&failing("/usr/share/doc/tool"))).expect_err("the TS rejects");
+        assert_eq!(err.message, "EIO: i/o error, read");
+        let ids: Vec<String> =
+            block_on(wsp_collect::detect::tools::detect_tools(&failing("/usr/bin/tool"))).unwrap().into_iter().map(|r| r.id).collect();
+        assert_eq!(ids, vec!["tools/apt/tool".to_string(), "tools/apt/other".to_string()]);
+    }
+
+    #[test]
+    fn collect_stops_at_the_tools_rung_with_it() {
+        use std::cell::RefCell;
+        use wsp_collect::collect::{collect, CollectOptions};
+        use wsp_collect::manifest::Rung;
+        let seen = RefCell::new(Vec::new());
+        let on_rung = |rung: Rung, count: usize| seen.borrow_mut().push((rung, count));
+        let err = block_on(collect(&failing("/usr/share/doc/tool"), CollectOptions { on_rung: Some(&on_rung) })).expect_err("the TS rejects");
+        assert_eq!(err.message, "EIO: i/o error, read");
+        assert_eq!(seen.into_inner(), vec![(Rung::Identity, 0), (Rung::Shell, 0), (Rung::Toolchains, 0)]);
     }
 }

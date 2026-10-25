@@ -30,8 +30,12 @@ plugin into the report's `PluginRow` with home paths `~`-relative, and gathers e
    the folder's list. `r`: the root was looked at. Lookups go through `join_path` too, so `/a//b/` finds `/a/b`.
 5. `plugin_row(home, agent, p)` (plugins.ts:267-276): `agent`, then the found plugin's fields less `skills`, with
    `project.path`, `path` and `set_in` passed through `tilde(home, _)`; every other field as found.
-6. A read cannot fail in Rust (`PluginShelf::read` returns `PluginsFound`): the TS `.catch` that turned a thrown read
-   into the refusal `plugins: <agent name>'s plugins were not read: <message>` has no Rust counterpart (plugins.ts:285).
+6. A shelf read that fails (plugins.ts:285): that agent's `found` is `{plugins: [], refused: ["plugins: <agent name>'s
+   plugins were not read: <message>"]}`, `<agent name>` the catalog `name` (`Claude Code`), `<message>` the error's
+   message; the other agents' reads and rows stand, and the agent keeps its place in `agents`, `plugins` and
+   `refused`. Ruled by the coordinator on #2446 ("return a `Result` where the TS fails or throws"). This needs
+   wsp-catalog's `PluginShelf::read` to return `Result<PluginsFound, HostError>`: an ask on wave 1's catalog, not
+   this crate. Until it does, no input reaches this rule and it has no test here; the catalog change brings one.
 
 ## Edge cases
 - `detect_plugins` with no agent that has a shelf: all three lists empty, nothing run.

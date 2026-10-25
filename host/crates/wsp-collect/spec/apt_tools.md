@@ -20,6 +20,11 @@ directly under `/usr/bin` or `/bin`. Every command run below passes no timeout a
    dpkg-query did not list has priority `""` and is out), read its list file with `lines(file, None)` until a
    `js_trim`med line matches COMMAND_PATH; a name with no list file is out without a read. Each kept name is
    `Pkg { name, version: None, path: None }`; a repeated manual name is kept twice.
+   3a. A list file's `lines` stream that yields `Err(e)` before a command line fails `apt_packages` at once with
+   `HostError::new(e.to_string())`; no later list is read (the names are read one after another). A command line
+   before the `Err` ends that file's read first, so nothing fails. `detect_tools` fails with the same error, and
+   `collect` stops there: the rungs before it were reported through `on_rung`, the tools rung and later ones are not
+   (coordinator's ruling on #2446; the TS iterator's throw rejects `Promise.all` and `collect`).
 4. `apt_sizes(host, names)`: empty `names` returns an empty map and runs nothing. Otherwise one run of
    `dpkg-query ["-Wf", "${Package} ${Installed-Size}\n"]`; for each name in `names` order, the field read by
    JavaScript's `Number()` (absent is NaN); kept when finite and above 0, as `kib * 1024` (apt.ts:180-189).
@@ -71,8 +76,9 @@ directly under `/usr/bin` or `/bin`. Every command run below passes no timeout a
 - `parse_go_version_m("garbage")` is `None`.
 
 ## Decisions
-1. apt's `lines` stream yielding `Err` part way: the TS iterator throws and the whole read rejects. The Rust signature
-   has no error, so an `Err` ends that file's read as no command found.
+1. apt's `lines` stream yielding `Err` part way: ruled by the coordinator, rule 3a. Interface change: `apt_packages`
+   and `detect_tools` return `Result<_, HostError>`. The live host's `lines` never yields `Err` (a read error ends
+   its stream quietly, live_host rule 5), so only a fake host reaches this road.
 2. `apt_sizes` returns `f64` bytes, since `Number()` can give a fraction.
 
 ## After the port
@@ -83,6 +89,7 @@ directly under `/usr/bin` or `/bin`. Every command run below passes no timeout a
 |---|---|
 | 1, 2 | `reads_a_package_and_its_field_from_dpkg_query_dropping_a_line_that_names_no_value`, `reads_the_manual_list_as_names_blank_lines_dropped`, `a_repeated_dpkg_line_replaces_the_value_in_place` |
 | 3 | `keeps_the_packages_a_person_chose_and_drops_the_distros_own`, `reads_one_directory_and_two_dpkg_query_runs_never_a_dpkg_l_per_package`, `says_nothing_when_apt_mark_answers_nothing`, `apt_mark_naming_only_unchosen_packages_runs_no_dpkg_query`, `a_later_list_file_for_a_package_replaces_the_earlier` |
+| 3a | `a_failing_list_read::*` (4) |
 | 4 | `reads_each_packages_size_from_dpkgs_own_record_in_bytes`, `asks_dpkg_nothing_when_no_package_needs_a_size`, `a_size_is_read_as_javascripts_number_reads_it` |
 | 5, 6 | `parses_a_brewfile_into_taps_and_formulae_casks_mas_apps_and_vscode_lines_have_no_linux_build`, `asks_homebrew_for_its_taps_and_formulae_alone_with_its_auto_update_off` |
 | 7, 8, 9, 10 | `parses_npm_globals_dropping_npm_and_corepack`, `parses_pnpm_globals_one_project_object_per_global_dir`, `parses_bun_globals_a_header_line_then_a_tree_of_name_at_version`, `parses_pipx_uv_tool_and_cargo_listings`, `reads_module_path_and_version_out_of_go_version_m`, `json_listings_keep_javascripts_key_order`, `a_listing_that_is_not_the_right_json_shape_is_empty` |

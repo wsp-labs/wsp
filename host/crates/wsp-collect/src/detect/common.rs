@@ -2,6 +2,7 @@
 //! The pieces every detector builds rows with. Port of packages/collect/src/detect/common.ts at a3b870a6e; the spec
 //! is spec/common.md.
 use futures::future::LocalBoxFuture;
+use wsp_words::exit::HostError;
 
 use crate::host::Host;
 use crate::manifest::{Linux, ManifestEntry, RowDefault, Rung};
@@ -10,7 +11,9 @@ use crate::manifest::{Linux, ManifestEntry, RowDefault, Rung};
 // /** prior is every row the rungs before this one produced. */
 // export type Detector = (host: Host, prior: readonly ManifestEntry[]) => Promise<ManifestEntry[]>;
 /// `prior` is every row the rungs before this one produced.
-pub type Detector = for<'a> fn(&'a Host, &'a [ManifestEntry]) -> LocalBoxFuture<'a, Vec<ManifestEntry>>;
+/// A detector that rejects in the TS (a hooks file `hook_files` refuses, an apt list read failing part way) is an
+/// `Err` here, and `collect` fails with it.
+pub type Detector = for<'a> fn(&'a Host, &'a [ManifestEntry]) -> LocalBoxFuture<'a, Result<Vec<ManifestEntry>, HostError>>;
 
 /// The optional half of a row spec: each `None` is a key the row leaves off (common.ts:8-27).
 #[derive(Debug, Clone, Default, PartialEq)]

@@ -35,7 +35,7 @@ mod agents {
             ])
             .which(&["claude"]),
         );
-        let rows = block_on(detect_agents(&host));
+        let rows = block_on(detect_agents(&host)).unwrap();
         assert_eq!(
             values(&rows),
             vec![json!({
@@ -75,7 +75,7 @@ mod agents {
                 .file("~/.claude/hooks/no-secret-print.sh", 80)
                 .which(&["claude"]),
         );
-        let rows = block_on(detect_agents(&host));
+        let rows = block_on(detect_agents(&host)).unwrap();
         let claude = rows.first().expect("a claude row");
         assert_eq!(
             claude.paths,
@@ -172,7 +172,7 @@ mod agents {
             ),
         ];
         for (name, files, label, paths, bytes) in rows {
-            let rows = block_on(detect_agents(&fake_host(laptop(&files))));
+            let rows = block_on(detect_agents(&fake_host(laptop(&files)))).unwrap();
             assert_eq!(
                 values(&rows),
                 vec![
@@ -186,7 +186,7 @@ mod agents {
     #[test]
     fn on_path_with_no_config_is_still_an_installed_agent() {
         for (bin, label) in [("codex", "Codex"), ("pi", "Pi"), ("hermes", "Hermes Agent")] {
-            let rows = block_on(detect_agents(&fake_host(FakeLaptop::new().which(&[bin]))));
+            let rows = block_on(detect_agents(&fake_host(FakeLaptop::new().which(&[bin])))).unwrap();
             assert_eq!(
                 values(&rows),
                 vec![
@@ -207,6 +207,23 @@ mod agents {
 
     #[test]
     fn agents_the_laptop_does_not_have_are_not_listed() {
-        assert_eq!(block_on(detect_agents(&empty_host())), Vec::<ManifestEntry>::new());
+        assert_eq!(block_on(detect_agents(&empty_host())).unwrap(), Vec::<ManifestEntry>::new());
+    }
+}
+
+/// The coordinator's ruling on #2446 covers a throw from `hook_files` only. A settings file that is not JSON is no
+/// throw in the TS (the catalog's carry catches the parse and carries nothing), so the row stands on its config alone
+/// (spec detect_agents rule 3). Value printed by the TS: `hookFiles(CLAUDE_HOOKS, "{bad", home)` is `[]`.
+mod a_malformed_hooks_file {
+    use super::*;
+
+    #[test]
+    fn is_no_hook_scripts_and_the_agents_row_stands() {
+        let host = fake_host(FakeLaptop::new().file("~/.claude/settings.json", "{bad").file("~/.claude/hooks/x.sh", 10).which(&["claude"]));
+        let rows = block_on(detect_agents(&host)).expect("a parse failure is not an Err");
+        let claude = rows.first().expect("a claude row");
+        assert_eq!(claude.id, "agents/claude");
+        assert_eq!(claude.paths, vec!["~/.claude/settings.json"]);
+        assert_eq!(claude.bytes, 4);
     }
 }

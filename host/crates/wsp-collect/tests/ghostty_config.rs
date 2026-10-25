@@ -48,11 +48,11 @@ fn num(n: f64) -> Option<JsNumber> {
 }
 
 fn read(host: &FakeHost) -> TerminalConfig {
-    block_on(read_ghostty_config(&host.host, TerminalScheme::Dark))
+    read_as(host, TerminalScheme::Dark)
 }
 
 fn read_as(host: &FakeHost, scheme: TerminalScheme) -> TerminalConfig {
-    block_on(read_ghostty_config(&host.host, scheme))
+    serde_json::from_value(serde_json::Value::Object(block_on(read_ghostty_config(&host.host, scheme)))).expect("a TerminalConfig")
 }
 
 fn strings(v: &[&str]) -> Vec<String> {
@@ -285,5 +285,46 @@ mouse-hide-while-typing = true
     #[test]
     fn is_the_one_ghostty_reader_the_terminal_font_detector_s_primary_face_comes_from_t() {
         assert_eq!(ghostty_font("font-family = \"Berkeley Mono\"\nfont-family = Symbols Nerd Font\n"), Some("Berkeley Mono".to_string()));
+    }
+}
+
+/// The coordinator's ruling on #2446: the answer keeps the TS object's key order (spec ghostty_config rule 8).
+/// Expected text printed by the TS with JSON.stringify.
+mod key_order {
+    use super::*;
+
+    fn text(files: &[(&str, &str)]) -> String {
+        let laptop = files.iter().fold(FakeLaptop::new(), |l, (p, t)| l.file(p, *t));
+        serde_json::to_string(&block_on(read_ghostty_config(&fake_host(laptop), TerminalScheme::Dark))).unwrap()
+    }
+
+    const NULLS: &str = "[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]";
+
+    #[test]
+    fn a_blink_deleted_and_set_again_moves_after_the_keys_set_meanwhile() {
+        let got = text(&[("~/.config/ghostty/config", "cursor-style-blink = true\nfont-size = 12\ncursor-style-blink =\ncursor-style-blink = false\n")]);
+        let want = format!(r#"{{"files":["/Users/dev/.config/ghostty/config"],"fontFamily":[],"palette":{NULLS},"fontSize":12,"cursorStyleBlink":false}}"#);
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn the_theme_files_keys_come_first_and_theme_comes_last() {
+        let got = text(&[
+            ("~/.config/ghostty/config", "font-size = 13\ntheme = dark:Mine,light:Other\nbackground = #000000\n"),
+            ("~/.config/ghostty/themes/Mine", "foreground = #ffffff\nbackground = #111111\npalette = 2=#222222\n"),
+        ]);
+        let want = concat!(
+            r#"{"files":["/Users/dev/.config/ghostty/config","/Users/dev/.config/ghostty/themes/Mine"],"fontFamily":[],"#,
+            r#""palette":[null,null,{"r":34,"g":34,"b":34},null,null,null,null,null,null,null,null,null,null,null,null,null],"#,
+            r#""foreground":{"r":255,"g":255,"b":255},"background":{"r":0,"g":0,"b":0},"fontSize":13,"theme":"Mine"}"#
+        );
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn numbers_are_written_as_javascript_writes_them() {
+        let got = text(&[("~/.config/ghostty/config", "window-padding-y = 2\nfont-family =\nbackground-opacity = 0.5\n")]);
+        let want = format!(r#"{{"files":["/Users/dev/.config/ghostty/config"],"fontFamily":[],"palette":{NULLS},"windowPaddingY":{{"top":2,"bottom":2}},"backgroundOpacity":0.5}}"#);
+        assert_eq!(got, want);
     }
 }

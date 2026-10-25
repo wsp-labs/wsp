@@ -2,6 +2,8 @@
 //! The tools rung: Homebrew's taps and formulae, Nix home-manager, every global package manager's packages, and Go
 //! binaries. Port of packages/collect/src/detect/tools.ts at a3b870a6e; the unit is apt_tools and its spec is
 //! spec/apt_tools.md.
+use wsp_words::exit::HostError;
+
 use crate::host::Host;
 use crate::manifest::ManifestEntry;
 
@@ -335,6 +337,7 @@ pub async fn package_commands(host: &Host, name: &str, folders: &[String]) -> Ve
 //   return present([...brew, ...nix, ...globals.flat(), ...go]);
 // }
 /// Every manager is asked at once; the rows keep brew, nix, the GLOBALS in table order, then go.
-pub async fn detect_tools(host: &Host) -> Vec<ManifestEntry> {
+/// apt's list read failing part way fails the whole read, as the TS `Promise.all` rejects (coordinator's ruling).
+pub async fn detect_tools(host: &Host) -> Result<Vec<ManifestEntry>, HostError> {
     todo!()
 }

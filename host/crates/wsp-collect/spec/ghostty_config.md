@@ -16,6 +16,8 @@ Reads the person's Ghostty config the way Ghostty does and answers the keys the 
 6. `apply` (:151-211), a value that does not parse leaving the key as it was: `font-family` empty clears the list, else appends; `font-size` a finite number over 0; `background`, `foreground`, `selection-background`, `cursor-color` a hex colour; `palette` `N=COLOR` with N an integer 0 to 15 written as JavaScript's `Number` reads it (decimal, `0x`, `0o`, `0b`, surrounding space) and a hex colour; `cursor-style` one of `block bar underline block_hollow`; `cursor-style-blink` `true`, `false`, or empty which unsets it; `window-padding-x`/`-y` one or two non-negative finite numbers split on `,` (one sets both; three parts, an empty part or a negative is refused); `background-opacity` any finite number, clamped to 0 to 1; `background-blur` and `background-blur-radius` `false` is 0, `true` or `macos-glass-*` is 20, else a non-negative integer.
 7. `finite` (:117-120): JavaScript's `Number(value.trim())` when the trimmed value is not empty and the result is finite: `1e1` is 10, ` 12 ` is 12, `0x10` is 16, `Infinity` and `abc` are refused. `hex_color` (:110-115): `#?` and exactly six hex digits after a JS trim.
 8. Answer (:242): `files`, `font_family`, `palette` (16 slots, `None` unset), the applied keys, and `theme` when non-empty; with no file, `{files: [], fontFamily: [], palette: 16 × null}`.
+   8a. The answer is a `serde_json::Map` (preserve_order) in the TS object's key order, per the coordinator's ruling on #2446: `files`, `fontFamily`, `palette`, then each applied key in the order it was first set (the theme file's directives apply first, so its keys lead), `theme` last. `cursor-style-blink =` deletes its key (`shift_remove`, as JS `delete`), so a later `cursor-style-blink = false` puts it at the end. Keys are camelCase (`fontSize`, `selectionBackground`, `cursorColor`, `cursorStyle`, `cursorStyleBlink`, `windowPaddingX` as `{left, right}`, `windowPaddingY` as `{top, bottom}`, `backgroundOpacity`, `backgroundBlur`), so `serde_json::from_value::<TerminalConfig>` reads it.
+   8b. Numbers are written as JavaScript writes them: an integral value is a JSON integer (`12`, not `12.0`), a fraction keeps its digits (`0.5`); colours are `{r, g, b}` integers.
 
 ## Edge cases
 
@@ -25,7 +27,7 @@ Reads the person's Ghostty config the way Ghostty does and answers the keys the 
 
 ## Decisions
 
-1. Key order: the TS answer's keys run `files, fontFamily, palette`, then each key in the order it was first set, `theme` last; wsp-wire's `TerminalConfig` fixes the schema's order. The hard tests compare as a map; a tape comparing this reply byte for byte would differ. Flagged for the coordinator.
+1. Key order: ruled by the coordinator on #2446. The answer keeps the TS key order as an ordered map (rule 8a), not wsp-wire's `TerminalConfig` struct, whose field order is fixed. Interface change: `read_ghostty_config` returns `serde_json::Map<String, Value>`.
 2. The theme folder is the XDG one only; Application Support's themes folder is not searched, as the TS.
 
 ## Rules pinned
@@ -38,3 +40,4 @@ Reads the person's Ghostty config the way Ghostty does and answers the keys the 
 | 4, 5 | `resolves_a_theme_against_the_config_s_themes_folder_*`, `every_theme_value_of_the_oracle_*`, oracle configs 5 to 8 |
 | 6, 7 | `takes_every_key_the_pane_honours_*`, `an_empty_font_family_resets_the_list_*`, oracle configs 1, 2, 9 |
 | 8 | `with_no_config_file_answers_the_empty_object_*` |
+| 8a, 8b | `key_order::*` (3, text compared), `every_config_of_the_oracle_reads_as_the_ts_read_it` (now text compared) |

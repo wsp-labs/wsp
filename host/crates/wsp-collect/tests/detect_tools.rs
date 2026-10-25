@@ -91,7 +91,7 @@ mod tools {
     fn homebrew_rows_taps_and_formulae_marked_by_the_linux_bottle_snapshot() {
         block_on(async {
             let host = fake_host(FakeLaptop::new().which(&["brew"]).exec(BREW_DUMP, BREWFILE));
-            let rows = detect_tools(&host).await;
+            let rows = detect_tools(&host).await.unwrap();
             assert_eq!(
                 serde_json::to_value(&rows).unwrap(),
                 json!([
@@ -110,7 +110,7 @@ mod tools {
         // The dump runs no other kind's lister and no brew update.
         block_on(async {
             let host = fake_host(FakeLaptop::new().which(&["brew"]).exec(BREW_DUMP, BREWFILE));
-            detect_tools(&host).await;
+            detect_tools(&host).await.unwrap();
             let brew_calls: Vec<String> = host.calls().into_iter().filter(|c| c.contains("brew")).collect();
             assert_eq!(brew_calls, vec![format!("run {BREW_DUMP}")]);
         });
@@ -123,7 +123,7 @@ mod tools {
         let together = Rc::new(Cell::new(false));
         let exec = RaceExec { cargo_asked: RefCell::new(Some(tx)), asked: RefCell::new(Some(rx)), together: together.clone() };
         let host = Host { exec: Rc::new(exec), ..base.host.clone() };
-        let rows = detect_tools(&host).await;
+        let rows = detect_tools(&host).await.unwrap();
         assert!(together.get());
         let ids: Vec<String> = rows.into_iter().map(|r| r.id).collect();
         assert_eq!(ids, vec!["tools/brew/gh", "tools/cargo/bacon"]);
@@ -135,7 +135,7 @@ mod tools {
         block_on(async {
             let host =
                 fake_host(FakeLaptop::new().which(&["brew"]).exec(BREW_DUMP, "brew \"mas\"\nbrew \"zingzy/tap/diskbloom\"\nbrew \"gh\"\n"));
-            let rows = detect_tools(&host).await;
+            let rows = detect_tools(&host).await.unwrap();
             let got: Vec<serde_json::Value> = rows.iter().map(|r| json!([r.id, r.default, r.reason, r.linux])).collect();
             assert_eq!(
                 got,
@@ -155,7 +155,7 @@ mod tools {
             let host = fake_host(
                 FakeLaptop::new().platform(Platform::Linux).which(&["brew"]).exec(BREW_DUMP, "brew \"mas\"\nbrew \"oven-sh/bun/bun\"\n"),
             );
-            let rows = detect_tools(&host).await;
+            let rows = detect_tools(&host).await.unwrap();
             let got: Vec<serde_json::Value> = rows.iter().map(|r| json!([r.id, r.default, r.linux])).collect();
             assert_eq!(got, vec![json!(["tools/brew/mas", "bring", "yes"]), json!(["tools/brew/oven-sh/bun/bun", "bring", "yes"])]);
         });
@@ -165,7 +165,7 @@ mod tools {
     fn no_brew_means_no_dump_is_attempted() {
         block_on(async {
             let host = fake_host(FakeLaptop::new());
-            assert!(detect_tools(&host).await.is_empty());
+            assert!(detect_tools(&host).await.unwrap().is_empty());
             assert_eq!(host.calls(), Vec::<String>::new());
         });
     }
@@ -175,7 +175,7 @@ mod tools {
         block_on(async {
             let host =
                 fake_host(FakeLaptop::new().file("~/.config/home-manager/home.nix", 700).file("~/.config/home-manager/flake.nix", 300));
-            let rows = detect_tools(&host).await;
+            let rows = detect_tools(&host).await.unwrap();
             assert_eq!(
                 serde_json::to_value(&rows).unwrap(),
                 json!([{ "rung": "tools", "id": "tools/nix-home-manager", "label": "Nix home-manager config", "paths": ["~/.config/home-manager"], "bytes": 1000, "default": "bring", "linux": "yes" }])
@@ -253,7 +253,7 @@ mod tools {
                         "/Users/dev/go/bin/gopls: go1.23.1\n\tpath\tgolang.org/x/tools/gopls\n\tmod\tgolang.org/x/tools/gopls\tv0.16.2\th1:abc=\n",
                     ),
             );
-            let rows = detect_tools(&host).await;
+            let rows = detect_tools(&host).await.unwrap();
             assert_eq!(
                 serde_json::to_value(&rows).unwrap(),
                 json!([
@@ -284,7 +284,7 @@ mod tools {
                         &json!({ "dependencies": { "npm": { "version": "11.17.0" }, "wrangler": { "version": "4.106.0" }, "bun": { "version": "1.3.0" } } }).to_string(),
                     ),
             );
-            let rows = detect_tools(&host).await;
+            let rows = detect_tools(&host).await.unwrap();
             let got: Vec<[String; 2]> = rows.into_iter().map(|r| [r.id, r.label]).collect();
             assert_eq!(
                 got,
@@ -308,7 +308,7 @@ mod tools {
                     .exec("npm prefix -g", "/opt/homebrew\n")
                     .exec("npm ls -g --depth=0 --json", &json!({ "dependencies": { "wrangler": { "version": "4.106.0" } } }).to_string()),
             );
-            let rows = detect_tools(&host).await;
+            let rows = detect_tools(&host).await.unwrap();
             let ids: Vec<String> = rows.into_iter().map(|r| r.id).collect();
             assert_eq!(ids, vec!["tools/npm/wrangler"]);
             let prefixed: Vec<String> = host.calls().into_iter().filter(|c| c.contains("--prefix")).collect();
@@ -321,7 +321,7 @@ mod tools {
         // `bun pm ls -g` exits non-zero there.
         block_on(async {
             let host = fake_host(FakeLaptop::new().which(&["bun"]));
-            assert!(detect_tools(&host).await.is_empty());
+            assert!(detect_tools(&host).await.unwrap().is_empty());
             assert_eq!(host.calls(), vec!["run bun pm ls -g".to_string()]);
         });
     }
@@ -337,7 +337,7 @@ mod tools {
                     &format!("go version -m /Users/dev/go/bin/{name}"),
                     &format!("x\n\tpath\t{path}\n\tmod\t{path}\t{version}\th1:abc=\n"),
                 ));
-                let rows = detect_tools(&host).await;
+                let rows = detect_tools(&host).await.unwrap();
                 assert_eq!(
                     serde_json::to_value(&rows).unwrap(),
                     json!([{ "rung": "tools", "id": format!("tools/go/{name}"), "label": name, "group": "Go binaries", "paths": [format!("{path}@{version}")], "bytes": 0, "default": "bring", "linux": "yes", "version": version }])
@@ -350,7 +350,7 @@ mod tools {
     fn what_apt_has_that_a_person_chose_is_one_row_per_package() {
         // Under its own group, installable on the image.
         block_on(async {
-            let rows = detect_tools(&fake_host(apt_laptop())).await;
+            let rows = detect_tools(&fake_host(apt_laptop())).await.unwrap();
             assert_eq!(
                 serde_json::to_value(&rows).unwrap(),
                 json!([{ "rung": "tools", "id": "tools/apt/direnv", "label": "direnv", "group": "apt packages", "paths": [], "bytes": 0, "default": "bring", "linux": "yes" }])
@@ -369,7 +369,7 @@ mod tools {
                 .exec("apt-mark showmanual", "direnv\ntmux\n")
                 .exec("dpkg-query -Wf ${Package} ${Priority}\n", "direnv optional\ntmux optional\n")
                 .exec("npm ls -g --depth=0 --json", &json!({ "dependencies": { "tmux": { "version": "1.0.0" } } }).to_string());
-            let ids: Vec<String> = detect_tools(&fake_host(both)).await.into_iter().map(|r| r.id).collect();
+            let ids: Vec<String> = detect_tools(&fake_host(both)).await.unwrap().into_iter().map(|r| r.id).collect();
             assert!(ids.contains(&"tools/apt/direnv".to_string()));
             assert!(!ids.contains(&"tools/apt/tmux".to_string()));
             // npm's road is read off its row, so a catalog tool it has keeps one and the build installs it by npm.
@@ -384,7 +384,7 @@ mod tools {
             let mut laptop = apt_laptop().exec(BREW_DUMP, "brew \"gh\"\n");
             laptop.which = vec!["brew".to_string()];
             let host = fake_host(laptop);
-            let ids: Vec<String> = detect_tools(&host).await.into_iter().map(|r| r.id).collect();
+            let ids: Vec<String> = detect_tools(&host).await.unwrap().into_iter().map(|r| r.id).collect();
             assert_eq!(ids, vec!["tools/brew/gh"]);
             let asked: Vec<String> = host.calls().into_iter().filter(|c| c.contains("apt-mark") || c.contains("dpkg")).collect();
             assert_eq!(asked, Vec::<String>::new());
@@ -395,7 +395,7 @@ mod tools {
     fn a_go_binary_without_module_info_is_offered_unticked() {
         block_on(async {
             let host = fake_host(FakeLaptop::new().file("~/go/bin/mystery", 1).which(&["go"]));
-            let rows = detect_tools(&host).await;
+            let rows = detect_tools(&host).await.unwrap();
             assert_eq!(
                 serde_json::to_value(&rows).unwrap(),
                 json!([{ "rung": "tools", "id": "tools/go/mystery", "label": "mystery (no module info)", "group": "Go binaries", "paths": [], "bytes": 0, "default": "skip", "linux": "yes" }])

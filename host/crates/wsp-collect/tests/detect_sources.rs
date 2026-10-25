@@ -160,7 +160,7 @@ mod the_shell_rung_records_the_bare_sources_of_each_zsh_and_bash_rc_file {
                 .file("~/.inputrc", "$include ~/.inputrc_local\n")
                 .file("~/.config/fish/config.fish", "source ~/.config/fish/local.fish\n"),
         );
-        let rows = block_on(run_detector(Rung::Shell, &host, &[]));
+        let rows = block_on(run_detector(Rung::Shell, &host, &[])).unwrap();
         let by_id: HashMap<&str, &ManifestEntry> = rows.iter().map(|r| (r.id.as_str(), r)).collect();
         let row = |id: &str| *by_id.get(id).unwrap_or_else(|| panic!("no row {id}"));
         assert_eq!(row("shell/zshrc").sources, Some(strings(&["~/.cargo/env", "~/.zsh/aliases.zsh"])));
